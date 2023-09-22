@@ -11,11 +11,11 @@ from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Callable, TypeAlias, Union
 from benchexec.runexecutor import RunExecutor  # type: ignore
 from benchexec import container  # type: ignore
-from util import gen_temp_dir, CmdArg, cmd_arg
+from util import gen_temp_dir, CmdArg, cmd_arg, to_str
 
 
 os.environ["LIBSECCOMP"] = str(
-    Path(__file__).resolve().parent / "result/lib/libseccomp.so.2"
+    (Path(__file__).resolve().parent / "result/lib/libseccomp.so.2").resolve()
 )
 
 
@@ -46,6 +46,7 @@ def runexec_catch_signals(run_executor: RunExecutor) -> Iterator[None]:
     caught_signal_number: None | signal.Signals = None
 
     def run_executor_stop(signal_number: Signal, _: types.FrameType | None) -> None:
+        caught_signal_number = signal_number
         warnings.warn(f"In signal catcher for {signal_number}")
         run_executor.stop()
 
@@ -57,6 +58,7 @@ def runexec_catch_signals(run_executor: RunExecutor) -> Iterator[None]:
         }
     ):
         yield
+
     if caught_signal_number is not None:
         raise InterruptedError(f"Caught signal {caught_signal_number}")
 
@@ -82,7 +84,7 @@ class RunexecStats:
         )
         attrs = {key: result.get(key, None) for key in keys}
         attrs["termination_reason"] = result.get("terminationreason", None)
-        attrs["exitcode"] = result["exitcode"].raw
+        attrs["exitcode"] = result["exitcode"].raw if "exitcode" in result else 255
         attrs["success"] = attrs["exitcode"] == 0
         attrs["stdout"] = stdout
         attrs["stderr"] = stderr
@@ -92,10 +94,10 @@ class RunexecStats:
 # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/containerexecutor.py#L30
 class DirMode:
     "Typesafe enum, wrapping benchexec.container.DIR_*."
-    READ_ONLY: object = container.DIR_READ_ONLY
-    HIDDEN: object = container.DIR_HIDDEN
-    FULL_ACCESS: object = container.DIR_FULL_ACCESS
-    OVERLAY: object = container.DIR_OVERLAY
+    READ_ONLY: DirMode = container.DIR_READ_ONLY
+    HIDDEN: DirMode = container.DIR_HIDDEN
+    FULL_ACCESS: DirMode = container.DIR_FULL_ACCESS
+    OVERLAY: DirMode = container.DIR_OVERLAY
 
 
 def run_exec(
@@ -116,6 +118,7 @@ def run_exec(
                 "/run": DirMode.HIDDEN,
                 "/tmp": DirMode.HIDDEN,
                 "/var": DirMode.HIDDEN,
+                "/nix/store": DirMode.READ_ONLY,
             },
             **{
                 f"{path if path.is_absolute() else path.resolve()}": mode
@@ -140,8 +143,9 @@ def run_exec(
                 None
             )
             run_exec_run = run_executor.execute_run(
-                args=tuple(map(cmd_arg, cmd)),
+                args=tuple(map(to_str, cmd)),
                 environments={
+                    "keepEnv": {},
                     "newEnv": {
                         cmd_arg(key): cmd_arg(val)
                         for key, val in env.items()

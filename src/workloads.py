@@ -2,6 +2,7 @@ import charmonium.time_block as ch_tb
 import shutil
 import hashlib
 import os
+import yaml  # type: ignore
 import pathlib
 import subprocess
 import re
@@ -10,10 +11,11 @@ import json
 from collections.abc import Sequence, Mapping
 from pathlib import Path
 from typing import cast
-from util import env_command, run_all, CmdArg
+from util import env_command, run_all, CmdArg, check_returncode
 
 
 result_bin = Path(__file__).resolve().parent / "result/bin"
+result_lib = result_bin.parent / "lib"
 
 
 class Workload:
@@ -23,8 +25,8 @@ class Workload:
     def setup(self, workdir: Path) -> None:
         pass
 
-    def run(self, workdir: Path) -> Sequence[CmdArg]:
-        return ["true"]
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        return ["true"], {"PATH": str(result_bin)}
 
     def __str__(self) -> str:
         return self.name
@@ -38,83 +40,21 @@ class SpackInstall(Workload):
         self._version = version
         self._env_dir: Path | None = None
         self._specs = specs
+        self._env_vars: Mapping[str, str | Path] = {}
 
-    @staticmethod
-    def _get_env_vars(spack: Path, env_dir: Path, refresh: bool = False) -> Mapping[str, str]:
-        if refresh or not (env_dir / "env_vars.json").exists():
-            exports = subprocess.run(
-                [spack, "env", "activate", "--sh", "--dir", env_dir],
-                check=True,
-                text=True,
-                capture_output=True,
-            ).stdout
-            pattern = re.compile("^export ([a-zA-Z0-9_]+)=(.*?);?$", flags=re.MULTILINE)
-            env_vars = dict(
-                (match.group(1), match.group(2))
-                for match in pattern.finditer(exports)
-            )
-            (env_dir / "env_vars.json").write_text(json.dumps(env_vars))
-        else:
-            env_vars = json.loads((env_dir / "env_vars.json").read_text())
-        return env_vars
+    def setup(self, workdir: Path) -> None:
+        self._env_vars = {
+            "PATH": result_bin,
+            "SPACK_USER_CACHE_PATH": workdir,
+            "SPACK_USER_CONFIG_PATH": workdir,
+            "LD_LIBRARY_PATH": result_lib,
+            "LIBRARY_PATH": result_lib,
+        }
 
-
-    @staticmethod
-    def _anonymous_env(
-            spack: Path,
-            specs: list[str],
-            dest: Path,
-            concretize: bool = True,
-            install: bool = True,
-    ) -> tuple[Path, Mapping[str, str]]:
-        env_name = urllib.parse.quote("-".join(specs), safe="")
-        if len(env_name) > 64:
-            env_name = hashlib.sha256(env_name.encode()).hexdigest()[:64]
-        env_dir = dest / env_name
-        if not env_dir.exists():
-            env_dir.mkdir(parents=True)
-            subprocess.run(
-                [spack, "env", "create", "--dir", env_dir],
-                check=True,
-                capture_output=True,
-            )
-        env_vars = SpackInstall._get_env_vars(spack, env_dir)
-        proc = subprocess.run(
-            [spack, "add", *specs],
-            env={**os.environ, **env_vars},
-            check=True,
-            capture_output=True,
-        )
-        env_vars = SpackInstall._get_env_vars(spack, env_dir, refresh=True)
-        spec_shorthand = ", ".join(spec.partition("@")[0] for spec in specs)
-        if concretize and not (env_dir / "spack.lock").exists():
-            with ch_tb.ctx(f"concretize {spec_shorthand}"):
-                subprocess.run(
-                    [spack, "concretize"],
-                    env={**os.environ, **env_vars},
-                    check=True,
-                    capture_output=True,
-                )
-                env_vars = SpackInstall._get_env_vars(spack, env_dir, refresh=True)
-        if install:
-            with \
-                 (env_dir / "spack_install_stdout").open("wb") as stdout, \
-                 ch_tb.ctx(f"install {spec_shorthand}"):
-                print(f"`tail --follow {env_dir}/spack_install_stdout` to check progress")
-                proc = subprocess.run(
-                    [spack, "install"],
-                    env={**os.environ, **dict(env_vars.items())},
-                    check=True,
-                    stdout=stdout,
-                    stderr=subprocess.PIPE,
-                )
-                env_vars = SpackInstall._get_env_vars(spack, env_dir, refresh=True)
-        return env_dir, env_vars
-
-    @staticmethod
-    def _install_spack(spack_dir: Path, version: str) -> None:
+        # Install spack
+        spack_dir = workdir / "spack"
         if not spack_dir.exists():
-            subprocess.run(
+            check_returncode(subprocess.run(
                 run_all(
                     (
                         result_bin / "git", "clone", "-c", "feature.manyFiles=true",
@@ -122,133 +62,168 @@ class SpackInstall(Workload):
                     ),
                     (
                         result_bin / "git", "-C", spack_dir, "checkout",
-                        version, "--force",
+                        self._version, "--force",
                     ),
                 ),
-                check=True,
+                env=self._env_vars,
+                check=False,
                 capture_output=True,
-            )
-
-    @staticmethod
-    def _create_mirror(spack: Path, env_vars: Mapping[str, str], mirror_dir: Path, specs: list[str]) -> None:
-        name = hashlib.sha256("-".join(specs).encode()).hexdigest()[:16]
-        mirrors = subprocess.run(
-            (spack, "mirror", "list"),
-            env={**os.environ, **env_vars},
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        if name not in mirrors:
-            mirror_dir.mkdir(exist_ok=True, parents=True)
-            subprocess.run(
-                (spack, "mirror", "create", "--directory", mirror_dir, *specs),
-                env={**os.environ, **env_vars},
-                check=True,
-                capture_output=True,
-            )
-            subprocess.run(
-                (spack, "mirror", "add", name, mirror_dir),
-                env={**os.environ, **env_vars},
-                check=True,
-                capture_output=True,
-            )
-
-    @staticmethod
-    def _get_deps(spack: Path, env_dir: Path) -> list[str]:
-        script = "; ".join([
-            "import spack.environment",
-            f"env = spack.environment.Environment('{env_dir}')",
-            "print('\\n'.join(map(str, set(env.all_specs()))))",
-        ])
-        env_vars = SpackInstall._get_env_vars(spack, env_dir)
-        return list(filter(bool, subprocess.run(
-            (spack, "python", "-c", script),
-            env={**os.environ, **env_vars},
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip().split("\n")))
-
-    @staticmethod
-    def _has_installed_spec(spack: Path, spec: str) -> bool:
-        return subprocess.run(
-            [
-                spack, "find", spec,
-            ],
-            check=False,
-            capture_output=True,
-        ).returncode == 0
-
-    @staticmethod
-    def _uninstall_spec(spack: Path, spec: str) -> None:
-        subprocess.run(
-            [
-                spack, "uninstall", "--all", "--yes", "--force", spec,
-            ],
-            check=True,
-            capture_output=True,
-        )
-
-
-    def setup(self, workdir: Path) -> None:
-        # Install spack
-        spack_dir = workdir / "spack"
-        SpackInstall._install_spack(spack_dir, self._version)
+            ), env=self._env_vars)
         spack = spack_dir / "bin" / "spack"
+        assert spack.exists()
 
         # Concretize env with desired specs
-        self._env_dir, _env_vars = SpackInstall._anonymous_env(
-            spack, self._specs, workdir / "env", concretize=True,
-            install=False,
-        )
+        env_name = urllib.parse.quote("-".join(self._specs), safe="")
+        if len(env_name) > 64:
+            env_name = hashlib.sha256(env_name.encode()).hexdigest()[:16]
+        env_dir = workdir / "spack_envs" / env_name
+        if not env_dir.exists():
+            env_dir.mkdir(parents=True)
+            check_returncode(subprocess.run(
+                [spack, "env", "create", "--dir", env_dir],
+                env=self._env_vars,
+                check=False,
+                capture_output=True,
+            ), env=self._env_vars)
+        conf_obj = yaml.safe_load((env_dir / "spack.yaml").read_text())
+        conf_obj["spack"]["compilers"][0]["compiler"]["environment"].setdefault("prepend_path", {})["LIBRARY_PATH"] = str(result_lib)
+        (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
+        exports = check_returncode(subprocess.run(
+            [spack, "env", "activate", "--sh", "--dir", env_dir],
+            env=self._env_vars,
+            check=False,
+            text=True,
+            capture_output=True,
+        ), env=self._env_vars).stdout
+        pattern = re.compile("^export ([a-zA-Z0-9_]+)=(.*?);?$", flags=re.MULTILINE)
+        self._env_vars ={
+            **self._env_vars,
+            **{
+                match.group(1): match.group(2)
+                for match in pattern.finditer(exports)
+            },
+        }
+        proc = check_returncode(subprocess.run(
+            [spack, "add", *self._specs],
+            env=self._env_vars,
+            check=False,
+            capture_output=True,
+        ), env=self._env_vars)
+        spec_shorthand = ", ".join(spec.partition("@")[0] for spec in self._specs)
+        if not (env_dir / "spack.lock").exists():
+            with ch_tb.ctx(f"concretize {spec_shorthand}"):
+                check_returncode(subprocess.run(
+                    [spack, "concretize"],
+                    env=self._env_vars,
+                    check=False,
+                    capture_output=True,
+                ), env=self._env_vars)
+        with \
+             (env_dir / "spack_install_stdout").open("wb") as stdout, \
+             (env_dir / "spack_install_stderr").open("wb") as stderr, \
+             ch_tb.ctx(f"install {spec_shorthand}"):
+            print(f"`tail --follow {env_dir}/spack_install_stdout` to check progress. Same applies to stderr")
+            proc = check_returncode(subprocess.run(
+                [spack, "install"],
+                env=self._env_vars,
+                check=False,
+                stdout=stdout,
+                stderr=stderr,
+            ), env=self._env_vars)
 
-        # Find deps of that env
-        required_specs = SpackInstall._get_deps(spack, self._env_dir)
+        # Find deps of that env and take out specs we asked for
+        with ch_tb.ctx("get deps"):
+            script = "; ".join([
+                "import spack.environment",
+                f"env = spack.environment.Environment('{env_dir}')",
+                "print('\\n'.join(map(str, set(env.all_specs()))))",
+            ])
+            dependency_specs = list(filter(bool, check_returncode(subprocess.run(
+                (spack, "python", "-c", script),
+                env=self._env_vars,
+                check=False,
+                capture_output=True,
+                text=True,
+            ), env=self._env_vars).stdout.strip().split("\n")))
 
-        # Take out specs we asked for
-        generalized_specs = [
-            spec.partition("@")[0]
-            for spec in self._specs
-        ]
-        direct_dependency_specs = [
-            spec
-            for spec in required_specs
-            if spec.partition("@")[0] in generalized_specs
-        ]
-        indirect_dependency_specs = [
-            spec
-            for spec in required_specs
-            if spec.partition("@")[0] not in generalized_specs
-        ]
-
-        # Install just dependency specs (if any)
-        if required_specs:
-            SpackInstall._anonymous_env(
-                spack, indirect_dependency_specs, workdir / "env",
-                concretize=True, install=True,
-            )
+            generalized_specs = [
+                spec.partition("@")[0]
+                for spec in self._specs
+            ]
+            direct_dependency_specs = [
+                spec
+                for spec in dependency_specs
+                if spec.partition("@")[0] in generalized_specs
+            ]
+            indirect_dependency_specs = [
+                spec
+                for spec in dependency_specs
+                if spec.partition("@")[0] not in generalized_specs
+            ]
 
         # Create mirror with source code of self._specs
-        mirror = self._env_dir / "mirror"
-        SpackInstall._create_mirror(spack, _env_vars, mirror, direct_dependency_specs)
+        name = "env_mirror"
+        mirror_dir = env_dir / name
+        mirrors = check_returncode(subprocess.run(
+            (spack, "mirror", "list"),
+            env=self._env_vars,
+            check=False,
+            capture_output=True,
+            text=True,
+        ), env=self._env_vars).stdout
+        if name not in mirrors:
+            with ch_tb.ctx(f"create mirror {name}"):
+                if mirror_dir.exists():
+                    shutil.rmtree(mirror_dir)
+                mirror_dir.mkdir()
+                check_returncode(subprocess.run(
+                    (spack, "mirror", "create", "--directory", mirror_dir, "--all"),
+                    env=self._env_vars,
+                    check=False,
+                    capture_output=True,
+                ))
+                rel_mirror_dir = mirror_dir.resolve().relative_to(env_dir)
+                check_returncode(subprocess.run(
+                    (spack, "mirror", "add", name, rel_mirror_dir),
+                    env=self._env_vars,
+                    check=False,
+                    capture_output=True,
+                ), env=self._env_vars)
 
         # Ensure target specs are uninstalled
-        for spec in generalized_specs:
-            if SpackInstall._has_installed_spec(spack, spec):
-                SpackInstall._uninstall_spec(spack, spec)
-
-        # Update vars
-        SpackInstall._get_env_vars(spack, self._env_dir, refresh=True)
+        with ch_tb.ctx(f"Uninstalling specs"):
+            for spec in generalized_specs:
+                has_spec = subprocess.run(
+                    [
+                        spack, "find", spec,
+                    ],
+                    env=self._env_vars,
+                    check=False,
+                    capture_output=True,
+                ).returncode == 0
+                if has_spec:
+                    check_returncode(subprocess.run(
+                        [
+                            spack, "uninstall", "--all", "--yes", "--force", *spec,
+                        ],
+                        check=False,
+                        capture_output=True,
+                        env=self._env_vars,
+                    ), env=self._env_vars)
         
-    def run(self, workdir: Path) -> Sequence[CmdArg]:
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         spack = workdir / "spack/bin/spack"
         assert self._env_dir
-        env_vars = SpackInstall._get_env_vars(spack, self._env_dir)
-        assert "LD_PRELOAD" not in env_vars
-        return env_command(
-            env_vars=dict(env_vars.items()),
-            cmd=(spack, "install"),
+        assert "LD_PRELOAD" not in self._env_vars
+        assert "LD_LIBRARY_PATH" not in self._env_vars
+        assert "HOME" not in self._env_vars
+        # env=patchelf%400.13.1%3A0.13%20%25gcc%20target%3Dx86_64-openblas
+        # env - PATH=$PWD/result/bin HOME=$HOME $(jq  --join-output --raw-output 'to_entries[] | .key + "=" + .value + " "' .workdir/work/spack_envs/$env/env_vars.json) .workdir/work/spack/bin/spack --debug bootstrap status 2>~/Downloads/stderr_good.txt >~/Downloads/stdout_good.txt
+        # sed -i $'s/\033\[[0-9;]*m//g' ~/Downloads/stderr*.txt
+        # sed -i 's/==> \[[0-9:. -]*\] //g' ~/Downloads/stderr*.txt
+        return (
+            (spack, "--debug", "install"),
+            {k: v for k, v in self._env_vars.items()},
         )
 
 
@@ -268,45 +243,56 @@ class KaggleNotebook(Workload):
         self._replace = replace
         self._notebook: None | Path = None
         self._data_zip: None | Path = None
-        self.name = self._kernel.partition("/")[1]
+        self.name = self._kernel.replace("/", "-")
  
     def setup(self, workdir: Path) -> None:
         self._notebook = workdir / "kernel" / (self._kernel.split("/")[1] + ".ipynb")
         self._data_zip = workdir / (self._competition.split("/")[1] + ".zip")
         if not self._notebook.exists():
-            subprocess.run(
+            check_returncode(subprocess.run(
                 [
                     result_bin / "kaggle", "kernels", "pull", "--path",
                     workdir / "kernel", self._kernel
                 ],
-                check=True,
+                env={"PATH": str(result_bin)},
+                check=False,
                 capture_output=True,
-            )
+            ))
             notebook_text = self._notebook.read_text()
             for bad, good in self._replace:
                 notebook_text = notebook_text.replace(bad, good)
             self._notebook.write_text(notebook_text)
         if not self._data_zip.exists():
-            subprocess.run(
+            check_returncode(subprocess.run(
                 [
                     result_bin / "kaggle", "competitions", "download", "--path",
                     workdir, self._competition.split("/")[1]
                 ],
-                check=True,
+                check=False,
                 capture_output=True,
-            )
-            subprocess.run(
-                [result_bin / "unzip", "-o", "-d", workdir / "input", self._data_zip],
-                check=True,
-                capture_output=True,
-            )
+            ))
+        if (workdir / "input").exists():
+            shutil.rmtree(workdir / "input")
+        check_returncode(subprocess.run(
+            [result_bin / "unzip", "-o", "-d", workdir / "input", self._data_zip],
+            env={"PATH": str(result_bin)},
+            check=False,
+            capture_output=True,
+        ))
 
-    def run(self, workdir: Path) -> Sequence[CmdArg]:
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         assert self._notebook
         return (
-            result_bin / "python", "-m", "jupyter", "nbconvert", "--execute",
-            "--to=markdown", self._notebook,
+            (
+                (result_bin / "python").resolve(), "-m", "jupyter", "nbconvert", "--execute",
+                "--to=markdown", self._notebook,
+            ),
+            {"PATH": str(result_bin)},
         )
+
+
+# if __name__ == "__main__":
+#     SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]).test(Path(".workdir/work"))
 
 
 WORKLOADS: Sequence[Workload] = (
@@ -318,13 +304,6 @@ WORKLOADS: Sequence[Workload] = (
     # SpackInstall(["dakota"]),
     # SpackInstall(["uqtk"]),
     # SpackInstall(["qthreads"]),
-    SpackInstall(["openblas"]),
-    SpackInstall(["hdf5"]),
-    SpackInstall(["mpich"]),
-    SpackInstall(["mvapich2"]),
-    SpackInstall(["py-matplotlib"]),
-    SpackInstall(["gromacs"]),
-    SpackInstall(["r"]),
     KaggleNotebook(
         "pmarcelino/comprehensive-data-exploration-with-python",
         "competitions/house-prices-advanced-regression-techniques",
@@ -434,4 +413,11 @@ WORKLOADS: Sequence[Workload] = (
             ('\'loss\' : [\\"deviance\\"]', '\'loss\' : [\\"log_loss\\"]'),
         ),
     ),
+    # SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]),
+    # SpackInstall(["hdf5"]),
+    # SpackInstall(["mpich"]),
+    # SpackInstall(["mvapich2"]),
+    # SpackInstall(["py-matplotlib"]),
+    # SpackInstall(["gromacs"]),
+    # SpackInstall(["r"]),
 )

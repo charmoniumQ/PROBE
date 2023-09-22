@@ -112,6 +112,7 @@
                 pypkgs.matplotlib
                 pypkgs.kaggle
                 pypkgs.tqdm
+                pypkgs.ipython
                 self.packages.${system}.benchexec
                 self.packages.${system}.charmonium-time-block
 
@@ -142,13 +143,35 @@
                 }))
               ]))
 
+              # deps of notebooks
+              # pkgs.util-linux
+              # pkgs.iproute2
+
               # Deps of runner script
               pkgs.ruff
               pkgs.libseccomp.lib
 
               # Deps of Spack workloads
-              pkgs.busybox
+              # https://spack.readthedocs.io/en/latest/getting_started.html
+              pkgs.stdenv.cc # https://ryantm.github.io/nixpkgs/stdenv/stdenv/#sec-tools-of-stdenv
+              pkgs.gnumake
+              pkgs.gnupatch
+              pkgs.bash
+              pkgs.gnutar
+              pkgs.gzip
+              pkgs.unzip
+              pkgs.bzip2
+              pkgs.xz
+              pkgs.file
+              pkgs.lsb-release
+              pkgs.gnupg24
               pkgs.gitMinimal
+              pkgs.coreutils
+              pkgs.gnused
+              pkgs.gnugrep
+              pkgs.gawk
+              pkgs.libnsl
+              pkgs.libxcrypt.out
             ];
           };
         };

@@ -7,7 +7,7 @@ from pathlib import Path
 from util import run_all, terminate_or_kill, CmdArg
 
 
-result_bin = Path(__file__).resolve().parent / "result/bin"
+result_bin = (Path(__file__).parent / "result/bin").resolve()
 result_lib = result_bin.parent / "lib"
 
 
@@ -117,7 +117,7 @@ class STrace(ProvCollector):
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return (
-            "./result/bin/strace", "--follow-forks", "--trace",
+            result_bin / "strace", "--follow-forks", "--trace",
             syscalls, "--output", log, "-s", f"{size}", *cmd,
         )
 
@@ -142,7 +142,7 @@ class LTrace(ProvCollector):
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return (
-            "./result/bin/ltrace", "-f", "-e", f"{libcalls}",
+            result_bin / "ltrace", "-f", "-e", f"{libcalls}",
             f"--output", log, "-s", f"{size}", "--", *cmd,
         )
 
@@ -165,7 +165,7 @@ class FSATrace(ProvCollector):
     method = "lib instrm."
     submethod = "libc I/O"
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        return ("./result/bin/fsatrace", "rwmdq", log, "--", *cmd)
+        return (result_bin / "fsatrace", "rwmdq", log, "--", *cmd)
 
     def count(self, log: Path) -> tuple[Counter[str], frozenset[str]]:
         log_contents = log.read_text()
@@ -183,10 +183,11 @@ class Darshan(ProvCollector):
     submethod = "libc I/O"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        lib = result_lib / "libdarshan.so"
         return (
             result_bin / "env", f"DARSHAN_LOG_PATH={log.parent}",
             "DARSHAN_MOD_ENABLE=DXT_POSIX", "DARSHAN_ENABLE_NONMPI=1",
-            f"LD_PRELOAD={result_lib}/libdarshan.so", *cmd,
+            f"LD_PRELOAD={lib}", *cmd,
         )
 
 
@@ -200,8 +201,7 @@ class BPFTrace(ProvCollector):
 
     def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
         return (
-            result_bin / "env", f"BPFTRACE_STRLEN={size}", result_bin
-            / "bpftrace", "-B", "full", "-f", "json", "-o", log, "-e",
+            result_bin / "env", f"BPFTRACE_STRLEN={size}", result_bin / "bpftrace", "-B", "full", "-f", "json", "-o", log, "-e",
             self.bpfscript,
         )
 
@@ -268,7 +268,7 @@ PROV_COLLECTORS: Sequence[ProvCollector] = (
     baseline,
     STrace(),
     LTrace(),
-    FSATrace(),
+    # FSATrace(),
     Darshan(),
     # BPFTrace(),
     # SpadeFuse(),
