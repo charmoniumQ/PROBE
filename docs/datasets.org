@@ -1,0 +1,27 @@
+1. There is no consensus on what programs to use in order to benchmark provenance systems. See Table 1.
+2. Most of the programs people, with the exception of BLAST, are not representative of computational experiment workloads. The publication which presents BEEP (see Table 1 for link) discuss how the loop-structure of long-running processes such as Apache influences the design of provenance systems. Computational experiments do not have long-running processes and are more computational- than I/O-bound when compared to Apache.
+
+Therefore, in order to create a provenance benchmarking system, I would need to standardize around a set of benchmark programs. To ensure representativeness, I want to have a large number of real-world computational science programs.
+
+Table 1: Provenance tools and benchmarks
+
+(You may have to copy/paste this table into a text editor without line-wrapping to view it)
+
+| Provenance tool | Runtime macrobenchmark programs                                                                        | Comparisons              | Year | Publication                                                                                        |
+|-----------------+--------------------------------------------------------------------------------------------------------+--------------------------+------+----------------------------------------------------------------------------------------------------|
+| PASS (see 2)    | BLAST                                                                                                  | Native ext2 (see 2)      | 2006 | https://www.usenix.org/legacy/events/usenix06/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf |
+| PASSv2          | BLAST, compile Linux, Postmark, Mercurial, Kepler                                                      | Native ext3 (see 2), NFS | 2009 | https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf |
+| SPADEv2         | BLAST, compile Apache                                                                                  | Native                   | 2012 | https://doi.org/10.1007/978-3-642-35170-9_6                                                        |
+| Hi-Fi           | compile Linux, Postmark                                                                                | Native                   | 2012 | https://doi.org/10.1145/2420950.2420989                                                            |
+| OPUS            | None (see 1)                                                                                           | None (see 1)             | 2013 | https://www.usenix.org/system/files/conference/tapp13/tapp13-final5.pdf                            |
+| LogGC           | RUBiS, SysBench                                                                                        | Native                   | 2013 | https://doi.org/10.1145/2508859.2516731                                                            |
+| LPM             | compile Linux, Postmark, BLAST                                                                         | Native                   | 2015 | https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf              |
+| Ma et al.       | Apache/ApacheBench                                                                                     | Native                   | 2015 | https://10.1145/2818000.2818039                                                                    |
+| ProTracer       | httpd, miniHTTP, ProFTPD, Vim (see 3), Firefox, wget (see 3), w3m (see 3), yafc                        | Auditd                   | 2016 | https://doi.org/10.14722/ndss.2016.23350                                                           |
+| CamFlow         | unpack, build, Postmark, Apache (see 3), memcache (3), redis (3), php (3), pybench                     | Native                   | 2017 | https://doi.org/10.1145/3127479.3129249                                                            |
+| BEEP            | Apache (see 3), Vim, Firefox, Wget (3), Cherokee (3), W3M (3), ProFTPD (3), Yafc (3), Transmission (3) | Native                   | 2017 | https://www.ndss-symposium.org/wp-content/uploads/2017/09/03_1_0.pdf                               |
+
+Footnotes:
+1. Section 4, "Open Questions", discusses performance concerns as a topic of future work. However, I could not find future work relating to the performance of OPUS.
+2. ext2 and ext3 out-of-date as a representative of native performance; ext4 has consistently better performance (https://www.linux-magazine.com/Online/Features/Filesystems-Benchmarked)
+3. This publication does not say what _workload_ the authors used in connection with this program; e.g., when benchmarking the Apache server, one needs a workload to run agianst it. Some publications merely say they use "batch inputs" or "random inputs", without actually saying how their input is generated.

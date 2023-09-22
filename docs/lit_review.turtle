@@ -1,0 +1,148 @@
+@prefix adhoc: <https://github.com/charmoniumQ/prov> .
+@prefix doi: <https://doi.org/> .
+@prefix usenix09: <https://www.usenix.org/legacy/events/usenix09/tech/full_papers/>
+@prefix usenix06: <https://www.usenix.org/legacy/events/usenix06/tech/full_papers/>
+@prefix usenix98: <https://www.usenix.org/legacy/publications/library/proceedings/usenix98/full_papers/>
+
+usenix09:muniswamy-reddy/muniswamy-reddy_html/ adhoc:evaluates-perf-of adhoc:prov/PASSv2 ;
+adhoc:claims
+[
+  rdf:subject adhoc:prov/PASSv2 ;
+  rdf:predicate adhoc:provenance-level ;
+  rdf:object adhoc:system-level
+],
+[
+  rdf:subject adhoc:prov/PASSv2 ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:provided
+],
+[
+  rdf:subject adhoc:prov/PASSv2 ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:library-interposition
+],
+[
+  rdf:subject adhoc:prov/PASSv2 ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:kernel-support
+],
+[
+  rdf:type adhoc:measurement ;
+  adhoc:measures adhoc:wall-time-overhead ;
+  adhoc:target adhoc:prov/PASSv2 ;
+  adhoc:summarization adhoc:geomean ;
+  adhoc:value 1.007
+],
+[
+  rdf:type adhoc:measurement ;
+  adhoc:measures adhoc:storage-overhead ;
+  adhoc:target adhoc:prov/PASSv2 ;
+  adhoc:summarization adhoc:geomean ;
+  adhoc:value 1.05
+].
+
+usenix06:muniswamy-reddy/muniswamy-reddy_html adhoc:mentions adhoc:prov/PASS ;
+adhoc:claims
+[
+  rdf:subject adhoc:prov/PASS ;
+  rdf:predicate adhoc:provenance-level ;
+  rdf:object adhoc:system-level
+],
+[
+  rdf:subject adhoc:prov/PASS ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:library-interposition
+],
+[
+  rdf:subject adhoc:prov/PASS ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:kernel-support
+],
+[
+  rdf:type adhoc:measurement ;
+  adhoc:measures adhoc:wall-time-overhead ;
+  adhoc:target adhoc:prov/PASS ;
+  adhoc:summarization adhoc:geomean ;
+  adhoc:values [1.156, 1.115, 1.231, 1.007, 1.014];
+  rdf:comment "Excluding small-file benchmarks"
+].
+
+doi.org:10.1007/978-3-642-35170-9_6 adhoc:mentions [adhoc:prov/SPADE, adhoc:prov/Vesta, adhoc:prov/LineageFS, adhoc:prov/PASS ] ;
+adhoc:claims
+[
+  rdf:subject adhoc:prov/SPADE ;
+  rdf:predicate adhoc:provenance-level ;
+  rdf:object adhoc:system-level
+],
+[
+  rdf:subject adhoc:prov/SPADE ;
+  rdf:predicate adhoc:provenance-level ;
+  rdf:object adhoc:filesystem-level
+],
+[
+  rdf:subject adhoc:prov/SPADE ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:os-services
+],
+[
+  rdf:subject adhoc:prov/SPADE ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:fuse
+]
+[
+  rdf:type adhoc:measurement ;
+  adhoc:measures adhoc:wall-time-overhead ;
+  adhoc:target adhoc:prov/SPADE ;
+  adhoc:values [1.53, 1.1, 1.05, 1.09, 1.06, 1.12];
+  rdf:comment "Using stats of Fig 5 and 7 (wall-time overheads)"
+].
+
+doi:10.1145/3127479.3129249 adhoc:mentions [adhoc:prov/PASS, adhoc:prov/PASSv2, adhoc:prov/HiFi, adhoc:prov/CamFlow, adhoc:prov/OPUS, adhoc:prov/ProTracer] ;
+adhoc:claims
+[
+  rdf:subject adhoc:prov/CamFlow ;
+  rdf:predicate adhoc:provenance-level ;
+  rdf:object adhoc:system-level
+],
+[
+  rdf:subject adhoc:prov/CamFlow ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:kernel-support
+],
+[
+  rdf:subject adhoc:prov/CamFlow ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:kernel-support
+],
+[
+  rdf:type adhoc:measurement ;
+  adhoc:measures adhoc:wall-time-overhead ;
+  adhoc:target adhoc:prov/CamFlow ;
+  adhoc:values [1.12, 1.22, 1.07, 1.04, 1.12, 1.04, 1.09, 1.14, 1.05, 1.11, 1.15, 1.01, 1.01]
+].
+
+doi:vahdat/vahdat.pdf adhoc:mentions adhoc:prov/TREC ;
+adhoc:claims
+[
+  rdf:subject adhoc:prov/TREC ;
+  rdf:predicate adhoc:provenance-level ;
+  rdf:object adhoc:system-level
+],
+[
+  rdf:subject adhoc:prov/TREC ;
+  rdf:predicate adhoc:provenance-collection-method ;
+  rdf:object adhoc:syscall-interposition
+],
+[
+  rdf:type adhoc:measurement ;
+  adhoc:measures adhoc:wall-time-overhead ;
+  adhoc:target adhoc:prov/TREC ;
+  adhoc:values [1.139, 1.035] ;
+  rdf:comment "Excluding the open-syscall microbenchmark"
+].
+
+doi:10.1007/11890850_18 adhoc:mentions [adhoc:prov/PASS, adhoc:prov/ClearCase, adhoc:prov/GenePattern, adhoc:prov/Vesta, adhoc:prov/TREC].
+
+doi:10.1145/2602649.2602651 adhoc:mentions [adhoc:prov/PASS, adhoc:prov/SPADE, adhoc:prov/ZOOM, adhoc:prov/Burrito, adhoc:prov/Lipstick, adhoc:prov/RAMP] .
+
+doi:10.1016/j.cose.2021.102282 adhoc:mentions [adhoc:prov/BackTracker, adhoc:prov/coloring, adhoc:prov/SPADE, adhoc:prov/LogGC, adhoc:prov/Execution-Partition, adhoc:prov/Instrumentation-Free]

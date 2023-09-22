@@ -1,0 +1,21 @@
+diff --git a/bin/spade b/bin/spade
+index 095ef697..f546054f 100755
+--- a/bin/spade
++++ b/bin/spade
+@@ -38,7 +38,7 @@ print_help ()
+ 	echo "'spade help' : Prints this message"
+ }
+ 
+-spadePidFilePath=spade.pid
++spadePidFilePath=~/.local/state/SPADE/spade.pid
+ 
+ is_spade_running(){
+ 	check_by_name=1
+@@ -115,6 +115,7 @@ else
+ 				sleep 1 # wait for it to try to start up
+ 			fi
+ 			if ps -p "$spadePid" 2>&1 > /dev/null ; then
++				mkdir -p `dirname $spadePidFilePath`
+ 				echo -n $spadePid > $spadePidFilePath
+ 				echo "Running SPADE with PID = $spadePid"
+ 			else

@@ -1,0 +1,11 @@
+tracepoint:syscalls:sys_enter_open, tracepoint:syscalls:sys_enter_openat {
+  printf("enter_open %d %d %s", pid, tid, args.flags, args.filename);
+}
+tracepoint:syscalls:sys_exit_open, tracepoint:syscalls:sys_exit_openat /@filename[tid]/ {
+  printf("exit_open %d %d %s", pid, tid, args.ret);
+}
+tracepoint:syscalls:sys_enter_exec*
+{
+	printf("%-10u %-5d ", elapsed / 1e6, pid);
+	join(args.argv);
+}
