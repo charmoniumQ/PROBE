@@ -1,0 +1,22 @@
+[package]
+name = "prov-tracer"
+version = "0.1.0"
+edition = "2021"
+authors = ["Samuel Grayson <sam@samgrayson.me>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+redhook = "2.0"
+log = "0.4"
+fast_log = {version = "1.6" , features = ["gzip"]}
+libc = "0.2"
+lazy_static = "1.4.0"
+envconfig = "0.10.0"
+project_specific_macros = { path = "project_specific_macros" }
+ctor = "0.2.5"
+
+[lib]
+name = "prov_tracer"
+path = "src/lib.rs"
+crate_type = ["dylib"]

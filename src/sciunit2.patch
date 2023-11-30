@@ -1,0 +1,38 @@
+--- a/setup.py
++++ b/setup.py
+@@ -16,3 +16,3 @@
+-        subprocess.check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release'])
+-        subprocess.check_call(['make', '-j4'])
+-        subprocess.call(['apt-get', 'update'])
++        # subprocess.check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release'])
++        # subprocess.check_call(['make', '-j4'])
++        # subprocess.call(['apt-get', 'update'])
+@@ -20 +20 @@
+-        _build_manpage('docs/sciunit.1.rst', 'sciunit.1.gz')
++        # _build_manpage('docs/sciunit.1.rst', 'sciunit.1.gz')
+@@ -35 +35 @@
+-    version=version.get_version(),
++    version="0.4.post82.dev130189670",
+@@ -53,1 +53,1 @@
+-    setup_requires=['docutils'],
++    # setup_requires=['docutils'],
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -12,1 +12,1 @@
+-backports.tempfile
++#backports.tempfile
+--- a/test-requirements.txt
++++ b/test-requirements.txt
+@@ -4,1 +4,1 @@
+-nose-capturestderr
++#nose-capturestderr
+--- a/sciunit2/version_control.py
++++ b/sciunit2/version_control.py
+@@ -12,1 +12,1 @@
+-from backports.tempfile import TemporaryDirectory
++#from backports.tempfile import TemporaryDirectory
+--- a/sciunit2/workspace.py
++++ b/sciunit2/workspace.py
+@@ -67,1 +67,1 @@
+-    return os.path.expanduser('~/sciunit/%s' % name)
++    return os.path.join(os.path.expanduser(os.environ.get('SCIUNIT_HOME', '~/sciunit')), name)

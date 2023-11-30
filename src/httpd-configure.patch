@@ -1,0 +1,5 @@
+--- a/configure
++++ b/configure
+@@ -6200,1 +6200,1 @@
+-    ac_cv_prog_ac_ct_PCRE_CONFIG="$ac_prog"
++    ac_cv_prog_ac_ct_PCRE_CONFIG="$as_dir/$ac_word$ac_exec_ext"

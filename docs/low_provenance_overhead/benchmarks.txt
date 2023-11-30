@@ -1,0 +1,45 @@
+| Provenance tool | Runtime macrobenchmark programs                                                                        | Comparisons              | Year | Publication                                                                                        |
+|-----------------+--------------------------------------------------------------------------------------------------------+--------------------------+------+----------------------------------------------------------------------------------------------------||
+| PASS (see 2)    | BLAST                                                                                                  | Native ext2 (see 2)      | 2006 | https://www.usenix.org/legacy/events/usenix06/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf |
+| PASSv2          | BLAST, compile Linux, Postmark, Mercurial, Kepler                                                      | Native ext3 (see 2), NFS | 2009 | https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf |
+| SPADEv2         | BLAST, compile Apache                                                                                  | Native                   | 2012 | https://doi.org/10.1007/978-3-642-35170-9_6                                                        |
+| Hi-Fi           | compile Linux, Postmark                                                                                | Native                   | 2012 | https://doi.org/10.1145/2420950.2420989                                                            |
+| OPUS            | None (see 1)                                                                                           | None (see 1)             | 2013 | https://www.usenix.org/system/files/conference/tapp13/tapp13-final5.pdf                            |
+| LogGC           | RUBiS, SysBench                                                                                        | Native                   | 2013 | https://doi.org/10.1145/2508859.2516731                                                            |
+| LPM             | compile Linux, Postmark, BLAST                                                                         | Native                   | 2015 | https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf              |
+| Ma et al.       | Apache/ApacheBench                                                                                     | Native                   | 2015 | https://doi.org/10.1145/2818000.2818039                                                            |
+| ProTracer       | httpd, miniHTTP, ProFTPD, Vim (see 3), Firefox, wget (see 3), w3m (see 3), yafc                        | Auditd                   | 2016 | https://doi.org/10.14722/ndss.2016.23350                                                           |
+| CamFlow         | unpack, build, Postmark, Apache (see 3), memcache (3), redis (3), php (3), pybench                     | Native                   | 2017 | https://doi.org/10.1145/3127479.3129249                                                            |
+| BEEP            | Apache (see 3), Vim, Firefox, Wget (3), Cherokee (3), W3M (3), ProFTPD (3), Yafc (3), Transmission (3) | Native                   | 2017 | https://www.ndss-symposium.org/wp-content/uploads/2017/09/03_1_0.pdf                               |
+
+1. Section 4, "Open Questions", discusses performance concerns as a topic of future work. However, I could not find future work relating to the performance of OPUS.
+
+2. ext2 and ext3 out-of-date as a representative of native performance; ext4 has consistently better performance (https://www.linux-magazine.com/Online/Features/Filesystems-Benchmarked)
+
+3. This publication does not say what _workload_ the authors used in connection with this program; e.g., when benchmarking the Apache server, one needs a workload to run agianst it. Some publications merely say they use "batch inputs" or "random inputs", without actually saying how their input is generated.
+
+
++------+----------+--------------------------------------------------------------------------------+---------------------------------------------+
+| Year | Tool     | Comment                                                                        | URL                                         |
++------+----------+--------------------------------------------------------------------------------+---------------------------------------------+
+| 2020 |UIScope   | UIScope tracks user interactions with GUI applications; the benchmarks do many | https://dx.doi.org/10.14722/ndss.2020.24329 |
+|      |          | UI operations but few system operations. The benchmarks would be difficult to  |                                             |
+|      |          | set up due to their GUI dependence and not very valuable for an approach which |                                             |
+|      |          | only measures system operations.                                               |                                             |
++------+----------+--------------------------------------------------------------------------------+---------------------------------------------+
+| 2020 |OmegaLog  | OmegaLog seeks to solve the problem of "dependency explosion" for applications | https://dx.doi.org/10.14722/ndss.2020.24270 |
+|      |          | with event-handling loops like web or database servers. The benchmark          |                                             |
+|      |          | applications are web servers, database servers, and similar applications.      |                                             |
+|      |          | These are a different class of applications with different runtime             |                                             |
+|      |          | characteristics than workflows, which are the main concern of this work.       |                                             |
++------+----------+--------------------------------------------------------------------------------+---------------------------------------------+
+| 2018 | Winnower | Winnower is concerned with event-driven applications, like OmegaLog, run within| http://dx.doi.org/10.14722/ndss.2018.23141  |
+|      |          | a Docker Swarm. This work is not a container-native provenance solution so     |                                             |
+|      |          | container-based benchmarks are not entirely appropriate.                       |                                             |
++------+----------+--------------------------------------------------------------------------------|---------------------------------------------+
+| 2018 | MCI      |                                                                                |                                             |
++------+----------+--------------------------------------------------------------------------------+---------------------------------------------+
+| 2018 | RTAG     |                                                                                |                                             |
++------+----------+--------------------------------------------------------------------------------+---------------------------------------------+
+| 2018 |  LPROV   |                                                                                |                                             |
++------+----------+--------------------------------------------------------------------------------+---------------------------------------------+

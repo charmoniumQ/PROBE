@@ -1,20 +1,18 @@
 import charmonium.time_block as ch_tb
 import shutil
 import hashlib
-import os
-import yaml  # type: ignore
-import pathlib
 import subprocess
 import re
 import urllib.parse
-import json
 from collections.abc import Sequence, Mapping
 from pathlib import Path
+from util import run_all, CmdArg, check_returncode, merge_env_vars
+import yaml
 from typing import cast
-from util import env_command, run_all, CmdArg, check_returncode
 
+# ruff: noqa: E501
 
-result_bin = Path(__file__).resolve().parent / "result/bin"
+result_bin = (Path(__file__).parent / "result").resolve() / "bin"
 result_lib = result_bin.parent / "lib"
 
 
@@ -40,15 +38,16 @@ class SpackInstall(Workload):
         self._version = version
         self._env_dir: Path | None = None
         self._specs = specs
-        self._env_vars: Mapping[str, str | Path] = {}
+        self._env_vars: Mapping[str, str] = {}
 
     def setup(self, workdir: Path) -> None:
         self._env_vars = {
-            "PATH": result_bin,
-            "SPACK_USER_CACHE_PATH": workdir,
-            "SPACK_USER_CONFIG_PATH": workdir,
-            "LD_LIBRARY_PATH": result_lib,
-            "LIBRARY_PATH": result_lib,
+            "PATH": str(result_bin),
+            "SPACK_USER_CACHE_PATH": str(workdir),
+            "SPACK_USER_CONFIG_PATH": str(workdir),
+            "LD_LIBRARY_PATH": str(result_lib),
+            "LIBRARY_PATH": str(result_lib),
+            "SPACK_PYTHON": f"{result_bin}/python",
         }
 
         # Install spack
@@ -57,11 +56,11 @@ class SpackInstall(Workload):
             check_returncode(subprocess.run(
                 run_all(
                     (
-                        result_bin / "git", "clone", "-c", "feature.manyFiles=true",
-                        "https://github.com/spack/spack.git", spack_dir,
+                        f"{result_bin}/git", "clone", "-c", "feature.manyFiles=true",
+                        "https://github.com/spack/spack.git", str(spack_dir),
                     ),
                     (
-                        result_bin / "git", "-C", spack_dir, "checkout",
+                        f"{result_bin}/git", "-C", str(spack_dir), "checkout",
                         self._version, "--force",
                     ),
                 ),
@@ -71,6 +70,7 @@ class SpackInstall(Workload):
             ), env=self._env_vars)
         spack = spack_dir / "bin" / "spack"
         assert spack.exists()
+        spack.write_text(spack.read_text().replace("#!/bin/sh", f"#!{result_bin}/sh"))
 
         # Concretize env with desired specs
         env_name = urllib.parse.quote("-".join(self._specs), safe="")
@@ -86,8 +86,17 @@ class SpackInstall(Workload):
                 capture_output=True,
             ), env=self._env_vars)
         conf_obj = yaml.safe_load((env_dir / "spack.yaml").read_text())
-        conf_obj["spack"]["compilers"][0]["compiler"]["environment"].setdefault("prepend_path", {})["LIBRARY_PATH"] = str(result_lib)
-        (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
+        if True:
+            compiler = conf_obj.setdefault("spack", {}).setdefault("compilers", [{}])[0].setdefault("compiler", {})
+            compiler.setdefault("environment", {}).setdefault("prepend_path", {})["LIBRARY_PATH"] = str(result_lib)
+            compiler.setdefault("paths", {})["cc"] = str(result_bin / "gcc")
+            compiler.setdefault("paths", {})["cxx"] = str(result_bin / "g++")
+            compiler.setdefault("paths", {})["f77"] = None
+            compiler.setdefault("paths", {})["fc"] = None
+            compiler["modules"] = []
+            compiler["operating_system"] = "ubuntu22.04"
+            compiler["spec"] = "gcc@=12.3.0"
+            (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
         exports = check_returncode(subprocess.run(
             [spack, "env", "activate", "--sh", "--dir", env_dir],
             env=self._env_vars,
@@ -95,15 +104,15 @@ class SpackInstall(Workload):
             text=True,
             capture_output=True,
         ), env=self._env_vars).stdout
-        pattern = re.compile("^export ([a-zA-Z0-9_]+)=(.*?);?$", flags=re.MULTILINE)
-        self._env_vars ={
-            **self._env_vars,
-            **{
+        pattern = re.compile('^export ([a-zA-Z0-9_]+)="?(.*?)"?;?$', flags=re.MULTILINE)
+        self._env_vars = cast(Mapping[str, str], merge_env_vars(
+            self._env_vars,
+            {
                 match.group(1): match.group(2)
                 for match in pattern.finditer(exports)
             },
-        }
-        proc = check_returncode(subprocess.run(
+        ))
+        check_returncode(subprocess.run(
             [spack, "add", *self._specs],
             env=self._env_vars,
             check=False,
@@ -123,7 +132,7 @@ class SpackInstall(Workload):
              (env_dir / "spack_install_stderr").open("wb") as stderr, \
              ch_tb.ctx(f"install {spec_shorthand}"):
             print(f"`tail --follow {env_dir}/spack_install_stdout` to check progress. Same applies to stderr")
-            proc = check_returncode(subprocess.run(
+            check_returncode(subprocess.run(
                 [spack, "install"],
                 env=self._env_vars,
                 check=False,
@@ -150,12 +159,12 @@ class SpackInstall(Workload):
                 spec.partition("@")[0]
                 for spec in self._specs
             ]
-            direct_dependency_specs = [
+            [
                 spec
                 for spec in dependency_specs
                 if spec.partition("@")[0] in generalized_specs
             ]
-            indirect_dependency_specs = [
+            [
                 spec
                 for spec in dependency_specs
                 if spec.partition("@")[0] not in generalized_specs
@@ -191,7 +200,7 @@ class SpackInstall(Workload):
                 ), env=self._env_vars)
 
         # Ensure target specs are uninstalled
-        with ch_tb.ctx(f"Uninstalling specs"):
+        with ch_tb.ctx("Uninstalling specs"):
             for spec in generalized_specs:
                 has_spec = subprocess.run(
                     [
@@ -210,7 +219,7 @@ class SpackInstall(Workload):
                         capture_output=True,
                         env=self._env_vars,
                     ), env=self._env_vars)
-        
+
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         spack = workdir / "spack/bin/spack"
         assert self._env_dir
@@ -243,8 +252,9 @@ class KaggleNotebook(Workload):
         self._replace = replace
         self._notebook: None | Path = None
         self._data_zip: None | Path = None
-        self.name = self._kernel.replace("/", "-")
- 
+        author, name = self._kernel.split("/")
+        self.name = author + "-" + name[:4]
+
     def setup(self, workdir: Path) -> None:
         self._notebook = workdir / "kernel" / (self._kernel.split("/")[1] + ".ipynb")
         self._data_zip = workdir / (self._competition.split("/")[1] + ".zip")
@@ -287,23 +297,120 @@ class KaggleNotebook(Workload):
                 (result_bin / "python").resolve(), "-m", "jupyter", "nbconvert", "--execute",
                 "--to=markdown", self._notebook,
             ),
-            {"PATH": str(result_bin)},
+            {
+                "PATH": str(result_bin),
+            },
         )
 
 
-# if __name__ == "__main__":
-#     SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]).test(Path(".workdir/work"))
+class Cmds(Workload):
+    def __init__(self, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...]) -> None:
+        self.kind = kind
+        self.name = name
+        self._setup = setup
+        self._run = run
 
+    def _replace_args(self, args: tuple[CmdArg, ...], workdir: Path) -> tuple[CmdArg, ...]:
+        return tuple(
+            (
+                arg.replace("$WORKDIR", str(workdir))
+                if isinstance(arg, str) else
+                arg.replace(b"$WORKDIR", str(workdir).encode())
+                if isinstance(arg, bytes) else
+                arg
+            )
+            for arg in args
+        )
+
+    def setup(self, workdir: Path) -> None:
+        check_returncode(subprocess.run(
+            self._replace_args(self._setup, workdir),
+            env={"PATH": str(result_bin)},
+            check=False,
+            capture_output=True,
+        ))
+
+    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+        return tuple(self._replace_args(self._run, workdir)), {}
+
+apache_ver = "httpd-2.4.58"
+
+def genomics_workload(name: str, which_targets: tuple[str, ...]) -> Cmds:
+    return Cmds(
+        "genomics",
+        name,
+        (
+            result_bin / "sh",
+            "-c",
+            f"""
+                if [ ! -d $WORKDIR/blast-benchmark ]; then
+                    {result_bin}/curl --output-dir $WORKDIR --remote-name https://ftp.ncbi.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz
+                    mkdir --parents $WORKDIR/blast-benchmark
+                    {result_bin}/tar --extract --file $WORKDIR/benchmark2013.tar.gz --directory $WORKDIR/blast-benchmark --strip-components 1
+                fi
+                {result_bin}/rm --recursive --force $WORKDIR/blast-benchmark/output
+                {result_bin}/mkdir $WORKDIR/blast-benchmark/output
+                {result_bin}/env --chdir=$WORKDIR/blast-benchmark/output {result_bin}/mkdir blastn blastp blastx tblastn tblastx megablast idx_megablast
+            """,
+        ),
+        (
+            result_bin / "make",
+            "--directory=$WORKDIR/blast-benchmark",
+            f"BLASTN={result_bin}/blastn",
+            f"BLASTP={result_bin}/blastp",
+            f"BLASTX={result_bin}/blastx",
+            f"TBLASTN={result_bin}/tblastn",
+            f"TBLASTP={result_bin}/tblastp",
+            f"MEGABLAST={result_bin}/blastn -task megablast -use_index false",
+            f"IDX_MEGABLAST={result_bin}/blastn -task megablast -use_index true",
+            f"IDX_MEGABLAST={result_bin}/blastn -task megablast -use_index true",
+            f"MAKEMBINDEX={result_bin}/makembindex -iformat blastdb -old_style_index false",
+            "TIME=",
+            *which_targets,
+        ),
+    )
 
 WORKLOADS: Sequence[Workload] = (
-    # *tuple(
-    #     SpackInstall([spec])
-    #     for spec in xsdk_specs
-    # ),
-    # SpackInstall(["kokkos"]),
-    # SpackInstall(["dakota"]),
-    # SpackInstall(["uqtk"]),
-    # SpackInstall(["qthreads"]),
+    # Cmds("simple", "python", (result_bin / "ls", "-l"), (result_bin / "python", "-c", "print(4)")),  # noqa: E501
+    Cmds("simple", "python-imports", (result_bin / "ls", "-l"), (result_bin / "python", "-c", "import pandas, pymc, matplotlib")),
+    # Cmds("simple", "gcc", (result_bin / "ls", "-l"), (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe")),
+    Cmds("simple", "gcc-math-pthread", (result_bin / "ls", "-l"), (result_bin / "gcc", "-DFULL", "-Wall", "-Og", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread", "-lm")),
+    Cmds(
+        "compilation",
+        "apache",
+        (
+            result_bin / "sh",
+            "-c",
+            f"""
+                if [ ! -f $WORKDIR/httpd ]; then
+                    {result_bin}/curl --output-dir $WORKDIR --remote-name https://dlcdn.apache.org/httpd/{apache_ver}.tar.bz2
+                    {result_bin}/mkdir $WORKDIR/httpd
+                    {result_bin}/tar --extract --file $WORKDIR/{apache_ver}.tar.bz2 --directory $WORKDIR/httpd --strip-components 1
+                    {result_bin}/patch --directory=$WORKDIR/httpd --strip=1 < httpd-configure.patch
+                    {result_bin}/sed --in-place s=/bin/sh={result_bin}/sh=g $WORKDIR/httpd/configure
+                fi
+            """,
+        ),
+        (
+            result_bin / "sh",
+            "-c",
+            f"cd $WORKDIR/httpd && ./configure --with-pcre=$WORKDIR/pcre2-config && {result_bin}/make",
+        )
+    ),
+    # SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]),
+    # SpackInstall(["hdf~mpi"]),
+    # SpackInstall(["mpich"]),
+    # SpackInstall(["mvapich2"]),
+    # SpackInstall(["py-matplotlib"]),
+    # SpackInstall(["gromacs"]),
+    # SpackInstall(["perl"]),
+    genomics_workload("blastx-10", ["NM_001004160", "NM_004838"]),
+    genomics_workload("megablast-10", [
+        "NM_001000841", "NM_001008511", "NM_007622", "NM_020327", "NM_032130",
+        "NM_064997", "NM_071881", "NM_078614", "NM_105954", "NM_118167",
+        "NM_127277", "NM_134656", "NM_146415", "NM_167127", "NM_180448"
+    ]),
+    genomics_workload("tblastn-10", ["NP_072902"]),
     KaggleNotebook(
         "pmarcelino/comprehensive-data-exploration-with-python",
         "competitions/house-prices-advanced-regression-techniques",
@@ -374,50 +481,84 @@ WORKLOADS: Sequence[Workload] = (
         replace=(
             ("sns.factorplot(", "sns.catplot("),
             (
-                'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", size',
-                'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", height',
+                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 0) & (train[\"Age\"].notnull())], color=\"Red\", shade',
+                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 0) & (train[\"Age\"].notnull())], color=\"Red\", fill',
             ),
             (
-                'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", size',
-                'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", height',
+                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 1) & (train[\"Age\"].notnull())], ax =g, color=\"Blue\", shade',
+                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 1) & (train[\"Age\"].notnull())], ax =g, color=\"Blue\", fill'
+            ),
+            ("dataset['Age'].iloc[i]", "dataset.loc[i, 'Age']"),
+            ("sns.distplot", "sns.histplot"),
+            (
+                r'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", size',
+                r'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", height',
             ),
             (
-                'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", size',
-                'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", height',
+                r'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", size',
+                r'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", height',
             ),
             (
-                'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   size',
-                'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   height'),
-            (
-                'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   size',
-                'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   height',
+                r'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", size',
+                r'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", height',
             ),
             (
-                'sns.catplot(x=\"Pclass\", col=\"Embarked\",  data=train,\n                   size',
-                'sns.catplot(x=\"Pclass\", col=\"Embarked\",  data=train,\n                   height',
+                r'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   size',
+                r'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   height'),
+            (
+                r'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   size',
+                r'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   height',
             ),
             (
-                'g = g.set_xticklabels([\"Master\",\"Miss/Ms/Mme/Mlle/Mrs\",\"Mr\",\"Rare\"])',
-                "",
+                r'sns.catplot(\"Pclass\", col=\"Embarked\",  data=train,\n                   size',
+                r'sns.catplot(x=\"Pclass\", col=\"Embarked\",  data=train,\n                   height',
             ),
             (
-                'g = sns.countplot(dataset[\\"Cabin\\"],order=[\'A\',\'B\',\'C\',\'D\',\'E\',\'F\',\'G\',\'T\',\'X\'])',
-                "",
+                r'set_xticklabels([\"Master\",\"Miss/Ms/Mme/Mlle/Mrs\",\"Mr\",\"Rare\"])',
+                r'set_xticks(range(4), labels=[\"Master\",\"Miss/Ms/Mme/Mlle/Mrs\",\"Mr\",\"Rare\"])',
             ),
             (
-                'g = sns.barplot(\\"CrossValMeans\\",\\"Algorithm\\",data = cv_res, palette=\\"Set3\\",orient = \\"h\\",**{\'xerr\':cv_std})',
-                "",
+                "sns.countplot(dataset[\\\"Cabin\\\"],order=['A','B','C','D','E','F','G','T','X'])",
+                "sns.countplot(dataset, x='Cabin', order=['A','B','C','D','E','F','G','T','X'])",
             ),
-            ('g.set_xlabel(\"Mean Accuracy\")', ""),
-            ('g = g.set_title(\\"Cross validation scores\\")', ""),
+            (
+                "sns.barplot(\\\"CrossValMeans\\\",\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\",**{'xerr':cv_std})",
+                "sns.barplot(x=\\\"CrossValMeans\\\",y=\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\",**{'xerr':cv_std})",
+            ),
+            (
+                "train = dataset[:train_len]\ntest = dataset[train_len:]\n",
+                "train = dataset[:train_len].copy()\ntest = dataset[train_len:].copy()\n",
+            ),
+            # (r'g.set_xlabel(\"Mean Accuracy\")', ""),
+            # (r'g = g.set_title(\\"Cross validation scores\\")', ""),
             ('\'loss\' : [\\"deviance\\"]', '\'loss\' : [\\"log_loss\\"]'),
+            ("n_jobs=4", "n_jobs=1"),
+            ("n_jobs= 4", "n_jobs=1"),
+            # Skip boring CPU-heavy computation
+            (
+                r'\"learning_rate\":  [0.0001, 0.001, 0.01, 0.1, 0.2, 0.3,1.5]',
+                r'\"learning_rate\":  [0.3]',
+            ),
+            (
+                r'\"min_samples_split\": [2, 3, 10]',
+                r'\"min_samples_split\": [3]',
+            ),
+            (
+                r'\"min_samples_leaf\": [1, 3, 10]',
+                r'\"min_samples_leaf\": [3]',
+            ),
+            (
+                r"'n_estimators' : [100,200,300]",
+                r"'n_estimators' : [200]",
+            ),
+            (
+                r"'C': [1, 10, 50, 100,200,300, 1000]",
+                r"'C': [10]",
+            ),
+            (
+                "kfold = StratifiedKFold(n_splits=10)",
+                "kfold = StratifiedKFold(n_splits=3)",
+            )
         ),
     ),
-    # SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]),
-    # SpackInstall(["hdf5"]),
-    # SpackInstall(["mpich"]),
-    # SpackInstall(["mvapich2"]),
-    # SpackInstall(["py-matplotlib"]),
-    # SpackInstall(["gromacs"]),
-    # SpackInstall(["r"]),
 )

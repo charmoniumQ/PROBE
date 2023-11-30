@@ -1,0 +1,496 @@
+\begin{abstract}
+Tracking provenance has many applications in computational science, especially for improving reproducibility, but it is not yet widely used in practice.
+In this report, we execute a literature rapid review to find system-level provenance tools and methods for use in practice based on the method of collection, source availability, and platform compatibility.
+\end{abstract}
+
+\section{Introduction}
+
+The Oxford English Dictionary defines \textbf{provenance} as ``a record of the ultimate origin and passage of an item through its previous owners.''
+In a scientific context, the origin of an artifact is some experimental procedure, so provenance is a description of that;
+each input used in the procedure has its own provenance, which might be included in the final product, depending on the depth requested.
+\textbf{Computational provenance} refers to the input files (usually software programs, configuration files, and data) used to generate a specific artifact.
+Provenance can be collected at the application-level, workflow-level, or system-level \cite{muniswamy-reddy_layering_2009,freire_provenance_2008}.
+
+\begin{itemize}
+\item
+To collect \textbf{application-level provenance}, one would modify each application to emit provenace data.
+Application-level provenance is the most semantically rich but least general, as it only enables collection by that particular modified application \cite{muniswamy-reddy_layering_2009}.
+
+\item To collect \textbf{workflow-level provenance}, one would modify the workflow engine, and all workflows written for that engine would emit provenance data.
+Workflow engines are only aware of the dataflow, not higher-level semantics, so workflow-level provenance is not as semantically rich as application-level provenance.
+However, workflow-level is more general than application-level provenance, as it enables collection in any workflow written for that modified engine \cite{freire_provenance_2008}.
+
+\item
+To collect \textbf{system-level provenance}, one uses operating system facilities to report the inputs and outputs that a process makes.
+System-level provenance is the least semantically aware because it does not even know dataflow, just a history of inputs and outputs, but it is the most general, because it supports any process (including any application or workflow engine) that uses watchable I/O operations \cite{freire_provenance_2008}.
+\end{itemize}
+
+\begin{figure}
+\centering
+\begin{subfigure}[b]{0.23\textwidth}
+\centering
+\includegraphics[width=\textwidth]{./application-level.pdf}
+\caption{App-level prov}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.23\textwidth}
+\centering
+\includegraphics[width=\textwidth]{./workflow-level.pdf}
+\caption{Wf-level prov}
+\label{subfigure:workflow-level-graph}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.23\textwidth}
+\begin{verbatim}
+read A
+write B
+read C
+write D
+write E
+\end{verbatim}
+\caption{Sys-level I/O log}
+\label{subfigure:system-level-log}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.23\textwidth}
+\centering
+\includegraphics[width=\textwidth]{./system-level.pdf}
+\caption{Sys-level prov}
+\label{subfigure:system-level-graph}
+\end{subfigure}
+\caption{Several provenance graphs collected at different levels.}
+\label{figure:graphs}
+\end{figure}
+
+The workflow-level provenance graph (\Cref{subfigure:workflow-level-graph}) knows what data goes where, but not what the data represents, so it uses arbitrary labels A, B, C, D for data and X, Y for programs.
+
+If X and Y are called as functions from within one process, system-level provenance would see \Cref{subfigure:system-level-log}.
+D does not really depend on A, but the system-level graph (\Cref{subfigure:system-level-graph}) would have no way of knowing that from just the input/output log.
+The system-level graph also does not know that E only depends on the information in A and C which is also present in B and D.
+Most applications (e.g., reusing cached results) would prefer false positives than false negatives to the question, ``does this depend on that?'', so we conservatively assume an input affects any future output.
+The system-level graph also does not know the any of the transformations (e.g., from A to B).
+However, if X and Y are called as subprocesses, the system-level graph may be closer to the workflow-level provenance graph.
+
+Computational provenance is useful for a number of applications:
+
+\begin{itemize}
+\item
+While provenance cannot guarantee reproducibility, it can serve as a starting point for one seeking to reproduce a computational artifact.
+
+\item
+With enough details, it can help scientists know which outputs are out-of-date (incremental computing/reusing cached results).
+
+\item
+One could automatically generate the artifact descriptions required by conferences from provenance data.
+
+\item
+It helps scientists debug differences in outputs by viewing differences in their methods.
+
+\item
+Public provenance data can be used to help distribute credit to tool- and data-authors.
+\end{itemize}
+
+There are many possible applications for provenance.
+Moreover, users collect system-level retrospective provenance (henceforth, \textbf{SLRP}) quite easily, reaping these benefits without having to modify the code.
+They only need to run their experiment in a system that records the inputs and outputs of its child processes.
+However, there is no SLRP tool used in common practice.
+
+This study aims \textbf{to evaluate SLRP tools proposed in prior literature and see if they are appropriate for use in a government labs}.
+
+\subsection{Prior work}
+
+There are many provenance tools and primary studies that we will find in \Cref{section:candidates}.
+However, these studies do not use the same benchmarks.
+We also want to provide additional evaluation of ``ease-of-use'' and appropriateness for our specific use-case, not a generic benchmark.
+
+Like this study, ProvMark \cite{chan_provmark_2019} seeks to evaluate SLRP tools.
+However, ProvMark evaluates the \emph{completeness} of each tool not performance.
+As performance is not the authors' goal, ProvMark does not use a realistic application as the benchmark.
+
+Interested readers should consult Freire's survey \cite{freire_provenance_2008} to learn the conceptual design space for computational provenance, including retrospective/prospective, capture mechanisms, provenance models, storage formats, and query languages.
+
+\section{Methodology}
+
+We began a rapid review to identify the research state-of-the-art tools for automatic SLRP.
+
+%% \subsection{Rapid Review}
+
+Rapid Reviews are a lighter-weight alternative to systematic literature reviews with a focus on timely feedback for decision-making.
+Sch\"unemann and Moja show that Rapid Reviews can yield substantially similar results to a systematic literature review, albeit less detailed \cite{schunemann_reviews_2015}.
+Cartaxo et al. show that Rapid Reviews, although developed in the field of medicine, are useful to inform software engineering design decisions \cite{cartaxo_role_2018,cartaxo_rapid_2020}.
+
+We conducted a rapid review with the following parameters:
+
+\begin{itemize}
+\item \textbf{Objective}: identify system-level retrospective provenance collection tools.
+
+\item \textbf{Search terms}: ``system-level'' AND ``provenance''.
+Note that ``retrospective'' is less used in prior literature; system-level provenance is usually retrospective.
+
+\item \textbf{Search engine}: Google Scholar
+
+\item \textbf{Number of results}: 50 (in order to complete the review in a timely manner).
+This threshold is the point of diminishing returns as no new toosl came up in the results numbered 40 -- 50.
+\end{itemize}
+
+%% \subsection{Performance analysis}
+
+%% We will run a set of real applications with and without SLRP collection and measure their overhead.
+%% SLRP has to intercept the I/O operation and log them; interception has to happen on the critical path, but logging can happen on the critical path or in a separate process.
+%% We follow the ``EMP'' experimental procedure \cite{suh_emp_2017} which dictates deactivating non-essential daemons and activating the NTP daemon (to correct realtime clock drift).
+%% We run our experiment within BenchExec \cite{beyer_reliable_2019}, which creates cgroup with a fixed CPU allocation, on a specific CPU core, with no network access (and thus no network interrupts).
+%% We use Kalibera's algorithm \cite{kalibera_quantifying_2020} to determine the number of executions and derive a confidence interval of our results.
+%% We will measure maximum resident set size, CPU time of the original and additional processes, wall time, and storage size of outputs.
+
+%% For our benchmark applications, we use typical workloads that a data
+%% analysts would actually run:
+
+%% \begin{itemize}
+%% \item compiling a complex HPC project.
+%%   Provenance tracking is useful for an individual who compiles a package and wishes to note the sequence of commands that finally worked.
+%%   In order to choose realistic HPC projects, we examine every top-level component of xSDK.
+%%   xSDK is a set of compatible packages for extreme-scale computational science, such as hypre, PETSc, SuperLU, Trilinos, Alquimia, and others, many of which are developed by or used at Sandia.
+%%   If packages are built by Spack, there is little need for tracking provenance, \emph{but} the Spack build would be representative to what a user might type in by hand to (1) build a customized version of this package, (2) modify, develop or debug this package, or (3) build a similar project not packaged by Spack.
+%%   Note that we only measure the performance of compiling top-level package, assuming concretization is already done, and all of its dependencies are already installed.
+%%   Factoring out common sources of noise) helps make our observations statistically independent of each other.
+
+%% \item running a data science Jupyter notebook.
+%%   Another use-case for provenance tracking is in data science activities.
+%%   The user may have dozens of outputs in a folder, not knowing which script generated those outputs, which of several Python environments that script used, and which of many similar data inputs that script used.
+%%   To get realistic data science notebooks, we look at the popular Kaggle.com data science competition website.
+%%   Of these, we list Python notebooks, sort by most votes, and take from the top\footnote{Our query: \url{https://www.kaggle.com/code?sortBy=voteCount&language=Python}} avoiding notebooks with absolute paths, GPU dependencies, inline pip install, and errors.
+%%   Note that these notebooks have no way to specify their software environment, so we use the latest packages in Nixpkgs and apply minor tweaks to get the Notebooks to run in this environment.
+
+%% \end{itemize}
+
+\section{Results}
+
+%% First, we oultine the result of our rapid review.
+%% Second, we filter the candidates to those which are feasible to test on our system and suitable for our use-case at Sandia.
+%% Finally, we run a performance analysis on them.
+
+\subsection{Candidates from Rapid Review}
+\label{section:candidates}
+
+Several other tools came up, especially workflow-level provenance implementations, but we restrict this report to SLRP tools.
+Of the search results, we list the primary and secondary studies that came up in \Cref{table:primary-studies,table:secondary-studies}.
+The union of these leads us to large set of SLRP tools \Cref{table:tools}, for which we found the original publication and characterized the collection method.
+
+\begin{table}
+\caption{Primary studies in our search results}
+\label{table:primary-studies}
+\begin{tabular}{ll}
+Primary study                                                            & Tools introduced   \\
+\midrule                                                                
+Tariq et al. \cite{tariq_towards_2012}                                   & SPADE on LLVM pass \\
+Sultana et al. \cite{sultana_file_2013}                                  & FiPS               \\
+Muniswamy-Reddy et al. 2009 \cite{muniswamy-reddy_layering_2009}         & PASSv2             \\
+Muniswamy-Reddy et al. 2006 \cite{muniswamy-reddy_provenance-aware_2006} & PASS               \\
+Gehani et al. \cite{gehani_spade_2012}                                   & SPADE              \\
+Pohly et al. \cite{pohly_hi-fi_2012}                                     & Hi-Fi              \\
+Pasquier et al. \cite{pasquier_practical_2017}                           & CamFlow            \\
+Rupprecht et al. \cite{rupprecht_improving_2020}                         & Ursprung           \\
+Fadolakarim et al. \cite{fadolalkarim_pandde_2016}                       & PANDDE             \\
+Wang et al. \cite{wang_lprov_2018}                                       & LPROV              \\
+\end{tabular}
+\end{table}
+
+\begin{table}
+\caption{Secondary studies in our search results}
+\label{table:secondary-studies}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{0.17\textwidth}p{0.34\textwidth}p{0.4\textwidth}}
+Secondary study                             & SLRP Tools mentioned                              & Summary                                                         \\
+\midrule
+Li et al. \cite{li_threat_2021}             & SPADE, CamFlow, BEEP,
+                                              Ma et al. \cite{ma_accurate_2015}, MPI, ProTracer,
+                                              UIScope, Winnower, LDX, MCI, RAIN, RTAG, libdft,
+                                              OmegaLog                                          & To survey SLRP tools for threat-dection                         \\
+Berrada et al. \cite{berrada_baseline_2020} & SPADE, OPUS                                       & To establish baselines results for anomoly detection algorithms \\
+Braun et al. \cite{hutchison_issues_2006}   & PASS, GenePattern, TREC, Lineage FS               & To summarize issues in automatic provenance collection          \\
+Chen et al. \cite{chan_expressiveness_2017} & SPADE+auditd, OPUS, PASS, Hi-Fi, LPM              & To compare the expressiveness of OPUS and SPADE                 \\
+Carat et al. \cite{carata_primer_2014}      & PASS, PASSv2, SPADE                               & To survey provenance collection and usage                       \\
+Zipperle et al.
+\cite{zipperle_provenance-based_2022}       & ETW, Lineage FS, DTrace, PASS, PASSv2, Panorama,
+                                              SPADE, Hi-Fi, BEEP, LogGC, Sysmon, LPM, Provmon,
+                                              DataTracker, PROV-Tracer, INSPECTOR, ProTracer,
+                                              RecProv, MPI, RAIN, CamFlow, LPROV                & To survey provenance-based intrusion-detection systems          \\
+Lee et al. \cite{lee_towards_2015}          & PASS, SPADE                                       & To survey secure provenance collection in the cloud             \\
+\end{tabular}
+\end{table}
+
+
+\begin{table}
+\caption{SLRP Tools mentioned in primary and secondary studies in our search results. Rows are sorted from most suitable to least suitable. Instrumentation \(\to\) ins, method \(\to\) meth., Filesystem \(\to\) FS., dynamic \(\to\) dyn.}
+\label{table:tools}
+{
+\scriptsize
+\begin{tabular}{p{0.15\textwidth}p{0.15\textwidth}p{0.23\textwidth}p{0.27\textwidth}p{0.19\textwidth}}
+Tool                                                    & Suitable? Sec. \ref{section:suitability-review}
+                                                                           & Collection method                       & Collection tool                               & Notes                                                         \\
+\midrule
+SPADE \cite{gehani_spade_2012}                          & Yes              & Audit, FS, \textbf{or} compile-time     & Multiple\footnotemark{}                       & Can use multiple low-level sources                            \\
+OPUS \cite{balakrishnan_opus_2013}                      & Yes              & Library instrumentation                 & libc instrumentaiton                          &                                                               \\
+OmegaLog \cite{hassan_omegalog_2020}                    & No source code   & Static binary ins., audit               & Angr, auditd                                  & Finds relationships in logs in mulitple layers                \\
+FiPS \cite{sultana_file_2013}                           & No source code   & FS. ins.                                & VFS                                           &                                                               \\
+LogGC                                                   & No source code   & Audit                                   & Auditd                                        & The contribution is deleting unnecessary parts of the log     \\
+RecProv \cite{ji_recprov_2016}                          & No source code   & Tracing                                 & rr, ptrace                                    &                                                               \\
+PANDDE \cite{fadolalkarim_pandde_2016}                  & Kernel modif.    & FS. ins.                                & Custom VFS                                    &                                                               \\
+Winnower \cite{hassan_towards_2018}                     & Wrong platform   & Audit                                   & auditd, SELinux, SPADE, Docker Swarm          & Specific to Docker Swarm                                      \\
+URSpring                                                & Wrong platform   & Audit, file-system ins.                 & auditd, IBM Spectrum Scale                    & Specific to IBM Spectrum Scale FS                             \\
+Event Tracer for Windows \cite{noauthor_event_2021}     & Wrong platform   & Audit                                   & NT Kernel                                     & Implemented for Windows                                       \\
+UIScope \cite{yang_uiscope_2020}                        & Wrong platform   & Audit                                   & ETW, accessibility service                    & Tracks grpahical user interaction                             \\
+TREC \cite{vahdat_transparent_1998}                     & Wrong platform   & Audit                                   & Proc filesystem                               & Implemented for Solaris                                       \\
+DTrace \cite{noauthor_about_nodate}                     & Wrong platform   & Audit                                   & Respective kernels                            & Can do event processing in kernel-space                       \\
+Sysmon \cite{markruss_sysmon_2023}                      & Wrong platform   & Audit                                   & NT Kernel                                     & Implemented for Windows                                       \\
+BEEP \cite{lee_high_2017}                               & HW-specific      & Dyn., static binary ins.                & Intel Pin, PEBIL                              &                                                               \\
+libdft \cite{kemerlis_libdft_2012}                      & HW-specific      & Dyn. binary ins.                        & Intel Pin                                     &                                                               \\
+RAIN \cite{ji_rain_2017}                                & HW-specific      & Library, kernel ins., dyn. binary ins.  & libc ins., custom kernel module, Intel Pin    & Records syscalls during runtime, replays offline under DIFT   \\
+DataTracker \cite{stamatogiannakis_looking_2015}        & HW-specific      & Dinamic binary ins.                     &                                               &                                                               \\
+INSPECTOR                                               & HW-specific      & Library ins., ISA extensions            & libthreads ins., Intel PT ISA extensions      &                                                               \\
+MPI\cite{ma_mpi_2017}                                   & Unsuitable meth. & Compile-time ins.                       & LLVM pass                                     & Requires manual input                                         \\
+LDX \cite{kwon_ldx_2016}                                & Unsuitable meth. & Compile-time ins.                       & LLVM pass                                     &                                                               \\
+MCI \cite{kwon_mci_2018}                                & Unsuitable meth. & Compile-time ins.                       & LDX (LLVM pass)                               &                                                               \\
+Ma et al. \cite{ma_accurate_2015}                       & Unsuitable meth. & Kernel ins.                             & ETW                                           &                                                               \\
+S2Logger \cite{suen_s2logger_2013}                      & Unsuitable meth. & Kernel ins.                             & Kernel module or Linux Security Module        &                                                               \\
+ProTracer \cite{ma_protracer_2016}                      & Unsuitable meth. & Kernel ins.                             & Linux tracepoints, custom kernel module       &                                                               \\
+Hi-Fi \cite{pohly_hi-fi_2012}                           & Unsuitable meth. & Kernel ins.                             & Linux Security Module                         &                                                               \\
+Lineage FS \cite{sar_lineage_nodate}                    & Unsuitable meth. & Kernel ins.                             & Modified kernel                               &                                                               \\
+PASS/Pasta \cite{muniswamy-reddy_provenance-aware_2006} & Unsuitable meth. & Kernel ins., filesystem ins.            & Modified kernel, VFS                          &                                                               \\
+PASSv2/Lasagna \cite{muniswamy-reddy_layering_2009}     & Unsuitable meth. & Kernel ins., filesystem, library ins.   & Modified kernel, instrumented libc, VFS       &                                                               \\
+RTAG \cite{ji_enabling_2018}                            & Unsuitable meth. & Kernel ins.                             & Modified kernel                               & Record/reply like RAIN                                        \\
+LPM/ProvMon \cite{bates_trustworthy_2015}               & Unsuitable meth. & Kernel ins.                             & Modified kernel, kernel module, NetFilter     &                                                               \\
+CamFlow \cite{pasquier_practical_2017}                  & Unsuitable meth. & Kernel ins.                             & Linux Security Module, NetFilter              &                                                               \\
+LPROV \cite{wang_lprov_2018}                            & Unsuitable meth. & Kernel, dyn., static binary ins.        & Custom kernel module, custom loader, BEEP     &                                                               \\
+Panorama \cite{yin_panorama_2007}                       & Unsuitable meth. & VM ins.                                 & QEMU                                          &                                                               \\
+PROV-Tracer \cite{stamatogiannakis_decoupling_2015}     & Unsuitable meth. & VM ins.                                 & QEMU, PANDA                                   &                                                               \\
+\end{tabular}
+}
+
+\footnotetext{
+SPADE can use multiple backends, including other provenance collectors.
+On Linux, SPADE can use: Auditd, CamFlow, FUSE;
+On MacOS: OpenBSM, MacFUSE, Fuse4x;
+On Windows: ProcessMonitor;
+On any platform: import static data (e.g., from logs on disk), applications instrumented with API, applications compiled with LLVM pass.
+Given our requiremnts, SPADE+auditd and SPADE+FUSE are the only suitable SPADE configurations.
+}
+\end{table}
+
+\subsection{Suitability review}
+\label{section:suitability-review}
+
+Our resulting candidates use a variety of different methods of collecting provenance events.
+We describe the collection methods below and assess their suitability in Sandia's context:
+
+\begin{itemize}
+\item \textbf{Tracing}:
+The Linux kernel also exposes ways for the user to trace a running program (often to implement debuggers) called `ptrace(2)` \cite{noauthor_ptrace_nodate}.
+Unprivileged users can use the \texttt{ptrace(2)} syscall \cite{noauthor_ptrace_nodate} which can modify and trap one of their own processes.
+This method does not require super-user and is scoped to a subset of the processes and filesystem.
+Tracing services are \textbf{suitable}, provided their performance overhead is small, which the performance study aims to evaluate.
+
+\item \textbf{Audit service}:
+The Linux kernel exposes multiple ways to log input and output operations for security auditing purposes (intrusion detection, digital forensics, etc.).
+Two of which are: Linux Auditing Framework (also called `auditd`) and enhanced Berkeley Packet Filter (eBPF) \cite{noauthor_bpf_nodate}.
+These methods generally require super-user access, and while that is a security risk, the attack surface can be minimized by encapsulating the audit service in a privileged daemon exposed to unprivileged users (same way Docker works).
+These methods are \textbf{suitable}.
+
+\item \textbf{Filesystem instrumentation}:
+Many kernels support software file systems, which pass through I/O calls to an underlying file system after modifying or logging the request.
+For example Linux offers a Filesystem in User SpacE (FUSE) interface \cite{noauthor_fuse_nodate} and and an older kernel-space Virtual File System (VFS) interface \cite{gooch_overview_nodate}.
+Filesystem-level provenance collection is \textbf{suitable, if they do not involve kernel modification}.
+
+\item \textbf{Library instrumentation} (also called library interposition and the \texttt{LD\_PRELOAD} trick):
+Dynamically-linked programs ask the system to find an implementation of a library/application binary interface (ABI) at runtime.
+Library instrumentation supplies a wrapper library that implements another library's ABI by logging and passing certain function calls to an underlying implementation.
+For example, one could write a wrapper around the libc's \texttt{open} function, so when programs open a file, that request gets logged.
+Some applications (e.g., Go programs) do not use libc at all and some may link against libc statically (especially MUSL libc), both of which would bypass library instrumentation methods.
+Despite this, the authors of Darshan DXT, an I/O performance tool which uses library interposition, shows that library interposition has a low overhead and most programs in the wild do use libc \cite{xu_dxt_2017}.
+Library instrumentation method is \textbf{suitable}, at least as a candidate to the performance test.
+
+\item \textbf{Static or dynamic binary instrumentation}:
+Binary instrumentation rewrites a binary executable before it runs (static) or while it is running (dynamic).
+This method approaches the power of VM extensions without the overhead and the power of kernel-level syscall trapping but at the user-level.
+However, dynamic instrumentation often requires an Intel CPU tool called Pin \cite{luk_pin_2005}, which would go against the grain of reproducibility, which wants as many users as possible (especially cloud users) to be able to use the provenance system.
+Static instrumentation is simpler than dynamic binary instrumentation, as it would only require a specific instruction-set (e.g., x86\_64).
+Binary instrumentation is \textbf{suitable, if it is not hardware dependent}.
+
+\item \textbf{Compile-time instrumentation}:
+A compiler pass can analyze and emit provenance data, especially intra-program control flow, yielding a finer granularity with more precise dataflow.
+LLVM is the natural choice for instrumentation tooling, because its modular makes writing a new pass simpler.
+However, compile-time instrumentation would require HPC system adminstrators to maintain independent builds of the entire software stack.
+Compile-time instrumentation is \textbf{too expensive} to be suitable.
+
+\item \textbf{Kernel instrumentation}:
+All input, output, and process launching has to go through the kernel, so the kernel can be modified to emit provenance data.
+Kernel instrumentation involves modifying the kernel to wrap or hook into syscall handlers.
+However, modifying the kernel directly or through a kernel module increases the attack surface to an extent that it may be difficult to get approval on classified networks.
+Kernel-level provenance collection poses \textbf{too much security risk}.
+
+\item \textbf{VM instrumentation}:
+Virtual machines, such as QEMU, can run programs with dynamic taint tracking often implement as shadow memory e.g., Panorama\cite{yin_panorama_2007}.
+The performance overhead of QEMU with shadow memory is quite great (~20x for Panorama).
+VM extensions for provenance collection are \textbf{too slow} to be suitable.
+
+\item \textbf{ISA extensions}:
+Intel released an extension called Processor Trace \cite{kleen_intel_2015} which can trace the intra-process control-flow at a fine granularity, but it is \textbf{too hardware-specific} to be suitable (see the discussion for dynamic binary analysis).
+
+\end{itemize}
+
+One should also note whether the target applications use containers or not.
+Containers in Linux are essentially processes, where the kernel creates a separate namespace for specific subsystems (files, PIDs, users, and network routing), isolated from the rest of the system, as well as performance isolation in the form of cgroups.
+Kernel-level and file-system level provenance collection methods would still work in that case, but library instrumentation would require modification of the container, which defeats the purpose.
+However, these approaches trade security risk for performance: kernel-level auditing has to be caefully controlled, so process cannot spy on processes they should not ordinarily be able to see; File-system instrumentation has some unavoidable overhead due to using FUSE, even in its most optimized configuration \cite{vangoor_fuse_2017}.
+%% Docker is particularly problematic for some provenance collection methods because Docker \textit{clients} do not spawn their own processes; they pass instructions to the Docker daemon, and the \textit{daemon} spawns new processes on their behalf.
+%% If a provenance collection method follows all forks of all child processes of a script which calls \texttt{docker run ...}, it will not know about that process.
+
+Within these tools, we filter based on the following criteria:
+
+\begin{enumerate}
+\item
+We rule out tools based on whether their collection method is suitable for use in Sandia's context.
+
+\item
+We look for collection methods with caveats (i.e., hardware specific, platform specific, and methods involving kernel modification)
+
+\item
+We check for source code in the original paper, Google search (the first 20 results), GitHub (all results), and BitBucket (all results).
+\end{enumerate}
+
+Filtering leaves us with just three candidates: \textbf{SPADE+auditd}, \textbf{SPADE+FUSE}, and \textbf{OPUS}.
+
+Unfortunately, OPUS uses now unsupported Python 2.7 (end of life in 2020), JDK 1.6 (end of active support in 2015), and Neo4J 1.9 (end of life in 2014).
+Nonetheless, using a Nix environment \cite{dolstra_purely_2006}, we got OPUS to build and run \footnote{See our source code \url{https://github.com/charmoniumQ/opus\#making-opus-work-in-2023}}.
+However, it appears OPUS is fatally broken in a way that prevents it from recalling provenance data it stored, and debugging that issue is out-of-scope for this project.
+Since the ProvMark artifact is available, we study how they use OPUS, but the ProvMark aftifact does not actually contain the code which sets up the OPUS tool\footnotetext{
+The ProvMark artifact \cite{chan_provmark_2019} does not have the infrastructure to set up OPUS; where ProvMark would have that infrastructure, the code only says \href{https://github.com/arthurscchan/ProvMark/tree/master/vagrant/opus}{here}:
+\begin{quote}
+As OPUS is not published anywhere in the internet, it is not able to generate a vargrant file that completely install opus within\ldots
+You will need to obtain your own copy of OPUS and extracted within the vagrant VM in order to use OPUS with Prov Mark system.
+\end{quote}
+OPUS \emph{is} available on GitHub at the time of writing.
+}.
+
+
+% TODO: bring in Darshan and bpftrace
+
+%% Especially since our filters excluded OPUS, the only representative of library instrumentation, we wanted also to test the ``baseline'' overhead for various methods.
+%% This way, we can explore methods which do not have specific provenance tools.
+%% Once we know the order-of-magnitude overhead of the collection method itself, we can decide which would be worth using in a new SLRP tool.
+
+%% \begin{itemize}
+%% \item
+%% To test the library instrumentation overhead, we use \textbf{Darshan} and \textbf{fsatrace}.
+%% Darshan is an I/O performance analysis tool, whereas fsatrace is a barebones logging tool.
+%% Both use \texttt{LD\_PRELOAD} to interpose libc I/O calls.
+%% Darshan is used in the HPC community, and much work has been done on minimizing performance overhead.
+
+%% \item
+%% To test the program tracing overhead, we use \textbf{strace}, and \textbf{ltrace}.
+%% strace, and ltrace are tracing utilities that print every syscall (strace) or libc (ltrace) call as a line.
+%% We are interested in whether syscall-level or libc-level will be more efficient.
+%% A provenance recording tool based on tracing would have the overhead greater than strace and ltrace.
+
+%% \item
+%% eBPF another auditing method that no conventional tool uses yet.
+%% eBPF is potentialy more efficient than auditd because it can safely execute a limited set of programs (not Turing complete) inside the kernel, which allows online event filtering without expensive context switches between user- and kernel-space.
+%% To test auditing with eBPF, we use \textbf{bpftrace} with a custom script.
+%% Bpftrace compiles a simple scripting language into eBPF code and injects it into the kernel.
+%% Our script captures file I/O operations beginning with a certain prefix and logs them (comparable to strace and ltrace).
+%% \end{itemize}
+
+% `open',`openat',`stat', `stat64', `lstat', `lstat64', `execve',`exit\_group',`chdir',`mkdir',`rename',`clone',`vfork', `fork',`symlink',`creat'
+
+%% Thus, we arrive at the candidates in \Cref{table:filtered-candidates}.
+
+%% \begin{table}
+%%   \scriptsize
+%%   \begin{tabular}{lllll}
+%%     Tool          & Collection method & Collection tool      & Is baseline? & Notes                                        \\
+%%     \midrule      
+%%     SPADE+auditd  & Auditing          & auditd               & No           & Most used in literature of these candidates  \\
+%%     auditd        & Auditing          & auditd               & Yes          &                                              \\
+%%     SPADE+FUSE    & Filesystem ins.   & FUSE                 & No           &                                              \\
+%%     bpftrace      & Auditing          & eBPF                 & Yes          &                                              \\
+%%     strace        & Tracing           & ptrace syscalls      & Yes          &                                              \\
+%%     ltrace        & Tracing           & ptrace libc calls    & Yes          &                                              \\
+%%     fsatrace      & Lib ins.          & libc instrumentation & Yes          &                                              \\
+%%     Darshan       & Lib ins.          & libc instrumentation & Yes          & Much work done on minimizing perf. overhead  \\
+%%   \end{tabular}
+%%   \caption{Candidates for performance analysis, after filtered for suitability and augmented with ``mock'' collectors}
+%%   \label{table:filtered-candidates}
+%% \end{table}
+
+%% \subsection{Performance analysis results}
+
+%% Unfortunately, we did not have time to set up and compare all of the tools we wanted.
+%% In particular, SPADE+auditd and bpftrace requires changing benchexec's containerization in order to use auditd from within the benchexec container.
+%% SPADE+FUSE \textit{does} require root to mount the FUSE, but we were able to do this within benchexec.
+%% The rest of the tools work comfortably at an unprivileged level, so containerization did not interfere.
+
+%% The choice of syscalls and libcalls to track greatly influences the performance overhead.
+%% We track all calls that:
+%% \begin{enumerate}
+%% \item Modify or read file metadata: stat, chown, chmod, get/set/listxattrs, mk/rmdir, \ldots
+%% \item Open a file: open, creat
+%% \item Set up a socket: bind, accept, listen, connect, shutdown
+%% \item Modify a process: chdir, execve, fork, clone, exit
+%% \end{enumerate}
+
+%% We do not track:
+%% \begin{enumerate}
+%% \item Read/write syscalls (read, write, mmap, lseek, getdents, \ldots). We already know what files are opened in read-mode or write-mode, so we do not need to track individual read or write syscalls to know file-granularity provenance.
+%% \item Send/recv syscalls, in practice, most sockets are used for sending and receiving, so there is no point in tracking individual send and receive syscalls to know file/process-granularity provenance.
+%% \end{enumerate}
+
+%% \begin{table}
+%%   \begin{tabular}{lll}
+%%     Tool         & \multicolumn{3}{c}{Compilation workload} & \multicolumn{3}{c}{Datascience workload}  \\
+%%                  & CPU time & Wall time & RAM & CPU time & Wall time & RAM \\
+%%     \midrule                                                                           
+%%     SPADE+auditd & - & - \\
+%%     bpftrace     & - & - \\
+%%     SPADE+FUSE   & \\
+%%     strace       & \\
+%%     ltrace       & \\
+%%     fsatrace     & \\
+%%     Darshan      & \\
+%%   \end{tabular}
+%%   \caption{Summarized results}
+%%   \label{table:filtered-candidates}
+%% \end{table}
+
+%% \section{Discussion}
+
+\subsection{Threats to validity}
+
+\textbf{Construct validity}:
+We ruled out several categories of collection methods, but we believe that our ruling out is justified by suitability needs (minimal Type II errors).
+
+\textbf{Ecological validity}:
+It is possible that even after filtering down the list, these candidates are not actually applicable to work at national labs (acceptable Type I errors).
+
+One concern with any rapid review is completeness; did we actually get enough papers to summarize the state-of-the-art?
+Our search had diminishing returns and we came across several secondary studies which themselves try to summarize state-of-the-art.
+
+\section{Conclusion}
+
+We identified several candidates for further analysis and possible usage at Sandia.
+Of these, tracing are the most promising methods that do not require super-user access.
+
+\section{Future work}
+
+We did not attempt a performance and completeness evaluation of the above tools.
+The obvious next step is to complete that evaluation.
+Besides benchmarks in prior literature, a future performance evaluation might use extreme-scale parallel applications.
+xSDK in particular has a set of example applications \cite{bartlett_xsdk_2017}.
+
+Future work might involve user-facing studies, including usability testing, efficacy comparisons, and focus groups.
+We might give the user a tutorial on the provenance tracing method, have them complete timed challenges, and then interview them on their experience.
+
+Provenance research has more to offer than just tools for collection; there are tools for offline/online filtering of provenance, querying provenance, displaying  provenance, etc.
+In particular, filtering would be quite important for a government labs use-case.
+In some common programming patterns, one process ends up doing the bulk of the work; system-level provenance at a coarse granularity can only tell that any of the inputs might affect any of the outputs.
+This problem is called \textbf{dependence explosion} \cite{lee_high_2017}.
+To mitigate dependence explosion prior work suggests detecting intraprogram dataflow (using compile-time instrumentation or binary instrumentation) or even more complex methods like taint tracking.

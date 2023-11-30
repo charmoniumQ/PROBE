@@ -1,5 +1,5 @@
-from typing import Any, TypeVar
-from collections.abc import Mapping, Sequence
+from typing import TypeVar
+from collections.abc import Mapping
 import numpy
 import numpy.typing
 

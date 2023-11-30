@@ -1,56 +1,86 @@
+import functools
+import sys
 import numpy
-import dataclasses
-import hashlib
-import warnings
-import urllib.parse
-import shlex
-import shutil
-import itertools
-import random
-import pathlib
 import charmonium.time_block as ch_time_block
-import tqdm  # type: ignore
-import pickle
 import collections
 import pandas  # type: ignore
 from collections.abc import Sequence
 from workloads import WORKLOADS, Workload
-from prov_collectors import PROV_COLLECTORS, ProvCollector, baseline
+from prov_collectors import PROV_COLLECTORS, ProvCollector, baseline, ProvOperation
 from run_exec_wrapper import RunexecStats, run_exec, DirMode
-from util import (
-    gen_temp_dir, delete_children, move_children,
-    hardlink_children, shuffle, expect_type, groupby_dict, first,
-    confidence_interval, to_str, env_command, cmd_arg, merge_env_vars,
-    SubprocessError
-)
+from util import (merge_dicts, flatten1)
+from experiment import get_results
+
+rel_qois = ["cputime", "walltime", "memory"]
+abs_qois = ["storage", "n_ops", "n_unique_files"]
+
+if sys.argv[1] == "test-prov":
+    collectors = PROV_COLLECTORS
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.name == "simple"
+    ]
+    iterations = 1
+elif sys.argv[1] == "test-workloads":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+    ]
+    iterations = 1
+elif sys.argv[1] == "fast":
+    collectors = PROV_COLLECTORS
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "simple"
+    ]
+    iterations = 5
+elif sys.argv[1] == "working":
+    collectors = PROV_COLLECTORS
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "data science"
+    ]
+    iterations = 3
+elif sys.argv[1] == "test-genomics":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "genomics"
+    ]
+    iterations = 1
+elif sys.argv[1] == "compilation":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "compilation"
+    ]
+    iterations = 1
+else:
+    raise NotImplementedError(sys.argv[1])
+
+df = get_results(collectors, workloads, iterations, seed=0)
+
+show_abs_qois = False
+show_rel_qois = False
+show_op_freqs = True
 
 
-result_bin = pathlib.Path("result").resolve() / "bin"
-result_lib = result_bin.parent / "lib"
+@functools.cache
+def workload_baseline(workload: str, qoi: str) -> float:
+    return numpy.median(
+        df[(df["workload"] == workload) & (df["collector"] == baseline.name)][qoi]
+    )
 
 
-def aggregate_results(
-        prov_collectors: Sequence[ProvCollector] = PROV_COLLECTORS,
-        workloads: Sequence[Workload] = WORKLOADS[:3],
-        iterations: int = 1,
-        seed: int = 0,
-        confidence_level: float = 0.94
-) -> pandas.DataFrame:
-    rel_qois = ["cputime", "walltime", "memory"]
-    abs_qois = ["storage", "n_files"]
-    return (
-        run_experiments_cached(
-            prov_collectors,
-            workloads,
-            iterations=iterations,
-            seed=seed,
-            cache_dir=pathlib.Path(".cache"),
-            big_temp_dir=pathlib.Path(".workdir"),
-            size=256,
-        )
-        .assign(**{
-            "n_files": lambda df: list(map(len, df["files"]))
-        })
+if show_abs_qois:
+    print(
+        df
         .groupby(["workload", "collector"], as_index=True)
         .agg(**{
             **{
@@ -60,245 +90,90 @@ def aggregate_results(
                 )
                 for qoi in rel_qois + abs_qois
             },
-            # **{
-            #     qoi + "_abs_low": pandas.NamedAgg(
-            #         column=qoi,
-            #         aggfunc=lambda series: confidence_interval(series.values, confidence_level, seed=seed)[0],
-            #     )
-            #     for qoi in rel_qois + abs_qois
-            # },
-            # **{
-            #     qoi + "_abs_high": pandas.NamedAgg(
-            #         column=qoi,
-            #         aggfunc=lambda series: confidence_interval(series.values, confidence_level, seed=seed)[1],
-            #     )
-            #     for qoi in rel_qois + abs_qois
-            # },
         })
-        # .assign(**{
-        #     **{
-        #         (qoi, "rel_low"): lambda df: [
-        #             df[(collector, workload), (qoi, "abs_low")] / df[(baseline, workload), (qoi, "abs_high")]
-        #             for collector, workload in df.index
-        #         ]
-        #         for qoi in rel_qois
-        #     },
-        #     **{
-        #         (qoi, "rel_high"): lambda df: [
-        #             df[(collector, workload), (qoi, "abs_high")] / df[(baseline, workload), (qoi, "abs_low")]
-        #             for collector, workload in df.index
-        #         ]
-        #         for qoi in rel_qois
-        #     },
-        # })
-        # .assign(**{
-        #     **{
-        #         (qoi, f"{prefix}_mid"): lambda df: (df.loc[(qoi, f"{prefix}_high")] + df.loc[(qoi, f"{prefix}_low")]) / 2
-        #         for qoi, prefix in [(qoi, "rel") for qoi in rel_qois] + [(qoi, "abs") for qoi in abs_qois]
-        #     },
-        #     **{
-        #         (qoi, f"{prefix}_err"): lambda df: (df.loc[(qoi, f"{prefix}_high")] - df.loc[(qoi, f"{prefix}_low")]) / 2
-        #         for qoi, prefix in [(qoi, "rel") for qoi in rel_qois] + [(qoi, "abs") for qoi in abs_qois]
-        #     },
-        # })
+        .drop(["cputime_abs_mean", "memory_abs_mean", "n_unique_files_abs_mean"], axis=1)
+        .rename(columns={
+            "walltime_abs_mean": "Walltime (sec)",
+            # "memory_abs_mean": "Memory (MiB)",
+            "storage_abs_mean": "Storage (MiB)",
+            "n_ops_abs_mean": "Prov Ops (K Ops)",
+            # "n_unique_files_abs_mean": "Unique files",
+        }).to_string(formatters={
+            "Walltime (sec)": lambda val: f"{val:.1f}",
+            "Memory (MiB)": lambda val: f"{val / 1024**2:.1f}",
+            "Storage (MiB)": lambda val: f"{val / 1024**2:.1f}",
+            "Prov Ops (K Ops)": lambda val: f"{val / 1e3:.1f}",
+            "Unique files": lambda val: f"{val:.0f}",
+        })
     )
 
 
-def run_experiments_cached(
-        prov_collectors: Sequence[ProvCollector],
-        workloads: Sequence[Workload],
-        iterations: int,
-        seed: int,
-        cache_dir: pathlib.Path = pathlib.Path(".cache"),
-        big_temp_dir: pathlib.Path = pathlib.Path(".workdir"),
-        size: int = 256,
-) -> pandas.DataFrame:
-    key = (cache_dir / ("results_" + "_".join([
-        *[prov_collector.name for prov_collector in prov_collectors],
-        *[workload.name for workload in workloads],
-        str(iterations),
-        str(size),
-        str(seed),
-    ]) + ".pkl"))
-    if key.exists():
-        return expect_type(pandas.DataFrame, pickle.loads(key.read_bytes()))
-    else:
-        results_df = run_experiments(
-            prov_collectors,
-            workloads,
-            cache_dir,
-            big_temp_dir,
-            iterations,
-            size,
-            seed,
-        )
-        key.write_bytes(pickle.dumps(results_df))
-        return results_df
-
-
-def run_experiments(
-        prov_collectors: Sequence[ProvCollector],
-        workloads: Sequence[Workload],
-        cache_dir: pathlib.Path,
-        big_temp_dir: pathlib.Path,
-        iterations: int = 10,
-        size: int = 256,
-        seed: int = 0,
-) -> pandas.DataFrame:
-    prng = random.Random(seed)
-    inputs = shuffle(
-        prng,
-        tuple(itertools.product(range(iterations), prov_collectors, workloads)),
-    )
-    big_temp_dir.mkdir(exist_ok=True, parents=True)
-    temp_dir = big_temp_dir / "temp"
-    log_dir = big_temp_dir / "log"
-    work_dir = big_temp_dir / "work"
-    temp_dir.mkdir(exist_ok=True)
-    log_dir.mkdir(exist_ok=True)
-    work_dir.mkdir(exist_ok=True)
-    result_list = [
-        (prov_collector, workload, run_one_experiment_cached(
-            cache_dir, iteration, prov_collector, workload,
-            work_dir, log_dir, temp_dir, size,
-        ))
-        for iteration, prov_collector, workload in tqdm.tqdm(inputs)
-    ]
-    results_df = (
-        pandas.DataFrame.from_records(
-            {
-                "collector": prov_collector.name,
-                "collector_method": prov_collector.method,
-                "collector_submethod": prov_collector.submethod,
-                "workload": workload.name,
-                "workload_kind": workload.kind,
-                "cputime": stats.cputime,
-                "walltime": stats.walltime,
-                "memory": stats.memory,
-                "storage": stats.provenance_size,
-                "files": stats.files,
-                "call_counts": stats.call_counts,
-            }
-            for prov_collector, workload, stats in result_list
-        )
+if show_op_freqs:
+    print((
+        df
+        .drop(["workload", "collector_method", "collector_submethod", "workload_kind"] + rel_qois + abs_qois, axis=1)
+        .groupby("collector")
+        .agg(**{
+            "op_count_pairs": pandas.NamedAgg(
+                column="operations",
+                aggfunc=lambda opss: collections.Counter(op.type for ops in opss for op in ops).most_common(),
+            ),
+        })
+        .explode("op_count_pairs")
+        .loc[lambda df: ~pandas.isna(df.op_count_pairs)]
         .assign(**{
-            "collector": lambda df: df["collector"].astype("category"),
-            "collector_method": lambda df: df["collector_method"].astype("category"),
-            "collector_submethod": lambda df: df["collector_submethod"].astype("category"),
-            "workload": lambda df: df["workload"].astype("category"),
-            "workload_kind": lambda df: df["workload_kind"].astype("category"),
+            "op_type"  : lambda df: [pair[0] for pair in df.op_count_pairs],
+            "op_counts": lambda df: [pair[1] for pair in df.op_count_pairs],
         })
-    )
-    return results_df
+        .drop(["op_count_pairs"], axis=1)
+    ).to_string())
 
 
-@dataclasses.dataclass
-class ExperimentStats:
-    cputime: float
-    walltime: float
-    memory: int
-    provenance_size: int
-    files: frozenset[str]
-    call_counts: collections.Counter[str]
-
-
-def run_one_experiment_cached(
-    cache_dir: pathlib.Path,
-    iteration: int,
-    prov_collector: ProvCollector,
-    workload: Workload,
-    work_dir: pathlib.Path,
-    log_dir: pathlib.Path,
-    temp_dir: pathlib.Path,
-    size: int,
-) -> ExperimentStats:
-    key = (cache_dir / ("_".join([
-        urllib.parse.quote(prov_collector.name),
-        workload.name,
-        str(iteration)
-    ]))).with_suffix(".pkl")
-    if key.exists():
-        return expect_type(ExperimentStats, pickle.loads(key.read_bytes()))
-    else:
-        delete_children(temp_dir)
-        stats = run_one_experiment(
-            iteration, prov_collector, workload, work_dir, log_dir,
-            temp_dir, size
+if show_rel_qois:
+    for qoi in ["walltime"]:
+        collectors = sorted(
+            df.collector.cat.categories,
+            key=lambda collector: numpy.mean([
+                df[(df["workload"] == workload) & (df["collector"] == collector)][qoi]
+                for workload in df.workload.cat.categories
+            ])
         )
-        cache_dir.mkdir(exist_ok=True, parents=True)
-        key.write_bytes(pickle.dumps(stats))
-        return stats
+        for collector in collectors:
+            print(f"{collector:10s}", end=" ")
+            for rank in [5, 50, 95]:
+                value = numpy.mean([
+                    numpy.percentile(
+                        df[(df["workload"] == workload) & (df["collector"] == collector)][qoi],
+                        rank,
+                    ) / workload_baseline(workload, qoi)
+                    for workload in df.workload.cat.categories
+                ])
+                print(f"{value:4.2f}", end=" ")
+            print()
 
-
-def run_one_experiment(
-    iteration: int,
-    prov_collector: ProvCollector,
-    workload: Workload,
-    work_dir: pathlib.Path,
-    log_dir: pathlib.Path,
-    temp_dir: pathlib.Path,
-    size: int,
-) -> ExperimentStats:
-    log_path = log_dir / "logs"
-
-    with ch_time_block.ctx(f"setup {workload}"):
-        workload.setup(work_dir)
-        delete_children(log_dir)
-
-    (temp_dir / "old_work_dir").mkdir()
-    hardlink_children(work_dir, temp_dir / "old_work_dir")
-    # We will restore temp_dir to this state after running the experiment
-
-    with ch_time_block.ctx(f"setup {prov_collector}"):
-        if prov_collector.requires_empty_dir:
-            delete_children(work_dir)
-            prov_collector.start(log_path, size, work_dir)
-            move_children(temp_dir / "old_work_dir", work_dir)
-        else:
-            prov_collector.start(log_path, size, work_dir)
-        cmd, env = workload.run(work_dir)
-        cmd = prov_collector.run(cmd, log_path, size)
-
-    with ch_time_block.ctx(f"{workload} in {prov_collector}"):
-        full_env = merge_env_vars(
-            env,
-            {
-                "LD_LIBRARY_PATH": str(result_lib),
-                "LIBRARY_PATH": str(result_lib),
-                "PATH": str(result_bin),
-            },
-        )
-        stats = run_exec(
-            cmd=cmd,
-            env=full_env,
-            dir_modes={
-                work_dir: DirMode.FULL_ACCESS,
-                log_dir: DirMode.FULL_ACCESS,
-            },
-        )
-    move_children(temp_dir / "old_work_dir", work_dir)
-    if not stats.success:
-        raise SubprocessError(
-            cmd=cmd,
-            env=full_env,
-            cwd=None,
-            returncode=stats.exitcode,
-            stdout=to_str(stats.stdout),
-            stderr=to_str(stats.stderr),
-        )
-    provenance_size = 0
-    for child in log_dir.iterdir():
-        provenance_size += child.stat().st_size
-    call_counts, files = prov_collector.count(log_path)
-    return ExperimentStats(
-        cputime=stats.cputime,
-        walltime=stats.walltime,
-        memory=stats.memory,
-        provenance_size=provenance_size,
-        files=files,
-        call_counts=call_counts,
-    )
-
-
-if __name__ == "__main__":
-    print(aggregate_results())
+    # import matplotlib.figure
+    # fig = matplotlib.figure.Figure()
+    # ax = fig.add_subplot(1, 1, 1)
+    # mat = numpy.array([
+    #     list(flatten1(
+    #         sorted(df[(df["workload"] == workload) & (df["collector"] == collector)]["walltime"] / workload_baseline[workload])
+    #         for collector in collectors
+    #     ))
+    #     for workload in df.workload.cat.categories
+    # ])
+    # ax.matshow(mat, vmin=numpy.log(1), vmax=numpy.log(12))
+    # print(len(df))
+    # n_samples = len(df) // len(df.workload.cat.categories) // len(df.collector.cat.categories)
+    # ax.set_xticks(
+    #     ticks=range(0, len(collectors) * n_samples, n_samples),
+    #     labels=[f"{collector}" for collector in collectors],
+    #     rotation=90,
+    # )
+    # ax.set_yticks(
+    #     ticks=range(len(df.workload.cat.categories)),
+    #     labels=[
+    #         workload
+    #         for workload in df.workload.cat.categories
+    #     ],
+    # )
+    # fig.savefig("output/matrix.png")

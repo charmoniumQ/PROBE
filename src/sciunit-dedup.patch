@@ -1,0 +1,11 @@
+--- a/3rdparty/include/sqxx/config.hpp
++++ b/3rdparty/include/sqxx/config.hpp
+@@ -6,1 +6,1 @@
+-
++#include <cstdint>
+--- a/demo/vv.cc
++++ b/demo/vv.cc
+@@ -48,1 +48,2 @@
+-	repo.commit(rev, bs, vvpkg::from_descriptor(fd));
++	// https://github.com/depaul-dice/sciunit/blob/master/files/vv-report-size.patch
++	std::cerr << repo.commit(rev, bs, vvpkg::from_descriptor(fd)) << std::endl;

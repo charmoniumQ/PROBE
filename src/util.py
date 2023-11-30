@@ -42,7 +42,7 @@ def cmd_arg(arg: CmdArg) -> bytes:
         raise TypeError(f"{arg}: {type(arg)} is not convertable to a cmd arg")
 
 
-def run_all(*cmds: Sequence[CmdArg]) -> Sequence[bytes]:
+def run_all(*cmds: Sequence[CmdArg]) -> tuple[bytes, ...]:
     return b"sh", b"-c", b" && ".join(shlex.join(map(lambda arg: cmd_arg(arg).decode(), cmd)).encode() for cmd in cmds)
 
 
@@ -82,8 +82,11 @@ def move_children(src: pathlib.Path, dst: pathlib.Path) -> None:
 
 def delete_children(dir: pathlib.Path) -> None:
     for child in dir.iterdir():
-        if child.is_dir():
-            shutil.rmtree(child)
+        if child.is_symlink():
+            child.unlink()
+        elif child.is_dir():
+            delete_children(child)
+            os.rmdir(child)
         else:
             child.unlink()
 
@@ -171,13 +174,14 @@ class SubprocessError(Exception):
         self.stderr = stderr
 
     def __str__(self) -> str:
-        command = shlex.join(map(to_str, env_command(
+        command_arr = env_command(
             env=self.env,
             cwd=self.cwd,
-            clear_env= False,
+            clear_env=True,
             cmd=self.cmd,
-        )))
-        return f"\n$ {command}\n{self.stdout}\n\n{self.stderr}\n\n$ echo $?\n{self.returncode}"
+        )
+        command_str = shlex.join(map(to_str, command_arr))
+        return f"\n$ {command_str}\n{self.stdout}\n\n{self.stderr}\n\n$ echo $?\n{self.returncode}"
 
 
 def to_str(thing: Any) -> str:
@@ -206,6 +210,10 @@ def check_returncode(
     return proc
 
 
+def merge_dicts(dcts: Iterable[Mapping[_T, _V]]) -> dict[_T, _V]:
+    return dict(itertools.chain.from_iterable(dct.items() for dct in dcts))
+
+
 def merge_env_vars(*envs: Mapping[CmdArg, CmdArg]) -> Mapping[CmdArg, CmdArg]:
     result_env: dict[str, str] = {}
     for env in envs:
@@ -216,3 +224,13 @@ def merge_env_vars(*envs: Mapping[CmdArg, CmdArg]) -> Mapping[CmdArg, CmdArg]:
             else:
                 result_env[to_str(key)] = to_str(value)
     return cast(Mapping[CmdArg, CmdArg], result_env)
+
+
+
+def remove_keys(dct: Mapping[_T, _V], keys: set[_T]) -> Mapping[_T, _V]:
+    return {key: val for key, val in dct.items() if key not in keys}
+
+
+def flatten1(it: Iterable[Iterable[_T]]) -> Iterable[_T]:
+    for elem in it:
+        yield from elem

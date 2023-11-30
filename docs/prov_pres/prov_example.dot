@@ -1,0 +1,21 @@
+strict digraph G {
+    utilsc [shape="oval" label="utils.c"];
+    utilso [shape="oval" label="utils.o"];
+    mainc [shape="oval" label="main.c"];
+    maino [shape="oval" label="main.o"];
+    main [shape="oval" label="main"];
+    datacsv [shape="oval" label="data.csv"];
+    fig1png [shape="oval" label="fig1.png"];
+
+    compile_utils [shape="rect" label="gcc -c -o utils.o utils.c"];
+    compile_main [shape="rect" label="gcc -c -o main.o main.c"];
+    link [shape="rect" label="gcc main.o utils.o -o main"];
+    runmain [shape="rect" label="./main -n data.csv fig1.png"];
+    curl [shape="rect" label="curl http://example.com/data"];
+
+    utilsc -> compile_utils -> utilso;
+    mainc -> compile_main -> maino;
+    {utilso maino} -> link -> main;
+    curl -> datacsv;
+    {main datacsv} -> runmain -> fig1png;
+}

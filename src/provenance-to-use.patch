@@ -1,0 +1,24 @@
+--- a/strace-4.6/defs.h
++++ b/strace-4.6/defs.h
+@@ -37,1 +39,1 @@
+-char* CDE_ROOT_NAME;
++extern char* CDE_ROOT_NAME; // this symbol is defined in strace-4.6/cde.c
+@@ -39,2 +41,2 @@
+-char* CDE_PACKAGE_DIR;
+-char* CDE_ROOT_DIR;
++extern char* CDE_PACKAGE_DIR;
++extern char* CDE_ROOT_DIR;
+--- a/readelf-mini/dwarf.c
++++ b/readelf-mini/dwarf.c
+@@ -64,1 +64,1 @@
+-int do_wide;
++int dwarf_do_wide; // this symbol conflicts with readelf-mini/readelf-mini.c do_wide
+@@ -2606 +2606 @@
+-              if (do_wide || strlen ((char *) directory_table[0]) < 76)
++              if (dwarf_do_wide || strlen ((char *) directory_table[0]) < 76)
+@@ -2793 +2793 @@
+-              if ((fileNameLength > MAX_FILENAME_LENGTH) && (!do_wide))
++              if ((fileNameLength > MAX_FILENAME_LENGTH) && (!dwarf_do_wide))
+@@ -2807 +2807 @@
+-              if (!do_wide || (fileNameLength <= MAX_FILENAME_LENGTH))
++              if (!dwarf_do_wide || (fileNameLength <= MAX_FILENAME_LENGTH))

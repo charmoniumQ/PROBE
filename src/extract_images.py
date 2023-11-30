@@ -6,7 +6,6 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-
 def get_images(notebook_dict: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return [
         {
@@ -36,7 +35,11 @@ def write_contents(contents: Mapping[str, bytes]) -> None:
             fw.write(content)
 
 
-def get_export_contents(images: list[Mapping[str, Any]], prefix: str, output_dir: str) -> Mapping[str, bytes]:
+def get_export_contents(
+        images: list[Mapping[str, Any]],
+        prefix: str,
+        output_dir: str,
+) -> Mapping[str, bytes]:
     contents = {}
     for image_dict in images:
         file_ext = image_dict["content_type"].split("/", 1)[1].split("+", 1)[0]
