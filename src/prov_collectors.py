@@ -67,13 +67,13 @@ libcalls = "-*+" + "+".join([
     # https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html
     "open", "open64", "creat", "creat64", "close", "close_range", "closefrom",
     # https://www.gnu.org/software/libc/manual/html_node/Descriptors-and-Streams.html
-    "fdopen", "fileno", "fileno_unlocked",
+    "fdopen",
     # https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html
     "dup", "dup2",
     # https://www.gnu.org/software/libc/manual/html_node/Opening-a-Directory.html
     "opendir", "fdopendir", "closedir",
     # https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html
-    "link", "symlink", "readlink", "realpath",
+    "link", "linkat", "symlink", "readlink", "realpath",
     # https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html
     "unlink", "rmdir", "remove",
     # https://www.gnu.org/software/libc/manual/html_node/Renaming-Files.html
@@ -460,6 +460,8 @@ class RR(ProvCollector):
     submethod = "syscalls"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        import warnings
+        warnings.warn("Size of RR archives is not correct; see https://robert.ocallahan.org/2017/06/new-rr-pack-command.html")
         return (result_bin / "env", f"_RR_TRACE_DIR={log}", result_bin / "rr", *cmd)
 
 

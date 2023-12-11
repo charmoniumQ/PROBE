@@ -1,6 +1,12 @@
 {
-  inputs.flake-utils.url = "github:numtide/flake-utils";
-  outputs = { self, nixpkgs, flake-utils }:
+  inputs = {
+    nixpkgs.url = "nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+    fenix.url = "github:nix-community/fenix";
+    fenix.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { self, nixpkgs, flake-utils, fenix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -8,6 +14,7 @@
         noPytest = pypkg: pypkg.overrideAttrs (self: super: {
           pytestCheckPhase = ''true'';
         });
+        rust = fenix.packages.x86_64-linux.default.toolchain;
       in
       {
         packages = rec {
@@ -22,15 +29,15 @@
         };
         devShells = {
           default = pkgs.mkShell {
-            packages = [ pkgs.cargo pkgs.rustc ];
+            packages = [ rust ];
           };
         };
-        apps = {
+        apps = rec {
           cargo = {
             type = "app";
             program = let
               package = pkgs.writeShellScriptBin "script" ''
-                ${pkgs.cargo}/bin/cargo "$@"
+                ${rust}/bin/cargo "$@"
               '';
             in "${package}/bin/script";
           };
@@ -38,7 +45,7 @@
             type = "app";
             program = let
               package = pkgs.writeShellScriptBin "script" ''
-                ${pkgs.cargo}/bin/cargo build "$@"
+                ${rust}/bin/cargo build "$@"
               '';
             in "${package}/bin/script";
           };
