@@ -2,6 +2,47 @@ use envconfig::Envconfig;
 
 use crate::prov_logger::{CType, CPrimType, CFuncSigs};
 
+pub struct StraceProvLogger {
+    cfunc_sigs: &'static CFuncSigs,
+}
+
+impl crate::prov_logger::ProvLogger for StraceProvLogger {
+	fn new(cfunc_sigs: &'static CFuncSigs) -> Self {
+        crate::globals::ENABLE_TRACE.set(false);
+        println!("Starting prov logger");
+		let config = ProvTraceConfig::init_from_env().unwrap();
+		let pid = unsafe { libc::getpid() };
+        let tid = unsafe { libc::gettid() };
+		let fname = format!("{}.{}{}", pid, tid, &config.file);
+        println!("  fname = {:?}", fname);
+		fast_log::init(
+			fast_log::config::Config::new()
+				.file(&fname)
+				.chan_len(Some(config.buffer_size))
+		).unwrap();
+        log::info!("started,{}", pid);
+        println!("Started prov logger");
+        crate::globals::ENABLE_TRACE.set(true);
+		Self { cfunc_sigs, }
+	}
+
+	fn log_call(
+		&self,
+        name: &'static str,
+        args: Vec<Box<dyn std::any::Any>>,
+        _new_args: Vec<Box<dyn std::any::Any>>,
+        ret: Box<dyn std::any::Any>,
+	) {
+        let cfunc_sig = self.cfunc_sigs.get(name).unwrap();
+        let return_type = ctype_to_string(ret, &cfunc_sig.return_type);
+        let args: String = cfunc_sig.arg_types.iter().zip(args).map(|(arg_type, arg)| {
+            format!("{} = {:?}", arg_type.arg, ctype_to_string(arg, &arg_type.ty))
+        }).intersperse(", ".to_string()).collect();
+		log::info!("{}({}) -> {:?}", name, args, return_type);
+        println!("{}({}) -> {:?}", name, args, return_type);
+	}
+}
+
 #[derive(envconfig::Envconfig)]
 struct ProvTraceConfig {
     #[envconfig(from = "PROV_TRACE_FILE", default = ".prov.trace")]
@@ -9,10 +50,6 @@ struct ProvTraceConfig {
 
     #[envconfig(from = "PROV_TRACE_BUFFER_SIZE", default = "1000000")]
     buffer_size: usize,
-}
-
-pub struct StraceProvLogger {
-    cfunc_sigs: &'static CFuncSigs,
 }
 
 fn ctype_to_string(any: Box<dyn std::any::Any>, ctype: &CType) -> String {
@@ -35,36 +72,3 @@ fn ctype_to_string(any: Box<dyn std::any::Any>, ctype: &CType) -> String {
     }
 }
 
-impl crate::prov_logger::ProvLogger for StraceProvLogger {
-	fn new(cfunc_sigs: &'static CFuncSigs) -> Self {
-        crate::globals::ENABLE_TRACE.set(false);
-        println!("Starting prov logger");
-		let config = ProvTraceConfig::init_from_env().unwrap();
-		let pid = unsafe { libc::getpid() };
-		let fname = format!("{}{}", pid, &config.file);
-		fast_log::init(
-			fast_log::config::Config::new()
-				.file(&fname)
-				.chan_len(Some(config.buffer_size))
-		).unwrap();
-        log::info!("started,{}", pid);
-        println!("Started prov logger");
-        crate::globals::ENABLE_TRACE.set(true);
-		Self { cfunc_sigs, }
-	}
-
-	fn log_call(
-		&self,
-        name: &'static str,
-        args: Vec<Box<dyn std::any::Any>>,
-        _new_args: Vec<Box<dyn std::any::Any>>,
-        ret: Box<dyn std::any::Any>,
-	) {
-        let cfunc_sig = self.cfunc_sigs.get(name).unwrap();
-        let return_type = ctype_to_string(ret, &cfunc_sig.return_type);
-        let args: String = cfunc_sig.arg_types.iter().zip(args).map(|(arg_type, arg)| {
-            format!("{} = {}", arg_type.arg, ctype_to_string(arg, &arg_type.ty))
-        }).intersperse(", ".to_string()).collect();
-		log::info!("{}({}) -> {}", name, args, return_type);
-	}
-}

@@ -298,8 +298,16 @@
           arviz = noPytest (python.pkgs.arviz.override { numpyro = python.pkgs.tqdm; });
           pymc3 = noPytest (python.pkgs.pymc3.override {
             arviz = arviz;
-            pytensor = noPytest python.pkgs.pytensor;
+            # pytensor = noPytest python.pkgs.pytensor;
           });
+          pytensor = noPytest (python.pkgs.pytensor.overrideAttrs (super: {
+            src = pkgs.fetchFromGitHub {
+              hash = "sha256-hWDUN6JRyQtxmAfWbP8YgzAAuLguf0k0kYdtHqLgEHI=";
+              owner = "pymc-devs";
+              repo = "pytensor";
+              rev = "refs/tags/rel-2.18.1";
+            };
+          }));
           fsatrace = pkgs.fsatrace.overrideAttrs (oldAttrs: {
             src = pkgs.fetchFromGitHub {
               owner = "jacereda";
@@ -307,16 +315,6 @@
               rev = "c031f8dae8f5456173157b3696f1c10f3c3c5b4a";
               hash = "sha256-rkDNuKkR1069eJI2XyIa0sKZMG4G1AiD4Zl+TVerw7w=";
             };
-          });
-          rr = pkgs.rr.overrideAttrs (oldAttrs: rec {
-            version = "5.7.0";
-            src = pkgs.fetchFromGitHub {
-              owner = "mozilla";
-              repo = "rr";
-              rev = version;
-              hash = "sha256-n1Jbhr77bI0AXncY/RquNVSwwnnAXt31RmKtAa1/oHg=";
-            };
-            patches = [ ];
           });
           pcre2-dev = pkgs.pcre2.dev.overrideAttrs (super: {
             postFixup = super.postFixup + ''
@@ -334,7 +332,7 @@
               pkgs.strace
               pkgs.ltrace
               pkgs.cde
-              rr
+              pkgs.rr
               pkgs.dpkg
               pkgs.xdot
 

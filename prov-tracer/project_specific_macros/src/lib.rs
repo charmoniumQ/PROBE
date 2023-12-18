@@ -241,14 +241,25 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                     unsafe fn #name(
                         #(#arg_colon_types),*
                     ) -> #return_type => #traced_name {
+                        println!("Processing {}", stringify!(#name));
                         let mut guard_inner_call = false;
                         let mut call_return;
                         #(#pre_call)*
+                        println!("  Doing real call {}", stringify!(#name));
                         call_return = real!(#name)(#args);
-                        #(#post_call)*
-                        if !guard_inner_call ||globals::ENABLE_TRACE.get() {
-                            PROV_LOGGER.log_call(stringify!(#name), vec![#boxed_args], vec![], Box::new(call_return));
+                        println!("  Done with real call {} -> {:?} {:?}", stringify!(#name), call_return, *libc::__errno_location());
+                        println!("  Sending to prov logger? {}", !guard_inner_call || globals::ENABLE_TRACE.get());
+                        if !guard_inner_call || globals::ENABLE_TRACE.get() {
+                            PROV_LOGGER.with_borrow_mut(|prov_logger| {
+                                println!("    acquired prov_logger");
+                                prov_logger.log_call(stringify!(#name), vec![#boxed_args], vec![], Box::new(call_return));
+                                println!("    did log_call");
+                                #(#post_call)*
+                                println!("    did post_call");
+                            });
+                            println!("  Sent to prov logger");
                         }
+                        println!("Done with {}", stringify!(#name));
                         call_return
                     }
                 }

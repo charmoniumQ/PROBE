@@ -3,18 +3,18 @@
 ## Introduction
 
 Lack of reproducibility in computational experiments undermines long-term credibility of science and hinders day-to-day operations of scientists.
-The ACM defines **reproducibility** as the ability to obtain a measurement with stated precision by a different team using the same measurement procedure, the same measuring system, under the same operating conditions, in the same or a different location on multiple trials \cite{acminc.staffArtifactReviewBadging2020}.
+The ACM defines **reproducibility** as the ability to obtain a measurement with stated precision by a different team using the same measurement procedure, the same measuring system, under the same operating conditions, in the same or a different location on multiple trials [@acminc.staffArtifactReviewBadging2020].
 Reproducing the end result, within a tolerance, using a domain-specific metric, on any sufficiently-powerful platforms is the end goal of this area of research.
 However, reproducing an execution that is identical, with specific exceptions, on the same CPU architecture is a necessary condition for that ultimate end.
 
-The prevailing solutions are **sandboxed package management** (Pip, Conda \cite{aaronmeurerCondaCrossPlatform2014}, Spack \cite{gamblinSpackPackageManager2015}, Guix \cite{courtesReproducibleUserControlledSoftware2015}, Nix \cite{bzeznikNixHPCPackage2017}),  **containerization** (Docker, CharlieCloud \cite{priedhorskyCharliecloudUnprivilegedContainers2017}, Singularity \cite{kurtzerSingularityScientificContainers2017}), or **virtualization** (Vagrant, QEMU, VirtualBox).
+The prevailing solutions are **sandboxed package management** (Pip, Conda [@aaronmeurerCondaCrossPlatform2014], Spack [@gamblinSpackPackageManager2015], Guix [@courtesReproducibleUserControlledSoftware2015], Nix [@bzeznikNixHPCPackage2017]),  **containerization** (Docker, CharlieCloud [@priedhorskyCharliecloudUnprivilegedContainers2017], Singularity [@kurtzerSingularityScientificContainers2017]), or **virtualization** (Vagrant, QEMU, VirtualBox).
 Both of these solutions require significant additional effort from the user, when the user already installed their software stack on their native system.
 A user will need to either imperatively install the software in a new environment (resulting in a Docker image, QCOW2 image) or declaratively write a script (resulting in a Spack package, Nix/Guix derivation, Dockerfile, Vagrantfile, Singularity Definition File) which installs the software in a new environment[^env].
-Unfortunately, many practitioners of computational science may not know to use virtualization or containerization when begininning new projects, and even if switching to virtualization or containerization would only take a few hours, many domain scientists would not willing to commit that amount of effort.
+Unfortunately, many practitioners of computational science may not know to use a sandbox, virtual or container environment when begininning new projects, and even if switching to virtualization or containerization would only take a few hours, many domain scientists would not willing to commit that amount of effort.
 
 [^env]: The "environment" can refer to a sandboxed software environment, such as that provided by Pip virtualenv, a containerized environment, such as that provided by Docker, or a virtual machine environment, such as that provided by Virtualbox.
 
-Another solution for the same-architecture portability of scientific computational experiments is **record/replay** (rr, CDE \cite{guoCDEUsingSystem2011}, ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}, SciUnits \cite{tonthatSciunitsReusableResearch2017}), which requires almost no user-intervention.
+Another solution for the same-architecture portability of scientific computational experiments is **record/replay** (rr, CDE [@guoCDEUsingSystem2011], ReproZip [@chirigatiReproZipComputationalReproducibility2016], SciUnits [@tonthatSciunitsReusableResearch2017]), which requires almost no user-intervention.
 In this scheme, record and replay are two programs where record runs a user-supplied program with user-supplied inputs and writes a **replay-package**, which contains all of the relevant data, libraries, and executables.
 The replay-package can be sent to any machine that the replayer supports. The replayer runs the executable with the data and libraries from the replay-package.
 The only user-intervention required to achieve same-architecture portability is that the user must (1) run their executable within the record tool and (2) upload the replay-package to a public location.
@@ -41,10 +41,17 @@ A reproducibility technique does not guarantee that the resulting measurement wi
 Operating conditions frequently relate to the file system, for data files and program dependencies.
 Naively, the operating conditions for a computational experiment would include an unknown subset of the filesystem; a conservative would assume the entire filesystem _could_ be used by the program, whether not it actually is.
 Reproducibility methods reduce this set.
-- Sandboxed package managers require the user to explictly specify how to build each software dependency in the operating conditions of the experiment, with the help of a package repository which maps names to instructions.
+- Sandboxed package managers require the user to explictly specify how to build each software dependency in the operating conditions of the experiment[^clarify-operating-conditions], with the help of a package repository which maps names to instructions.
+  Sandboxed package managers remove any dependence on specific files from the operating conditions, but add the package manager itself and whatever assumptions it makes (perhaps, internet connectivity or super user access).
+- Containerization removes the software dependencies, process space, user namespace, and other namespaces [@kerriskNamespacesOperation2013].
+  This means that if the software requires a specific username (perhaps it requires `root` user), IP tables, 
+
 - Imperative virtualized and containerized methods use the entire filesystem of a "fresh" machine with the operating conditions of the experiment, which is much presumably smaller than the entire filesystem of the experimenter's local machine.
+  Imperative virutal
 - Declarative virtualized and containerized methods start from a common "base image" of a fresh machine and specify the steps required to transform the fresh file system to one with the proper operating conditions for the experiment.
 - Record/replay records the files a particular execution of the program actually accesses.
+
+[^clarify-operating-conditions]: Remember, operating conditions must be manually implemented by the operator, and difficulty in reproducibility arises thusly; since these conditions are now reached by the software itself, they are no longer operating conditions.
 
 ---
 

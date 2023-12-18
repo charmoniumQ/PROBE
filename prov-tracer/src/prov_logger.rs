@@ -1,17 +1,18 @@
 use std::vec::Vec;
 
+#[allow(unused_variables)]
 pub trait ProvLogger {
     fn new(cfunc_sigs: &'static CFuncSigs) -> Self;
     fn log_call(&self, name: &'static str, args: Vec<Box<dyn std::any::Any>>, new_args: Vec<Box<dyn std::any::Any>>, ret: Box<dyn std::any::Any>) { }
-    fn stat(&mut self, fd: libc::c_int, name: *const libc::c_char) { }
-    fn associate(&mut self, file: *const libc::FILE, fd: libc::c_int) { }
+
+    fn metadata_read(&mut self, dirfd: libc::c_int, name: *const libc::c_char) { }
+    fn metadata_writepart(&mut self, dirfd: libc::c_int, name: *const libc::c_char) { }
     fn open_none     (&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
     fn open_read     (&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
     fn open_writepart(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
     fn open_readwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
     fn open_overwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
     fn open_overwriteshared(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
-    fn fclose(&mut self, file: *const libc::FILE) { }
     fn close(&mut self, fd: libc::c_int) { }
     fn fcloseall(&mut self) { }
     fn close_range(&mut self, lowfd: libc::c_uint, maxfd: libc::c_uint) { }
