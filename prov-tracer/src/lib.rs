@@ -1,4 +1,5 @@
 #![feature(iter_intersperse)]
+#![allow(unused_imports)]
 mod util;
 mod strace_prov_logger;
 mod null_prov_logger;
@@ -12,7 +13,7 @@ use null_prov_logger::NullProvLogger;
 type MyProvLogger = StraceProvLogger;
 
 thread_local! {
-    static PROV_LOGGER: std::cell::RefCell<MyProvLogger> = std::cell::RefCell::new(MyProvLogger::new(&CFUNC_SIGS));
+    static PROV_LOGGER: std::cell::RefCell<std::mem::ManuallyDrop<MyProvLogger>> = std::cell::RefCell::new(std::mem::ManuallyDrop::new(MyProvLogger::new(&CFUNC_SIGS)));
 }
 
 fn fopen_parser(prov_logger: &mut MyProvLogger, file: *const libc::FILE, filename: *const libc::c_char, opentype: *const libc::c_char) {
@@ -87,6 +88,8 @@ project_specific_macros::populate_libc_calls_and_hook_fns!{
     // We need these in case an analysis wants to use open-to-close consistency
     // https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html
     int fclose (FILE *stream) {
+        guard_inner_call = true;
+    } {
         if call_return == 0 {
             prov_logger.close(libc::fileno(stream));
         }
@@ -100,6 +103,8 @@ project_specific_macros::populate_libc_calls_and_hook_fns!{
     // https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html
     // TODO: what to do about optional third argument: mode_t mode?
     int open (const char *filename, int flags) {
+        guard_inner_call = true;
+    } {
         open_parser(prov_logger, call_return, libc::AT_FDCWD, filename, flags);
     };
     int open64 (const char *filename, int flags) {
@@ -114,6 +119,8 @@ project_specific_macros::populate_libc_calls_and_hook_fns!{
         prov_logger.open_read(libc::AT_FDCWD, filename, call_return);
     };
     int close (int filedes) {
+        guard_inner_call = true;
+    } {
         if call_return == 0 {
             prov_logger.close(filedes);
         }

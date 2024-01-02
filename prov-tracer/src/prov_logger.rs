@@ -3,7 +3,7 @@ use std::vec::Vec;
 #[allow(unused_variables)]
 pub trait ProvLogger {
     fn new(cfunc_sigs: &'static CFuncSigs) -> Self;
-    fn log_call(&self, name: &'static str, args: Vec<Box<dyn std::any::Any>>, new_args: Vec<Box<dyn std::any::Any>>, ret: Box<dyn std::any::Any>) { }
+    fn log_call(&mut self, name: &'static str, args: Vec<Box<dyn std::any::Any>>, new_args: Vec<Box<dyn std::any::Any>>, ret: Box<dyn std::any::Any>) { }
 
     fn metadata_read(&mut self, dirfd: libc::c_int, name: *const libc::c_char) { }
     fn metadata_writepart(&mut self, dirfd: libc::c_int, name: *const libc::c_char) { }

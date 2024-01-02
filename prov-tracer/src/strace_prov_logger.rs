@@ -1,33 +1,31 @@
 use envconfig::Envconfig;
+use std::io::Write;
 
 use crate::prov_logger::{CType, CPrimType, CFuncSigs};
 
 pub struct StraceProvLogger {
     cfunc_sigs: &'static CFuncSigs,
+    file: std::fs::File,
 }
 
 impl crate::prov_logger::ProvLogger for StraceProvLogger {
 	fn new(cfunc_sigs: &'static CFuncSigs) -> Self {
         crate::globals::ENABLE_TRACE.set(false);
-        println!("Starting prov logger");
 		let config = ProvTraceConfig::init_from_env().unwrap();
-		let pid = unsafe { libc::getpid() };
-        let tid = unsafe { libc::gettid() };
-		let fname = format!("{}.{}{}", pid, tid, &config.file);
-        println!("  fname = {:?}", fname);
-		fast_log::init(
-			fast_log::config::Config::new()
-				.file(&fname)
-				.chan_len(Some(config.buffer_size))
-		).unwrap();
-        log::info!("started,{}", pid);
-        println!("Started prov logger");
+		let pid = (unsafe { libc::getpid() }).to_string();
+        let tid = (unsafe { libc::gettid() }).to_string();
+        let filename =
+            config.filename
+                  .replace("%p", &pid)
+                  .replace("%t", &tid)
+            ;
+        let file = std::fs::File::create(filename).unwrap();
         crate::globals::ENABLE_TRACE.set(true);
-		Self { cfunc_sigs, }
+		Self { cfunc_sigs, file}
 	}
 
 	fn log_call(
-		&self,
+		&mut self,
         name: &'static str,
         args: Vec<Box<dyn std::any::Any>>,
         _new_args: Vec<Box<dyn std::any::Any>>,
@@ -36,17 +34,17 @@ impl crate::prov_logger::ProvLogger for StraceProvLogger {
         let cfunc_sig = self.cfunc_sigs.get(name).unwrap();
         let return_type = ctype_to_string(ret, &cfunc_sig.return_type);
         let args: String = cfunc_sig.arg_types.iter().zip(args).map(|(arg_type, arg)| {
-            format!("{} = {:?}", arg_type.arg, ctype_to_string(arg, &arg_type.ty))
+            format!("{}={}", arg_type.arg, ctype_to_string(arg, &arg_type.ty))
         }).intersperse(", ".to_string()).collect();
-		log::info!("{}({}) -> {:?}", name, args, return_type);
-        println!("{}({}) -> {:?}", name, args, return_type);
+        write!(self.file, "{}({}) -> {}\n", name, args, return_type).unwrap();
 	}
 }
 
+#[allow(dead_code)]
 #[derive(envconfig::Envconfig)]
 struct ProvTraceConfig {
-    #[envconfig(from = "PROV_TRACE_FILE", default = ".prov.trace")]
-    file: String,
+    #[envconfig(from = "PROV_TRACE_FILENAME", default = "%p.%t.prov.trace")]
+    filename: String,
 
     #[envconfig(from = "PROV_TRACE_BUFFER_SIZE", default = "1000000")]
     buffer_size: usize,
@@ -55,20 +53,20 @@ struct ProvTraceConfig {
 fn ctype_to_string(any: Box<dyn std::any::Any>, ctype: &CType) -> String {
     match ctype {
         CType::PtrMut(prim_type) => match prim_type {
-            CPrimType::Void => format!("(void*)0x{:x}", *any.downcast_ref::<*mut libc::c_void>().unwrap() as usize).to_string(),
-            CPrimType::File => format!("(FILE*)0x{:x}", *any.downcast_ref::<*mut libc::FILE>().unwrap() as usize).to_string(),
-            _ => "Unknown type".to_string(),
+            CPrimType::Void => format!("(void*){:p}", *any.downcast_ref::<*mut libc::c_void>().unwrap()),
+            CPrimType::File => format!("(FILE*){:p}", *any.downcast_ref::<*mut libc::FILE>().unwrap()),
+            CPrimType::Dir  => format!("(DIR*){:p}", *any.downcast_ref::<*mut libc::DIR>().unwrap()),
+            _ => "Unknown mut ptr type".to_owned(),
         },
         CType::PtrConst(prim_type) => match prim_type {
-            CPrimType::Char => crate::util::short_cstr(*any.downcast_ref::<*const libc::c_char>().unwrap()).to_str().unwrap().to_owned(),
-            _ => "Unknown type".to_string(),
+            CPrimType::Char => format!("{:?}", crate::util::short_cstr(*any.downcast_ref::<*const libc::c_char>().unwrap()).to_str().unwrap()),
+            _ => "Unknown const ptr type".to_owned(),
         },
         CType::PrimType(prim_type) => match prim_type {
-            CPrimType::Int => any.downcast_ref::<libc::c_int>().unwrap().to_string(),
-            CPrimType::Uint => any.downcast_ref::<libc::c_uint>().unwrap().to_string(),
-            CPrimType::ModeT => any.downcast_ref::<libc::mode_t>().unwrap().to_string(),
-            _ => "Unknown type".to_string(),
+            CPrimType::Int => format!("{:?}", any.downcast_ref::<libc::c_int>().unwrap()),
+            CPrimType::Uint => format!("{:?}", any.downcast_ref::<libc::c_uint>().unwrap()),
+            CPrimType::ModeT => format!("{:?}", any.downcast_ref::<libc::mode_t>().unwrap()),
+            _ => "Unknown prim type type".to_owned(),
         },
     }
 }
-

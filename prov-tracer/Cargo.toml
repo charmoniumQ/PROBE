@@ -1,3 +1,4 @@
+workspace = { members = ["testf"] }
 [package]
 name = "prov-tracer"
 version = "0.1.0"
@@ -8,8 +9,6 @@ authors = ["Samuel Grayson <sam@samgrayson.me>"]
 
 [dependencies]
 redhook = "2.0"
-log = "0.4"
-fast_log = {version = "1.6" , features = ["gzip"]}
 libc = "0.2"
 lazy_static = "1.4.0"
 envconfig = "0.10.0"

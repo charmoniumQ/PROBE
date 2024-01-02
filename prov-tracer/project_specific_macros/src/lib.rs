@@ -234,6 +234,24 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                 let arg = &arg_type.arg;
                 quote!(Box::new(#arg),)
             }).collect::<proc_macro2::TokenStream>();
+
+            /* vvv stuff vvv */
+            let arg_fmt_string = cfunc_sig
+                .arg_types
+                .iter()
+                .map(|arg_type| arg_type.arg.to_string() + "={:?}")
+                .collect::<Vec<_>>()
+                .join(" ");
+            let arg_fmt_args = cfunc_sig.arg_types.iter().map(|arg_type| {
+                let arg = &arg_type.arg;
+                let arg_rep = match arg_type.ty {
+                    CType::PtrConst(_, _, CPrimType::Char(_)) => quote!(unsafe{crate::util::short_cstr(#arg)}),
+                    _ => quote!(#arg),
+                };
+                quote!(#arg_rep,)
+            }).collect::<proc_macro2::TokenStream>();
+            /* ^^^ stuff ^^^ */
+
             let pre_call = &cfunc_sig.pre_call;
             let post_call = &cfunc_sig.post_call;
             quote!{
@@ -241,25 +259,23 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                     unsafe fn #name(
                         #(#arg_colon_types),*
                     ) -> #return_type => #traced_name {
-                        println!("Processing {}", stringify!(#name));
+                        // println!("(processing");
+                        // println!(concat!("(", stringify!(#name), " ", #arg_fmt_string, ")"), #arg_fmt_args);
                         let mut guard_inner_call = false;
                         let mut call_return;
                         #(#pre_call)*
-                        println!("  Doing real call {}", stringify!(#name));
-                        call_return = real!(#name)(#args);
-                        println!("  Done with real call {} -> {:?} {:?}", stringify!(#name), call_return, *libc::__errno_location());
-                        println!("  Sending to prov logger? {}", !guard_inner_call || globals::ENABLE_TRACE.get());
+                        // print!("(real-call ");
+                        call_return = redhook::real!(#name)(#args);
+                        // println!("ret={:?} errno={:?})", call_return, *libc::__errno_location());
+                        // println!("(prov-logger?\n{}", !guard_inner_call || globals::ENABLE_TRACE.get());
                         if !guard_inner_call || globals::ENABLE_TRACE.get() {
                             PROV_LOGGER.with_borrow_mut(|prov_logger| {
-                                println!("    acquired prov_logger");
                                 prov_logger.log_call(stringify!(#name), vec![#boxed_args], vec![], Box::new(call_return));
-                                println!("    did log_call");
                                 #(#post_call)*
-                                println!("    did post_call");
                             });
-                            println!("  Sent to prov logger");
                         }
-                        println!("Done with {}", stringify!(#name));
+                        // print!(")");
+                        // println!(")");
                         call_return
                     }
                 }
@@ -290,14 +306,9 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
         .collect::<proc_macro2::TokenStream>();
 
     proc_macro::TokenStream::from(quote!{
-        #[macro_use]
-        extern crate redhook;
-
         #hook_fns
 
-        #[macro_use]
-        extern crate lazy_static;
-        lazy_static! {
+        lazy_static::lazy_static! {
             static ref CFUNC_SIGS: CFuncSigs = CFuncSigs::from([
                 #cfunc_sigs
             ]);

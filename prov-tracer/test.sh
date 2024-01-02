@@ -1,12 +1,12 @@
-set -e
+set -e -x
 
 cmds=(
     true
     "ls -l .."
-    # "echo hi"
-    # "head ../flake.nix"
-    # "python -c 'print(2)'"
-    # "python -c 'import itertools'"
+    "echo hi"
+    "head ../flake.nix"
+    "python -c 'print(2)'"
+    "python -c 'import itertools'"
 )
 
 cargo build
@@ -18,10 +18,17 @@ for cmd in "${cmds[@]}"; do
     echo ============ $cmd ============
     env --chdir=tmp RUST_BACKTRACE=1 LD_PRELOAD=$PWD/target/debug/libprov_tracer.so sh -c "$cmd" &
     pid=$!
-    wait
-    for file in tmp/*; do
-        chmod 644 $file
-        cat $file
-        rm $file
-    done
+    wait $pid
+    success="$?"
+    if [ -n "$(ls tmp)" ]; then
+        for file in tmp/*; do
+            chmod 644 $file
+            cat $file
+            rm $file
+        done
+    fi
+    if [ "${success}" -ne 0 ]; then
+        break
+    fi
 done
+exit "${success}"
