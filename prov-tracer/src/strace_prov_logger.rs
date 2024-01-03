@@ -45,9 +45,6 @@ impl crate::prov_logger::ProvLogger for StraceProvLogger {
 struct ProvTraceConfig {
     #[envconfig(from = "PROV_TRACE_FILENAME", default = "%p.%t.prov.trace")]
     filename: String,
-
-    #[envconfig(from = "PROV_TRACE_BUFFER_SIZE", default = "1000000")]
-    buffer_size: usize,
 }
 
 fn ctype_to_string(any: Box<dyn std::any::Any>, ctype: &CType) -> String {
@@ -66,6 +63,10 @@ fn ctype_to_string(any: Box<dyn std::any::Any>, ctype: &CType) -> String {
             CPrimType::Int => format!("{:?}", any.downcast_ref::<libc::c_int>().unwrap()),
             CPrimType::Uint => format!("{:?}", any.downcast_ref::<libc::c_uint>().unwrap()),
             CPrimType::ModeT => format!("{:?}", any.downcast_ref::<libc::mode_t>().unwrap()),
+            CPrimType::FtwFuncT => format!("{:?}", any.downcast_ref::<*const libc::c_void>().unwrap()),
+            CPrimType::Ftw64FuncT => format!("{:?}", any.downcast_ref::<*const libc::c_void>().unwrap()),
+            CPrimType::NftwFuncT => format!("{:?}", any.downcast_ref::<*const libc::c_void>().unwrap()),
+            CPrimType::Nftw64FuncT => format!("{:?}", any.downcast_ref::<*const libc::c_void>().unwrap()),
             _ => "Unknown prim type type".to_owned(),
         },
     }

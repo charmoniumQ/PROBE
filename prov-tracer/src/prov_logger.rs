@@ -7,19 +7,20 @@ pub trait ProvLogger {
 
     fn metadata_read(&mut self, dirfd: libc::c_int, name: *const libc::c_char) { }
     fn metadata_writepart(&mut self, dirfd: libc::c_int, name: *const libc::c_char) { }
-    fn open_none     (&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
-    fn open_read     (&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
-    fn open_writepart(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
-    fn open_readwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
-    fn open_overwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
-    fn open_overwriteshared(&mut self, dirfd: libc::c_int, filename: *const libc::c_char, fd: libc::c_int) { }
+    fn open_read     (&mut self, dirfd: libc::c_int, filename: *const libc::c_char) { }
+    fn open_writepart(&mut self, dirfd: libc::c_int, filename: *const libc::c_char) { }
+    fn open_readwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char) { }
+    fn open_overwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char) { }
+    fn associate(&mut self, fd: libc::c_int, dirfd: libc::c_int, filename: *const libc::c_char) { }
     fn close(&mut self, fd: libc::c_int) { }
     fn fcloseall(&mut self) { }
     fn close_range(&mut self, lowfd: libc::c_uint, maxfd: libc::c_uint) { }
     fn closefrom(&mut self, lowfd: libc::c_int) { }
     fn dup_fd(&mut self, oldfd: libc::c_int, newfd: libc::c_int) { }
-    fn opendir(&mut self, dirname: *const libc::c_char, dir: *const libc::DIR, dirfd: libc::c_int) { }
-    fn closedir(&mut self, dir: *const libc::DIR) { }
+    fn chdir(&mut self, filename: *const libc::c_char) { }
+    fn fchdir(&mut self, filedes: libc::c_int) { }
+    fn ftw(&mut self, filename: *const libc::c_char) { }
+    fn opendir(&mut self, fd: libc::c_int) { }
     fn link(&mut self, oldfd: libc::c_int, oldname: *const libc::c_char, newfd: libc::c_int, newname: *const libc::c_char) { }
     fn symlink(&mut self, oldfd: libc::c_int, oldname: *const libc::c_char, newfd: libc::c_int, newname: *const libc::c_char) { }
     fn readlink(&mut self, oldfd: libc::c_int, oldname: *const libc::c_char) { }
@@ -54,4 +55,8 @@ pub enum CPrimType {
     Dir,
     SizeT,
     SsizeT,
+    FtwFuncT,
+    Ftw64FuncT,
+    NftwFuncT,
+    Nftw64FuncT,
 }

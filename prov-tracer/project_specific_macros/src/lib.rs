@@ -10,6 +10,8 @@ use quote::{quote, format_ident};
  * These macros are purpose-made for one use within the containing project.
  */
 
+const PRINT_DEBUG: bool = false;
+
 enum CPrimType {
     Int(Ident),
     Uint(Ident, Ident),
@@ -20,6 +22,10 @@ enum CPrimType {
     Dir(Ident),
     SizeT(Ident),
     SsizeT(Ident),
+    FtwFuncT(Ident),
+    Ftw64FuncT(Ident),
+    NftwFuncT(Ident),
+    Nftw64FuncT(Ident),
 }
 
 impl Parse for CPrimType {
@@ -42,6 +48,10 @@ impl Parse for CPrimType {
             "DIR" => Ok(CPrimType::Dir(ident)),
             "size_t" => Ok(CPrimType::SizeT(ident)),
             "ssize_t" => Ok(CPrimType::SsizeT(ident)),
+            "__ftw_func_t" => Ok(CPrimType::FtwFuncT(ident)),
+            "__ftw64_func_t" => Ok(CPrimType::Ftw64FuncT(ident)),
+            "__nftw_func_t" => Ok(CPrimType::NftwFuncT(ident)),
+            "__nftw64_func_t" => Ok(CPrimType::Nftw64FuncT(ident)),
             _ => Err(Error::new(ident.span(), "Unable to parse inner CType")),
         }
     }
@@ -56,14 +66,14 @@ enum CType {
 impl Parse for CType {
     fn parse(input: ParseStream) -> Result<Self> {
         if input.peek(Token![const]) {
-            let constt: Token![const] = input.parse()?;
-            let inner: CPrimType = input.parse()?;
-            let star: Token![*] = input.parse()?;
+            let constt = input.parse()?;
+            let inner = input.parse()?;
+            let star = input.parse()?;
             Ok(CType::PtrConst(star, Some(constt), inner))
         } else {
             let inner: CPrimType = input.parse()?;
             if input.peek(Token![*]) {
-                let star: Token![*] = input.parse()?;
+                let star = input.parse()?;
                 Ok(CType::PtrMut(star, inner))
             } else {
                 Ok(CType::PrimType(inner))
@@ -92,18 +102,25 @@ struct CFuncSig {
     _paren: token::Paren,
     _void: Option<Ident>,
     arg_types: Punctuated<ArgType, Token![,]>,
+    options: std::vec::Vec<Ident>,
     pre_call: Vec<Stmt>,
     post_call: Vec<Stmt>,
 }
 
+impl CFuncSig {
+    fn guard_call(&self) -> bool {
+        self.options.iter().any(|ident| ident.to_string() == "guard_call")
+    }
+}
+
 impl Parse for CFuncSig {
     fn parse(input: ParseStream) -> Result<Self> {
-        let return_type: CType = input.parse()?;
-        let name: Ident = input.parse()?;
+        let return_type = input.parse()?;
+        let name = input.parse()?;
         let content;
         let _paren = parenthesized!(content in input);
-        let _void: Option<Ident>;
-        let arg_types: Punctuated<ArgType, Token![,]>;
+        let _void;
+        let arg_types;
         let void_fork = content.fork();
 
         let possibly_void: Option<Ident> = void_fork.parse().ok();
@@ -116,26 +133,15 @@ impl Parse for CFuncSig {
             arg_types = content.parse_terminated(ArgType::parse, Token![,])?
         }
 
-        let block0: Option<Block> = input.parse().ok();
-        let block1: Option<Block> = input.parse().ok();
-
-        fn option_block_to_stmts(block: Option<Block>) -> Vec<Stmt> {
-            block.map_or_else(Vec::new, |block| block.stmts)
+        let mut options = vec![];
+        while input.peek(Ident) {
+            options.push(input.parse().unwrap());
         }
 
-        let (pre_call, post_call);
-        match block1 {
-            Some(block1_real) => {
-                pre_call = option_block_to_stmts(block0);
-                post_call = block1_real.stmts;
-            },
-            None => {
-                pre_call = vec![];
-                post_call = option_block_to_stmts(block0);
-            },
-        }
+        let pre_call = input.parse::<Block>()?.stmts;
+        let post_call = input.parse::<Block>()?.stmts;
 
-        Ok(Self {return_type, name, _paren, _void, arg_types, pre_call, post_call})
+        Ok(Self {return_type, name, _paren, _void, arg_types, options, pre_call, post_call})
     }
 }
 
@@ -160,6 +166,11 @@ fn cprim_type_to_type(typ: &CPrimType) -> proc_macro2::TokenStream {
         CPrimType::Dir(_) => quote!(libc::DIR),
         CPrimType::SizeT(_) => quote!(libc::size_t),
         CPrimType::SsizeT(_) => quote!(libc::ssize_t),
+        // Special case since __ftw_func_t is not wrapped in libc crate.
+        CPrimType::FtwFuncT(_) => quote!(*const libc::c_void),
+        CPrimType::Ftw64FuncT(_) => quote!(*const libc::c_void),
+        CPrimType::NftwFuncT(_) => quote!(*const libc::c_void),
+        CPrimType::Nftw64FuncT(_) => quote!(*const libc::c_void),
     }
 }
 
@@ -189,6 +200,10 @@ fn cprim_type_to_obj(typ: &CPrimType) -> proc_macro2::TokenStream {
         CPrimType::Dir(_) => quote!(CPrimType::Dir),
         CPrimType::SizeT(_) => quote!(CPrimType::SizeT),
         CPrimType::SsizeT(_) => quote!(CPrimType::SsizeT),
+        CPrimType::FtwFuncT(_) => quote!(CPrimType::FtwFuncT),
+        CPrimType::Ftw64FuncT(_) => quote!(CPrimType::Ftw64FuncT),
+        CPrimType::NftwFuncT(_) => quote!(CPrimType::NftwFuncT),
+        CPrimType::Nftw64FuncT(_) => quote!(CPrimType::Nftw64FuncT),
     }
 }
 
@@ -235,23 +250,38 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                 quote!(Box::new(#arg),)
             }).collect::<proc_macro2::TokenStream>();
 
-            /* vvv stuff vvv */
-            let arg_fmt_string = cfunc_sig
-                .arg_types
-                .iter()
-                .map(|arg_type| arg_type.arg.to_string() + "={:?}")
-                .collect::<Vec<_>>()
-                .join(" ");
-            let arg_fmt_args = cfunc_sig.arg_types.iter().map(|arg_type| {
-                let arg = &arg_type.arg;
-                let arg_rep = match arg_type.ty {
-                    CType::PtrConst(_, _, CPrimType::Char(_)) => quote!(unsafe{crate::util::short_cstr(#arg)}),
-                    _ => quote!(#arg),
+            let condition = if cfunc_sig.guard_call() { quote!(globals::ENABLE_TRACE.get()) } else { quote!(true) };
+            let (print_begin, print_end);
+            if PRINT_DEBUG {
+                let arg_fmt_string = cfunc_sig
+                    .arg_types
+                    .iter()
+                    .map(|_| "{}={:?}")
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let arg_fmt_args = cfunc_sig.arg_types.iter().map(|arg_type| {
+                    let arg = &arg_type.arg;
+                    let arg_rep = match arg_type.ty {
+                        CType::PtrConst(_, _, CPrimType::Char(_)) => quote!(unsafe{crate::util::short_cstr(#arg)}),
+                        _ => quote!(#arg),
+                    };
+                    quote!(stringify!(#arg), #arg_rep,)
+                }).collect::<proc_macro2::TokenStream>();
+                let guard = cfunc_sig.guard_call();
+                print_begin = quote!{
+                    println!("(processing");
+                    println!(
+                        concat!(" (call={:?} ", #arg_fmt_string, " guard={:?} trace={:?})"),
+                        stringify!(#name), #arg_fmt_args /* trailling , is already present */ #guard, #condition,
+                    );
                 };
-                quote!(#arg_rep,)
-            }).collect::<proc_macro2::TokenStream>();
-            /* ^^^ stuff ^^^ */
-
+                print_end = quote!{
+                    println!(" (ret={:?} errno={}))", real_call_return, *libc::__errno_location());
+                };
+            } else {
+                print_begin = quote!();
+                print_end = quote!();
+            }
             let pre_call = &cfunc_sig.pre_call;
             let post_call = &cfunc_sig.post_call;
             quote!{
@@ -259,24 +289,20 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                     unsafe fn #name(
                         #(#arg_colon_types),*
                     ) -> #return_type => #traced_name {
-                        // println!("(processing");
-                        // println!(concat!("(", stringify!(#name), " ", #arg_fmt_string, ")"), #arg_fmt_args);
-                        let mut guard_inner_call = false;
-                        let mut call_return;
-                        #(#pre_call)*
-                        // print!("(real-call ");
-                        call_return = redhook::real!(#name)(#args);
-                        // println!("ret={:?} errno={:?})", call_return, *libc::__errno_location());
-                        // println!("(prov-logger?\n{}", !guard_inner_call || globals::ENABLE_TRACE.get());
-                        if !guard_inner_call || globals::ENABLE_TRACE.get() {
+                        #print_begin
+                        let real_call_return = if #condition {
                             PROV_LOGGER.with_borrow_mut(|prov_logger| {
-                                prov_logger.log_call(stringify!(#name), vec![#boxed_args], vec![], Box::new(call_return));
+                                #(#pre_call)*
+                                let call_return = redhook::real!(#name)(#args);
                                 #(#post_call)*
-                            });
-                        }
-                        // print!(")");
-                        // println!(")");
-                        call_return
+                                // prov_logger.log_call(stringify!(#name), vec![#boxed_args], vec![], Box::new(call_return));
+                                call_return
+                            })
+                        } else {
+                            redhook::real!(#name)(#args)
+                        };
+                        #print_end
+                        real_call_return
                     }
                 }
             }
