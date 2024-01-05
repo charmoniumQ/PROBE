@@ -1,12 +1,13 @@
 set -e -x
 
 cmds=(
-    true
+    "true"
     "ls -l .."
     "echo hi"
     "head ../flake.nix"
     "python -c 'print(2)'"
     "python -c 'import itertools'"
+    "python -c 'import os, pathlib; list(pathlib.Path().iterdir()); os.chdir(\"..\"); list(pathlib.Path().iterdir())'"
 )
 
 cargo build

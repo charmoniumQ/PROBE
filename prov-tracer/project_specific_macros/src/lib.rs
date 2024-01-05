@@ -1,9 +1,10 @@
 extern crate proc_macro;
 
+mod parsable;
+
+use parsable::*;
 use std::vec::Vec;
-use syn::{parenthesized, parse_macro_input, token, Ident, Token, Result, Error, Block, Stmt};
-use syn::parse::{Parse, ParseStream, discouraged::Speculative};
-use syn::punctuated::Punctuated;
+use syn::parse_macro_input;
 use quote::{quote, format_ident};
 
 /*
@@ -11,218 +12,7 @@ use quote::{quote, format_ident};
  */
 
 const PRINT_DEBUG: bool = false;
-
-enum CPrimType {
-    Int(Ident),
-    Uint(Ident, Ident),
-    Char(Ident),
-    File(Ident),
-    ModeT(Ident),
-    Void(Ident),
-    Dir(Ident),
-    SizeT(Ident),
-    SsizeT(Ident),
-    FtwFuncT(Ident),
-    Ftw64FuncT(Ident),
-    NftwFuncT(Ident),
-    Nftw64FuncT(Ident),
-}
-
-impl Parse for CPrimType {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let ident: syn::Ident = input.parse()?;
-        match ident.to_string().as_str() {
-            "int" => Ok(CPrimType::Int(ident)),
-            "unsigned" => {
-                let second_ident: syn::Ident = input.parse()?;
-                if second_ident == "int" {
-                    Ok(CPrimType::Uint(ident, second_ident))
-                } else {
-                    Err(Error::new(second_ident.span(), "Unknown unsigned type"))
-                }
-            },
-            "char" => Ok(CPrimType::Char(ident)),
-            "FILE" => Ok(CPrimType::File(ident)),
-            "mode_t" => Ok(CPrimType::ModeT(ident)),
-            "void" => Ok(CPrimType::Void(ident)),
-            "DIR" => Ok(CPrimType::Dir(ident)),
-            "size_t" => Ok(CPrimType::SizeT(ident)),
-            "ssize_t" => Ok(CPrimType::SsizeT(ident)),
-            "__ftw_func_t" => Ok(CPrimType::FtwFuncT(ident)),
-            "__ftw64_func_t" => Ok(CPrimType::Ftw64FuncT(ident)),
-            "__nftw_func_t" => Ok(CPrimType::NftwFuncT(ident)),
-            "__nftw64_func_t" => Ok(CPrimType::Nftw64FuncT(ident)),
-            _ => Err(Error::new(ident.span(), "Unable to parse inner CType")),
-        }
-    }
-}
-
-enum CType {
-    PtrMut(Token![*], CPrimType),
-    PtrConst(Token![*], Option<Token![const]>, CPrimType),
-    PrimType(CPrimType),
-}
-
-impl Parse for CType {
-    fn parse(input: ParseStream) -> Result<Self> {
-        if input.peek(Token![const]) {
-            let constt = input.parse()?;
-            let inner = input.parse()?;
-            let star = input.parse()?;
-            Ok(CType::PtrConst(star, Some(constt), inner))
-        } else {
-            let inner: CPrimType = input.parse()?;
-            if input.peek(Token![*]) {
-                let star = input.parse()?;
-                Ok(CType::PtrMut(star, inner))
-            } else {
-                Ok(CType::PrimType(inner))
-            }
-        }
-    }
-}
-
-struct ArgType {
-    ty: CType,
-    arg: Ident,
-}
-
-impl Parse for ArgType {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            ty: input.parse()?,
-            arg: input.parse()?,
-        })
-    }
-}
-
-struct CFuncSig {
-    return_type: CType,
-    name: Ident,
-    _paren: token::Paren,
-    _void: Option<Ident>,
-    arg_types: Punctuated<ArgType, Token![,]>,
-    options: std::vec::Vec<Ident>,
-    pre_call: Vec<Stmt>,
-    post_call: Vec<Stmt>,
-}
-
-impl CFuncSig {
-    fn guard_call(&self) -> bool {
-        self.options.iter().any(|ident| ident.to_string() == "guard_call")
-    }
-}
-
-impl Parse for CFuncSig {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let return_type = input.parse()?;
-        let name = input.parse()?;
-        let content;
-        let _paren = parenthesized!(content in input);
-        let _void;
-        let arg_types;
-        let void_fork = content.fork();
-
-        let possibly_void: Option<Ident> = void_fork.parse().ok();
-        if possibly_void.clone().map(|void2| void2 == "void").unwrap_or(false) && void_fork.is_empty() {
-            _void = possibly_void;
-            arg_types = Punctuated::new();
-            content.advance_to(&void_fork);
-        } else {
-            _void = None;
-            arg_types = content.parse_terminated(ArgType::parse, Token![,])?
-        }
-
-        let mut options = vec![];
-        while input.peek(Ident) {
-            options.push(input.parse().unwrap());
-        }
-
-        let pre_call = input.parse::<Block>()?.stmts;
-        let post_call = input.parse::<Block>()?.stmts;
-
-        Ok(Self {return_type, name, _paren, _void, arg_types, options, pre_call, post_call})
-    }
-}
-
-struct CFuncSigs {
-    cfunc_sigs: Punctuated<CFuncSig, Token![;]>,
-}
-
-impl Parse for CFuncSigs {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {cfunc_sigs: input.parse_terminated(CFuncSig::parse, Token![;])?})
-    }
-}
-
-fn cprim_type_to_type(typ: &CPrimType) -> proc_macro2::TokenStream {
-    match typ {
-        CPrimType::Int(_) => quote!(libc::c_int),
-        CPrimType::Uint(_, _) => quote!(libc::c_uint),
-        CPrimType::Char(_) => quote!(libc::c_char),
-        CPrimType::File(_) => quote!(libc::FILE),
-        CPrimType::ModeT(_) => quote!(libc::mode_t),
-        CPrimType::Void(_) => quote!(libc::c_void),
-        CPrimType::Dir(_) => quote!(libc::DIR),
-        CPrimType::SizeT(_) => quote!(libc::size_t),
-        CPrimType::SsizeT(_) => quote!(libc::ssize_t),
-        // Special case since __ftw_func_t is not wrapped in libc crate.
-        CPrimType::FtwFuncT(_) => quote!(*const libc::c_void),
-        CPrimType::Ftw64FuncT(_) => quote!(*const libc::c_void),
-        CPrimType::NftwFuncT(_) => quote!(*const libc::c_void),
-        CPrimType::Nftw64FuncT(_) => quote!(*const libc::c_void),
-    }
-}
-
-fn ctype_to_type(typ: &CType) -> proc_macro2::TokenStream {
-    match typ {
-        CType::PtrConst(_, _, cprim_type) => {
-            let inner = cprim_type_to_type(cprim_type);
-            quote!(*const #inner)
-        },
-        CType::PtrMut(_, cprim_type) => {
-            let inner = cprim_type_to_type(cprim_type);
-            quote!(*mut #inner)
-        },
-        CType::PrimType(CPrimType::Void(_)) => quote!(()),
-        CType::PrimType(cprim_type) => cprim_type_to_type(cprim_type),
-    }
-}
-
-fn cprim_type_to_obj(typ: &CPrimType) -> proc_macro2::TokenStream {
-    match typ {
-        CPrimType::Int(_) => quote!(CPrimType::Int),
-        CPrimType::Uint(_, _) => quote!(CPrimType::Uint),
-        CPrimType::Char(_) => quote!(CPrimType::Char),
-        CPrimType::File(_) => quote!(CPrimType::File),
-        CPrimType::ModeT(_) => quote!(CPrimType::ModeT),
-        CPrimType::Void(_) => quote!(CPrimType::Void),
-        CPrimType::Dir(_) => quote!(CPrimType::Dir),
-        CPrimType::SizeT(_) => quote!(CPrimType::SizeT),
-        CPrimType::SsizeT(_) => quote!(CPrimType::SsizeT),
-        CPrimType::FtwFuncT(_) => quote!(CPrimType::FtwFuncT),
-        CPrimType::Ftw64FuncT(_) => quote!(CPrimType::Ftw64FuncT),
-        CPrimType::NftwFuncT(_) => quote!(CPrimType::NftwFuncT),
-        CPrimType::Nftw64FuncT(_) => quote!(CPrimType::Nftw64FuncT),
-    }
-}
-
-fn ctype_to_obj(typ: &CType) -> proc_macro2::TokenStream {
-    match typ {
-        CType::PtrConst(_, _, cprim_type) => {
-            let inner = cprim_type_to_obj(cprim_type);
-            quote!(CType::PtrConst(#inner))
-        },
-        CType::PtrMut(_, cprim_type) => {
-            let inner = cprim_type_to_obj(cprim_type);
-            quote!(CType::PtrMut(#inner))
-        },
-        CType::PrimType(cprim_type) => {
-            let inner = cprim_type_to_obj(cprim_type);
-            quote!(CType::PrimType(#inner))
-        },
-    }
-}
+const INCLUDE_RTTI: bool = false;
 
 #[proc_macro]
 pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -230,7 +20,7 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
 
     let hook_fns =
         input
-        .cfunc_sigs
+        .0
         .iter()
         .map(|cfunc_sig| {
             let name = &cfunc_sig.name;
@@ -241,22 +31,15 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
             });
             let return_type = ctype_to_type(&cfunc_sig.return_type);
             let traced_name = format_ident!("__traced_{}", cfunc_sig.name);
-            let args = cfunc_sig.arg_types.iter().map(|arg_type| {
-                let arg = &arg_type.arg;
-                quote!(#arg,)
-            }).collect::<proc_macro2::TokenStream>();
-            let boxed_args = cfunc_sig.arg_types.iter().map(|arg_type| {
-                let arg = &arg_type.arg;
-                quote!(Box::new(#arg),)
-            }).collect::<proc_macro2::TokenStream>();
+            let args = cfunc_sig.arg_types.iter().map(|arg_type| arg_type.arg.clone()).collect::<Vec<_>>();
 
             let condition = if cfunc_sig.guard_call() { quote!(globals::ENABLE_TRACE.get()) } else { quote!(true) };
-            let (print_begin, print_end);
+            let (print_begin, print_end, print_call0, print_call1, print_call2, print_call3);
             if PRINT_DEBUG {
                 let arg_fmt_string = cfunc_sig
                     .arg_types
                     .iter()
-                    .map(|_| "{}={:?}")
+                    .map(|arg_type| format!(":{}={{:?}}", arg_type.arg.to_string()))
                     .collect::<Vec<_>>()
                     .join(" ");
                 let arg_fmt_args = cfunc_sig.arg_types.iter().map(|arg_type| {
@@ -265,25 +48,30 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                         CType::PtrConst(_, _, CPrimType::Char(_)) => quote!(unsafe{crate::util::short_cstr(#arg)}),
                         _ => quote!(#arg),
                     };
-                    quote!(stringify!(#arg), #arg_rep,)
-                }).collect::<proc_macro2::TokenStream>();
-                let guard = cfunc_sig.guard_call();
+                    quote!(#arg_rep)
+                });
+                let whole_arg_str = format!("  (call {} {} :unguard {} :ENABLE_TRACE {{}})", name.to_string(), arg_fmt_string, !cfunc_sig.guard_call());
                 print_begin = quote!{
                     println!("(processing");
-                    println!(
-                        concat!(" (call={:?} ", #arg_fmt_string, " guard={:?} trace={:?})"),
-                        stringify!(#name), #arg_fmt_args /* trailling , is already present */ #guard, #condition,
-                    );
+                    println!(#whole_arg_str, #(#arg_fmt_args),*, globals::ENABLE_TRACE.get());
                 };
                 print_end = quote!{
-                    println!(" (ret={:?} errno={}))", real_call_return, *libc::__errno_location());
+                    println!(" (returning ret={:?} errno={})", real_call_return, *libc::__errno_location());
                 };
+                print_call0 = quote!(print!("  (pre_call "););
+                print_call1 = quote!(print!(")\n  (real_call "););
+                print_call2 = quote!(print!(":ret {:?} :errno {})\n  (post_call ", call_return, *libc::__errno_location()););
+                print_call3 = quote!(print!(")\n"););
             } else {
                 print_begin = quote!();
                 print_end = quote!();
+                print_call0 = quote!();
+                print_call1 = quote!();
+                print_call2 = quote!();
+                print_call3 = quote!();
             }
-            let pre_call = &cfunc_sig.pre_call;
-            let post_call = &cfunc_sig.post_call;
+            let pre_call  = format_ident!( "pre_{}", name);
+            let post_call = format_ident!("post_{}", name);
             quote!{
                 redhook::hook! {
                     unsafe fn #name(
@@ -291,53 +79,154 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                     ) -> #return_type => #traced_name {
                         #print_begin
                         let real_call_return = if #condition {
-                            PROV_LOGGER.with_borrow_mut(|prov_logger| {
-                                #(#pre_call)*
-                                let call_return = redhook::real!(#name)(#args);
-                                #(#post_call)*
-                                // prov_logger.log_call(stringify!(#name), vec![#boxed_args], vec![], Box::new(call_return));
+                            PROV_LOGGER.with_borrow_mut(|_prov_logger| {
+                                let prov_logger = &mut _prov_logger.inner;
+                                #print_call0
+                                prov_logger.#pre_call(#(#args,)*);
+                                #print_call1
+                                let call_return = redhook::real!(#name)(#(#args,)*);
+                                #print_call2
+                                prov_logger.#post_call(#(#args,)* call_return);
+                                #print_call3
                                 call_return
                             })
                         } else {
-                            redhook::real!(#name)(#args)
+                            redhook::real!(#name)(#(#args,)*)
                         };
                         #print_end
                         real_call_return
                     }
                 }
             }
-        })
-        .collect::<proc_macro2::TokenStream>();
+        });
 
     let cfunc_sigs =
         input
-        .cfunc_sigs
+        .0
         .iter()
         .map(|cfunc_sig| {
             let name = &cfunc_sig.name;
             let arg_types = cfunc_sig.arg_types.iter().map(|arg_type| {
                 let arg = &arg_type.arg;
                 let ty = ctype_to_obj(&arg_type.ty);
-                quote!(ArgType{arg: stringify!(#arg), ty: #ty},)
-            }).collect::<proc_macro2::TokenStream>();
+                quote!(ArgType{arg: stringify!(#arg), ty: #ty})
+            });
             let return_type = ctype_to_obj(&cfunc_sig.return_type);
             quote!(
                 (stringify!(#name), CFuncSig{
                     return_type: #return_type,
                     name: stringify!(#name),
-                    arg_types: &[#arg_types],
-                }),
+                    arg_types: &[#(#arg_types),*],
+                })
             )
-        })
-        .collect::<proc_macro2::TokenStream>();
+        });
+    let cfunc_sigs_stmt = if INCLUDE_RTTI {
+        quote!{
+            lazy_static::lazy_static! {
+                static ref CFUNC_SIGS: CFuncSigs = CFuncSigs::from([
+                    #(#cfunc_sigs),*
+                ]);
+            }
+        }
+    } else { quote!() };
+
+    let prov_logger_trait_fns =
+        input
+        .0
+        .iter()
+        .map(|cfunc_sig| {
+            let name = &cfunc_sig.name;
+            let pre_name = format_ident!("pre_{}", name.to_string());
+            let post_name = format_ident!("post_{}", name.to_string());
+            let arg_colon_types = cfunc_sig.arg_types.iter().map(|arg_type| {
+                let ty = ctype_to_type(&arg_type.ty);
+                let arg = format_ident!("_{}", arg_type.arg.to_string());
+                quote!{#arg: #ty}
+            }).collect::<Vec<_>>();
+            let return_type = ctype_to_type(&cfunc_sig.return_type);
+            quote!{
+                fn #pre_name(&mut self, #(#arg_colon_types,)*) { }
+                fn #post_name(&mut self, #(#arg_colon_types,)* _return_value: #return_type) { }
+            }
+        });
+
+    let strace_prov_logger_fns =
+        input
+        .0
+        .iter()
+        .map(|cfunc_sig| {
+            let name = &cfunc_sig.name;
+            let post_name = format_ident!("post_{}", name.to_string());
+            let arg_colon_types = cfunc_sig.arg_types.iter().map(|arg_type| {
+                let ty = ctype_to_type(&arg_type.ty);
+                let arg = &arg_type.arg;
+                quote!{#arg: #ty}
+            });
+            let return_type = ctype_to_type(&cfunc_sig.return_type);
+            let arg_fmt_string = cfunc_sig
+                .arg_types
+                .iter()
+                .map(|arg_types| arg_types.arg.to_string() + "={:?}")
+                .collect::<Vec<_>>()
+                .join(", ");
+            let arg_fmt_args = cfunc_sig.arg_types.iter().map(|arg_type| {
+                let arg = &arg_type.arg;
+                let arg_rep = match arg_type.ty {
+                    CType::PtrConst(_, _, CPrimType::Char(_)) => quote!(unsafe{crate::util::short_cstr(#arg)}),
+                    _ => quote!(#arg),
+                };
+                arg_rep
+            });
+            let whole_arg_str = format!("{}({}) -> {{:?}}\n", name.to_string(), arg_fmt_string);
+            quote!{
+                fn #post_name(&mut self, #(#arg_colon_types,)* ret: #return_type) {
+                    use std::io::Write;
+                    std::write!(self.file, #whole_arg_str, #(#arg_fmt_args,)* ret).unwrap();
+                }
+            }
+        });
+
+    let semantic_prov_logger_fns =
+        input
+        .0
+        .iter()
+        .map(|cfunc_sig| {
+            let name = &cfunc_sig.name;
+            let pre_name = format_ident!("pre_{}", name.to_string());
+            let post_name = format_ident!("post_{}", name.to_string());
+            let arg_colon_types = cfunc_sig.arg_types.iter().map(|arg_type| {
+                let ty = ctype_to_type(&arg_type.ty);
+                let arg = &arg_type.arg;
+                quote!{#arg: #ty}
+            }).collect::<Vec<_>>();
+            let return_type = ctype_to_type(&cfunc_sig.return_type);
+            let pre_call = cfunc_sig.semantic_pre_call.clone();
+            let post_call = cfunc_sig.semantic_post_call.clone();
+            quote!{
+                fn #pre_name(&mut self, #(#arg_colon_types,)*) {
+                    #pre_call
+                }
+                fn #post_name(&mut self, #(#arg_colon_types,)* ret: #return_type) {
+                    #post_call
+                }
+            }
+        });
 
     proc_macro::TokenStream::from(quote!{
-        #hook_fns
-
-        lazy_static::lazy_static! {
-            static ref CFUNC_SIGS: CFuncSigs = CFuncSigs::from([
-                #cfunc_sigs
-            ]);
+        trait ProvLogger {
+            #(#prov_logger_trait_fns)*
         }
+
+        impl ProvLogger for StraceProvLogger {
+            #(#strace_prov_logger_fns)*
+        }
+
+        impl ProvLogger for SemanticProvLogger {
+            #(#semantic_prov_logger_fns)*
+        }
+
+        #(#hook_fns)*
+
+        #cfunc_sigs_stmt
     })
 }

@@ -1,15 +1,16 @@
 use envconfig::Envconfig;
 use std::io::Write;
 
-use crate::prov_logger::{CType, CPrimType, CFuncSigs};
+use crate::util::short_cstr;
+
+use crate::prov_logger::{CType, CPrimType, CFuncSigs, CFuncSig};
 
 pub struct StraceProvLogger {
-    cfunc_sigs: &'static CFuncSigs,
     file: std::fs::File,
 }
 
 impl crate::prov_logger::ProvLogger for StraceProvLogger {
-	fn new(cfunc_sigs: &'static CFuncSigs) -> Self {
+	fn new(_cfunc_sigs: &'static CFuncSigs) -> Self {
         crate::globals::ENABLE_TRACE.set(false);
 		let config = ProvTraceConfig::init_from_env().unwrap();
 		let pid = (unsafe { libc::getpid() }).to_string();
@@ -21,23 +22,45 @@ impl crate::prov_logger::ProvLogger for StraceProvLogger {
             ;
         let file = std::fs::File::create(filename).unwrap();
         crate::globals::ENABLE_TRACE.set(true);
-		Self { cfunc_sigs, file}
+		Self { file }
 	}
 
-	fn log_call(
-		&mut self,
-        name: &'static str,
-        args: Vec<Box<dyn std::any::Any>>,
-        _new_args: Vec<Box<dyn std::any::Any>>,
-        ret: Box<dyn std::any::Any>,
-	) {
-        let cfunc_sig = self.cfunc_sigs.get(name).unwrap();
-        let return_type = ctype_to_string(ret, &cfunc_sig.return_type);
-        let args: String = cfunc_sig.arg_types.iter().zip(args).map(|(arg_type, arg)| {
-            format!("{}={}", arg_type.arg, ctype_to_string(arg, &arg_type.ty))
-        }).intersperse(", ".to_string()).collect();
-        write!(self.file, "{}({}) -> {}\n", name, args, return_type).unwrap();
+	fn log_call(&mut self, name: &'static str) {
+        write!(self.file, "{}\n", name).unwrap();
 	}
+    fn metadata_read(&mut self, dirfd: libc::c_int, name: *const libc::c_char) {
+        write!(self.file, "  metadata_read {} {:?}\n", dirfd, short_cstr(name)).unwrap();
+    }
+    fn metadata_writepart(&mut self, dirfd: libc::c_int, name: *const libc::c_char) {
+        write!(self.file, "  metadata_writepart {} {:?}\n", dirfd, short_cstr(name)).unwrap();
+    }
+    fn open_read(&mut self, dirfd: libc::c_int, filename: *const libc::c_char) {
+        write!(self.file, "  open_read {} {:?}\n", dirfd, short_cstr(filename)).unwrap();
+    }
+    fn open_writepart(&mut self, dirfd: libc::c_int, filename: *const libc::c_char) {
+        write!(self.file, "  open_writepart {} {:?}\n", dirfd, short_cstr(filename)).unwrap();
+    }
+    fn open_readwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char) {
+        write!(self.file, "  open_readwrite {} {:?}\n", dirfd, short_cstr(filename)).unwrap();
+    }
+    fn open_overwrite(&mut self, dirfd: libc::c_int, filename: *const libc::c_char) {
+        write!(self.file, "  open_overwrite {} {:?}\n", dirfd, short_cstr(filename)).unwrap();
+    }
+    fn associate(&mut self, fd: libc::c_int, dirfd: libc::c_int, filename: *const libc::c_char) {
+        write!(self.file, "  associate {} {:?}\n", dirfd, short_cstr(filename)).unwrap();
+    }
+    fn close(&mut self, fd: libc::c_int) { }
+    fn fcloseall(&mut self) { }
+    fn close_range(&mut self, lowfd: libc::c_uint, maxfd: libc::c_uint) { }
+    fn closefrom(&mut self, lowfd: libc::c_int) { }
+    fn dup_fd(&mut self, oldfd: libc::c_int, newfd: libc::c_int) { }
+    fn chdir(&mut self, filename: *const libc::c_char) { }
+    fn fchdir(&mut self, filedes: libc::c_int) { }
+    fn ftw(&mut self, filename: *const libc::c_char) { }
+    fn opendir(&mut self, fd: libc::c_int) { }
+    fn link(&mut self, oldfd: libc::c_int, oldname: *const libc::c_char, newfd: libc::c_int, newname: *const libc::c_char) { }
+    fn symlink(&mut self, oldfd: libc::c_int, oldname: *const libc::c_char, newfd: libc::c_int, newname: *const libc::c_char) { }
+    fn readlink(&mut self, oldfd: libc::c_int, oldname: *const libc::c_char) { }
 }
 
 #[allow(dead_code)]
@@ -47,7 +70,15 @@ struct ProvTraceConfig {
     filename: String,
 }
 
-fn ctype_to_string(any: Box<dyn std::any::Any>, ctype: &CType) -> String {
+fn _cfunc_sig_args_to_string(cfunc_sig: CFuncSig, args: std::vec::Vec<Box<dyn std::any::Any>>, ret: Box<dyn std::any::Any>) -> String {
+    let return_type = _ctype_to_string(ret, &cfunc_sig.return_type);
+    let args: String = cfunc_sig.arg_types.iter().zip(args).map(|(arg_type, arg)| {
+        format!("{}={}", arg_type.arg, _ctype_to_string(arg, &arg_type.ty))
+    }).intersperse(", ".to_string()).collect();
+    format!("{}({}) -> {}", cfunc_sig.name, args, return_type)
+}
+
+fn _ctype_to_string(any: Box<dyn std::any::Any>, ctype: &CType) -> String {
     match ctype {
         CType::PtrMut(prim_type) => match prim_type {
             CPrimType::Void => format!("(void*){:p}", *any.downcast_ref::<*mut libc::c_void>().unwrap()),
