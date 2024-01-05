@@ -1,21 +1,27 @@
+--- a/sciunit2/libexec/__init__.py
++++ b/sciunit2/libexec/__init__.py
+@@ -4,0 +5 @@ import subprocess
++import shutil
+@@ -9,1 +10,7 @@ def pathfor(cmd):
+-    return os.path.join(os.path.dirname(__file__), cmd)
++    # Prioritize current directory first
++    # But fall back on system locations
++    path = os.path.dirname(__file__) + ":" + os.environ.get("PATH", "")
++    print(os.path.dirname(__file__) + ":" + os.environ.get("PATH", ""))
++    ret = shutil.which(cmd, path=path)
++    print(ret)
++    return ret
 --- a/setup.py
 +++ b/setup.py
-@@ -16,3 +16,3 @@
--        subprocess.check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release'])
--        subprocess.check_call(['make', '-j4'])
--        subprocess.call(['apt-get', 'update'])
-+        # subprocess.check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release'])
-+        # subprocess.check_call(['make', '-j4'])
-+        # subprocess.call(['apt-get', 'update'])
-@@ -20 +20 @@
--        _build_manpage('docs/sciunit.1.rst', 'sciunit.1.gz')
-+        # _build_manpage('docs/sciunit.1.rst', 'sciunit.1.gz')
-@@ -35 +35 @@
+@@ -35,1 +35,1 @@
 -    version=version.get_version(),
 +    version="0.4.post82.dev130189670",
 @@ -53,1 +53,1 @@
 -    setup_requires=['docutils'],
 +    # setup_requires=['docutils'],
+@@ -56 +56 @@ setup(
+-    cmdclass={'build_py': BuildCommand},
++    # cmdclass={'build_py': BuildCommand},
 --- a/requirements.txt
 +++ b/requirements.txt
 @@ -12,1 +12,1 @@

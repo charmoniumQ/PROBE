@@ -152,6 +152,29 @@
             propagatedBuildInputs = [ rpaths usagestats distro python.pkgs.pyyaml pkgs.dpkg ];
             pythonImportsCheck = [ pname ];
           };
+          reprounzip = python.pkgs.buildPythonPackage rec {
+            pname = "reprounzip";
+            version = "1.3";
+            src = pkgs.fetchPypi {
+              inherit pname version;
+              sha256 = "3f0b6b4dcde9dbcde9d283dfdf154c223b3972d5aff41a1b049224468bba3496";
+            };
+            checkInputs = [ python.pkgs.pip ];
+            propagatedBuildInputs = [ python.pkgs.pyyaml rpaths usagestats python.pkgs.requests distro python.pkgs.pyelftools ];
+            pythonImportsCheck = [ pname ];
+          };
+          reprounzip-docker = python.pkgs.buildPythonPackage rec {
+            pname = "reprounzip-docker";
+            version = "1.2";
+            src = pkgs.fetchPypi {
+              inherit pname version;
+              sha256 = "ccde16c7502072693afd7ab9d8b58f478e575efe3806ec4951659869a571fa2f";
+            };
+            checkInputs = [ python.pkgs.pip ];
+            doCheck = false;
+            propagatedBuildInputs = [ rpaths reprounzip ];
+            pythonImportsCheck = [ "reprounzip.unpackers.docker" ];
+          };
           provenance-to-use = pkgs.stdenv.mkDerivation rec {
             pname = "provenance-to-use";
             version = "0.0.0";
@@ -295,19 +318,19 @@
               })
             ];
           });
-          arviz = noPytest (python.pkgs.arviz.override { numpyro = python.pkgs.tqdm; });
-          pymc3 = noPytest (python.pkgs.pymc3.override {
-            arviz = arviz;
-            # pytensor = noPytest python.pkgs.pytensor;
-          });
-          pytensor = noPytest (python.pkgs.pytensor.overrideAttrs (super: {
-            src = pkgs.fetchFromGitHub {
-              hash = "sha256-hWDUN6JRyQtxmAfWbP8YgzAAuLguf0k0kYdtHqLgEHI=";
-              owner = "pymc-devs";
-              repo = "pytensor";
-              rev = "refs/tags/rel-2.18.1";
-            };
-          }));
+          # arviz = noPytest (python.pkgs.arviz.override { numpyro = python.pkgs.tqdm; });
+          # pymc3 = noPytest (python.pkgs.pymc3.override {
+          #   arviz = arviz;
+          #   pytensor = noPytest pytensor;
+          # });
+          # pytensor = noPytest (python.pkgs.pytensor.overrideAttrs (super: {
+          #   src = pkgs.fetchFromGitHub {
+          #     hash = "sha256-hWDUN6JRyQtxmAfWbP8YgzAAuLguf0k0kYdtHqLgEHI=";
+          #     owner = "pymc-devs";
+          #     repo = "pytensor";
+          #     rev = "refs/tags/rel-2.18.1";
+          #   };
+          # }));
           fsatrace = pkgs.fsatrace.overrideAttrs (oldAttrs: {
             src = pkgs.fetchFromGitHub {
               owner = "jacereda";
@@ -387,6 +410,7 @@
               (python.withPackages (pypkgs: [
                 # Provenance tools:
                 reprozip
+                reprounzip-docker
                 sciunit2
 
                 # Language server
@@ -404,9 +428,9 @@
                 pypkgs.kaggle
                 pypkgs.tqdm
                 pypkgs.ipython
-                arviz
+                # arviz
+                # pymc3
                 pypkgs.graphviz
-                pymc3
                 benchexec
                 charmonium-time-block
 
