@@ -34,7 +34,7 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
             let args = cfunc_sig.arg_types.iter().map(|arg_type| arg_type.arg.clone()).collect::<Vec<_>>();
 
             let condition = if cfunc_sig.guard_call() { quote!(globals::ENABLE_TRACE.get()) } else { quote!(true) };
-            let (print_begin, print_end, print_call0, print_call1, print_call2, print_call3);
+            let (print_begin, print_call0, print_call1, print_call2, print_call3a, print_call3b);
             if PRINT_DEBUG {
                 let arg_fmt_string = cfunc_sig
                     .arg_types
@@ -53,22 +53,22 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                 let whole_arg_str = format!("  (call {} {} :unguard {} :ENABLE_TRACE {{}})", name.to_string(), arg_fmt_string, !cfunc_sig.guard_call());
                 print_begin = quote!{
                     println!("(processing");
-                    println!(#whole_arg_str, #(#arg_fmt_args),*, globals::ENABLE_TRACE.get());
-                };
-                print_end = quote!{
-                    println!(" (returning ret={:?} errno={})", real_call_return, *libc::__errno_location());
+                    println!(#whole_arg_str, #(#arg_fmt_args,)* globals::ENABLE_TRACE.get());
                 };
                 print_call0 = quote!(print!("  (pre_call "););
                 print_call1 = quote!(print!(")\n  (real_call "););
-                print_call2 = quote!(print!(":ret {:?} :errno {})\n  (post_call ", call_return, *libc::__errno_location()););
-                print_call3 = quote!(print!(")\n"););
+                print_call2 = quote!(print!(":ret {:?} :errno {})\n  (post_call ", call_return, this_errno););
+                print_call3a = quote!(print!("))\n"););
+                print_call3b = quote!{
+                    println!(" (real_call :ret {:?} :errno {}))", call_return, errno::errno());
+                };
             } else {
                 print_begin = quote!();
-                print_end = quote!();
                 print_call0 = quote!();
                 print_call1 = quote!();
                 print_call2 = quote!();
-                print_call3 = quote!();
+                print_call3a = quote!();
+                print_call3b = quote!();
             }
             let pre_call  = format_ident!( "pre_{}", name);
             let post_call = format_ident!("post_{}", name);
@@ -78,23 +78,25 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                         #(#arg_colon_types),*
                     ) -> #return_type => #traced_name {
                         #print_begin
-                        let real_call_return = if #condition {
-                            PROV_LOGGER.with_borrow_mut(|_prov_logger| {
-                                let prov_logger = &mut _prov_logger.inner;
+                        if #condition {
+                            CALL_LOGGER.with_borrow_mut(|_call_logger| {
+                                let call_logger = &mut _call_logger.inner;
                                 #print_call0
-                                prov_logger.#pre_call(#(#args,)*);
+                                call_logger.#pre_call(#(#args,)*);
                                 #print_call1
+                                errno::set_errno(errno::Errno(0));
                                 let call_return = redhook::real!(#name)(#(#args,)*);
+                                let this_errno = errno::errno();
                                 #print_call2
-                                prov_logger.#post_call(#(#args,)* call_return);
-                                #print_call3
+                                call_logger.#post_call(#(#args,)* call_return, this_errno);
+                                #print_call3a
                                 call_return
                             })
                         } else {
-                            redhook::real!(#name)(#(#args,)*)
-                        };
-                        #print_end
-                        real_call_return
+                            let call_return = redhook::real!(#name)(#(#args,)*);
+                            #print_call3b
+                            call_return
+                        }
                     }
                 }
             }
@@ -130,7 +132,7 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
         }
     } else { quote!() };
 
-    let prov_logger_trait_fns =
+    let call_logger_trait_fns =
         input
         .0
         .iter()
@@ -146,11 +148,11 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
             let return_type = ctype_to_type(&cfunc_sig.return_type);
             quote!{
                 fn #pre_name(&mut self, #(#arg_colon_types,)*) { }
-                fn #post_name(&mut self, #(#arg_colon_types,)* _return_value: #return_type) { }
+                fn #post_name(&mut self, #(#arg_colon_types,)* _return_value: #return_type, this_errno: errno::Errno) { }
             }
         });
 
-    let strace_prov_logger_fns =
+    let verbose_call_logger_fns =
         input
         .0
         .iter()
@@ -177,16 +179,16 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
                 };
                 arg_rep
             });
-            let whole_arg_str = format!("{}({}) -> {{:?}}\n", name.to_string(), arg_fmt_string);
+            let whole_arg_str = format!("{}({}) -> {{:?}} (errno {{:?}})\n", name.to_string(), arg_fmt_string);
             quote!{
-                fn #post_name(&mut self, #(#arg_colon_types,)* ret: #return_type) {
+                fn #post_name(&mut self, #(#arg_colon_types,)* ret: #return_type, this_errno: errno::Errno) {
                     use std::io::Write;
-                    std::write!(self.file, #whole_arg_str, #(#arg_fmt_args,)* ret).unwrap();
+                    std::write!(self.file, #whole_arg_str, #(#arg_fmt_args,)* ret, this_errno).unwrap();
                 }
             }
         });
 
-    let semantic_prov_logger_fns =
+    let semantic_call_logger_fns =
         input
         .0
         .iter()
@@ -203,26 +205,28 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
             let pre_call = cfunc_sig.semantic_pre_call.clone();
             let post_call = cfunc_sig.semantic_post_call.clone();
             quote!{
+                #[allow(unused_variables)]
                 fn #pre_name(&mut self, #(#arg_colon_types,)*) {
                     #pre_call
                 }
-                fn #post_name(&mut self, #(#arg_colon_types,)* ret: #return_type) {
+                #[allow(unused_variables)]
+                fn #post_name(&mut self, #(#arg_colon_types,)* ret: #return_type, this_errno: errno::Errno) {
                     #post_call
                 }
             }
         });
 
     proc_macro::TokenStream::from(quote!{
-        trait ProvLogger {
-            #(#prov_logger_trait_fns)*
+        trait CallLogger {
+            #(#call_logger_trait_fns)*
         }
 
-        impl ProvLogger for StraceProvLogger {
-            #(#strace_prov_logger_fns)*
+        impl CallLogger for VerboseCallLogger {
+            #(#verbose_call_logger_fns)*
         }
 
-        impl ProvLogger for SemanticProvLogger {
-            #(#semantic_prov_logger_fns)*
+        impl<MyProvLogger: ProvLogger> CallLoggerToProvLogger<MyProvLogger> {
+            #(#semantic_call_logger_fns)*
         }
 
         #(#hook_fns)*

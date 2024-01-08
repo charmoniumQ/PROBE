@@ -71,29 +71,30 @@ libcalls = "-*+" + "+".join([
     # https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html
     "dup", "dup2",
     # https://www.gnu.org/software/libc/manual/html_node/Opening-a-Directory.html
-    "opendir", "fdopendir", "closedir",
+    "opendir", "fdopendir", "readdir", "readdir_r", "readdir64", "readdir64_r",
     # https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html
-    "link", "linkat", "symlink", "readlink", "realpath",
+    "link", "linkat", "symlink", "symlinkat", "readlink", "readlinkat", "realpath",
     # https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html
-    "unlink", "rmdir", "remove",
+    "unlink", "unlinkat", "rmdir", "remove",
     # https://www.gnu.org/software/libc/manual/html_node/Renaming-Files.html
-    "rename",
+    "rename", "renameat",
     # https://www.gnu.org/software/libc/manual/html_node/Creating-Directories.html
-    "mkdir",
+    "mkdir", "mkdirat",
     # https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html
     "stat", "stat64", "fstat", "fstat64", "lstat", "lstat64",
     # https://www.gnu.org/software/libc/manual/html_node/File-Owner.html
-    "chown", "fchown",
+    "chown", "fchown", "fchownat", "chown32", "lchown",
     # https://www.gnu.org/software/libc/manual/html_node/Setting-Permissions.html
-    "chmod", "fchmod",
+    "chmod", "fchmod", "fchmodat",
     # https://www.gnu.org/software/libc/manual/html_node/Testing-File-Access.html
-    "access",
+    "access", "faccessat",
     # https://www.gnu.org/software/libc/manual/html_node/File-Times.html
     "utimes", "lutimes", "futimes",
+    "utime", "futimesat", "utimensat", "futimens"
     # https://www.gnu.org/software/libc/manual/html_node/File-Size.html
     "truncate", "truncate64", "ftruncate", "ftruncate64",
     # https://www.gnu.org/software/libc/manual/html_node/Making-Special-Files.html
-    "mknod",
+    "mknod", "mknodat",
     # https://www.gnu.org/software/libc/manual/html_node/Temporary-Files.html
     "tmpfile", "tmpfile64", "mkstemp", "mkdtemp",
     # https://www.gnu.org/software/libc/manual/html_node/Creating-a-Pipe.html
@@ -101,7 +102,7 @@ libcalls = "-*+" + "+".join([
     # https://www.gnu.org/software/libc/manual/html_node/Pipe-to-a-Subprocess.html
     "popen", "pclose",
     # https://www.gnu.org/software/libc/manual/html_node/FIFO-Special-Files.html
-    "mkfifo",
+    "mkfifo", "mkfifoat",
     # https://www.gnu.org/software/libc/manual/html_node/Setting-Address.html
     "bind",
     # https://www.gnu.org/software/libc/manual/html_node/Creating-a-Socket.html
@@ -118,7 +119,7 @@ libcalls = "-*+" + "+".join([
     "accept",
     # TODO: send and receive, but don't log msg
     # https://www.gnu.org/software/libc/manual/html_node/Networks-Database.html
-    "getnetbyname", "getnetbyaddr", "setnetent", "getnetent"
+    "getnetbyname", "getnetbyaddr", "setnetent", "getnetent",
     # https://www.gnu.org/software/libc/manual/html_node/Running-a-Command.html
     "system",
     # https://www.gnu.org/software/libc/manual/html_node/Creating-a-Process.html

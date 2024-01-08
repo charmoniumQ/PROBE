@@ -10,8 +10,8 @@ authors = ["Samuel Grayson <sam@samgrayson.me>"]
 redhook = "2.0"
 libc = "0.2"
 lazy_static = "1.4.0"
-envconfig = "0.10.0"
 project_specific_macros = { path = "project_specific_macros" }
+errno = "0.3.8"
 
 [lib]
 name = "prov_tracer"
