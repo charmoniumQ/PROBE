@@ -1,0 +1,147 @@
+* DONE Evaluating system-level provenance tools for practical use
+- [[file:docs/provenance_overhead][Paper directory]]
+- Computational provenance := how did this file get produced? What binaries, data, libraries, other files that got used? What about the computational provenance of /those/ files?
+- System-level provenance collects this data without knowing anything about the underlying programs (black box); just looking at syscalls or the like.
+- This paper is a lit review of provenance systems
+
+* DONE Provenance research presentation to GNU/Linux User's Group
+- [[file:docs/prov_pres/][Presentation directory]]
+
+* DONE Provenance presentation to UBC
+- Presentation on Google Drive
+
+* IN-PROGRESS Measuring provenance overheads
+- [[file:docs/low_provenance_overhead/][Paper directory]]
+- Take provenance systems and benchmarks from the lit review, apply all prov systems to all benchmarks
+- Reproducing: See [[file:benchmark/REPRODUCING.md][REPRODUCING.md]]
+- [[file:benchmark/][Code directory]]
+  - [[file:benchmark/prov_collectors.py][prov_collectors.py]] contains "provenance collectors"
+  - [[file:benchmark/workloads.py][workloads.py]] contains the "workloads"; The workloads have a "setup" and a "run" phase. For example, "setup" may download stuff (we don't want to time the setup; that would just benchmark the internet service provider), whereas "run" will do the compile (we want to time only that).
+  - [[file:benchmark/runner.py][runner.py]] will select certain collectors and workloads; if it succeeds, the results get stored in ~.cache/~, so subsequent executions with the same arguments will return instantly
+  - [[file:benchmark/experiment.py][experiment.py]] contains the logic to run experiments (especailly cleaning up after them)
+  - [[file:benchmark/run_exec_wrapper.py][run_exec_wrapper.py]] knows how to execute commands in a "clean" environment and cgroup
+  - [[file:benchmark/notebook/Stats-larger.ipynb][Stats-larger.ipynb]] has the process to extract statistics using bayesian inference from the workflow runs
+  - [[file:benchmark/flake.nix][flake.nix]] contains the Nix expressions which describe the environment in which everything runs
+  - [[file:benchmark/result/][result/]] directory contains the result of building flake.nix; all binaries and executables should come from result/ in order for the experiment to be reproducible
+
+** Get workloads to work
+
+*** TODO Get Apache to compile
+- We need to get src_sh{./result/bin/python runner.py apache} to work
+
+**** DONE Cannot find pcre-config
+- I invoke src_sh{./configure --with-pcre-config=/path/to/pcre-config}, and ~./configure~ will still complain ("no pcre-config found").
+- I ended up patching with [[file:benchmark/httpd-configure.patch][httpd-configure.patch]].
+
+**** IN-PROGRESS lber.h not found
+:PROPERTIES:
+:DELEGATED: Sam
+:END:
+- ~/nix/store/2z0hshv096hhavariih722pckw5v150v-apr-util-1.6.3-dev/include/apr_ldap.h:79:10: fatal error: lber.h: No such file or directory~
+
+*** TODO Get Spack workloads to compile
+- We need to get src_sh{./result/bin/python runner.py spack} to work
+- See docstring of ~SpackInstall~ in [[file:benchmark/workloads.py][workloads.py]].
+- Spack installs a target package (call it $spec) and all of $spec's dependencies. Then it removes $spec, while leaving the dependencies.
+
+*** TODO Write a ~Workload~ class for Apache + ApacheBench
+- Compiling Apache is an interesting benchmark, but /running/ Apache with a predefined request load is also an interesting benchmark.
+- We should write a new class called ~ApacheLoad~ that installs Apache in its setup() (for simplicity, we won't reuse the version we built earlier), downloads a ~ApacheBench~, and in the run() runs the server with the request load using only tools from ~result/~ or ~.work/~.
+
+*** IN-PROGRESS Write a ~CompileLinux~ class
+:PROPERTIES:
+:DELEGATED: Faust
+:END:
+- Write a class that compiles the Linux kernel (just the kernel, no user-space software), using only tools from ~result/~.
+- The benchmark should use a specific pin of the Linux kernel and set kernel build options. Both should be customizable and set by files that are checked into Git. However, the Linux source tree should /not/ be checked into Git (see build Apache, where I download the source code in setup() and cache it for future use).
+
+*** TODO Refactor BLAST workloads
+- It should be easy to run them a large consistent set of many different BLAST apps.
+- Maybe have a 1 min, 10 min, and 60 min randomly-selected, but fixed, configuration
+
+*** TODO Run Postmark + workload
+- See [[https://doi.org/10.1145/2420950.2420989][Hi-Fi]], [[https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf][PASSv2]], [[https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf][LPM]], [[https://doi.org/10.1145/3127479.3129249][CamFlow]] for details
+
+*** TODO Investigate Sysbench
+- https://doi.org/10.1145/2508859.2516731
+
+*** TODO [#C] Refactor workloads
+- There's a ton of code in [[file:benchmark/workloads.py][workloads.py]]. This should probably be split into multiple files.
+
+*** TODO [#C] Refactor ~runner.py~
+- [[file:benchmark/runner.py][runner.py]] mixes code for selecting benchmarks and prov collectors with code for summarizing statistical outputs.
+
+** Provenance collectors
+
+*** TODO Fix Sciunits
+- We need to get src_sh{./result/bin/python runner.py sciunit} to work.
+- Sciunit is a Python package which depends on a binary called ~ptu~.
+- Sciunit says "sciunit: /nix/store/7x6rlzd7dqmsa474j8ilc306wlmjb8bp-python3-3.10.13-env/lib/python3.10/site-packages/sciunit2/libexec/ptu: No such file or directory", but on my system, that file does exist! Why can't sciunits find it?
+
+*** TODO Fix Spade+FUSE
+- We need to get src_sh{./result/bin/python runner.py spade_fuse} to work.
+
+**** TODO Get SPADE Neo4J database to work
+- src_sh{./result/bin/spade start && echo "add storage Neo4J $PWD/db" | ./result/bin/spade control}
+- Currently, that fails with "Adding storage Neo4J... error: Unable to find/load class"
+- The log can be found in ~~/.local/share/SPADE/current.log~.
+- ~/.local/share/SPADE/lib/neo4j-community/lib/*.jar contains Neo4J classes. I believe these are on the classpath. However, this is a different version of Java or something like that, which refuses to load those jars.
+
+*** TODO [#C] Write BPF trace
+- We need to write a basic prov collector for BPF trace. The collector should log files read/written by the process and all children processes. Start by writing [[file:benchmark/prov.bt][prov.bt]].
+
+** Stats
+
+*** DONE Measure arithmetic intensity for each
+- IO calls / CPU sec, where CPU sec is itself a random variable
+
+*** DONE Measure slowdown as a function of arithmetic intensity
+- See [[file:benchmark/notebook/Stats-larger.ipynb][States-larger.ipynb]]
+
+*** TODO [#C] Count dynamic instructions in entire program
+- IO calls / 1M dynamic instruction
+
+*** DONE Plot IO vs CPU sec
+
+*** DONE Plot confidence interval of slowdown per arithmetic intensity
+
+*** TODO Evaluate prediction based on arithmetic intensity
+- slowdown(prov_collector) * cpu_to_wall_time(workload) * runtime(workload) ~ runtime(workload, prov_collector)
+- What is the expected percent error?
+
+** Writing
+
+*** TODO Write introduction
+
+*** TODO Write background
+
+*** TODO Write literature rapid review section
+
+*** TODO Write benchmark and prov collector collection
+
+*** TODO Describe experiments
+
+*** TODO Describe experimental results
+
+*** TODO Make plots
+
+*** TODO Analysis
+- What provenance methods are most promising?
+- Threats to validity
+
+*** TODO Conclusion
+
+* BACKLOG Record/replay reproducibility with library interposition
+- [[file:docs/record_replay/][Paper directory]]
+- Record/replay is an easier way to get reproducibility than Docker/Nix/etc.
+- Use library interpositioning to make a record/replay tool that is faster than other record/replay tools
+
+** BACKLOG Get global state vars
+- Library constructors get called twice (2 copies of library global variables)
+- https://stackoverflow.com/questions/77782964/how-to-run-code-exactly-once-in-ld-preloaded-shared-library
+
+* Vars
+#+TODO: BACKLOG(b) TODO(t) IN-PROGRESS(p) | DONE(d) BLOCKED(b)
+
+#+BEGIN_SRC elisp
+#+END_SRC

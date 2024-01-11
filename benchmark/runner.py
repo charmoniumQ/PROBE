@@ -1,26 +1,23 @@
 import functools
 import sys
 import numpy
-import charmonium.time_block as ch_time_block
 import collections
 import pandas  # type: ignore
-from collections.abc import Sequence
-from workloads import WORKLOADS, Workload
-from prov_collectors import PROV_COLLECTORS, ProvCollector, baseline, ProvOperation
-from run_exec_wrapper import RunexecStats, run_exec, DirMode
-from util import (merge_dicts, flatten1)
+from workloads import WORKLOADS
+from prov_collectors import PROV_COLLECTORS, baseline, sciunits, spade_fuse, spade_auditd, bpf_trace, darshan
 from experiment import get_results
 
 rel_qois = ["cputime", "walltime", "memory"]
 abs_qois = ["storage", "n_ops", "n_unique_files"]
+simplest_workload = [
+    workload
+    for workload in WORKLOADS
+    if workload.kind == "simple" and workload.name == "gcc-math-pthread"
+][0]
 
 if sys.argv[1] == "test-prov":
     collectors = PROV_COLLECTORS
-    workloads = [
-        workload
-        for workload in WORKLOADS
-        if workload.name == "simple"
-    ]
+    workloads = [simplest_workload]
     iterations = 1
 elif sys.argv[1] == "test-workloads":
     collectors = [baseline]
@@ -53,6 +50,38 @@ elif sys.argv[1] == "test-genomics":
         if workload.kind == "genomics"
     ]
     iterations = 1
+elif sys.argv[1] == "sciunits":
+    collectors = [sciunits]
+    workloads = [simplest_workload]
+    iterations = 1
+elif sys.argv[1] == "spade_fuse":
+    collectors = [spade_fuse]
+    workloads = [simplest_workload]
+    iterations = 1
+elif sys.argv[1] == "spade_auditd":
+    collectors = [spade_auditd]
+    workloads = [simplest_workload]
+    iterations = 1
+elif sys.argv[1] == "spade_auditd":
+    collectors = [bpf_trace]
+    workloads = [simplest_workload]
+    iterations = 1
+elif sys.argv[1] == "apache":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "compilation" and workload.name == "apache"
+    ]
+    iterations = 1
+elif sys.argv[1] == "spack":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "compilation" and workload.name == "spack"
+    ][:1]
+    iterations = 1
 elif sys.argv[1] == "compilation":
     collectors = [baseline]
     workloads = [
@@ -65,7 +94,6 @@ else:
     raise NotImplementedError(sys.argv[1])
 
 df = get_results(collectors, workloads, iterations, seed=0)
-
 show_abs_qois = False
 show_rel_qois = False
 show_op_freqs = True

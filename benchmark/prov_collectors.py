@@ -14,6 +14,7 @@ result_bin = (Path(__file__).parent / "result/bin").resolve()
 result_lib = result_bin.parent / "lib"
 
 
+# TODO: change ProvOperation.targets from str to Path
 @dataclasses.dataclass(frozen=True)
 class ProvOperation:
     type: str
@@ -451,7 +452,7 @@ class CDE(ProvCollector):
     def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
         root = log / "cde-root"
         return tuple(
-            ProvOperation("read", file.relative_to(root), None, None)
+            ProvOperation("read", str(file.relative_to(root)), None, None)
             for file in root.glob("**")
         )
 
@@ -533,9 +534,9 @@ class BPFTrace(ProvCollector):
 
     def __init__(self) -> None:
         self.bpfscript = Path("prov.bt").read_text()
-        raise NotImplementedError("Need to actually write script")
 
     def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
+        raise NotImplementedError("Need to actually write script")
         return (
             result_bin / "env", f"BPFTRACE_STRLEN={size}", result_bin / "bpftrace", "-B", "full", "-f", "json", "-o", log, "-e",
             self.bpfscript,
@@ -543,6 +544,7 @@ class BPFTrace(ProvCollector):
 
 
 class SpadeFuse(ProvCollector):
+    _workdir: Path | None = None
     requires_empty_dir = True
     method = "FS instrm."
     submethod = "FUSE"
@@ -564,6 +566,10 @@ class SpadeFuse(ProvCollector):
     ])
 
     def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
+        self._workdir = workdir
+        # SPADE FUSE must start in a non-existant directory
+        self._workdir.unlink()
+        assert not self._workdir.exists()
         subprocess.run(
             [result_bin / "spade", "start"],
             check=True,
@@ -571,24 +577,26 @@ class SpadeFuse(ProvCollector):
         )
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        assert self._workdir is not None
         subprocess.run(
             [result_bin / "spade", "control"],
             check=True,
             capture_output=True,
             text=True,
-            input=self._start.format(workdir=workdir, log=log),
+            input=self._start.format(workdir=self._workdir, log=log),
         )
 
-        real_dir = Path(*(workdir.resolve()))
         return (
-            "env", "--chdir", real_dir, *cmd
+            "env", "--chdir", self._workdir, *cmd
         )
 
     def stop(self, proc: None | subprocess.Popen[bytes]) -> None:
         subprocess.run(
-            [],
+            [result_bin / "spade", "control"],
             check=True,
             capture_output=True,
+            text=True,
+            input=self._stop.format()
         )
 
 
@@ -642,20 +650,31 @@ class Auditd(ProvCollector):
 
 
 baseline = NoProv()
+strace = STrace()
+ltrace = LTrace()
+fsatrace = FSATrace()
+cde = CDE()
+rr = RR()
+reprozip = Reprozip()
+sciunits = Sciunits()
+spade_fuse = SpadeFuse()
+spade_auditd = SpadeAuditd()
+bpf_trace = BPFTrace()
+darshan = Darshan()
 
 
 PROV_COLLECTORS: Sequence[ProvCollector] = (
     baseline,
-    STrace(),
-    LTrace(),
-    FSATrace(),
-    CDE(),
-    RR(),
-    Reprozip(),
-    # Sciunits(),
-    # SpadeFuse(),
-    # Darshan(),
-    # BPFTrace(),
-    # SpadeAuditd(),
-    # Auditd(),
+    strace,
+    ltrace,
+    fsatrace,
+    cde,
+    rr,
+    reprozip,
+    sciunits,
+    # spade_fuse,
+    # spade_auditd,
+    # darshan,
+    # bpf_trace,
+    # auditd,
 )

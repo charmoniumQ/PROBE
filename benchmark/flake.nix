@@ -89,8 +89,8 @@
               inherit pname version;
               sha256 = "f35cbb98a7e3b7d66fb70c701ba28404a7594a0f4e9e65ea931f87195b08f28f";
             };
-            propagatedBuildInputs = [ python.pkgs.pyyaml ];
-            checkInputs = [ python.pkgs.nose pkgs.busybox ];
+            propagatedBuildInputs = [ python.pkgs.pyyaml python.pkgs.pystemd ];
+            checkInputs = [ python.pkgs.nose pkgs.busybox python.pkgs.lxml ];
             # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
             doCheck = false;
             pythonImportsCheck = [ "benchexec" ];

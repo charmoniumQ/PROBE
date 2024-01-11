@@ -482,9 +482,12 @@ impl ProvLogger for VerboseProvLogger {
 }
 
 // pub struct SemanticCallLogger {
-//     file: std::fs::File,
-//     dir: PathBuf,
+//     log_file: std::fs::File,
+//     chroot_dir: PathBuf,
 //     cwd: PathBuf,
+//     tmp_dirfd: libc::c_int,
+//     tmp_filename: *const libc::c_char,
+//     tmp_path: PathBuf,
 //     file_descriptors: std::collections::HashMap::<i32, PathBuf>,
 //     read_contents_and_metadata: std::collections::HashSet::<PathBuf>,
 //     read_metadata: std::collections::HashSet::<PathBuf>,
@@ -493,13 +496,39 @@ impl ProvLogger for VerboseProvLogger {
 //     // TODO: handle symlinks and hardlinks
 // }
 
-// impl Drop for SemanticCallLogger {
-//     fn drop(&mut self) {
-//         self.read_contents_and_metadata.map(|read_contents| println!(""))
-//     }
-// }
+// // impl Drop for SemanticCallLogger {
+// //     fn drop(&mut self) {
+// //         self.read_contents_and_metadata.map(|read_contents| println!(""))
+// //     }
+// // }
 
 // impl SemanticCallLogger {
+//     fn new() -> Self {
+//         globals::ENABLE_TRACE.set(false);
+//         let filename =
+//             std::env::var("PROV_TRACER_FILE")
+//             .unwrap_or("%p.%t.prov_trace".to_string())
+//             .replace("%p", std::process::id().to_string().as_str())
+//             .replace("%t", std::thread::current().id().as_u64().to_string().as_str());
+//         let log_file = std::fs::File::create(filename).unwrap();
+//         let dirname = std::env::var("PROV_TRACER_DIR")
+//             .unwrap_or("%p.prov_files".to_string());
+//         globals::ENABLE_TRACE.set(true);
+//         Self {
+//             log_file,
+//             chroot_dir: PathBuf::from(dirname),
+//             cwd: std::env::current_dir().unwrap(),
+//             tmp_drfd: libc::c_int,
+//             tmp_filename: *const libc::c_char,
+//             tmp_path: PathBuf,
+//             file_descriptors: std::collections::HashMap::new(),
+//             read_contents_and_metadata: std::collections::HashSet::new(),
+//             read_metadata: std::collections::HashSet::new(),
+//             copied_contents_and_metadata: std::collections::HashSet::new(),
+//             copied_metadata: std::collections::HashSet::new(),
+//         }
+//     }
+
 //     fn normalize_path(&self, path: *const libc::c_char) -> PathBuf {
 //         use std::os::unix::ffi::OsStrExt;
 //         let mut ret = self.cwd.clone();
@@ -521,28 +550,6 @@ impl ProvLogger for VerboseProvLogger {
 //         std::path::Path::join(base, subpath)
 //         // wTODO: decide what kind of canonicalizing we should be doing
 //     }
-// 	fn new() -> Self {
-//         globals::ENABLE_TRACE.set(false);
-//         let filename =
-//             std::env::var("PROV_TRACER_FILE")
-//             .unwrap_or("%p.%t.prov_trace".to_string())
-//             .replace("%p", std::process::id().to_string().as_str())
-//             .replace("%t", std::thread::current().id().as_u64().to_string().as_str());
-//         let file = std::fs::File::create(filename).unwrap();
-//         let dirname = std::env::var("PROV_TRACER_DIR")
-//             .unwrap_or("%p.prov_files".to_string());
-//         globals::ENABLE_TRACE.set(true);
-// 		Self {
-//             file,
-//             dir: PathBuf::from(dirname),
-//             cwd: std::env::current_dir().unwrap(),
-//             file_descriptors: std::collections::HashMap::new(),
-//             read_contents_and_metadata: std::collections::HashSet::new(),
-//             read_metadata: std::collections::HashSet::new(),
-//             copied_contents_and_metadata: std::collections::HashSet::new(),
-//             copied_metadata: std::collections::HashSet::new(),
-//         }
-// 	}
 
 //     fn metadata_read(&mut self, dirfd: libc::c_int, name: *const libc::c_char) {
 //         let path = self.normalize_pathat(dirfd, name);

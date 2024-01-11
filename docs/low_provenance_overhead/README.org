@@ -1,7 +1,0 @@
-* Installing
-
-- Log in to Kaggle, go to Profile, go to Account, generated an API key called "kaggle.json", download it, move it to ​~/.kaggle/kaggle.json, src_sh{chmod 600 ~/.kaggle/kaggle.json}. Run src_sh{kaggle --help} and verify there are no errors.
-- Install Nix. Enable flakes and nix commands
-- Run src_sh{nix build '.#env'}
-- Follow directions in [[https://github.com/sosy-lab/benchexec/blob/main/doc/INSTALL.md][Benchexec]] to enable cgroups. Run src_sh{result/bin/python -m benchexec.check_cgroups} and verify there are no errors.
-- Test src_sh{result/bin/rr record result/bin/ls}. If this issues an error regarding kernel.perf_event_paranoid, heed its advice and confirm that resolves the error.

@@ -31,7 +31,26 @@ class Workload:
 
 
 class SpackInstall(Workload):
+    """Benchmark installing user-provided Spack package
+
+    Spack is a package manager; it knows how to install software. We want to
+    benchmark "installing spack packages".
+
+    However, installing one spack package will necessitate downloading lots of
+    source code and installing hundreds of dependent packages.
+    - We definitely don't want to benchmark downloading the source code.
+    - Installing dependent packages, where the dependencies are very common, is
+      less interesting because it makes the data less statistically independent,
+      slower, and hides interesting differences between top-level packages.
+
+    Therefore the setup() downloads all code, builds top-level package and
+    the dependencies, and then removes just the top-level package. This will get
+    built during run().
+
+    """
+
     kind = "compilation"
+    name = "spack"
 
     def __init__(self, specs: list[str], version: str = "v0.20.1") -> None:
         self.name = "compile " + "+".join(specs)
@@ -382,7 +401,7 @@ WORKLOADS: Sequence[Workload] = (
             result_bin / "sh",
             "-c",
             f"""
-                if [ ! -f $WORKDIR/httpd ]; then
+                if [ ! -d $WORKDIR/httpd ]; then
                     {result_bin}/curl --output-dir $WORKDIR --remote-name https://dlcdn.apache.org/httpd/{apache_ver}.tar.bz2
                     {result_bin}/mkdir $WORKDIR/httpd
                     {result_bin}/tar --extract --file $WORKDIR/{apache_ver}.tar.bz2 --directory $WORKDIR/httpd --strip-components 1
@@ -394,17 +413,17 @@ WORKLOADS: Sequence[Workload] = (
         (
             result_bin / "sh",
             "-c",
-            f"cd $WORKDIR/httpd && ./configure --with-pcre=$WORKDIR/pcre2-config && {result_bin}/make",
-        )
+            f"cd $WORKDIR/httpd && ./configure --with-pcre={result_bin} && {result_bin}/make",
+        ),
     ),
-    # SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]),
+    SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]),
     # SpackInstall(["hdf~mpi"]),
     # SpackInstall(["mpich"]),
     # SpackInstall(["mvapich2"]),
     # SpackInstall(["py-matplotlib"]),
     # SpackInstall(["gromacs"]),
     # SpackInstall(["perl"]),
-    genomics_workload("blastx-10", ["NM_001004160", "NM_004838"]),
+    genomics_workload("blastx-10", ("NM_001004160", "NM_004838")),
     genomics_workload("megablast-10", [
         "NM_001000841", "NM_001008511", "NM_007622", "NM_020327", "NM_032130",
         "NM_064997", "NM_071881", "NM_078614", "NM_105954", "NM_118167",
