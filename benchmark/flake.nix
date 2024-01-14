@@ -377,6 +377,11 @@
               # Benchmark
               pkgs.blast
 
+              # Reproducibility tester
+              pkgs.icdiff
+              pkgs.disorderfs
+              pkgs.fuse
+
               # Deps of build Apache
               pkgs.curl
               pkgs.apr.dev
@@ -386,6 +391,8 @@
               # Deps of Spack workloads
               # https://spack.readthedocs.io/en/latest/getting_started.html
               pkgs.stdenv.cc # https://ryantm.github.io/nixpkgs/stdenv/stdenv/#sec-tools-of-stdenv
+              pkgs.gfortran
+              pkgs.gfortran.cc
               pkgs.gnupatch
               pkgs.gnutar
               pkgs.gzip
@@ -421,13 +428,14 @@
                 pypkgs.python-lsp-black
                 pypkgs.python-lsp-ruff
 
-
                 # Deps of script
                 pypkgs.pandas
                 pypkgs.matplotlib
                 pypkgs.kaggle
                 pypkgs.tqdm
                 pypkgs.ipython
+                pypkgs.pyyaml
+                pypkgs.types-pyyaml
                 # arviz
                 # pymc3
                 pypkgs.graphviz

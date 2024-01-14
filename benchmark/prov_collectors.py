@@ -128,6 +128,14 @@ libcalls = "-*+" + "+".join([
     # https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html
     "execv", "execl", "execve", "fexecve", "execle", "execvp", "execlp",
 
+    "getrandom",
+    # modify f/open when target is /dev/u?random
+
+    "gettimeofday",
+    "mkstemp",
+
+    # x86 instructions rdrand and rdseed
+
     # I'm pretty sure these should be here
     "clone", "chdir", "chroot", "fstatat", "dlopen", "dlclose",
 ])

@@ -79,7 +79,7 @@ elif sys.argv[1] == "spack":
     workloads = [
         workload
         for workload in WORKLOADS
-        if workload.kind == "compilation" and workload.name == "spack"
+        if workload.kind == "compilation" and type(workload).__name__ == "SpackInstall"
     ][:1]
     iterations = 1
 elif sys.argv[1] == "compilation":
@@ -140,7 +140,7 @@ if show_op_freqs:
     print((
         df
         .drop(["workload", "collector_method", "collector_submethod", "workload_kind"] + rel_qois + abs_qois, axis=1)
-        .groupby("collector")
+        .groupby("collector", observed=True)
         .agg(**{
             "op_count_pairs": pandas.NamedAgg(
                 column="operations",

@@ -50,14 +50,20 @@ class SpackInstall(Workload):
     """
 
     kind = "compilation"
-    name = "spack"
 
     def __init__(self, specs: list[str], version: str = "v0.20.1") -> None:
         self.name = "compile " + "+".join(specs)
         self._version = version
-        self._env_dir: Path | None = None
         self._specs = specs
         self._env_vars: Mapping[str, str] = {}
+
+    @property
+    def env_name(self) -> str:
+        env_name = urllib.parse.quote("-".join(self._specs), safe="")
+        if len(env_name) > 64:
+            return hashlib.sha256(env_name.encode()).hexdigest()[:16]
+        else:
+            return env_name
 
     def setup(self, workdir: Path) -> None:
         self._env_vars = {
@@ -92,10 +98,7 @@ class SpackInstall(Workload):
         spack.write_text(spack.read_text().replace("#!/bin/sh", f"#!{result_bin}/sh"))
 
         # Concretize env with desired specs
-        env_name = urllib.parse.quote("-".join(self._specs), safe="")
-        if len(env_name) > 64:
-            env_name = hashlib.sha256(env_name.encode()).hexdigest()[:16]
-        env_dir = workdir / "spack_envs" / env_name
+        env_dir = workdir / "spack_envs" / self.env_name
         if not env_dir.exists():
             env_dir.mkdir(parents=True)
             check_returncode(subprocess.run(
@@ -104,18 +107,6 @@ class SpackInstall(Workload):
                 check=False,
                 capture_output=True,
             ), env=self._env_vars)
-        conf_obj = yaml.safe_load((env_dir / "spack.yaml").read_text())
-        if True:
-            compiler = conf_obj.setdefault("spack", {}).setdefault("compilers", [{}])[0].setdefault("compiler", {})
-            compiler.setdefault("environment", {}).setdefault("prepend_path", {})["LIBRARY_PATH"] = str(result_lib)
-            compiler.setdefault("paths", {})["cc"] = str(result_bin / "gcc")
-            compiler.setdefault("paths", {})["cxx"] = str(result_bin / "g++")
-            compiler.setdefault("paths", {})["f77"] = None
-            compiler.setdefault("paths", {})["fc"] = None
-            compiler["modules"] = []
-            compiler["operating_system"] = "ubuntu22.04"
-            compiler["spec"] = "gcc@=12.3.0"
-            (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
         exports = check_returncode(subprocess.run(
             [spack, "env", "activate", "--sh", "--dir", env_dir],
             env=self._env_vars,
@@ -131,6 +122,29 @@ class SpackInstall(Workload):
                 for match in pattern.finditer(exports)
             },
         ))
+        check_returncode(
+            subprocess.run(
+                [spack, "install"],
+                env=self._env_vars,
+                check=False,
+                capture_output=True,
+            ),
+            env=self._env_vars,
+        )
+        # conf_obj = yaml.safe_load((env_dir / "spack.yaml").read_text())
+        # spack_obj = conf_obj.setdefault("spack", {})
+        # concretizer_obj = spack_obj.setdefault("concretizer", {})
+        # concretizer_obj["unify"] = "when_possible"
+        # compiler = spack_obj.setdefault("compilers", [{}])[0].setdefault("compiler", {})
+        # compiler.setdefault("environment", {}).setdefault("prepend_path", {})["LIBRARY_PATH"] = str(result_lib)
+        # compiler.setdefault("paths", {})["cc"] = str(result_bin / "gcc")
+        # compiler.setdefault("paths", {})["cxx"] = str(result_bin / "g++")
+        # compiler.setdefault("paths", {})["f77"] = str(result_bin / "gfortran")
+        # compiler.setdefault("paths", {})["fc"] = str(result_bin / "gfortran")
+        # compiler["modules"] = []
+        # compiler["operating_system"] = "ubuntu22.04"
+        # compiler["spec"] = "gcc@=12.3.0"
+        # (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
         check_returncode(subprocess.run(
             [spack, "add", *self._specs],
             env=self._env_vars,
@@ -210,7 +224,7 @@ class SpackInstall(Workload):
                     check=False,
                     capture_output=True,
                 ))
-                rel_mirror_dir = mirror_dir.resolve().relative_to(env_dir)
+                rel_mirror_dir = mirror_dir.relative_to(env_dir)
                 check_returncode(subprocess.run(
                     (spack, "mirror", "add", name, rel_mirror_dir),
                     env=self._env_vars,
@@ -232,7 +246,7 @@ class SpackInstall(Workload):
                 if has_spec:
                     check_returncode(subprocess.run(
                         [
-                            spack, "uninstall", "--all", "--yes", "--force", *spec,
+                            spack, "uninstall", "--all", "--yes", "--force", *spec.split(" "),
                         ],
                         check=False,
                         capture_output=True,
@@ -241,9 +255,8 @@ class SpackInstall(Workload):
 
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         spack = workdir / "spack/bin/spack"
-        assert self._env_dir
         assert "LD_PRELOAD" not in self._env_vars
-        assert "LD_LIBRARY_PATH" not in self._env_vars
+        # assert "LD_LIBRARY_PATH" not in self._env_vars
         assert "HOME" not in self._env_vars
         # env=patchelf%400.13.1%3A0.13%20%25gcc%20target%3Dx86_64-openblas
         # env - PATH=$PWD/result/bin HOME=$HOME $(jq  --join-output --raw-output 'to_entries[] | .key + "=" + .value + " "' .workdir/work/spack_envs/$env/env_vars.json) .workdir/work/spack/bin/spack --debug bootstrap status 2>~/Downloads/stderr_good.txt >~/Downloads/stdout_good.txt
@@ -416,7 +429,7 @@ WORKLOADS: Sequence[Workload] = (
             f"cd $WORKDIR/httpd && ./configure --with-pcre={result_bin} && {result_bin}/make",
         ),
     ),
-    SpackInstall(["patchelf@0.13.1:0.13 %gcc target=x86_64", "openblas"]),
+    SpackInstall(["perl"]),
     # SpackInstall(["hdf~mpi"]),
     # SpackInstall(["mpich"]),
     # SpackInstall(["mvapich2"]),
@@ -424,12 +437,12 @@ WORKLOADS: Sequence[Workload] = (
     # SpackInstall(["gromacs"]),
     # SpackInstall(["perl"]),
     genomics_workload("blastx-10", ("NM_001004160", "NM_004838")),
-    genomics_workload("megablast-10", [
+    genomics_workload("megablast-10", (
         "NM_001000841", "NM_001008511", "NM_007622", "NM_020327", "NM_032130",
         "NM_064997", "NM_071881", "NM_078614", "NM_105954", "NM_118167",
         "NM_127277", "NM_134656", "NM_146415", "NM_167127", "NM_180448"
-    ]),
-    genomics_workload("tblastn-10", ["NP_072902"]),
+    )),
+    genomics_workload("tblastn-10", ("NP_072902",)),
     KaggleNotebook(
         "pmarcelino/comprehensive-data-exploration-with-python",
         "competitions/house-prices-advanced-regression-techniques",

@@ -7,7 +7,7 @@ Reproducing the end result, within a tolerance, using a domain-specific metric, 
 Being able to reproduce an execution that is identical, with specific exceptions, on the same CPU architecture is a necessary condition for that ultimate end.
 
 The two categories of solutions that predominate today are
-    (1) **sandboxed package management** (Pip, Conda [@aaronmeurerCondaCrossPlatform2014], Spack [@gamblinSpackPackageManager2015], Guix [@courtesReproducibleUserControlledSoftware2015], Nix [@bzeznikNixHPCPackage2017]),
+    (1) **sandboxed package management** (Pip, Conda [@meurerCondaCrossPlatform2014], Spack [@gamblinSpackPackageManager2015], Guix [@courtesReproducibleUserControlledSoftware2015], Nix [@bzeznikNixHPCPackage2017]),
     (2) **virtualization** (Docker[^docker-virt], CharlieCloud [@priedhorskyCharliecloudUnprivilegedContainers2017], Singularity [@kurtzerSingularityScientificContainers2017], Vagrant, QEMU, VirtualBox).
 
 [^docker-virt]: Note that for the purposes of this paper, we will consider "containerization" a form of virtualization, since container engines virtualize a separate filesystem, process tree, and Linux userspace (although they do *not* virtualize the Linux kernel or other resources).
@@ -60,33 +60,33 @@ Each program, operating conditions, hardware platform, etc. either reliably meet
 However, it will be useful in researching reproducibility methods to define "more" or "less" reproducible, in a practically useful sense.
 
 We will encode reproducibility as a proposition of a program and set of conditions, holding the hardware platform and operating system constant[^os-note], for this analysis
-\[ \mathrm{Repro}: \mathrm{Progs} \times \powerset \mathrm{Cond} \to \{T, F\}. \]
+$$ \mathrm{Repro}: \mathrm{Progs} \times \mathbb{P}(\mathrm{Cond}) \to \{T, F\}. $$
 
 [^os-note]: Note that "operating system" should be thought of very narrowly, as the syscall table, machine-code calling convention, and a few other unspecified things, e.g. "Linux" would be an OS, not specifically "Ubuntu". The parts of "Ubuntu" that are relevant for reproduction will considered as "operating conditions".
 
-Programs can have several, possibly unknown, set of conditions under which they will reliably meet the requisite precision, denoted here \( \mathrm{RequiredConds}: \mathrm{Progs} \to \powerset \powerset \mathrm{Cond} \).
-This preserves the possibility that there is no such set (the program is always flaky) or that there are multiple sets (either the file system has to be a certain way or the network has to be a certain way).
+Programs can have several, possibly unknown, set of conditions under which they will reliably meet the requisite precision, denoted here $\mathrm{Required}: \mathrm{Progs} \to \mathbb{P}(\mathbb{P}(\mathrm{Cond}))$.
+This formalization recognizes the possibility that there is no such set (the program is always flaky) or that there are multiple sets (either the file system has to be a certain way or the network has to be a certain way), hence it is a set of sets of conditions.
 If the operator sets additional, unrelated conditions, without disturbing this set, then the result will still be reproducible.
-\[ \forall_{\mathrm{prog} \in \mathrm{Progs}, \mathrm{cond} \in \mathrm{Conds}} \exists_{\mathrm{req\_{}conds} \in \mathrm{RequiredConds}(\mathrm{prog})} \mathrm{conds} \supset \mathrm{req\_{}conds} \implies \mathrm{Repro}(\mathrm{prog}, \mathrm{cond}) \]
+$$ \forall_{p \in \mathrm{Progs}, c \in \mathrm{Conds}} \exists_{c' \in \mathrm{Required}(p)} c \supset c' \implies \mathrm{Repro}(p, c) $$
 
 A "reproducibility technique" is a way of augmenting the measurement system, which allows one to observe the same measurement, but requires fewer operating conditions.
-We will encode a reproducibility technique as \(\mathrm{rtech}: \mathrm{Prog} \to \mathrm{Prog}\) and a set of conditions, \(\mathrm{FixedConds}: \mathrm{RTech} \to \powerset \mathrm{Cond}\) that the reproducibiltiy technique removes from the required set;
+We will encode a reproducibility technique as $t \in \mathrm{ReproTechs}$ where $\mathrm{Wrap}: \mathrm{ReproTech} \times \mathrm{Prog} \to \mathrm{Prog}$ ``wraps'' the input program in the reproducibility technique, and $\mathrm{Fixed} : \mathrm{ReproTech} \to \mathbb{P}(\mathrm{Conds})$ is a the set of conditions that the reproducibiltiy technique removes from the required set;
 then,
-\[ \forall_{\mathrm{prog} \in \mathrm{Progs}} \mathrm{RequiredConds(\mathrm{rtech}(\mathrm{prog}))} = \{ \mathrm{req\_{}conds} - \mathrm{FixedConds}(\mathrm{rtech}) | \mathrm{req\_{}conds} \in \mathrm{RequiredConds}(\mathrm{prog})\}. \]
+$$ \forall_{t \in \mathrm{ReproTech}, p \in \mathrm{Progs}} \mathrm{Required(\mathrm{Wrap}(t, p))} = \{ c' - \mathrm{Fixed}(t) | c' \in \mathrm{Required}(p) \}. $$
 
 This is practically useful because it reduces the set of conditions an agent has to configure before the code will be reproducible, assuming there were some hypothetical---but unknown---conditions under which it was reproducible in the first place.
 
 Even though there are an infinite number of programs and operating conditions which may or may not be reproducible with certain reproducibility techniques, we can still apply a partial order on reproducibility techniques.
-We will say a particular reproducibility technique \(\mathrm{rtech}_0\) is more reproducible than \(\mathrm{rtech}_1_\) when \(\mathrm{FixedConds}(\mathrm{rtech}_0) \supset \mathrm{rtech}_1_\).
+We will say a particular reproducibility technique $t_0$ is ``more reproducible'' than $t_1$ when $\mathrm{Fixed}(t_0) \supset \mathrm{Fixed}(t_1)$.
 
 This is only a partial order, so a reproducibility technique that only fixes the filesystem is neither more nor less reproducible than a reproducibility technique that only fixes the network.
-However, one that fixes both _would_ be more reproducible.
+However, one that fixes both _would_ be more reproducible than either.
 
 ## Defining operating conditions
 
 Here are some sets of operating conditions that a reproducibility technique may or may not fix.
 Note that we will define several categories of state in terms of what is accessed by the program, "the contents of X that are read by the program".
-If the program only reads parts of X, only those parts would be elements of \(\mathrm{RequiredConds}(\mathrm{prog})\), and only those parts would need to be fixed by \(\mathrm{FixedConds}(\mathrm{rtech})\) in order to be totally removed in \(\mathrm{RequiredConds(\mathrm{prog})} - \mathrm{FixedConds}(\mathrm{rtech})\).
+If the program only reads parts of X, only those parts would be elements of $\mathrm{Required}(p)$, and only those parts would need to be fixed by $\mathrm{Fixed}(t)$ in order to be totally removed in $(\mathrm{Required(p)} - \mathrm{FixedConds}(t))$.
 The reproducibility techniques, since they augment the original program, will get a chance to monitor the program and learn what parts need to be saved.
 However, capturing all of X is also a valid option.
 
@@ -147,7 +147,7 @@ However, capturing all of X is also a valid option.
   Data can be guarded by a lock, which removes the race on the data, but creates a race on the lock;
   in some contexts, a data race may induce undefined behavior, but a race on the lock will induce statically-unknown but defined behavior.
   It may be difficult to view this as state, but a reader should imagine all of the conditions which cause a race condition to resolve a specific way, including microarchitectural state, mapping of processes to cores, state of the scheduler. 
-  There are an extremely large number of true state variables that determine the resolution, and this category is a proxy for an equivalence class of that state.
+  There are an extremely large number of true state variables that determine the resolution, and this category is a proxy for an equivalence class of states that all have the same observable result.
 - **Accesses to the network**:
   the values returned by `read(...)` on sockets done by the program.
 - **Non-deterministic machine instructions**:
@@ -157,11 +157,11 @@ However, capturing all of X is also a valid option.
   Performance counters are a way for the microarchitecture to expose details to user-level programs.
 
 [^inode-note]: We will not consdier the actual inode a part of the file-system contents, because few program depend on it, as opposed to the equivalence-class of files with the same inode, and it is difficult for reproducibility methods to force the OS to assign a particular inode, so defining the state that way would be less discerning.
-[^dir-note]: Like inode, we are not forgetting about directory order, just considering separately (under its own category) in the interest of making these categories more discerning.
 
 However, we do not claim these state categories are exhaustive, in the sense that fixing all of these would always fix the result of every program.
 
 Here are several things we do not consider system-level state:
+
 - **`cpuid`**:
   The `cpuid` instruction is not truly state, since it is deterministic; it is just a operational condition that is difficult to reach.
   It is easy to get an x86_64 CPU in 2023; it is not easy to get an <!-- TODO -->
