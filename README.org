@@ -39,7 +39,13 @@
 :END:
 - ~/nix/store/2z0hshv096hhavariih722pckw5v150v-apr-util-1.6.3-dev/include/apr_ldap.h:79:10: fatal error: lber.h: No such file or directory~
 
-*** TODO Get Spack workloads to compile
+*** DONE Get Spack workloads to compile
+:LOGBOOK:
+CLOCK: [2024-01-14 Sun 21:03]--[2024-01-14 Sun 22:35] =>  1:32
+CLOCK: [2024-01-14 Sun 19:42]--[2024-01-14 Sun 19:58] =>  0:16
+CLOCK: [2024-01-12 Fri 14:40]--[2024-01-12 Fri 16:13] =>  1:33
+CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
+:END:
 - We need to get src_sh{./result/bin/python runner.py spack} to work
 - See docstring of ~SpackInstall~ in [[file:benchmark/workloads.py][workloads.py]].
 - Spack installs a target package (call it $spec) and all of $spec's dependencies. Then it removes $spec, while leaving the dependencies.

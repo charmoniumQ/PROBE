@@ -95,6 +95,8 @@ class SpackInstall(Workload):
             ), env=self._env_vars)
         spack = spack_dir / "bin" / "spack"
         assert spack.exists()
+
+        # Use our built $PWD/result/bin/sh, not system /bin/sh
         spack.write_text(spack.read_text().replace("#!/bin/sh", f"#!{result_bin}/sh"))
 
         # Concretize env with desired specs
@@ -122,6 +124,22 @@ class SpackInstall(Workload):
                 for match in pattern.finditer(exports)
             },
         ))
+
+        # I'm not sure why this is necessary
+        view_path = env_dir / ".spack-env" / "view"
+        if view_path.exists():
+            if view_path.is_symlink():
+                view_path.unlink()
+            else:
+                shutil.rmtree(view_path)
+
+        view_path2 = env_dir / ".spack-env" / "._view"
+        if view_path2.exists():
+            if view_path2.is_symlink():
+                view_path2.unlink()
+            else:
+                shutil.rmtree(view_path2)
+
         check_returncode(
             subprocess.run(
                 [spack, "install"],
@@ -174,63 +192,10 @@ class SpackInstall(Workload):
             ), env=self._env_vars)
 
         # Find deps of that env and take out specs we asked for
-        with ch_tb.ctx("get deps"):
-            script = "; ".join([
-                "import spack.environment",
-                f"env = spack.environment.Environment('{env_dir}')",
-                "print('\\n'.join(map(str, set(env.all_specs()))))",
-            ])
-            dependency_specs = list(filter(bool, check_returncode(subprocess.run(
-                (spack, "python", "-c", script),
-                env=self._env_vars,
-                check=False,
-                capture_output=True,
-                text=True,
-            ), env=self._env_vars).stdout.strip().split("\n")))
-
-            generalized_specs = [
-                spec.partition("@")[0]
-                for spec in self._specs
-            ]
-            [
-                spec
-                for spec in dependency_specs
-                if spec.partition("@")[0] in generalized_specs
-            ]
-            [
-                spec
-                for spec in dependency_specs
-                if spec.partition("@")[0] not in generalized_specs
-            ]
-
-        # Create mirror with source code of self._specs
-        name = "env_mirror"
-        mirror_dir = env_dir / name
-        mirrors = check_returncode(subprocess.run(
-            (spack, "mirror", "list"),
-            env=self._env_vars,
-            check=False,
-            capture_output=True,
-            text=True,
-        ), env=self._env_vars).stdout
-        if name not in mirrors:
-            with ch_tb.ctx(f"create mirror {name}"):
-                if mirror_dir.exists():
-                    shutil.rmtree(mirror_dir)
-                mirror_dir.mkdir()
-                check_returncode(subprocess.run(
-                    (spack, "mirror", "create", "--directory", mirror_dir, "--all"),
-                    env=self._env_vars,
-                    check=False,
-                    capture_output=True,
-                ))
-                rel_mirror_dir = mirror_dir.relative_to(env_dir)
-                check_returncode(subprocess.run(
-                    (spack, "mirror", "add", name, rel_mirror_dir),
-                    env=self._env_vars,
-                    check=False,
-                    capture_output=True,
-                ), env=self._env_vars)
+        generalized_specs = [
+            spec.partition("@")[0]
+            for spec in self._specs
+        ]
 
         # Ensure target specs are uninstalled
         with ch_tb.ctx("Uninstalling specs"):
@@ -253,6 +218,7 @@ class SpackInstall(Workload):
                         env=self._env_vars,
                     ), env=self._env_vars)
 
+
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         spack = workdir / "spack/bin/spack"
         assert "LD_PRELOAD" not in self._env_vars
@@ -263,7 +229,7 @@ class SpackInstall(Workload):
         # sed -i $'s/\033\[[0-9;]*m//g' ~/Downloads/stderr*.txt
         # sed -i 's/==> \[[0-9:. -]*\] //g' ~/Downloads/stderr*.txt
         return (
-            (spack, "--debug", "install"),
+            (spack, "install"),
             {k: v for k, v in self._env_vars.items()},
         )
 

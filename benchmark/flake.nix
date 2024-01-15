@@ -84,10 +84,10 @@
           );
           benchexec = python.pkgs.buildPythonPackage rec {
             pname = "BenchExec";
-            version = "3.17";
+            version = "3.20";
             src = pkgs.fetchPypi {
               inherit pname version;
-              sha256 = "f35cbb98a7e3b7d66fb70c701ba28404a7594a0f4e9e65ea931f87195b08f28f";
+              sha256 = "e796e8636772825aa7c72aa3aaf0793522e3d0d55eb9220f7706421d4d3f38a9";
             };
             propagatedBuildInputs = [ python.pkgs.pyyaml python.pkgs.pystemd ];
             checkInputs = [ python.pkgs.nose pkgs.busybox python.pkgs.lxml ];
