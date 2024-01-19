@@ -140,29 +140,27 @@ class SpackInstall(Workload):
             else:
                 shutil.rmtree(view_path2)
 
-        check_returncode(
-            subprocess.run(
-                [spack, "install"],
-                env=self._env_vars,
-                check=False,
-                capture_output=True,
-            ),
+        subprocess.run(
+            [spack, "repo", "add", "spack-repo"],
             env=self._env_vars,
+            check=False,
+            capture_output=True,
         )
-        # conf_obj = yaml.safe_load((env_dir / "spack.yaml").read_text())
-        # spack_obj = conf_obj.setdefault("spack", {})
-        # concretizer_obj = spack_obj.setdefault("concretizer", {})
-        # concretizer_obj["unify"] = "when_possible"
-        # compiler = spack_obj.setdefault("compilers", [{}])[0].setdefault("compiler", {})
-        # compiler.setdefault("environment", {}).setdefault("prepend_path", {})["LIBRARY_PATH"] = str(result_lib)
-        # compiler.setdefault("paths", {})["cc"] = str(result_bin / "gcc")
-        # compiler.setdefault("paths", {})["cxx"] = str(result_bin / "g++")
-        # compiler.setdefault("paths", {})["f77"] = str(result_bin / "gfortran")
-        # compiler.setdefault("paths", {})["fc"] = str(result_bin / "gfortran")
-        # compiler["modules"] = []
-        # compiler["operating_system"] = "ubuntu22.04"
-        # compiler["spec"] = "gcc@=12.3.0"
-        # (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
+
+        check_returncode(subprocess.run(
+            [spack, "compiler", "find"],
+            env=self._env_vars,
+            check=False,
+            capture_output=True,
+        ), env=self._env_vars)
+
+        conf_obj = yaml.safe_load((env_dir / "spack.yaml").read_text())
+        compilers = conf_obj["spack"]["compilers"]
+        assert len(compilers) == 1, "Multiple compilers detected; I'm not sure how to choose and configure those."
+        compiler = compilers[0]["compiler"]
+        compiler.setdefault("environment", {}).setdefault("prepend_path", {})["LIBRARY_PATH"] = str(result_lib)
+        (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
+
         check_returncode(subprocess.run(
             [spack, "add", *self._specs],
             env=self._env_vars,
@@ -331,8 +329,6 @@ class Cmds(Workload):
     def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
         return tuple(self._replace_args(self._run, workdir)), {}
 
-apache_ver = "httpd-2.4.58"
-
 def genomics_workload(name: str, which_targets: tuple[str, ...]) -> Cmds:
     return Cmds(
         "genomics",
@@ -395,13 +391,24 @@ WORKLOADS: Sequence[Workload] = (
             f"cd $WORKDIR/httpd && ./configure --with-pcre={result_bin} && {result_bin}/make",
         ),
     ),
-    SpackInstall(["perl"]),
-    # SpackInstall(["hdf~mpi"]),
-    # SpackInstall(["mpich"]),
-    # SpackInstall(["mvapich2"]),
-    # SpackInstall(["py-matplotlib"]),
-    # SpackInstall(["gromacs"]),
-    # SpackInstall(["perl"]),
+    SpackInstall(["trilinos"]), # Broke
+    SpackInstall(["python"]),
+    SpackInstall(["openmpi ^spack-repo.libtool"]), # Broke
+    SpackInstall(["cmake"]),
+    SpackInstall(["qt"]), # Broke
+    SpackInstall(["dealii"]), # Broke
+    # SpackInstall(["gcc"]), # takes a long time
+    # SpackInstall(["llvm"]), # takes a long time
+    SpackInstall(["petsc"]), # Broke
+    # SpackInstall(["llvm-doe"]), # takes a long time
+    SpackInstall(["boost"]),
+    SpackInstall(["hdf ^spack-repo.krb5"]),
+    # SpackInstall(["openblas"]),
+    SpackInstall(["spack-repo.mpich"]),
+    SpackInstall(["openssl"]),
+    # SpackInstall(["py-matplotlib"]), # Broke
+    # SpackInstall(["gromacs"]), # Broke
+    SpackInstall(["apacheHttpd ^spack-repo.openldap"]),
     genomics_workload("blastx-10", ("NM_001004160", "NM_004838")),
     genomics_workload("megablast-10", (
         "NM_001000841", "NM_001008511", "NM_007622", "NM_020327", "NM_032130",

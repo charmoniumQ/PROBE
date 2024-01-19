@@ -8,9 +8,11 @@
         noPytest = pypkg: pypkg.overrideAttrs (self: super: {
           pytestCheckPhase = ''true'';
         });
-      in
-      {
+        replaceDebugpy = pkg: pkgs.hello;
+        removePackage = drv: pkgsToRemove: drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {name = pkgToRemove; value = null;}) pkgsToRemove));
+      in {
         packages = rec {
+          debugpy = noPytest python.pkgs.debugpy;
           darshan-runtime = pkgs.stdenv.mkDerivation rec {
             pname = "darshan-runtime";
             version = "3.4.4";
@@ -89,8 +91,8 @@
               inherit pname version;
               sha256 = "e796e8636772825aa7c72aa3aaf0793522e3d0d55eb9220f7706421d4d3f38a9";
             };
-            propagatedBuildInputs = [ python.pkgs.pyyaml python.pkgs.pystemd ];
-            checkInputs = [ python.pkgs.nose pkgs.busybox python.pkgs.lxml ];
+            propagatedBuildInputs = [ python.pkgs.pyyaml python.pkgs.pystemd python.pkgs.lxml ];
+            # checkInputs = [ python.pkgs.nose pkgs.busybox python.pkgs.lxml ];
             # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
             doCheck = false;
             pythonImportsCheck = [ "benchexec" ];
@@ -318,27 +320,6 @@
               })
             ];
           });
-          # arviz = noPytest (python.pkgs.arviz.override { numpyro = python.pkgs.tqdm; });
-          # pymc3 = noPytest (python.pkgs.pymc3.override {
-          #   arviz = arviz;
-          #   pytensor = noPytest pytensor;
-          # });
-          # pytensor = noPytest (python.pkgs.pytensor.overrideAttrs (super: {
-          #   src = pkgs.fetchFromGitHub {
-          #     hash = "sha256-hWDUN6JRyQtxmAfWbP8YgzAAuLguf0k0kYdtHqLgEHI=";
-          #     owner = "pymc-devs";
-          #     repo = "pytensor";
-          #     rev = "refs/tags/rel-2.18.1";
-          #   };
-          # }));
-          fsatrace = pkgs.fsatrace.overrideAttrs (oldAttrs: {
-            src = pkgs.fetchFromGitHub {
-              owner = "jacereda";
-              repo = "fsatrace";
-              rev = "c031f8dae8f5456173157b3696f1c10f3c3c5b4a";
-              hash = "sha256-rkDNuKkR1069eJI2XyIa0sKZMG4G1AiD4Zl+TVerw7w=";
-            };
-          });
           pcre2-dev = pkgs.pcre2.dev.overrideAttrs (super: {
             postFixup = super.postFixup + ''
               ${pkgs.gnused}/bin/sed --in-place s=/bin/sh=${pkgs.dash}/bin/dash=g $dev/bin/pcre2-config
@@ -351,7 +332,7 @@
               darshan-runtime
               darshan-util
               spade
-              fsatrace
+              pkgs.fsatrace
               pkgs.strace
               pkgs.ltrace
               pkgs.cde
@@ -430,28 +411,27 @@
 
                 # Deps of script
                 pypkgs.pandas
-                pypkgs.matplotlib
                 pypkgs.kaggle
                 pypkgs.tqdm
                 pypkgs.ipython
                 pypkgs.pyyaml
                 pypkgs.types-pyyaml
-                # arviz
-                # pymc3
                 pypkgs.graphviz
                 benchexec
                 charmonium-time-block
 
                 # deps of notebooks
+                (replaceDebugpy pypkgs.arviz)
+                (replaceDebugpy pypkgs.pymc3)
                 pypkgs.numpy # repeats are OK
                 pypkgs.pandas
                 pypkgs.matplotlib
-                pypkgs.notebook
+                (replaceDebugpy pypkgs.notebook)
                 pypkgs.seaborn
                 pypkgs.scipy
                 pypkgs.scikit-learn
-                pypkgs.nbconvert
-                jupyter-contrib-nbextensions
+                (replaceDebugpy pypkgs.nbconvert)
+                (replaceDebugpy jupyter-contrib-nbextensions)
               ]))
             ];
           };

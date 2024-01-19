@@ -80,7 +80,7 @@ elif sys.argv[1] == "spack":
         workload
         for workload in WORKLOADS
         if workload.kind == "compilation" and type(workload).__name__ == "SpackInstall"
-    ][:1]
+    ]
     iterations = 1
 elif sys.argv[1] == "compilation":
     collectors = [baseline]

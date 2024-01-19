@@ -29,6 +29,7 @@ def get_results(
         workloads: Sequence[Workload],
         iterations: int,
         seed: int,
+        fail_first: bool = True,
 ) -> pandas.DataFrame:
     return (
         run_experiments_cached(
@@ -39,6 +40,7 @@ def get_results(
             cache_dir=pathlib.Path(".cache"),
             big_temp_dir=pathlib.Path(".workdir"),
             size=256,
+            fail_first=fail_first,
         )
         .assign(**{
             "n_ops": lambda df: list(map(len, df.operations)),
@@ -52,9 +54,10 @@ def run_experiments_cached(
         workloads: Sequence[Workload],
         iterations: int,
         seed: int,
-        cache_dir: pathlib.Path = pathlib.Path(".cache"),
-        big_temp_dir: pathlib.Path = pathlib.Path(".workdir"),
-        size: int = 256,
+        cache_dir: pathlib.Path,
+        big_temp_dir: pathlib.Path,
+        size: int,
+        fail_first: bool,
 ) -> pandas.DataFrame:
     key = (cache_dir / ("results_" + "_".join([
         *[prov_collector.name for prov_collector in prov_collectors],
@@ -74,6 +77,7 @@ def run_experiments_cached(
             iterations,
             size,
             seed,
+            fail_first,
         )
         key.write_bytes(pickle.dumps(results_df))
         return results_df
@@ -84,9 +88,10 @@ def run_experiments(
         workloads: Sequence[Workload],
         cache_dir: pathlib.Path,
         big_temp_dir: pathlib.Path,
-        iterations: int = 10,
-        size: int = 256,
-        seed: int = 0,
+        iterations: int,
+        size: int,
+        seed: int,
+        fail_first: bool,
 ) -> pandas.DataFrame:
     prng = random.Random(seed)
     inputs = shuffle(
@@ -105,7 +110,7 @@ def run_experiments(
     result_list = [
         (prov_collector, workload, run_one_experiment_cached(
             cache_dir, iteration, prov_collector, workload,
-            work_dir, log_dir, temp_dir, artifacts_dir, size,
+            work_dir, log_dir, temp_dir, artifacts_dir, size, fail_first,
         ))
         for iteration, prov_collector, workload in tqdm.tqdm(inputs)
     ]
@@ -155,6 +160,7 @@ def run_one_experiment_cached(
     temp_dir: pathlib.Path,
     artifacts_dir: pathlib.Path,
     size: int,
+    fail_first: bool,
 ) -> ExperimentStats:
     key = (cache_dir / ("_".join([
         urllib.parse.quote(prov_collector.name),
@@ -167,7 +173,7 @@ def run_one_experiment_cached(
         delete_children(temp_dir)
         stats = run_one_experiment(
             iteration, prov_collector, workload, work_dir, log_dir,
-            temp_dir, artifacts_dir, size
+            temp_dir, artifacts_dir, size, fail_first,
         )
         cache_dir.mkdir(exist_ok=True, parents=True)
         key.write_bytes(pickle.dumps(stats))
@@ -183,9 +189,20 @@ def run_one_experiment(
     temp_dir: pathlib.Path,
     artifacts_dir: pathlib.Path,
     size: int,
+    fail_first: bool,
 ) -> ExperimentStats:
     with ch_time_block.ctx(f"setup {workload}"):
-        workload.setup(work_dir)
+        try:
+            workload.setup(work_dir)
+        except SubprocessError as exc:
+            print(str(exc))
+            return ExperimentStats(
+                cputime=0,
+                walltime=0,
+                memory=0,
+                provenance_size=0,
+                operations=(),
+            )
         delete_children(log_dir)
 
     (temp_dir / "old_work_dir").mkdir()
@@ -226,7 +243,7 @@ def run_one_experiment(
             },
         )
     move_children(temp_dir / "old_work_dir", work_dir)
-    if not stats.success:
+    if fail_first and not stats.success:
         raise SubprocessError(
             cmd=cmd,
             env=full_env,

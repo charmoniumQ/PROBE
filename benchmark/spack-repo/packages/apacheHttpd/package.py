@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-from spack.package import *
+from spack.build_systems.autotools import AutotoolsPackage
+from spack.directives import maintainers, version, variant, depends_on
 
 
 class Apachehttpd(AutotoolsPackage):
@@ -14,7 +15,7 @@ class Apachehttpd(AutotoolsPackage):
 
     maintainers("charmoniumQ")
 
-    license("asl20")
+    # license("asl20")
 
     version("2.4.58", sha256="fa16d72a078210a54c47dd5bef2f8b9b8a01d94909a51453956b3ec6442ea4c5")
 
@@ -41,23 +42,23 @@ class Apachehttpd(AutotoolsPackage):
     depends_on("lua", when="+lua")
 
     def configure_args(self):
-        enable_feature = lambda name: (
-            "--enable-%s" % name
-            if self.spec.satisfies("+%s" % name) else
-            "--disable-%s" % name
-        )
-        with_feature_as = lambda name: (
-            "--with-%s=%s" % (name, self.spec[name].prefix)
-            if self.spec.satisfies("+%s" % name) else
-            "--without-%s" % name
-        )
+        def enable_feature(name):
+            if self.spec.satisfies("+%s" % name):
+                return "--enable-%s" % name
+            else:
+                return "--disable-%s" % name
+        def with_feature_as(name):
+            if self.spec.satisfies("+%s" % name):
+                return "--with-%s=%s" % (name, self.spec[name].prefix)
+            else:
+                return "--without-%s" % name
 
         # Based on https://github.com/NixOS/nixpkgs/blob/19e27c3547b51e8705855879a4f55846c75ee5fb/pkgs/servers/http/apache-httpd/2.4.nix
         args = [
-            f"--with-apr=%s" % self.spec["apr"].prefix,
-            f"--with-apr-util=%s" % self.spec["apr-util"].prefix,
-            f"--with-z=%s" % self.spec["zlib"].prefix,
-            f"--with-pcre=%s/bin/pcre2-config" % self.spec["pcre2"].prefix,
+            "--with-apr=%s" % self.spec["apr"].prefix,
+            "--with-apr-util=%s" % self.spec["apr-util"].prefix,
+            "--with-z=%s" % self.spec["zlib"].prefix,
+            "--with-pcre=%s" % self.spec["pcre2"].prefix,
             "--disable-maintainer-mode",
             "--disable-debugger-mode",
             "--enable-mods--shared=all",
@@ -86,6 +87,7 @@ class Apachehttpd(AutotoolsPackage):
 
             enable_feature("lua"),
             with_feature_as("lua"),
+            "LDFLAGS=-L{crypt}/lib -lcrypt".format(crypt=self.spec["libxcrypt"].prefix),
         ]
         print(args)
         return args
