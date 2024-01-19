@@ -12,7 +12,8 @@ from typing import cast
 
 # ruff: noqa: E501
 
-result_bin = (Path(__file__).parent / "result").resolve() / "bin"
+cwd = Path(__file__).resolve()
+result_bin = (cwd.parent / "result").resolve() / "bin"
 result_lib = result_bin.parent / "lib"
 
 
@@ -299,6 +300,15 @@ class KaggleNotebook(Workload):
         )
 
 
+class ApacheBench(Workload):
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        return (
+            (result_bin / "python", "httpd_run.py", result_bin / "httpd", result_bin / "hey", result_lib / "modules", 21789, 1000000),
+            {},
+        )
+
+
+
 class Cmds(Workload):
     def __init__(self, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...]) -> None:
         self.kind = kind
@@ -369,46 +379,24 @@ WORKLOADS: Sequence[Workload] = (
     Cmds("simple", "python-imports", (result_bin / "ls", "-l"), (result_bin / "python", "-c", "import pandas, pymc, matplotlib")),
     # Cmds("simple", "gcc", (result_bin / "ls", "-l"), (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe")),
     Cmds("simple", "gcc-math-pthread", (result_bin / "ls", "-l"), (result_bin / "gcc", "-DFULL", "-Wall", "-Og", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread", "-lm")),
-    Cmds(
-        "compilation",
-        "apache",
-        (
-            result_bin / "sh",
-            "-c",
-            f"""
-                if [ ! -d $WORKDIR/httpd ]; then
-                    {result_bin}/curl --output-dir $WORKDIR --remote-name https://dlcdn.apache.org/httpd/{apache_ver}.tar.bz2
-                    {result_bin}/mkdir $WORKDIR/httpd
-                    {result_bin}/tar --extract --file $WORKDIR/{apache_ver}.tar.bz2 --directory $WORKDIR/httpd --strip-components 1
-                    {result_bin}/patch --directory=$WORKDIR/httpd --strip=1 < httpd-configure.patch
-                    {result_bin}/sed --in-place s=/bin/sh={result_bin}/sh=g $WORKDIR/httpd/configure
-                fi
-            """,
-        ),
-        (
-            result_bin / "sh",
-            "-c",
-            f"cd $WORKDIR/httpd && ./configure --with-pcre={result_bin} && {result_bin}/make",
-        ),
-    ),
-    SpackInstall(["trilinos"]), # Broke
+    # SpackInstall(["trilinos", "spack-repo.libtool"]), # Broke: openblas
     SpackInstall(["python"]),
-    SpackInstall(["openmpi ^spack-repo.libtool"]), # Broke
+    SpackInstall(["openmpi", "spack-repo.libtool"]),
     SpackInstall(["cmake"]),
-    SpackInstall(["qt"]), # Broke
+    # SpackInstall(["qt"]), # Broke
     SpackInstall(["dealii"]), # Broke
     # SpackInstall(["gcc"]), # takes a long time
     # SpackInstall(["llvm"]), # takes a long time
-    SpackInstall(["petsc"]), # Broke
+    # SpackInstall(["petsc ^spack-repo.libtool"]), # Broke: openblas
     # SpackInstall(["llvm-doe"]), # takes a long time
     SpackInstall(["boost"]),
-    SpackInstall(["hdf ^spack-repo.krb5"]),
-    # SpackInstall(["openblas"]),
+    SpackInstall(["hdf", "spack-repo.krb5"]),
+    # SpackInstall(["openblas"]), # Broke
     SpackInstall(["spack-repo.mpich"]),
     SpackInstall(["openssl"]),
     # SpackInstall(["py-matplotlib"]), # Broke
     # SpackInstall(["gromacs"]), # Broke
-    SpackInstall(["apacheHttpd ^spack-repo.openldap"]),
+    SpackInstall(["apacheHttpd", "spack-repo.openldap"]),
     genomics_workload("blastx-10", ("NM_001004160", "NM_004838")),
     genomics_workload("megablast-10", (
         "NM_001000841", "NM_001008511", "NM_007622", "NM_020327", "NM_032130",

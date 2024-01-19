@@ -2,15 +2,18 @@
 +++ b/sciunit2/libexec/__init__.py
 @@ -4,0 +5 @@ import subprocess
 +import shutil
-@@ -9,1 +10,7 @@ def pathfor(cmd):
+@@ -9 +10,7 @@ def pathfor(cmd):
 -    return os.path.join(os.path.dirname(__file__), cmd)
 +    # Prioritize current directory first
 +    # But fall back on system locations
 +    path = os.path.dirname(__file__) + ":" + os.environ.get("PATH", "")
-+    print(os.path.dirname(__file__) + ":" + os.environ.get("PATH", ""))
++    print(12, os.path.dirname(__file__) + ":" + os.environ.get("PATH", ""))
 +    ret = shutil.which(cmd, path=path)
-+    print(ret)
++    print(14, ret)
 +    return ret
+@@ -22,0 +30 @@ class Process(object):
++        print(29, self.which, args, kwargs)
+
 --- a/setup.py
 +++ b/setup.py
 @@ -35,1 +35,1 @@

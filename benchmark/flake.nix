@@ -363,11 +363,9 @@
               pkgs.disorderfs
               pkgs.fuse
 
-              # Deps of build Apache
-              pkgs.curl
-              pkgs.apr.dev
-              pkgs.aprutil.dev
-              pcre2-dev
+              # Deps of ApacheBench
+              pkgs.apacheHttpd
+              pkgs.hey
 
               # Deps of Spack workloads
               # https://spack.readthedocs.io/en/latest/getting_started.html
@@ -393,6 +391,7 @@
               pkgs.gawk
               pkgs.libnsl
               pkgs.libxcrypt.out
+              pkgs.findutils
 
               # Python pkgs!
               (python.withPackages (pypkgs: [
