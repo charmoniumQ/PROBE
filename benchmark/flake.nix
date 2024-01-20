@@ -10,8 +10,16 @@
         });
         replaceDebugpy = pkg: pkgs.hello;
         removePackage = drv: pkgsToRemove: drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {name = pkgToRemove; value = null;}) pkgsToRemove));
+        renameInDrv = drv: oldFile: newFile: pkgs.runCommand "${drv.name}-renamed" {} ''
+          mkdir $out
+          cp --recursive ${drv}/* $out
+          chmod +w $out/${oldFile} $(dirname $out/${newFile})
+          mv $out/${oldFile} $out/${newFile}
+        '';
       in {
         packages = rec {
+          apacheHttpd = renameInDrv pkgs.apacheHttpd "bin/httpd" "bin/apacheHttpd";
+          miniHttpd = renameInDrv pkgs.miniHttpd "bin/httpd" "bin/miniHttpd";
           debugpy = noPytest python.pkgs.debugpy;
           darshan-runtime = pkgs.stdenv.mkDerivation rec {
             pname = "darshan-runtime";
@@ -371,7 +379,8 @@
               pkgs.fuse
 
               # Deps of ApacheBench
-              pkgs.apacheHttpd
+              apacheHttpd
+              miniHttpd
               pkgs.hey
 
               # Deps of Spack workloads

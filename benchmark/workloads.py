@@ -8,6 +8,7 @@ from collections.abc import Sequence, Mapping
 from pathlib import Path
 from util import run_all, CmdArg, check_returncode, merge_env_vars
 import yaml
+import json
 from typing import cast
 
 # ruff: noqa: E501
@@ -300,13 +301,94 @@ class KaggleNotebook(Workload):
         )
 
 
+# See https://superuser.com/a/1079037
+APACHE_CONF = '''
+ServerRoot $HTTPD_ROOT
+PidFile $HTTPD_ROOT/httpd.pid
+ErrorLog $HTTPD_ROOT/errors.log
+ServerName localhost
+Listen $PORT
+LoadModule mpm_event_module $MODULES_ROOT/mod_mpm_event.so
+LoadModule unixd_module $MODULES_ROOT/mod_unixd.so
+LoadModule authz_core_module $MODULES_ROOT/mod_authz_core.so
+DocumentRoot $SRV_ROOT
+'''
+
+
+HTTP_PORT = 54123
+HTTP_N_REQUESTS = 30000000
+TEST_FILE = "abcdef1234567890"
+
+
 class ApacheBench(Workload):
+    kind = "http_bench"
+
+    name = "apache_bench"
+
+    def setup(self, workdir: Path) -> None:
+        httpd_root = workdir / "apache"
+        if httpd_root.exists():
+            shutil.rmtree(httpd_root)
+        httpd_root.mkdir()
+        srv_root = httpd_root / "srv"
+        srv_root.mkdir()
+        (srv_root / "test").write_text(TEST_FILE)
+        conf_file = httpd_root / "httpd.conf"
+        modules_root = result_lib / "modules"
+        conf_file.write_text(
+            APACHE_CONF
+            .replace("$HTTPD_ROOT", str(httpd_root))
+            .replace("$MODULES_ROOT", str(modules_root))
+            .replace("$SRV_ROOT", str(srv_root))
+            .replace("$PORT", str(HTTP_PORT))
+        )
+
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         return (
-            (result_bin / "python", "httpd_run.py", result_bin / "httpd", result_bin / "hey", result_lib / "modules", 21789, 1000000),
+            (
+                result_bin / "python",
+                "run_server_and_client.py",
+                json.dumps([
+                    str(result_bin / "apacheHttpd"), "-k", "start", "-f",
+                    str(workdir / "apache/httpd.conf")
+                ]),
+                json.dumps([
+                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
+                ]),
+            ),
             {},
         )
 
+
+class MiniHttpBench(Workload):
+    kind = "http_bench"
+
+    name = "mini_http_bench"
+
+    def setup(self, workdir: Path) -> None:
+        httpd_root = workdir / "minihttpd"
+        if httpd_root.exists():
+            shutil.rmtree(httpd_root)
+        httpd_root.mkdir()
+        (httpd_root / "logs").mkdir()
+        (httpd_root / "localhost").mkdir()
+        (httpd_root / "localhost" / "test").write_text(TEST_FILE)
+
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        return (
+            (
+                result_bin / "python",
+                "run_server_and_client.py",
+                json.dumps([
+                    str(result_bin / "miniHttpd"), "--logfile", str(workdir / "logs"), "--port",
+                    str(HTTP_PORT), "--change-root", "", "--document-root", str(workdir / "minihttpd")
+                ]),
+                json.dumps([
+                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
+                ]),
+            ),
+            {},
+        )
 
 
 class Cmds(Workload):
@@ -404,6 +486,8 @@ WORKLOADS: Sequence[Workload] = (
         "NM_127277", "NM_134656", "NM_146415", "NM_167127", "NM_180448"
     )),
     genomics_workload("tblastn-10", ("NP_072902",)),
+    ApacheBench(),
+    MiniHttpBench(),
     KaggleNotebook(
         "pmarcelino/comprehensive-data-exploration-with-python",
         "competitions/house-prices-advanced-regression-techniques",

@@ -11,6 +11,8 @@ import subprocess
 import urllib.request
 from collections.abc import Sequence, Mapping, Iterator, Iterable
 from typing import Callable, TypeVar, Any, TypeAlias, cast
+import scipy  # type: ignore
+import numpy
 
 
 def download(output: pathlib.Path, url: str) -> None:
@@ -135,8 +137,6 @@ def groupby_dict(
     return ret
 
 
-import scipy  # type: ignore
-import numpy
 def confidence_interval(data: Any, confidence_level: float, seed: int = 0) -> tuple[float, float]:
     bootstrap = scipy.stats.bootstrap(
         [data],
