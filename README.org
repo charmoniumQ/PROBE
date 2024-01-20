@@ -85,10 +85,11 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 
 ** Provenance collectors
 
-*** TODO Fix Sciunits
+*** DONE Fix Sciunits
 - We need to get src_sh{./result/bin/python runner.py sciunit} to work.
 - Sciunit is a Python package which depends on a binary called ~ptu~.
 - Sciunit says "sciunit: /nix/store/7x6rlzd7dqmsa474j8ilc306wlmjb8bp-python3-3.10.13-env/lib/python3.10/site-packages/sciunit2/libexec/ptu: No such file or directory", but on my system, that file does exist! Why can't sciunits find it?
+- Answer: That file exists; it is an ELF binary, it's "interpreter" is set to /lib64/linux-something.so. That interpreter does not exist. I replaced this copy of ptu with the nix-built copy of ptu.
 
 *** TODO Fix Spade+FUSE
 - We need to get src_sh{./result/bin/python runner.py spade_fuse} to work.

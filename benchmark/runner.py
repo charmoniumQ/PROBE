@@ -4,7 +4,7 @@ import numpy
 import collections
 import pandas  # type: ignore
 from workloads import WORKLOADS
-from prov_collectors import PROV_COLLECTORS, baseline, sciunits, spade_fuse, spade_auditd, bpf_trace, darshan
+from prov_collectors import PROV_COLLECTORS, baseline, sciunit, spade_fuse, spade_auditd, bpf_trace, darshan
 from experiment import get_results
 
 rel_qois = ["cputime", "walltime", "memory"]
@@ -50,8 +50,8 @@ elif sys.argv[1] == "test-genomics":
         if workload.kind == "genomics"
     ]
     iterations = 1
-elif sys.argv[1] == "sciunits":
-    collectors = [sciunits]
+elif sys.argv[1] == "sciunit":
+    collectors = [sciunit]
     workloads = [simplest_workload]
     iterations = 1
 elif sys.argv[1] == "spade_fuse":

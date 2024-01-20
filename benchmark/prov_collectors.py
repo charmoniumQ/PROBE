@@ -132,7 +132,7 @@ libcalls = "-*+" + "+".join([
     # modify f/open when target is /dev/u?random
 
     "gettimeofday",
-    "mkstemp",
+    "mkstemp"
 
     # x86 instructions rdrand and rdseed
 
@@ -502,7 +502,7 @@ class Reprozip(ProvCollector):
         )
 
 
-class Sciunits(ProvCollector):
+class Sciunit(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
 
@@ -583,6 +583,7 @@ class SpadeFuse(ProvCollector):
             check=True,
             capture_output=True,
         )
+        return None
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         assert self._workdir is not None
@@ -664,7 +665,7 @@ fsatrace = FSATrace()
 cde = CDE()
 rr = RR()
 reprozip = Reprozip()
-sciunits = Sciunits()
+sciunit = Sciunit()
 spade_fuse = SpadeFuse()
 spade_auditd = SpadeAuditd()
 bpf_trace = BPFTrace()
@@ -679,7 +680,7 @@ PROV_COLLECTORS: Sequence[ProvCollector] = (
     cde,
     rr,
     reprozip,
-    sciunits,
+    sciunit,
     # spade_fuse,
     # spade_auditd,
     # darshan,

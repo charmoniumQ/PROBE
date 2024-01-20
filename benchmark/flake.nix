@@ -276,6 +276,12 @@
               inherit pname version;
               sha256 = "a1ab36634ab7a1abe46f478b90643eb128ace56f85bda007dfe95525392fc876";
             };
+            postUnpack = ''
+              # sciunit2 source tarball from PyPI contains non-portable binaries
+              # We will delete these, which forces sciunit2 to find the Nix-build binaries
+              # Also see sciunit2.patch
+              rm sciunit2-*/sciunit2/libexec/{ptu,scripter,vv}
+            '';
             pythonImportsCheck = [ pname ];
             propagatedBuildInputs = [
               # https://github.com/depaul-dice/sciunit/blob/4c8011ddbf4f8ca7da6b987572d6de56d70661dc/CMakeLists.txt
@@ -290,6 +296,7 @@
               python.pkgs.humanfriendly
               python.pkgs.configobj
               python.pkgs.contextlib2
+              python.pkgs.setuptools
               python.pkgs.tqdm
               hs_restclient
             ];
