@@ -56,9 +56,11 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 - See docstring of ~SpackInstall~ in [[file:benchmark/workloads.py][workloads.py]].
 - Spack installs a target package (call it $spec) and all of $spec's dependencies. Then it removes $spec, while leaving the dependencies.
 
-*** IN-PROGRESS Write a ~Workload~ class for Apache + ApacheBench
+*** DONE Write a ~Workload~ class for Apache + ApacheBench
 - Compiling Apache is an interesting benchmark, but /running/ Apache with a predefined request load is also an interesting benchmark.
 - We should write a new class called ~ApacheLoad~ that installs Apache in its setup() (for simplicity, we won't reuse the version we built earlier), downloads a ~ApacheBench~, and in the run() runs the server with the request load using only tools from ~result/~ or ~.work/~.
+
+*** TODO Write a ProFTPD benchmark
 
 *** IN-PROGRESS Write a ~CompileLinux~ class
 :PROPERTIES:
@@ -77,11 +79,54 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 *** TODO Investigate Sysbench
 - https://doi.org/10.1145/2508859.2516731
 
-*** TODO [#C] Refactor workloads
-- There's a ton of code in [[file:benchmark/workloads.py][workloads.py]]. This should probably be split into multiple files.
+*** TODO Run xSDK codes
+- https://github.com/xsdk-project/xsdk-examples
+- https://github.com/LBL-EESA/alquimia-dev
 
-*** TODO [#C] Refactor ~runner.py~
+** Make API easier to use
+
+*** TODO Refactor ~runner.py~
+- Change to ~run_store_analyze.py~
 - [[file:benchmark/runner.py][runner.py]] mixes code for selecting benchmarks and prov collectors with code for summarizing statistical outputs.
+- Use --benchmarks and --collectors to form a grid
+- Accept --iterations, --seed, --fail-first
+- Accept --analysis $foo
+- Should have an --option to import external workloads and prov_collectors
+- Should have --re-run, which removes ~.cache/results_*~ and ~.cache/$hash~
+
+*** TODO Refactor ~run_exec_wrapper.py~
+- Should fail gracefully when cgroups are not available
+
+*** TODO Refactor ~analyses.py~
+- Should have Callable[pandas.DataFrame, None]
+
+*** TODO Refactor ~prov_collectors.py~
+- Should have teardown
+- Should have license()
+
+*** TODO Refactor ~workloads.py~
+- Should accept a tempdir
+- Should be smaller
+- Should have teardown
+- Should export instances
+- Categories: build Spack, build Deb, BLAST, compile Linux, HTTP bench, FTP bench
+- Should have license()
+
+*** TODO Write ~run.py~
+- Just runs one workload
+- --setup, --main, --teardown
+
+*** TODO Document user interface
+
+** Make easier to install
+
+*** TODO Allow classes to specify Nix packages
+- But user should be able to customize lockfile
+- setup() should do ~nix build~ and add to path
+
+*** TODO Package Python code for PyPI using Poetry
+
+*** TODO Document installation
 
 ** Provenance collectors
 
@@ -103,6 +148,8 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 *** TODO [#C] Write BPF trace
 - We need to write a basic prov collector for BPF trace. The collector should log files read/written by the process and all children processes. Start by writing [[file:benchmark/prov.bt][prov.bt]].
 
+*** TODO Write a sleepy ptracer
+
 ** Stats
 
 *** DONE Measure arithmetic intensity for each
@@ -121,6 +168,10 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 *** TODO Evaluate prediction based on arithmetic intensity
 - slowdown(prov_collector) * cpu_to_wall_time(workload) * runtime(workload) ~ runtime(workload, prov_collector)
 - What is the expected percent error?
+
+*** TODO Characterize benchmarks by syscall breakdown
+- Features: count of each group of syscalls / total time
+- Prog should occupy the same point as {Prog, Prog}
 
 ** Writing
 
