@@ -20,6 +20,20 @@
         packages = rec {
           apacheHttpd = renameInDrv pkgs.apacheHttpd "bin/httpd" "bin/apacheHttpd";
           miniHttpd = renameInDrv pkgs.miniHttpd "bin/httpd" "bin/miniHttpd";
+          postmark = pkgs.stdenv.mkDerivation rec {
+            pname = "postmark";
+            version = "1.53";
+            src = pkgs.fetchzip {
+              url = "http://deb.debian.org/debian/pool/main/p/postmark/postmark_${version}.orig.tar.gz";
+              hash = "sha256-Dkk2TrNQGjpaliob06xQKji/qMnGLemUxAkLvJh4HzM=";
+            };
+            installPhase = ''
+              ls -ahlt
+              mkdir --parents $out/bin $out/share/man/man1
+              cp postmark $out/bin
+              cp postmark.1 $out/share/man/man1
+            '';
+          };
           debugpy = noPytest python.pkgs.debugpy;
           darshan-runtime = pkgs.stdenv.mkDerivation rec {
             pname = "darshan-runtime";

@@ -1,4 +1,4 @@
-The Oxford English Dictionary defines \textbf{provenance} as ``a record of the ultimate origin and passage of an item through its previousowners.''
+The Oxford English Dictionary defines \textbf{provenance} as ``a record of the ultimate origin and passage of an item through its previous owners.''
 In a scientific context, the origin of an artifact is some experimental procedure, so provenance is a description of that;
 each input used in the procedure has its own provenance, which might be included in the final product, depending on the depth requested.
 \textbf{Computational provenance} refers to the software programs and input data used to generate the artifact can serve as a description of the experimental procedure \cite{freire_provenance_2008}.

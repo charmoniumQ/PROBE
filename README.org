@@ -27,6 +27,23 @@ CLOCK: [2024-01-15 Mon 14:38]--[2024-01-15 Mon 15:15] =>  0:37
   - [[file:benchmark/flake.nix][flake.nix]] contains the Nix expressions which describe the environment in which everything runs
   - [[file:benchmark/result/][result/]] directory contains the result of building flake.nix; all binaries and executables should come from result/ in order for the experiment to be reproducible
 
+** Rapid review
+
+*** TODO Redo rapid review with snowballing
+- e.g., https://dew-uff.github.io/scripts-provenance/selected.html
+- e.g., https://dew-uff.github.io/scripts-provenance/graph.html
+- https://joaofelipe.github.io/snowballing/start.html
+- https://dl.acm.org/doi/10.1145/2601248.2601268
+
+*** TODO Include record/replay terms
+- Add sciunit
+- Add reprozip
+- Add DetTrace
+- Add CDE
+- Add Burrito
+- Add Sumatra
+
+
 ** Get workloads to work
 
 *** DONE Get Apache to compile
@@ -60,7 +77,41 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 - Compiling Apache is an interesting benchmark, but /running/ Apache with a predefined request load is also an interesting benchmark.
 - We should write a new class called ~ApacheLoad~ that installs Apache in its setup() (for simplicity, we won't reuse the version we built earlier), downloads a ~ApacheBench~, and in the run() runs the server with the request load using only tools from ~result/~ or ~.work/~.
 
+*** TODO Create Postmark workload
+- https://www.filesystems.org/docs/auto-pilot/Postmark.html
+- See [[https://doi.org/10.1145/2420950.2420989][Hi-Fi]], [[https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf][PASSv2]], [[https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf][LPM]], [[https://doi.org/10.1145/3127479.3129249][CamFlow]] for details
+- pm>set transactions 400000
+
+*** TODO Create lmbench benchmark
+- https://lmbench.sourceforge.net/
+- https://github.com/filebench/filebench
+
+*** TODO Native snakemake workflows
+
+*** TODO Make browser benchmarks
+- Run Chromium and Firefox with Sunspider
+- https://github.com/v8/v8/blob/04f51bc70a38fbea743588e41290bea40830a486/test/benchmarks/csuite/csuite.py#L4
+
+*** TODO Create mercurial/VCS workload
+- https://savannah.gnu.org/hg/?group=octave
+- https://hg.mozilla.org/mozilla-central/
+- https://github.com/frej/fast-export
+- https://wiki.mercurial-scm.org/ConvertExtension
+- https://hg-git.github.io/
+- https://repo.mercurial-scm.org/hg
+
+*** TODO VIC
+- Fig 1 of https://arxiv.org/pdf/1707.05731.pdf
+- https://github.com/Chicago/food-inspections-evaluation/tree/master/CODE
+
+*** TODO FIE
+- Fig 7 of https://arxiv.org/pdf/1707.05731.pdf
+- Fig 1 of https://doi.org/10.1016/j.envsoft.2015.12.010
+- https://github.com/uva-hydroinformatics/VIC_Pre-Processing_Rules/
+
 *** TODO Write a ProFTPD benchmark
+- https://github.com/selectel/ftpbench
+- pure-ftpd, vsftpd, ProFTPD
 
 *** IN-PROGRESS Write a ~CompileLinux~ class
 :PROPERTIES:
@@ -72,9 +123,6 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 *** TODO Refactor BLAST workloads
 - It should be easy to run them a large consistent set of many different BLAST apps.
 - Maybe have a 1 min, 10 min, and 60 min randomly-selected, but fixed, configuration
-
-*** TODO Run Postmark + workload
-- See [[https://doi.org/10.1145/2420950.2420989][Hi-Fi]], [[https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf][PASSv2]], [[https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf][LPM]], [[https://doi.org/10.1145/3127479.3129249][CamFlow]] for details
 
 *** TODO Investigate Sysbench
 - https://doi.org/10.1145/2508859.2516731
@@ -169,19 +217,26 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 - slowdown(prov_collector) * cpu_to_wall_time(workload) * runtime(workload) ~ runtime(workload, prov_collector)
 - What is the expected percent error?
 
-*** TODO Characterize benchmarks by syscall breakdown
+*** TODO Characterize benchmarks and benchmark classes by syscall breakdown
 - Features: count of each group of syscalls / total time
-- Prog should occupy the same point as {Prog, Prog}
+- Prog should occupy the same point as {Prog, Prog} (that is, analogous to intensive not extensive properties in physics)
+- PCA and clustering and dendrogram
+  - Sec 3 of https://doi.org/10.1109/ISPASS.2005.1430555
+  - Sec 9 of https://doi.org/10.1145/1167473.1167488
+- https://doi.org/10.1109/IISWC.2006.302733
+
+*** TODO Revise bayesian model to use benchmark class
+- How many classes and benchmarks does one need?
 
 ** Writing
 
-*** TODO Write introduction
+*** DONE Write introduction
 
-*** TODO Write background
+*** DONE Write background
 
-*** TODO Write literature rapid review section
+*** DONE Write literature rapid review section
 
-*** TODO Write benchmark and prov collector collection
+*** DONE Write benchmark and prov collector collection
 
 *** TODO Describe experiments
 

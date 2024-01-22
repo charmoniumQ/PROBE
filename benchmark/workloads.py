@@ -316,8 +316,8 @@ DocumentRoot $SRV_ROOT
 
 
 HTTP_PORT = 54123
-HTTP_N_REQUESTS = 30000000
-TEST_FILE = "abcdef1234567890"
+HTTP_N_REQUESTS = 10000000
+HTTP_REQ_SIZE = 1024 * 1024
 
 
 class ApacheBench(Workload):
@@ -332,7 +332,7 @@ class ApacheBench(Workload):
         httpd_root.mkdir()
         srv_root = httpd_root / "srv"
         srv_root.mkdir()
-        (srv_root / "test").write_text(TEST_FILE)
+        (srv_root / "test").write_text(HTTP_REQ_SIZE * "A")
         conf_file = httpd_root / "httpd.conf"
         modules_root = result_lib / "modules"
         conf_file.write_text(
@@ -360,6 +360,34 @@ class ApacheBench(Workload):
         )
 
 
+class SimpleHttpBench(Workload):
+    kind = "http_bench"
+
+    name = "simple_http_bench"
+
+    def setup(self, workdir: Path) -> None:
+        httpd_root = workdir / "simple"
+        if httpd_root.exists():
+            shutil.rmtree(httpd_root)
+        httpd_root.mkdir()
+        (httpd_root / "test").write_text(HTTP_REQ_SIZE * "A")
+
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        return (
+            (
+                result_bin / "python",
+                "run_server_and_client.py",
+                json.dumps([
+                    str(result_bin / "python"), "-m", "http.server", str(HTTP_PORT), "--directory", str(workdir / "simple")
+                ]),
+                json.dumps([
+                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
+                ]),
+            ),
+            {},
+        )
+
+
 class MiniHttpBench(Workload):
     kind = "http_bench"
 
@@ -372,7 +400,7 @@ class MiniHttpBench(Workload):
         httpd_root.mkdir()
         (httpd_root / "logs").mkdir()
         (httpd_root / "localhost").mkdir()
-        (httpd_root / "localhost" / "test").write_text(TEST_FILE)
+        (httpd_root / "localhost" / "test").write_text(HTTP_REQ_SIZE * "A")
 
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         return (
