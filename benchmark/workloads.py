@@ -8,7 +8,7 @@ from collections.abc import Sequence, Mapping
 from pathlib import Path
 from util import run_all, CmdArg, check_returncode, merge_env_vars
 import yaml
-import json
+import shlex
 from typing import cast
 
 # ruff: noqa: E501
@@ -348,11 +348,11 @@ class ApacheBench(Workload):
             (
                 result_bin / "python",
                 "run_server_and_client.py",
-                json.dumps([
+                shlex.join([
                     str(result_bin / "apacheHttpd"), "-k", "start", "-f",
                     str(workdir / "apache/httpd.conf")
                 ]),
-                json.dumps([
+                shlex.join([
                     str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
                 ]),
             ),
@@ -377,10 +377,10 @@ class SimpleHttpBench(Workload):
             (
                 result_bin / "python",
                 "run_server_and_client.py",
-                json.dumps([
+                shlex.join([
                     str(result_bin / "python"), "-m", "http.server", str(HTTP_PORT), "--directory", str(workdir / "simple")
                 ]),
-                json.dumps([
+                shlex.join([
                     str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
                 ]),
             ),
@@ -407,11 +407,11 @@ class MiniHttpBench(Workload):
             (
                 result_bin / "python",
                 "run_server_and_client.py",
-                json.dumps([
+                shlex.join([
                     str(result_bin / "miniHttpd"), "--logfile", str(workdir / "logs"), "--port",
                     str(HTTP_PORT), "--change-root", "", "--document-root", str(workdir / "minihttpd")
                 ]),
-                json.dumps([
+                shlex.join([
                     str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
                 ]),
             ),
@@ -452,10 +452,10 @@ class LighttpBench(Workload):
             (
                 result_bin / "python",
                 "run_server_and_client.py",
-                json.dumps([
+                shlex.join([
                     str(result_bin / "lighttpd"), "-D", "-f", str(conf_path),
                 ]),
-                json.dumps([
+                shlex.join([
                     str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
                 ]),
             ),
@@ -464,7 +464,82 @@ class LighttpBench(Workload):
 
 
 PROFTPD_CONF = '''
+DefaultAddress   0.0.0.0
+Port             $PORT
+User             $USER
+Group            $GROUP
+DelayTable       "$FTPDIR/delay"
+ScoreboardFile   "$FTPDIR/scoreboard"
+PidFile          "$FTPDIR/proftpd.pid"
+TransferLog      "$FTPDIR/xferlog"
+DefaultRoot      "$FTPDIR/srv"
+VRootEngine       on
+WtmpLog           off
+RequireValidShell off
+
+<Anonymous $FTPDIR/srv/>
+    User $USER
+    Group $GROUP
+    UserAlias anonymous $USER
+    <Directory *>
+        AllowAll
+    </Directory>
+</Anonymous>
 '''
+
+'''
+RequireValidShell off
+AuthUserFile     "/home/sam/box/prov/benchmark/.workdir/work/proftpd/authuserfile"
+'''
+
+'''
+username:$6$3FjBjHLcRPwcOK8h$DpG7OtbJXsQJ0g/TTAQjYiw47ZApeNdo6k9tRlcHQzfALKsoDxecBShN1KohFrB4iYsNRz40Wyq9Y/FK1ddaJ0:1000:100::/home/sam/box/prov/benchmark/.workdir/work/proftpd/srv:/bin/bash
+'''
+
+
+class ProftpdBench(Workload):
+    kind = "ftp_bench"
+
+    name = "proftpd with ftpbench"
+
+    def setup(self, workdir: Path) -> None:
+        ftpdir = (workdir / "proftpd").resolve()
+        if ftpdir.exists():
+            shutil.rmtree(ftpdir)
+        ftpdir.mkdir()
+        (ftpdir / "srv").mkdir()
+        # user = getpass.getuser()
+        # uid = pwd.getpwnam(user).pw_uid
+        # gid = pwd.getpwnam(user).pw_gid
+        # group = grp.getgrgid(gid).gr_name
+        (ftpdir / "conf").write_text(
+            PROFTPD_CONF
+            .replace("$PORT", str(HTTP_PORT))
+            .replace("$USER", "benchexec")
+            .replace("$GROUP", "benchexec")
+            .replace("$FTPDIR", str(ftpdir))
+        )
+        tmpdir = ftpdir / "tmp"
+        tmpdir.mkdir()
+
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        ftpdir = (workdir / "proftpd").resolve()
+        tmpdir = ftpdir / "tmp"
+        ftpbench_args = [str(result_bin / "ftpbench"), "--host", f"127.0.0.1:{HTTP_PORT}", "--user", "anonymous", "--password", ""]
+        return (
+            (
+                result_bin / "python",
+                "run_server_and_client.py",
+                shlex.join([
+                    str(result_bin / "proftpd"), "--nodaemon", "--config", str(ftpdir / "conf")
+                ]),
+                " && ".join([
+                    shlex.join([*ftpbench_args, "--maxiter", "500", "upload", str(tmpdir)]),
+                    # shlex.join([*ftpbench_args, "--maxiter", "500", "download", str(tmpdir)]),
+                ])
+            ),
+            {},
+        )
 
 
 class Cmds(Workload):
@@ -564,6 +639,7 @@ WORKLOADS: Sequence[Workload] = (
     genomics_workload("tblastn-10", ("NP_072902",)),
     ApacheBench(),
     MiniHttpBench(),
+    ProftpdBench(),
     KaggleNotebook(
         "pmarcelino/comprehensive-data-exploration-with-python",
         "competitions/house-prices-advanced-regression-techniques",

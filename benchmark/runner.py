@@ -66,6 +66,14 @@ elif sys.argv[1] == "http_bench":
         if workload.__class__.__name__ in {"ApacheBench", "MiniHttpBench"}
     ]
     iterations = 1
+elif sys.argv[1] == "ftp_bench":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "ftp_bench"
+    ]
+    iterations = 1
 elif sys.argv[1] == "spade_auditd":
     collectors = [spade_auditd]
     workloads = [simplest_workload]

@@ -1,5 +1,4 @@
 from __future__ import annotations
-import pathlib
 import dataclasses
 import os
 import contextlib
@@ -42,11 +41,10 @@ def catch_signals(
 
 
 @contextlib.contextmanager
-def runexec_catch_signals(run_executor: RunExecutor) -> Iterator[None]:
+def _runexec_catch_signals(run_executor: RunExecutor) -> Iterator[None]:
     caught_signal_number: None | signal.Signals = None
 
     def run_executor_stop(signal_number: Signal, _: types.FrameType | None) -> None:
-        caught_signal_number = signal_number
         warnings.warn(f"In signal catcher for {signal_number}")
         run_executor.stop()
 
@@ -118,7 +116,6 @@ def run_exec(
                 "/run": DirMode.HIDDEN,
                 "/tmp": DirMode.HIDDEN,
                 "/var": DirMode.HIDDEN,
-                "/nix/store": DirMode.READ_ONLY,
             },
             **{
                 f"{path if path.is_absolute() else path.resolve()}": mode
@@ -129,14 +126,14 @@ def run_exec(
         # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/containerexecutor.py#L297
         run_executor = RunExecutor(
             use_namespaces=True,
-            gid=os.getgid(),
-            uid=os.getuid(),
+            # gid=os.getgid(),
+            # uid=os.getuid(),
             dir_modes=dir_modes_processed,
             network_access=False,
             container_system_config=True,
             container_tmpfs=True,
         )
-        with runexec_catch_signals(run_executor):
+        with _runexec_catch_signals(run_executor):
             hard_time_limit = (
                 int(time_limit * 1.1)
                 if time_limit is not None else

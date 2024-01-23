@@ -368,10 +368,20 @@
             # Note the version on PyPI is not Python3 :(
             src = pkgs.fetchFromGitHub {
               owner = "selectel";
-              repo = "ftpbench";
+              repo = pname;
               rev = "0d18b7ad1362857a1cf1f8ab55de8cd22027527d";
               hash = "sha256-D4fOaQ/SdHFdVLZQThrPO/xZOEZ88USTrDIuy3nf3zQ=";
             };
+            patches = [
+              # (pkgs.fetchurl {
+              #   url = "https://patch-diff.githubusercontent.com/raw/selectel/ftpbench/pull/4.diff";
+              #   hash = "sha256-MfXmtFpRZybTU1tryy56QNvc/qGazql6iVT+hO5UE9A=";
+              # })
+              (pkgs.fetchurl {
+                url = "https://github.com/selectel/ftpbench/compare/master...charmoniumQ:ftpbench:patch-2.patch";
+                hash = "sha256-Qqr5F6oKtMkBxgXo6G7OCjA3LLzju4uZzPQNgut2x00=";
+              })
+            ];
             propagatedBuildInputs = [
               python.pkgs.setuptools
               python.pkgs.gevent
@@ -380,19 +390,38 @@
               python.pkgs.docopt
             ];
           };
-          proftpd = pkgs.stdenv.mkDerivation {
+          proftpd = pkgs.stdenv.mkDerivation rec {
             pname = "protftpd";
             version = "1.3.8";
-            src = pkgs.fetchFromGitHub {
-              owner = "proftpd";
-              repo = "proftpd";
-              rev = "v1.3.8";
-              hash = "sha256-DnVUIcrE+mW4vTZzoPk+dk+2O3jEjGbGIBiVZgcvkNA=";
-            };
+            srcs = [
+              (pkgs.fetchFromGitHub {
+                owner = "proftpd";
+                repo = pname;
+                rev = "v${version}";
+                hash = "sha256-DnVUIcrE+mW4vTZzoPk+dk+2O3jEjGbGIBiVZgcvkNA=";
+                name = "proftpd";
+              })
+              (pkgs.fetchFromGitHub {
+                owner = "Castaglia";
+                repo = "proftpd-mod_vroot";
+                rev = "v0.9.11";
+                hash = "sha256-wAf7zmCr2sMH/EKNxWtUjIEoaAFenzNyfXd4sKjvHDY=";
+                name = "proftpd-mod_vroot";
+              })
+            ];
+            sourceRoot = ".";
+            postUnpack = ''
+              chmod --recursive u+w proftpd-mod_vroot
+              cp --recursive proftpd-mod_vroot proftpd/contrib/mod_vroot
+              ls -ahlt
+              cd proftpd
+              ls -ahlt
+            '';
             buildInputs = [ pkgs.libxcrypt ];
+            configureFlags = [ "--with-modules=mod_vroot" ];
             installPhase = ''
               install --directory $out/bin
-              install --target-directory $out/bin proftpd ftpcount ftpdctl ftpscrub ftpshut ftptop ftpwho
+              install --target-directory $out/bin proftpd ftpcount ftpdctl ftpscrub ftpshut ftptop ftpwho contrib/ftpasswd contrib/ftpquota contrib/ftpmail
             '';
           };
           yafc = pkgs.stdenv.mkDerivation {

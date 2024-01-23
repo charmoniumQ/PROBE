@@ -161,7 +161,7 @@ In order to reduce the amount of work needed to reduce the amount of time it tak
 
 ### Quantitative performance comparison
 
-We use BenchExec [@beyerReliableReproducibleCompetition2016] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system.
+We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system.
 
 ### Predictive performnace model
 

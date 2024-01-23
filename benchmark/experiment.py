@@ -240,6 +240,7 @@ def run_one_experiment(
                 work_dir: DirMode.FULL_ACCESS,
                 log_dir: DirMode.FULL_ACCESS,
                 pathlib.Path(): DirMode.READ_ONLY,
+                pathlib.Path("/nix/store"): DirMode.READ_ONLY,
             },
         )
     move_children(temp_dir / "old_work_dir", work_dir)
@@ -266,6 +267,8 @@ def run_one_experiment(
         #     shutil.rmtree(artifact_dir)
         # artifact_dir.mkdir(parents=True)
         # move_children(log_dir, artifact_dir)
+    print(stats.stdout)
+    print(stats.stderr)
     return ExperimentStats(
         cputime=stats.cputime,
         walltime=stats.walltime,
