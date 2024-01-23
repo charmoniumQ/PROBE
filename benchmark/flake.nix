@@ -354,6 +354,74 @@
               ${pkgs.gnused}/bin/sed --in-place s=/bin/sh=${pkgs.dash}/bin/dash=g $dev/bin/pcre2-config
             '';
           });
+          pyTimecard = python.pkgs.buildPythonPackage rec {
+            pname = "Timecard";
+            version = "3.0.0";
+            src = pkgs.fetchPypi {
+              inherit pname version;
+              sha256 = "efa3a55b6efdd548158e2693bd788d59e8b7df68e7a88fbb3692eeb0d24c876f";
+            };
+          };
+          ftpbench = python.pkgs.buildPythonApplication rec {
+            pname = "ftpbench";
+            version = "1.0";
+            # Note the version on PyPI is not Python3 :(
+            src = pkgs.fetchFromGitHub {
+              owner = "selectel";
+              repo = "ftpbench";
+              rev = "0d18b7ad1362857a1cf1f8ab55de8cd22027527d";
+              hash = "sha256-D4fOaQ/SdHFdVLZQThrPO/xZOEZ88USTrDIuy3nf3zQ=";
+            };
+            propagatedBuildInputs = [
+              python.pkgs.setuptools
+              python.pkgs.gevent
+              python.pkgs.dnspython
+              pyTimecard
+              python.pkgs.docopt
+            ];
+          };
+          proftpd = pkgs.stdenv.mkDerivation {
+            pname = "protftpd";
+            version = "1.3.8";
+            src = pkgs.fetchFromGitHub {
+              owner = "proftpd";
+              repo = "proftpd";
+              rev = "v1.3.8";
+              hash = "sha256-DnVUIcrE+mW4vTZzoPk+dk+2O3jEjGbGIBiVZgcvkNA=";
+            };
+            buildInputs = [ pkgs.libxcrypt ];
+            installPhase = ''
+              install --directory $out/bin
+              install --target-directory $out/bin proftpd ftpcount ftpdctl ftpscrub ftpshut ftptop ftpwho
+            '';
+          };
+          yafc = pkgs.stdenv.mkDerivation {
+            pname = "yafc";
+            version = "1.3.7";
+            src = pkgs.fetchFromGitHub {
+              owner = "sebastinas";
+              repo = "yafc";
+              rev = "v1.3.7";
+              hash = "sha256-kg9pxlPl7nU3ayUEmmimrgHg1uVd2mMB2Fo8fW65TiQ=";
+            };
+            # buildInputs = [ pkgs.glib.dev pkgs.gnulib.out ];
+            nativeBuildInputs = [ pkgs.autoconf pkgs.automake pkgs.glib.dev pkgs.gnulib.out pkgs.pkg-config pkgs.m4 pkgs.libtool pkgs.texinfo ];
+            buildInputs = [ pkgs.libssh ];
+            configurePhase = ''
+              glib-gettextize -f -c
+
+              # https://gitweb.gentoo.org/repo/gentoo.git/commit/?id=c13b5e88c6e9c7bd2698d844cb5ed127ed809f7e
+              rm m4/glib-gettext.m4
+
+              autoreconf -v -f -i
+
+              ./configure
+            '';
+            installPhase = ''
+              install --directory $out/bin
+              install --target-directory $out/bin yafc
+            '';
+          };
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
@@ -386,16 +454,19 @@
 
               # Benchmark
               pkgs.blast
+              postmark
+              pkgs.lighttpd
+              apacheHttpd
+              miniHttpd
+              pkgs.hey
+              ftpbench
+              proftpd
+              yafc
 
               # Reproducibility tester
               pkgs.icdiff
               pkgs.disorderfs
               pkgs.fuse
-
-              # Deps of ApacheBench
-              apacheHttpd
-              miniHttpd
-              pkgs.hey
 
               # Deps of Spack workloads
               # https://spack.readthedocs.io/en/latest/getting_started.html

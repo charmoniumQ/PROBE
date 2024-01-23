@@ -35,11 +35,6 @@ digraph {
 
 ``` {#fig:wf-lvl-prov caption="Workflow-level prov" width=24%}
 digraph {
-  A;
-  B;
-  C;
-  D;
-  E;
   A -> B [label="X"];
   C -> D [label="X"];
   {B, D} -> E [label="Y"];
@@ -100,7 +95,7 @@ This work contributes:
   Prior publications often only compares the performance their provenance tool to the baseline, no-provenance performance, not to other provenance tools.
   It is difficult to compare provenance tools, given data of different benchmarks on different machines.
   This work runs a consistent set of benchmarks on a single machine over all provenance tools.
-- **A performance model**:
+- **A predictive performance model**:
   The performance overhead of a single provenance system vary from 23% to <1% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
   This work develops a statistical model for predicting the overhead of \$X application in \$Y provenance system based on \$Y provenance system's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
 
@@ -108,7 +103,7 @@ This work contributes:
 
 ### Rapid review
 
-We began a rapid review to identify the research state-of-the-art tools for automatic SLRP.
+We began a rapid review to identify the research state-of-the-art tools for automatic system-level provenance.
 
 Rapid Reviews are a lighter-weight alternative to systematic literature reviews with a focus on timely feedback for decision-making.
 Schünemann and Moja show that Rapid Reviews can yield substantially similar results to a systematic literature review, albeit less detailed [@schunemann_reviews_2015].
@@ -148,6 +143,7 @@ We record the following features for each system-level provenance tool:
 ### Selecting benchmarks
 
 Using the tools selected above, we identify all benchmarks which have been used in prior work.
+<!-- TODO: Explain methodology for selecting/implementing benchmark -->
 To get consistent measurements, we select as many benchmarks and provenance tracers as we reasonably can, and run a complete matrix (every tracer on every benchmark).
 
 We also added new benchmarks:
@@ -175,80 +171,120 @@ We use BenchExec [@beyerReliableReproducibleCompetition2016] to precisely measur
 
 @tbl:tools shows the provenance tools we collected and their qualitative features, while @tbl:excluded shows the tools which have been called "system-level provenance tools" but do not fit the definition used in this paper.
 Of these, @tbl:prior-benchmarks shows the benchmarks used to evaluate each tool.
+Running HTTP servers may be a popular benchmark because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics);
+  securing HTTP servers and web applications is a common task.
 
-Tool                                                           | Collection method                       | Collection tool                               | Notes                                                         
----------------------------------------------------------------+-----------------------------------------+-----------------------------------------------+---------------------------------------------------------------
-SPADE [@gehaniSPADESupportProvenance2012]                      | Audit, FS, **or** compile-time          | Multiple[^1]                                  | Can use multiple low-level sources
-OPUS [@balakrishnanOPUSLightweightSystem2013]                  | Library instrumentation                 | libc instrumentaiton                          |
-FiPS [@sultanaFileProvenanceSystem2013]                        | FS. ins.                                | VFS                                           |
-RecProv [@jiRecProvProvenanceAwareUser2016]                    | Tracing                                 | rr, ptrace                                    |
-PANDDE [@fadolalkarimPANDDEProvenancebasedANomaly2016]         | FS. ins.                                | Custom VFS                                    |
-URSprung [@rupprechtImprovingReproducibilityData2020]          | Audit, file-system ins.                 | auditd, IBM Spectrum Scale                    | Specific to IBM Spectrum Scale FS
-Event Tracer for Windows [@EventTracingWin322021]              | Audit                                   | NT Kernel                                     | Implemented for Windows
-TREC [@vahdatTransparentResultCaching1998]                     | Audit                                   | Proc filesystem                               | Implemented for Solaris
-DTrace [@DTrace]                                               | Audit                                   | Respective kernels                            | Can do event processing in kernel-space
-Sysmon [@markrussSysmonSysinternals2023]                       | Audit                                   | NT Kernel                                     | Implemented for Windows
-Ma et al. [@maAccurateLowCost2015]                             | Kernel ins.                             | ETW                                           |
-BEEP [@leeHighAccuracyAttack2017]                              | Dyn., static binary ins.                | Intel Pin, PEBIL                              |
-libdft [@kemerlisLibdftPracticalDynamic2012]                   | Dyn. binary ins.                        | Intel Pin                                     |
-RAIN [@jiRAINRefinableAttack2017]                              | kernel ins., lib. ins., dyn. binary ins.| libc ins., custom kernel module, Intel Pin    | Records syscalls during runtime, replays offline under DIFT
-DataTracker [@stamatogiannakisLookingBlackBoxCapturing2015]    | Dinamic binary ins.                     |                                               |
-MPI[@maMPIMultiplePerspective2017]                             | Compile-time ins.                       | LLVM pass                                     | Requires manual input
-LDX [@kwonLDXCausalityInference2016]                           | Compile-time ins.                       | LLVM pass                                     |
-S2Logger [@yiEvaluatingBenchmarkSubsetting2006a]               | Kernel ins.                             | Kernel module or Linux Security Module        |
-ProTracer [@maProTracerPracticalProvenance2016]                | Kernel ins.                             | Linux tracepoints, custom kernel module       |
-Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]                   | Kernel ins.                             | Linux Security Module                         |
-Lineage FS [@sarLineageFileSystem]                             | Kernel ins.                             | Modified kernel                               |
-PASS/Pasta [@muniswamy-reddyProvenanceAwareStorageSystems2006] | Kernel ins., filesystem ins.            | Modified kernel, VFS                          |
-PASSv2/Lasagna [@muniswamy-reddyLayeringProvenanceSystems2009] | Kernel ins., filesystem, lib. ins.      | Modified kernel, instrumented libc, VFS       |
-RTAG [@jiEnablingRefinableCrossHost2018]                       | Kernel ins.                             | Modified kernel                               |
-LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015]       | Kernel ins.                             | Modified kernel, kernel module, NetFilter     |
-CamFlow [@pasquierPracticalWholesystemProvenance2017]          | Kernel ins.                             | Linux Security Module, NetFilter              |
-LPROV [@wangLprovPracticalLibraryaware2018]                    | Kernel ins., library ins.               | Custom kernel module, custom loader, BEEP     |
-Panorama [@yinPanoramaCapturingSystemwide2007]                 | VM ins.                                 | QEMU                                          |
-PROV-Tracer [@stamatogiannakisDecouplingProvenanceCapture2015] | VM ins.                                 | QEMU, PANDA                                   |
+| Tool                                                           | Collection method                       | Collection tool                               | Notes                                                         |
++----------------------------------------------------------------+-----------------------------------------+-----------------------------------------------+---------------------------------------------------------------+
+| SPADE [@gehaniSPADESupportProvenance2012]                      | Audit, FS, **or** compile-time           | Multiple[^spade]                           | Can use multiple low-level sources                          |
+| OPUS [@balakrishnanOPUSLightweightSystem2013]                  | Library instrumentation                  | libc instrumentaiton                       |                                                             |
+| FiPS [@sultanaFileProvenanceSystem2013]                        | FS. ins.                                 | VFS                                        |                                                             |
+| RecProv [@jiRecProvProvenanceAwareUser2016]                    | Tracing                                  | rr, ptrace                                 |                                                             |
+| PANDDE [@fadolalkarimPANDDEProvenancebasedANomaly2016]         | FS. ins.                                 | Custom VFS                                 |                                                             |
+| URSprung [@rupprechtImprovingReproducibilityData2020]          | Audit, file-system ins.                  | auditd, IBM Spectrum Scale                 | Specific to IBM Spectrum Scale FS                           |
+| Event Tracer for Windows [@EventTracingWin322021]              | Audit                                    | NT Kernel                                  | Implemented for Windows                                     |
+| TREC [@vahdatTransparentResultCaching1998]                     | Audit                                    | Proc filesystem                            | Implemented for Solaris                                     |
+| DTrace [@DTrace]                                               | Audit                                    | Respective kernels                         | Can do event processing in kernel-space                     |
+| Sysmon [@markrussSysmonSysinternals2023]                       | Audit                                    | NT Kernel                                  | Implemented for Windows                                     |
+| Ma et al. [@maAccurateLowCost2015]                             | Kernel ins.                              | ETW                                        |                                                             |
+| BEEP [@leeHighAccuracyAttack2017]                              | Dyn., static binary ins.                 | Intel Pin, PEBIL                           |                                                             |
+| libdft [@kemerlisLibdftPracticalDynamic2012]                   | Dyn. binary ins.                         | Intel Pin                                  |                                                             |
+| RAIN [@jiRAINRefinableAttack2017]                              | kernel ins., lib. ins., dyn. binary ins. | libc ins., custom kernel module, Intel Pin | Records syscalls during runtime, replays offline under DIFT |
+| DataTracker [@stamatogiannakisLookingBlackBoxCapturing2015]    | Dinamic binary ins.                      |                                            |                                                             |
+| MPI[@maMPIMultiplePerspective2017]                             | Compile-time ins.                        | LLVM pass                                  | Requires manual input                                       |
+| LDX [@kwonLDXCausalityInference2016]                           | Compile-time ins.                        | LLVM pass                                  |                                                             |
+| S2Logger [@yiEvaluatingBenchmarkSubsetting2006a]               | Kernel ins.                              | Kernel module or Linux Security Module     |                                                             |
+| ProTracer [@maProTracerPracticalProvenance2016]                | Kernel ins.                              | Linux tracepoints, custom kernel module    |                                                             |
+| Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]                   | Kernel ins.                              | Linux Security Module                      |                                                             |
+| Lineage FS [@sarLineageFileSystem]                             | Kernel ins.                              | Modified kernel                            |                                                             |
+| PASS/Pasta [@muniswamy-reddyProvenanceAwareStorageSystems2006] | Kernel ins., filesystem ins.             | Modified kernel, VFS                       |                                                             |
+| PASSv2/Lasagna [@muniswamy-reddyLayeringProvenanceSystems2009] | Kernel ins., filesystem, lib. ins.       | Modified kernel, instrumented libc, VFS    |                                                             |
+| RTAG [@jiEnablingRefinableCrossHost2018]                       | Kernel ins.                              | Modified kernel                            |                                                             |
+| LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015]       | Kernel ins.                              | Modified kernel, kernel module, NetFilter  |                                                             |
+| CamFlow [@pasquierPracticalWholesystemProvenance2017]          | Kernel ins.                              | Linux Security Module, NetFilter           |                                                             |
+| LPROV [@wangLprovPracticalLibraryaware2018]                    | Kernel ins., library ins.                | Custom kernel module, custom loader, BEEP  |                                                             |
+| Panorama [@yinPanoramaCapturingSystemwide2007]                 | VM ins.                                  | QEMU                                       |                                                             |
+| PROV-Tracer [@stamatogiannakisDecouplingProvenanceCapture2015] | VM ins.                                  | QEMU, PANDA                                |                                                             |
 
 : Provenance trackers mentioned in primary and secondary studies in our search results. {#tbl:tools}
 
-[^1]: SPADE can use multiple backends, including other provenance collectors. On Linux, SPADE can use: Auditd, CamFlow, FUSE; On MacOS: OpenBSM, MacFUSE, Fuse4x; On Windows: ProcessMonitor; On any platform: import static data (e.g., from logs on disk), applications instrumented with API, applications compiled with LLVM pass.
+[^spade]: SPADE can use multiple backends, including other provenance collectors. On Linux, SPADE can use: Auditd, CamFlow, FUSE; On MacOS: OpenBSM, MacFUSE, Fuse4x; On Windows: ProcessMonitor; On any platform: import static data (e.g., from logs on disk), applications instrumented with API, applications compiled with LLVM pass.
 
-Tool                                                  | Reason
-------------------------------------------------------+---------------------------------
-ES3 [@frewES3DemonstrationTransparent2008]            | specific to ES3 platform
-Chimera [@fosterChimeraVirtualData2002]               | specific to Chimera platform
-INSPECTOR [@thalheimInspectorDataProvenance2016a]     | doesn't track files
-MCI [@jiEnablingRefinableCrossHost2018]               | offline; depends on online-LDX
-OmegaLog [@hassanOmegaLogHighFidelityAttack2020]      | depends on app-level logs
-LogGC [@leeLogGCGarbageCollecting2013]                | contribution is deleting irrelevant events in the logs
-UIScope [@yangUISCOPEAccurateInstrumentationfree2020] | captures UI interactions; uses ETW to capture I/O operations
-Winnower [@hassanScalableClusterAuditing2018]         | specific to Docker Swarm
+| Tool                                                  | Reason                                                          |
++-------------------------------------------------------+-----------------------------------------------------------------+
+| ES3 [@frewES3DemonstrationTransparent2008]            | specific to ES3 platform                                        |
+| Chimera [@fosterChimeraVirtualData2002]               | specific to Chimera platform                                    |
+| INSPECTOR [@thalheimInspectorDataProvenance2016a]     | doesn't track files                                             |
+| MCI [@jiEnablingRefinableCrossHost2018]               | offline; depends on online-LDX                                  |
+| OmegaLog [@hassanOmegaLogHighFidelityAttack2020]      | depends on app-level logs                                       |
+| LogGC [@leeLogGCGarbageCollecting2013]                | contribution is deleting irrelevant events in the logs          |
+| UIScope [@yangUISCOPEAccurateInstrumentationfree2020] | captures UI interactions; uses ETW to capture I/O operations    |
+| Winnower [@hassanScalableClusterAuditing2018]         | specific to Docker Swarm                                        |
 
 : Excluded tools. {#tbl:excluded}
 
-| Provenance publication                                   | Benchmarks                                                                                                                                      | Comparisons              | Year |
-|----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------+------+
-| TREC [@vahdatTransparentResultCaching1998]               | open/close, compile Apache, LaTeX compile                                                                                                       | Native                   | 1999 |
-| PASS [@muniswamy-reddyProvenanceAwareStorageSystems2006] | BLAST                                                                                                                                           | Native ext2              | 2006 |
-| Panorama [@yinPanoramaCapturingSystemwide2007]           | curl, scp, gzip, bzip2                                                                                                                          | Native                   | 2007 |
-| PASSv2 [@muniswamy-reddyLayeringProvenanceSystems2009]   | BLAST, compile Linux, Postmark, Mercurial, Kepler                                                                                               | Native ext3, NFS         | 2009 |
-| SPADEv2 [@gehaniSPADESupportProvenance2012]              | BLAST, compile Apache, Apache                                                                                                                   | Native                   | 2012 |
-| Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]             | LMbench, compile Linux, Postmark                                                                                                                | Native                   | 2012 |
-| libdft [@kemerlisLibdftPracticalDynamic2012]             | scp, {tar, gzip, bzip2} x {extract, compress}                                                                                                   | PIN                      | 2012 | 
-| LogGC [@leeLogGCGarbageCollecting2013]                   | RUBiS, SysBench                                                                                                                                 | Native                   | 2013 |
-| LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015] | LMbench, compile Linux, Postmark, BLAST                                                                                                         | Native                   | 2015 |
-| Ma et al. [@maAccurateLowCost2015]                       | TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, SimpleHTTP, Sublime Text                          | Native                   | 2015 |
-| ProTracer [@maProTracerPracticalProvenance2016]          | Apache, miniHTTP, ProFTPD, Vim, Firefox, w3m, wget, mplayer, Pine, xpdf, MC, yafc                                                               | Auditd, BEEP, LogGC      | 2016 |
-| LDX [@kwonLDXCausalityInference2016]                     | SPEC INT 2006, Firefox, lynx, nginx, tnftp, sysstat, gif2png, mp3info, prozilla, yopsweb, ngircd, gocr, Apache, pbzip2, pigz, axel, x264        | Native                   | 2016 |
-| MPI [@maMPIMultiplePerspective2017]                      | Apache, bash, Evince, Firefox, Krusader, wget, most, MC, mplayer, MPV, nano, Pine, ProFTPd, SKOD, TinyHTTPd, Transmission, Vim, W3M, Xpdf, Yafc | Audit, LPM-HiFi          | 2017 |
-| CamFlow [@pasquierPracticalWholesystemProvenance2017]    | lmbench, postmark, unpack kernel, compile kernel, Apache, Memcache, redis, php, pybench                                                         | Native                   | 2017 |
-| BEEP [@leeHighAccuracyAttack2017]                        | Apache, Vim, Firefox, Wget, Cherokee, W3M, ProFTPd, Yafc, Transmission, Pine, bash, MC, sshd, sendmail                                          | Native                   | 2017 |
-| RAIN [@jiRAINRefinableAttack2017]                        | SPEC CPU 2006, cp linux, wget, compile libc, Firefox, SPLASH-3                                                                                  | Native                   | 2017 |
-| LPROV [@wangLprovPracticalLibraryaware2018]              | Apache, simplehttpd, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                                      | Native                   | 2018 |
-| MCI [@kwonMCIModelingbasedCausality2018]                 | Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS, vim, elinks, alpine, zip, transmission, lftp, yafc, wget, ping, procps                         |                          | 2018 |
-| RTAG [@jiEnablingRefinableCrossHost2018]                 | SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                                  | RAIN                     | 2018 |
-| URSPRING [@rupprechtImprovingReproducibilityData2020]    | open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                                 | Native, SPADE+auditd     | 2020 |
+| Provenance publication                                   | Benchmarks                                                                                                                             | Comparisons          | Year |
+|----------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|----------------------|------|
+| TREC [@vahdatTransparentResultCaching1998]               | open/close, compile Apache, compile LaTeX doc                                                                                          | Native               | 1999 |
+| PASS [@muniswamy-reddyProvenanceAwareStorageSystems2006] | BLAST                                                                                                                                  | Native ext2          | 2006 |
+| Panorama [@yinPanoramaCapturingSystemwide2007]           | curl, scp, gzip, bzip2                                                                                                                 | Native               | 2007 |
+| PASSv2 [@muniswamy-reddyLayeringProvenanceSystems2009]   | BLAST, compile Linux, Postmark, Mercurial, Kepler[^p]                                                                                  | Native ext3, NFS     | 2009 |
+| SPADEv2 [@gehaniSPADESupportProvenance2012]              | BLAST, compile Apache, Apache                                                                                                          | Native               | 2012 |
+| Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]             | lmbench, compile Linux, Postmark                                                                                                       | Native               | 2012 |
+| libdft [@kemerlisLibdftPracticalDynamic2012]             | scp, {tar, gzip, bzip2} x {extract, compress}                                                                                          | PIN                  | 2012 |
+| LogGC [@leeLogGCGarbageCollecting2013]                   | RUBiS, Firefox, MC[^p], Pidgin[^p], Pine[^p], Proftpd, Sendmail[^p], sshd, vim, w3m, wget, xpdf, yafc, Audacious, bash, Apache, mysqld | [^loggc-bench]       | 2013 |
+| LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015] | lmbench, compile Linux, Postmark, BLAST                                                                                                | Native               | 2015 |
+| Ma et al. [@maAccurateLowCost2015]                       | TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, simplehttp, Sublime Text                 | Native               | 2015 |
+| ProTracer [@maProTracerPracticalProvenance2016]          | Apache, miniHTTP, ProFTPD, Vim[^p], Firefox, w3m, wget, mplayer[^p], Pine[^p], xpdf[^p], MC[^p], yafc                                  | Auditd, BEEP, LogGC  | 2016 |
+| LDX [@kwonLDXCausalityInference2016]                     | SPEC CPU 2006, Firefox, lynx[^p], nginx, tnftp, sysstat, gif2png, mp3info, prozilla                                                    | Native               | 2016 |
+| (LDX continued)                                          | yopsweb[^p], ngircd[^p], gocr, Apache, pbzip2, pigz, axel, x264                                                                        |                      |      |
+| MPI [@maMPIMultiplePerspective2017]                      | Apache, bash, Evince[^p], Firefox, Krusader[^p], wget, most[^p], MC[^p], mplayer[^p],                                                  | Audit, LPM-HiFi      | 2017 |
+| (MPI continued)                                          | MPV[^p], nano[^p], Pine[^p], ProFTPd, SKOD, TinyHTTPd, Transmission[^p], Vim[^p], w3m, Xpdf[^p], Yafc                                  |                      |      |
+| CamFlow [@pasquierPracticalWholesystemProvenance2017]    | lmbench, postmark, unpack kernel, compile Linux, Apache, Memcache, redis, php, pybench                                                 | Native               | 2017 |
+| BEEP [@leeHighAccuracyAttack2017]                        | Apache, Vim, Firefox, wget, Cherokee, w3m, ProFTPd, yafc, Transmission[^p], Pine[^p], bash, MC[^p], sshd, sendmail[^p]                 | Native               | 2017 |
+| RAIN [@jiRAINRefinableAttack2017]                        | SPEC CPU 2006, cp linux, wget, compile libc, Firefox, SPLASH-3                                                                         | Native               | 2017 |
+| Sciunit [@tonthatSciunitsReusableResearch2017]           | VIC, FIE                                                                                                                               | Native               | 2017 |
+| LPROV [@wangLprovPracticalLibraryaware2018]              | Apache, simplehttp, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                             | Native               | 2018 |
+| MCI [@kwonMCIModelingbasedCausality2018]                 | Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS[^p], vim[^p], elinks[^p],                                                              | BEEP                 | 2018 |
+| (MCI continued)                                          | alpine[^p], zip, transmission[^p], lftp, yafc, wget, ping, procps                                                                      |                      |      |
+| RTAG [@jiEnablingRefinableCrossHost2018]                 | SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                         | RAIN                 | 2018 |
+| URSPRING [@rupprechtImprovingReproducibilityData2020]    | open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt[^p], Spark, ImageML[^p]                                | Native, SPADE+auditd | 2020 |
 
 : Benchmarks used in various provenance publications. {#tbl:prior-benchmarks}
+
+[^p]: Not enough information to reconstruct this benchmark (unsure what executable or missing workload with no obvious substitute).
+
+[^loggc]: LogGC measures the offline running time and size of garbage collected logs; there is no comparison to native would be applicable.
+
+| Benchmark group                                                                                     | Uses in prior work |
+|-----------------------------------------------------------------------------------------------------|--------------------|
+| BLAST                                                                                               | 4                  |
+| Python data science                                                                                 | 0                  |
+| HTTP server/traffic (Apache httpd, miniHTTP, simplehttp, lighttpd, Nginx, tinyhttpd, cherokee)      | 10                 |
+| HTTP serer/client (curl, wget, prozilla, axel)                                                      | 9                  |
+| FTP server/traffic (ProFTPd)                                                                        | 5                  |
+| FTP client (lftp, yafc, tnftp, skod)                                                                | 2                  |
+| SPEC CPU 2006                                                                                       | 3                  |
+| Compile (Apache, LLVM, libc, Linux, LaTeX doc)                                                      | 8                  |
+| lmbench                                                                                             | 3                  |
+| Postmark                                                                                            | 4                  |
+| SPLASH-3                                                                                            | 1                  |
+| Browsers (Firefox, Chromium, w3m)                                                                   | 8                  |
+| VCS (Mercurial, git)                                                                                | 1                  |
+| Un/archive ({compress, decompress} x tar x {nothing, bzip2, pbzip, gzip, pigz, zip})[^unpack-linux] | 5                  |
+| Shellbench (bash, sh)                                                                               | 3                  |
+| Workflows (Snakemake-workflow-catalog, Nf-core, CleanML, Spark, VIC, FIE)                           | 2                  |
+| Microbenchmarks (open/close, fork/exec, pipe/dup/close, socket/connect)                             | 2                  |
+| sshd                                                                                                | 3                  |
+| ssh                                                                                                 | 1                  |
+| xSDK codes                                                                                          | 0                  |
+| Small, fast binaries (procps, sysstat, gif2png, mp3info, gocr)                                      | 2                  |
+| x264                                                                                                | 1                  |
+| cp linux                                                                                            | 1                  |
+
+: Benchmarks implemented by this work {#tbl:implemented-benchmarks}
+
+[^unpack-linux]: We count "unpack linux" as an occurrence of an un/archive benchmark.
 
 ### Benchmarks
 

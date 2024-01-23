@@ -43,7 +43,6 @@ CLOCK: [2024-01-15 Mon 14:38]--[2024-01-15 Mon 15:15] =>  0:37
 - Add Burrito
 - Add Sumatra
 
-
 ** Get workloads to work
 
 *** DONE Get Apache to compile
@@ -77,6 +76,21 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 - Compiling Apache is an interesting benchmark, but /running/ Apache with a predefined request load is also an interesting benchmark.
 - We should write a new class called ~ApacheLoad~ that installs Apache in its setup() (for simplicity, we won't reuse the version we built earlier), downloads a ~ApacheBench~, and in the run() runs the server with the request load using only tools from ~result/~ or ~.work/~.
 
+*** TODO THTTPD and cherokee
+http://www.acme.com/software/thttpd/
+https://github.com/larryhe/tinyhttpd
+https://github.com/mendsley/tinyhttp
+https://cherokee-project.com/
+
+*** TODO SSH
+https://github.com/LineRate/ssh-perf
+
+*** TODO Shellbench
+https://github.com/shellspec/shellbench
+
+*** TODO CleanML
+https://chu-data-lab.github.io/CleanML/
+
 *** TODO Create Postmark workload
 - https://www.filesystems.org/docs/auto-pilot/Postmark.html
 - See [[https://doi.org/10.1145/2420950.2420989][Hi-Fi]], [[https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf][PASSv2]], [[https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf][LPM]], [[https://doi.org/10.1145/3127479.3129249][CamFlow]] for details
@@ -86,7 +100,7 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 - https://lmbench.sourceforge.net/
 - https://github.com/filebench/filebench
 
-*** TODO Native snakemake workflows
+*** TODO Native snakemake and nf-core workflows
 
 *** TODO Make browser benchmarks
 - Run Chromium and Firefox with Sunspider
@@ -130,6 +144,15 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 *** TODO Run xSDK codes
 - https://github.com/xsdk-project/xsdk-examples
 - https://github.com/LBL-EESA/alquimia-dev
+
+*** TODO Spark workload
+https://www.databricks.com/blog/2017/10/05/build-complex-data-pipelines-with-unified-analytics-platform.html
+
+*** TODO yt workloads
+https://yt-project.org/doc/cookbook/index.html
+https://prappleizer.github.io/#tutorials
+https://trident.readthedocs.io/en/latest/annotated_example.html
+https://github.com/PyLCARS/YT_BeyondAstro
 
 ** Make API easier to use
 

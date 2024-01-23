@@ -323,7 +323,7 @@ HTTP_REQ_SIZE = 1024 * 1024
 class ApacheBench(Workload):
     kind = "http_bench"
 
-    name = "apache_bench"
+    name = "apache with apachebench"
 
     def setup(self, workdir: Path) -> None:
         httpd_root = workdir / "apache"
@@ -363,7 +363,7 @@ class ApacheBench(Workload):
 class SimpleHttpBench(Workload):
     kind = "http_bench"
 
-    name = "simple_http_bench"
+    name = "python http.server with apachebench"
 
     def setup(self, workdir: Path) -> None:
         httpd_root = workdir / "simple"
@@ -391,7 +391,7 @@ class SimpleHttpBench(Workload):
 class MiniHttpBench(Workload):
     kind = "http_bench"
 
-    name = "mini_http_bench"
+    name = "minihttp with apachebench"
 
     def setup(self, workdir: Path) -> None:
         httpd_root = workdir / "minihttpd"
@@ -417,6 +417,54 @@ class MiniHttpBench(Workload):
             ),
             {},
         )
+
+
+LIGHTTPD_CONF = '''
+server.document-root = "$SRV_ROOT"
+server.port = $PORT
+'''
+
+
+class LighttpBench(Workload):
+    kind = "http_bench"
+
+    name = "lighttpd with apachebench"
+
+    def setup(self, workdir: Path) -> None:
+        httpd_root = workdir / "lighttpd"
+        if httpd_root.exists():
+            shutil.rmtree(httpd_root)
+        httpd_root.mkdir()
+        srv_root = httpd_root / "files"
+        srv_root.mkdir()
+        (srv_root / "test").write_text(HTTP_REQ_SIZE * "A")
+        conf_path = httpd_root / "test.conf"
+        conf_path.write_text(
+            LIGHTTPD_CONF
+            .replace("$PORT", str(HTTP_PORT))
+            .replace("$SRV_ROOT", str(srv_root))
+        )
+
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        httpd_root = workdir / "lighttpd"
+        conf_path = httpd_root / "test.conf"
+        return (
+            (
+                result_bin / "python",
+                "run_server_and_client.py",
+                json.dumps([
+                    str(result_bin / "lighttpd"), "-D", "-f", str(conf_path),
+                ]),
+                json.dumps([
+                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
+                ]),
+            ),
+            {},
+        )
+
+
+PROFTPD_CONF = '''
+'''
 
 
 class Cmds(Workload):
