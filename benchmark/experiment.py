@@ -1,7 +1,7 @@
 import dataclasses
 import hashlib
 import urllib.parse
-import shutil
+import sys
 import itertools
 import random
 import pathlib
@@ -164,7 +164,7 @@ def run_one_experiment_cached(
 ) -> ExperimentStats:
     key = (cache_dir / ("_".join([
         urllib.parse.quote(prov_collector.name),
-        workload.name,
+        urllib.parse.quote(workload.name),
         str(iteration)
     ]))).with_suffix(".pkl")
     if key.exists():
@@ -267,8 +267,8 @@ def run_one_experiment(
         #     shutil.rmtree(artifact_dir)
         # artifact_dir.mkdir(parents=True)
         # move_children(log_dir, artifact_dir)
-    print(stats.stdout)
-    print(stats.stderr)
+    sys.stdout.buffer.write(stats.stdout)
+    sys.stderr.buffer.write(stats.stderr)
     return ExperimentStats(
         cputime=stats.cputime,
         walltime=stats.walltime,

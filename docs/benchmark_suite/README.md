@@ -9,7 +9,7 @@ This definition is usually applied recursively, so the computational provenance 
 
 Computational provenance has many potential applications, including the following [@pimentelSurveyCollectingManaging2019]:
 1. **Caching**. A black-box system that captures provenance knows what inputs affect the output for each process, so it knows which processes to re-execute without a user-supplied dependency graph programmer, as in traditional Make. [DSK: I think of caching as knowing what not to re-execute, aka memoization. What you describe here is more checkpointing to me. They are related...]
-2. **Comprehension**. Provenance data helps the user understand, debug, document, and check compliance of workflows. [DSK: check compliance doesn't make sense to me]
+2. **Comprehension**. Provenance data helps the user understand, debug, and document workflows.
 3. **Management**. Provenance data can help catalog, label, and recall experimental results based on the input parameters.
 4. **Reproducibility**. A description of the inputs and processes used to generate a specific output can aid manual and automatic reproduction of that output[^"Reproduction", in the ACM sense, where a **different team** uses the **same artifacts** to generate the output artifact [@acminc.staffArtifactReviewBadging2020].].
 
@@ -64,7 +64,7 @@ Several provenance graphs collected at different levels.
 ## Motivation
 
 Lack of reproducibility in computational experiments undermines the long-term credibility of science and hinders the day-to-day work of researchers.
-Empirical studies [@trisovicLargescaleStudyResearch2022; @graysonAutomaticReproductionWorkflows2023; @collbergRepeatabilityComputerSystems2016; @zhaoWhyWorkflowsBreak2012] show that reproducibility is rarely achieved in practice, probably due to its difficulty under the short time constraints that scientists have for new publications. [DSK: also due to a lack of incentives for achieving it, at least in comparison to other things that could be done with the same effort.]
+Empirical studies [@trisovicLargescaleStudyResearch2022; @graysonAutomaticReproductionWorkflows2023; @collbergRepeatabilityComputerSystems2016; @zhaoWhyWorkflowsBreak2012] show that reproducibility is rarely achieved in practice, probably due to its difficulty under the short time constraints that scientists have for new publications.^[DSK: also due to a lack of incentives for achieving it, at least in comparison to other things that could be done with the same effort.]
 Rather than exhorting researchers to spend more of their short time-budget on reproducibility, it may be more effective to make reproducibility easier to achieve with the same amount of effort.
 
 Provenance data improves manual reproducibility, because users have a record of the inputs, outputs, and processes used to create a computational artifact.
@@ -97,7 +97,7 @@ This work contributes:
   It is difficult to compare provenance tools, given data of different benchmarks on different machines.
   This work runs a consistent set of benchmarks on a single machine over all provenance tools.
 - **A predictive performance model**:
-  The performance overhead of a single provenance system vary from 23% to <1% [DSK: usually ranges go from less to more] [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
+  The performance overhead of a single provenance system vary from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
   This work develops a statistical model for predicting the overhead of \$X application in \$Y provenance system based on \$Y provenance system's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
 
 ## Methods
@@ -107,8 +107,7 @@ This work contributes:
 We began a rapid review to identify the research state-of-the-art tools for automatic system-level provenance.
 
 Rapid Reviews are a lighter-weight alternative to systematic literature reviews with a focus on timely feedback for decision-making.
-Schünemann and Moja show that Rapid Reviews can yield substantially similar results to a systematic literature review, albeit with less detail [@schunemann_reviews_2015].
-[DSK: ALT formatting follows:] @schunemann_reviews_2015 show that Rapid Reviews can yield substantially similar results to a systematic literature review, albeit with less detail.
+@schunemann_reviews_2015 show that Rapid Reviews can yield substantially similar results to a systematic literature review, albeit with less detail.
 Although developed in medicine, Cartaxo et al. show that Rapid Reviews are useful for informing software engineering design decisions [@cartaxo_role_2018; @cartaxo_rapid_2020].
 
 We conducted a rapid review with the following parameters:
@@ -140,7 +139,7 @@ We record the following features for each system-level provenance tool:
   - **VM instrumentation**:
     A provenance tool may execute the program in a virtual machine, where it can observe the program's I/O operations.
 - **Is source code available?**:
-  We use the categorical codes given by [@collbergRepeatabilityComputerSystems2016] [DSK: I think the prev ref should not have brackets around it] to describe whether the source code is in the article, found on the web, found by an email from the author, refused from an email by the author, or the authors did not reply.
+  We use the categorical codes given by @collbergRepeatabilityComputerSystems2016 to describe whether the source code is in the article, found on the web, found by an email from the author, refused from an email by the author, or the authors did not reply.
 
 ### Selecting benchmarks
 
@@ -157,7 +156,7 @@ We also added new benchmarks:
   Prior work uses compilation of Apache or of Linux.
   We added compilation of several other packages (any package in Spack) to our benchmark.
   Compiling packages is a good use-case for a provenance tracer, because a user might trial-and-error multiple compile commands and not remember the exact sequence of "correct" commands;
-  the provenance tracker would be able to recall the commands which did not get overwritten, so the user can know what commands "actually worked". [DSK: this reminds me of VisTrails from Utah]
+  the provenance tracker would be able to recall the commands which did not get overwritten, so the user can know what commands "actually worked". ^[DSK: this reminds me of VisTrails from Utah]
 
 In order to reduce the amount of work needed to reduce the amount of time it takes for the now numerous benchmarks to run for future work, we implement a subsetting procedure based on Yi's methodology (vectorization $\to$ standardization $\to$ PCA $\to$ hierarchical clustering) [@yiEvaluatingBenchmarkSubsetting2006a], such that the resulting subset contains almost as much predictive information as the full set.
 
@@ -268,7 +267,7 @@ Running HTTP servers may be a popular benchmark because prior work focuses overw
 | FTP client (lftp, yafc, tnftp, skod)                                                                | 2                  |
 | SPEC CPU 2006                                                                                       | 3                  |
 | Compile (Apache, LLVM, libc, Linux, LaTeX doc)                                                      | 8                  |
-| lmbench                                                                                             | 3                  |
+| lmbench[^lmbench]                                                                                   | 5                  |
 | Postmark                                                                                            | 4                  |
 | SPLASH-3                                                                                            | 1                  |
 | Browsers (Firefox, Chromium, w3m)                                                                   | 8                  |
@@ -277,16 +276,14 @@ Running HTTP servers may be a popular benchmark because prior work focuses overw
 | Shellbench (bash, sh)                                                                               | 3                  |
 | Workflows (Snakemake-workflow-catalog, Nf-core, CleanML, Spark, VIC, FIE)                           | 2                  |
 | Microbenchmarks (open/close, fork/exec, pipe/dup/close, socket/connect)                             | 2                  |
-| sshd                                                                                                | 3                  |
-| ssh                                                                                                 | 1                  |
 | xSDK codes                                                                                          | 0                  |
 | Small, fast binaries (procps, sysstat, gif2png, mp3info, gocr)                                      | 2                  |
 | x264                                                                                                | 1                  |
-| cp linux                                                                                            | 1                  |
 
 : Benchmarks implemented by this work {#tbl:implemented-benchmarks}
 
 [^unpack-linux]: We count "unpack linux" as an occurrence of an un/archive benchmark.
+[^lmbench]: Noting that lmbench contains open/close, fork/exec, and pipe/close.
 
 ### Benchmarks
 

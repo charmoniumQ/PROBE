@@ -6,8 +6,9 @@ import re
 import urllib.parse
 from collections.abc import Sequence, Mapping
 from pathlib import Path
-from util import run_all, CmdArg, check_returncode, merge_env_vars
+from util import run_all, CmdArg, check_returncode, merge_env_vars, download
 import yaml
+import tarfile
 import shlex
 from typing import cast
 
@@ -316,25 +317,52 @@ DocumentRoot $SRV_ROOT
 
 
 HTTP_PORT = 54123
-HTTP_N_REQUESTS = 10000000
-HTTP_REQ_SIZE = 1024 * 1024
+HTTP_N_REQUESTS = 500000
+HTTP_REQUEST_SIZE = 16 * 1024
+
+HTTP_LOAD_CMD = shlex.join([
+    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"http://localhost:{HTTP_PORT}/test"
+])
 
 
-class ApacheBench(Workload):
+class HttpBench(Workload):
     kind = "http_bench"
 
+    def __init__(self, port: int, n_requests: int, request_size: int):
+        self.port = port
+        self.n_requests = n_requests,
+        self.request_size = request_size
+
+    def write_request_payload(self, path: Path) -> None:
+        path.write_text("A" * self.request_size)
+
+    def run_server(self, workdir: Path) -> str:
+        raise NotImplementedError
+
+    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        return (
+            (
+                result_bin / "python",
+                "run_server_and_client.py",
+                self.run_server(workdir),
+                HTTP_LOAD_CMD,
+            ),
+            {},
+        )
+
+class ApacheBench(HttpBench):
     name = "apache with apachebench"
 
-    def setup(self, workdir: Path) -> None:
-        httpd_root = workdir / "apache"
+    def run_server(self, workdir: Path) -> str:
+        httpd_root = (workdir / "apache").resolve()
         if httpd_root.exists():
             shutil.rmtree(httpd_root)
         httpd_root.mkdir()
         srv_root = httpd_root / "srv"
         srv_root.mkdir()
-        (srv_root / "test").write_text(HTTP_REQ_SIZE * "A")
+        self.write_request_payload(srv_root / "test")
         conf_file = httpd_root / "httpd.conf"
-        modules_root = result_lib / "modules"
+        modules_root = result_lib.parent / "modules"
         conf_file.write_text(
             APACHE_CONF
             .replace("$HTTPD_ROOT", str(httpd_root))
@@ -342,125 +370,113 @@ class ApacheBench(Workload):
             .replace("$SRV_ROOT", str(srv_root))
             .replace("$PORT", str(HTTP_PORT))
         )
-
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
-        return (
-            (
-                result_bin / "python",
-                "run_server_and_client.py",
-                shlex.join([
-                    str(result_bin / "apacheHttpd"), "-k", "start", "-f",
-                    str(workdir / "apache/httpd.conf")
-                ]),
-                shlex.join([
-                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
-                ]),
-            ),
-            {},
-        )
+        return shlex.join([
+            str(result_bin / "apacheHttpd"), "-k", "start", "-f", str(conf_file)
+        ])
 
 
-class SimpleHttpBench(Workload):
-    kind = "http_bench"
-
+class SimpleHttpBench(HttpBench):
     name = "python http.server with apachebench"
 
-    def setup(self, workdir: Path) -> None:
+    def run_server(self, workdir: Path) -> str:
         httpd_root = workdir / "simple"
         if httpd_root.exists():
             shutil.rmtree(httpd_root)
         httpd_root.mkdir()
-        (httpd_root / "test").write_text(HTTP_REQ_SIZE * "A")
-
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
-        return (
-            (
-                result_bin / "python",
-                "run_server_and_client.py",
-                shlex.join([
-                    str(result_bin / "python"), "-m", "http.server", str(HTTP_PORT), "--directory", str(workdir / "simple")
-                ]),
-                shlex.join([
-                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
-                ]),
-            ),
-            {},
-        )
+        self.write_request_payload(httpd_root / "test")
+        return shlex.join([
+            str(result_bin / "python"), "-m", "http.server", str(HTTP_PORT), "--directory", str(httpd_root)
+        ]) + f" > {httpd_root}/stdout 2> {httpd_root}/stderr"
 
 
-class MiniHttpBench(Workload):
-    kind = "http_bench"
-
+class MiniHttpBench(HttpBench):
     name = "minihttp with apachebench"
 
-    def setup(self, workdir: Path) -> None:
-        httpd_root = workdir / "minihttpd"
+    def run_server(self, workdir: Path) -> str:
+        httpd_root = (workdir / "minihttpd").resolve()
         if httpd_root.exists():
             shutil.rmtree(httpd_root)
         httpd_root.mkdir()
         (httpd_root / "logs").mkdir()
         (httpd_root / "localhost").mkdir()
-        (httpd_root / "localhost" / "test").write_text(HTTP_REQ_SIZE * "A")
-
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
-        return (
-            (
-                result_bin / "python",
-                "run_server_and_client.py",
-                shlex.join([
-                    str(result_bin / "miniHttpd"), "--logfile", str(workdir / "logs"), "--port",
-                    str(HTTP_PORT), "--change-root", "", "--document-root", str(workdir / "minihttpd")
-                ]),
-                shlex.join([
-                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
-                ]),
-            ),
-            {},
-        )
+        self.write_request_payload(httpd_root / "localhost/test")
+        return shlex.join([
+            str(result_bin / "miniHttpd"), "--logfile", str(httpd_root / "logs"), "--port",
+            str(HTTP_PORT), "--change-root", "", "--document-root", str(httpd_root)
+        ])
 
 
 LIGHTTPD_CONF = '''
 server.document-root = "$SRV_ROOT"
 server.port = $PORT
+server.upload-dirs = ( "$SRV_ROOT" )
 '''
 
 
-class LighttpBench(Workload):
-    kind = "http_bench"
-
+class LighttpdBench(HttpBench):
     name = "lighttpd with apachebench"
 
-    def setup(self, workdir: Path) -> None:
+    def run_server(self, workdir: Path) -> str:
         httpd_root = workdir / "lighttpd"
         if httpd_root.exists():
             shutil.rmtree(httpd_root)
         httpd_root.mkdir()
         srv_root = httpd_root / "files"
         srv_root.mkdir()
-        (srv_root / "test").write_text(HTTP_REQ_SIZE * "A")
+        self.write_request_payload(httpd_root / "test")
         conf_path = httpd_root / "test.conf"
         conf_path.write_text(
             LIGHTTPD_CONF
             .replace("$PORT", str(HTTP_PORT))
             .replace("$SRV_ROOT", str(srv_root))
         )
+        return shlex.join([
+            str(result_bin / "lighttpd"), "-D", "-f", str(conf_path),
+        ])
 
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
-        httpd_root = workdir / "lighttpd"
-        conf_path = httpd_root / "test.conf"
-        return (
-            (
-                result_bin / "python",
-                "run_server_and_client.py",
-                shlex.join([
-                    str(result_bin / "lighttpd"), "-D", "-f", str(conf_path),
-                ]),
-                shlex.join([
-                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"localhost:{HTTP_PORT}/test"
-                ]),
-            ),
-            {},
+
+NGINX_CONF = '''
+# https://stackoverflow.com/a/73297125/1078199
+daemon off;  # run in foreground
+events {}
+pid $NGINX_ROOT/nginx.pid;
+http {
+    access_log $NGINX_ROOT/access.log;
+    client_body_temp_path $NGINX_ROOT;
+    proxy_temp_path $NGINX_ROOT;
+    fastcgi_temp_path $NGINX_ROOT;
+    uwsgi_temp_path $NGINX_ROOT;
+    scgi_temp_path $NGINX_ROOT;
+    server {
+        server_name localhost;
+        listen $PORT default_server;
+        root $SRV_ROOT;
+    }
+}
+'''
+
+
+class NginxBench(HttpBench):
+    name = "nginx with apachebench"
+
+    def run_server(self, workdir: Path) -> str:
+        nginx_root = (workdir / "nginx").resolve()
+        if nginx_root.exists():
+            shutil.rmtree(nginx_root)
+        nginx_root.mkdir()
+        srv_root = nginx_root / "files"
+        srv_root.mkdir()
+        self.write_request_payload(srv_root / "test")
+        conf_path = nginx_root / "test.conf"
+        conf_path.write_text(
+            NGINX_CONF
+            .replace("$PORT", str(HTTP_PORT))
+            .replace("$NGINX_ROOT", str(nginx_root))
+            .replace("$SRV_ROOT", str(srv_root))
         )
+        return shlex.join([
+            str(result_bin / "nginx"), "-p", str(nginx_root), "-c", "test.conf", "-e", "stderr",
+        ])
 
 
 PROFTPD_CONF = '''
@@ -502,6 +518,10 @@ class ProftpdBench(Workload):
 
     name = "proftpd with ftpbench"
 
+    def __init__(self, ftp_port: int, n_requests: int) -> None:
+        self.ftp_port = ftp_port
+        self.n_requests = n_requests
+
     def setup(self, workdir: Path) -> None:
         ftpdir = (workdir / "proftpd").resolve()
         if ftpdir.exists():
@@ -514,7 +534,7 @@ class ProftpdBench(Workload):
         # group = grp.getgrgid(gid).gr_name
         (ftpdir / "conf").write_text(
             PROFTPD_CONF
-            .replace("$PORT", str(HTTP_PORT))
+            .replace("$PORT", str(self.ftp_port))
             .replace("$USER", "benchexec")
             .replace("$GROUP", "benchexec")
             .replace("$FTPDIR", str(ftpdir))
@@ -525,7 +545,7 @@ class ProftpdBench(Workload):
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         ftpdir = (workdir / "proftpd").resolve()
         tmpdir = ftpdir / "tmp"
-        ftpbench_args = [str(result_bin / "ftpbench"), "--host", f"127.0.0.1:{HTTP_PORT}", "--user", "anonymous", "--password", ""]
+        ftpbench_args = [str(result_bin / "ftpbench"), "--host", f"127.0.0.1:{self.ftp_port}", "--user", "anonymous", "--password", ""]
         return (
             (
                 result_bin / "python",
@@ -534,10 +554,113 @@ class ProftpdBench(Workload):
                     str(result_bin / "proftpd"), "--nodaemon", "--config", str(ftpdir / "conf")
                 ]),
                 " && ".join([
-                    shlex.join([*ftpbench_args, "--maxiter", "500", "upload", str(tmpdir)]),
+                    shlex.join([*ftpbench_args, "--maxiter", str(self.n_requsets), "upload", str(tmpdir)]),
                     # shlex.join([*ftpbench_args, "--maxiter", "500", "download", str(tmpdir)]),
                 ])
             ),
+            {},
+        )
+
+
+class Postmark(Workload):
+    kind = "postmark"
+    name = "postmark"
+
+    def __init__(self, n_transactions: int) -> None:
+        self.n_transactions = n_transactions
+
+    def setup(self, workdir: Path) -> None:
+        postmark_dir = workdir / "postmark"
+        if postmark_dir.exists():
+            shutil.rmtree(postmark_dir)
+        postmark_dir.mkdir()
+        postmark_input = postmark_dir / "postmark.input"
+        postmark_input.write_text("\n".join([f"set transactions {self.n_transactions}", "run", ""]))
+
+    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+        postmark_dir = workdir / "postmark"
+        postmark_input = postmark_dir / "postmark.input"
+        return (
+            (result_bin / "sh", "-c", f"{result_bin}/env --chdir {postmark_dir} {result_bin}/postmark < {postmark_input}"),
+            {},
+        )
+
+
+LINUX_TARBALL_URL = "https://github.com/torvalds/linux/archive/refs/tags/v6.8-rc1.tar.gz"
+SMALLER_TARBALL_URL = "https://files.pythonhosted.org/packages/60/7c/04f0706b153c63e94b01fdb1f3ccfca19c80fa7c42ac34c182f4b1a12c75/BenchExec-3.20.tar.gz"
+
+
+class Archive(Workload):
+    kind = "archive"
+    def __init__(self, algorithm: str, url: str) -> None:
+        self.algorithm = algorithm
+        self.name = f"archive tar {self.algorithm}"
+        self.url = url
+
+    def setup(self, workdir: Path) -> None:
+        resource_dir = workdir / "archive"
+        archive_tgz = resource_dir / "archive.tar.gz"
+        newarchive = resource_dir / ("newarchive.tar.compressed" if self.algorithm else "newarchive.tar")
+        source_dir = resource_dir / "source"
+        if not archive_tgz.exists():
+            download(archive_tgz, self.url)
+        if not source_dir.exists():
+            tarfile.TarFile.open(archive_tgz).extractall(path=source_dir)
+        if newarchive.exists():
+            newarchive.unlink()
+
+    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+        resource_dir = workdir / "archive"
+        newarchive = resource_dir / ("newarchive.tar.compressed" if self.algorithm else "newarchive.tar")
+        source_dir = resource_dir / "source"
+        use_compress_prog = ("--use-compress-prog", str(result_bin / self.algorithm)) if self.algorithm else ()
+        return (
+            (result_bin / "tar", "--create", "--file", newarchive, *use_compress_prog, "--directory", source_dir, "."),
+            {},
+        )
+
+
+class Unarchive(Workload):
+    kind = "unarchive"
+    def __init__(self, algorithm: str, url: str) -> None:
+        self.algorithm = algorithm
+        self.name = f"unarchive {algorithm}"
+        self.url = url
+        self.target_archive: None | Path = None
+
+    def setup(self, workdir: Path) -> None:
+        resource_dir = workdir / "unarchive"
+        archive_targz = resource_dir / "archive.tar.gz"
+        source_dir = resource_dir / "source"
+        if source_dir.exists():
+            shutil.rmtree(source_dir)
+        source_dir.mkdir()
+        if not archive_targz.exists():
+            download(archive_targz, self.url)
+        if self.algorithm in {"gzip", "pigz"}:
+            self.target_archive = archive_targz
+        else:
+            archive_tar = resource_dir / "archive.tar"
+            if not archive_tar.exists():
+                subprocess.run([result_bin / "pigz", "--decompress", archive_targz], check=True)
+            if self.algorithm == "":
+                self.target_archive = archive_tar
+            elif self.algorithm in {"pbzip2", "bzip2"}:
+                archive_tarbz = resource_dir / "archive.tar.bz2"
+                if not archive_tarbz.exists():
+                    subprocess.run([result_bin / "pbzip2", "--compress", archive_tar], check=True)
+                self.target_archive = archive_tarbz
+            else:
+                raise NotImplementedError(f"No compression handler for algorithm {self.algorithm}")
+
+    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+        resource_dir = workdir / "unarchive"
+        source_dir = resource_dir / "source"
+        if self.target_archive is None:
+            raise RuntimeError("self.target_archive should have been set during setup()")
+        use_compress_prog = ("--use-compress-prog", str(result_bin / self.algorithm)) if self.algorithm else ()
+        return (
+            (result_bin / "tar", "--extract", "--file", self.target_archive, *use_compress_prog, "--directory", source_dir, "--strip-components", "1"),
             {},
         )
 
@@ -571,6 +694,53 @@ class Cmds(Workload):
 
     def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
         return tuple(self._replace_args(self._run, workdir)), {}
+
+
+class VCSTraffic(Workload):
+    kind = "vcs"
+    def __init__(
+            self,
+            url: str,
+            clone_cmd: tuple[CmdArg, ...],
+            checkout_cmd: tuple[CmdArg, ...],
+            list_commits_cmd: tuple[CmdArg, ...],
+            first_n_commits: None | int = None,
+    ) -> None:
+        self.name = str(clone_cmd[0]).split("/")[-1] + " " + url.split("/")[-1]
+        self.url = url
+        self.clone_cmd = clone_cmd
+        self.checkout_cmd = checkout_cmd
+        self.list_commits_cmd = list_commits_cmd
+        self.repo_dir: None | Path = None
+        self.commits: None | list[str] = None
+        self.first_n_commits = first_n_commits
+
+    def setup(self, workdir: Path) -> None:
+        self.repo_dir = workdir / "vcs" / hashlib.sha256(self.url.encode()).hexdigest()[:10]
+        if self.repo_dir.exists():
+            shutil.rmtree(self.repo_dir)
+        subprocess.run([*self.clone_cmd, self.url, self.repo_dir], check=True, capture_output=True)
+        self.commits = subprocess.run(
+            [*self.list_commits_cmd],
+            check=True,
+            capture_output=True,
+            text=True,
+            cwd=self.repo_dir,
+        ).stdout.strip().split("\n")[:self.first_n_commits]
+        (self.repo_dir / "script").write_text(
+            f"cd {self.repo_dir}\n" + "\n".join([
+                shlex.join([*map(str, self.checkout_cmd), commit]) + " >/dev/null"
+                for commit in self.commits
+            ])
+        )
+
+    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+        assert self.repo_dir is not None
+        assert self.commits is not None
+        return (
+            (result_bin / "sh", self.repo_dir / "script"),
+            {},
+        )
 
 def genomics_workload(name: str, which_targets: tuple[str, ...]) -> Cmds:
     return Cmds(
@@ -607,12 +777,41 @@ def genomics_workload(name: str, which_targets: tuple[str, ...]) -> Cmds:
         ),
     )
 
+
+noop_cmd = (result_bin / "true",)
+create_file_cmd = (result_bin / "sh", "-c", "mkdir -p $WORKDIR/lmbench && echo seq 1000 > $WORKDIR/lmbench/test")
+
 WORKLOADS: Sequence[Workload] = (
-    # Cmds("simple", "python", (result_bin / "ls", "-l"), (result_bin / "python", "-c", "print(4)")),  # noqa: E501
-    Cmds("simple", "python-imports", (result_bin / "ls", "-l"), (result_bin / "python", "-c", "import pandas, pymc, matplotlib")),
-    # Cmds("simple", "gcc", (result_bin / "ls", "-l"), (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe")),
-    Cmds("simple", "gcc-math-pthread", (result_bin / "ls", "-l"), (result_bin / "gcc", "-DFULL", "-Wall", "-Og", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread", "-lm")),
+    # Cmds("simple", "python", noop_cmd, (result_bin / "python", "-c", "print(4)")),  # noqa: E501
+    Cmds("simple", "python-imports", noop_cmd, (result_bin / "python", "-c", "import pandas, pymc, matplotlib")),
+    # Cmds("simple", "gcc", noop_cmd, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe")),
+    Cmds("simple", "gcc-math-pthread", noop_cmd, (result_bin / "gcc", "-DFULL", "-Wall", "-Og", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread", "-lm")),
     # SpackInstall(["trilinos", "spack-repo.libtool"]), # Broke: openblas
+    Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "null")),
+    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "read")),
+    Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "write")),
+    Cmds("lmbench", "stat", create_file_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "stat", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "fstat", create_file_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "fstat", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "open/close", create_file_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "open", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "fork")),
+    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "exec")),
+    # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "100", "shell")),
+    Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "3000", "install")),
+    Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000" "catch")),
+    Cmds("lmbench", "protection-fault", create_file_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000", "prot", "$WORKDIR/lmbench/test")),
+    Cmds(
+        "lmbench",
+        "page-fault",
+        (result_bin / "sh", "-c", "mkdir -p $WORKDIR/lmbench && seq 3000000 > $WORKDIR/lmbench/big_test"),
+        (result_bin / "lat_pagefault", "-P", "1", "-N", "1000", "$WORKDIR/lmbench/big_test"),
+    ),
+    Cmds("lmbench", "select-file", create_file_cmd, (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-P", "1", "-N", "3000", "file")),
+    Cmds("lmbench", "select-tcp", create_file_cmd, (result_bin / "lat_select", "-n", "3000", "-P", "1", "tcp")),
+    Cmds("lmbench", "mmap", create_file_cmd, (result_bin / "lat_mmap", "-P", "1", "-N", "100", "1M", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "bw_file-rd", create_file_cmd, (result_bin / "bw_file_rd", "-P", "1", "-N", "3000", "1M", "io_only", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "bw_unix", noop_cmd, (result_bin / "bw_unix", "-P", "1", "-N", "10")),
+    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-P", "1", "-N", "3")),
+    Cmds("lmbench", "fs", create_file_cmd, (result_bin / "lat_fs", "-P", "1", "-N", "100", "$WORKDIR/lmbench")),
     SpackInstall(["python"]),
     SpackInstall(["openmpi", "spack-repo.libtool"]),
     SpackInstall(["cmake"]),
@@ -620,6 +819,7 @@ WORKLOADS: Sequence[Workload] = (
     SpackInstall(["dealii"]), # Broke
     # SpackInstall(["gcc"]), # takes a long time
     # SpackInstall(["llvm"]), # takes a long time
+    SpackInstall(["glibc"]),
     # SpackInstall(["petsc ^spack-repo.libtool"]), # Broke: openblas
     # SpackInstall(["llvm-doe"]), # takes a long time
     SpackInstall(["boost"]),
@@ -637,9 +837,35 @@ WORKLOADS: Sequence[Workload] = (
         "NM_127277", "NM_134656", "NM_146415", "NM_167127", "NM_180448"
     )),
     genomics_workload("tblastn-10", ("NP_072902",)),
-    ApacheBench(),
-    MiniHttpBench(),
-    ProftpdBench(),
+    ApacheBench(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
+    SimpleHttpBench(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
+    MiniHttpBench(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
+    LighttpdBench(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
+    NginxBench(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
+    ProftpdBench(HTTP_PORT, 500),
+    Postmark(1_000_000),
+    Archive("", SMALLER_TARBALL_URL),
+    Archive("gzip", SMALLER_TARBALL_URL),
+    Archive("pigz", SMALLER_TARBALL_URL),
+    Archive("bzip2", SMALLER_TARBALL_URL),
+    Archive("pbzip2", SMALLER_TARBALL_URL),
+    Unarchive("", SMALLER_TARBALL_URL),
+    Unarchive("gzip", SMALLER_TARBALL_URL),
+    Unarchive("pigz", SMALLER_TARBALL_URL),
+    Unarchive("bzip2", SMALLER_TARBALL_URL),
+    Unarchive("pbzip2", SMALLER_TARBALL_URL),
+    VCSTraffic(
+        "https://github.com/pypa/setuptools_scm",
+        (result_bin / "git", "clone"),
+        (result_bin / "git", "checkout"),
+        (result_bin / "git", "log", "--format=%H"),
+    ),
+    VCSTraffic(
+        "https://hg.mozilla.org/schema-validation",
+        (result_bin / "hg", "clone"),
+        (result_bin / "hg", "checkout"),
+        (result_bin / "hg", "log", "--template={node}\n"),
+    ),
     KaggleNotebook(
         "pmarcelino/comprehensive-data-exploration-with-python",
         "competitions/house-prices-advanced-regression-techniques",

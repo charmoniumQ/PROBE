@@ -76,11 +76,17 @@ CLOCK: [2024-01-11 Thu 15:26]--[2024-01-11 Thu 17:05] =>  1:39
 - Compiling Apache is an interesting benchmark, but /running/ Apache with a predefined request load is also an interesting benchmark.
 - We should write a new class called ~ApacheLoad~ that installs Apache in its setup() (for simplicity, we won't reuse the version we built earlier), downloads a ~ApacheBench~, and in the run() runs the server with the request load using only tools from ~result/~ or ~.work/~.
 
-*** TODO THTTPD and cherokee
+*** BACKLOG THTTPD and cherokee
 http://www.acme.com/software/thttpd/
 https://github.com/larryhe/tinyhttpd
 https://github.com/mendsley/tinyhttp
 https://cherokee-project.com/
+
+*** BACKLOG SPEC CPU 2006
+- Determine if we need just int or also fp benchmarks
+- https://www.spec.org/cpu2006/Docs/
+- https://www.spec.org/sources/
+- https://github.com/miyuki/spec-cpu2006-redist/
 
 *** TODO SSH
 https://github.com/LineRate/ssh-perf
@@ -91,7 +97,7 @@ https://github.com/shellspec/shellbench
 *** TODO CleanML
 https://chu-data-lab.github.io/CleanML/
 
-*** TODO Create Postmark workload
+*** DONE Create Postmark workload
 - https://www.filesystems.org/docs/auto-pilot/Postmark.html
 - See [[https://doi.org/10.1145/2420950.2420989][Hi-Fi]], [[https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf][PASSv2]], [[https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf][LPM]], [[https://doi.org/10.1145/3127479.3129249][CamFlow]] for details
 - pm>set transactions 400000
@@ -123,9 +129,8 @@ https://chu-data-lab.github.io/CleanML/
 - Fig 1 of https://doi.org/10.1016/j.envsoft.2015.12.010
 - https://github.com/uva-hydroinformatics/VIC_Pre-Processing_Rules/
 
-*** TODO Write a ProFTPD benchmark
+*** DONE Write a ProFTPD benchmark
 - https://github.com/selectel/ftpbench
-- pure-ftpd, vsftpd, ProFTPD
 
 *** IN-PROGRESS Write a ~CompileLinux~ class
 :PROPERTIES:

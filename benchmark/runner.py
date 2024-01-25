@@ -58,12 +58,52 @@ elif sys.argv[1] == "spade_fuse":
     collectors = [spade_fuse]
     workloads = [simplest_workload]
     iterations = 1
+elif sys.argv[1] == "postmark":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.name == "postmark"
+    ]
+    iterations = 1
+elif sys.argv[1] == "archive":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "archive"
+    ]
+    iterations = 1
+elif sys.argv[1] == "unarchive":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "unarchive"
+    ]
+    iterations = 1
+elif sys.argv[1] == "vcs":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "vcs"
+    ]
+    iterations = 1
+elif sys.argv[1] == "lmbench":
+    collectors = [baseline]
+    workloads = [
+        workload
+        for workload in WORKLOADS
+        if workload.kind == "lmbench"
+    ]
+    iterations = 1
 elif sys.argv[1] == "http_bench":
     collectors = [baseline]
     workloads = [
         workload
         for workload in WORKLOADS
-        if workload.__class__.__name__ in {"ApacheBench", "MiniHttpBench"}
+        if workload.kind == "http_bench"
     ]
     iterations = 1
 elif sys.argv[1] == "ftp_bench":

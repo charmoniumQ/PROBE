@@ -451,6 +451,42 @@
               install --target-directory $out/bin yafc
             '';
           };
+          lmbench = pkgs.stdenv.mkDerivation {
+            pname = "lmbench";
+            version = "3.0.a9";
+            src = pkgs.fetchzip {
+              url = "https://sourceforge.net/projects/lmbench/files/development/lmbench-3.0-a9/lmbench-3.0-a9.tgz";
+              hash = "sha256-vGS9f/oy9KjYqcdG0XOUUbPJCLw7hG4WpbNFcORzL6I=";
+              name = "lmbench";
+            };
+            sourceRoot = "lmbench";
+            buildInputs = [ pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils ];
+            patchPhase = ''
+              sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
+              sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS)"/g' src/Makefile
+              sed -i 's=printf(buf)=printf("%s", buf)=g' src/lat_http.c
+              sed -i 's=../bin/$OS/='"$out/bin/=g" scripts/config-run
+              sed -i 's=../scripts/=$out/bin/=g' scripts/config-run
+              sed -i 's|C=.*|C=lmbench-config|g' scripts/config-run
+            '';
+            # A shell array containing additional arguments passed to make. You must use this instead of makeFlags if the arguments contain spaces
+            preBuild = ''
+              mkdir $out
+              makeFlagsArray+=(
+                CFLAGS="-O3 -I${pkgs.libtirpc.dev}/include/tirpc"
+                LDFLAGS="-L${pkgs.libtirpc.dev}/lib -ltirpc"
+                --trace
+              )
+            '';
+            installPhase = ''
+              ls -ahlt bin/
+              ./scripts/os
+              ./scripts/gnu-os
+              mkdir --parents $out/bin
+              cp bin/x86_64-linux-gnu/* $out/bin
+              cp scripts/{config-run,version,config} $out/bin
+            '';
+          };
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
@@ -491,6 +527,11 @@
               ftpbench
               proftpd
               yafc
+              pkgs.nginx
+              lmbench
+              pkgs.pigz
+              pkgs.pbzip2
+              pkgs.mercurial
 
               # Reproducibility tester
               pkgs.icdiff
