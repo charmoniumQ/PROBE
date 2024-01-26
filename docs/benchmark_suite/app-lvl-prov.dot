@@ -1,0 +1,10 @@
+digraph {
+  A [label="L img"];
+  B [label="R img"];
+  C [label="L blur"];
+  D [label="R blur"];
+  E [label="stereo map"];
+  A -> C [label="gaus blur"];
+  B -> D [label="gaus blur"];
+  {C, D} -> E [label="align"];
+}
