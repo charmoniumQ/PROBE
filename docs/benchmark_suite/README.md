@@ -36,7 +36,7 @@ Computational provenance has many potential applications, including the followin
 1. **Caching**.
   A black-box system that captures provenance knows what inputs affect the output for each process, so it knows which processes to re-execute without a user-supplied dependency graph programmer, as in traditional Make[^DSK-caching].
   
-  [^DSK-caching]: I think of caching as knowing what not to re-execute, aka memoization. What you describe here is more checkpointing to me. They are related...]
+[^DSK-caching]: DSK: I think of caching as knowing what not to re-execute, aka memoization. What you describe here is more checkpointing to me. They are related...
 
 2. **Comprehension**.
    Provenance data helps the user understand, debug, and document workflows.
@@ -80,7 +80,7 @@ Several provenance graphs collected at different levels.
 
 Lack of reproducibility in computational experiments undermines the long-term credibility of science and hinders the day-to-day work of researchers.
 Empirical studies [@trisovicLargescaleStudyResearch2022; @graysonAutomaticReproductionWorkflows2023; @collbergRepeatabilityComputerSystems2016; @zhaoWhyWorkflowsBreak2012] show that reproducibility is rarely achieved in practice, probably due to its difficulty under the short time constraints that scientists have for new publications.^[DSK: also due to a lack of incentives for achieving it, at least in comparison to other things that could be done with the same effort.]
-Rather than exhorting researchers to spend more of their short time-budget on reproducibility, it may be more effective to make reproducibility easier to achieve with the same amount of effort.
+Rather than exhorting researchers to spend more of their short time-budget on reproducibility, it may be more effective to make reproducibility easier to achieve with the same amount of effort.^[DSK: maybe rephrase as positive: If reproducibility doesn't require additional research effort, it's much more likely to happen.]
 
 Provenance data improves manual reproducibility, because users have a record of the inputs, outputs, and processes used to create a computational artifact.
 Provenance data also has the potential to enable automatic reproducibility, if the process trace is detailed enough to be "re-executed".
@@ -91,9 +91,9 @@ A typical status quo, not collecting any provenance data and not using workflows
 System-level, workflow/language-level, and application-level are on a curve, increasing cost and enabling more provenance applications.
 
 The initial jump in cost from nothing to system-level may be low because the user need not change _anything_ about their application;
-  they merely need to install some provenance tracer onto their system and run their code, without modifying it, in the tracer.
+  they merely need to install some provenance tracer onto their system and run their code, without modifying it, in the tracer. ^[DSK: what about the performance penalty? Since you talk about performance in contributions, I think you have to introduce it here.]
 Perceived ease of use is a critical factor in the adoption of new technologies (formalized in the Technology Acceptance Model [@davisTechnologyAcceptanceModel1985]).
-Although the user may eventually use more semantically rich provenance, low-cost system-level provenance would get provenance's "foot in the door".
+Although the user may eventually use more semantically rich provenance, low-cost system-level provenance would get provenance's "foot in the door". ^[DSK: but what is the cost? at the start of the paragraph, you said there is **no** user cost, but there is at least the performance cost.]
 While this data is less rich than that of the workflow or application level, it may be enough to enable important applications such as caching, reproducibility, and file-level comprehension.
 Since system-level provenance collection is a possibly valuable tradeoff between cost and enabling provenance applications, system-level provenance will be the subject of this work.
 
@@ -104,7 +104,7 @@ This work aims to summarize state of the art, establish goalposts for future res
 This work contributes:
 
 - **A rapid review**:
-    There are a scores of academic publications on system-level provenance (see @tbl:tools), so we collate all of prior provenance tools and classify them by _capture method_ (e.g., does the provenance collector require you to load a kernel module or run your code in a VM?). 
+    There are scores of academic publications on system-level provenance (see @tbl:tools), so we collate all ^[DSK: how is **all** determined? this seems like a setup for a reviewer to tell you that you missed something] of prior provenance tools and classify them by _capture method_ (e.g., does the provenance collector require you to load a kernel module or run your code in a VM?). 
 
 - **A benchmark suite**:
   Prior work does not use a consistent set of benchmarks; often publications use an overlapping set of benchmarks from prior work <!-- TODO: ref table -->.
@@ -116,7 +116,7 @@ This work contributes:
   This work runs a consistent set of benchmarks on a single machine over all provenance tools.
 
 - **A predictive performance model**:
-  The performance overhead of a single provenance system vary from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
+  The performance overhead of a single provenance system varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
   This work develops a statistical model for predicting the overhead of \$X application in \$Y provenance system based on \$Y provenance system's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
 
 # Methods
@@ -150,7 +150,7 @@ We record the following features for each system-level provenance tool:
   - **User-level tracing**:
     A provenance tool may use "debugging" or "tracing" features provided by the kernel to trace the I/O operations of another program, e.g., `ptrace(2)` [@Ptrace].
 
-  - **Builtin auditing service**:
+  - **Built-in auditing service**:
     A provenance tool may use auditing service built in to the kernel, e.g., Linux Auditing Framework [@madabhushanaConfigureLinuxSystem2021], enhanced Berkeley Packet Filter (eBPF) [@BPFDocumentation], kprobes [@kenistonKernelProbesKprobes], and ETW [@EventTracingWin322021] for Windows.
 
   - **Filesystem instrumentation**:
@@ -172,7 +172,7 @@ We record the following features for each system-level provenance tool:
     A provenance tool may execute the program in a virtual machine, where it can observe the program's I/O operations.
 
 - **Is source code available?**:
-  We use the categorical codes given by @collbergRepeatabilityComputerSystems2016 to describe whether the source code is in the article, found on the web, found by an email from the author, refused from an email by the author, or the authors did not reply.
+  We use the categorical codes given by Collberg and Proebsting [@collbergRepeatabilityComputerSystems2016] to describe whether the source code is in the article, found on the web, found by an email from the author, refused from an email by the author, or the authors did not reply.
 
 ## Selecting benchmarks
 
@@ -197,7 +197,7 @@ We also added new benchmarks:
 - **Computational simulations**:
   High-performance computing (HPC) scientific simulations could benefit from provenance tracing.
   These HPC applications may have access patterns quite different than conventional desktop applications.
-  The xSDK framework [@bartlettXSDKFoundationsExtremescale2017] collects a 
+  The xSDK framework [@bartlettXSDKFoundationsExtremescale2017] collects a ^[DSK: end is missing]
 
 In order to reduce the amount of work needed to reduce the amount of time it takes for the now numerous benchmarks to run for future work, we subset our benchmark based on interpolative matrix decomposition.
 **Interpolative decomposition** (ID) factors a matrix $A \in \mathbb R^{n \times m}$ of rank $k$ into two factors $B \times P$ where the $B$ contains a subset of the columns of $A$ and a subset of the columns of $P$ form the $k \times k$ identity matrix [@libertyRandomizedAlgorithmsLowrank2007]^[Also see the function scipy.linalg.interpolative of the Python package scipy.].
@@ -226,13 +226,13 @@ A_{:,1} & \cdots & A_{:,k} \\
 
 We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system.
 
-## Predictive performnace model
+## Predictive performance model
 
 # Results
 
 ## Qualitative feature comparison
 
-@Tbl:tools shows the provenance tools we collected and their qualitative features, while @tbl:excluded shows the tools which have been called "system-level provenance tools" but do not fit the definition used in this paper.
+@Tbl:tools shows the provenance tools we collected and their qualitative features, while @tbl:excluded shows the tools that have been called "system-level provenance tools" but do not fit the definition used in this paper.
 Of these, @tbl:prior-benchmarks shows the benchmarks used to evaluate each tool.
 Running HTTP servers may be a popular benchmark because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics);
   securing HTTP servers and web applications is a common task.
