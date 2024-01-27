@@ -29,7 +29,8 @@ def get_results(
         workloads: Sequence[Workload],
         iterations: int,
         seed: int,
-        fail_first: bool = True,
+        ignore_failures: bool,
+        rerun: bool,
 ) -> pandas.DataFrame:
     return (
         run_experiments_cached(
@@ -40,7 +41,8 @@ def get_results(
             cache_dir=pathlib.Path(".cache"),
             big_temp_dir=pathlib.Path(".workdir"),
             size=256,
-            fail_first=fail_first,
+            ignore_failures=ignore_failures,
+            rerun=rerun,
         )
         .assign(**{
             "n_ops": lambda df: list(map(len, df.operations)),
@@ -57,7 +59,8 @@ def run_experiments_cached(
         cache_dir: pathlib.Path,
         big_temp_dir: pathlib.Path,
         size: int,
-        fail_first: bool,
+        ignore_failures: bool,
+        rerun: bool,
 ) -> pandas.DataFrame:
     key = (cache_dir / ("results_" + "_".join([
         *[prov_collector.name for prov_collector in prov_collectors],
@@ -66,7 +69,7 @@ def run_experiments_cached(
         str(size),
         str(seed),
     ]) + ".pkl"))
-    if key.exists():
+    if key.exists() and False:
         return expect_type(pandas.DataFrame, pickle.loads(key.read_bytes()))
     else:
         results_df = run_experiments(
@@ -77,7 +80,8 @@ def run_experiments_cached(
             iterations,
             size,
             seed,
-            fail_first,
+            ignore_failures,
+            rerun,
         )
         key.write_bytes(pickle.dumps(results_df))
         return results_df
@@ -91,7 +95,8 @@ def run_experiments(
         iterations: int,
         size: int,
         seed: int,
-        fail_first: bool,
+        ignore_failures: bool,
+        rerun: bool,
 ) -> pandas.DataFrame:
     prng = random.Random(seed)
     inputs = shuffle(
@@ -110,7 +115,8 @@ def run_experiments(
     result_list = [
         (prov_collector, workload, run_one_experiment_cached(
             cache_dir, iteration, prov_collector, workload,
-            work_dir, log_dir, temp_dir, artifacts_dir, size, fail_first,
+            work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
+            rerun,
         ))
         for iteration, prov_collector, workload in tqdm.tqdm(inputs)
     ]
@@ -160,20 +166,21 @@ def run_one_experiment_cached(
     temp_dir: pathlib.Path,
     artifacts_dir: pathlib.Path,
     size: int,
-    fail_first: bool,
+    ignore_failures: bool,
+    rerun: bool,
 ) -> ExperimentStats:
     key = (cache_dir / ("_".join([
-        urllib.parse.quote(prov_collector.name),
-        urllib.parse.quote(workload.name),
+        urllib.parse.quote(prov_collector.name, safe=''),
+        urllib.parse.quote(workload.name, safe=''),
         str(iteration)
     ]))).with_suffix(".pkl")
-    if key.exists():
+    if (not rerun) and key.exists():
         return expect_type(ExperimentStats, pickle.loads(key.read_bytes()))
     else:
         delete_children(temp_dir)
         stats = run_one_experiment(
             iteration, prov_collector, workload, work_dir, log_dir,
-            temp_dir, artifacts_dir, size, fail_first,
+            temp_dir, artifacts_dir, size, ignore_failures,
         )
         cache_dir.mkdir(exist_ok=True, parents=True)
         key.write_bytes(pickle.dumps(stats))
@@ -189,10 +196,11 @@ def run_one_experiment(
     temp_dir: pathlib.Path,
     artifacts_dir: pathlib.Path,
     size: int,
-    fail_first: bool,
+    ignore_failures: bool,
 ) -> ExperimentStats:
     with ch_time_block.ctx(f"setup {workload}"):
         try:
+            work_dir.mkdir(exist_ok=True)
             workload.setup(work_dir)
         except SubprocessError as exc:
             print(str(exc))
@@ -244,7 +252,7 @@ def run_one_experiment(
             },
         )
     move_children(temp_dir / "old_work_dir", work_dir)
-    if fail_first and not stats.success:
+    if ignore_failures and not stats.success:
         raise SubprocessError(
             cmd=cmd,
             env=full_env,

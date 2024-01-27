@@ -587,6 +587,7 @@
                 pypkgs.pyyaml
                 pypkgs.types-pyyaml
                 pypkgs.graphviz
+                pypkgs.typer
                 benchexec
                 charmonium-time-block
 

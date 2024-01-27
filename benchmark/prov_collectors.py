@@ -58,7 +58,7 @@ class ProvCollector:
 
 
 class NoProv(ProvCollector):
-    name = "no prov"
+    name = "noprov"
 
 libcalls = "-*+" + "+".join([
     # https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html
@@ -303,11 +303,12 @@ class STrace(AbstractTracer):
 ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+\(")
 
 def _get_dlibs(exe_or_dlib: str, found: set[str]) -> None:
+    env: Mapping[str, str] = {}
     proc = subprocess.run(
         [result_bin / "ldd", exe_or_dlib],
         text=True,
         capture_output=True,
-        env={},
+        env=env,
     )
     check_returncode(proc, env)
     for match in ldd_regex.finditer(proc.stdout):
@@ -352,7 +353,8 @@ class LTrace(AbstractTracer):
                 op,
                 *(
                     ProvOperation(type="dload_dep", target0=dlib, target1=None, args=None)
-                    for dlib in get_dlibs(op.target0)
+                    for dlib in get_dlibs(cast(str, op.target0))
+                    if op.target0 is not None
                 ),
             ]
         else:
@@ -475,7 +477,7 @@ class RR(ProvCollector):
         return (result_bin / "env", f"_RR_TRACE_DIR={log}", result_bin / "rr", *cmd)
 
 
-class Reprozip(ProvCollector):
+class ReproZip(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
 
@@ -502,7 +504,7 @@ class Reprozip(ProvCollector):
         )
 
 
-class Sciunit(ProvCollector):
+class SciUnit(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
 
@@ -658,32 +660,17 @@ class Auditd(ProvCollector):
         subprocess.run([result_bin / "auditctl", "-D"], check=True)
 
 
-baseline = NoProv()
-strace = STrace()
-ltrace = LTrace()
-fsatrace = FSATrace()
-cde = CDE()
-rr = RR()
-reprozip = Reprozip()
-sciunit = Sciunit()
-spade_fuse = SpadeFuse()
-spade_auditd = SpadeAuditd()
-bpf_trace = BPFTrace()
-darshan = Darshan()
-
-
-PROV_COLLECTORS: Sequence[ProvCollector] = (
-    baseline,
-    strace,
-    ltrace,
-    fsatrace,
-    cde,
-    rr,
-    reprozip,
-    sciunit,
-    # spade_fuse,
-    # spade_auditd,
-    # darshan,
-    # bpf_trace,
-    # auditd,
-)
+PROV_COLLECTORS: Mapping[str, ProvCollector] = {
+    "noprov": NoProv(),
+    "strace": STrace(),
+    "ltrace": LTrace(),
+    "fsatrace": FSATrace(),
+    "cde": CDE(),
+    "rr": RR(),
+    "reprozip": ReproZip(),
+    "sciunit": SciUnit(),
+    "spade_fuse": SpadeFuse(),
+    "spade_auditd": SpadeAuditd(),
+    "darshan": Darshan(),
+    "bpf_trace": BPFTrace(),
+}

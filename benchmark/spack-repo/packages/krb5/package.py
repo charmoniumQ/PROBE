@@ -16,7 +16,7 @@ class Krb5(AutotoolsPackage):
     list_url = "https://kerberos.org/dist/krb5/"
     list_depth = 1
 
-    # license("MIT")
+    license("MIT")
 
     version("1.20.1", sha256="704aed49b19eb5a7178b34b2873620ec299db08752d6a8574f95d41879ab8851")
     version("1.19.4", sha256="41f5981c5a4de0a26b3937e679a116cd5b3739641fd253124aac91f7179b54eb")
@@ -35,8 +35,8 @@ class Krb5(AutotoolsPackage):
     depends_on("bison", type="build")
     depends_on("openssl@:1", when="@:1.19")
     depends_on("openssl")
-    depends_on("perl")
     depends_on("gettext")
+    depends_on("perl", type="build")
     depends_on("findutils", type="build")
     depends_on("pkgconfig", type="build", when="^openssl~shared")
     depends_on("lmdb")

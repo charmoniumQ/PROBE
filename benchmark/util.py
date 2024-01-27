@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import urllib.request
 from collections.abc import Sequence, Mapping, Iterator, Iterable
-from typing import Callable, TypeVar, Any, TypeAlias, cast
+from typing import Callable, TypeVar, Any, TypeAlias, cast, Hashable
 import scipy  # type: ignore
 import numpy
 
@@ -201,7 +201,7 @@ def check_returncode(
     if proc.returncode != 0:
         raise SubprocessError(
             cmd=proc.args,
-            env=dict(**env),
+            env={key: val for key, val in env.items()},
             cwd=cwd,
             returncode=proc.returncode,
             stdout=to_str(proc.stdout),
@@ -234,3 +234,8 @@ def remove_keys(dct: Mapping[_T, _V], keys: set[_T]) -> Mapping[_T, _V]:
 def flatten1(it: Iterable[Iterable[_T]]) -> Iterable[_T]:
     for elem in it:
         yield from elem
+
+
+def all_unique(it: Iterable[Hashable]) -> bool:
+    lst = list(it)
+    return len(set(lst)) == list(lst)
