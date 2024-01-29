@@ -357,7 +357,7 @@ class HttpBench(Workload):
                     str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"http://localhost:{HTTP_PORT}/test",
                 ]),
                 shlex.join([
-                    str(result_bin / "curl"), "--quiet", "--fail", "--output", "/dev/null", f"http://localhost:{HTTP_PORT}/test",
+                    str(result_bin / "curl"), "--silent", "--fail", "--output", "/dev/null", f"http://localhost:{HTTP_PORT}/test",
                 ]),
             ),
             {},
@@ -875,7 +875,7 @@ WORKLOADS: list[Workload] = [
     Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "3000", "fork")),
     Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "3000", "exec")),
     # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "100", "shell")), # broke
-    Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "3000", "install")),
+    # Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "3000", "install")), # noisy
     # Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "400", "catch")), # noisy
     Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-P", "1", "-N", "300", "prot", "$WORKDIR/lmbench/test")),
     Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-P", "1", "-N", "30", "$WORKDIR/lmbench/big_test")),
@@ -1129,6 +1129,6 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "fast": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"fork", "exec"} and workload.kind not in {"spack"}
+        if workload.name not in {"fork", "exec", "select-file", "read", "write", "stat", "protection-fault", "getppid", "postmark"} and workload.kind not in {"spack"}
     ]
 }

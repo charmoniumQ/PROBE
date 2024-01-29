@@ -2,10 +2,11 @@ import pathlib
 import pandas
 import numpy
 import functools
-import matplotlib
 import collections
 from typing import Mapping, Callable
 from util import flatten1
+from prov_collectors import PROV_COLLECTORS
+from workloads import WORKLOADS
 
 
 rel_qois = ["cputime", "walltime", "memory"]
@@ -124,8 +125,8 @@ def relative_performance(df: pandas.DataFrame):
 
 
 def minimize(df: pandas.DataFrame):
-    output = pathlib.Path() / "output" / "minimize"
-    output.mkdir(exist_ok=True, parents=True)
+    output = pathlib.Path() / "output"
+    output.mkdir(exist_ok=True)
     mean_df = (
         df
         .groupby(["workload", "collector"], as_index=True, observed=True)
@@ -135,41 +136,77 @@ def minimize(df: pandas.DataFrame):
                 aggfunc="mean",
             )
         })
+        .reset_index()
         .pivot(index="collector", columns="workload", values="walltime_abs_mean")
     )
     collectors = list(mean_df.index)
     workloads = list(mean_df.columns)
     data = mean_df.to_numpy()
     import scipy.linalg
-    collectors_proj, singular_values, benchmarks_proj = scipy.linalg.svd(data)
-    (output / "sing_val").write_text("Singular values: " + "\n".join([f"{i:10<}: {x:.1f}" for i, x in enumerate(singular_values)]) + "\n")
+    collectors_proj, singular_values, workloads_proj = scipy.linalg.svd(
+        data
+    )
+    workload_to_kind = {
+        workload.name: workload.kind
+        for workload in WORKLOADS
+    }
+    import matplotlib.colors
+    import matplotlib.cm
+    kind_to_color = dict(zip(
+        sorted(list(set(workload.kind for workload in WORKLOADS))),
+        sorted(matplotlib.cm.Dark2.colors + matplotlib.cm.Set2.colors),
+    ))
+    (output / "sing_val").write_text("Singular values: " + "\n".join([f"{i: >3d}: {x:.1f}" for i, x in enumerate(singular_values)]) + "\n")
     import scipy.linalg.interpolative
     def report_id(k: int) -> None:
-        with (output / f"{k}.txt").open("w") as output_file:
-            print(f"Using {k}", singular_values[k], file=output_file)
+        with (output / f"minimize_to_{k}_summary.txt").open("w") as output_file:
+            print(f"Using {k}", file=output_file)
             idx, proj = scipy.linalg.interpolative.interp_decomp(data, k, rand=False)
-            print("Interpolative decomposition chose:", "\n".join([workloads[i] for i in idx]), file=output_file)
-            data_est = scipy.linalg.interpolative.reconstruct_matrix_from(data, idx, proj)
+            print("Interpolative decomposition chose:", ", ".join([workloads[i] for i in idx[:k]]), file=output_file)
+            print("proj:", numpy.array_repr(proj), file=output_file)
+            skel = scipy.linalg.interpolative.reconstruct_skel_matrix(data, k, idx)
+            data_est = scipy.linalg.interpolative.reconstruct_matrix_from_id(skel, idx, proj)
             for j, workload in enumerate(workloads):
                 mean_rel_error = numpy.sum(numpy.fabs((data_est[:, j] - data[:, j]) / data[:, j])) / len(collectors)
-                print(f"{workload:<15s} {mean_rel_error*100:.1f}% {'by defn' if j in idx else ''}", file=output_file)
+                print(f"{workload:<15s} {mean_rel_error*100:.1f}% {'by defn' if j in idx[:k] else ''}", file=output_file)
             for i, collector in enumerate(collectors):
                 mean_rel_error = numpy.sum(numpy.fabs((data_est[i, :] - data[i, :]) / data[i, :])) / len(collectors)
                 print(f"{collector:<15s} {mean_rel_error*100:.1f}%", file=output_file)
+        import matplotlib.figure
+        import matplotlib.legend
+        import matplotlib.lines
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(collectors_proj[:, 0], collectors_proj[:, 1], color=[
-            "red" if i in idx else "black"
-            for i in range(len(workloads))
-        ], markerstyle=".")
-        fig.savefig(output / f"{k}.png")
-    for k in range(1, 12):
+        colors = numpy.array([
+            kind_to_color[workload_to_kind[workload]]
+            for workload in workloads
+        ])
+        for j in range(len(workloads)):
+            ax.plot(workloads_proj[j, 0], workloads_proj[j, 1], linestyle="", marker=".", color=colors[j])
+        for j in idx[:k]:
+            ax.plot(workloads_proj[j, 0], workloads_proj[j, 1], linestyle="", marker="x", color=colors[j])
+        ax.legend(
+            handles=[
+                *[
+                    matplotlib.lines.Line2D([0], [0], color=color, linestyle="", marker=".", label=kind)
+                    for kind, color in kind_to_color.items()
+                ],
+                matplotlib.lines.Line2D([0], [0], color="black", linestyle="", marker="x", label="chosen")
+            ],
+            bbox_to_anchor=(1.04, 0.5),
+            loc="center left",
+            borderaxespad=0,
+        )
+        fig.savefig(output / f"minimize_to_{k}_pca.png", bbox_inches="tight")
+    for k in range(1, min(len(workloads), len(collectors)) + 1):
         report_id(k)
+
 
 stats_list: list[Callable[[pandas.DataFrame], None]] = [
     performance,
     op_freqs,
     relative_performance,
+    minimize,
 ]
 
 

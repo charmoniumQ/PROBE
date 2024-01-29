@@ -198,7 +198,7 @@ def run_one_experiment(
     size: int,
     ignore_failures: bool,
 ) -> ExperimentStats:
-    with ch_time_block.ctx(f"setup {workload} and {prov_collector}"):
+    with ch_time_block.ctx(f"setup {workload}"):
         try:
             work_dir.mkdir(exist_ok=True)
             workload.setup(work_dir)
@@ -213,11 +213,10 @@ def run_one_experiment(
             )
         delete_children(log_dir)
 
-        (temp_dir / "old_work_dir").mkdir()
-        hardlink_children(work_dir, temp_dir / "old_work_dir")
-        # We will restore temp_dir to this state after running the experiment
-
+    with ch_time_block.ctx(f"setup {prov_collector}"):
         if prov_collector.requires_empty_dir:
+            (temp_dir / "old_work_dir").mkdir()
+            hardlink_children(work_dir, temp_dir / "old_work_dir")
             delete_children(work_dir)
             prov_collector.start(log_dir, size, work_dir)
             move_children(temp_dir / "old_work_dir", work_dir)
@@ -251,7 +250,7 @@ def run_one_experiment(
             },
             network_access=workload.network_access,
         )
-    move_children(temp_dir / "old_work_dir", work_dir)
+
     if ignore_failures and not stats.success:
         raise SubprocessError(
             cmd=cmd,
