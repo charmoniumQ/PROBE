@@ -23,7 +23,7 @@ main_proc = subprocess.Popen(
 if check_prog is not None:
     for check in range(20):
         print("Check", check, "$", check_prog)
-        proc = subprocess.run([shell, "-c", check_prog], check=True)
+        proc = subprocess.run([shell, "-c", check_prog], check=False)
         if proc.returncode == 0:
             break
         time.sleep(0.1)

@@ -23,6 +23,7 @@ result_lib = result_bin.parent / "lib"
 class Workload:
     kind: str
     name: str
+    network_access = False
 
     def setup(self, workdir: Path) -> None:
         pass
@@ -264,16 +265,19 @@ class KaggleNotebook(Workload):
         self._notebook: None | Path = None
         self._data_zip: None | Path = None
         author, name = self._kernel.split("/")
-        self.name = author + "-" + name[:4]
+        self.name = name[:10]
 
     def setup(self, workdir: Path) -> None:
-        self._notebook = workdir / "kernel" / (self._kernel.split("/")[1] + ".ipynb")
-        self._data_zip = workdir / (self._competition.split("/")[1] + ".zip")
+        self._kaggle_dir = workdir / "kaggle"
+        self._kernel_dir = self._kaggle_dir / "kernel"
+        self._input_dir = self._kaggle_dir / "input"
+        self._notebook = self._kernel_dir / (self._kernel.split("/")[1] + ".ipynb")
+        self._data_zip = self._kaggle_dir / (self._competition.split("/")[1] + ".zip")
         if not self._notebook.exists():
             check_returncode(subprocess.run(
                 [
                     result_bin / "kaggle", "kernels", "pull", "--path",
-                    workdir / "kernel", self._kernel
+                    self._kernel_dir, self._kernel
                 ],
                 env={"PATH": str(result_bin)},
                 check=False,
@@ -287,15 +291,15 @@ class KaggleNotebook(Workload):
             check_returncode(subprocess.run(
                 [
                     result_bin / "kaggle", "competitions", "download", "--path",
-                    workdir, self._competition.split("/")[1]
+                    self._kaggle_dir, self._competition.split("/")[1]
                 ],
                 check=False,
                 capture_output=True,
             ))
-        if (workdir / "input").exists():
-            shutil.rmtree(workdir / "input")
+        if self._input_dir.exists():
+            shutil.rmtree(self._input_dir)
         check_returncode(subprocess.run(
-            [result_bin / "unzip", "-o", "-d", workdir / "input", self._data_zip],
+            [result_bin / "unzip", "-o", "-d", self._input_dir, self._data_zip],
             env={"PATH": str(result_bin)},
             check=False,
             capture_output=True,
@@ -328,17 +332,9 @@ DocumentRoot $SRV_ROOT
 '''
 
 
-HTTP_PORT = 54123
-HTTP_N_REQUESTS = 500000
-HTTP_REQUEST_SIZE = 16 * 1024
-
-HTTP_LOAD_CMD = shlex.join([
-    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"http://localhost:{HTTP_PORT}/test"
-])
-
-
 class HttpBench(Workload):
     kind = "http_server"
+    network_access = True
 
     def __init__(self, port: int, n_requests: int, request_size: int):
         self.port = port
@@ -357,7 +353,12 @@ class HttpBench(Workload):
                 result_bin / "python",
                 "run_server_and_client.py",
                 self.run_server(workdir),
-                HTTP_LOAD_CMD,
+                shlex.join([
+                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"http://localhost:{HTTP_PORT}/test",
+                ]),
+                shlex.join([
+                    str(result_bin / "curl"), "--quiet", "--fail", "--output", "/dev/null", f"http://localhost:{HTTP_PORT}/test",
+                ]),
             ),
             {},
         )
@@ -422,6 +423,7 @@ LIGHTTPD_CONF = '''
 server.document-root = "$SRV_ROOT"
 server.port = $PORT
 server.upload-dirs = ( "$SRV_ROOT" )
+server.errorlog = "$HTTPD_ROOT/error.log"
 '''
 
 
@@ -429,18 +431,19 @@ class Lighttpd(HttpBench):
     name = "lighttpd"
 
     def run_server(self, workdir: Path) -> str:
-        httpd_root = workdir / "lighttpd"
+        httpd_root = (workdir / "lighttpd").resolve()
         if httpd_root.exists():
             shutil.rmtree(httpd_root)
         httpd_root.mkdir()
         srv_root = httpd_root / "files"
         srv_root.mkdir()
-        self.write_request_payload(httpd_root / "test")
+        self.write_request_payload(srv_root / "test")
         conf_path = httpd_root / "test.conf"
         conf_path.write_text(
             LIGHTTPD_CONF
             .replace("$PORT", str(HTTP_PORT))
             .replace("$SRV_ROOT", str(srv_root))
+            .replace("$HTTPD_ROOT", str(httpd_root))
         )
         return shlex.join([
             str(result_bin / "lighttpd"), "-D", "-f", str(conf_path),
@@ -527,8 +530,8 @@ username:$6$3FjBjHLcRPwcOK8h$DpG7OtbJXsQJ0g/TTAQjYiw47ZApeNdo6k9tRlcHQzfALKsoDxe
 
 class Proftpd(Workload):
     kind = "ftp_server"
-
     name = "proftpd with ftpbench"
+    network_access = True
 
     def __init__(self, ftp_port: int, n_requests: int) -> None:
         self.ftp_port = ftp_port
@@ -759,11 +762,32 @@ class VCSTraffic(Workload):
 
 class Blast(Workload):
     kind = "blast"
+
+    @staticmethod
+    def get_all() -> list["Blast"]:
+        workdir = Path(".workdir/work")
+        Blast.static_setup(workdir)
+        blastdir = workdir / "blast-benchmark/"
+        blasts = []
+        targets = ["blastn", "megablast", "tblastn", "tblastx", "blastp", "blastx"]
+        for line in (blastdir / "Makefile").read_text().split("\n"):
+            if line.count(":") == 1:
+                target, objects_str = line.split(":")
+                objects = objects_str.strip().split(" ")
+                if target in targets:
+                    # count = int(input(f"How many {target} (of {len(objects)})? "))
+                    # sampled_objects = objects
+                    # print(",\n".join(f'Blast("{target}-{object}", ("{object}",))' for object in sampled_objects) + ",")
+                    for object in objects:
+                        blasts.append(Blast(f"{target}-{object}", (object,)))
+        return blasts
+
     def __init__(self, name: str, which_targets: tuple[str, ...]) -> None:
         self.name = name
         self.which_targets = which_targets
 
-    def setup(self, workdir: Path) -> None:
+    @staticmethod
+    def static_setup(workdir: Path) -> None:
         blastdir = workdir / "blast-benchmark"
         if not blastdir.exists():
             blastdir.mkdir()
@@ -774,6 +798,10 @@ class Blast(Workload):
                     blastdir,
                     filter=lambda member, dest_path: member.replace(name="/".join(member.name.split("/")[1:])),
                 )
+        (blastdir / "Makefile").write_text("\n".join([
+            line.partition("2>")[0]
+            for line in (blastdir / "Makefile").read_text().split("\n")
+        ]))
         output_dir = blastdir / "output"
         if output_dir.exists():
             shutil.rmtree(output_dir)
@@ -781,6 +809,9 @@ class Blast(Workload):
         for subdir in ["blastn", "blastp", "blastx", "tblastn", "tblastx", "megablast", "idx_megablast"]:
             (output_dir / subdir).mkdir()
 
+
+    def setup(self, workdir: Path) -> None:
+        Blast.static_setup(workdir)
 
     def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
         blastdir = workdir / "blast-benchmark"
@@ -805,7 +836,16 @@ class Blast(Workload):
 
 
 noop_cmd = (result_bin / "true",)
-create_file_cmd = (result_bin / "sh", "-c", "mkdir -p $WORKDIR/lmbench && echo seq 1000 > $WORKDIR/lmbench/test")
+create_file_cmd = lambda size: (
+    result_bin / "python",
+    "-c",
+    "\n".join([
+        "import pathlib",
+        "dir = pathlib.Path('$WORKDIR/lmbench')",
+        "dir.mkdir(exist_ok=True)",
+        f"(dir / 'file').write_text({size} * 'A')",
+    ]),
+)
 
 
 def repeat(n: int, cmd: tuple[CmdArg, ...]) -> tuple[CmdArg]:
@@ -816,40 +856,40 @@ def repeat(n: int, cmd: tuple[CmdArg, ...]) -> tuple[CmdArg]:
     )
 
 
+HTTP_PORT = 54123
+HTTP_N_REQUESTS = 50000
+HTTP_REQUEST_SIZE = 16 * 1024
+
+
 WORKLOADS: list[Workload] = [
     Cmds("python", "python-hello-world", noop_cmd, repeat(100, (result_bin / "python", "-c", "print('hello world')"))),
     Cmds("python", "python-import", noop_cmd, repeat(100, (result_bin / "python", "-c", "import pandas, matplotlib"))),
     Cmds("compile", "hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
     Cmds("compile", "hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
     Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "null")),
-    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "read")),
+    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "read")),
     Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "write")),
-    Cmds("lmbench", "stat", create_file_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "300", "stat", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "fstat", create_file_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "300", "fstat", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "open/close", create_file_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "300", "open", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "fork")),
-    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "exec")),
-    # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "100", "shell")),
+    Cmds("lmbench", "stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "stat", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "fstat", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "open", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "3000", "fork")),
+    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "3000", "exec")),
+    # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "100", "shell")), # broke
     Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "3000", "install")),
-    Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000", "catch")),
-    Cmds("lmbench", "protection-fault", create_file_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000", "prot", "$WORKDIR/lmbench/test")),
-    Cmds(
-        "lmbench",
-        "page-fault",
-        (result_bin / "sh", "-c", "mkdir -p $WORKDIR/lmbench && seq 3000000 > $WORKDIR/lmbench/big_test"),
-        (result_bin / "lat_pagefault", "-P", "1", "-N", "30", "$WORKDIR/lmbench/big_test"),
-    ),
-    Cmds("lmbench", "select-file", create_file_cmd, (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-P", "1", "-N", "3000", "file")),
-    Cmds("lmbench", "select-tcp", create_file_cmd, (result_bin / "lat_select", "-n", "3000", "-P", "1", "tcp")),
-    Cmds("lmbench", "mmap", create_file_cmd, (result_bin / "lat_mmap", "-P", "1", "-N", "100", "1M", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "bw_file-rd", create_file_cmd, (result_bin / "bw_file_rd", "-P", "1", "-N", "3000", "1M", "io_only", "$WORKDIR/lmbench/test")),
+    # Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "400", "catch")), # noisy
+    Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-P", "1", "-N", "300", "prot", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-P", "1", "-N", "30", "$WORKDIR/lmbench/big_test")),
+    Cmds("lmbench", "select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-P", "1", "-N", "3000", "file")),
+    Cmds("lmbench", "select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "300", "-P", "30", "tcp")),
+    Cmds("lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-P", "1", "-N", "1000", "1M", "$WORKDIR/lmbench/test")),
+    Cmds("lmbench", "bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-P", "1", "-N", "1", "1M", "io_only", "$WORKDIR/lmbench/test")),
     Cmds("lmbench", "bw_unix", noop_cmd, (result_bin / "bw_unix", "-P", "1", "-N", "10")),
-    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-P", "1", "-N", "3")),
-    Cmds("lmbench", "fs", create_file_cmd, (result_bin / "lat_fs", "-P", "1", "-N", "100", "$WORKDIR/lmbench")),
+    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-P", "1", "-N", "10")),
+    Cmds("lmbench", "fs", create_file_cmd(1024), (result_bin / "lat_fs", "-P", "1", "-N", "100", "$WORKDIR/lmbench")),
     # SpackInstall(["trilinos"]), # Broke: openblas
     SpackInstall(["python"]),
     # SpackInstall(["openmpi", "spack-repo.krb5"]),
-    SpackInstall(["cmake"]),
+    # SpackInstall(["cmake"]),  # too long (barely)
     # SpackInstall(["qt"]), # Broke
     # SpackInstall(["dealii"]), # Broke
     # SpackInstall(["gcc"]), # takes a long time
@@ -860,19 +900,13 @@ WORKLOADS: list[Workload] = [
     SpackInstall(["hdf5~mpi", "spack-repo.krb5"]),
     # SpackInstall(["openblas"]), # Broke
     SpackInstall(["spack-repo.mpich"]),
-    SpackInstall(["openssl"]),
+    # SpackInstall(["openssl"]),  # too long (barely)
     # SpackInstall(["py-matplotlib"]), # Broke
     # SpackInstall(["gromacs"]), # Broke
     SpackInstall(["glibc"]),
     SpackInstall(["spack-repo.apacheHttpd", "spack-repo.openldap", "spack-repo.apr-util"]),
     SpackInstall(["perl"]),
-    Blast("blastx-10", ("NM_001004160", "NM_004838")),
-    Blast("megablast-10", (
-        "NM_001000841", "NM_001008511", "NM_007622", "NM_020327", "NM_032130",
-        "NM_064997", "NM_071881", "NM_078614", "NM_105954", "NM_118167",
-        "NM_127277", "NM_134656", "NM_146415", "NM_167127", "NM_180448"
-    )),
-    Blast("tblastn-10", ("NP_072902",)),
+    *Blast.get_all(),
     Apache(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     SimpleHttp(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     MiniHttp(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
@@ -1014,7 +1048,7 @@ WORKLOADS: list[Workload] = [
             ),
             (
                 "sns.barplot(\\\"CrossValMeans\\\",\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\",**{'xerr':cv_std})",
-                "sns.barplot(x=\\\"CrossValMeans\\\",y=\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\",**{'xerr':cv_std})",
+                "sns.barplot(x=\\\"CrossValMeans\\\",y=\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\")",
             ),
             (
                 "train = dataset[:train_len]\ntest = dataset[train_len:]\n",
@@ -1091,6 +1125,10 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.kind not in {"notebook", "http_server"}
+    ],
+    "fast": [
+        workload
+        for workload in WORKLOADS
+        if workload.name not in {"fork", "exec"} and workload.kind not in {"spack"}
     ]
 }

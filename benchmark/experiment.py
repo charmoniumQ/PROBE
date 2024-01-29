@@ -198,7 +198,7 @@ def run_one_experiment(
     size: int,
     ignore_failures: bool,
 ) -> ExperimentStats:
-    with ch_time_block.ctx(f"setup {workload}"):
+    with ch_time_block.ctx(f"setup {workload} and {prov_collector}"):
         try:
             work_dir.mkdir(exist_ok=True)
             workload.setup(work_dir)
@@ -213,11 +213,10 @@ def run_one_experiment(
             )
         delete_children(log_dir)
 
-    (temp_dir / "old_work_dir").mkdir()
-    hardlink_children(work_dir, temp_dir / "old_work_dir")
-    # We will restore temp_dir to this state after running the experiment
+        (temp_dir / "old_work_dir").mkdir()
+        hardlink_children(work_dir, temp_dir / "old_work_dir")
+        # We will restore temp_dir to this state after running the experiment
 
-    with ch_time_block.ctx(f"setup {prov_collector}"):
         if prov_collector.requires_empty_dir:
             delete_children(work_dir)
             prov_collector.start(log_dir, size, work_dir)
@@ -230,7 +229,7 @@ def run_one_experiment(
         cmd = prov_collector.run(cmd, log_dir, size)
         cmd = (result_bin / "setarch", "--addr-no-randomize", *cmd)
 
-    with ch_time_block.ctx(f"{workload} in {prov_collector}"):
+    with ch_time_block.ctx(f"run {workload} in {prov_collector}"):
         full_env = merge_env_vars(
             {
                 "LD_LIBRARY_PATH": str(result_lib),
@@ -250,6 +249,7 @@ def run_one_experiment(
                 pathlib.Path(): DirMode.READ_ONLY,
                 pathlib.Path("/nix/store"): DirMode.READ_ONLY,
             },
+            network_access=workload.network_access,
         )
     move_children(temp_dir / "old_work_dir", work_dir)
     if ignore_failures and not stats.success:
@@ -261,7 +261,8 @@ def run_one_experiment(
             stdout=to_str(stats.stdout),
             stderr=to_str(stats.stderr),
         )
-    with ch_time_block.ctx(f"parse {prov_collector}"):
+    # with ch_time_block.ctx(f"parse {prov_collector}"):
+    if True:
         provenance_size = 0
         for child in log_dir.iterdir():
             provenance_size += child.stat().st_size

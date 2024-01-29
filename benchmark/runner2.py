@@ -2,7 +2,7 @@ import typer
 from typing_extensions import Annotated
 from experiment import get_results
 from workloads import WORKLOAD_GROUPS
-from prov_collectors import PROV_COLLECTORS
+from prov_collectors import PROV_COLLECTOR_GROUPS
 from stats3 import STATS
 from util import flatten1
 
@@ -16,10 +16,10 @@ def main(
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
         ignore_failures: Annotated[bool, typer.Option("--keep-going")] = True,
 ) -> None:
-    collectors = [
-        PROV_COLLECTORS[collector_name]
+    collectors = list(flatten1([
+        PROV_COLLECTOR_GROUPS[collector_name]
         for collector_name in collector_names
-    ]
+    ]))
     workloads = list(flatten1([
         WORKLOAD_GROUPS[workload_name]
         for workload_name in workload_names

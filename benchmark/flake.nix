@@ -4,7 +4,12 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python310;
+        python = pkgs.python310.override {
+          packageOverrides = self: super: {
+            xarray-einstats = noPytest super.xarray-einstats;
+            debugpy = noPytest super.debugpy;
+          };
+        };
         noPytest = pypkg: pypkg.overrideAttrs (self: super: {
           pytestCheckPhase = ''true'';
         });
@@ -34,7 +39,6 @@
               cp postmark.1 $out/share/man/man1
             '';
           };
-          debugpy = noPytest python.pkgs.debugpy;
           darshan-runtime = pkgs.stdenv.mkDerivation rec {
             pname = "darshan-runtime";
             version = "3.4.4";
@@ -532,6 +536,8 @@
               pkgs.pigz
               pkgs.pbzip2
               pkgs.mercurial
+              pkgs.gitMinimal
+              pkgs.curl
 
               # Reproducibility tester
               pkgs.icdiff
@@ -592,17 +598,17 @@
                 charmonium-time-block
 
                 # deps of notebooks
-                (replaceDebugpy pypkgs.arviz)
-                (replaceDebugpy pypkgs.pymc3)
+                pypkgs.arviz
+                pypkgs.pymc3
                 pypkgs.numpy # repeats are OK
                 pypkgs.pandas
                 pypkgs.matplotlib
-                (replaceDebugpy pypkgs.notebook)
+                pypkgs.notebook
                 pypkgs.seaborn
                 pypkgs.scipy
                 pypkgs.scikit-learn
-                (replaceDebugpy pypkgs.nbconvert)
-                (replaceDebugpy jupyter-contrib-nbextensions)
+                pypkgs.nbconvert
+                jupyter-contrib-nbextensions
               ]))
             ];
           };
@@ -613,7 +619,6 @@
 }
 
 /*
-
 (progn
  (remhash 'pyls lsp-clients)
  (remhash 'pylsp lsp-clients)

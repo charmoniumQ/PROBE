@@ -1,6 +1,8 @@
+import pathlib
 import pandas
 import numpy
 import functools
+import matplotlib
 import collections
 from typing import Mapping, Callable
 from util import flatten1
@@ -11,7 +13,7 @@ abs_qois = ["storage", "n_ops", "n_unique_files"]
 
 
 def performance(df: pandas.DataFrame) -> None:
-    print(
+    mean_df = (
         df
         .groupby(["workload", "collector"], as_index=True, observed=True)
         .agg(**{
@@ -21,6 +23,9 @@ def performance(df: pandas.DataFrame) -> None:
             )
             for qoi in rel_qois + abs_qois
         })
+    )
+    print(
+        mean_df
         .drop(["cputime_abs_mean", "memory_abs_mean", "n_unique_files_abs_mean"], axis=1)
         .rename(columns={
             "walltime_abs_mean": "Walltime (sec)",
@@ -36,6 +41,8 @@ def performance(df: pandas.DataFrame) -> None:
             "Unique files": lambda val: f"{val:.0f}",
         })
     )
+    total = mean_df.loc[:, "walltime_abs_mean"].sum()
+    print(f"Noprov total {total:.0f}s")
 
 
 def op_freqs(df: pandas.DataFrame) -> None:
@@ -115,6 +122,49 @@ def relative_performance(df: pandas.DataFrame):
     )
     fig.savefig("output/matrix.png")
 
+
+def minimize(df: pandas.DataFrame):
+    output = pathlib.Path() / "output" / "minimize"
+    output.mkdir(exist_ok=True, parents=True)
+    mean_df = (
+        df
+        .groupby(["workload", "collector"], as_index=True, observed=True)
+        .agg(**{
+            "walltime_abs_mean": pandas.NamedAgg(
+                column="walltime",
+                aggfunc="mean",
+            )
+        })
+        .pivot(index="collector", columns="workload", values="walltime_abs_mean")
+    )
+    collectors = list(mean_df.index)
+    workloads = list(mean_df.columns)
+    data = mean_df.to_numpy()
+    import scipy.linalg
+    collectors_proj, singular_values, benchmarks_proj = scipy.linalg.svd(data)
+    (output / "sing_val").write_text("Singular values: " + "\n".join([f"{i:10<}: {x:.1f}" for i, x in enumerate(singular_values)]) + "\n")
+    import scipy.linalg.interpolative
+    def report_id(k: int) -> None:
+        with (output / f"{k}.txt").open("w") as output_file:
+            print(f"Using {k}", singular_values[k], file=output_file)
+            idx, proj = scipy.linalg.interpolative.interp_decomp(data, k, rand=False)
+            print("Interpolative decomposition chose:", "\n".join([workloads[i] for i in idx]), file=output_file)
+            data_est = scipy.linalg.interpolative.reconstruct_matrix_from(data, idx, proj)
+            for j, workload in enumerate(workloads):
+                mean_rel_error = numpy.sum(numpy.fabs((data_est[:, j] - data[:, j]) / data[:, j])) / len(collectors)
+                print(f"{workload:<15s} {mean_rel_error*100:.1f}% {'by defn' if j in idx else ''}", file=output_file)
+            for i, collector in enumerate(collectors):
+                mean_rel_error = numpy.sum(numpy.fabs((data_est[i, :] - data[i, :]) / data[i, :])) / len(collectors)
+                print(f"{collector:<15s} {mean_rel_error*100:.1f}%", file=output_file)
+        fig = matplotlib.figure.Figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(collectors_proj[:, 0], collectors_proj[:, 1], color=[
+            "red" if i in idx else "black"
+            for i in range(len(workloads))
+        ], markerstyle=".")
+        fig.savefig(output / f"{k}.png")
+    for k in range(1, 12):
+        report_id(k)
 
 stats_list: list[Callable[[pandas.DataFrame], None]] = [
     performance,

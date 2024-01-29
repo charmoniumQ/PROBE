@@ -204,20 +204,26 @@ In order to reduce the amount of work needed to reduce the amount of time it tak
 When $A$ is not of rank $k$, the factorization is guaranteed to be within a certain factor of the best unrestricted $R^{n \times k} \times R^{k \times m}$ factorization.
 
 To apply ID to benchmark subsetting, suppose $A_{ij}$ was the runtime performance of the $i$th system on the $j$th benchmark, then the ID essentially finds $k$  "non-redundant" benchmarks and approximates the rest (which I call "redundant") as a linear function of the "non-redundant" benchmarks, while minimizing $\|A - BP\|_2$.
-$$\left(\begin{array}{ccc}
-|       &        & | \\
-A_{:,1} & \cdots & A_{:,n} \\
-|       &        & | \\
-\end{array}\right) = A \approx BP = \left(\begin{array}{ccc}
+We can expand $BP$ as
+$$
+BP
+= \left(\begin{array}{ccc}
 | &  & | \\
 A_{:,1} & \cdots & A_{:,k} \\
 | &  & | \\
 \end{array}\right) \left(\begin{array}{ccccccc}
-1      & 0      & \cdots & 0      & |       &        & | \\
-0      & \ddots &        & \vdots & P_{:,j} & \cdots & P_{:,m}\\
-\vdots &        & \ddots & 0      & |       &        & | \\
-0      & \cdots & 0      & 1      & |       &        & | \\
-\end{array}\right).$$
+1      & 0      & \cdots & 0      & |         &        & | \\
+0      & \ddots &        & \vdots & P_{:,k+1} & \cdots & P_{:,m}\\
+\vdots &        & \ddots & 0      & |         &        & | \\
+0      & \cdots & 0      & 1      & |         &        & | \\
+\end{array}\right)
+= \left(\begin{array}{ccccccc}
+|       &        & |       & A_{1,:k} P_{:,k+1} & \cdots & A_{1,:k} P_{:,m} \\
+A_{:,1} & \cdots & A_{:,k} & \vdots             & \ddots & \vdots \\
+|       &        & |       & A_{n,:k} P_{:,k+1} & \cdots & A_{n,:k} P_{:,m} \\
+\end{array}\right),$$
+where $A_{:,j}$ is the $j$th column of $A$.
+
 - If the $j$th benchmark is non-redundant, then the $j$th column of $A$ is "copied" to the $j$th column of $B$, and the $j$th row of$P$ is set to the $j$th row of the identity matrix; multiplying $B$ by $P$ "passes through verbatim" the $j$th column of $B$.
 - Otherwise, the $j$th benchmark is redundant and the $j$th column of $P$ is set to the coefficients of a linear regression from the non-redundant benchmarks to the $j$the benchmark; multiplying $B$ by $P$ evaluates a prediction based on the linear regression in the $j$th column.
 
@@ -286,32 +292,29 @@ Running HTTP servers may be a popular benchmark because prior work focuses overw
 
 : Excluded tools. {#tbl:excluded}
 
-| Provenance publication                                   | Benchmarks                                                                                                                             | Comparisons          | Year |
-|----------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|----------------------|------|
-| TREC [@vahdatTransparentResultCaching1998]               | open/close, compile Apache, compile LaTeX doc                                                                                          | Native               | 1999 |
-| PASS [@muniswamy-reddyProvenanceAwareStorageSystems2006] | BLAST                                                                                                                                  | Native ext2          | 2006 |
-| Panorama [@yinPanoramaCapturingSystemwide2007]           | curl, scp, gzip, bzip2                                                                                                                 | Native               | 2007 |
-| PASSv2 [@muniswamy-reddyLayeringProvenanceSystems2009]   | BLAST, compile Linux, Postmark, Mercurial, Kepler                                                                                  | Native ext3, NFS     | 2009 |
-| SPADEv2 [@gehaniSPADESupportProvenance2012]              | BLAST, compile Apache, Apache                                                                                                          | Native               | 2012 |
-| Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]             | lmbench, compile Linux, Postmark                                                                                                       | Native               | 2012 |
-| libdft [@kemerlisLibdftPracticalDynamic2012]             | scp, {tar, gzip, bzip2} x {extract, compress}                                                                                          | PIN                  | 2012 |
-| LogGC [@leeLogGCGarbageCollecting2013]                   | RUBiS, Firefox, MC, Pidgin, Pine, Proftpd, Sendmail, sshd, vim, w3m, wget, xpdf, yafc, Audacious, bash, Apache, mysqld | [^loggc-bench]       | 2013 |
-| LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015] | lmbench, compile Linux, Postmark, BLAST                                                                                                | Native               | 2015 |
-| Ma et al. [@maAccurateLowCost2015]                       | TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, simplehttp, Sublime Text                 | Native               | 2015 |
-| ProTracer [@maProTracerPracticalProvenance2016]          | Apache, miniHTTP, ProFTPD, Vim, Firefox, w3m, wget, mplayer, Pine, xpdf, MC, yafc                                  | Auditd, BEEP, LogGC  | 2016 |
-| LDX [@kwonLDXCausalityInference2016]                     | SPEC CPU 2006, Firefox, lynx, nginx, tnftp, sysstat, gif2png, mp3info, prozilla                                                    | Native               | 2016 |
-| (LDX continued)                                          | yopsweb, ngircd, gocr, Apache, pbzip2, pigz, axel, x264                                                                        |                      |      |
-| MPI [@maMPIMultiplePerspective2017]                      | Apache, bash, Evince, Firefox, Krusader, wget, most, MC, mplayer,                                                  | Audit, LPM-HiFi      | 2017 |
-| (MPI continued)                                          | MPV, nano, Pine, ProFTPd, SKOD, TinyHTTPd, Transmission, Vim, w3m, Xpdf, Yafc                                  |                      |      |
-| CamFlow [@pasquierPracticalWholesystemProvenance2017]    | lmbench, postmark, unpack kernel, compile Linux, Apache, Memcache, redis, php, pybench                                                 | Native               | 2017 |
-| BEEP [@leeHighAccuracyAttack2017]                        | Apache, Vim, Firefox, wget, Cherokee, w3m, ProFTPd, yafc, Transmission, Pine, bash, MC, sshd, sendmail                 | Native               | 2017 |
-| RAIN [@jiRAINRefinableAttack2017]                        | SPEC CPU 2006, cp linux, wget, compile libc, Firefox, SPLASH-3                                                                         | Native               | 2017 |
-| Sciunit [@tonthatSciunitsReusableResearch2017]           | VIC, FIE                                                                                                                               | Native               | 2017 |
-| LPROV [@wangLprovPracticalLibraryaware2018]              | Apache, simplehttp, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                             | Native               | 2018 |
-| MCI [@kwonMCIModelingbasedCausality2018]                 | Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS, vim, elinks,                                                              | BEEP                 | 2018 |
-| (MCI continued)                                          | alpine, zip, transmission, lftp, yafc, wget, ping, procps                                                                      |                      |      |
-| RTAG [@jiEnablingRefinableCrossHost2018]                 | SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                         | RAIN                 | 2018 |
-| URSPRING [@rupprechtImprovingReproducibilityData2020]    | open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                | Native, SPADE+auditd | 2020 |
+| Provenance publication                                   | Benchmarks                                                                                                                                      | Comparisons          | Year |
+|----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|----------------------|------|
+| TREC [@vahdatTransparentResultCaching1998]               | open/close, compile Apache, compile LaTeX doc                                                                                                   | Native               | 1999 |
+| PASS [@muniswamy-reddyProvenanceAwareStorageSystems2006] | BLAST                                                                                                                                           | Native ext2          | 2006 |
+| Panorama [@yinPanoramaCapturingSystemwide2007]           | curl, scp, gzip, bzip2                                                                                                                          | Native               | 2007 |
+| PASSv2 [@muniswamy-reddyLayeringProvenanceSystems2009]   | BLAST, compile Linux, Postmark, Mercurial, Kepler                                                                                               | Native ext3, NFS     | 2009 |
+| SPADEv2 [@gehaniSPADESupportProvenance2012]              | BLAST, compile Apache, Apache                                                                                                                   | Native               | 2012 |
+| Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]             | lmbench, compile Linux, Postmark                                                                                                                | Native               | 2012 |
+| libdft [@kemerlisLibdftPracticalDynamic2012]             | scp, {tar, gzip, bzip2} x {extract, compress}                                                                                                   | PIN                  | 2012 |
+| LogGC [@leeLogGCGarbageCollecting2013]                   | RUBiS, Firefox, MC, Pidgin, Pine, Proftpd, Sendmail, sshd, vim, w3m, wget, xpdf, yafc, Audacious, bash, Apache, mysqld                          | [^loggc-bench]       | 2013 |
+| LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015] | lmbench, compile Linux, Postmark, BLAST                                                                                                         | Native               | 2015 |
+| Ma et al. [@maAccurateLowCost2015]                       | TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, simplehttp, Sublime Text                          | Native               | 2015 |
+| ProTracer [@maProTracerPracticalProvenance2016]          | Apache, miniHTTP, ProFTPD, Vim, Firefox, w3m, wget, mplayer, Pine, xpdf, MC, yafc                                                               | Auditd, BEEP, LogGC  | 2016 |
+| LDX [@kwonLDXCausalityInference2016]                     | SPEC CPU 2006, Firefox, lynx, nginx, tnftp, sysstat, gif2png, mp3info, prozilla, yopsweb, ngircd, gocr, Apache, pbzip2, pigz, axel, x264        | Native               | 2016 |
+| MPI [@maMPIMultiplePerspective2017]                      | Apache, bash, Evince, Firefox, Krusader, wget, most, MC, mplayer, MPV, nano, Pine, ProFTPd, SKOD, TinyHTTPd, Transmission, Vim, w3m, Xpdf, Yafc | Audit, LPM-HiFi      | 2017 |
+| CamFlow [@pasquierPracticalWholesystemProvenance2017]    | lmbench, postmark, unpack kernel, compile Linux, Apache, Memcache, redis, php, pybench                                                          | Native               | 2017 |
+| BEEP [@leeHighAccuracyAttack2017]                        | Apache, Vim, Firefox, wget, Cherokee, w3m, ProFTPd, yafc, Transmission, Pine, bash, MC, sshd, sendmail                                          | Native               | 2017 |
+| RAIN [@jiRAINRefinableAttack2017]                        | SPEC CPU 2006, cp linux, wget, compile libc, Firefox, SPLASH-3                                                                                  | Native               | 2017 |
+| Sciunit [@tonthatSciunitsReusableResearch2017]           | VIC, FIE                                                                                                                                        | Native               | 2017 |
+| LPROV [@wangLprovPracticalLibraryaware2018]              | Apache, simplehttp, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                                      | Native               | 2018 |
+| MCI [@kwonMCIModelingbasedCausality2018]                 | Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS, vim, elinks, alpine, zip, transmission, lftp, yafc, wget, ping, procps                         | BEEP                 | 2018 |
+| RTAG [@jiEnablingRefinableCrossHost2018]                 | SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                                  | RAIN                 | 2018 |
+| URSPRING [@rupprechtImprovingReproducibilityData2020]    | open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                                 | Native, SPADE+auditd | 2020 |
 
 : Benchmarks used in various provenance publications. {#tbl:prior-benchmarks}
 

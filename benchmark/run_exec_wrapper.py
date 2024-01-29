@@ -105,6 +105,7 @@ def run_exec(
     dir_modes: Mapping[Path, DirMode] = {},
     time_limit: None | int = None,
     mem_limit: None | int = None,
+    network_access: bool = False,
 ) -> RunexecStats:
     with gen_temp_dir() as tmp_dir:
         stdout = tmp_dir / "stdout"
@@ -129,9 +130,9 @@ def run_exec(
             # gid=os.getgid(),
             # uid=os.getuid(),
             dir_modes=dir_modes_processed,
-            network_access=False,
             container_system_config=True,
             container_tmpfs=True,
+            network_access=network_access,
         )
         with _runexec_catch_signals(run_executor):
             hard_time_limit = (

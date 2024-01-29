@@ -222,6 +222,7 @@ class AbstractTracer(ProvCollector):
 class STrace(AbstractTracer):
     method = "tracing"
     submethod = "syscalls"
+    name = "strace"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return (
@@ -327,6 +328,7 @@ def get_dlibs(exe_or_dlib: str) -> set[str]:
 class LTrace(AbstractTracer):
     method = "tracing"
     submethod = "libc calls"
+    name = "ltrace"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return (
@@ -434,6 +436,7 @@ def is_executable_or_library(path: Path) -> bool:
 class FSATrace(AbstractTracer):
     method = "lib instrm."
     submethod = "libc I/O"
+    name = "fsatrace"
     log_name = "fsatrace.out"
     line_pattern = CompoundPattern(re.compile(r"^(?P<op>.)\|(?P<target0>[^|]*)(?:\|(?P<target1>.*))?$"))
     use_get_dlib_on_exe = True
@@ -470,6 +473,7 @@ class CDE(ProvCollector):
 class RR(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
+    name = "rr"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         import warnings
@@ -480,6 +484,7 @@ class RR(ProvCollector):
 class ReproZip(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
+    name = "reprozip"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         subprocess.run(
@@ -507,6 +512,7 @@ class ReproZip(ProvCollector):
 class SciUnit(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
+    name = "sciunit"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         subprocess.run(
@@ -541,6 +547,7 @@ class Darshan(ProvCollector):
 class BPFTrace(ProvCollector):
     method = "auditing"
     submethod = "eBPF"
+    name = "ebpf"
 
     def __init__(self) -> None:
         self.bpfscript = Path("prov.bt").read_text()
@@ -660,17 +667,35 @@ class Auditd(ProvCollector):
         subprocess.run([result_bin / "auditctl", "-D"], check=True)
 
 
-PROV_COLLECTORS: Mapping[str, ProvCollector] = {
-    "noprov": NoProv(),
-    "strace": STrace(),
-    "ltrace": LTrace(),
-    "fsatrace": FSATrace(),
-    "cde": CDE(),
-    "rr": RR(),
-    "reprozip": ReproZip(),
-    "sciunit": SciUnit(),
-    "spade_fuse": SpadeFuse(),
-    "spade_auditd": SpadeAuditd(),
-    "darshan": Darshan(),
-    "bpf_trace": BPFTrace(),
+PROV_COLLECTORS: list[ProvCollector] = [
+    NoProv(),
+    STrace(),
+    LTrace(),
+    FSATrace(),
+    CDE(),
+    RR(),
+    ReproZip(),
+    SciUnit(),
+    SpadeFuse(),
+    SpadeAuditd(),
+    Darshan(),
+    BPFTrace(),
+]
+
+PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
+    # Singleton groups
+    **{
+        prov_collector.name: [prov_collector]
+        for prov_collector in PROV_COLLECTORS
+    },
+    "fast": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in ["noprov", "strace", "ltrace", "fsatrace"]
+    ],
+    "working": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in ["noprov", "strace", "ltrace", "fsatrace", "rr", "reprozip", "sciunit"]
+    ],
 }
