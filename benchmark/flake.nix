@@ -491,6 +491,16 @@
               cp scripts/{config-run,version,config} $out/bin
             '';
           };
+          lmbench-debug = lmbench.overrideAttrs (super: {
+            preBuild = ''
+              mkdir $out
+              makeFlagsArray+=(
+                CFLAGS="-O3 -I${pkgs.libtirpc.dev}/include/tirpc -D_DEBUG=1"
+                LDFLAGS="-L${pkgs.libtirpc.dev}/lib -ltirpc"
+                --trace
+              )
+            '';
+          });
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
@@ -628,4 +638,15 @@
                    :activation-fn (lsp-activate-on "python")
                    :server-id 'result-bin-pylsp))
 )
+
+(setq ein:jupyter-server-command (concat default-directory "result/bin/jupyter"))
+(ein:jupyter-server-start
+  ein:jupyter-server-command
+  (concat default-directory "notebook")
+  nil
+  #'ignore
+  8088)
+
+
+(ein:jupyter-server-stop)
 */

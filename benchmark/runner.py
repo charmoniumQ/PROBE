@@ -3,29 +3,35 @@ from typing_extensions import Annotated
 from experiment import get_results
 from workloads import WORKLOAD_GROUPS
 from prov_collectors import PROV_COLLECTOR_GROUPS
-from stats3 import STATS
+from stats import STATS
 from util import flatten1
+import enum
+
+
+CollectorGroup = enum.Enum("CollectorGroup", {key: key for key in PROV_COLLECTOR_GROUPS})  # type: ignore
+WorkloadGroup = enum.Enum("WorkloadGroup", {key: key for key in WORKLOAD_GROUPS.keys()})  # type: ignore
+StatsNames = enum.Enum("Sats", {key: key for key in STATS.keys()})  # type: ignore
 
 
 def main(
-        collector_names: Annotated[list[str], typer.Option("--collectors", "-c")] = ["noprov"],
-        workload_names: Annotated[list[str], typer.Option("--workloads", "-w")] = ["gcc"],
-        stats_names: Annotated[list[str], typer.Option("--stats", "-s")] = ["performance"],
+        collector_groups: Annotated[list[CollectorGroup], typer.Option("--collectors", "-c")] = [CollectorGroup.noprov],
+        workload_groups: Annotated[list[WorkloadGroup], typer.Option("--workloads", "-w")] = [WorkloadGroup["hello-world"]],
+        stats_names: Annotated[list[StatsNames], typer.Option("--stats", "-s")] = [StatsNames.performance],
         iterations: int = 1,
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
         ignore_failures: Annotated[bool, typer.Option("--keep-going")] = True,
 ) -> None:
     collectors = list(flatten1([
-        PROV_COLLECTOR_GROUPS[collector_name]
-        for collector_name in collector_names
+        PROV_COLLECTOR_GROUPS[collector_name.value]
+        for collector_name in collector_groups
     ]))
     workloads = list(flatten1([
-        WORKLOAD_GROUPS[workload_name]
-        for workload_name in workload_names
+        WORKLOAD_GROUPS[workload_name.value]
+        for workload_name in workload_groups
     ]))
     stats = [
-        STATS[stats_name]
+        STATS[stats_name.value]
         for stats_name in stats_names
     ]
     if not collectors:

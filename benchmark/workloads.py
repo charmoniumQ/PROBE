@@ -608,7 +608,7 @@ class Archive(Workload):
     kind = "archive"
     def __init__(self, algorithm: str, url: str) -> None:
         self.algorithm = algorithm
-        self.name = f"archive tar {self.algorithm}"
+        self.name = f"archive {self.algorithm}".strip()
         self.url = url
 
     def setup(self, workdir: Path) -> None:
@@ -640,7 +640,7 @@ class Unarchive(Workload):
     kind = "unarchive"
     def __init__(self, algorithm: str, url: str) -> None:
         self.algorithm = algorithm
-        self.name = f"unarchive {algorithm}"
+        self.name = f"unarchive {algorithm}".strip()
         self.url = url
         self.target_archive: None | Path = None
 
@@ -683,11 +683,12 @@ class Unarchive(Workload):
 
 
 class Cmds(Workload):
-    def __init__(self, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...]) -> None:
+    def __init__(self, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...], run_env: Mapping[CmdArg, CmdArg] = {}) -> None:
         self.kind = kind
         self.name = name
         self._setup = setup
         self._run = run
+        self.run_env = run_env
 
     def _replace_args(self, args: tuple[CmdArg, ...], workdir: Path) -> tuple[CmdArg, ...]:
         return tuple(
@@ -710,7 +711,7 @@ class Cmds(Workload):
         ))
 
     def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
-        return tuple(self._replace_args(self._run, workdir)), {}
+        return tuple(self._replace_args(self._run, workdir)), self.run_env
 
 
 class VCSTraffic(Workload):
@@ -848,7 +849,7 @@ create_file_cmd = lambda size: (
 )
 
 
-def repeat(n: int, cmd: tuple[CmdArg, ...]) -> tuple[CmdArg]:
+def repeat(n: int, cmd: tuple[CmdArg, ...]) -> tuple[CmdArg, ...]:
     return (
         result_bin / "sh",
         "-c",
@@ -866,26 +867,26 @@ WORKLOADS: list[Workload] = [
     Cmds("python", "python-import", noop_cmd, repeat(100, (result_bin / "python", "-c", "import pandas, matplotlib"))),
     Cmds("compile", "hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
     Cmds("compile", "hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
-    Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "null")),
-    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "read")),
-    Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "write")),
-    Cmds("lmbench", "stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "stat", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "fstat", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "3000", "open", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "3000", "fork")),
-    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "3000", "exec")),
+    Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "null"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "read"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "write"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
     # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "100", "shell")), # broke
-    # Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "3000", "install")), # noisy
-    # Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "400", "catch")), # noisy
-    Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-P", "1", "-N", "300", "prot", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-P", "1", "-N", "30", "$WORKDIR/lmbench/big_test")),
-    Cmds("lmbench", "select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-P", "1", "-N", "3000", "file")),
-    Cmds("lmbench", "select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "300", "-P", "30", "tcp")),
-    Cmds("lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-P", "1", "-N", "1000", "1M", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-P", "1", "-N", "1", "1M", "io_only", "$WORKDIR/lmbench/test")),
-    Cmds("lmbench", "bw_unix", noop_cmd, (result_bin / "bw_unix", "-P", "1", "-N", "10")),
-    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-P", "1", "-N", "10")),
-    Cmds("lmbench", "fs", create_file_cmd(1024), (result_bin / "lat_fs", "-P", "1", "-N", "100", "$WORKDIR/lmbench")),
+    Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
+    Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
+    Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-P", "1", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-P", "1", "-N", "1000", "$WORKDIR/lmbench/big_test"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-P", "1", "-N", "1000", "file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "300", "-P", "30", "tcp"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-P", "1", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-P", "1", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "bw_unix", noop_cmd, (result_bin / "bw_unix", "-P", "1", "-N", "10"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-P", "1", "-N", "10"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "fs", create_file_cmd(1024), (result_bin / "lat_fs", "-P", "1", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
     # SpackInstall(["trilinos"]), # Broke: openblas
     SpackInstall(["python"]),
     # SpackInstall(["openmpi", "spack-repo.krb5"]),
@@ -1125,10 +1126,11 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
+        if workload.name not in {"titanic-to"} and workload.kind not in {"http_server"}
     ],
     "fast": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"fork", "exec", "select-file", "read", "write", "stat", "protection-fault", "getppid", "postmark"} and workload.kind not in {"spack"}
+        if workload.name not in {"postmark", "titanic-to"} and workload.kind not in {"spack", "http_server"}
     ]
 }

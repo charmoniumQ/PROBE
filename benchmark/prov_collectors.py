@@ -423,7 +423,7 @@ class LTrace(AbstractTracer):
 
 
 def is_executable_or_library(path: Path) -> bool:
-    if path.exists() and path.is_file() and path.parts[1] not in {"sys", "proc", "dev"}:
+    if path.exists() and path.is_file() and len(path.parts) > 1 and path.parts[1] not in {"sys", "proc", "dev"}:
         with path.open("rb") as fobj:
             try:
                 return fobj.read(4) == b"b'\x7fELF"
@@ -688,10 +688,15 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         prov_collector.name: [prov_collector]
         for prov_collector in PROV_COLLECTORS
     },
-    "fast": [
+    "superfast": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
         if prov_collector.name in ["noprov", "fsatrace"]
+    ],
+    "fast": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip"]
     ],
     "working": [
         prov_collector

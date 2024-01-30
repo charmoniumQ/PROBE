@@ -46,7 +46,7 @@ def get_results(
         )
         .assign(**{
             "n_ops": lambda df: list(map(len, df.operations)),
-            "n_unique_files": lambda df: list(map(lambda ops: len({op.target0 for op in ops} | {op.target1 for op in ops}), df.operations)),
+            # "n_unique_files": lambda df: list(map(lambda ops: len({op.target0 for op in ops} | {op.target1 for op in ops}), df.operations)),
         })
     )
 
@@ -83,7 +83,7 @@ def run_experiments_cached(
             ignore_failures,
             rerun,
         )
-        key.write_bytes(pickle.dumps(results_df))
+        # key.write_bytes(pickle.dumps(results_df))
         return results_df
 
 
@@ -112,38 +112,40 @@ def run_experiments(
     log_dir.mkdir(exist_ok=True)
     work_dir.mkdir(exist_ok=True)
     assert list(inputs)
-    result_list = [
-        (prov_collector, workload, run_one_experiment_cached(
-            cache_dir, iteration, prov_collector, workload,
-            work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
-            rerun,
-        ))
-        for iteration, prov_collector, workload in tqdm.tqdm(inputs)
-    ]
-    results_df = (
-        pandas.DataFrame.from_records(
-            {
-                "collector": prov_collector.name,
-                "collector_method": prov_collector.method,
-                "collector_submethod": prov_collector.submethod,
-                "workload": workload.name,
-                "workload_kind": workload.kind,
-                "cputime": stats.cputime,
-                "walltime": stats.walltime,
-                "memory": stats.memory,
-                "storage": stats.provenance_size,
-                "operations": stats.operations,
-            }
-            for prov_collector, workload, stats in result_list
+    with ch_time_block.ctx("Run grid"):
+        result_list = [
+            (prov_collector, workload, run_one_experiment_cached(
+                cache_dir, iteration, prov_collector, workload,
+                work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
+                rerun,
+            ))
+            for iteration, prov_collector, workload in tqdm.tqdm(inputs)
+        ]
+    with ch_time_block.ctx("Construct DataFrame"):
+        results_df = (
+            pandas.DataFrame.from_records(
+                {
+                    "collector": prov_collector.name,
+                    "collector_method": prov_collector.method,
+                    "collector_submethod": prov_collector.submethod,
+                    "workload": workload.name,
+                    "workload_kind": workload.kind,
+                    "cputime": stats.cputime,
+                    "walltime": stats.walltime,
+                    "memory": stats.memory,
+                    "storage": stats.provenance_size,
+                    "operations": stats.operations,
+                }
+                for prov_collector, workload, stats in result_list
+            )
+            .assign(**{
+                "collector": lambda df: df["collector"].astype("category"),
+                "collector_method": lambda df: df["collector_method"].astype("category"),
+                "collector_submethod": lambda df: df["collector_submethod"].astype("category"),
+                "workload": lambda df: df["workload"].astype("category"),
+                "workload_kind": lambda df: df["workload_kind"].astype("category"),
+            })
         )
-        .assign(**{
-            "collector": lambda df: df["collector"].astype("category"),
-            "collector_method": lambda df: df["collector_method"].astype("category"),
-            "collector_submethod": lambda df: df["collector_submethod"].astype("category"),
-            "workload": lambda df: df["workload"].astype("category"),
-            "workload_kind": lambda df: df["workload_kind"].astype("category"),
-        })
-    )
     return results_df
 
 
