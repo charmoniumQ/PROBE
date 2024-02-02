@@ -239,3 +239,7 @@ def flatten1(it: Iterable[Iterable[_T]]) -> Iterable[_T]:
 def all_unique(it: Iterable[Hashable]) -> bool:
     lst = list(it)
     return len(set(lst)) == list(lst)
+
+
+def n_unique(it: Iterable[Hashable]) -> int:
+    return len(set(it))

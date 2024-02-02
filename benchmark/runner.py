@@ -15,8 +15,8 @@ StatsNames = enum.Enum("Sats", {key: key for key in STATS.keys()})  # type: igno
 
 def main(
         collector_groups: Annotated[list[CollectorGroup], typer.Option("--collectors", "-c")] = [CollectorGroup.noprov],
-        workload_groups: Annotated[list[WorkloadGroup], typer.Option("--workloads", "-w")] = [WorkloadGroup["hello-world"]],
-        stats_names: Annotated[list[StatsNames], typer.Option("--stats", "-s")] = [StatsNames.performance],
+        workload_groups: Annotated[list[WorkloadGroup], typer.Option("--workloads", "-w")] = [WorkloadGroup["hello"]],
+        stats_names: Annotated[list[StatsNames], typer.Option("--stats", "-s")] = [],
         iterations: int = 1,
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,

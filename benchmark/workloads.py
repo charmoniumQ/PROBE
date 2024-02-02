@@ -606,10 +606,11 @@ SMALLER_TARBALL_URL = "https://files.pythonhosted.org/packages/60/7c/04f0706b153
 
 class Archive(Workload):
     kind = "archive"
-    def __init__(self, algorithm: str, url: str) -> None:
+    def __init__(self, algorithm: str, url: str, repetitions: int) -> None:
         self.algorithm = algorithm
         self.name = f"archive {self.algorithm}".strip()
         self.url = url
+        self.repetitions = repetitions
 
     def setup(self, workdir: Path) -> None:
         resource_dir = workdir / "archive"
@@ -631,18 +632,19 @@ class Archive(Workload):
         source_dir = resource_dir / "source"
         use_compress_prog = ("--use-compress-prog", str(result_bin / self.algorithm)) if self.algorithm else ()
         return (
-            (result_bin / "tar", "--create", "--file", newarchive, *use_compress_prog, "--directory", source_dir, "."),
+            repeat(self.repetitions, (result_bin / "tar", "--create", "--file", newarchive, *use_compress_prog, "--directory", source_dir, ".")),
             {},
         )
 
 
 class Unarchive(Workload):
     kind = "unarchive"
-    def __init__(self, algorithm: str, url: str) -> None:
+    def __init__(self, algorithm: str, url: str, repetitions: int) -> None:
         self.algorithm = algorithm
         self.name = f"unarchive {algorithm}".strip()
         self.url = url
         self.target_archive: None | Path = None
+        self.repetitions = repetitions
 
     def setup(self, workdir: Path) -> None:
         resource_dir = workdir / "unarchive"
@@ -677,7 +679,10 @@ class Unarchive(Workload):
             raise RuntimeError("self.target_archive should have been set during setup()")
         use_compress_prog = ("--use-compress-prog", str(result_bin / self.algorithm)) if self.algorithm else ()
         return (
-            (result_bin / "tar", "--extract", "--file", self.target_archive, *use_compress_prog, "--directory", source_dir, "--strip-components", "1"),
+            repeat(self.repetitions, (
+                result_bin / "tar", "--extract", "--file", self.target_archive,
+                *use_compress_prog, "--directory", source_dir, "--strip-components", "1", "--overwrite",
+            )),
             {},
         )
 
@@ -862,31 +867,37 @@ HTTP_N_REQUESTS = 50000
 HTTP_REQUEST_SIZE = 16 * 1024
 
 
+# NOTE: where there are repetitions, I've balanced these as best as I can to make them take between 10 and 30 seconds.
+# 10 seconds is enough time that I am sure the cost of initial file loading is not a factor.
+# Obviously, the Spack compile and Kaggle notebooks take much longer than this, and nothing can be done about that.
 WORKLOADS: list[Workload] = [
+    Cmds("simple", "hello", noop_cmd, repeat(1000, (result_bin / "hello",))),
+    Cmds("simple", "true", noop_cmd, repeat(1000, (result_bin / "true",))),
+    Cmds("simple", "echo", noop_cmd, repeat(1000, (result_bin / "echo", "hello", "world"))),
     Cmds("python", "python-hello-world", noop_cmd, repeat(100, (result_bin / "python", "-c", "print('hello world')"))),
     Cmds("python", "python-import", noop_cmd, repeat(100, (result_bin / "python", "-c", "import pandas, matplotlib"))),
-    Cmds("compile", "hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
-    Cmds("compile", "hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
-    Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "null"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "read"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "write"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-P", "1", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-P", "1", "-N", "100", "shell")), # broke
-    Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
-    Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-P", "1", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
-    Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-P", "1", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-P", "1", "-N", "1000", "$WORKDIR/lmbench/big_test"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-P", "1", "-N", "1000", "file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "300", "-P", "30", "tcp"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-P", "1", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-P", "1", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "bw_unix", noop_cmd, (result_bin / "bw_unix", "-P", "1", "-N", "10"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-P", "1", "-N", "10"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "fs", create_file_cmd(1024), (result_bin / "lat_fs", "-P", "1", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
+    Cmds("gcc", "gcc-hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
+    Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
+    Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "null"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "read"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "write"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-N", "100", "shell")), # broke
+    Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
+    Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
+    Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/big_test"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-N", "1000", "file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "100", "-N", "1000", "tcp"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "bw_unix", noop_cmd, (result_bin / "bw_unix", "-N", "10"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-N", "10"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "fs", create_file_cmd(1024), (result_bin / "lat_fs", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
     # SpackInstall(["trilinos"]), # Broke: openblas
     SpackInstall(["python"]),
     # SpackInstall(["openmpi", "spack-repo.krb5"]),
@@ -915,16 +926,16 @@ WORKLOADS: list[Workload] = [
     Nginx(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     Proftpd(HTTP_PORT, 500),
     Postmark(1_000_000),
-    Archive("", SMALLER_TARBALL_URL),
-    Archive("gzip", SMALLER_TARBALL_URL),
-    Archive("pigz", SMALLER_TARBALL_URL),
-    Archive("bzip2", SMALLER_TARBALL_URL),
-    Archive("pbzip2", SMALLER_TARBALL_URL),
-    Unarchive("", SMALLER_TARBALL_URL),
-    Unarchive("gzip", SMALLER_TARBALL_URL),
-    Unarchive("pigz", SMALLER_TARBALL_URL),
-    Unarchive("bzip2", SMALLER_TARBALL_URL),
-    Unarchive("pbzip2", SMALLER_TARBALL_URL),
+    Archive("", SMALLER_TARBALL_URL, 100),
+    Archive("gzip", SMALLER_TARBALL_URL, 100),
+    Archive("pigz", SMALLER_TARBALL_URL, 100),
+    Archive("bzip2", SMALLER_TARBALL_URL, 30),
+    Archive("pbzip2", SMALLER_TARBALL_URL, 30),
+    Unarchive("", SMALLER_TARBALL_URL, 100),
+    Unarchive("gzip", SMALLER_TARBALL_URL, 100),
+    Unarchive("pigz", SMALLER_TARBALL_URL, 100),
+    Unarchive("bzip2", SMALLER_TARBALL_URL, 100),
+    Unarchive("pbzip2", SMALLER_TARBALL_URL, 100),
     VCSTraffic(
         "https://github.com/pypa/setuptools_scm",
         (result_bin / "git", "clone"),
@@ -1126,11 +1137,11 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to"} and workload.kind not in {"http_server"}
+        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server"}
     ],
     "fast": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"postmark", "titanic-to"} and workload.kind not in {"spack", "http_server"}
+        if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server"}
     ]
 }

@@ -5,6 +5,7 @@ import sys
 import itertools
 import random
 import pathlib
+import collections
 import tqdm  # type: ignore
 import pickle
 import pandas  # type: ignore
@@ -16,7 +17,7 @@ from run_exec_wrapper import run_exec, DirMode
 from util import (
     delete_children, move_children,
     hardlink_children, shuffle, expect_type, to_str, merge_env_vars,
-    SubprocessError
+    SubprocessError, n_unique
 )
 
 
@@ -32,36 +33,9 @@ def get_results(
         ignore_failures: bool,
         rerun: bool,
 ) -> pandas.DataFrame:
-    return (
-        run_experiments_cached(
-            prov_collectors,
-            workloads,
-            iterations=iterations,
-            seed=seed,
-            cache_dir=pathlib.Path(".cache"),
-            big_temp_dir=pathlib.Path(".workdir"),
-            size=256,
-            ignore_failures=ignore_failures,
-            rerun=rerun,
-        )
-        .assign(**{
-            "n_ops": lambda df: list(map(len, df.operations)),
-            # "n_unique_files": lambda df: list(map(lambda ops: len({op.target0 for op in ops} | {op.target1 for op in ops}), df.operations)),
-        })
-    )
-
-
-def run_experiments_cached(
-        prov_collectors: Sequence[ProvCollector],
-        workloads: Sequence[Workload],
-        iterations: int,
-        seed: int,
-        cache_dir: pathlib.Path,
-        big_temp_dir: pathlib.Path,
-        size: int,
-        ignore_failures: bool,
-        rerun: bool,
-) -> pandas.DataFrame:
+    cache_dir = pathlib.Path(".cache")
+    big_temp_dir = pathlib.Path(".workdir")
+    size = 256
     key = (cache_dir / ("results_" + "_".join([
         *[prov_collector.name for prov_collector in prov_collectors],
         hashlib.sha256("".join(workload.name for workload in workloads).encode()).hexdigest()[:10],
@@ -69,7 +43,12 @@ def run_experiments_cached(
         str(size),
         str(seed),
     ]) + ".pkl"))
-    if key.exists() and False:
+    # If we are rerunning anything, then we can't trust the aggregated results
+    if rerun:
+        for file in cache_dir.iterdir():
+            if file.name.startswith("results_"):
+                file.unlink()
+    if key.exists():
         return expect_type(pandas.DataFrame, pickle.loads(key.read_bytes()))
     else:
         results_df = run_experiments(
@@ -83,7 +62,7 @@ def run_experiments_cached(
             ignore_failures,
             rerun,
         )
-        # key.write_bytes(pickle.dumps(results_df))
+        key.write_bytes(pickle.dumps(results_df))
         return results_df
 
 
@@ -112,15 +91,14 @@ def run_experiments(
     log_dir.mkdir(exist_ok=True)
     work_dir.mkdir(exist_ok=True)
     assert list(inputs)
-    with ch_time_block.ctx("Run grid"):
-        result_list = [
-            (prov_collector, workload, run_one_experiment_cached(
-                cache_dir, iteration, prov_collector, workload,
-                work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
-                rerun,
-            ))
-            for iteration, prov_collector, workload in tqdm.tqdm(inputs)
-        ]
+    result_list = (
+        (prov_collector, workload, run_one_experiment_cached(
+            cache_dir, iteration, prov_collector, workload,
+            work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
+            rerun,
+        ))
+        for iteration, prov_collector, workload in tqdm.tqdm(inputs)
+    )
     with ch_time_block.ctx("Construct DataFrame"):
         results_df = (
             pandas.DataFrame.from_records(
@@ -134,7 +112,14 @@ def run_experiments(
                     "walltime": stats.walltime,
                     "memory": stats.memory,
                     "storage": stats.provenance_size,
-                    "operations": stats.operations,
+                    "n_ops": len(stats.operations),
+                    "n_unique_files": n_unique(itertools.chain(
+                        (op.target0 for op in stats.operations),
+                        (op.target1 for op in stats.operations),
+                    )),
+                    "op_type_counts": collections.Counter(
+                        op.type for op in stats.operations
+                    ),
                 }
                 for prov_collector, workload, stats in result_list
             )
@@ -262,8 +247,7 @@ def run_one_experiment(
             stdout=to_str(stats.stdout),
             stderr=to_str(stats.stderr),
         )
-    # with ch_time_block.ctx(f"parse {prov_collector}"):
-    if True:
+    with ch_time_block.ctx(f"parse {prov_collector}"):
         provenance_size = 0
         for child in log_dir.iterdir():
             provenance_size += child.stat().st_size

@@ -33,32 +33,10 @@ def catch_signals(
 ) -> Iterator[None]:
     old_signal_catchers: dict[signal.Signals, SignalCatcher] = {}
     for signal_num, new_catcher in signal_catchers.items():
-        old_catcher = signal.signal(signal_num, new_catcher)
-        old_signal_catchers[signal_num] = old_catcher
+        old_signal_catchers[signal_num] = signal.signal(signal_num, new_catcher)
     yield
     for signal_num, old_catcher in old_signal_catchers.items():
         signal.signal(signal_num, old_catcher)
-
-
-@contextlib.contextmanager
-def _runexec_catch_signals(run_executor: RunExecutor) -> Iterator[None]:
-    caught_signal_number: None | signal.Signals = None
-
-    def run_executor_stop(signal_number: Signal, _: types.FrameType | None) -> None:
-        warnings.warn(f"In signal catcher for {signal_number}")
-        run_executor.stop()
-
-    with catch_signals(
-        {
-            signal.SIGTERM: run_executor_stop,
-            signal.SIGQUIT: run_executor_stop,
-            signal.SIGINT: run_executor_stop,
-        }
-    ):
-        yield
-
-    if caught_signal_number is not None:
-        raise InterruptedError(f"Caught signal {caught_signal_number}")
 
 
 @dataclasses.dataclass
@@ -134,7 +112,20 @@ def run_exec(
             container_tmpfs=True,
             network_access=network_access,
         )
-        with _runexec_catch_signals(run_executor):
+        caught_signal_number: Signal | None = None
+        def run_executor_stop(signal_number: Signal, _: types.FrameType | None) -> None:
+            warnings.warn(f"In signal catcher for {signal_number}")
+            run_executor.stop()
+            global caught_signal
+            caught_signal_number = signal_number
+
+        with catch_signals(
+            {
+                signal.SIGTERM: run_executor_stop,
+                signal.SIGQUIT: run_executor_stop,
+                signal.SIGINT: run_executor_stop,
+            }
+        ):
             hard_time_limit = (
                 int(time_limit * 1.1)
                 if time_limit is not None else
@@ -157,6 +148,8 @@ def run_exec(
                 hardtimelimit=hard_time_limit,
                 memlimit=mem_limit,
             )
+        if caught_signal_number is not None:
+            raise InterruptedError(f"Caught signal {caught_signal_number}")
         return RunexecStats.create(
             run_exec_run,
             stdout.read_bytes(),

@@ -4,3 +4,4 @@
 .workdir/
 __pycache__/
 output/
+notebook/.ipynb_checkpoints/

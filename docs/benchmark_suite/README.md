@@ -227,12 +227,17 @@ where $A_{:,j}$ is the $j$th column of $A$.
 - If the $j$th benchmark is non-redundant, then the $j$th column of $A$ is "copied" to the $j$th column of $B$, and the $j$th row of$P$ is set to the $j$th row of the identity matrix; multiplying $B$ by $P$ "passes through verbatim" the $j$th column of $B$.
 - Otherwise, the $j$th benchmark is redundant and the $j$th column of $P$ is set to the coefficients of a linear regression from the non-redundant benchmarks to the $j$the benchmark; multiplying $B$ by $P$ evaluates a prediction based on the linear regression in the $j$th column.
 
+<!-- TODO: describe Nix implementation -->
 
 ## Quantitative performance comparison
 
 We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system.
 
 ## Predictive performance model
+
+<!-- TODO: Describe cross-validation (no pre-feature selection or data-cleaning, but averaging before CV), justify LOO and K-fold, justify RMSE, justify AICc -->
+
+<!-- TODO: describe search for outliers -->
 
 # Results
 
@@ -338,7 +343,6 @@ Running HTTP servers may be a popular benchmark because prior work focuses overw
 | Un/archive ({compress, decompress} x tar x {nothing, bzip2, pbzip, gzip, pigz, zip})[^unpack-linux] | 5                  |
 | Shellbench (bash, sh)                                                                               | 3                  |
 | Workflows (Snakemake-workflow-catalog, Nf-core, CleanML, Spark, VIC, FIE)                           | 2                  |
-| Microbenchmarks (open/close, fork/exec, pipe/dup/close, socket/connect)                             | 2                  |
 | xSDK codes                                                                                          | 0                  |
 | Small, fast binaries (procps, sysstat, gif2png, mp3info, gocr)                                      | 2                  |
 | x264                                                                                                | 1                  |
