@@ -39,6 +39,22 @@
               cp postmark.1 $out/share/man/man1
             '';
           };
+          postmark-from-src = pkgs.stdenv.mkDerivation rec {
+            pname = "postmark";
+            version = "1.5";
+            src = pkgs.fetchurl {
+              url = "https://web.archive.org/web/20070320010728if_/http://www.netapp.com:80/ftp/postmark-1_5.c";
+              hash = "sha256-/vtxTGDOuvtJ/kkAIK4GMPV9x3ww/yDL887ukOae+2k=";
+            };
+            dontUnpack = true;
+            buildPhase = ''
+              cc $src -Wall -Wextra -O3 -o postmark
+            '';
+            installPhase = ''
+              install --directory $out/bin
+              install postmark $out/bin
+            '';
+          };
           darshan-runtime = pkgs.stdenv.mkDerivation rec {
             pname = "darshan-runtime";
             version = "3.4.4";

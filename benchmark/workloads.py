@@ -925,7 +925,7 @@ WORKLOADS: list[Workload] = [
     Lighttpd(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     Nginx(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     Proftpd(HTTP_PORT, 500),
-    Postmark(1_000_000),
+    Postmark(100_000),
     Archive("", SMALLER_TARBALL_URL, 100),
     Archive("gzip", SMALLER_TARBALL_URL, 100),
     Archive("pigz", SMALLER_TARBALL_URL, 100),

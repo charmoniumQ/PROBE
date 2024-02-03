@@ -360,6 +360,8 @@ Running HTTP servers may be a popular benchmark because prior work focuses overw
 
 # Analysis
 
+<!-- TODO: note that fsatrace has a hardcoded limit on the size of the buffer used to store file read/writes. If this size is exceeded, the program will crash without any message. -->
+
 ## Threats to validity
 
 # Future work
