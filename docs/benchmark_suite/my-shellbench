@@ -1,0 +1,13 @@
+
+
+#bench "typeset -i"
+typeset -i i
+@begin
+i=$((i+1))
+@end
+
+#bench "increment"
+typeset -i i
+@begin
+((i++))
+@end

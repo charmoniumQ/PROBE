@@ -87,6 +87,9 @@ https://cherokee-project.com/
 - https://www.spec.org/cpu2006/Docs/
 - https://www.spec.org/sources/
 - https://github.com/miyuki/spec-cpu2006-redist/
+- https://www.spec.org/cpu2006/Docs/tools-build.html
+- https://www.spec.org/cpu2006/Docs/install-guide-unix.html
+- https://www.spec.org/cpu2006/Docs/runspec.html
 
 *** TODO SSH
 https://github.com/LineRate/ssh-perf
@@ -102,8 +105,10 @@ https://chu-data-lab.github.io/CleanML/
 - See [[https://doi.org/10.1145/2420950.2420989][Hi-Fi]], [[https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf][PASSv2]], [[https://www.usenix.org/system/files/conference/usenixsecurity15/sec15-paper-bates.pdf][LPM]], [[https://doi.org/10.1145/3127479.3129249][CamFlow]] for details
 - pm>set transactions 400000
 
-*** TODO Create lmbench benchmark
+*** DONE Create lmbench benchmark
 - https://lmbench.sourceforge.net/
+
+*** TODO Create filebench benchmark
 - https://github.com/filebench/filebench
 
 *** TODO Native snakemake and nf-core workflows
@@ -112,7 +117,7 @@ https://chu-data-lab.github.io/CleanML/
 - Run Chromium and Firefox with Sunspider
 - https://github.com/v8/v8/blob/04f51bc70a38fbea743588e41290bea40830a486/test/benchmarks/csuite/csuite.py#L4
 
-*** TODO Create mercurial/VCS workload
+*** DONE Create mercurial/VCS workload
 - https://savannah.gnu.org/hg/?group=octave
 - https://hg.mozilla.org/mozilla-central/
 - https://github.com/frej/fast-export
@@ -139,7 +144,7 @@ https://chu-data-lab.github.io/CleanML/
 - Write a class that compiles the Linux kernel (just the kernel, no user-space software), using only tools from ~result/~.
 - The benchmark should use a specific pin of the Linux kernel and set kernel build options. Both should be customizable and set by files that are checked into Git. However, the Linux source tree should /not/ be checked into Git (see build Apache, where I download the source code in setup() and cache it for future use).
 
-*** TODO Refactor BLAST workloads
+*** DONE Refactor BLAST workloads
 - It should be easy to run them a large consistent set of many different BLAST apps.
 - Maybe have a 1 min, 10 min, and 60 min randomly-selected, but fixed, configuration
 
@@ -161,7 +166,7 @@ https://github.com/PyLCARS/YT_BeyondAstro
 
 ** Make API easier to use
 
-*** TODO Refactor ~runner.py~
+*** DONE Refactor ~runner.py~
 - Change to ~run_store_analyze.py~
 - [[file:benchmark/runner.py][runner.py]] mixes code for selecting benchmarks and prov collectors with code for summarizing statistical outputs.
 - Use --benchmarks and --collectors to form a grid
@@ -173,12 +178,11 @@ https://github.com/PyLCARS/YT_BeyondAstro
 *** TODO Refactor ~run_exec_wrapper.py~
 - Should fail gracefully when cgroups are not available
 
-*** TODO Refactor ~analyses.py~
+*** DONE Refactor ~stats.py~
 - Should have Callable[pandas.DataFrame, None]
 
 *** TODO Refactor ~prov_collectors.py~
 - Should have teardown
-- Should have license()
 
 *** TODO Refactor ~workloads.py~
 - Should accept a tempdir
@@ -188,7 +192,7 @@ https://github.com/PyLCARS/YT_BeyondAstro
 - Categories: build Spack, build Deb, BLAST, compile Linux, HTTP bench, FTP bench
 - Should have license()
 
-*** TODO Write ~run.py~
+*** DONE Write ~run.py~
 - Just runs one workload
 - --setup, --main, --teardown
 
@@ -234,18 +238,18 @@ https://github.com/PyLCARS/YT_BeyondAstro
 *** DONE Measure slowdown as a function of arithmetic intensity
 - See [[file:benchmark/notebook/Stats-larger.ipynb][States-larger.ipynb]]
 
-*** TODO [#C] Count dynamic instructions in entire program
+*** DONE [#C] Count dynamic instructions in entire program
 - IO calls / 1M dynamic instruction
 
 *** DONE Plot IO vs CPU sec
 
 *** DONE Plot confidence interval of slowdown per arithmetic intensity
 
-*** TODO Evaluate prediction based on arithmetic intensity
+*** DONE Evaluate prediction based on arithmetic intensity
 - slowdown(prov_collector) * cpu_to_wall_time(workload) * runtime(workload) ~ runtime(workload, prov_collector)
 - What is the expected percent error?
 
-*** TODO Characterize benchmarks and benchmark classes by syscall breakdown
+*** DONE Characterize benchmarks and benchmark classes by syscall breakdown
 - Features: count of each group of syscalls / total time
 - Prog should occupy the same point as {Prog, Prog} (that is, analogous to intensive not extensive properties in physics)
 - PCA and clustering and dendrogram
@@ -266,7 +270,26 @@ https://github.com/PyLCARS/YT_BeyondAstro
 
 *** DONE Write benchmark and prov collector collection
 
-*** TODO Describe experiments
+*** DONE Revise introduction (60)
+- Smoosh Motivation and Background together
+- Lead with the problem
+- 1 problem -> provenance (vs perf overhead) -> 3 other problems solved -> 3 ways to gather
+
+*** TODO Explain user-level vs root-level
+
+*** TODO Explain how strace, ltrace, fsatrace, rr got to be there
+
+*** TODO Explain how Sciunits, ReproZip got to be there
+
+*** TODO Explain why OPUS not there
+
+*** TODO Explain why CamFlow not there
+
+*** TODO Write some emails
+
+*** TODO Change to generic sigconf template
+
+*** TODO Justify benchmarks we didn't write
 
 *** TODO Describe experimental results
 
