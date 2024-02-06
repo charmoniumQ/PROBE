@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import urllib.request
+import warnings
 from collections.abc import Sequence, Mapping, Iterator, Iterable
 from typing import Callable, TypeVar, Any, TypeAlias, cast, Hashable
 import scipy  # type: ignore
@@ -174,14 +175,22 @@ class SubprocessError(Exception):
         self.stderr = stderr
 
     def __str__(self) -> str:
-        command_arr = env_command(
+        args = env_command(
             env=self.env,
             cwd=self.cwd,
             clear_env=True,
             cmd=self.cmd,
         )
-        command_str = shlex.join(map(to_str, command_arr))
-        return f"\n$ {command_str}\n{self.stdout}\n\n{self.stderr}\n\n$ echo $?\n{self.returncode}"
+        arg_strs = []
+        for arg in args:
+            try:
+                arg_str = to_str(arg)
+            except Exception as exc:
+                print(f"{exc} while converting {arg!r}")
+                arg_str = "<unk>"
+            arg_strs.append(arg_str)
+        args_joined = shlex.join(arg_strs)
+        return f"\n$ {args_joined}\n{self.stdout}\n\n{self.stderr}\n\n$ echo $?\n{self.returncode}"
 
 
 def to_str(thing: Any) -> str:

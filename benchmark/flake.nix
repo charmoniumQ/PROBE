@@ -564,6 +564,14 @@
               pkgs.mercurial
               pkgs.gitMinimal
               pkgs.curl
+              pkgs.procps
+              pkgs.psmisc
+              pkgs.curl
+              pkgs.wget
+              pkgs.axel
+              pkgs.bash
+              pkgs.texlive.combined.scheme-full
+              pkgs.lftp
 
               # Reproducibility tester
               pkgs.icdiff
@@ -622,6 +630,7 @@
                 pypkgs.typer
                 benchexec
                 charmonium-time-block
+                pypkgs.psutil
 
                 # deps of notebooks
                 pypkgs.arviz

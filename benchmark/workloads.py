@@ -11,7 +11,7 @@ from util import run_all, CmdArg, check_returncode, merge_env_vars, download, gr
 import yaml
 import tarfile
 import shlex
-from typing import cast
+from typing import cast, Any
 
 # ruff: noqa: E501
 
@@ -338,7 +338,7 @@ class HttpBench(Workload):
 
     def __init__(self, port: int, n_requests: int, request_size: int):
         self.port = port
-        self.n_requests = n_requests,
+        self.n_requests = n_requests
         self.request_size = request_size
 
     def write_request_payload(self, path: Path) -> None:
@@ -347,21 +347,23 @@ class HttpBench(Workload):
     def run_server(self, workdir: Path) -> str:
         raise NotImplementedError
 
+    def get_load(self) -> tuple[CmdArg, ...]:
+        return str(result_bin / "hey"), "-n", str(self.n_requests), f"http://localhost:{self.port}/test"
+
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         return (
             (
                 result_bin / "python",
                 "run_server_and_client.py",
                 self.run_server(workdir),
-                shlex.join([
-                    str(result_bin / "hey"), "-n", str(HTTP_N_REQUESTS), f"http://localhost:{HTTP_PORT}/test",
-                ]),
+                shlex.join(map(str, self.get_load())),
                 shlex.join([
                     str(result_bin / "curl"), "--silent", "--fail", "--output", "/dev/null", f"http://localhost:{HTTP_PORT}/test",
                 ]),
             ),
             {},
         )
+
 
 class Apache(HttpBench):
     name = "apache"
@@ -494,6 +496,24 @@ class Nginx(HttpBench):
         ])
 
 
+class HttpClient(SimpleHttp):
+    def __init__(self, name: str, http_client: tuple[CmdArg, ...], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = name
+        self.kind = "http_client"
+        self.http_client = http_client
+
+    def get_load(self) -> tuple[CmdArg, ...]:
+        http_client_cmd = tuple(
+            cmd_arg(arg)
+            .decode()
+            .replace("$outfile", ".workdir/work/downloaded_file")
+            .replace("$url", f"http://localhost:{HTTP_PORT}/test")
+            for arg in self.http_client
+        )
+        return repeat(self.n_requests, http_client_cmd)
+
+
 PROFTPD_CONF = '''
 DefaultAddress   0.0.0.0
 Port             $PORT
@@ -543,6 +563,7 @@ class Proftpd(Workload):
             shutil.rmtree(ftpdir)
         ftpdir.mkdir()
         (ftpdir / "srv").mkdir()
+        (ftpdir / "srv/test").write_text("A" * 1024 * 1024)
         # user = getpass.getuser()
         # uid = pwd.getpwnam(user).pw_uid
         # gid = pwd.getpwnam(user).pw_gid
@@ -557,10 +578,24 @@ class Proftpd(Workload):
         tmpdir = ftpdir / "tmp"
         tmpdir.mkdir()
 
+    def get_load(self, tmpdir: Path) -> tuple[CmdArg, ...]:
+        return (
+            str(result_bin / "ftpbench"),
+            "--host",
+            f"127.0.0.1:{self.ftp_port}",
+            "--user",
+            "anonymous",
+            "--password",
+            "",
+            "--maxiter",
+            str(self.n_requests),
+            "upload",
+            str(tmpdir),
+        )
+
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
         ftpdir = (workdir / "proftpd").resolve()
         tmpdir = ftpdir / "tmp"
-        ftpbench_args = [str(result_bin / "ftpbench"), "--host", f"127.0.0.1:{self.ftp_port}", "--user", "anonymous", "--password", ""]
         return (
             (
                 result_bin / "python",
@@ -568,12 +603,36 @@ class Proftpd(Workload):
                 shlex.join([
                     str(result_bin / "proftpd"), "--nodaemon", "--config", str(ftpdir / "conf")
                 ]),
-                " && ".join([
-                    shlex.join([*ftpbench_args, "--maxiter", str(self.n_requests), "upload", str(tmpdir)]),
+                shlex.join(cmd_arg(arg).decode() for arg in self.get_load(tmpdir)),
+                shlex.join([
+                    str(result_bin / "curl"), "--silent", "--output", f"{tmpdir}/test", f"ftp://anonymous:@127.0.0.1:{self.ftp_port}/test"
                 ])
             ),
             {},
         )
+
+
+class FtpClient(Proftpd):
+    def __init__(self, name: str, ftp_client: tuple[CmdArg, ...], *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.kind = "ftp_client"
+        self.name = name
+        self.ftp_client = ftp_client
+
+    def get_load(self, tmpdir: Path) -> tuple[CmdArg, ...]:
+        tmpdir.mkdir(exist_ok=True)
+        return repeat(self.n_requests, tuple(
+            cmd_arg(arg)
+            .decode()
+            .replace("$url", f"ftp://anonymous:@127.0.0.1:{self.ftp_port}/test")
+            .replace("$host", "127.0.0.1")
+            .replace("$username", "anonymous")
+            .replace("$password", "")
+            .replace("$port", str(self.ftp_port))
+            .replace("$remote_file", "test")
+            .replace("$dst", str(tmpdir / "local_test"))
+            for arg in self.ftp_client
+        ))
 
 
 class Postmark(Workload):
@@ -841,17 +900,53 @@ class Blast(Workload):
         )
 
 
+class Copy(Workload):
+    kind = "copy"
+
+    def __init__(self, name: str, url: str) -> None:
+        self.name = name
+        self.url = url
+        self.name_hash = hashlib.sha256(self.url.encode()).hexdigest()[:10]
+
+    def setup(self, workdir: Path) -> None:
+        main_dir = (workdir / "copy")
+        if not main_dir.exists():
+            main_dir.mkdir()
+        archive = main_dir / (self.name_hash + ".tar.gz")
+        if not archive.exists():
+            download(archive, self.url)
+        src_dir = workdir / self.name_hash
+        if not src_dir.exists():
+            src_dir.mkdir()
+            with tarfile.TarFile.open(archive) as archive_obj:
+                archive_obj.extractall(
+                    src_dir,
+                    filter=lambda member, dest_path: member.replace(name="/".join(member.name.split("/")[1:])),
+                )
+        dst_dir = workdir / "dst"
+        if dst_dir.exists():
+            shutil.rmtree(dst_dir)
+
+    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+        src_dir = workdir / self.name_hash
+        dst_dir = workdir / "dst"
+        return (
+            (result_bin / "cp", "--recursive", str(src_dir), str(dst_dir)),
+            {},
+        )
+
 noop_cmd = (result_bin / "true",)
-create_file_cmd = lambda size: (
-    result_bin / "python",
-    "-c",
-    "\n".join([
-        "import pathlib",
-        "dir = pathlib.Path('$WORKDIR/lmbench')",
-        "dir.mkdir(exist_ok=True)",
-        f"(dir / 'file').write_text({size} * 'A')",
-    ]),
-)
+def create_file_cmd(size: int) -> tuple[CmdArg, ...]:
+    return (
+        result_bin / "python",
+        "-c",
+        "\n".join([
+            "import pathlib",
+            "dir = pathlib.Path('$WORKDIR/lmbench')",
+            "dir.mkdir(exist_ok=True)",
+            f"(dir / 'file').write_text({size} * 'A')",
+        ]),
+    )
 
 
 def repeat(n: int, cmd: tuple[CmdArg, ...]) -> tuple[CmdArg, ...]:
@@ -872,12 +967,30 @@ HTTP_REQUEST_SIZE = 16 * 1024
 # Obviously, the Spack compile and Kaggle notebooks take much longer than this, and nothing can be done about that.
 WORKLOADS: list[Workload] = [
     Cmds("simple", "hello", noop_cmd, repeat(1000, (result_bin / "hello",))),
+    Cmds("simple", "ps", noop_cmd, repeat(1000, (result_bin / "ps", "aux"))),
     Cmds("simple", "true", noop_cmd, repeat(1000, (result_bin / "true",))),
     Cmds("simple", "echo", noop_cmd, repeat(1000, (result_bin / "echo", "hello", "world"))),
+    Cmds("simple", "ls", create_file_cmd(100), repeat(1000, (result_bin / "ls", "$WORKDIR/lmbench"))),
     Cmds("python", "python-hello-world", noop_cmd, repeat(100, (result_bin / "python", "-c", "print('hello world')"))),
     Cmds("python", "python-import", noop_cmd, repeat(100, (result_bin / "python", "-c", "import pandas, matplotlib"))),
     Cmds("gcc", "gcc-hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
     Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
+    # TOD: Fix shell workloads
+    Cmds("shell", "shell-incr", noop_cmd, (result_bin / "bash", "-c", "for i in seq 1000; do i=$((i+1)); done")),
+    Cmds("shell", "cd", noop_cmd, (result_bin / "bash", "-c", "for i in seq 1000; do cd $WORKDIR; cd ../..; done")),
+    Cmds("shell", "shell-echo", noop_cmd, (result_bin / "bash", "-c", "for i in seq 1000; do echo hi > /dev/null; done")),
+    Cmds(
+        "pdflatex",
+        "test",
+        (result_bin / "sh", "-c", f"{result_bin}/mkdir --parents $WORKDIR/latex && {result_bin}/cp test.tex $WORKDIR/latex/test.tex"),
+        (result_bin / "env", "--chdir", "$WORKDIR/latex", "pdflatex", "test.tex"),
+    ),
+    Cmds(
+        "pdflatex",
+        "test2",
+        (result_bin / "sh", "-c", f"{result_bin}/mkdir --parents $WORKDIR/latex && {result_bin}/cp test2.tex $WORKDIR/latex/test2.tex"),
+        (result_bin / "env", "--chdir", "$WORKDIR/latex", "pdflatex", "test2.tex"),
+    ),
     Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "null"), {"ENOUGH": "10000"}),
     Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "read"), {"ENOUGH": "10000"}),
     Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "write"), {"ENOUGH": "10000"}),
@@ -919,12 +1032,46 @@ WORKLOADS: list[Workload] = [
     SpackInstall(["spack-repo.apacheHttpd", "spack-repo.openldap", "spack-repo.apr-util"]),
     SpackInstall(["perl"]),
     *Blast.get_all(),
+    Copy("cp linux", LINUX_TARBALL_URL),
+    Copy("cp smaller", SMALLER_TARBALL_URL),
     Apache(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     SimpleHttp(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     MiniHttp(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     Lighttpd(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     Nginx(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
-    Proftpd(HTTP_PORT, 500),
+    # For some reason in wget/curl in ltrace is reallly slow, so we need to run fewer requests.
+    HttpClient(
+        "curl",
+        (result_bin / "curl", "--silent", "--output", "$outfile", "$url"),
+        HTTP_PORT,
+        HTTP_N_REQUESTS // 10_000,
+        HTTP_REQUEST_SIZE,
+    ),
+    HttpClient(
+        "wget",
+        (result_bin / "wget", "--quiet", "--output-document", "$outfile", "$url"),
+        HTTP_PORT,
+        HTTP_N_REQUESTS // 10_000,
+        HTTP_REQUEST_SIZE,
+    ),
+    # HttpClient(
+    #     "axel",
+    #     (result_bin / "axel", "--output", "$outfile", "$url"),
+    #     HTTP_PORT,
+    #     HTTP_N_REQUESTS // 100,
+    #     HTTP_REQUEST_SIZE,
+    # ),
+    # Proftpd(HTTP_PORT, 500), # unfortunately, this crashes in ltrace if this number is too big.
+    # ltrace will alsosc crash if this number is too big: FtpClient(..., number)
+    Proftpd(HTTP_PORT, 10),
+    # FtpClient(
+    #     "lftp",
+    #     (result_bin / "lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),
+    #     HTTP_PORT,
+    #     1,
+    # ),
+    # FtpClient("ftp-curl", (result_bin / "curl", "--silent", "--output", "$dst", "$url"), HTTP_PORT, 1),
+    # FtpClient("ftp-wget", (result_bin / "wget", "--quiet", "--output-document", "$dst", "$url"), HTTP_PORT, 1),
     Postmark(100_000),
     Archive("", SMALLER_TARBALL_URL, 100),
     Archive("gzip", SMALLER_TARBALL_URL, 100),
@@ -1137,11 +1284,21 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server"}
+        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich", "spack glibc", "spack boost"}
+    ],
+    "finished": [
+        workload
+        for workload in WORKLOADS
+        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack"}
     ],
     "fast": [
         workload
         for workload in WORKLOADS
         if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server"}
+    ],
+    "superfast": [
+        workload
+        for workload in WORKLOADS
+        if workload.kind in {"simple", "python", "gcc"}
     ]
 }

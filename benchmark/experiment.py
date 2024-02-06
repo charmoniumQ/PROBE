@@ -78,10 +78,15 @@ def run_experiments(
         rerun: bool,
 ) -> pandas.DataFrame:
     prng = random.Random(seed)
-    inputs = shuffle(
-        prng,
-        tuple(itertools.product(range(iterations), prov_collectors, workloads)),
-    )
+    # Shuffle within each iteration
+    # all iteration=0 come before iteration=1, but within each iteration, workloads and prov_collectors are shuffled differently
+    inputs = list(itertools.chain.from_iterable(
+        shuffle(
+            prng,
+            tuple(itertools.product([iteration], prov_collectors, workloads)),
+        )
+        for iteration in range(iterations)
+    ))
     big_temp_dir.mkdir(exist_ok=True, parents=True)
     temp_dir = big_temp_dir / "temp"
     log_dir = big_temp_dir / "log"
@@ -239,6 +244,11 @@ def run_one_experiment(
         )
 
     if ignore_failures and not stats.success:
+        print(cmd)
+        print(full_env)
+        print(stats.exitcode)
+        print(stats.stdout)
+        print(stats.stderr)
         raise SubprocessError(
             cmd=cmd,
             env=full_env,

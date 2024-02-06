@@ -39,3 +39,15 @@
 @@ -67,1 +67,1 @@
 -    return os.path.expanduser('~/sciunit/%s' % name)
 +    return os.path.join(os.path.expanduser(os.environ.get('SCIUNIT_HOME', '~/sciunit')), name)
+--- a/sciunit2/records.py
++++ b/sciunit2/records.py
+@@ -143 +143,8 @@
+-        self.__c.executescript(script)
++        try:
++            self.__c.executescript(script)
++        except sqlite3.OperationalError as exc:
++            print(k)
++            print(v)
++            print(size)
++            print(repr(script))
++            raise exc

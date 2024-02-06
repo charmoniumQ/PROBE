@@ -1,6 +1,7 @@
 import dataclasses
 import warnings
 import subprocess
+import os
 import yaml
 import re
 from collections.abc import Sequence, Mapping
@@ -422,8 +423,19 @@ class LTrace(AbstractTracer):
     log_name = "ltrace.out"
 
 
+PATH_MAX = os.pathconf('/', 'PC_PATH_MAX')
+NAME_MAX = os.pathconf('/', 'PC_NAME_MAX')
+
+
 def is_executable_or_library(path: Path) -> bool:
-    if path.exists() and path.is_file() and len(path.parts) > 1 and path.parts[1] not in {"sys", "proc", "dev"}:
+    if (
+            len(path.name) < NAME_MAX and
+            len(str(path)) < PATH_MAX and
+            len(path.parts) > 1 and
+            path.parts[1] not in {"sys", "proc", "dev"} and
+            path.exists() and
+            path.is_file()
+    ):
         with path.open("rb") as fobj:
             try:
                 return fobj.read(4) == b"b'\x7fELF"
@@ -696,11 +708,18 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
     "fast": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "reprozip"]
+    ],
+    "finished": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
         if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip"]
+        # ltrace
     ],
     "working": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "ltrace", "fsatrace", "rr", "reprozip", "sciunit"]
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip"]
+        # ltrace
     ],
 }

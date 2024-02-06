@@ -1,0 +1,110 @@
+% Written by Dr. Luke K. Davis
+% luke.davis@ucl.ac.uk
+% Many of the packages below are overkill as I used another document
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[a4paper, top=0.77in, bottom=0.77in, left=0.77in, right=0.77in]{geometry}
+\usepackage[export]{adjustbox}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{MnSymbol}
+\usepackage{graphicx}% Include figure files
+\usepackage{dcolumn}% Align table columns on decimal point
+\usepackage{bm}% bold math
+\usepackage{xcolor}
+\usepackage[colorlinks,allcolors=black]{hyperref}
+\usepackage{caption}
+\captionsetup{labelformat=simple,skip=0pt}
+\usepackage[makeroom]{cancel}
+\usepackage{float}
+\usepackage{fancyhdr}
+%\usepackage{biblatex}
+\usepackage{wrapfig,lipsum,booktabs}
+\usepackage{multirow}
+\usepackage{setspace}
+\usepackage{framed}
+\usepackage{etoolbox}
+\usepackage[table]{colortbl}
+\usepackage[absolute]{textpos}
+
+\title{Cover Letter}
+\author{Dr. Luke Davis  \\
+	University College London
+	}
+
+
+%\setlength{\parindent}{0pt}% Remove paragraph indent
+
+\pagestyle{fancy}
+\fancyhf{}% Clear header/footer
+\fancyfoot[R]{\itshape Page~\thepage~of~\csname @abspage@last\endcsname}
+\renewcommand{\headrulewidth}{0pt}% Remove header rule
+
+% No paragraph indentation
+\parindent0pt
+\setlength{\parskip}{0.8\baselineskip}
+\raggedright
+\pagestyle{empty}
+
+\begin{document}
+
+% % Add logo, the text under the crimson line, and the line itself
+% \begin{textblock*}{8.3in}(0.in,0.in)
+%     \includegraphics[width=8.3in]{UCL-banner-letterheads.pdf}
+% \end{textblock*}
+\begin{textblock*}{6.375in}(1.5in,1.4in)   % 6.375=8.5 - 1.5 - 0.625
+    \sffamily
+    \hfill
+\end{textblock*}
+% \begin{tikzpicture}[remember picture,overlay]
+%     \draw[color=WSUcrimson,line width=1pt] (current page.north west)+(1.5in,-1.33in) -- ($(-0.625in,-1.33in)+(current page.north east)$);
+% \end{tikzpicture}
+% \begin{tabular}[t]{@{} l @{}}
+% \vspace{5em} \\
+%   \bfseries Search Committee \\
+%   \itshape The School of Mathematics and Statistics \\
+%   \itshape Faculty of Science, Technology, Engineering and Mathematics \\
+%   \itshape The Open University \\
+%      \itshape Walton Hall \\
+%    \itshape Milton Keynes \\
+%    \itshape MK7 6AA
+% \end{tabular}%
+\hfill
+\begin{tabular}[t]{@{} r @{}}
+\vspace{5.7em} \\
+  \bfseries Jeremy Bentham \\
+   Spiritual founder of UCL \\
+  %\itshape Department of Mathematics \\
+  \itshape University College London (UCL) \\
+  %\itshape 25 Gordon Street, London\\
+  %\itshape WC1H 0AY\\
+  \vspace{1em} \\
+    %\includegraphics[height=2\normalbaselineskip,valign=t]{Clifford-Fellowship-Images/University_College_London_logo.png} \\
+  \today
+\end{tabular}
+
+\bigskip
+
+Dear X,
+
+\bigskip
+
+\lipsum[1-10]
+\vspace{1em} \\
+Yours faithfully,
+\vspace{1em} \\
+Jeremy Bentham
+
+
+% Add the footnote. A better way would be to use fancyhdr
+\vfill
+{\footnotesize\color{black}\sffamily
+\textbf{Email:} \url{jeremy.bentham@ucl.ac.uk} \\
+\textbf{Website:} \url{https://en.wikipedia.org/wiki/Jeremy_Bentham}
+}
+
+\end{document}
