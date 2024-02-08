@@ -427,7 +427,7 @@ Like with benchmark minimization, we will use cross-validated RMSE errors in log
 ## Selected provenance collectors
 
 @Tbl:tools shows the provenance collectors we collected and their qualitative features.
-We did not try reproducing provenance systems for the following reasons:
+We did not try reproducing provenance systems for the following reasons:  [^DSK: I don't understand the prev sentence. this and the reasons below seem to switch between systems and collectors, but I'm not sure I understand if they are different ideas or just different words for the same thing. Could this be "The following issues led us not to reproduce certain collectors"?]
 
 - **Not for Linux.**
   Our systems are Linux-based and Linux is used by many computational scientists.
@@ -436,11 +436,11 @@ We did not try reproducing provenance systems for the following reasons:
 - **VMs too slow.**
   Some provenance collectors require running the code in a virtual machine.
   We know a priori that these methods are prohibitively slow, with Panorama reporting 20x average overhead [@yinPanoramaCapturingSystemwide2007].
-  The provenance systems we are interested in have overheads in the 1.01x -- 3x range.
+  The provenance systems we are interested in have overheads in the 1.01x -- 3x range.  [^DSK: maybe say instead that we don't use prov systems that have VM overheads over 3x?]
 
-- **Requries recompilation.**
+- **Requires recompilation.**
   Some provenance collectors require the user to recompile their entire application and library stack.
-  This is prohibtively onerous and negates the otherwise low cost of switching to system-level provenance we are pursuing.
+  This is prohibitively onerous and negates the otherwise low cost of switching to system-level provenance we are pursuing.
 
 - **Requires special hardware.**
   Some methods require certain CPUs, e.g., Intel CPUs for a dynamic instrumention tool called Intel PIN.
@@ -451,7 +451,7 @@ We did not try reproducing provenance systems for the following reasons:
   If we still could not find the source code for a particular provenance collector, we cannot reproduce it.
   Note, however, that RecProv is implemented using rr, so we can use rr as a lower-bound for RecProv.
   
-- **Kernel-level is out-of-scope (Hi-Fi, LPM/ProvMon, CamFlow).**
+- **Kernel-level is out-of-scope (Hi-Fi, LPM/ProvMon, CamFlow).**  [^DSK: change to "Requires kernel changes"?]
   Kernel-space collectors are out-of-scope for this work due to their increased maintenance overhead, security risk, and difficulty of system administration.
   Indeed, many of the systems are too old to be usable: LPM/ProvMon is a patch-set for Linux 2.6.32 (reached end-of-life 2016), Hi-Fi is a patch-set for Linux 3.2 (reached end-of-life in 2018).
   On the other hand, SingularityCE/Apptainer require Linux $\geq$ 3.8 for user namespaces.
@@ -470,8 +470,8 @@ We did not try reproducing provenance systems for the following reasons:
 <!--   Nevertheless, we would like to implement this system in a cycle-accurate virtual machine like gem5, if we had more time. -->
 
 - **Not reproducible (OPUS).**
-  We tried to get this provenance system to run with several weeks of effort, we emailed the original authors and other authors who used this system, and we left a GitHub issue describing the expected and actual results ^[See <https://github.com/dtg-FRESCO/opus/issues/1>],  however we still could not get the system to run properly.
-  If we had more time, perhaps we could debug the issue.
+  We tried to get this provenance system to run, with several weeks of effort: we emailed the original authors and other authors who used this system, and we left a GitHub issue describing the expected and actual results ^[See <https://github.com/dtg-FRESCO/opus/issues/1>]. However, we still could not get the system to run properly.
+  If we had more time, perhaps we could debug the issue.  [^DSK: not sure this last sentence is useful - maybe drop it. Or change it to say something like ", in a reasonable time" at the end of the prior sentence.]
 
 - **Needs more time (DTrace, SPADE, eBPF/bpftrace).**
   We simply needed more time to implement these provenance collectors.
@@ -607,31 +607,31 @@ URSPRING \cite{rupprechtImprovingReproducibilityData2020}    & open/close, fork/
 \footnotetext{LogGC measures the offline running time and size of garbage collected logs; there is no comparison to native would be applicable.}
 
 Of these, @tbl:prior-benchmarks shows the benchmarks used to evaluate each tool, of which there are quite a few.
-First, we eliminated several benchmarks from this set as non-starters for the reasons described in @tbl:excluded-bmarks.
-Then, we prioritized implementing frequently-used benchmarks, easy-to-implement benchmarks, and benchmarks which we believe have value in representing a computational science use-case.
+First, we eliminated several benchmarks from this set as non-starters for the reasons described in @tbl:excluded.
+Then, we prioritized implementing frequently-used benchmarks, easy-to-implement benchmarks, and benchmarks that we believe have value in representing a computational science use-case.
 
 - **HTTP/FTP servers/clients/traffic.**
   The most common benchmark class from prior work, HTTP servers/traffic, HTTP servers/clients, FTP servers/traffic, and FTP servers/clients are popular because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics).
   Therefore, we implement HTTP servers with simulated traffic, HTTP servers with specific clients, and FTP servers with simulated traffic.
   Although we wanted to implement FTP servers with specific clients, all of those executions reach the callstack depth in ltrace, even when fetching a single file, so we had to drop those.
-  We do not think they are substantially different from the FTP servers with simulated traffic.
+  We do not think they are substantially different from the FTP servers with simulated traffic.  [^DSK: is there value in FTP today, given how rarely it is still supported/permitted?]
 
 - **Compiling packages.**
-  Compiling packages from source is a common operation in computational science, therefore we implemented as many of these as we could and implemented some of our own.
+  Compiling packages from source is a common operation in computational science, so we implemented as many of these as we could and also implemented some of our own.
   However, compiling LLVM takes more than twice as long as the longest benchmark, so we excluded LLVM specifically from the benchmark suite.
-  We implemented a pattern for compiling packages from Spack which discounts the time taken to download sources, counting only the time taken to unpack, patch, configure, compile, link, and install them.
+  We implemented a pattern for compiling packages from Spack that discounts the time taken to download sources, counting only the time taken to unpack, patch, configure, compile, link, and install them.
   We try compiling Python, Boost, HDF5, glibc, Apache HTTPd, and Perl.
-  We would like to implement compilation for more packages, in particular xSDK [@bartlettXSDKFoundationsExtremescale2017] packages.
+  In the future, we plan to implement compilation for more packages, in particular xSDK [@bartlettXSDKFoundationsExtremescale2017] packages.  [^DSK: not sure if this goes here or in Future Work/Conclusions.]
 
 [^llvm]: Compiling LLVM from source takes multiple times longer than the longest benchmark. Since we already have many compilation benchmarks, we opted to increase the iteration counts (thereby reducing variance in our data) rather than include LLVM.
 
 - **Browsers.**
   Implementing headless for browsers in "batch-mode" without GUI interaction is not impossibly difficult, but non-trivial.
   Furthermore, we deprioritized this benchmark because few computational science applications resemble the workload of a web browser.
-  If we had more time, we would implement this benchmark too.
+  If we had more time, we would implement this benchmark too. [^DSK: not sure if this goes here or in Future Work/Conclusions.]
 
 - **Un/archive.**
-  Archive and unarchiving would be a common task for retrieving data or source code.
+  Archive and unarchiving is a common task for retrieving data or source code.
   We benchmark un/archiving several archives with several compression algorithms.
   Choosing a compression algorithm may turn an otherwise I/O-bound workload to a CPU-bound workload, which would make the impact of provenance tracing smaller.
 
@@ -655,7 +655,7 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
 - **Sendmail.**
   Sendmail is a quite old mail server program.
   Mail servers do not resemble a computational science workload, and it is unclear what workload we would run against the server.
-  Therfore, we deprioritized this benchmark and did not have time to implement it.
+  Therfore, we deprioritized this benchmark and did not implement it.
 
 - **VCS checkouts.**
   VCS checkouts are a common computational science operation.
@@ -668,13 +668,13 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
   For FIE, in particular, there is no script that glues all of the operations together; we would have to read the publication [@billahUsingDataGrid2016] which FIE supports to understand the workflow, and write our own script which glues the operations together.
 
 - **Coreutils and other utilities (bash, cp, ls, procps).**
-  We do not see a huge representative value in these benchmarks that would not already be gleaned from lmbench, but due to its simplicity, we implemented it anyway.
+  We did not see a huge representative value in these benchmarks that would not already be gleaned from lmbench, but due to its simplicity, we implemented it anyway.
   For `bash`, we do not know what workload prior works are using, but we test the speed of incrementing an integer and changing directories (`cd`).
 
 - The rest of the programs are mostly specific desktop applications used only in one prior work.
   These would likely not yield any insights not already yielded by the benchmarks we implemented, and for each one we would need to build it from source, find a workload for it, and take the time to run it.
   They weigh little in the argument that our benchmark suite represents prior work, since they are only used in one prior work.
-  We would like to implement these, but they have a lower priority.
+  We would like to implement these, but they have a lower priority. [^DSK: not sure if this goes here or in Future Work/Conclusions.]
 
 \begin{table}
 \caption{Benchmarks implemented by this work.}
