@@ -13,7 +13,7 @@ author:
     orcid: 0000-0001-5411-356X
     email: grayson5@illinois.edu
     affiliation:
-      institution: University of Illinois Urbana Champaign
+      institution: University of Illinois Urbana-Champaign
       department:
         - Department of Computer Science
       streetaddress:  201 North Goodwin Avenue MC 258
@@ -34,17 +34,14 @@ author:
     orcid: 0000-0001-5934-7525
     email: dskatz@illinois.edu
     affiliation:
-      institution: University of Illinois Urbana Champaign
+      institution: University of Illinois Urbana-Champaign
       department:
-        - Department of Computer Science
-        - National Center for Supercomputing Applications
-        - Deparment of Electrical and Computer Engineering
-        - School of Information Sciences
-      streetaddress:  201 North Goodwin Avenue MC 258
+        - NCSA & CS & ECE & iSchool
+      streetaddress:  1205 W Clark St
       city: Urbana
       state: IL
       country: USA
-      postcode: 61801-2302
+      postcode: 61801
   - name: Reed Milewicz
     orcid: 0000-0002-1701-0008
     email: rmilewi@sandia.gov
@@ -56,12 +53,12 @@ author:
       state: NM
       country: USA
       postcode: 87123
-      streetaddress: 1515 Eubank Blvd SE1515 Eubank Blvd SE
+      streetaddress: 1515 Eubank Blvd SE
   - name: Darko Marinov
     orcid: 0000-0001-5023-3492
     email: marinov@illinois.edu
     affiliation:
-      institution: University of Illinois Urbana Champaign
+      institution: University of Illinois Urbana-Champaign
       department:
         - Department of Computer Science
       streetaddress:  201 North Goodwin Avenue MC 258
