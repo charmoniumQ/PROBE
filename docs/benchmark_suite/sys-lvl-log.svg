@@ -1,9 +1,9 @@
-<svg viewBox="0 0 70 105" xmlns="http://www.w3.org/2000/svg">
-  <text x="5" y="15" font-family="monospace">read A</text>
-  <text x="5" y="35" font-family="monospace">write B</text>
-  <text x="5" y="55" font-family="monospace">read C</text>
-  <text x="5" y="75" font-family="monospace">write D</text>
-  <text x="5" y="95" font-family="monospace">write E</text>
+<svg viewBox="0 0 70 40" xmlns="http://www.w3.org/2000/svg">
+  <text x="15" y="15" font-family="monospace" font-size="8pt">read A</text>
+  <text x="15" y="20" font-family="monospace" font-size="8pt">write B</text>
+  <text x="15" y="25" font-family="monospace" font-size="8pt">read C</text>
+  <text x="15" y="30" font-family="monospace" font-size="8pt">write D</text>
+  <text x="15" y="35" font-family="monospace" font-size="8pt">write E</text>
   <!--
   <rect width=70 height=105 x=0 y=0 fill-opacity="0.2"/>
   -->

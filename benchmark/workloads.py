@@ -976,18 +976,18 @@ WORKLOADS: list[Workload] = [
     Cmds("gcc", "gcc-hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
     Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
     # TOD: Fix shell workloads
-    Cmds("shell", "shell-incr", noop_cmd, (result_bin / "bash", "-c", "for i in seq 1000; do i=$((i+1)); done")),
-    Cmds("shell", "cd", noop_cmd, (result_bin / "bash", "-c", "for i in seq 1000; do cd $WORKDIR; cd ../..; done")),
-    Cmds("shell", "shell-echo", noop_cmd, (result_bin / "bash", "-c", "for i in seq 1000; do echo hi > /dev/null; done")),
+    Cmds("shell", "shell-incr", noop_cmd, (result_bin / "bash", "-c", "i=0; for i in seq 10000; do i=$((i+1)); done")),
+    Cmds("shell", "cd", noop_cmd, (result_bin / "bash", "-c", "dir0={result_bin}/realpath $PWD; dir1={result_bin}/realpath $WORKDIR; for i in seq 10000; do cd $dir0; cd $dir1; done")),
+    Cmds("shell", "shell-echo", noop_cmd, (result_bin / "bash", "-c", "for i in seq 10000; do echo hi > /dev/null; done")),
     Cmds(
         "pdflatex",
-        "test",
+        "latex-test",
         (result_bin / "sh", "-c", f"{result_bin}/mkdir --parents $WORKDIR/latex && {result_bin}/cp test.tex $WORKDIR/latex/test.tex"),
         (result_bin / "env", "--chdir", "$WORKDIR/latex", "pdflatex", "test.tex"),
     ),
     Cmds(
         "pdflatex",
-        "test2",
+        "latex-test2",
         (result_bin / "sh", "-c", f"{result_bin}/mkdir --parents $WORKDIR/latex && {result_bin}/cp test2.tex $WORKDIR/latex/test2.tex"),
         (result_bin / "env", "--chdir", "$WORKDIR/latex", "pdflatex", "test2.tex"),
     ),
@@ -1003,7 +1003,7 @@ WORKLOADS: list[Workload] = [
     Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
     Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
     Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/big_test"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
     Cmds("lmbench", "select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-N", "1000", "file"), {"ENOUGH": "10000"}),
     Cmds("lmbench", "select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "100", "-N", "1000", "tcp"), {"ENOUGH": "10000"}),
     Cmds("lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
@@ -1063,15 +1063,15 @@ WORKLOADS: list[Workload] = [
     # ),
     # Proftpd(HTTP_PORT, 500), # unfortunately, this crashes in ltrace if this number is too big.
     # ltrace will alsosc crash if this number is too big: FtpClient(..., number)
-    Proftpd(HTTP_PORT, 10),
-    # FtpClient(
-    #     "lftp",
-    #     (result_bin / "lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),
-    #     HTTP_PORT,
-    #     1,
-    # ),
-    # FtpClient("ftp-curl", (result_bin / "curl", "--silent", "--output", "$dst", "$url"), HTTP_PORT, 1),
-    # FtpClient("ftp-wget", (result_bin / "wget", "--quiet", "--output-document", "$dst", "$url"), HTTP_PORT, 1),
+    Proftpd(HTTP_PORT, 500),
+    FtpClient(
+        "lftp",
+        (result_bin / "lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),
+        HTTP_PORT,
+        50,
+    ),
+    FtpClient("ftp-curl", (result_bin / "curl", "--silent", "--output", "$dst", "$url"), HTTP_PORT, 50),
+    FtpClient("ftp-wget", (result_bin / "wget", "--quiet", "--output-document", "$dst", "$url"), HTTP_PORT, 50),
     Postmark(100_000),
     Archive("", SMALLER_TARBALL_URL, 100),
     Archive("gzip", SMALLER_TARBALL_URL, 100),

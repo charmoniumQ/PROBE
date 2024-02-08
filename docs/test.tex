@@ -1,0 +1,24 @@
+\documentclass{article}
+
+\usepackage{longtable,supertabular,booktabs,calc,array,printlen}
+\newcommand\tcap{}
+\renewenvironment{longtable}{\begin{center}\bottomcaption{\tcap}\begin{supertabular}}{\end{supertabular}\end{center}}
+\renewcommand{\endhead}{}
+\renewcommand{\endlastfoot}{}
+
+
+\begin{document}
+
+\begin{longtable}[]{
+  @{}
+  >{\raggedright\arraybackslash}p{0.4638\columnwidth - 1.6\tabcolsep}
+  >{\raggedright\arraybackslash}p{0.2174\columnwidth - 0.8\tabcolsep}
+  >{\raggedright\arraybackslash}p{0.3188\columnwidth - 1.2\tabcolsep}
+  @{}
+}
+strace & Tracing & Reproduced \\
+\end{longtable}
+
+\normalsize
+
+\end{document}

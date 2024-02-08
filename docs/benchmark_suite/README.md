@@ -1,31 +1,87 @@
 ---
 from: markdown
 verbosity: INFO
-stadnalone: yes
-dpi: 300
-table-of-contents: no
-strip-comments: yes
 citeproc: yes
 ccite-method: citeproc
-bibliography: zotero.bib
+bibliography: zotero
 link-citations: yes
 link-bibliography: yes
 notes-after-punctuation: yes
-title: Evaluating prior research on rootless, system-level provenance for practical use
+title: A benchmark suite and performance analysis of provenance systems
 author:
-  - Samuel Grayson
-  - Reed Milewicz
-  - Daniel S. Katz
-  - Darko Marinov
+  - name: Samuel Grayson
+    orcid: 0000-0001-5411-356X
+    email: grayson5@illinois.edu
+    affiliation:
+      institution: University of Illinois Urbana Champaign
+      department:
+        - Department of Computer Science
+      streetaddress:  201 North Goodwin Avenue MC 258
+      city: Urbana
+      state: IL
+      country: USA
+      postcode: 61801-2302
+  - name: Daniel S. Katz
+    orcid: 0000-0001-5934-7525
+    email: dskatz@illinois.edu
+    affiliation:
+      institution: University of Illinois Urbana Champaign
+      department:
+        - Department of Computer Science
+        - National Center for Supercomputing Applications
+        - Deparment of Electrical and Computer Engineering
+        - School of Information Sciences
+      streetaddress:  201 North Goodwin Avenue MC 258
+      city: Urbana
+      state: IL
+      country: USA
+      postcode: 61801-2302
+  - name: Reed Milewicz
+    orcid: 0000-0002-1701-0008
+    email: rmilewi@sandia.gov
+    affiliation:
+      department:
+        - Software Engineering and Research Department
+      institution: Sandia National Laboratories
+      city: Albuquerque
+      state: NM
+      country: USA
+      postcode: 87123
+      streetaddress: 1515 Eubank Blvd SE1515 Eubank Blvd SE
+  - name: Darko Marinov
+    orcid: 0000-0001-5023-3492
+    email: marinov@illinois.edu
+    affiliation:
+      institution: University of Illinois Urbana Champaign
+      department:
+        - Department of Computer Science
+      streetaddress:  201 North Goodwin Avenue MC 258
+      city: Urbana
+      state: IL
+      country: USA
+      postcode: 61801-2302
+classoption:
+  - sigconf
+  - screen=true
+  - review=false
+  - authordraft=true
+  - timestamp=true
+  - balance=false
+  - pbalance=true
+papersize: letter
+pagestyle: plain
+lang: en-US
+standalone: yes # setting to yes calls \maketitle
+number-sections: yes
+indent: no
 date: 2024-01-30
-documentclass: article
 pagestyle: plain
 papersize: letter
 ---
 
 # Background
 
-Computational provenance, "the computational input artifacts and computational processes that influenced a certain computational output artifact" [@freireProvenanceComputationalTasks2008], has many potential applications, including the following from @pimentelSurveyCollectingManaging2019 and @sarLineageFileSystem:
+Computational provenance, "the computational input artifacts and computational processes that influenced a certain computational output artifact" [@freireProvenanceComputationalTasks2008], has many potential applications, including the following from Pimentel et al. [@pimentelSurveyCollectingManaging2019] and Sar and Cao [@sarLineageFileSystem]:
 
 1. **Reproducibility**.
    A description of the inputs and processes used to generate a specific output can aid manual and automatic reproduction of that output[^acm-defns].
@@ -67,21 +123,24 @@ One can capture computational provenance by modifying an application to report p
 - **Workflow-level** or **language-level** provenance is a middle ground in semantic richness and generality;
   it only knows the use of inputs in a dataflow sense (see @fig:wf-lvl-prov), but all applications using the provenance-modified workflow engine or programming language would emit provenance data without themselves being modified to emit provenance data.
 
-- **System-level** is the most general, since all applications on the system would emit provenance data, but it is the least semantically rich, since observed dependencies may overapproximate the true dependencies (see [@lst:sys-lvl-log; @fig:sys-lvl-prov]).
+- **System-level** is the most general, since all applications on the system would emit provenance data, but it is the least semantically rich, since observed dependencies may overapproximate the true dependencies (see @fig:sys-lvl-log and @fig:sys-lvl-prov).
 
 <div id="fig:prov">
 
-  ![Application-level prov](app-lvl-prov.svg){#fig:app-lvl-prov width=24%}
-  ![Workflow-level prov](wf-lvl-prov.svg){#fig:wf-lvl-prov width=24%}
-  ![System-level log](sys-lvl-log.svg){#fig:sys-lvl-log width=24%}
-  ![System-level prov](sys-lvl-prov.svg){#fig:sys-lvl-prov width=24%}
+   \scriptsize
 
+  ![Application-level prov](app-lvl-prov.svg){#fig:app-lvl-prov width=12%}
+  ![Workflow-level prov](wf-lvl-prov.svg){#fig:wf-lvl-prov width=12%}
+  ![System-level log](sys-lvl-log.svg){#fig:sys-lvl-log width=12%}
+  ![System-level prov](sys-lvl-prov.svg){#fig:sys-lvl-prov width=12%}
+
+  \normalsize
 
 Several provenance graphs collected at different levels.
 
 </div>
 
-One may imagine an abstract tradeoff curve between "enabling provenance applications such as reproducibility" as the horizontal axis increasing rightwards and "cost of implementation" that provenance data on the vertical axis increasing upwards (fig. [@fig:cost-vs-enabling]).
+One may imagine an abstract tradeoff curve (@fig:cost-vs-enabling) between "enabling provenance applications such as reproducibility" as the horizontal axis increasing rightwards and "cost of implementation" that provenance data on the vertical axis increasing upwards).
 A typical status quo, not collecting any provenance data and not using workflows, is at the bottom left:
   no added cost and does nothing to enable provenance applications.
 System-level, workflow/language-level, and application-level are on a curve, increasing cost and enabling more provenance applications.
@@ -187,7 +246,7 @@ We record the following features for each system-level provenance tool:
 Using the tools selected above, we identified all benchmarks that have been used in prior work.
 We excluded benchmarks for which we could not even find the original program (e.g., TextTransfer), benchmarks that were not available for Linux (e.g., Internet Explorer), benchmarks with a graphical component (e.g., Notepad++) , or benchmarks with an interactive component (e.g., GNU Midnight Commander).
 
-We implemented the benchmarks as packages for the [Nix package manager](https://nixos.org/guides/how-nix-works), so they are runnable on many different platforms.
+We implemented the benchmarks as packages for the Nix package manager^[See https://nixos.org/guides/how-nix-works], so they are runnable on many different platforms.
 Nix has official installers for Linux, Mac OS X, and Windows Subsystem for Linux on i686, x86_64, and aarch64 architectures, but FreeBSD and OpenBSD both package Nix themselves, and it can likely be built from source on even more platforms.
 
 We also added new benchmarks:
@@ -216,16 +275,29 @@ We also added new benchmarks:
 ## Performance experiment
 
 To get consistent measurements, we select as many benchmarks and provenance tracers as we reasonably can, and run a complete matrix (every tracer on every benchmark).
-@Tab:machine describes our experimental machine.
+@Tbl:machine describes our experimental machine.
 We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system.
 
-| Name   | Value                                          |
-|--------|------------------------------------------------|
-| CPU    | 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz |
-| RAM    | 16 GiB of SODIMM DDR4 Synchronous 2400 MHz     |
-| Kernel | Linux 6.1.64                                   |
+\begin{table}
+\caption{Our experimental machine description.}
+\label{tbl:machine}
+\begin{minipage}{\columnwidth}
+\begin{center}
+\scriptsize
+\begin{tabular}{ll}
+\toprule
+Name   & Value                                          \\
+\midrule
+CPU    & 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz \\
+RAM    & 16 GiB of SODIMM DDR4 Synchronous 2400 MHz     \\
+Kernel & Linux 6.1.64                                   \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{minipage}
+\end{table}
 
-: Our experimental machine description {#tbl:machine}
+
 
 ## Benchmark subsetting
 
@@ -254,7 +326,7 @@ We will try several methods to identify the most important benchmarks, keeping t
 
   2. We apply ID to the matrix.
      ID seeks to estimate a $m \times n$ matrix by retaining $k$ of its columns and using a linear regression to estimate the remaining $n-k$ from those selected $k$ columns.
-     Cheng et al. [@chengCompressionLowRank2005] give a $\mathcal{O(k(m+n-k))}$ algorithm for computing an optimal ID while keeping a reasonable[^reasonable-error] L2 norm of the difference between the estimated and actual columns.
+     Cheng et al. [@chengCompressionLowRank2005] give a $\mathcal{O}(k(m+n-k))$ algorithm for computing an optimal ID while keeping a reasonable[^reasonable-error] L2 norm of the difference between the estimated and actual columns.
      Cheng's procedure is implemented in `scipy.linalg.interpolative`[^scipy.linalg.interpolative].
 
     [^reasonable-error]: The best possible error for any rank-$k$ factorization of a matrix is given by the $(k+1)^{\mathrm{th}}$ singular value. Since ID constrains the space of permissible factors, the L2 loss will be at least that. Cheng et al.'s ID method guarantees an error within a $\sqrt{1 + k(min(m,n) - k)}$ factor of the $(k+1)^{\mathrm{th}}$ singular value. Read asymptotically, the bound asserts as the singular value decreases, so too does the L2 loss.
@@ -290,23 +362,32 @@ Imagine a benchmark suite which minimizes MAE and another which minimizes MSE.
 The MAE-minizing suite one might be very accurate for most provenance systems, but egregiously wrong for a few; a MSE-minizing suite may be "more wrong" on average, but the worst-case wouldn't be as bad as the MAE one.
 As such, an MSE subset would be more practically useful for future publictions to benchmark their new provenance systems.
 
+We score the model on its ability to predict the logarithm of the ratio between a program running in provenance-generating and native systems.
+We use a ratio rather than the difference because some tests are very fast (10 seconds; so a 5 second predictive error matters a lot), while some tests are very slow (1000 seconds; so a 5 second predictive error matters very little).
+We predict the logarithm of the ratio, rather than the ratio directly because the ratio is multiplicative.
+Any real number is permissible; 0 indicates "nothing changed", 1 indicates a speedup by a certain factor, and -1 indicates a slowdown *by the same factor*.
+
 While cross-validation does punish model-complexity and overfitting to some extent, we will still take the number of parameters into account when deciding the "best" model in the interest of epistemic modesty.
 Preferring fewer parameters makes the model more generalizable on out-of-domain data, since even our full cross-validation data is necessarily incomplete.
 
 ## Performance model
 
 A related problem to subsetting is inferring a performance model.
-A computational scientist may wonder what overhead they will incur from using a provenance system.
-However, they may not want to spend the time downloading and installing one, if they can get a back-of-the-envelope answer more quickly.
-A performance model should input features of a prospective workload and output the approximate overhead under different systems.
+There are two motivations for inferring a performance model:
 
+- A sysadmin may wish to provide a computational provenance capturing system to their institution, but getting approval to run new software on their system may be expensive (e.g., on highly secure systems, the sysadmin may need to acquire a security audit of the code before it can be approved for use).
+  They may want to prospectively estimate the overhead of provenance collectors without having to install all the provenance collectors on their system, so they can select the optimal collector for their use-case.
+
+- Inferring a provenance model may improve our understanding of the bottlenecks in provenance collectors.
+
+A performance model should input features of a prospective workload and output the approximate overhead under different systems.
 A priori, provenance systems put a "tax" on certain syscalls (e.g., file I/O operations, process forks, process execs), because the system has to intercept and record these
 Therefore, we expect a low-dimensional linear model (perhaps number of I/O operations per second times a weight plus number of forks per second times another weight) would predict overhead optimally.
 To estimate this, we use the following models:
 
 - **Ordinary least-squares (OLS) linear regression**.
   We estimate the runtime of each benchmark on each provenance system as a linear regression of the features of each benchmark, learning weights for each feature in each provenance system using ordinary least-squares.
-  This would create a model like $\mathrm{weight}_1 \cdot \mathrm{feature}_1 +_\mathrm{weight}_2 \cdot \mathrm{feature}_2 + \cdots$
+  This would create a model like $\mathrm{weight}_1 \cdot \mathrm{feature}_1 + \mathrm{weight}_2 \cdot \mathrm{feature}_2 + \cdots$
   However, we can reduced its number of paramters, and thereby increase its out-of-domain generalizability, by the next two methods.
 
 - **Low-rank linear regression.**
@@ -319,7 +400,14 @@ To estimate this, we use the following models:
   Unfortunately, we do not know an efficient algorithm like ID for selecting this subset.
   We tried to algorithms: greedy, which picks one additional feature that decreases loss the most until it has $k$ features, and random, which selects a random $k$-sized subset.
 
-Like with benchmark minimization, we will use cross-validated RMSE errors and the number of features in each model to select the best.
+We use as features:
+
+- The number of \$x-syscalls made per walltime second, where \$x could be socket-related, file-related, reading-file-metadata, chmod, exec, clone, etc
+- The number of syscalls per walltime second
+- The amount of CPU time used per walltime second
+- A constant fixed-cost per-execution
+
+Like with benchmark minimization, we will use cross-validated RMSE errors in log of overhead ratio and the number of features in each model to select the best.
 
 # Results
 
@@ -348,9 +436,9 @@ We did not try reproducing provenance systems for the following reasons:
 - **No source.**
   We searched the original papers, GitHub, BitBucket, Google, and emailed the first author (CCing the others).
   If we still could not find the source code for a particular provenance collector, we cannot reproduce it.
-  Note, however, that RecProv is implemented using rr, so we can use rr as a proxy for RecProv.
+  Note, however, that RecProv is implemented using rr, so we can use rr as a lower-bound for RecProv.
   
-- **Need more time for ancient kernel.**
+- **Ancient kernel (Hi-Fi and LPM/ProvMon).**
   Some provenance systems are implemented as patches into the Linux kernel.
   As time passed, these grew out-of-date with modern Linux kernels.
   We deprioritized the implementation of these methods because they require extermely old kernels, and thus may not be worthy of use in practical systems.
@@ -358,61 +446,88 @@ We did not try reproducing provenance systems for the following reasons:
   This difficulty is not a bug in our study, but reflects an underlying reality that modified kernels are less likely to be maintained.
   However, if we had more time, we would want to reproduce these systems too.
 
-- **Need more time for modified kernel.**
+- **Need more time for kernel (CamFlow).**
   Provenance systems that are implemented as patches on the Linux kernel are difficult to deploy, even if the kernel is recent.
-  We could implement experimental infrastructure to run the modified kernel on "bare metal", which is difficult to set up, or we could run the modified kernel in a traditional virtual machine, which would distort the runtimes non-linearly from native performance and invalidate the predictive performance model, or a cycle-accurate virtual machine, which would prohibitively slow down the benchmark suite to the point that we would have much less data.
+  We could implement experimental infrastructure to run the modified kernel on "bare metal", which is difficult to set up and dangerous, or we could run the modified kernel in a traditional virtual machine, which would distort the runtimes non-linearly from native performance and invalidate the predictive performance model, or a cycle-accurate virtual machine, which would prohibitively slow down the benchmark suite to the point that we would have much less data.
   Nevertheless, we would like to implement this system in a cycle-accurate virtual machine like gem5, if we had more time.
 
-- **Not reproducible.**
-  We tried to get this provenance system to run over the course of several weeks, and we emailed the original authors and the other authors who used this system, however we still could not get the system to run properly.
+- **Not reproducible (OPUS).**
+  We tried to get this provenance system to run with several weeks of effort, we emailed the original authors and other authors who used this system, and we left a GitHub issue describing the expected and actual results ^[See <https://github.com/dtg-FRESCO/opus/issues/1>],  however we still could not get the system to run properly.
   If we had more time, perhaps we could debug the issue.
 
-- **Needs more time.**
+- **Needs more time (DTrace, SPADE, eBPF/bpftrace).**
   We simply needed more time to implement these provenance collectors.
 
-| Tool                                                           | Collection method            | Status                                     |
-|----------------------------------------------------------------|------------------------------|--------------------------------------------|
-| strace                                                         | Tracing                      | Reproduced                                 |
-| ltrace                                                         | Tracing                      | Reproduced                                 |
-| fsatrace                                                       | Library ins.                 | Reproduced                                 |
-| ReproZip [@chirigatiReproZipComputationalReproducibility2016]  | Tracing                      | Reproduced                                 |
-| Sciunit2 [@tonthatSciunitsReusableResearch2017]                | Tracing                      | Reproduced                                 |
-| rr [@ocallahanEngineeringRecordReplay2017]                     | Tracing                      | Reproduced                                 |
-| CDE [@guoCDEUsingSystem2011]                                   | Tracing                      | Reproduced                                 |
-| SPADE [@gehaniSPADESupportProvenance2012]                      | Audit, FS, or compile-time   | Needs more time                            |
-| DTrace [@DTrace]                                               | Audit                        | Needs more time                            |
-| eBPF/bpftrace                                                  | Audit                        | Needs more time                            |
-| OPUS [@balakrishnanOPUSLightweightSystem2013]                  | Library ins.                 | Not reproducible                           |
-| CamFlow [@pasquierPracticalWholesystemProvenance2017]          | Kernel ins.                  | Needs more time for modified kernel        |
-| Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]                   | Kernel ins.                  | Need more time for ancient kernel (3.2.0)  |
-| LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015]       | Kernel ins.                  | Need more time for ancient kernel (2.6.32) |
-| RecProv [@jiRecProvProvenanceAwareUser2016]                    | Tracing                      | No source                                  |
-| LPROV [@wangLprovPracticalLibraryaware2018]                    | Kernel mod., lib. ins.       | No source                                  |
-| S2Logger [@suenS2LoggerEndtoEndData2013]                       | Kernel mod.                  | No source                                  |
-| ProTracer [@maProTracerPracticalProvenance2016]                | Kernel mod.                  | No source                                  |
-| FiPS [@sultanaFileProvenanceSystem2013]                        | FS ins.                      | No source                                  |
-| PANDDE [@fadolalkarimPANDDEProvenancebasedANomaly2016]         | FS ins.                      | No source                                  |
-| PASS/Pasta [@muniswamy-reddyProvenanceAwareStorageSystems2006] | Kernel ins., FS ins.         | No source                                  |
-| PASSv2/Lasagna [@muniswamy-reddyLayeringProvenanceSystems2009] | Kernel ins., FS, lib. ins.   | No source                                  |
-| Lineage FS [@sarLineageFileSystem]                             | Kernel ins.                  | No source                                  |
-| RTAG [@jiEnablingRefinableCrossHost2018]                       | Kernel ins.                  | No source                                  |
-| BEEP [@leeHighAccuracyAttack2017]                              | Dyn./static binary ins.      | Requires HW                                |
-| libdft [@kemerlisLibdftPracticalDynamic2012]                   | Dyn. binary ins.             | Requires HW                                |
-| RAIN [@jiRAINRefinableAttack2017]                              | Dyn. bin., kernel, lib. ins. | Requires HW                                |
-| DataTracker [@stamatogiannakisLookingBlackBoxCapturing2015]    | Dinamic binary ins.          | Requires HW                                |
-| MPI[@maMPIMultiplePerspective2017]                             | Compile-time ins.            | Requires recompilation                     |
-| LDX [@kwonLDXCausalityInference2016]                           | Compile-time ins.            | Requires recompilation                     |
-| Panorama [@yinPanoramaCapturingSystemwide2007]                 | VM ins.                      | VMs are too slow                           |
-| PROV-Tracer [@stamatogiannakisDecouplingProvenanceCapture2015] | VM ins.                      | VMs are  too slow                          |
-| Event Tracer for Windows [@EventTracingWin322021]              | Audit                        | Not for Linux                              |
-| Sysmon [@markrussSysmonSysinternals2023]                       | Audit                        | Not for Linux                              |
-| TREC [@vahdatTransparentResultCaching1998]                     | Audit                        | Not for Linux                              |
-| URSprung [@rupprechtImprovingReproducibilityData2020]          | Audit, file-system ins.      | Not for Linux (IBM Spectrum Scale)         |
-| Ma et al. [@maAccurateLowCost2015]                             | Kernel ins.                  | Not for Linux                              |
+- **Reproduced/excluded (ltrace).**
+  ltrace is an off-the-shelf tool, available in most Linux package repositories.
+  However, we found it could not handle several of our benchmark workloads.
+  We localized the problem to the following code^[See <https://gitlab.com/cespedes/ltrace/-/blob/8eabf684ba6b11ae7a1a843aca3c0657c6329d73/handle_event.c#L775>]: 
 
-: Provenance collectors mentioned in primary and secondary studies in our search results. {#tbl:tools}
+\scriptsize
+``` c
+	/* FIXME: not good -- should use dynamic allocation. 19990703 mortene. */
+	if (proc->callstack_depth == MAX_CALLDEPTH - 1) {
+		fprintf(stderr, "%s: Error: call nesting too deep!\n", __func__);
+		abort();
+		return;
+	}
+```
+\normalsize
 
-[^spade]: SPADE can use multiple backends, including other provenance collectors. On Linux, SPADE can use: Auditd, CamFlow, FUSE; On MacOS: OpenBSM, MacFUSE, Fuse4x; On Windows: ProcessMonitor; On any platform: import static data (e.g., from logs on disk), applications instrumented with API, applications compiled with LLVM pass.
+\begin{table}
+\caption{Provenance collectors mentioned in primary and secondary studies in our search results.}
+\label{tbl:tools}
+%\begin{minipage}{\columnwidth}
+\begin{center}
+\scriptsize
+\begin{tabular}{lll}
+\toprule
+Tool                                                               & Collection method            & Status                               \\
+\midrule
+strace                                                             & Tracing                      & Reproduced                           \\
+fsatrace                                                           & Library ins.                 & Reproduced                           \\
+ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & Tracing                      & Reproduced                           \\
+Sciunit2 \cite{tonthatSciunitsReusableResearch2017}                & Tracing                      & Reproduced                           \\
+rr \cite{ocallahanEngineeringRecordReplay2017}                     & Tracing                      & Reproduced                           \\
+CDE \cite{guoCDEUsingSystem2011}                                   & Tracing                      & Reproduced                           \\
+ltrace                                                             & Tracing                      & Reproduced/excluded                  \\
+SPADE \cite{gehaniSPADESupportProvenance2012}                      & Audit, FS, or compile-time   & Needs more time                      \\
+DTrace \cite{DTrace}                                               & Audit                        & Needs more time                      \\
+eBPF/bpftrace                                                      & Audit                        & Needs more time                      \\
+CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & Kernel ins.                  & Needs more time for kern.            \\
+OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & Library ins.                 & Not reproducible                     \\
+Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & Kernel ins.                  & Ancient kernel (3.2.0)               \\
+LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & Kernel ins.                  & Ancient kernel (2.6.32)              \\
+RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & Tracing                      & No source                            \\
+LPROV \cite{wangLprovPracticalLibraryaware2018}                    & Kernel mod., lib. ins.       & No source                            \\
+S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & Kernel mod.                  & No source                            \\
+ProTracer \cite{maProTracerPracticalProvenance2016}                & Kernel mod.                  & No source                            \\
+FiPS \cite{sultanaFileProvenanceSystem2013}                        & FS ins.                      & No source                            \\
+PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & FS ins.                      & No source                            \\
+PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & Kernel ins., FS ins.         & No source                            \\
+PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & Kernel ins., FS, lib. ins.   & No source                            \\
+Lineage FS \cite{sarLineageFileSystem}                             & Kernel ins.                  & No source                            \\
+RTAG \cite{jiEnablingRefinableCrossHost2018}                       & Kernel ins.                  & No source                            \\
+BEEP \cite{leeHighAccuracyAttack2017}                              & Dyn./static binary ins.      & Requires HW                          \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & Dyn. binary ins.             & Requires HW                          \\
+RAIN \cite{jiRAINRefinableAttack2017}                              & Dyn. bin., kernel, lib. ins. & Requires HW                          \\
+DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & Dinamic binary ins.          & Requires HW                          \\
+MPI\cite{maMPIMultiplePerspective2017}                             & Compile-time ins.            & Requires recompilation               \\
+LDX \cite{kwonLDXCausalityInference2016}                           & Compile-time ins.            & Requires recompilation               \\
+Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VM ins.                      & VMs are too slow                     \\
+PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & VM ins.                      & VMs are  too slow                    \\
+ETW \cite{EventTracingWin322021}                                   & Audit                        & Not for Linux                        \\
+Sysmon \cite{markrussSysmonSysinternals2023}                       & Audit                        & Not for Linux                        \\
+TREC \cite{vahdatTransparentResultCaching1998}                     & Audit                        & Not for Linux                        \\
+URSprung \cite{rupprechtImprovingReproducibilityData2020}          & Audit, file-system ins.      & Not for Linux\footnotemark           \\
+Ma et al. \cite{maAccurateLowCost2015}                             & Kernel ins.                  & Not for Linux                        \\
+\bottomrule
+\end{tabular}
+\normalsize
+\end{center}
+%\end{minipage}
+\end{table}
+\footnotetext{URSprung depends on IBM Spectrum Scale to get directory change notifications, so it is not for a \textit{generic} Linux system.}
 
 <!--
 | Tool                                                  | Reason                                                          |
@@ -431,72 +546,109 @@ We did not try reproducing provenance systems for the following reasons:
 
 ## Implemented benchmarks
 
-| Provenance publication                                   | Benchmarks                                                                                                                                      | Comparisons          | Year |
-|----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|----------------------|------|
-| TREC [@vahdatTransparentResultCaching1998]               | open/close, compile Apache, compile LaTeX doc                                                                                                   | Native               | 1999 |
-| PASS [@muniswamy-reddyProvenanceAwareStorageSystems2006] | BLAST                                                                                                                                           | Native ext2          | 2006 |
-| Panorama [@yinPanoramaCapturingSystemwide2007]           | curl, scp, gzip, bzip2                                                                                                                          | Native               | 2007 |
-| PASSv2 [@muniswamy-reddyLayeringProvenanceSystems2009]   | BLAST, compile Linux, Postmark, Mercurial, Kepler                                                                                               | Native ext3, NFS     | 2009 |
-| SPADEv2 [@gehaniSPADESupportProvenance2012]              | BLAST, compile Apache, Apache                                                                                                                   | Native               | 2012 |
-| Hi-Fi [@pohlyHiFiCollectingHighfidelity2012]             | lmbench, compile Linux, Postmark                                                                                                                | Native               | 2012 |
-| libdft [@kemerlisLibdftPracticalDynamic2012]             | scp, {tar, gzip, bzip2} x {extract, compress}                                                                                                   | PIN                  | 2012 |
-| LogGC [@leeLogGCGarbageCollecting2013]                   | RUBiS, Firefox, MC, Pidgin, Pine, Proftpd, Sendmail, sshd, vim, w3m, wget, xpdf, yafc, Audacious, bash, Apache, mysqld                          | [^loggc-bench]       | 2013 |
-| LPM/ProvMon [@batesTrustworthyWholeSystemProvenance2015] | lmbench, compile Linux, Postmark, BLAST                                                                                                         | Native               | 2015 |
-| Ma et al. [@maAccurateLowCost2015]                       | TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, simplehttp, Sublime Text                          | Native               | 2015 |
-| ProTracer [@maProTracerPracticalProvenance2016]          | Apache, miniHTTP, ProFTPD, Vim, Firefox, w3m, wget, mplayer, Pine, xpdf, MC, yafc                                                               | Auditd, BEEP, LogGC  | 2016 |
-| LDX [@kwonLDXCausalityInference2016]                     | SPEC CPU 2006, Firefox, lynx, nginx, tnftp, sysstat, gif2png, mp3info, prozilla, yopsweb, ngircd, gocr, Apache, pbzip2, pigz, axel, x264        | Native               | 2016 |
-| PANDDE [@fadolalkarimPANDDEProvenancebasedANomaly2016]   | ls, cp, cd, lpr                                                                                                                                 | Native               | 2016 |
-| MPI [@maMPIMultiplePerspective2017]                      | Apache, bash, Evince, Firefox, Krusader, wget, most, MC, mplayer, MPV, nano, Pine, ProFTPd, SKOD, TinyHTTPd, Transmission, Vim, w3m, xpdf, Yafc | Audit, LPM-HiFi      | 2017 |
-| CamFlow [@pasquierPracticalWholesystemProvenance2017]    | lmbench, postmark, unpack kernel, compile Linux, Apache, Memcache, redis, php, pybench                                                          | Native               | 2017 |
-| BEEP [@leeHighAccuracyAttack2017]                        | Apache, Vim, Firefox, wget, Cherokee, w3m, ProFTPd, yafc, Transmission, Pine, bash, mc, sshd, sendmail                                          | Native               | 2017 |
-| RAIN [@jiRAINRefinableAttack2017]                        | SPEC CPU 2006, cp linux, wget, compile libc, Firefox, SPLASH-3                                                                                  | Native               | 2017 |
-| Sciunit [@tonthatSciunitsReusableResearch2017]           | VIC, FIE                                                                                                                                        | Native               | 2017 |
-| LPROV [@wangLprovPracticalLibraryaware2018]              | Apache, simplehttp, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                                      | Native               | 2018 |
-| MCI [@kwonMCIModelingbasedCausality2018]                 | Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS, vim, elinks, alpine, zip, transmission, lftp, yafc, wget, ping, procps                         | BEEP                 | 2018 |
-| RTAG [@jiEnablingRefinableCrossHost2018]                 | SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                                  | RAIN                 | 2018 |
-| URSPRING [@rupprechtImprovingReproducibilityData2020]    | open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                                 | Native, SPADE+auditd | 2020 |
+\begin{table}
+\caption{Benchmarks used in various provenance publications.}
+\label{tbl:prior-benchmarks}
+%\begin{minipage}{\columnwidth}
+\begin{center}
+\scriptsize
+\begin{tabular}{p{0.21\linewidth}p{0.54\linewidth}p{0.12\linewidth}}
+\toprule
+Publication                                                  & Benchmarks                                                                                                                                      & Comparisons           \\
+\midrule
+TREC \cite{vahdatTransparentResultCaching1998}               & open/close, compile Apache, compile LaTeX doc                                                                                                   & Native                \\
+PASS \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & BLAST                                                                                                                                           & Native ext2           \\
+Panorama \cite{yinPanoramaCapturingSystemwide2007}           & curl, scp, gzip, bzip2                                                                                                                          & Native                \\
+PASSv2 \cite{muniswamy-reddyLayeringProvenanceSystems2009}   & BLAST, compile Linux, Postmark, Mercurial, Kepler                                                                                               & Native ext3, NFS      \\
+SPADEv2 \cite{gehaniSPADESupportProvenance2012}              & BLAST, compile Apache, Apache                                                                                                                   & Native                \\
+Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}             & lmbench, compile Linux, Postmark                                                                                                                & Native                \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}             & scp, {tar, gzip, bzip2} x {extract, compress}                                                                                                   & PIN                   \\
+LogGC \cite{leeLogGCGarbageCollecting2013}                   & RUBiS, Firefox, MC, Pidgin, Pine, Proftpd, Sendmail, sshd, vim, w3m, wget, xpdf, yafc, Audacious, bash, Apache, mysqld                          & None\footnotemark     \\
+LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015} & lmbench, compile Linux, Postmark, BLAST                                                                                                         & Native                \\
+Ma et al. \cite{maAccurateLowCost2015}                       & TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, simplehttp, Sublime Text                          & Native                \\
+ProTracer \cite{maProTracerPracticalProvenance2016}          & Apache, miniHTTP, ProFTPD, Vim, Firefox, w3m, wget, mplayer, Pine, xpdf, MC, yafc                                                               & Auditd, BEEP          \\
+LDX \cite{kwonLDXCausalityInference2016}                     & SPEC CPU 2006, Firefox, lynx, nginx, tnftp, sysstat, gif2png, mp3info, prozilla, yopsweb, ngircd, gocr, Apache, pbzip2, pigz, axel, x264        & Native                \\
+PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}   & ls, cp, cd, lpr                                                                                                                                 & Native                \\
+MPI \cite{maMPIMultiplePerspective2017}                      & Apache, bash, Evince, Firefox, Krusader, wget, most, MC, mplayer, MPV, nano, Pine, ProFTPd, SKOD, TinyHTTPd, Transmission, Vim, w3m, xpdf, Yafc & Audit, LPM-HiFi       \\
+CamFlow \cite{pasquierPracticalWholesystemProvenance2017}    & lmbench, postmark, unpack kernel, compile Linux, Apache, Memcache, redis, php, pybench                                                          & Native                \\
+BEEP \cite{leeHighAccuracyAttack2017}                        & Apache, Vim, Firefox, wget, Cherokee, w3m, ProFTPd, yafc, Transmission, Pine, bash, mc, sshd, sendmail                                          & Native                \\
+RAIN \cite{jiRAINRefinableAttack2017}                        & SPEC CPU 2006, cp linux, wget, compile libc, Firefox, SPLASH-3                                                                                  & Native                \\
+Sciunit \cite{tonthatSciunitsReusableResearch2017}           & VIC, FIE                                                                                                                                        & Native                \\
+LPROV \cite{wangLprovPracticalLibraryaware2018}              & Apache, simplehttp, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                                      & Native                \\
+MCI \cite{kwonMCIModelingbasedCausality2018}                 & Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS, vim, elinks, alpine, zip, transmission, lftp, yafc, wget, ping, procps                         & BEEP                  \\
+RTAG \cite{jiEnablingRefinableCrossHost2018}                 & SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                                  & RAIN                  \\
+URSPRING \cite{rupprechtImprovingReproducibilityData2020}    & open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                                 & Native, SPADE  \\
+\bottomrule
+\normalsize
+\end{tabular}
+\end{center}
+%\end{minipage}
+\end{table}
+\footnotetext{LogGC measures the offline running time and size of garbage collected logs; there is no comparison to native would be applicable.}
 
 Of these, @tbl:prior-benchmarks shows the benchmarks used to evaluate each tool, of which there are quite a few.
 First, we eliminated several benchmarks from this set as non-starters for the reasons described in @tbl:excluded-bmarks.
 Then, we prioritized implementing frequently-used benchmarks, easy-to-implement benchmarks, and benchmarks which we believe have value in representing a computational science use-case.
 
-- The most common benchmark class from prior work, HTTP servers/traffic, HTTP servers/clients, FTP servers/traffic, and FTP servers/clients are popular because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics);
-  servers and clients are a common threat vector.
+- **HTTP/FTP servers/clients/traffic.**
+  The most common benchmark class from prior work, HTTP servers/traffic, HTTP servers/clients, FTP servers/traffic, and FTP servers/clients are popular because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics).
   Therefore, we implement HTTP servers with simulated traffic, HTTP servers with specific clients, and FTP servers with simulated traffic.
   Although we wanted to implement FTP servers with specific clients, all of those executions reach the callstack depth in ltrace, even when fetching a single file, so we had to drop those.
   We do not think they are substantially different from the FTP servers with simulated traffic.
 
-- Compiling packages from source is a common operation in computational science, therefore we implemented as many of these as we could and implemented some of our own.
+- **Compiling packages.**
+  Compiling packages from source is a common operation in computational science, therefore we implemented as many of these as we could and implemented some of our own.
   However, compiling LLVM takes more than twice as long as the longest benchmark, so we excluded LLVM specifically from the benchmark suite.
   We implemented a pattern for compiling packages from Spack which discounts the time taken to download sources, counting only the time taken to unpack, patch, configure, compile, link, and install them.
   We try compiling Python, Boost, HDF5, glibc, Apache HTTPd, and Perl.
   We would like to implement compilation for more packages, in particular xSDK [@bartlettXSDKFoundationsExtremescale2017] packages.
 
-- Implementing headless for browsers in "batch-mode" without GUI interaction is not impossibly difficult, but non-trivial.
+[^llvm]: Compiling LLVM from source takes multiple times longer than the longest benchmark. Since we already have many compilation benchmarks, we opted to increase the iteration counts (thereby reducing variance in our data) rather than include LLVM.
+
+- **Browsers.**
+  Implementing headless for browsers in "batch-mode" without GUI interaction is not impossibly difficult, but non-trivial.
   Furthermore, we deprioritized this benchmark because few computational science applications resemble the workload of a web browser.
   If we had more time, we would implement this benchmark too.
 
-- Un/archive would be a common task for retrieving data or source code.
+- **Un/archive.**
+  Archive and unarchiving would be a common task for retrieving data or source code.
   We benchmark un/archiving several archives with several compression algorithms.
   Choosing a compression algorithm may turn an otherwise I/O-bound workload to a CPU-bound workload, which would make the impact of provenance tracing smaller.
 
-- lmbench is a series of microbenchmarks, most of which test the latency of syscalls or certain system operations.
-  We use the specific benchmark cases from prior work, which is mostly the latency benchmarks with a few bandwidth benchmarks.
+- **I/O microbenchmarks (lmbench, postmark, custom).**
+  These could be informative for explicating which I/O operations are most affected.
+  Prior work uses lmbench [@mcvoyLmbenchPortableTools1996], which focuses on syscalls generally, Postmark [@katcherPostMarkNewFile2005], which focuses on I/O operations, and custom benchmarks, for example running open/close in a tight loop.
+  We use the specific lmbench cases from prior work, which is mostly the latency benchmarks with a few bandwidth benchmarks.
   Most provenance systems do not affect the bandwdith; it doesn't matter *how much* this process writes to that file, just *that* this process wrote to that file.
 
-- BLAST is a search for a fuzzy string in a protein database.
+- **BLAST.**
+  BLAST [@altschulBasicLocalAlignment1990] is a search for a fuzzy string in a protein database.
   Many prior works use this as a file-read heavy benchmark, as do we.
   This code in particular resembles a computational science workload.
   However, unlike prior work, we split the benchmark into each of each subtasks; provenance may have a greater overhead on certain subtasks.
 
-- Sendmail is a quite old mail server program.
-  Mail servers do not resemble a computational science workload, and it is unclear what workload we would run against the server.
+- **CPU benchmarks.**
+  SPEC CPU INT 2006 [@henningSPECCPU2006Benchmark2006] and SPLASH-3 [@sakalisSplash3ProperlySynchronized2016] test CPU performance.
+  Provenance collection would not slow down CPU integer processing at all, since it only intercepts I/O related library- or system-calls.
+  Therefore, we deprioritized these benchmarks, and we did not have enough time to write reproducible build scripts for SPEC CPU INT 2006.
 
-- VCS checkouts are a common computational science operation.
+- **Sendmail.**
+  Sendmail is a quite old mail server program.
+  Mail servers do not resemble a computational science workload, and it is unclear what workload we would run against the server.
+  Therfore, we deprioritized this benchmark and did not have time to implement it.
+
+- **VCS checkouts.**
+  VCS checkouts are a common computational science operation.
   Prior work uses Mercurial, but we implemented Mercurial and Git.
   We simply clone a repository (untimed) and run `$vcs checkout` for random commits in the repository (timed).
 
-- We do not see a huge representative value in `bash`, `cp`, `ls`, and `procps` that would not already be gleaned from lmbench, but due to its simplicity, we implemented it anyway.
+- **Data processing/machine-learning Workflows.**
+  VIC, FIE, ImageML, and Spark are real-world examples of scientific workflows.
+  We would like to implement these, but reproducing those workflows is non-trivial; they each require their own computational stack.
+  For FIE, in particular, there is no script that glues all of the operations together; we would have to read the publication [@billahUsingDataGrid2016] which FIE supports to understand the workflow, and write our own script which glues the operations together.
+
+- **Coreutils and other utilities (bash, cp, ls, procps).**
+  We do not see a huge representative value in these benchmarks that would not already be gleaned from lmbench, but due to its simplicity, we implemented it anyway.
   For `bash`, we do not know what workload prior works are using, but we test the speed of incrementing an integer and changing directories (`cd`).
 
 - The rest of the programs are mostly specific desktop applications used only in one prior work.
@@ -504,72 +656,68 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
   They weigh little in the argument that our benchmark suite represents prior work, since they are only used in one prior work.
   We would like to implement these, but they have a lower priority.
 
-- VIC, FIE, ImageML, and Spark are real-world examples of scientific workflows.
-  We would like to implement these, but reproducing those workflows is non-trivial; they each require their own computational stack.
-  For FIE, in particular, there is no script that glues all of the operations together; we would have to read the publication [@billahUsingDataGrid2016] which FIE supports to understand the workflow, and write our own script which glues the operations together.
-
-: Benchmarks used in various provenance publications. {#tbl:prior-benchmarks}
-
-[^loggc]: LogGC measures the offline running time and size of garbage collected logs; there is no comparison to native would be applicable.
-
-| Prior works | This work                        | Benchmark group and examples from prior work                                                                   |
-|-------------|----------------------------------|----------------------------------------------------------------------------------------------------------------|
-| 10          | yes (5/7 servers)                | HTTP server/traffic ({Apache httpd, miniHTTP, simplehttp, lighttpd, Nginx, tinyhttpd, cherokee} x apachebench) |
-| 9           | yes (3/4 clients)                | HTTP serer/client (simplehttp x {curl, wget, prozilla, axel})                                                  |
-| 8           | yes (3/5 orig^[llvm] + 4 others) | Compile user packages (Apache, LLVM, glibc, Linux, LaTeX document)                                             |
-| 5           | yes                              | FTP server/traffic (ProFTPd x ftpbench)                                                                        |
-| 8           | no                               | Browsers ({Firefox, Chromium} x Sunspider)                                                                     |
-| 5           | yes                              | Un/archive ({compress, decompress} x tar x {nothing, bzip2, pbzip, gzip, pigz, zip})[^unpack-linux]            |
-| 5           | yes                              | lmbench[^lmbench]                                                                                              |
-| 4           | yes                              | BLAST                                                                                                          |
-| 4           | yes                              | Postmark                                                                                                       |
-| 3           | no                               | SPEC CPU 2006                                                                                                  |
-| 3           | yes                              | bash                                                                                                           |
-| 3           | yes                              | Coreutils and other utils (cp, ls, procps)                                                                     |
-| 2           | no                               | Sendmail                                                                                                       |
-| 1           | yes                              | VCS checkouts (Mercurial)                                                                                      |
-| 1           | yes                              | procps                                                                                                         |
-| 1           | no                               | Machine learning workflows (CleanML, Spark)                                                                    |
-| 1           | no                               | Data processing workflows (VIC, FIE)                                                                           |
-| 1           | no                               | RUBiS                                                                                                          |
-| 1           | no                               | SPLASH-3                                                                                                       |
-| 1           | no                               | x264                                                                                                           |
-| 1           | no                               | mysqld                                                                                                         |
-| 1           | no                               | gocr                                                                                                           |
-| 1           | no                               | Memcache                                                                                                       |
-| 1           | no                               | Redis                                                                                                          |
-| 1           | no                               | php                                                                                                            |
-| 1           | no                               | pybench                                                                                                        |
-| 1           | no                               | ImageML                                                                                                        |
-| 1           | no                               | ping                                                                                                           |
-| 1           | no                               | mp3info                                                                                                        |
-| 1           | no                               | ngircd                                                                                                         |
-| 1           | no                               | CUPS                                                                                                           |
+\begin{table}
+\caption{Benchmarks implemented by this work.}
+\label{tbl:implemented-benchmarks}
+%\begin{minipage}{\columnwidth}
+\begin{center}
+\scriptsize
+\begin{tabular}{p{0.05\linewidth}p{0.24\linewidth}p{0.6\linewidth}}
+\toprule
+Prior works & This work                        & Benchmark group and examples from prior work                                                                   \\
+\midrule
+10          & yes (5/7 servers)                & HTTP server/traffic ({Apache httpd, miniHTTP, simplehttp, lighttpd, Nginx, tinyhttpd, cherokee} x apachebench) \\
+9           & yes (3/4 clients)                & HTTP serer/client (simplehttp x {curl, wget, prozilla, axel})                                                  \\
+8           & yes (3/5 orig + 4 others)        & Compile user packages (Apache, LLVM, glibc, Linux, LaTeX document)                                             \\
+5           & yes                              & FTP server/traffic (ProFTPd x ftpbench)                                                                        \\
+8           & no                               & Browsers ({Firefox, Chromium} x Sunspider)                                                                     \\
+5           & yes                              & Un/archive ({compress, decompress} x tar x {nothing, bzip2, pbzip, gzip, pigz, zip})                           \\
+5           & yes                              & I/O microbenchmarks (Postmark, lmbench, custom)                                                                \\
+4           & yes                              & BLAST                                                                                                          \\
+3           & no                               & CPU benchmarks (SPEC CPU INT 2006, SPLASH-3)                                                                   \\
+3           & yes                              & Coreutils and other utils (bash, cp, ls, procps)                                                               \\
+2           & no                               & Sendmail                                                                                                       \\
+1           & yes                              & VCS checkouts (Mercurial)                                                                                      \\
+1           & no                               & Machine learning workflows (CleanML, Spark)                                                                    \\
+1           & no                               & Data processing workflows (VIC, FIE)                                                                           \\
+1           & no                               & RUBiS                                                                                                          \\
+1           & no                               & x264                                                                                                           \\
+1           & no                               & mysqld                                                                                                         \\
+1           & no                               & gocr                                                                                                           \\
+1           & no                               & Memcache                                                                                                       \\
+1           & no                               & Redis                                                                                                          \\
+1           & no                               & php                                                                                                            \\
+1           & no                               & pybench                                                                                                        \\
+1           & no                               & ImageML                                                                                                        \\
+1           & no                               & ping                                                                                                           \\
+1           & no                               & mp3info                                                                                                        \\
+1           & no                               & ngircd                                                                                                         \\
+1           & no                               & CUPS                                                                                                           \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
 
 <!--
 TODO: xSDK codes
 -->
 
-: Benchmarks implemented by this work {#tbl:implemented-benchmarks}
+<!-- | 7 | Text-based browsers (w3m, lynx, elinks)                                                                              | Interactive                                           | -->
+<!-- | 7 | TUI apps (Vim, nano, sysstat, mc, emacs, alpine, pine)                                                               | Interactive                                           | -->
+<!-- | 6 | FTP client (lftp, yafc, tnftp, skod, AdvancedFTP, NetFTP)                                                            |                                                       | -->
+<!-- | 5 | GUI apps (xpdf, Audacious, Sublime Text, Notepad++, Evince, Krusader, Mplayer, mpv, Transmission, FileZilla, Pidgin) | Interactive                                           | -->
+<!-- | 1 | Windows programs (Notepad, Paint, IE)                                                                                | Wrong platform                                        | -->
+<!-- | 1 | gif2png                                                                                                              | Unknown program (dozens of programs called "gif2png") | -->
+<!-- | 1 | Vanderbilt                                                                                                           | Unknown program                                       | -->
+<!-- | 1 | TextTransfer                                                                                                         | Unknown program                                       | -->
+<!-- | 1 | DrawTool                                                                                                             | Unknown program                                       | -->
+<!-- | 1 | yopsweb                                                                                                              | Unknown program                                       | -->
 
-[^unpack-linux]: We count "unpack linux" as an occurrence of an un/archive benchmark.
-[^lmbench]: We count prior works which test open/close, fork/exec, socket/connect, and pipe/close as lmbench benchmarks, because lmbench has functionally equivalent microbenchmarks.
-[^llvm]: Compiling LLVM from source takes multiple times longer than the longest benchmark. Since we already have many compilation benchmarks, we opted to increase the iteration counts (thereby reducing variance in our data) rather than include LLVM.
-
-| 7 | Text-based browsers (w3m, lynx, elinks)                                                                              | Interactive                                           |
-| 7 | TUI apps (Vim, nano, sysstat, mc, emacs, alpine, pine)                                                               | Interactive                                           |
-| 6 | FTP client (lftp, yafc, tnftp, skod, AdvancedFTP, NetFTP)                                                            |                                                       |
-| 5 | GUI apps (xpdf, Audacious, Sublime Text, Notepad++, Evince, Krusader, Mplayer, mpv, Transmission, FileZilla, Pidgin) | Interactive                                           |
-| 1 | Windows programs (Notepad, Paint, IE)                                                                                | Wrong platform                                        |
-| 1 | gif2png                                                                                                              | Unknown program (dozens of programs called "gif2png") |
-| 1 | Vanderbilt                                                                                                           | Unknown program                                       |
-| 1 | TextTransfer                                                                                                         | Unknown program                                       |
-| 1 | DrawTool                                                                                                             | Unknown program                                       |
-| 1 | yopsweb                                                                                                              | Unknown program                                       |
-
-: Benchmarks rejected by this work {#tbl:rejected-bmarks}
+<!-- : Benchmarks rejected by this work {#tbl:rejected-bmarks} -->
 
 ## Subsetted benchmarks
+
+
 
 ## Quantitative performance comparison
 
@@ -579,15 +727,6 @@ TODO: xSDK codes
 
 <!--
 TODO: note that fsatrace has a hardcoded limit on the size of the buffer used to store file read/writes. If this size is exceeded, the program will crash without any message.
--->
-<!--
-ltrace/handle_event.c
-	/* FIXME: not good -- should use dynamic allocation. 19990703 mortene. */
-	if (proc->callstack_depth == MAX_CALLDEPTH - 1) {
-		fprintf(stderr, "%s: Error: call nesting too deep!\n", __func__);
-		abort();
-		return;
-	}
 -->
 <!--
 https://github.com/usnistgov/corr-CDE/blob/05137888a8ad67b0796814170ba61deef51bec03/strace-4.6/cde.c#L1043

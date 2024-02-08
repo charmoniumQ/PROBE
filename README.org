@@ -216,6 +216,12 @@ https://github.com/PyLCARS/YT_BeyondAstro
 - Sciunit says "sciunit: /nix/store/7x6rlzd7dqmsa474j8ilc306wlmjb8bp-python3-3.10.13-env/lib/python3.10/site-packages/sciunit2/libexec/ptu: No such file or directory", but on my system, that file does exist! Why can't sciunits find it?
 - Answer: That file exists; it is an ELF binary, it's "interpreter" is set to /lib64/linux-something.so. That interpreter does not exist. I replaced this copy of ptu with the nix-built copy of ptu.
 
+*** TODO Fix sciunit
+
+*** TODO Fix strace unparsable lines
+
+*** TODO Fix rr to measure storage overhead
+
 *** TODO Fix Spade+FUSE
 - We need to get src_sh{./result/bin/python runner.py spade_fuse} to work.
 

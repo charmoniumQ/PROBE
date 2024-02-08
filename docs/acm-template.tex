@@ -1,0 +1,226 @@
+\documentclass[$for(classoption)$$classoption$$sep$,$endfor$]{acmart}
+% ACM options first in the order they appear in acmguide.pdf
+
+$if(publisher.journal)$\acmJournal{$publisher.journal$}$endif$
+$if(publisher.conference)$
+  \acmConference[$publisher.conference.acryonym$]{$publisher.conference.name$}{$publisher.conference.daterange$}{$publisher.conference.location$}
+$else$
+  \acmBooktitle{$publisher.booktitle$}
+$endif$
+$for(editor)$\editor{editor}$endfor$
+$if(title)$\title$if(shortitle)$[$shortitle$]$endif${$title$}$endif$
+$if(subtitle)$\subtitle{$subtitle$}$endif$
+$for(author)$
+\author{$author.name$}
+  $if(author.note)$\authornote{$other.note$}$endif$
+  $if(author.email)$\email{$author.email$}$endif$
+  $if(author.orcid)$\orcid{$author.orcid$}$endif$
+  $for(author.affiliation)$
+    \affiliation{%
+    $if(author.affiliation.position)$\position{$author.affiliation.position$}$endif$%
+    $if(author.affiliation.institution)$\institution{$author.affiliation.institution$}$endif$%
+    $for(author.affiliation.department)$\department{$author.affiliation.department$}$endfor$%
+    $if(author.affiliation.streetaddress)$\streetaddress{$author.affiliation.streetaddress$}$endif$%
+    $if(author.affiliation.city)$\city{$author.affiliation.city$}$endif$%
+    $if(author.affiliation.state)$\state{$author.affiliation.state$}$endif$%
+    $if(author.affiliation.postcode)$\postcode{$author.affiliation.postcode$}$endif$%
+    $if(author.affiliation.country)$\country{$author.affiliation.country$}$endif$%
+    }
+  $endfor$
+  $if(author.note)$\authornote{$author.note$}$endif$
+  $if(author.notemark)$\authornotemark[$author.notemark$]$endif$
+$endfor$
+$if(publisher.volume)$\acmVolume{$publisher.volume$}$endif$
+$if(publisher.issueNumber)$\acmNumber{$publisher.issueNumber$}$endif$
+$if(publisher.articleNumber)$\acmArticle{$publisher.articleNumber$}$endif$
+$if(publisher.year)$\acmYear{$publisher.year$}$endif$
+$if(publisher.articleSequenceNumber)$\acmArticleSeq{$publisher.articleSequenceNumber$}$endif$
+$if(publisher.submission_id)$\acmSubmissionID{$publisher.submission_id$}$endif$
+$if(publisher.price)$\acmPrice{$publisher.price$}$endif$
+$if(publisher.isbn)$\acmISBN{$publisher.isbn$}$endif$
+$if(publisher.doi)$\acmDOI{$publisher.doi$}$endif$
+$for(publisher.acmBadge)$\acmBadge[publisher.acmBadge.link]{publisher.acmBadge.pdfImage}$endfor$
+$if(publisher.startPage)$\startPage{$publisher.startPage$}$endif$
+$if(keywords)$\keywords{$for(keywords)$$keywords$$sep$, $endfor$}$endif$
+$if(ccsxml)$ $ccsxml$ $endif$
+$if(publisher.copyright)$\setcopyright{$publisher.copyright$}$endif$
+$if(publisher.cctype)$\setcctype$if(publisher.cctypeVersion)$[$publisher.cctypeVersion$]$endif${$publisher.cctype$}$endif$
+$if(publisher.copyrightYear)$\copyrightyear{$publisher.copyrightYear$}$endif$
+$if(topmatter)$\settopmatter{$topmatter$}$endif$
+$if(publisher.received_date)$\received{$publisher.received_date$}$endif$
+$if(publisher.revised_date)$\received[revised]{$publisher.revised_date$}$endif$
+$if(publisher.accepted_date)$\received[accepted]{$publisher.accepted_date$}$endif$
+% \RequirePackage[
+%   datamodel=acmdatamodel,
+%   style=acmnumeric, % use style=acmauthoryear for publications that require it
+% ]{biblatex}
+% $for(bibliography)$
+% \addbibresource{$bibliography$.bib}
+% $endfor$
+
+% See https://github.com/jgm/pandoc/blob/main/data/templates/default.latex
+
+\usepackage{amsmath}
+$if(linestretch)$
+\usepackage{setspace}
+$endif$
+
+\usepackage{calc}
+\usepackage{printlen}
+
+\usepackage[$if(fontenc)$$fontenc$$else$T1$endif$]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp} % provide euro and other symbols
+% \usepackage{lmodern}
+
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+$if(verbatim-in-note)$
+\usepackage{fancyvrb}
+$endif$
+\usepackage{xcolor}
+
+$if(listings)$
+\usepackage{listings}
+$endif$
+
+$if(highlighting-macros)$
+$highlighting-macros$
+$endif$
+
+$if(verbatim-in-note)$
+\usepackage{fancyvrb}
+$endif$
+
+\usepackage{microtype}
+
+$if(tables)$
+\usepackage{longtable,booktabs,array}
+% Correct order of tables after paragraph or subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\usepackage{footnotehyper}
+\makesavenoteenv{longtable}
+
+% https://github.com/jgm/pandoc/issues/1023
+
+% \makeatletter
+% \let\oldlt\longtable
+% \let\endoldlt\endlongtable
+% \def\longtable{\@ifnextchar[\longtable@i \longtable@ii}
+% \def\longtable@i[#1]{\begin{figure}[t]
+% \onecolumn
+% \begin{minipage}{0.5\textwidth}
+% \oldlt[#1]
+% }
+% \def\longtable@ii{\begin{figure}[t]
+% \onecolumn
+% \begin{minipage}{0.5\textwidth}
+% \oldlt
+% }
+% \def\endlongtable{\endoldlt
+% \end{minipage}
+% \twocolumn
+% \end{figure}}
+% \makeatother
+
+% % switch into and out-of twocolumn mode when creating tables
+% \makeatletter
+% % copy the definition of longtable into oldlongtable:
+% \let\oldlongtable\longtable
+% % copy the definition of endlongtable into oldendlongtable:
+% \let\oldendlongtable\endlongtable
+% % if longtable is followed by '[', use the option-having version, else use the non-option-having version:
+% \def\longtable{\@ifnextchar[\longtable@i \longtable@ii}
+% % option-having beginning:
+% \def\longtable@i[#1]{\onecolumn \oldlongtable[#1]}
+% % non-option-having beginning:
+% \def\longtable@ii{\onecolumn \oldlongtable}
+% % redefine the ending of longtable:
+% \def\endlongtable{\oldendlongtable \twocolumn}
+% \makeatother
+
+\usepackage{supertabular}
+\newcommand\tcap{}
+\renewenvironment{longtable}{\begin{center}\bottomcaption{\tcap}\begin{supertabular}}{\end{supertabular}\end{center}}
+\renewcommand{\endhead}{}
+\renewcommand{\endlastfoot}{}
+
+$endif$
+
+$if(graphics)$
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+$endif$
+
+$if(svg)$
+\usepackage{svg}
+$endif$
+
+$if(strikeout)$
+\usepackage[normalem]{ulem}
+% avoid problems with \sout in headers with hyperref:
+\pdfstringdefDisableCommands{\renewcommand{\sout}{}}
+$endif$
+
+$if(subfigure)$
+\usepackage{subcaption}
+$endif$
+
+$if(csquotes)$
+\usepackage{csquotes}
+$endif$
+
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\usepackage{bookmark}
+\usepackage{xurl}
+
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+\begin{document}
+
+$if(abstract)$\begin{abstract}$abstract$\end{abstract}$endif$
+$if(teaserfigure)$
+  \begin{teaserfigure}
+    \includegraphics[width=\textwidth]{$teaserfigure.image$}
+    $if(teaserfigure.caption)$\caption{$teaserfigure.caption$}$endif$
+    $if(teaserfigure.label)$\label{$teaserfigure.label$}$endif$
+  \end{teaserfigure}
+$endif$
+
+\maketitle
+
+$if(shortauthors)$\renewcommand{\shortauthors}{$shortauthors$}$endif$
+
+$for(include-before)$
+$include-before$
+$endfor$
+
+$body$
+
+$if(acks)$\begin{acks}$acks$\end{acks}$endif$
+
+\bibliographystyle{ACM-Reference-Format}
+$for(bibliography)$
+\bibliography{$bibliography$}
+$endfor$
+
+$for(include-after)$
+$include-after$
+$endfor$
+\end{document}
