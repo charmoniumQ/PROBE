@@ -1,0 +1,7 @@
+diff --git a/codes/apps/volrend/libtiff/Makefile b/codes/apps/volrend/libtiff/Makefile
+index 403d183..265cbf5 100644
+--- a/apps/volrend/libtiff/Makefile
++++ b/apps/volrend/libtiff/Makefile
+@@ -29 +29 @@ DESTDIR=/usr/local
+-AR=	/usr/bin/ar
++AR ?=	/usr/bin/ar

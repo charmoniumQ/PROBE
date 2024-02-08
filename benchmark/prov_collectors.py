@@ -266,7 +266,7 @@ class STrace(AbstractTracer):
                                 subpatterns={
                                     "struct": [
                                         CompoundPattern(
-                                            re.compile(r'^(?:(?P<before_items>[^"]*), )?(?P<target0_key>[a-zA-Z0-9_]+)="(?P<target0>[^"]*)"(?:, (?P<after_items>[^"]*))?$'),
+                                            re.compile(r'^(?:(?P<before_items>[^"]*), )?(?P<target0_key>[a-zA-Z0-9_]+)=[a-z_]*\(?"(?P<target0>[^"]*)"\)?(?:, (?P<after_items>[^"]*))?$'),
                                             name="struct-1-str",
                                         ),
                                         CompoundPattern(
@@ -715,6 +715,11 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         for prov_collector in PROV_COLLECTORS
         if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip"]
         # ltrace
+    ],
+    "working-ltrace": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "ltrace"]
     ],
     "working": [
         prov_collector

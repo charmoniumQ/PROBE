@@ -18,6 +18,7 @@ from typing import cast, Any
 cwd = Path(__file__).resolve()
 result_bin = (cwd.parent / "result").resolve() / "bin"
 result_lib = result_bin.parent / "lib"
+result = result_lib.parent
 
 
 class Workload:
@@ -350,13 +351,20 @@ class HttpBench(Workload):
     def get_load(self) -> tuple[CmdArg, ...]:
         return str(result_bin / "hey"), "-n", str(self.n_requests), f"http://localhost:{self.port}/test"
 
+    def stop_server(self) -> tuple[CmdArg, ...] | None:
+        return None
+
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+        stop_server = self.stop_server()
         return (
             (
                 result_bin / "python",
                 "run_server_and_client.py",
                 self.run_server(workdir),
-                shlex.join(map(str, self.get_load())),
+                " && ".join([
+                    shlex.join(map(str, self.get_load())),
+                    *((shlex.join(map(bytes.decode, map(cmd_arg, stop_server))),) if stop_server is not None else ()),
+                ]),
                 shlex.join([
                     str(result_bin / "curl"), "--silent", "--fail", "--output", "/dev/null", f"http://localhost:{HTTP_PORT}/test",
                 ]),
@@ -367,6 +375,9 @@ class HttpBench(Workload):
 
 class Apache(HttpBench):
     name = "apache"
+
+    # def stop_server(self) -> tuple[CmdArg, ...] | None:
+    #     return (result_bin / "apacheHttpd", "-k", "graceful-stop")
 
     def run_server(self, workdir: Path) -> str:
         httpd_root = (workdir / "apache").resolve()
@@ -386,7 +397,7 @@ class Apache(HttpBench):
             .replace("$PORT", str(HTTP_PORT))
         )
         return shlex.join([
-            str(result_bin / "apacheHttpd"), "-k", "start", "-f", str(conf_file)
+            str(result_bin / "apacheHttpd"), "-k", "start", "-f", str(conf_file), "-X",
         ])
 
 
@@ -991,26 +1002,38 @@ WORKLOADS: list[Workload] = [
         (result_bin / "sh", "-c", f"{result_bin}/mkdir --parents $WORKDIR/latex && {result_bin}/cp test2.tex $WORKDIR/latex/test2.tex"),
         (result_bin / "env", "--chdir", "$WORKDIR/latex", "pdflatex", "test2.tex"),
     ),
-    Cmds("lmbench", "getppid", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "null"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "read", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "read"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "write", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "write"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "fork", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "exec", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "shell", noop_cmd, (result_bin / "lat_proc", "-N", "100", "shell")), # broke
-    Cmds("lmbench", "install-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
-    Cmds("lmbench", "catch-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
-    Cmds("lmbench", "protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-N", "1000", "file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "100", "-N", "1000", "tcp"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "bw_unix", noop_cmd, (result_bin / "bw_unix", "-N", "10"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-N", "10"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "fs", create_file_cmd(1024), (result_bin / "lat_fs", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-getppid", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "null"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-read", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "read"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-write", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "write"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-fork", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-exec", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-shell", noop_cmd, (result_bin / "lat_proc", "-N", "100", "shell")), # broke
+    Cmds("lmbench", "lm-install-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
+    Cmds("lmbench", "lm-catch-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
+    Cmds("lmbench", "lm-protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-N", "1000", "file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "100", "-N", "1000", "tcp"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-bw_unix", noop_cmd, (result_bin / "bw_unix", "-N", "10"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-N", "10"), {"ENOUGH": "10000"}),
+    Cmds("lmbench", "lm-fs", create_file_cmd(1024), (result_bin / "lat_fs", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
+    # Cmds("splash-3", "splash-barnes", noop_cmd, (result_bin / "sh", "-c", f"{result_bin}/BARNES < {result}/inputs/barnes/n16384-p1")),
+    Cmds("splash-3", "splash-fmm", (result_bin / "mkdir", "$WORKDIR/splash"), repeat(1000, (result_bin / "sh", "-c", f"{result_bin}/FMM -o $WORKDIR/splash/fmm-out < {result}/inputs/fmm/input.4.16384"))),
+    Cmds("splash-3", "splash-ocean", noop_cmd, (result_bin / "OCEAN", "-p1", "-n", "1026")),
+    Cmds("splash-3", "splash-radiosity", noop_cmd, repeat(100, (result_bin / "RADIOSITY", "-p", "1", "-ae", "50000", "-bf", "0.1", "-en", "0.05", "-room", "-batch"))),
+    Cmds("splash-3", "splash-raytrace", (result_bin / "mkdir", "$WORKDIR/splash"), (result_bin / "sh", "-c", f"cd $WORKDIR/splash; {result_bin}/RAYTRACE -p1 -m512 {result}/inputs/raytrace/car.env")),
+    Cmds("splash-3", "splash-volrend", noop_cmd, (result_bin / "VOLREND", "1", f"{result}/inputs/volrend/head", "256")),
+    Cmds("splash-3", "splash-water-nsquared", noop_cmd, repeat(300, (result_bin / "sh", "-c", f"{result_bin}/WATER-NSQUARED < {result}/inputs/water-nsquared/n512-p1"))),
+    Cmds("splash-3", "splash-water-spatial", noop_cmd, repeat(300, (result_bin / "sh", "-c", f"{result_bin}/WATER-SPATIAL < {result}/inputs/water-spatial/n512-p1"))),
+    Cmds("splash-3", "splash-cholesky", noop_cmd, repeat(300, (result_bin / "sh", "-c", f"{result_bin}/CHOLESKY -p1 < {result}/inputs/cholesky/tk15.O"))),
+    Cmds("splash-3", "splash-fft", noop_cmd, (result_bin / "FFT", "-p1", "-m256")),
+    Cmds("splash-3", "splash-lu", noop_cmd, repeat(10, (result_bin / "LU", "-p1", "-n4096"))),
+    Cmds("splash-3", "splash-radix", noop_cmd, (result_bin / "RADIX", "-p1", "-n134217728")),
     # SpackInstall(["trilinos"]), # Broke: openblas
     SpackInstall(["python"]),
     # SpackInstall(["openmpi", "spack-repo.krb5"]),
@@ -1031,10 +1054,14 @@ WORKLOADS: list[Workload] = [
     SpackInstall(["glibc"]),
     SpackInstall(["spack-repo.apacheHttpd", "spack-repo.openldap", "spack-repo.apr-util"]),
     SpackInstall(["perl"]),
+    SpackInstall(["r"]),
+    SpackInstall(["git"]),
+    SpackInstall(["py-numpy"]),
+    SpackInstall(["py-h5py"]),
     *Blast.get_all(),
     Copy("cp linux", LINUX_TARBALL_URL),
     Copy("cp smaller", SMALLER_TARBALL_URL),
-    Apache(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
+    Apache(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE // 10),
     SimpleHttp(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     MiniHttp(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     Lighttpd(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
@@ -1275,6 +1302,7 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     },
 
     # Second order groups
+    # TODO: try spack boost, other spacks
     "file_servers": [
         workload
         for workload in WORKLOADS
@@ -1284,17 +1312,17 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich", "spack glibc", "spack boost"}
+        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich", "spack glibc", "spack boost"} and workload.kind not in {"spack"}
     ],
-    "finished": [
+    "working-ltrace": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack"}
+        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich", "spack glibc", "spack boost"} and workload.kind not in {"spack", "ftp_client", "splash-3"}
     ],
     "fast": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server"}
+        if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server", "splash-3"}
     ],
     "superfast": [
         workload

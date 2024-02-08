@@ -629,8 +629,7 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
 
 - **CPU benchmarks.**
   SPEC CPU INT 2006 [@henningSPECCPU2006Benchmark2006] and SPLASH-3 [@sakalisSplash3ProperlySynchronized2016] test CPU performance.
-  Provenance collection would not slow down CPU integer processing at all, since it only intercepts I/O related library- or system-calls.
-  Therefore, we deprioritized these benchmarks, and we did not have enough time to write reproducible build scripts for SPEC CPU INT 2006.
+  We implement SPLASH-3 but not SPEC CPU INT 2006, since SPEC is non-free.
 
 - **Sendmail.**
   Sendmail is a quite old mail server program.
@@ -664,35 +663,35 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
 \scriptsize
 \begin{tabular}{p{0.05\linewidth}p{0.24\linewidth}p{0.6\linewidth}}
 \toprule
-Prior works & This work                        & Benchmark group and examples from prior work                                                                   \\
+Prior works & This work                 & Benchmark group and examples from prior work                                                                   \\
 \midrule
-10          & yes (5/7 servers)                & HTTP server/traffic ({Apache httpd, miniHTTP, simplehttp, lighttpd, Nginx, tinyhttpd, cherokee} x apachebench) \\
-9           & yes (3/4 clients)                & HTTP serer/client (simplehttp x {curl, wget, prozilla, axel})                                                  \\
-8           & yes (3/5 orig + 4 others)        & Compile user packages (Apache, LLVM, glibc, Linux, LaTeX document)                                             \\
-5           & yes                              & FTP server/traffic (ProFTPd x ftpbench)                                                                        \\
-8           & no                               & Browsers ({Firefox, Chromium} x Sunspider)                                                                     \\
-5           & yes                              & Un/archive ({compress, decompress} x tar x {nothing, bzip2, pbzip, gzip, pigz, zip})                           \\
-5           & yes                              & I/O microbenchmarks (Postmark, lmbench, custom)                                                                \\
-4           & yes                              & BLAST                                                                                                          \\
-3           & no                               & CPU benchmarks (SPEC CPU INT 2006, SPLASH-3)                                                                   \\
-3           & yes                              & Coreutils and other utils (bash, cp, ls, procps)                                                               \\
-2           & no                               & Sendmail                                                                                                       \\
-1           & yes                              & VCS checkouts (Mercurial)                                                                                      \\
-1           & no                               & Machine learning workflows (CleanML, Spark)                                                                    \\
-1           & no                               & Data processing workflows (VIC, FIE)                                                                           \\
-1           & no                               & RUBiS                                                                                                          \\
-1           & no                               & x264                                                                                                           \\
-1           & no                               & mysqld                                                                                                         \\
-1           & no                               & gocr                                                                                                           \\
-1           & no                               & Memcache                                                                                                       \\
-1           & no                               & Redis                                                                                                          \\
-1           & no                               & php                                                                                                            \\
-1           & no                               & pybench                                                                                                        \\
-1           & no                               & ImageML                                                                                                        \\
-1           & no                               & ping                                                                                                           \\
-1           & no                               & mp3info                                                                                                        \\
-1           & no                               & ngircd                                                                                                         \\
-1           & no                               & CUPS                                                                                                           \\
+10          & yes (5/7 servers)         & HTTP server/traffic ({Apache httpd, miniHTTP, simplehttp, lighttpd, Nginx, tinyhttpd, cherokee} x apachebench) \\
+9           & yes (3/4 clients)         & HTTP serer/client (simplehttp x {curl, wget, prozilla, axel})                                                  \\
+8           & yes (3/5 orig + 4 others) & Compile user packages (Apache, LLVM, glibc, Linux, LaTeX document)                                             \\
+5           & yes                       & FTP server/traffic (ProFTPd x ftpbench)                                                                        \\
+8           & no                        & Browsers ({Firefox, Chromium} x Sunspider)                                                                     \\
+5           & yes                       & Un/archive ({compress, decompress} x tar x {nothing, bzip2, pbzip, gzip, pigz, zip})                           \\
+5           & yes                       & I/O microbenchmarks (Postmark, lmbench, custom)                                                                \\
+4           & yes                       & BLAST                                                                                                          \\
+3           & yes (1/2)                 & CPU benchmarks (SPEC CPU INT 2006, SPLASH-3)                                                                   \\
+3           & yes                       & Coreutils and other utils (bash, cp, ls, procps)                                                               \\
+2           & no                        & Sendmail                                                                                                       \\
+1           & yes                       & VCS checkouts (Mercurial)                                                                                      \\
+1           & no                        & Machine learning workflows (CleanML, Spark)                                                                    \\
+1           & no                        & Data processing workflows (VIC, FIE)                                                                           \\
+1           & no                        & RUBiS                                                                                                          \\
+1           & no                        & x264                                                                                                           \\
+1           & no                        & mysqld                                                                                                         \\
+1           & no                        & gocr                                                                                                           \\
+1           & no                        & Memcache                                                                                                       \\
+1           & no                        & Redis                                                                                                          \\
+1           & no                        & php                                                                                                            \\
+1           & no                        & pybench                                                                                                        \\
+1           & no                        & ImageML                                                                                                        \\
+1           & no                        & ping                                                                                                           \\
+1           & no                        & mp3info                                                                                                        \\
+1           & no                        & ngircd                                                                                                         \\
+1           & no                        & CUPS                                                                                                           \\
 \bottomrule
 \end{tabular}
 \end{center}

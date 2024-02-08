@@ -20,7 +20,7 @@ def main(
         iterations: int = 1,
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
-        ignore_failures: Annotated[bool, typer.Option("--keep-going")] = True,
+        ignore_failures: Annotated[bool, typer.Option("--keep-going")] = False,
 ) -> None:
     collectors = list(flatten1([
         PROV_COLLECTOR_GROUPS[collector_name.value]

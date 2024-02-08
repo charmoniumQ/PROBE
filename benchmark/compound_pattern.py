@@ -68,7 +68,7 @@ class CompoundMatch:
 
 
 if __name__ == "__main__":
-    string = '5     connect(3, {sa_family=AF_UNIX, sun_path="/var/run/nscd/socket"}, 110) = -1 ENOENT (No such file or directory)'
+    string = '12    connect(70, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("127.0.0.1")}, 16) = 0'
     function_name = "[a-z0-9_.]+"
     line_pattern = CompoundPattern(
         pattern=re.compile(r"^(?P<line>.*)$"),
@@ -77,7 +77,7 @@ if __name__ == "__main__":
             "line": [
                 CompoundPattern(
                     name="call",
-                    pattern=re.compile(r"^(?P<pid>\d+) +(?P<op>fname)\((?P<args>.*)\) *= (?P<ret>.*)$".replace("fname", function_name)),
+                    pattern=re.compile(r"^(?P<pid>\d+) +(?P<op>fname)\((?P<args>.*)(?:\) += (?P<ret>.*)| <unfinished ...>)$".replace("fname", function_name)),
                     subpatterns={
                         "args": [
                             CompoundPattern(
@@ -103,7 +103,7 @@ if __name__ == "__main__":
                                 subpatterns={
                                     "struct": [
                                         CompoundPattern(
-                                            re.compile(r'^(?:(?P<before_items>[^"]*), )?(?P<target0_key>[a-zA-Z0-9_]+)="(?P<target0>[^"]*)"(?:, (?P<after_items>[^"]*))?$'),
+                                            re.compile(r'^(?:(?P<before_items>[^"]*), )?(?P<target0_key>[a-zA-Z0-9_]+)=[a-z_]*\(?"(?P<target0>[^"]*)"\)?(?:, (?P<after_items>[^"]*))?$'),
                                             name="struct-1-str",
                                         ),
                                         CompoundPattern(
@@ -117,8 +117,16 @@ if __name__ == "__main__":
                     },
                 ),
                 CompoundPattern(
+                    re.compile(r"^(?P<pid>\d+) +<... (?P<op>fname) resumed>(?:, )?(?P<args>.*)\) += (?P<ret>.*)$".replace("fname", function_name)),
+                    name="resumed",
+                ),
+                CompoundPattern(
                     re.compile(r"^(?P<pid>\d+) +\+\+\+ exited with (?P<exit_code>\d+) \+\+\+$"),
                     name="exit",
+                ),
+                CompoundPattern(
+                    re.compile(r"^(?P<pid>\d+) +--- (?P<sig>SIG[A-Z0-9]+) \{(?P<sig_struct>.*)\} ---$"),
+                    name="signal",
                 ),
             ],
         },

@@ -127,6 +127,7 @@ def run_experiments(
                     ),
                 }
                 for prov_collector, workload, stats in result_list
+                if stats is not None
             )
             .assign(**{
                 "collector": lambda df: df["collector"].astype("category"),
@@ -160,7 +161,7 @@ def run_one_experiment_cached(
     size: int,
     ignore_failures: bool,
     rerun: bool,
-) -> ExperimentStats:
+) -> ExperimentStats | None:
     key = (cache_dir / ("_".join([
         urllib.parse.quote(prov_collector.name, safe=''),
         urllib.parse.quote(workload.name, safe=''),
@@ -174,8 +175,9 @@ def run_one_experiment_cached(
             iteration, prov_collector, workload, work_dir, log_dir,
             temp_dir, artifacts_dir, size, ignore_failures,
         )
-        cache_dir.mkdir(exist_ok=True, parents=True)
-        key.write_bytes(pickle.dumps(stats))
+        if stats is not None:
+            cache_dir.mkdir(exist_ok=True, parents=True)
+            key.write_bytes(pickle.dumps(stats))
         return stats
 
 
@@ -189,7 +191,7 @@ def run_one_experiment(
     artifacts_dir: pathlib.Path,
     size: int,
     ignore_failures: bool,
-) -> ExperimentStats:
+) -> ExperimentStats | None:
     with ch_time_block.ctx(f"setup {workload}"):
         try:
             work_dir.mkdir(exist_ok=True)
@@ -243,20 +245,18 @@ def run_one_experiment(
             network_access=workload.network_access,
         )
 
-    if ignore_failures and not stats.success:
-        print(cmd)
-        print(full_env)
-        print(stats.exitcode)
-        print(stats.stdout)
-        print(stats.stderr)
-        raise SubprocessError(
-            cmd=cmd,
-            env=full_env,
-            cwd=None,
-            returncode=stats.exitcode,
-            stdout=to_str(stats.stdout),
-            stderr=to_str(stats.stderr),
-        )
+    if not stats.success:
+        if ignore_failures:
+            return None
+        else:
+            raise SubprocessError(
+                cmd=cmd,
+                env=full_env,
+                cwd=None,
+                returncode=stats.exitcode,
+                stdout=to_str(stats.stdout),
+                stderr=to_str(stats.stderr),
+            )
     with ch_time_block.ctx(f"parse {prov_collector}"):
         provenance_size = 0
         for child in log_dir.iterdir():

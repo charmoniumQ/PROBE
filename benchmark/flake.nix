@@ -25,7 +25,7 @@
         packages = rec {
           apacheHttpd = renameInDrv pkgs.apacheHttpd "bin/httpd" "bin/apacheHttpd";
           miniHttpd = renameInDrv pkgs.miniHttpd "bin/httpd" "bin/miniHttpd";
-          postmark = pkgs.stdenv.mkDerivation rec {
+          postmark-binary = pkgs.stdenv.mkDerivation rec {
             pname = "postmark";
             version = "1.53";
             src = pkgs.fetchzip {
@@ -53,6 +53,49 @@
             installPhase = ''
               install --directory $out/bin
               install postmark $out/bin
+            '';
+          };
+          splash-3 = pkgs.stdenv.mkDerivation rec {
+            pname = "splash";
+            version = "3";
+            src = pkgs.fetchFromGitHub {
+              owner = "SakalisC";
+              repo = "Splash-3";
+              rev = "master";
+              hash = "sha256-HFgqYEHanlwA0FA/7kOSsmcPzcb8BLJ3lG74DV5RtBA=";
+            };
+            patches = [ ./splash-3.diff ];
+            nativeBuildInputs = [ pkgs.m4 pkgs.binutils ];
+            sourceRoot = "source/codes";
+            buildPhase = ''
+              ${pkgs.gnused}/bin/sed --in-place s=inputs/car.geo=$out/inputs/raytrace/car.geo=g apps/raytrace/inputs/car.env
+              ${pkgs.gnused}/bin/sed --in-place s=inputs/car.rl=car.rl=g apps/raytrace/inputs/car.env
+              ${pkgs.gnused}/bin/sed --in-place s=random.in=$out/inputs/water-nsquared/random.in=g apps/water-nsquared/initia.c.in
+              ${pkgs.gnused}/bin/sed --in-place s=random.in=$out/inputs/water-spatial/random.in=g apps/water-spatial/initia.c.in
+              make all
+            '';
+            installPhase = ''
+              mkdir $out $out/bin $out/inputs
+              for app in barnes fmm radiosity raytrace volrend water-nsquared water-spatial; do
+                APP=$(echo "$app" | tr 'a-z' 'A-Z')
+                cp apps/$app/$APP $out/bin
+                if [ -d apps/$app/inputs ]; then
+                  mkdir $out/inputs/$app
+                  cp apps/$app/inputs/* $out/inputs/$app
+                fi
+              done
+              cp apps/water-nsquared/random.in $out/inputs/water-nsquared/
+              cp apps/water-spatial/random.in $out/inputs/water-spatial/
+              cp apps/ocean/contiguous_partitions/OCEAN $out/bin
+              for app in cholesky fft radix; do
+                APP=$(echo "$app" | tr 'a-z' 'A-Z')
+                cp kernels/$app/$APP $out/bin
+                if [ -d kernels/$app/inputs ]; then
+                  mkdir $out/inputs/$app
+                  cp kernels/$app/inputs/* $out/inputs/$app
+                fi
+              done
+              cp kernels/lu/contiguous_blocks/LU $out/bin
             '';
           };
           darshan-runtime = pkgs.stdenv.mkDerivation rec {
@@ -549,7 +592,7 @@
 
               # Benchmark
               pkgs.blast
-              postmark
+              postmark-from-src
               pkgs.lighttpd
               apacheHttpd
               miniHttpd
@@ -572,6 +615,7 @@
               pkgs.bash
               pkgs.texlive.combined.scheme-full
               pkgs.lftp
+              splash-3
 
               # Reproducibility tester
               pkgs.icdiff
