@@ -7,7 +7,7 @@ bibliography: zotero
 link-citations: yes
 link-bibliography: yes
 notes-after-punctuation: yes
-title: A benchmark suite and performance analysis of user-space provenance systems
+title: A benchmark suite and performance analysis of user-space provenance collectors
 author:
   - name: Samuel Grayson
     orcid: 0000-0001-5411-356X
@@ -101,7 +101,7 @@ Computational provenance, "the computational input artifacts and computational p
    - **Automatic reproducibility**.
      Provenance data also has the potential to enable automatic reproducibility, if the process trace is detailed enough to be "re-executed".
      This idea is also called "software record/replay".
-     However, not all provenance systems make this their goal.
+     However, not all provenance collectors make this their goal.
 
    [^acm-defns]: "Reproduction", in the ACM sense, where a **different team** uses the **same artifacts** to generate the output artifact [@acminc.staffArtifactReviewBadging2020].
 
@@ -165,7 +165,7 @@ Since system-level provenance collection is a possibly valuable tradeoff between
 While there is little added human overhead in using system-level provenance (no user code change), there is a non-trivial implicit overhead in monitoring and recording each computational process.
 Even a minor overhead per I/O operation would become significant when amplified over the tens of thousands of I/O operations that a program might execute per second.
 
-Prior work in system-level provenance usually contains some benchmark programs to evaluate the overhead imposed by the system-level provenance tool.
+Prior publications in system-level provenance usually contains some benchmark programs to evaluate the overhead imposed by the system-level provenance tool.
 However, the set of chosen benchmark programs are not consistent from one publication to another, and overhead can be extermely sensitive to the exact choice of benchmark, so these results are totally incomparable between publications.
 Most publications only benchmark their new system against native/no-provenance, so prior work cannot easily establish which system-level provenance tool is the fastest.
 
@@ -188,8 +188,8 @@ This work contributes:
   We run a consistent set of benchmarks on a single machine over all provenance tools.
 
 - **A predictive performance model**:
-  The performance overhead of a single provenance system varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
-  We develop a statistical model for predicting the overhead of \$X application in \$Y provenance system based on \$Y provenance system's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
+  The performance overhead of a single provenance collector varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
+  We develop a statistical model for predicting the overhead of \$X application in \$Y provenance collector based on \$Y provenance collector's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
 
 # Methods
 
@@ -254,7 +254,7 @@ We record the following features for each system-level provenance tool:
 ## Benchmark selection
 
 Using the tools selected above, we identified all benchmarks that have been used in prior work.
-We excluded benchmarks for which we could not even find the original program (e.g., TextTransfer), benchmarks that were not available for Linux (e.g., Internet Explorer), benchmarks with a graphical component (e.g., Notepad++) , or benchmarks with an interactive component (e.g., GNU Midnight Commander).
+We excluded benchmarks for which we could not even find the original program (e.g., TextTransfer), benchmarks that were not available for Linux (e.g., Internet Explorer), benchmarks with a graphical component (e.g., Notepad++), or benchmarks with an interactive component (e.g., GNU Midnight Commander).
 
 We implemented the benchmarks as packages for the Nix package manager^[See https://nixos.org/guides/how-nix-works], so they are runnable on many different platforms.
 Nix has official installers for Linux, Mac OS X, and Windows Subsystem for Linux on i686, x86_64, and aarch64 architectures, but FreeBSD and OpenBSD both package Nix themselves, and it can likely be built from source on even more platforms.
@@ -311,7 +311,7 @@ Kernel & Linux 6.1.64                                   \\
 
 ## Benchmark subsetting
 
-We implemented and ran many different benchmarks, which may be costly for future researchers seeking to evaluate new provenance systems.
+We implemented and ran many different benchmarks, which may be costly for future researchers seeking to evaluate new provenance collector.
 Given the less-costly results of a small number of benchmarks, perhaps one predict the performance of the rest of the benchmarks. [^DSK: grammar in prev sentence needs work.]
 We will try several methods and several different $k$ (subset sizes) to identify the most important benchmarks, keeping the ones that perform best:
 
@@ -332,7 +332,7 @@ We will try several methods and several different $k$ (subset sizes) to identify
    
 - **Interpolative decomposition (ID)**.
 
-  1. We form a matrix where each benchmark is a column, each provenance system is a row, and the elements contain the log of the overhead ratio from the provenance system to native.
+  1. We form a matrix where each benchmark is a column, each provenance collector is a row, and the elements contain the log of the overhead ratio from the provenance collector to native.
 
   2. We apply ID to the matrix.
      ID seeks to estimate a $m \times n$ matrix by retaining $k$ of its columns and using a linear regression to estimate the remaining $n-k$ from those selected $k$ columns, sweeping on $k$.
@@ -350,13 +350,13 @@ We will try several methods and several different $k$ (subset sizes) to identify
     Like ID, it computes a linear predictor for the $m-k$ benchmarks based on the $k$ benchmarks.
     Then it evaluates the "goodness of fit" of that predictor, and repeats a fixed number of iterations, retaining the "best" $k$ benchmark subset.
 
-Cross-validation proceeds in the following manner, given $m$ provenance systems, $n$ benchmarks, and $f$ features:
+Cross-validation proceeds in the following manner, given $m$ provenance collectors, $n$ benchmarks, and $f$ features:
 
-1. Separate 1 provenance system for testing from the $m-1$ provenance systems used for training.
+1. Separate 1 provenance collector for testing from the $m-1$ provenance collectors used for training.
 
 2. Use the $(m-1) \times n$ training systems and $f \times n$ in one of the above algorithms to select the best $k < n$ benchmarks and compute predictors for the $n-k$ benchmarks.
 
-3. Feed in the output of the $1 \times k$ testing provenance system on the selected $k$ benchmarks into the algorithm, and let the algorithm estimate the $n-k$ unselected benchmarks.
+3. Feed in the output of the $1 \times k$ testing provenance collector on the selected $k$ benchmarks into the algorithm, and let the algorithm estimate the $n-k$ unselected benchmarks.
 
 4. Score the difference between the algorithm's prediction of the test system on the $n-k$ unselected benchmarks and its actual performance.
 
@@ -369,8 +369,8 @@ Cross-validation is supposed to simulate the situation where one is testing on *
 We evaluate these methods based on cross-validated root mean square-error (RMSE).
 Mean *square* error (MSE) is preferable to mean *absolute* error (MAE) because it punishes outliers more.
 Imagine a benchmark suite that minimizes MAE and another that minimizes MSE.
-The MAE-minizing suite one might be very accurate for most provenance systems, but egregiously wrong for a few; a MSE-minizing suite may be "more wrong" on average, but the worst-case wouldn't be as bad as the MAE one.
-As such, an MSE subset would be more practically useful for future publictions to benchmark their new provenance systems.
+The MAE-minizing suite one might be very accurate for most provenance collectors, but egregiously wrong for a few; a MSE-minizing suite may be "more wrong" on average, but the worst-case wouldn't be as bad as the MAE one.
+As such, an MSE subset would be more practically useful for future publictions to benchmark their new provenance collectors.
 
 We score the model on its ability to predict the logarithm of the ratio between a program running in provenance-generating and native systems.
 We use a ratio rather than the absolute difference because the runtimes of various benchmark spans multiple orders of magnitude.
@@ -391,12 +391,12 @@ There are two motivations for inferring a performance model:
 - Inferring a provenance model may improve our understanding of the bottlenecks in provenance collectors.
 
 A performance model should input features of a prospective workload and output the approximate overhead under different systems.
-A priori, provenance systems put a "tax" on certain syscalls (e.g., file I/O operations, process forks, process execs), because the system has to intercept and record these
+A priori, provenance collectors put a "tax" on certain syscalls (e.g., file I/O operations, process forks, process execs), because the system has to intercept and record these
 Therefore, we expect a low-dimensional linear model (perhaps number of I/O operations per second times a weight plus number of forks per second times another weight) would predict overhead optimally.
 To estimate this, we use the following models:
 
 - **Ordinary least-squares (OLS) linear regression**.
-  We estimate the runtime of each benchmark on each provenance system as a linear regression of the features of each benchmark, learning weights for each feature in each provenance system using ordinary least-squares.
+  We estimate the runtime of each benchmark on each provenance collector as a linear regression of the features of each benchmark, learning weights for each feature in each provenance collector using ordinary least-squares.
   This would create a model like $\mathrm{weight}_1 \cdot \mathrm{feature}_1 + \mathrm{weight}_2 \cdot \mathrm{feature}_2 + \cdots$
   However, we can reduced its number of parameters, and thereby increase its out-of-domain generalizability, by the next two methods.
 
@@ -424,7 +424,7 @@ Similarly to benchmark minimization, we use cross-validated RMSE errors in log o
 ## Selected provenance collectors
 
 @Tbl:tools shows the provenance collectors we collected and their qualitative features.
-We did not try reproducing provenance systems for the following reasons:  [^DSK: I don't understand the prev sentence. this and the reasons below seem to switch between systems and collectors, but I'm not sure I understand if they are different ideas or just different words for the same thing. Could this be "The following issues led us not to reproduce certain collectors"?]
+The last column in the table categorizes the "state" of that provenance collector in this work into one of the following:
 
 - **Not for Linux.**
   Our systems are Linux-based and Linux is used by many computational scientists.
@@ -448,8 +448,8 @@ We did not try reproducing provenance systems for the following reasons:  [^DSK:
   If we still could not find the source code for a particular provenance collector, we cannot reproduce it.
   Note, however, that RecProv is implemented using rr, so we can use rr as a lower-bound for RecProv.
   
-- **Kernel-level is out-of-scope (Hi-Fi, LPM/ProvMon, CamFlow).**  [^DSK: change to "Requires kernel changes"?]
-  Kernel-space collectors are out-of-scope for this work due to their increased maintenance overhead, security risk, and difficulty of system administration.
+- **Requires custom kernel (Hi-Fi, LPM/ProvMon, CamFlow).**
+  Collectors which modify Linux kernel code are out-of-scope for this work due to their increased maintenance overhead, security risk, and difficulty of system administration.
   Indeed, many of the systems are too old to be usable: LPM/ProvMon is a patch-set for Linux 2.6.32 (reached end-of-life 2016), Hi-Fi is a patch-set for Linux 3.2 (reached end-of-life in 2018).
   On the other hand, SingularityCE/Apptainer require Linux $\geq$ 3.8 for user namespaces.
 
@@ -467,9 +467,9 @@ We did not try reproducing provenance systems for the following reasons:  [^DSK:
 <!--   Nevertheless, we would like to implement this system in a cycle-accurate virtual machine like gem5, if we had more time. -->
 
 - **Not reproducible (OPUS).**
-  We tried to get this provenance system to run, with several weeks of effort: we emailed the original authors and other authors who used this system, and we left a GitHub issue describing the expected and actual results ^[See <https://github.com/dtg-FRESCO/opus/issues/1>]. However, we still could not get the system to run properly.
-  If we had more time, perhaps we could debug the issue.  [^DSK: not sure this last sentence is useful - maybe drop it. Or change it to say something like ", in a reasonable time" at the end of the prior sentence.]
-
+  We tried to get this provenance system to run, with several weeks of effort: we emailed the original authors and other authors who used this system, and we left a GitHub issue describing the expected and actual results ^[See <https://github.com/dtg-FRESCO/opus/issues/1>].
+  However, we still could not get the system to run properly.
+  
 - **Needs more time (DTrace, SPADE, eBPF/bpftrace).**
   We simply needed more time to implement these provenance collectors.
 
@@ -488,6 +488,10 @@ We did not try reproducing provenance systems for the following reasons:  [^DSK:
 	}
 ```
 \normalsize
+
+- **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2, CDE).**
+  We reproduced this provenance collector on all of the benchmarks.
+  <!-- TODO: Make sure Sciunit2 and CDE run -->
 
 \begin{table}
 \caption{Provenance collectors mentioned in primary and secondary studies in our search results.}
@@ -510,9 +514,9 @@ SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, 
 DTrace \cite{DTrace}                                               & audit                        & Needs more time                      \\
 eBPF/bpftrace                                                      & audit                        & Needs more time                      \\
 OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & lib. ins.                    & Not reproducible                     \\
-CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kernel ins.                  & Kernel-level                         \\
-Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kernel ins.                  & Kernel-level                         \\
-LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & kernel ins.                  & Kernel-level                         \\
+CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kernel ins.                  & Requires custom kernel               \\
+Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kernel ins.                  & Requires custom kernel               \\
+LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & kernel ins.                  & Requires custom kernel               \\
 RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & tracing                      & No source                            \\
 LPROV \cite{wangLprovPracticalLibraryaware2018}                    & kernel mod., lib. ins.       & No source                            \\
 S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & kernel mod.                  & No source                            \\
@@ -607,23 +611,18 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
 
 - **HTTP/FTP servers/clients/traffic.**
   The most common benchmark class from prior work, HTTP servers/traffic, HTTP servers/clients, FTP servers/traffic, and FTP servers/clients are popular because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics).
-  Therefore, we implement HTTP servers with simulated traffic, HTTP servers with specific clients, and FTP servers with simulated traffic.
-  Although we wanted to implement FTP servers with specific clients, all of those executions reach the callstack depth in ltrace, even when fetching a single file, so we had to drop those.
-  We do not think they are substantially different from the FTP servers with simulated traffic.  [^DSK: is there value in FTP today, given how rarely it is still supported/permitted?]
+  While these benchmarks may not be specifically relevant for computational science workloads, we wanted to include them in our suite to improve our coverage of benchmarks used frequently in prior works.
 
 - **Compiling packages.**
   Compiling packages from source is a common operation in computational science, so we implemented as many of these as we could and also implemented some of our own.
   However, compiling LLVM takes more than twice as long as the longest benchmark, so we excluded LLVM specifically from the benchmark suite.
   We implemented a pattern for compiling packages from Spack that discounts the time taken to download sources, counting only the time taken to unpack, patch, configure, compile, link, and install them.
   We try compiling Python, Boost, HDF5, glibc, Apache HTTPd, and Perl.
-  In the future, we plan to implement compilation for more packages, in particular xSDK [@bartlettXSDKFoundationsExtremescale2017] packages.  [^DSK: not sure if this goes here or in Future Work/Conclusions.]
-
-[^llvm]: Compiling LLVM from source takes multiple times longer than the longest benchmark. Since we already have many compilation benchmarks, we opted to increase the iteration counts (thereby reducing variance in our data) rather than include LLVM.
+  <!-- TODO: DOuble check what are we compiling? -->
 
 - **Browsers.**
   Implementing headless for browsers in "batch-mode" without GUI interaction is not impossibly difficult, but non-trivial.
   Furthermore, we deprioritized this benchmark because few computational science applications resemble the workload of a web browser.
-  If we had more time, we would implement this benchmark too. [^DSK: not sure if this goes here or in Future Work/Conclusions.]
 
 - **Un/archive.**
   Archive and unarchiving is a common task for retrieving data or source code.
@@ -669,7 +668,6 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
 - The rest of the programs are mostly specific desktop applications used only in one prior work.
   These would likely not yield any insights not already yielded by the benchmarks we implemented, and for each one we would need to build it from source, find a workload for it, and take the time to run it.
   They weigh little in the argument that our benchmark suite represents prior work, since they are only used in one prior work.
-  We would like to implement these, but they have a lower priority. [^DSK: not sure if this goes here or in Future Work/Conclusions.]
 
 \begin{table}
 \caption{Benchmarks implemented by this work.}
@@ -753,6 +751,8 @@ Reprozip, Sciunit, RR, CDE vs strace, ltrace
 ## Threats to validity
 
 # Future work
+
+In the future, we plan to implement compilation for more packages, in particular xSDK [@bartlettXSDKFoundationsExtremescale2017] packages.
 
 # Conclusion
 
