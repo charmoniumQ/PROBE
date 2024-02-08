@@ -124,12 +124,12 @@ Computational provenance, "the computational input artifacts and computational p
 
 There are three high-level methods by which one can capture computational provenance: 1) by modifying an application to report provenance data, 2) by leveraging a workflow engine or programming language to report provenance data, and 3) by leveraging an operating system to emit provenance data to report provenance data [@freireProvenanceComputationalTasks2008].
 
-- **Application-level** provenance is the most semantically rich, since it knows the use of each input at the application-level (see @fig:app-lvl-prov), but the least general, since each application would have to be modified individually.
+- **Application-level** provenance is the most semantically rich, since it knows the use of each input at the application-level (see @Fig:app-lvl-prov), but the least general, since each application would have to be modified individually.
 
 - **Workflow-level** or **language-level** provenance is a middle ground in semantic richness and generality;
-  it only knows the use of inputs in a dataflow sense (see @fig:wf-lvl-prov), ^[DSK: this generates "fig.", not the correct "Fig."] but all applications using the provenance-modified workflow engine or programming language would emit provenance data without themselves being modified to emit provenance data.
+  it only knows the use of inputs in a dataflow sense (see @Fig:wf-lvl-prov), but all applications using the provenance-modified workflow engine or programming language would emit provenance data without themselves being modified to emit provenance data.
 
-- **System-level** is the most general, since all applications on the system would emit provenance data, but it is the least semantically rich, since observed dependencies may overapproximate the true dependencies (see @fig:sys-lvl-log and @fig:sys-lvl-prov).
+- **System-level** is the most general, since all applications on the system would emit provenance data, but it is the least semantically rich, since observed dependencies may overapproximate the true dependencies (see @Fig:sys-lvl-log and @Fig:sys-lvl-prov).
   System-level provenance collectors may be implemented in **kernel-space** or in **user-space**.
   Since kernel-space provenance collectors modify internals of the Linux kernel, keeping them up-to-date as the kernel changes is a significant maintenance burden.
   High-security national labs may be wary of including a patched kernel.
@@ -150,22 +150,22 @@ Several provenance graphs collected at different levels.
 
 </div>
 
-One may imagine an abstract tradeoff curve (@fig:cost-vs-enabling) between "enabling provenance applications such as reproducibility" as the horizontal axis increasing rightwards and "cost of implementation" that provenance data on the vertical axis increasing upwards).
+One may imagine an abstract tradeoff curve (@Fig:cost-vs-enabling) between "enabling provenance applications such as reproducibility" as the horizontal axis increasing rightwards and "cost of implementation" that provenance data on the vertical axis increasing upwards).
 A typical status quo, not collecting any provenance data and not using workflows, is at the bottom left:
   no added cost and does nothing to enable provenance applications.
 System-level, workflow/language-level, and application-level are on a curve, increasing cost and enabling more provenance applications.
 
-The initial jump in cost from nothing to system-level is low because the user need not change _anything_ about their application;
+The implementation cost in adopting system-level provenance in a project which currently has no provenance is low because the user need not change _anything_ about their application;
   they merely need to install some provenance tracer onto their system and run their code, without modifying it, in the tracer. ^[DSK: what about the performance penalty? Since you talk about performance in contributions, I think you have to introduce it here. SAG: This is referring to the "cost of switching from no-prov to prov", which is low, and I'm only using this argument to explain why I look at system-level over the others. Performance overhead between system-level tools is a concern that I will address later on. DSK: maybe add a word ("implementation"?) before cost to say which cost is meant here?]
 Perceived ease of use is a critical factor in the adoption of new technologies (formalized in the Technology Acceptance Model [@davisTechnologyAcceptanceModel1985]).
-Although the user may eventually use more semantically rich provenance, low-cost system-level provenance would get provenance's "foot in the door". 
+Although the user may eventually use more semantically rich provenance, low-initial-cost system-level provenance would get provenance's "foot in the door". 
 While this data is less rich than that of the workflow or application level, it may be enough to enable important applications such as reproducibility, caching, etc.
-Since system-level provenance collection is a possibly valuable tradeoff between cost and enabling provenance applications, system-level provenance will be the subject of this work.
+Since system-level provenance collection is a possibly valuable tradeoff between implementation cost and enabling provenance applications, system-level provenance will be the subject of this work.
 
 While there is little added human overhead in using system-level provenance (no user code change), there is a non-trivial implicit overhead in monitoring and recording each computational process.
-Even a minor overhead per I/O operation would be significant when amplified over the tens of thousands of I/O operations that a program might execute per second.
+Even a minor overhead per I/O operation would become significant when amplified over the tens of thousands of I/O operations that a program might execute per second.
 
-Prior work in system-level provenance usually contain some benchmark programs to evaluate the overhead imposed by the system-level provenance tool.
+Prior work in system-level provenance usually contains some benchmark programs to evaluate the overhead imposed by the system-level provenance tool.
 However, the set of chosen benchmark programs are not consistent from one publication to another, and overhead can be extermely sensitive to the exact choice of benchmark, so these results are totally incomparable between publications.
 Most publications only benchmark their new system against native/no-provenance, so prior work cannot easily establish which system-level provenance tool is the fastest.
 
@@ -176,7 +176,7 @@ This work aims to summarize state of the art, establish goalposts for future res
 This work contributes:
 
 - **A rapid review**:
-    There are scores of academic publications on system-level provenance (see @tbl:tools), ^[DSK: this generates "table", not the correct "Table"]. We collate as many provenance tools as possible ^[DSK: as possible is problematic, probably need to rephrase] and classify them by _capture method_ (e.g., does the provenance collector require you to load a kernel module or run your code in a VM?). 
+    There are scores of academic publications on system-level provenance (see @Tbl:tools). We collate as many provenance tools as possible ^[DSK: as possible is problematic, probably need to rephrase] and classify them by _capture method_ (e.g., does the provenance collector require you to load a kernel module or run your code in a VM?). 
 
 - **A benchmark suite**:
   Prior work does not use a consistent set of benchmarks; often publications use an overlapping set of benchmarks from prior work.
@@ -313,7 +313,7 @@ Kernel & Linux 6.1.64                                   \\
 
 We implemented and ran many different benchmarks, which may be costly for future researchers seeking to evaluate new provenance systems.
 Given the less-costly results of a small number of benchmarks, perhaps one predict the performance of the rest of the benchmarks. [^DSK: grammar in prev sentence needs work.]
-We will try several methods to identify the most important benchmarks, keeping the ones that perform best:
+We will try several methods and several different $k$ (subset sizes) to identify the most important benchmarks, keeping the ones that perform best:
 
 - **Principal component analysis (PCA) and K-means**.
   This is the traditional benchmark subsetting procedure evaluated by Yi et al. [@yiEvaluatingBenchmarkSubsetting2006].
@@ -321,21 +321,21 @@ We will try several methods to identify the most important benchmarks, keeping t
   1. We form a matrix of all benchmarks by "observed features" of that benchmark.
      The observed features contain, for example, number of file open/closes per second, number of file metadata operations per second, etc.
      While not traditionally done, "the overhead ratio of this benchmark in that provenance engine" is a perfectly valid feature to consider.
-     We only use features that are invariant when running the program twice (i.e., using operations per second, not total operations), so benchmarks that are functionally similar but run for a longer time to not consist different points than analogous shorter benchmarks. [^DSK: grammar in prev sentence needs work.]
+     We only use features that are invariant when running the program twice, so long benchmarks are more comparable to short ones.
 
   2. We apply PCA to that matrix.
      PCA is a mathematical procedure that combines a large number of "observed features" into smaller number "virtual features", linearly, while maximizing the amount of variance in the resulting "virtual space" (in a sense, spreading out the benchmarks as much as possible from each other).
 
   3. We apply K-means to the benchmarks in their reduced PCA-space.
      K-means is a fast clustering algorithm.
-     Once the benchmarks are grouped into clusters, we identify one benchmark from each cluster to consist the benchmark subset.  [^DSK: how do you determine K?]
+     Once the benchmarks are grouped into clusters, we identify one benchmark from each of the $k$ clusters to consist the benchmark subset.
    
-- **Interpolative decomposition (ID)**.  [^DSK: in 2 and 3 below, how do you determine k?]
+- **Interpolative decomposition (ID)**.
 
   1. We form a matrix where each benchmark is a column, each provenance system is a row, and the elements contain the log of the overhead ratio from the provenance system to native.
 
   2. We apply ID to the matrix.
-     ID seeks to estimate a $m \times n$ matrix by retaining $k$ of its columns and using a linear regression to estimate the remaining $n-k$ from those selected $k$ columns.
+     ID seeks to estimate a $m \times n$ matrix by retaining $k$ of its columns and using a linear regression to estimate the remaining $n-k$ from those selected $k$ columns, sweeping on $k$.
      Cheng et al. [@chengCompressionLowRank2005] give a $\mathcal{O}(k(m+n-k))$ algorithm for computing an optimal ID while keeping a reasonable[^reasonable-error] L2 norm of the difference between the estimated and actual columns.
      Cheng's procedure is implemented in `scipy.linalg.interpolative`[^scipy.linalg.interpolative].
 
@@ -346,7 +346,7 @@ We will try several methods to identify the most important benchmarks, keeping t
   3. We select the $k$ benchmarks corresponding to columns chosen by ID; these are the "best" $k$ columns which minimize the error when predicting the $n-k$ columns under a specific metric.
 
 -  **Random search**.
-    Random search proceeds like ID, but it selects $k$ benchmarks randomly.  [^DSK: again, how do you determine k?]
+    Random search proceeds like ID, but it selects $k$ benchmarks randomly.
     Like ID, it computes a linear predictor for the $m-k$ benchmarks based on the $k$ benchmarks.
     Then it evaluates the "goodness of fit" of that predictor, and repeats a fixed number of iterations, retaining the "best" $k$ benchmark subset.
 
@@ -373,7 +373,7 @@ The MAE-minizing suite one might be very accurate for most provenance systems, b
 As such, an MSE subset would be more practically useful for future publictions to benchmark their new provenance systems.
 
 We score the model on its ability to predict the logarithm of the ratio between a program running in provenance-generating and native systems.
-We use a ratio rather than the absolute difference because some tests are very fast while some tests are very slow.
+We use a ratio rather than the absolute difference because the runtimes of various benchmark spans multiple orders of magnitude.
 We predict the logarithm of the ratio, rather than the ratio directly because the ratio is multiplicative.
 Any real number is permissible; 0 indicates "nothing changed", 1 indicates a speedup by a certain factor, and -1 indicates a slowdown *by the same factor*.
 
@@ -489,8 +489,6 @@ We did not try reproducing provenance systems for the following reasons:
 ```
 \normalsize
 
-The lack of source code availability, lack of up-to-date systems, and difficulty in setting up experimental infrastructure lead us to narrow our scope to studying only user-space provenance tracing, not kernel-space provenance tracing.
-
 \begin{table}
 \caption{Provenance collectors mentioned in primary and secondary studies in our search results.}
 \label{tbl:tools}
@@ -499,45 +497,45 @@ The lack of source code availability, lack of up-to-date systems, and difficulty
 \scriptsize
 \begin{tabular}{lll}
 \toprule
-Tool                                                               & Status                               \\
+Tool                                                               & Method                       & Status                               \\
 \midrule
-strace                                                             & Reproduced                           \\
-fsatrace                                                           & Reproduced                           \\
-ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & Reproduced                           \\
-Sciunit2 \cite{tonthatSciunitsReusableResearch2017}                & Reproduced                           \\
-rr \cite{ocallahanEngineeringRecordReplay2017}                     & Reproduced                           \\
-CDE \cite{guoCDEUsingSystem2011}                                   & Reproduced                           \\
-ltrace                                                             & Reproduced/excluded                  \\
-SPADE \cite{gehaniSPADESupportProvenance2012}                      & Needs more time                      \\
-DTrace \cite{DTrace}                                               & Needs more time                      \\
-eBPF/bpftrace                                                      & Needs more time                      \\
-OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & Not reproducible                     \\
-CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & Kernel-level                         \\
-Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & Kernel-level                         \\
-LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & Kernel-level                         \\
-RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & No source                            \\
-LPROV \cite{wangLprovPracticalLibraryaware2018}                    & No source                            \\
-S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & No source                            \\
-ProTracer \cite{maProTracerPracticalProvenance2016}                & No source                            \\
-FiPS \cite{sultanaFileProvenanceSystem2013}                        & No source                            \\
-PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & No source                            \\
-PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & No source                            \\
-PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & No source                            \\
-Lineage FS \cite{sarLineageFileSystem}                             & No source                            \\
-RTAG \cite{jiEnablingRefinableCrossHost2018}                       & No source                            \\
-BEEP \cite{leeHighAccuracyAttack2017}                              & Requires HW                          \\
-libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & Requires HW                          \\
-RAIN \cite{jiRAINRefinableAttack2017}                              & Requires HW                          \\
-DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & Requires HW                          \\
-MPI\cite{maMPIMultiplePerspective2017}                             & Requires recompilation               \\
-LDX \cite{kwonLDXCausalityInference2016}                           & Requires recompilation               \\
-Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VMs are too slow                     \\
-PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & VMs are too slow                     \\
-ETW \cite{EventTracingWin322021}                                   & Not for Linux                        \\
-Sysmon \cite{markrussSysmonSysinternals2023}                       & Not for Linux                        \\
-TREC \cite{vahdatTransparentResultCaching1998}                     & Not for Linux                        \\
-URSprung \cite{rupprechtImprovingReproducibilityData2020}          & Not for Linux\footnotemark           \\
-Ma et al. \cite{maAccurateLowCost2015}                             & Not for Linux                        \\
+strace                                                             & tracing                      & Reproduced                           \\
+fsatrace                                                           & tracing                      & Reproduced                           \\
+ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      & Reproduced                           \\
+Sciunit2 \cite{tonthatSciunitsReusableResearch2017}                & tracing                      & Reproduced                           \\
+rr \cite{ocallahanEngineeringRecordReplay2017}                     & tracing                      & Reproduced                           \\
+CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      & Reproduced                           \\
+ltrace                                                             & tracing                      & Reproduced/excluded                  \\
+SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, or compile-time   & Needs more time                      \\
+DTrace \cite{DTrace}                                               & audit                        & Needs more time                      \\
+eBPF/bpftrace                                                      & audit                        & Needs more time                      \\
+OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & lib. ins.                    & Not reproducible                     \\
+CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kernel ins.                  & Kernel-level                         \\
+Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kernel ins.                  & Kernel-level                         \\
+LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & kernel ins.                  & Kernel-level                         \\
+RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & tracing                      & No source                            \\
+LPROV \cite{wangLprovPracticalLibraryaware2018}                    & kernel mod., lib. ins.       & No source                            \\
+S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & kernel mod.                  & No source                            \\
+ProTracer \cite{maProTracerPracticalProvenance2016}                & kernel mod.                  & No source                            \\
+FiPS \cite{sultanaFileProvenanceSystem2013}                        & FS                           & No source                            \\
+PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & kernel ins., FS              & No source                            \\
+PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & kernel ins., FS, lib. ins.   & No source                            \\
+PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & kernel ins.                  & No source                            \\
+Lineage FS \cite{sarLineageFileSystem}                             & kernel ins.                  & No source                            \\
+RTAG \cite{jiEnablingRefinableCrossHost2018}                       & dyn./static bin. ins.        & No source                            \\
+BEEP \cite{leeHighAccuracyAttack2017}                              & dyn. bin. ins.               & Requires HW                          \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & dyn. bin., kernel, lib. ins. & Requires HW                          \\
+RAIN \cite{jiRAINRefinableAttack2017}                              & dyn. bin. ins.               & Requires HW                          \\
+DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & compile-time ins.            & Requires HW                          \\
+MPI\cite{maMPIMultiplePerspective2017}                             & compile-time ins.            & Requires recompilation               \\
+LDX \cite{kwonLDXCausalityInference2016}                           & VM ins.                      & Requires recompilation               \\
+Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VM ins.                      & VMs are too slow                     \\
+PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & audit                        & VMs are too slow                     \\
+ETW \cite{EventTracingWin322021}                                   & audit                        & Not for Linux                        \\
+Sysmon \cite{markrussSysmonSysinternals2023}                       & audit                        & Not for Linux                        \\
+TREC \cite{vahdatTransparentResultCaching1998}                     & tracing                      & Not for Linux                        \\
+URSprung \cite{rupprechtImprovingReproducibilityData2020}          & audit                        & Not for Linux\footnotemark           \\
+Ma et al. \cite{maAccurateLowCost2015}                             & audit                        & Not for Linux                        \\
 \bottomrule
 \end{tabular}
 \normalsize
@@ -546,7 +544,7 @@ Ma et al. \cite{maAccurateLowCost2015}                             & Not for Lin
 \end{table}
 \footnotetext{URSprung depends on IBM Spectrum Scale to get directory change notifications, so it is not for a \textit{generic} Linux system.}
 
-<!--
+ff<!--
 | Tool                                                  | Reason                                                          |
 |-------------------------------------------------------|-----------------------------------------------------------------|
 | ES3 [@frewES3DemonstrationTransparent2008]            | specific to ES3 platform                                        |
@@ -603,8 +601,8 @@ URSPRING \cite{rupprechtImprovingReproducibilityData2020}    & open/close, fork/
 \end{table}
 \footnotetext{LogGC measures the offline running time and size of garbage collected logs; there is no comparison to native would be applicable.}
 
-Of these, @tbl:prior-benchmarks shows the benchmarks used to evaluate each tool, of which there are quite a few.
-First, we eliminated several benchmarks from this set as non-starters for the reasons described in @tbl:excluded-bmarks.
+Of these, @Tbl:prior-benchmarks shows the benchmarks used to evaluate each tool, of which there are quite a few.
+First, we eliminated several benchmarks from this set as non-starters for the reasons described in @Tbl:excluded-bmarks.
 Then, we prioritized implementing frequently-used benchmarks, easy-to-implement benchmarks, and benchmarks which we believe have value in representing a computational science use-case.
 
 - **HTTP/FTP servers/clients/traffic.**
