@@ -7,7 +7,7 @@ bibliography: zotero
 link-citations: yes
 link-bibliography: yes
 notes-after-punctuation: yes
-title: A benchmark suite and performance analysis of provenance systems
+title: A benchmark suite and performance analysis of user-space provenance systems
 author:
   - name: Samuel Grayson
     orcid: 0000-0001-5411-356X
@@ -21,6 +21,15 @@ author:
       state: IL
       country: USA
       postcode: 61801-2302
+  - name: Faustino Aguilar
+    orcid: 0009-0000-1375-1143
+    email: faustino.aguilar@up.ac.pa
+    affiliation:
+      institution: University of Panama
+      department:
+        - Department of Computer Engineering
+      city: Panama City
+      country: Panama
   - name: Daniel S. Katz
     orcid: 0000-0001-5934-7525
     email: dskatz@illinois.edu
@@ -124,6 +133,10 @@ One can capture computational provenance by modifying an application to report p
   it only knows the use of inputs in a dataflow sense (see @fig:wf-lvl-prov), but all applications using the provenance-modified workflow engine or programming language would emit provenance data without themselves being modified to emit provenance data.
 
 - **System-level** is the most general, since all applications on the system would emit provenance data, but it is the least semantically rich, since observed dependencies may overapproximate the true dependencies (see @fig:sys-lvl-log and @fig:sys-lvl-prov).
+  System-level provenance collectors may be implemented in **kernel-space** or in **user-space**.
+  Since kernel-space provenance collectors modify internals of the Linux kernel, it is a significant maintenance burden to keep them up-to-date as the kernel changes.
+  High-security national labs may be wary of including a patched kernel.
+  On the other hand, user-space collectors compromise performance in exchange for requiring less maintenance and less privilege.
 
 <div id="fig:prov">
 
@@ -438,18 +451,23 @@ We did not try reproducing provenance systems for the following reasons:
   If we still could not find the source code for a particular provenance collector, we cannot reproduce it.
   Note, however, that RecProv is implemented using rr, so we can use rr as a lower-bound for RecProv.
   
-- **Ancient kernel (Hi-Fi and LPM/ProvMon).**
-  Some provenance systems are implemented as patches into the Linux kernel.
-  As time passed, these grew out-of-date with modern Linux kernels.
-  We deprioritized the implementation of these methods because they require extermely old kernels, and thus may not be worthy of use in practical systems.
-  Even conservative Linux distributions like CentOS 7 use Linux 3.10.
-  This difficulty is not a bug in our study, but reflects an underlying reality that modified kernels are less likely to be maintained.
-  However, if we had more time, we would want to reproduce these systems too.
+- **Kernel-level is out-of-scope (Hi-Fi, LPM/ProvMon, CamFlow).**
+  Kernel-space collectors are out-of-scope for this work due to their increased maintenance overhead, security risk, and difficulty of system administration.
+  Indeed, many of the systems are too old to be usable: LPM/ProvMon is a patch-set for Linux 2.6.32 (reached end-of-life 2016), Hi-Fi is a patch-set for Linux 3.2 (reached end-of-life in 2018).
+  On the other hand, SingularityCE/Apptainer require Linux $\geq$ 3.8 for user namespaces.
 
-- **Need more time for kernel (CamFlow).**
-  Provenance systems that are implemented as patches on the Linux kernel are difficult to deploy, even if the kernel is recent.
-  We could implement experimental infrastructure to run the modified kernel on "bare metal", which is difficult to set up and dangerous, or we could run the modified kernel in a traditional virtual machine, which would distort the runtimes non-linearly from native performance and invalidate the predictive performance model, or a cycle-accurate virtual machine, which would prohibitively slow down the benchmark suite to the point that we would have much less data.
-  Nevertheless, we would like to implement this system in a cycle-accurate virtual machine like gem5, if we had more time.
+<!-- - **Ancient kernel (Hi-Fi and LPM/ProvMon).** -->
+<!--   Some provenance systems are implemented as patches into the Linux kernel. -->
+<!--   As time passed, these grew out-of-date with modern Linux kernels. -->
+<!--   We deprioritized the implementation of these methods because they require extermely old kernels, and thus may not be worthy of use in practical systems. -->
+<!--   Even conservative Linux distributions like CentOS 7 use Linux 3.10. -->
+<!--   This difficulty is not a bug in our study, but reflects an underlying reality that modified kernels are less likely to be maintained. -->
+<!--   However, if we had more time, we would want to reproduce these systems too. -->
+
+<!-- - **Need more time for kernel (CamFlow).** -->
+<!--   Provenance systems that are implemented as patches on the Linux kernel are difficult to deploy, even if the kernel is recent. -->
+<!--   We could implement experimental infrastructure to run the modified kernel on "bare metal", which is difficult to set up and dangerous, or we could run the modified kernel in a traditional virtual machine, which would distort the runtimes non-linearly from native performance and invalidate the predictive performance model, or a cycle-accurate virtual machine, which would prohibitively slow down the benchmark suite to the point that we would have much less data. -->
+<!--   Nevertheless, we would like to implement this system in a cycle-accurate virtual machine like gem5, if we had more time. -->
 
 - **Not reproducible (OPUS).**
   We tried to get this provenance system to run with several weeks of effort, we emailed the original authors and other authors who used this system, and we left a GitHub issue describing the expected and actual results ^[See <https://github.com/dtg-FRESCO/opus/issues/1>],  however we still could not get the system to run properly.
@@ -474,6 +492,8 @@ We did not try reproducing provenance systems for the following reasons:
 ```
 \normalsize
 
+The lack of source code availability, lack of up-to-date systems, and difficulty in setting up experimental infrastructure lead us to narrow our scope to studying only user-space provenance tracing, not kernel-space provenance tracing.
+
 \begin{table}
 \caption{Provenance collectors mentioned in primary and secondary studies in our search results.}
 \label{tbl:tools}
@@ -482,45 +502,45 @@ We did not try reproducing provenance systems for the following reasons:
 \scriptsize
 \begin{tabular}{lll}
 \toprule
-Tool                                                               & Collection method            & Status                               \\
+Tool                                                               & Status                               \\
 \midrule
-strace                                                             & Tracing                      & Reproduced                           \\
-fsatrace                                                           & Library ins.                 & Reproduced                           \\
-ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & Tracing                      & Reproduced                           \\
-Sciunit2 \cite{tonthatSciunitsReusableResearch2017}                & Tracing                      & Reproduced                           \\
-rr \cite{ocallahanEngineeringRecordReplay2017}                     & Tracing                      & Reproduced                           \\
-CDE \cite{guoCDEUsingSystem2011}                                   & Tracing                      & Reproduced                           \\
-ltrace                                                             & Tracing                      & Reproduced/excluded                  \\
-SPADE \cite{gehaniSPADESupportProvenance2012}                      & Audit, FS, or compile-time   & Needs more time                      \\
-DTrace \cite{DTrace}                                               & Audit                        & Needs more time                      \\
-eBPF/bpftrace                                                      & Audit                        & Needs more time                      \\
-CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & Kernel ins.                  & Needs more time for kern.            \\
-OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & Library ins.                 & Not reproducible                     \\
-Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & Kernel ins.                  & Ancient kernel (3.2.0)               \\
-LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & Kernel ins.                  & Ancient kernel (2.6.32)              \\
-RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & Tracing                      & No source                            \\
-LPROV \cite{wangLprovPracticalLibraryaware2018}                    & Kernel mod., lib. ins.       & No source                            \\
-S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & Kernel mod.                  & No source                            \\
-ProTracer \cite{maProTracerPracticalProvenance2016}                & Kernel mod.                  & No source                            \\
-FiPS \cite{sultanaFileProvenanceSystem2013}                        & FS ins.                      & No source                            \\
-PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & FS ins.                      & No source                            \\
-PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & Kernel ins., FS ins.         & No source                            \\
-PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & Kernel ins., FS, lib. ins.   & No source                            \\
-Lineage FS \cite{sarLineageFileSystem}                             & Kernel ins.                  & No source                            \\
-RTAG \cite{jiEnablingRefinableCrossHost2018}                       & Kernel ins.                  & No source                            \\
-BEEP \cite{leeHighAccuracyAttack2017}                              & Dyn./static binary ins.      & Requires HW                          \\
-libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & Dyn. binary ins.             & Requires HW                          \\
-RAIN \cite{jiRAINRefinableAttack2017}                              & Dyn. bin., kernel, lib. ins. & Requires HW                          \\
-DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & Dinamic binary ins.          & Requires HW                          \\
-MPI\cite{maMPIMultiplePerspective2017}                             & Compile-time ins.            & Requires recompilation               \\
-LDX \cite{kwonLDXCausalityInference2016}                           & Compile-time ins.            & Requires recompilation               \\
-Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VM ins.                      & VMs are too slow                     \\
-PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & VM ins.                      & VMs are  too slow                    \\
-ETW \cite{EventTracingWin322021}                                   & Audit                        & Not for Linux                        \\
-Sysmon \cite{markrussSysmonSysinternals2023}                       & Audit                        & Not for Linux                        \\
-TREC \cite{vahdatTransparentResultCaching1998}                     & Audit                        & Not for Linux                        \\
-URSprung \cite{rupprechtImprovingReproducibilityData2020}          & Audit, file-system ins.      & Not for Linux\footnotemark           \\
-Ma et al. \cite{maAccurateLowCost2015}                             & Kernel ins.                  & Not for Linux                        \\
+strace                                                             & Reproduced                           \\
+fsatrace                                                           & Reproduced                           \\
+ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & Reproduced                           \\
+Sciunit2 \cite{tonthatSciunitsReusableResearch2017}                & Reproduced                           \\
+rr \cite{ocallahanEngineeringRecordReplay2017}                     & Reproduced                           \\
+CDE \cite{guoCDEUsingSystem2011}                                   & Reproduced                           \\
+ltrace                                                             & Reproduced/excluded                  \\
+SPADE \cite{gehaniSPADESupportProvenance2012}                      & Needs more time                      \\
+DTrace \cite{DTrace}                                               & Needs more time                      \\
+eBPF/bpftrace                                                      & Needs more time                      \\
+OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & Not reproducible                     \\
+CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & Kernel-level                         \\
+Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & Kernel-level                         \\
+LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & Kernel-level                         \\
+RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & No source                            \\
+LPROV \cite{wangLprovPracticalLibraryaware2018}                    & No source                            \\
+S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & No source                            \\
+ProTracer \cite{maProTracerPracticalProvenance2016}                & No source                            \\
+FiPS \cite{sultanaFileProvenanceSystem2013}                        & No source                            \\
+PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & No source                            \\
+PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & No source                            \\
+PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & No source                            \\
+Lineage FS \cite{sarLineageFileSystem}                             & No source                            \\
+RTAG \cite{jiEnablingRefinableCrossHost2018}                       & No source                            \\
+BEEP \cite{leeHighAccuracyAttack2017}                              & Requires HW                          \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & Requires HW                          \\
+RAIN \cite{jiRAINRefinableAttack2017}                              & Requires HW                          \\
+DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & Requires HW                          \\
+MPI\cite{maMPIMultiplePerspective2017}                             & Requires recompilation               \\
+LDX \cite{kwonLDXCausalityInference2016}                           & Requires recompilation               \\
+Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VMs are too slow                     \\
+PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & VMs are too slow                     \\
+ETW \cite{EventTracingWin322021}                                   & Not for Linux                        \\
+Sysmon \cite{markrussSysmonSysinternals2023}                       & Not for Linux                        \\
+TREC \cite{vahdatTransparentResultCaching1998}                     & Not for Linux                        \\
+URSprung \cite{rupprechtImprovingReproducibilityData2020}          & Not for Linux\footnotemark           \\
+Ma et al. \cite{maAccurateLowCost2015}                             & Not for Linux                        \\
 \bottomrule
 \end{tabular}
 \normalsize
@@ -629,7 +649,8 @@ Then, we prioritized implementing frequently-used benchmarks, easy-to-implement 
 
 - **CPU benchmarks.**
   SPEC CPU INT 2006 [@henningSPECCPU2006Benchmark2006] and SPLASH-3 [@sakalisSplash3ProperlySynchronized2016] test CPU performance.
-  We implement SPLASH-3 but not SPEC CPU INT 2006, since SPEC is non-free.
+  While we do not expect CPU benchmarks to be particularly enlightening for provenance collectors, which usually only affect I/O performance, it was used in three prior works, so we tried to implement both.
+  However, SPEC CPU INT 2006 is not free (as in beer), so we could only implement SPLASH-3.
 
 - **Sendmail.**
   Sendmail is a quite old mail server program.
@@ -716,8 +737,6 @@ TODO: xSDK codes
 
 ## Subsetted benchmarks
 
-
-
 ## Quantitative performance comparison
 
 ## Predictive model
@@ -725,11 +744,9 @@ TODO: xSDK codes
 # Analysis
 
 <!--
-TODO: note that fsatrace has a hardcoded limit on the size of the buffer used to store file read/writes. If this size is exceeded, the program will crash without any message.
+TODO: note that fsatrace has a hardcoded limit on the size of the buffer used to store file read/writes. If this size is exceeded, the program will exhibit undefined behavior. On my system, it crashes with a non-zero exit code but without any message.
 -->
 <!--
-https://github.com/usnistgov/corr-CDE/blob/05137888a8ad67b0796814170ba61deef51bec03/strace-4.6/cde.c#L1043
-
 "CDE WARNING (unsupported operation): %s '%s' is a relative path and dirfd != AT_FDCWD\n",
 -->
 
