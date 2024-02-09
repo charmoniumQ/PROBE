@@ -80,6 +80,7 @@ $if(verbatim-in-note)$
 \usepackage{fancyvrb}
 $endif$
 \usepackage{xcolor}
+\usepackage{physics}
 
 $if(listings)$
 \usepackage{listings}
@@ -94,8 +95,9 @@ $if(verbatim-in-note)$
 $endif$
 
 \usepackage{microtype}
+% \usepackage{bibcop}
+\RequirePackage[l2tabu, orthodox]{nag}
 
-$if(tables)$
 \usepackage{longtable,booktabs,array}
 % Correct order of tables after paragraph or subparagraph
 \usepackage{etoolbox}
@@ -144,13 +146,13 @@ $if(tables)$
 % \def\endlongtable{\oldendlongtable \twocolumn}
 % \makeatother
 
+\usepackage{subcaption}
+
 \usepackage{supertabular}
 \newcommand\tcap{}
 \renewenvironment{longtable}{\begin{center}\bottomcaption{\tcap}\begin{supertabular}}{\end{supertabular}\end{center}}
 \renewcommand{\endhead}{}
 \renewcommand{\endlastfoot}{}
-
-$endif$
 
 $if(graphics)$
 \usepackage{graphicx,grffile}
@@ -172,10 +174,6 @@ $if(strikeout)$
 \usepackage[normalem]{ulem}
 % avoid problems with \sout in headers with hyperref:
 \pdfstringdefDisableCommands{\renewcommand{\sout}{}}
-$endif$
-
-$if(subfigure)$
-\usepackage{subcaption}
 $endif$
 
 $if(csquotes)$

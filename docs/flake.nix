@@ -18,6 +18,7 @@
           nix-lib = nixpkgs.lib;
           nix-utils-lib = nix-utils.lib.${system};
           nix-documents-lib = nix-documents.lib.${system};
+          svg2pdf = dstName: srcName: pkgs.runCommand dstName {} "${pkgs.librsvg}/bin/rsvg-convert --output=$out --format=pdf ${srcName}";
           texlivePackages = {
             inherit (pkgs.texlive)
               # See sec 2.1 here https://ctan.math.illinois.edu/macros/latex/contrib/acmart/acmguide.pdf
@@ -27,6 +28,7 @@
               amsfonts
               amsmath
               babel
+              bibcop
               biblatex
               biblatex-trad
               kastrup # \usepackage{binhex}
@@ -55,6 +57,7 @@
               ifmtarg
               iftex
               inconsolata
+              lacheck
               latexmk
               libertine
               mdwtools
@@ -62,12 +65,14 @@
               mmap
               ms
               mweights
+              nag
               natbib
               ncctools # \usepackage{manyfoot,nccfoots}
               newtx
               oberdiek
               parskip
               pbalance
+              physics
               # pdftex-def
               preprint
               printlen
@@ -108,9 +113,10 @@
                         "citations-to-latex.lua" = ./citations-to-latex.lua;
                       }
                       // nix-utils-lib.packageSet [
-                        self."app-lvl-prov.svg"
-                        self."wf-lvl-prov.svg"
-                        self."sys-lvl-prov.svg"
+                        self."app-lvl-prov.pdf"
+                        self."wf-lvl-prov.pdf"
+                        self."sys-lvl-prov.pdf"
+                        self."sys-lvl-log.pdf"
                       ];
                     };
                     mainSrc = "README.md";
@@ -123,17 +129,20 @@
                     FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ ]; };
                     buildInputs = [
                       (pkgs.texlive.combine texlivePackages)
-                      pkgs.librsvg
-                      pkgs.inkscape
                       pkgs.pandoc
-                      pkgs.haskellPackages.pandoc-crossref
                     ];
                     buildPhase = ''
                       tmp=$(mktemp --directory)
                       HOME=$(mktemp --directory)
                       export SOURCE_DATE_EPOCH=${builtins.toString date}
-                      ${pkgs.pandoc}/bin/pandoc --output=${latexStem}.tex --lua-filter=citations-to-latex.lua --filter=${pkgs.haskellPackages.pandoc-crossref}/bin/pandoc-crossref --pdf-engine=${pandocFlagForEngine} --template=${latexTemplate} ${mainSrc}
+                      ${pkgs.pandoc}/bin/pandoc \
+                           --output=${latexStem}.tex \
+                           --lua-filter=citations-to-latex.lua \
+                           --pdf-engine=${pandocFlagForEngine} \
+                           --template=${latexTemplate} \
+                           ${mainSrc}
                       # ${pkgs.pandoc}/bin/pandoc --output=${latexStem}.docx ${mainSrc}
+                      # lacheck ${latexStem}.tex
                       set +e
                       latexmk ${latexmkFlagForEngine} -shell-escape -emulate-aux-dir -auxdir=$tmp -Werror ${latexStem}
                       latexmk_status=$?
@@ -142,7 +151,6 @@
                       cp *.{svg,pdf,bbl,tex,docx} $out/
                       if [ $latexmk_status -ne 0 ]; then
                         mv $tmp/${latexStem}.log $out
-                        cat $out/${latexStem}.log
                         echo "Aborting: Latexmk failed"
                         # exit $latexmk_status
                       fi
@@ -174,7 +182,9 @@
                       latexmk_status=$?
                       set -e
                       mkdir $out/
+                      ls -ahlt
                       cp *.{svg,pdf,bbl,tex,docx} $out/
+                      ls -ahlt $out/
                       if [ $latexmk_status -ne 0 ]; then
                         mv $tmp/${latexStem}.log $out
                         cat $out/${latexStem}.log
@@ -187,24 +197,25 @@
                   (nix-documents-lib.graphvizFigure {
                     src = ./benchmark_suite;
                     main = "app-lvl-prov.dot";
-                    name = "app-lvl-prov.svg";
-                    outputFormat = "svg";
+                    name = "app-lvl-prov.pdf";
+                    outputFormat = "pdf";
                     layoutEngine = "dot";
                   })
                   (nix-documents-lib.graphvizFigure {
                     src = ./benchmark_suite;
                     main = "wf-lvl-prov.dot";
-                    name = "wf-lvl-prov.svg";
-                    outputFormat = "svg";
+                    name = "wf-lvl-prov.pdf";
+                    outputFormat = "pdf";
                     layoutEngine = "dot";
                   })
                   (nix-documents-lib.graphvizFigure {
                     src = ./benchmark_suite;
                     main = "sys-lvl-prov.dot";
-                    name = "sys-lvl-prov.svg";
-                    outputFormat = "svg";
+                    name = "sys-lvl-prov.pdf";
+                    outputFormat = "pdf";
                     layoutEngine = "dot";
                   })
+                  (svg2pdf "sys-lvl-log.pdf" ./benchmark_suite/sys-lvl-log.svg)
                 ]);
             };
           };

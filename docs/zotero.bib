@@ -1278,6 +1278,20 @@
   file = {/home/sam/Zotero/storage/VNS2CHDN/sysmon.html}
 }
 
+@inproceedings{mcvoyLmbenchPortableTools1996,
+  title = {Lmbench: {{Portable Tools}} for {{Performance Analysis}}},
+  booktitle = {Proceedings of the {{USENIX}} 1996 {{Annual Technical Conference}}},
+  author = {McVoy, Larry and Staelin, Carl},
+  year = {1996},
+  month = jan,
+  publisher = {{USENIX}},
+  address = {{San Diego, CA}},
+  abstract = {lmbench is a micro-benchmark suite designed to focus attention on the basic building blocks of many common system applications, such as databases, simulations, software development, and networking. In almost all cases, the individual tests are the result of analysis and isolation of a customer's actual performance problem. These tools can be, and currently are, used to compare different system implementations from different vendors. In several cases, the benchmarks have uncovered previously unknown bugs and design flaws. The results have shown a strong correlation between memory system performance and overall performance. lmbench includes an extensible database of results from systems current as of late  1995.},
+  langid = {english},
+  keywords = {project-provenance-pp},
+  file = {/home/sam/Zotero/storage/7N67DY3L/McVoy et al. - lmbench Portable Tools for Performance Analysis.pdf}
+}
+
 @misc{mesnardReproducibleReplicableCFD2016,
   title = {Reproducible and Replicable {{CFD}}: It's Harder than You Think},
   shorttitle = {Reproducible and Replicable {{CFD}}},
@@ -1341,7 +1355,7 @@
   abstract = {Digital provenance describes the ancestry or history of a digital object. Most existing provenance systems, however, operate at only one level of abstraction: the system call layer, a workflow specification, or the high-level constructs of a particular application. The provenance collectable in each of these layers is different, and all of it can be important. Single-layer systems fail to account for the different levels of abstraction at which users need to reason about their data and processes. These systems cannot integrate data provenance across layers and cannot answer questions that require an integrated view of the provenance. We have designed a provenance collection structure facilitating the integration of provenance across multiple levels of abstraction, including a workflow engine, a web browser, and an initial runtime Python provenance tracking wrapper. We layer these components atop provenance-aware network storage (NFS) that builds upon a Provenance-Aware Storage System (PASS). We discuss the challenges of building systems that integrate provenance across multiple layers of abstraction, present how we augmented systems in each layer to integrate provenance, and present use cases that demonstrate how provenance spanning multiple layers provides functionality not available in existing systems. Our evaluation shows that the overheads imposed by layering provenance systems are reasonable.},
   langid = {english},
   keywords = {project-provenance-pp,provenance,provenance-tool},
-  file = {/home/sam/Zotero/storage/GUGJKZNA/Muniswamy-Reddy et al. - Layering in Provenance Systems.pdf;/home/sam/Zotero/storage/EPL6YLK6/Muniswamy-Reddy et al. - Layering in Provenance Systems.html}
+  file = {/home/sam/Zotero/storage/CB9P9RSJ/Muniswamy-Reddy et al. - Layering in Provenance Systems.pdf;/home/sam/Zotero/storage/GUGJKZNA/Muniswamy-Reddy et al. - Layering in Provenance Systems.pdf;/home/sam/Zotero/storage/EPL6YLK6/Muniswamy-Reddy et al. - Layering in Provenance Systems.html}
 }
 
 @inproceedings{muniswamy-reddyProvenanceAwareStorageSystems2006,
@@ -1815,7 +1829,9 @@
   address = {{USA}},
   urldate = {2023-08-23},
   abstract = {The goal of this work is to develop a general framework for transparently managing the interactions and dependencies among input files, development tools, and output files. By unobtrusively monitoring the execution of unmodified programs, we are able to track process lineage--each process's parent, children, input files, and output files, and file dependency--for each file, the sequence of operations and the set of input files used to create the file. We use this information to implement Transparent Result Caching (TREC) and describe how TREC is used to build a number of useful user utilities. Unmake allows users to query TREC for file lineage information, including the full sequence of programs executed to create a particular output file. Transparent Make uses TREC to automatically generate dependency information by observing program execution, freeing end users from the need to explicitly specify dependency information (i.e., Makefiles can be replaced by shell scripts). Dynamic Web Object Caching allows for the caching of certain dynamically generated web pages, improving server performance and client latency.},
-  keywords = {project-provenance-pp,provenance-tool}
+  langid = {english},
+  keywords = {project-provenance-pp,provenance-tool},
+  file = {/home/sam/Zotero/storage/UWUW3GY2/Vahdat and Anderson - Transparent Result Caching.pdf}
 }
 
 @article{valletPracticalTransparentVerifiable2022,
@@ -1915,6 +1931,20 @@
   langid = {english},
   keywords = {project-provenance-pp,provenance-tool},
   file = {/home/sam/Zotero/storage/IUQN7XVC/Yang et al. - 2020 - UISCOPE Accurate, Instrumentation-free, and Visib.pdf}
+}
+
+@inproceedings{yiEvaluatingBenchmarkSubsetting2006,
+  title = {Evaluating {{Benchmark Subsetting Approaches}}},
+  booktitle = {2006 {{IEEE International Symposium}} on {{Workload Characterization}}},
+  author = {Yi, Joshua J. and Sendag, Resit and Eeckhout, Lieven and Joshi, Ajay and Lilja, David J. and John, Lizy K.},
+  year = {2006},
+  month = oct,
+  pages = {93--104},
+  doi = {10.1109/IISWC.2006.302733},
+  urldate = {2024-01-22},
+  abstract = {To reduce the simulation time to a tractable amount or due to compilation (or other related) problems, computer architects often simulate only a subset of the benchmarks in a benchmark suite. However, if the architect chooses a subset of benchmarks that is not representative, the subsequent simulation results will, at best, be misleading or, at worst, yield incorrect conclusions. To address this problem, computer architects have recently proposed several statistically-based approaches to subset a benchmark suite. While some of these approaches are well-grounded statistically, what has not yet been thoroughly evaluated is the: 1) absolute accuracy; 2) relative accuracy across a range of processor and memory subsystem enhancements; and 3) representativeness and coverage of each approach for a range of subset sizes. Specifically, this paper evaluates statistically-based subsetting approaches based on principal components analysis (PCA) and the Plackett and Burman (P\&B) design, in addition to prevailing approaches such as integer vs. floating-point, core vs. memory-bound, by language, and at random. Our results show that the two statistically-based approaches, PCA and P\&B, have the best absolute and relative accuracy for CPI and energy-delay product (EDP), produce subsets that are the most representative, and choose benchmark and input set pairs that are most well-distributed across the benchmark space. To achieve a 5\% absolute CPI and EDP error, across a wide range of configurations, PCA and P\&B typically need about 17 benchmark and input set pairs, while the other five approaches often choose more than 30 benchmark and input set pairs},
+  keywords = {project-provenance-pp,software benchmarking},
+  file = {/home/sam/Zotero/storage/ITHSVQR4/Yi et al. - 2006 - Evaluating Benchmark Subsetting Approaches.pdf;/home/sam/Zotero/storage/E3UB24EQ/4086137.html}
 }
 
 @inproceedings{yinPanoramaCapturingSystemwide2007,
