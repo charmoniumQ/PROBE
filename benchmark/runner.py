@@ -1,4 +1,6 @@
 import typer
+import pathlib
+import datetime
 from typing_extensions import Annotated
 from experiment import get_results
 from workloads import WORKLOAD_GROUPS
@@ -38,6 +40,10 @@ def main(
         raise ValueError("Must select some collectors")
     if not workloads:
         raise ValueError("Must select some workloads")
+    with pathlib.Path("runner.log").open("a+") as file:
+        print("Starting", datetime.datetime.now().isoformat(), file=file)
+        print(", ".join(collector_group.value for collector_group in collector_groups), file=file)
+        print(", ".join(workload_group.value for workload_group in workload_groups), file=file)
     df = get_results(
         collectors,
         workloads,
@@ -46,6 +52,8 @@ def main(
         ignore_failures=ignore_failures,
         rerun=rerun,
     )
+    with pathlib.Path("runner.log").open("a+") as file:
+        print("Done", datetime.datetime.now().isoformat(), file=file)
     for stat in stats:
         stat(df)
 

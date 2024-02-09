@@ -32,26 +32,17 @@ def output_features(df: pandas.DataFrame) -> None:
                 f"{qoi}_mean": pandas.NamedAgg(qoi, "mean")
                 for qoi in abs_qois + rel_qois
             },
-            **{
-                f"{qoi}_low": pandas.NamedAgg(qoi, lambda data: numpy.percentile(data, 5))
-                for qoi in abs_qois + rel_qois
-            },
-            **{
-                f"{qoi}_high": pandas.NamedAgg(qoi, lambda data: numpy.percentile(data, 95))
-                for qoi in abs_qois + rel_qois
-            },
-            **{
-                f"{qoi}_sorted": pandas.NamedAgg(qoi, lambda data: list(sorted(data)))
-                for qoi in abs_qois + rel_qois
-            },
-            "op_type_counts_sum": pandas.NamedAgg("op_type_counts", lambda op_type_freqs: functools.reduce(operator.add, op_type_freqs, collections.Counter())),
+            "op_type_counts_sum": pandas.NamedAgg(
+                "op_type_counts",
+                lambda op_type_freqs: functools.reduce(operator.add, op_type_freqs, collections.Counter()),
+            ),
             "count": pandas.NamedAgg("walltime", lambda walltimes: len(walltimes)),
+            "workload_kind": pandas.NamedAgg(
+                "workload_kind",
+                "last",
+            ),
         })
         .assign(**{
-            **{
-                f"{qoi}_rel": lambda df, qoi=qoi: df[f"{qoi}_std"] / df[f"{qoi}_mean"]
-                for qoi in abs_qois + rel_qois
-            },
             "rel_slowdown": lambda df: df["walltime_mean"] / df.loc["noprov"]["walltime_mean"],
         })
         .assign(**{

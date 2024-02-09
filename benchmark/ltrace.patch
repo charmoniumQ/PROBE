@@ -1,5 +1,5 @@
 --- a/proc.h
 +++ b/proc.h
-@@ -81 +81 @@ struct callstack_element {
+@@ -81,1 +81,1 @@ struct callstack_element {
 -#define MAX_CALLDEPTH 64
-+#define MAX_CALLDEPTH 1024
++#define MAX_CALLDEPTH 16384

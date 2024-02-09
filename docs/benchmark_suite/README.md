@@ -828,6 +828,8 @@ We examine the generated clusters and benchmark subset in @Fig:subset.
 \end{centering}
 \end{figure*}
 
+<!-- TODO: Explain multiple iterations and averageing -->
+
 @Fig:benchmark-clusters shows the a posteriori clusters that kmeans found and the benchmarks it selected for each cluster.
 It may appear to not select the closest benchmark, but this is because we are viewing a 2D projection of a high-dimensional space, like how three stars may appear next to each other in the sky, but in reality one pair may be much closer than the other, since we cannot perceive the depth to the stars.
 The dark green cluster has a center near $(0,0)$ because it has one member near $(0,2)$ and another near $(0,-1.5)$.

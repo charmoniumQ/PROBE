@@ -560,6 +560,9 @@
               )
             '';
           });
+          ltrace = pkgs.ltrace.overrideAttrs (super: {
+            patches = super.patches ++ [ ./ltrace.patch ];
+          });
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
@@ -569,7 +572,7 @@
               spade
               pkgs.fsatrace
               pkgs.strace
-              pkgs.ltrace
+              ltrace
               pkgs.cde
               pkgs.rr
               pkgs.dpkg

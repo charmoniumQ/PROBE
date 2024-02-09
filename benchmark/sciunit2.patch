@@ -41,13 +41,28 @@
 +    return os.path.join(os.path.expanduser(os.environ.get('SCIUNIT_HOME', '~/sciunit')), name)
 --- a/sciunit2/records.py
 +++ b/sciunit2/records.py
-@@ -143 +143,8 @@
+@@ -134,10 +134,2 @@ class ExecutionManager(object):
+-
+-        script = """
+-            insert into revs (data)
+-            values (
+-                '""" + str(v) + """'
+-
+-                );
+-                """
+-
 -        self.__c.executescript(script)
-+        try:
-+            self.__c.executescript(script)
-+        except sqlite3.OperationalError as exc:
-+            print(k)
-+            print(v)
-+            print(size)
-+            print(repr(script))
-+            raise exc
++        script = "insert into revs (data) values (?)"
++        self.__c.execute(script, [str(v)])
+@@ -168 +160 @@ class ExecutionManager(object):
+-        script = "select * from revs where id = " + str(i)
++        script = "select * from revs where id = ?"
+@@ -170,1 +162,1 @@ class ExecutionManager(object):
+-        row = self.__c.execute(script).fetchone()
++        row = self.__c.execute(script, [i]).fetchone()
+@@ -191 +183 @@ class ExecutionManager(object):
+-        script = "delete from revs where id = " + str(self.__to_id(rev))
++        script = "delete from revs where id = ?"
+@@ -193,1 +185,1 @@ class ExecutionManager(object):
+-        self.__c.execute(script)
++        self.__c.execute(script, [self.__to_id(rev)])
