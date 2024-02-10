@@ -1,11 +1,33 @@
-tracepoint:syscalls:sys_enter_open, tracepoint:syscalls:sys_enter_openat {
-  printf("enter_open %d %d %s", pid, tid, args.flags, args.filename);
+BEGIN {
+  @pids[$1] = 1;
 }
-tracepoint:syscalls:sys_exit_open, tracepoint:syscalls:sys_exit_openat /@filename[tid]/ {
-  printf("exit_open %d %d %s", pid, tid, args.ret);
+
+tracepoint:syscalls:sys_enter_open {
+  printf("%d %d %d open %s %d %d\n", pid, tid, nsecs, args.filename, args.flags, arg.mode);
 }
-tracepoint:syscalls:sys_enter_exec*
+tracepoint:syscalls:sys_enter_openat {
+  printf("%d %d %d open %d %s %d %d\n", pid, tid, nsecs, args.filename, args.dirfd, args.flags, arg.mode);
+}
+tracepoint:syscalls:sys_enter_execve {
+  printf("%d %d %d execve %s [%s] [%s]\n", pid, tid, nsecs, args.filename, join(sys.argv, ","), join(sys.envp, ","));
+}
+tracepoint:syscalls:sys_enter_fork {
+  printf("%d %d %d fork\n", pid, tid, nsecs);
+}
+tracepoint:syscalls:sys_enter_clone {
+  printf("%d %d %d clone %d %d %d %d\n", pid, tid, nsecs, args.clone_flags, args.newsp, args.parent_tid, args.child_tid);
+}
+
+tracepoint:syscalls:sys_exit_clone {
+  printf("%d %d %d clone-ret %d\n", args.ret);
+}
+tracepoint:syscalls:sys_exit_fork {
+  printf("%d %d %d fork-ret %d\n", pid, tid, nsecs, args.ret);
+}
+
+tracepoint:syscalls:sys_exit_open,
+tracepoint:syscalls:sys_exit_openat,
+tracepoint:syscalls:sys_exit_execve
 {
-	printf("%-10u %-5d ", elapsed / 1e6, pid);
-	join(args.argv);
+  printf("%d %d %d ret %d %d\n", pid, tid, nsecs, args.ret);
 }

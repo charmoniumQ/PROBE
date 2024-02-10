@@ -1,0 +1,39 @@
+--- a/strace-4.6/cde.c
++++ b/strace-4.6/cde.c
+@@ -156,7 +156,8 @@ static char cde_options_initialized = 0; // set to 1 after CDE_init_options() do
+ static void begin_setup_shmat(struct tcb* tcp);
+ static void* find_free_addr(int pid, int exec, unsigned long size);
+
+-static char* strcpy_from_child(struct tcb* tcp, long addr);
++#define strcpy_from_child(tcp, addr) ({ fprintf(stderr, "calling strcpy_from_child in %s [%s:%d]\n", __FUNCTION__, __FILE__, __LINE__); strcpy_from_child2(tcp, addr); })
++static char* strcpy_from_child2(struct tcb* tcp, long addr);
+ static char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
+ static int ignore_path(char* filename, struct tcb* tcp);
+
+@@ -1022,6 +1023,8 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
+   issue a warning if filepath is a relative path but dirfd is NOT AT_FDCWD
+ */
+ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
++  fprintf(stderr, "tcp->u_arg[1] %p\n", tcp->u_arg[1]);
++  fprintf(stderr, "syscall_name %s\n", syscall_name);
+   char* filename = strcpy_from_child(tcp, tcp->u_arg[1]);
+
+   if (CDE_verbose_mode) {
+@@ -2636,7 +2639,7 @@ void strcpy_redirected_cderoot(char* dst, char* src) {
+
+ // malloc a new string from child, and return NULL on failure
+ static char* strcpy_from_child_or_null(struct tcb* tcp, long addr) {
+-  char path[MAXPATHLEN];
++  char path[MAXPATHLEN * 100];
+   if (umovestr(tcp, addr, sizeof path, path) < 0) {
+     return NULL;
+   }
+@@ -2645,7 +2648,7 @@ static char* strcpy_from_child_or_null(struct tcb* tcp, long addr) {
+ }
+
+ // aborts the program if there's an error in strcpy_from_child_or_null
+-static char* strcpy_from_child(struct tcb* tcp, long addr) {
++static char* strcpy_from_child2(struct tcb* tcp, long addr) {
+   char* ret = strcpy_from_child_or_null(tcp, addr);
+   EXITIF(ret == NULL);
+   return ret;

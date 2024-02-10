@@ -563,6 +563,9 @@
           ltrace = pkgs.ltrace.overrideAttrs (super: {
             patches = super.patches ++ [ ./ltrace.patch ];
           });
+          cde = pkgs.cde.overrideAttrs (super: {
+            patches = [ ./cde.patch ];
+          });
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
@@ -573,10 +576,11 @@
               pkgs.fsatrace
               pkgs.strace
               ltrace
-              pkgs.cde
+              cde
               pkgs.rr
               pkgs.dpkg
-              pkgs.xdot
+              pkgs.gdb
+              pkgs.bpftrace
 
               # deps of notebooks
               pkgs.util-linux
@@ -685,6 +689,7 @@
                 pypkgs.numpy # repeats are OK
                 pypkgs.pandas
                 pypkgs.matplotlib
+                pypkgs.distributed
                 pypkgs.notebook
                 pypkgs.seaborn
                 pypkgs.scipy

@@ -291,6 +291,10 @@ To get consistent measurements, we select as many benchmarks and provenance trac
 @Tbl:machine describes our experimental machine.
 We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system.
 
+<!--
+TODO: explain why we don't disable ASLR
+-->
+
 \begin{table}
 \caption{Our experimental machine description.}
 \label{tbl:machine}
@@ -478,21 +482,32 @@ The last column in the table categorizes the "state" of that provenance collecto
 - **Needs more time (DTrace, SPADE, eBPF/bpftrace).**
   We simply needed more time to implement these provenance collectors.
 
-- **Reproduced/excluded (ltrace).**
-  ltrace is an off-the-shelf tool, available in most Linux package repositories.
-  However, we found it could not handle several of our benchmark workloads.
-  We localized the problem to the following code^[See <https://gitlab.com/cespedes/ltrace/-/blob/8eabf684ba6b11ae7a1a843aca3c0657c6329d73/handle_event.c#L775>]:
+- **Reproduced/excluded (ltrace, cde).**
+  - **ltrace**.
+     ltrace is an off-the-shelf tool, available in most Linux package repositories.
+     However, we found it could not handle several of our benchmark workloads.
+     We localized the problem to the following code^[See <https://gitlab.com/cespedes/ltrace/-/blob/8eabf684ba6b11ae7a1a843aca3c0657c6329d73/handle_event.c#L775>]:
 
-\scriptsize
-``` c
-	/* FIXME: not good -- should use dynamic allocation. 19990703 mortene. */
-	if (proc->callstack_depth == MAX_CALLDEPTH - 1) {
-		fprintf(stderr, "%s: Error: call nesting too deep!\n", __func__);
-		abort();
-		return;
-	}
-```
-\normalsize
+     \scriptsize
+     ``` c
+     	/* FIXME: not good -- should use dynamic allocation. 19990703 mortene. */
+     	if (proc->callstack_depth == MAX_CALLDEPTH - 1) {
+     		fprintf(stderr, "%s: Error: call nesting too deep!\n", __func__);
+     		abort();
+     		return;
+     	}
+     ```
+     \normalsize
+
+  - **CDE**.
+    CDE is a research prototype proposed by Guo and Engler [@guoCDEUsingSystem2011].
+    However, CDE crashes with the following simple code
+    ```sh
+    $ result/bin/cde result/bin/proftpd --config /home/sam/box/prov/benchmark/.workdir/work/proftpd/conf
+    ...Fatal error in strcpy_from_child [cde.c:2650]
+    ```
+   CDE is trying to process an `openat` syscall by copying the name of the file from the child process, but somehow that is causing a crash.
+   We ensured the destination buffer was longer than the maximum allowable path length.
 
 - **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2, CDE).**
   We reproduced this provenance collector on all of the benchmarks^[TODO: Check to ensure CDE is working as expected.].
@@ -512,7 +527,7 @@ fsatrace                                                           & tracing    
 ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      & Reproduced                 \\
 Sciunit2 \cite{tonthatSciunitsReusableResearch2017}                & tracing                      & Reproduced                 \\
 rr \cite{ocallahanEngineeringRecordReplay2017}                     & tracing                      & Reproduced                 \\
-CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      & Reproduced                 \\
+CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      & Reproduced/excluded        \\
 ltrace                                                             & tracing                      & Reproduced/excluded        \\
 SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, or compile-time   & Needs more time            \\
 DTrace \cite{DTrace}                                               & audit                        & Needs more time            \\
@@ -731,6 +746,10 @@ TODO: xSDK codes
 <!-- | 1 | yopsweb                                                                                                              | Unknown program                                       | -->
 
 <!-- : Benchmarks rejected by this work {#tbl:rejected-bmarks} -->
+
+<!--
+TODO: Explain the configuration for ltrace and strace
+-->
 
 \begin{table}
 \caption{

@@ -23,6 +23,7 @@ def main(
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
         ignore_failures: Annotated[bool, typer.Option("--keep-going")] = False,
+        parallelism: int = 1,
 ) -> None:
     collectors = list(flatten1([
         PROV_COLLECTOR_GROUPS[collector_name.value]
@@ -51,6 +52,7 @@ def main(
         seed=0,
         ignore_failures=ignore_failures,
         rerun=rerun,
+        parallelism=parallelism,
     )
     with pathlib.Path("runner.log").open("a+") as file:
         print("Done", datetime.datetime.now().isoformat(), file=file)

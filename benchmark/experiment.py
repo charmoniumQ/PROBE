@@ -1,3 +1,4 @@
+import os
 import dataclasses
 import hashlib
 import urllib.parse
@@ -9,6 +10,7 @@ import collections
 import tqdm  # type: ignore
 import pickle
 import pandas  # type: ignore
+import psutil
 import charmonium.time_block as ch_time_block
 from collections.abc import Sequence
 from workloads import Workload
@@ -32,6 +34,7 @@ def get_results(
         seed: int,
         ignore_failures: bool,
         rerun: bool,
+        parallelism: int,
 ) -> pandas.DataFrame:
     cache_dir = pathlib.Path(".cache")
     big_temp_dir = pathlib.Path(".workdir")
@@ -61,6 +64,7 @@ def get_results(
             seed,
             ignore_failures,
             rerun,
+            parallelism,
         )
         key.write_bytes(pickle.dumps(results_df))
         return results_df
@@ -76,6 +80,7 @@ def run_experiments(
         seed: int,
         ignore_failures: bool,
         rerun: bool,
+        parallelism: int,
 ) -> pandas.DataFrame:
     prng = random.Random(seed)
     # Shuffle within each iteration
@@ -96,14 +101,31 @@ def run_experiments(
     log_dir.mkdir(exist_ok=True)
     work_dir.mkdir(exist_ok=True)
     assert list(inputs)
-    result_list = (
-        (prov_collector, workload, run_one_experiment_cached(
-            cache_dir, iteration, prov_collector, workload,
-            work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
-            rerun,
-        ))
-        for iteration, prov_collector, workload in tqdm.tqdm(inputs)
-    )
+    if parallelism == 1:
+        result_list = (
+            (prov_collector, workload, run_one_experiment_cached(
+                cache_dir, iteration, prov_collector, workload,
+                work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
+                rerun,
+            ))
+            for iteration, prov_collector, workload in tqdm.tqdm(inputs)
+        )
+    else:
+        import dask
+        import dask.diagnostics
+        dask.diagnostics.ProgressBar().register()
+        result_list = dask.compute(
+            [
+                (prov_collector, workload, dask.delayed(run_one_experiment_cached)(
+                    cache_dir, iteration, prov_collector, workload,
+                    work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
+                    rerun,
+                ))
+                for iteration, prov_collector, workload in tqdm.tqdm(inputs)
+            ],
+            scheduler="processes",
+            num_workers=parallelism,
+        )[0]
     with ch_time_block.ctx("Construct DataFrame"):
         results_df = (
             pandas.DataFrame.from_records(
@@ -192,9 +214,20 @@ def run_one_experiment(
     size: int,
     ignore_failures: bool,
 ) -> ExperimentStats | None:
+    # This even works when we don't have parallelism:
+    this_process = psutil.Process()
+    parent_process = this_process.parent()
+    sibling_processes = parent_process.children()
+    worker_number = sibling_processes.index(this_process)
+
+    # This renames the relevant directories so they don't conflict with other workers
+    work_dir = work_dir / str(worker_number)
+    log_dir = log_dir / str(worker_number)
+    temp_dir = temp_dir / str(worker_number)
+
     with ch_time_block.ctx(f"setup {workload}"):
         try:
-            work_dir.mkdir(exist_ok=True)
+            work_dir.mkdir(exist_ok=True, parents=True)
             workload.setup(work_dir)
         except SubprocessError as exc:
             print(str(exc))
@@ -205,6 +238,7 @@ def run_one_experiment(
                 provenance_size=0,
                 operations=(),
             )
+        log_dir.mkdir(exist_ok=True, parents=True)
         delete_children(log_dir)
 
     with ch_time_block.ctx(f"setup {prov_collector}"):
@@ -220,7 +254,7 @@ def run_one_experiment(
         main_executable = cmd[0]
         assert isinstance(main_executable, pathlib.Path)
         cmd = prov_collector.run(cmd, log_dir, size)
-        cmd = (result_bin / "setarch", "--addr-no-randomize", *cmd)
+        # cmd = (result_bin / "setarch", "--addr-no-randomize", *cmd)
 
     with ch_time_block.ctx(f"run {workload} in {prov_collector}"):
         full_env = merge_env_vars(
