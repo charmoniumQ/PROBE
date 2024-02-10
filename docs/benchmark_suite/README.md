@@ -138,16 +138,16 @@ There are three high-level methods by which one can capture computational proven
 \begin{figure*}
 \subcaptionbox{
   Application-level provenance has the most semantic information.
-}{\includegraphics[width=0.23\textwidth]{app-lvl-prov.pdf}\label{fig:app-lvl-prov}}
+}{\includegraphics[width=0.21\textwidth]{app-lvl-prov.pdf}\label{fig:app-lvl-prov}}
 \subcaptionbox{
   Workflow-level provenance has an intermediate amount of semantic information.
-}{\includegraphics[width=0.23\textwidth]{wf-lvl-prov.pdf}\label{fig:wf-lvl-prov}}
+}{\includegraphics[width=0.21\textwidth]{wf-lvl-prov.pdf}\label{fig:wf-lvl-prov}}
 \subcaptionbox{
   System-level log of I/O operations.
-}{\includegraphics[width=0.23\textwidth]{sys-lvl-log.pdf}\label{fig:sys-lvl-log}}
+}{\includegraphics[width=0.21\textwidth]{sys-lvl-log.pdf}\label{fig:sys-lvl-log}}
 \subcaptionbox{
-  System-level provenance, inferred from the log in \Cref{fig:sys-lvl-log}, has the least amount of semantic information
-}{\includegraphics[width=0.23\textwidth]{sys-lvl-prov.pdf}\label{fig:sys-lvl-prov}}
+  System-level provenance, inferred from the log in Fig. 1c., has the least amount of semantic information
+}{\includegraphics[width=0.21\textwidth]{sys-lvl-prov.pdf}\label{fig:sys-lvl-prov}}
 \caption{Several provenance graphs collected at different levels for the same application.}
 \label{fig:prov}
 \end{figure*}
@@ -313,81 +313,66 @@ Kernel & Linux 6.1.64                                   \\
 ## Benchmark Subsetting
 
 We implemented and ran many different benchmarks, which may be costly for future researchers seeking to evaluate new provenance collector.
-Given the less-costly results of a small number of benchmarks, one may be able to predict the performance of the rest of the benchmarks. [^DSK: grammar in prev sentence needs work.]
+A smaller, less-costly set of benchmarks may be sufficiently representative of the larger set.
 
-In order to find the best subset (most predictive value), we will try several methods and several different $k$ (subset sizes) to identify the most important benchmarks, keeping the ones that perform best.
-We will feed the algorithms the quantitative features of each benchmark.
-We stick to features that are invariant between running a program ten times and running it once.
+Following Yi et al. [@yiEvaluatingBenchmarkSubsetting2006], we evaluate the benchmark subset in two different ways:
+
+1. **Accuracy**.
+   How closely do features of the subset resemble features of the original set?
+   We will evaluate this by computing the root-mean squared error of a "non-negative" "linear regression" from the "standardized" features of selected benchmarks to the mean of features of the total set.
+
+   - We use a "linear regression" to account for the possibility that the total set has unequal proportions of benchmark clusters.
+     Suppose it contained 10 programs of type A, which all have similar performance, and 20 of type B: the benchmark subset need not contain two B programs and onerous A program.
+     We would rather have one A, one B, and write the total performance as a weighted combination of the performance of $A$ and $B$, perhaps $1 \cdot \mathrm{perf}_A + 2 \cdot \mathrm{perf}_B$).
+     We normalize these weights by adding an ancillary constant feature, so $\mathrm{weight}_A + \mathrm{weight}_B + \dotsb = 1$.
+     Yi et al. [@yiEvaluatingBenchmarkSubsetting2006] were attempting to subset with SPEC CPU 2006, which one can assume would already be balanced in these terms, so their analysis uses an unweighted average.
+
+   - We require the linear regression to be "non-negative" so that the benchmark subset is monotonic; doing better on every benchmark in the subset should result in doing better on the total set.
+
+   - "Standardized" means we transform raw features $x$ into $z_x = (x - \bar{x}) / \sigma_x$.
+     While $x$ is meaningful in absolute units, $z_x$ is meaningful in relative terms (i.e., a value of 1 means "1 standard deviation greater than the mean").
+     Yi et al., by contrast, only normalize their features $x_{\mathrm{norm}} = x / x_{\max}$ which does not take into account the mean value.
+     We want our features to be measured relative to the spread of those features in prior work.
+
+2. **Representativeness.**
+   How close are benchmarks in the original set to benchmarks in the subset?
+   We will evaluate this by computing root mean squared error (RMSE) on the euclidean distance of standardized features from each benchmark in the original set to the closest benchmark in the selected subset.
+
+   - We opt for RMSE over mean absolute error (MAE), used by Yi et al. [@yiEvaluatingBenchmarkSubsetting2006], because RMSE punishes outliers more.
+     MAE would permits some distances to be large, so long it is made up for by other distances are small.
+     RMSE would prefer a more equitable distribution, which might be worse on average, but better on the outliers.
+     We think this aligns more with the intent of "representativeness."
+
+For features, we will use features that are invariant between running a program ten times and running it once.
 This gives long benchmarks and short benchmarks which exercise the same functionality similar feature vectors.
-In particular, we use
+In particular, we use:
 
 - The log overhead ratio of running the benchmark in each provenance collectors.
+  We use the logarithm of the ratio, rather than the ratio directly because the logarithm is symmetric with respect to overshooting and undershooting.
+  Suppose \$x provenance collector runs benchmark \$y1 twice as fast and benchmark \$y2 twice as slow; the average of the overhead would be $(2 + \frac{1}{2}) / 2 = 1.25$, whereas the average of the logarithms would be $\log 2 + \log \frac{1}{2} = \log 2 - \log 2 = 0$, meaning the 2x speedup "canceled out" the 2x slowdown on average). 
+  Note that the arithmetic mean of logarithms of a value is equivalent to the geometric mean of the value.
+
 - The ratio of CPU time to wall time.
+
 - The number of syscalls in each category per wall time second, where the categories consist of socket-related syscalls, syscalls that read file metadata, syscalls that write file metadata, syscalls that access the directory structure, syscalls that access file contents, exec-related syscalls, clone-related syscalls, exit-related syscalls, dup-related syscalls, pipe-related syscalls, close syscalls, pipe-related syscalls, and chdir syscalls.
 
-We use the following algorithms:
+In order to choose the subset, we will try clustering, preceded by optional dimensionality reduction.
+Once the benchmarks are grouped into clusters, we identify one benchmark from each of the $k$ clusters to consist the benchmark subset.
+We will sweep across $k$.
+We tried the following clustering algorithms:
 
-- **Principal component analysis (PCA) and K-means**.
-  This is the traditional benchmark subsetting procedure evaluated by Yi et al. [@yiEvaluatingBenchmarkSubsetting2006].
-  
-  1. We form a matrix of all benchmarks by "observed features" of that benchmark.
+- **K-means.** K-means [@macqueenMethodsClassificationAnalysis1965] greedily minimizes within-cluster variance, which is equivalent to the "representativeness" RMSE distance we want to minimize.
+  Unfortunately, k-means can easily get stuck in local minima and needs to take the number of clusters, $k$, as a parameter.
+  We use random restarts and initialize with k-means++ [@arthurKmeansAdvantagesCareful2007].
 
-  2. We apply PCA to that matrix.
-     PCA is a mathematical procedure that combines a large number of "observed features" into smaller number "virtual features", linearly, while maximizing the amount of variance in the resulting "virtual space" (in a sense, spreading out the benchmarks as much as possible from each other).
+- **Agglomerative clustering (Ward linkage).**
+  Agglomerative clustering [@wardjr.HierarchicalGroupingOptimize1963] greedily minimizes a certain metric from the bottom up.
+  All data points start out as singleton clusters, and the algorithm joins the "best" two clusters repeatedly.
+  The Ward Linkage is a metric that joins the pair of clusters resulting in the smallest within-cluster variance, which is exactly what "representativeness" RMSE distance wants to minimize.
+  Agglomerative clustering can output hierarchical clusters, which may be useful in other contexts.
 
-  3. We apply K-means to the benchmarks in their reduced PCA-space.
-     K-means is a fast clustering algorithm.
-     Once the benchmarks are grouped into clusters, we identify one benchmark from each of the $k$ clusters to consist the benchmark subset.
-   
-- **Interpolative decomposition (ID)**.
-
-  1. We form a matrix where each benchmark is a column, each provenance collector is a row, and the elements contain the log of the overhead ratio from the provenance collector to native.
-
-  2. We apply ID to the matrix.
-     ID seeks to estimate a $m \times n$ matrix by retaining $k$ of its columns and using a linear regression to estimate the remaining $n-k$ from those selected $k$ columns, sweeping on $k$.
-     Cheng et al. [@chengCompressionLowRank2005] give a $\mathcal{O}(k(m+n-k))$ algorithm for computing an optimal ID while keeping a reasonable[^reasonable-error] L2 norm of the difference between the estimated and actual columns.
-     Cheng's procedure is implemented in `scipy.linalg.interpolative`[^scipy.linalg.interpolative].
-
-    [^reasonable-error]: The best possible error for any rank-$k$ factorization of a matrix is given by the $(k+1)^{\mathrm{th}}$ singular value. Since ID constrains the space of permissible factors, the L2 loss will be at least that. Cheng et al.'s ID method guarantees an error within a $\sqrt{1 + k(min(m,n) - k)}$ factor of the $(k+1)^{\mathrm{th}}$ singular value. Read asymptotically, the bound asserts as the singular value decreases, so too does the L2 loss.
-
-    [^scipy.linalg.interpolative]: See <https://docs.scipy.org/doc/scipy/reference/linalg.interpolative.html>
-
-  3. We select the $k$ benchmarks corresponding to columns chosen by ID; these are the "best" $k$ columns which minimize the error when predicting the $n-k$ columns under a specific metric.
-
--  **Random search**.
-    Random search proceeds like ID, but it selects $k$ benchmarks randomly.
-    Like ID, it computes a linear predictor for the $m-k$ benchmarks based on the $k$ benchmarks.
-    Then it evaluates the "goodness of fit" of that predictor, and repeats a fixed number of iterations, retaining the "best" $k$ benchmark subset.
-
-Cross-validation proceeds in the following manner, given $m$ provenance collectors, $n$ benchmarks, and $f$ features:
-
-1. Separate 1 provenance collector for testing from the $m-1$ provenance collectors used for training.
-
-2. Use the $(m-1) \times n$ training systems and $f \times n$ in one of the above algorithms to select the best $k < n$ benchmarks and compute predictors for the $n-k$ benchmarks.
-
-3. Feed in the output of the $1 \times k$ testing provenance collector on the selected $k$ benchmarks into the algorithm, and let the algorithm estimate the $n-k$ unselected benchmarks.
-
-4. Score the difference between the algorithm's prediction of the test system on the $n-k$ unselected benchmarks and its actual performance.
-
-5. Repeat to 1 until all systems have been used for testing.
-
-Note that during cross-validation, testing data (used in step 4) must not be allowed to "leak" into the training phase (step 2).
-For example, it would be invalid to do feature selection on all $m \times n$ data.
-Cross-validation is supposed to simulate the situation where one is testing on *truly novel* data.
-
-We evaluate these methods based on cross-validated root mean square-error (RMSE).
-Mean *square* error (MSE) is preferable to mean *absolute* error (MAE) because it punishes outliers more.
-Imagine a benchmark suite that minimizes MAE and another that minimizes MSE.
-The MAE-minizing suite one might be very accurate for most provenance collectors, but egregiously wrong for a few; a MSE-minizing suite may be "more wrong" on average, but the worst-case wouldn't be as bad as the MAE one.
-As such, an MSE subset would be more practically useful for future publictions to benchmark their new provenance collectors.
-
-We score the model on its ability to predict the logarithm of the ratio between a program running in provenance-generating and native systems.
-We use a ratio rather than the absolute difference because the runtimes of various benchmark spans multiple orders of magnitude.
-We predict the logarithm of the ratio, rather than the ratio directly because the ratio is multiplicative.
-Any real number is permissible; 0 indicates "nothing changed", 1 indicates a speedup by a certain factor, and -1 indicates a slowdown *by the same factor*.
-
-While cross-validation does punish model-complexity and overfitting to some extent, we will still take the number of parameters into account when deciding the "best" model in the interest of epistemic modesty.
-Preferring fewer parameters makes the model more generalizable on out-of-domain data, since even our full cross-validation data is necessarily incomplete.
+Dimensionality reduction seeks transform points in a high-dimensional space to points in a low-dimensional space, while preserving some property or properties (often including pairwise distance).
+We experiment with no dimensionality reduction and with PCA dimensionality reduction, while sweeping on the number of target dimensions.
 
 ## Performance Model
 
@@ -419,14 +404,25 @@ To estimate this, we use the following models:
   Unfortunately, we do not know an efficient algorithm like ID for selecting this subset.
   We tried two algorithms: greedy, which picks one additional feature that decreases loss the most until it has $k$ features, and random, which selects a random $k$-sized subset.
 
-We use as features:
+We use the same features as in \Cref{benchmark-subsetting}, but with the addition of a constant term, for a provenance collectors which have a fixed startup cost.
 
-- The number of \$x-syscalls made per walltime second, where \$x could be socket-related, file-related, reading-file-metadata, chmod, exec, clone, etc.
-- The number of syscalls per walltime second
-- The amount of CPU time used per walltime second
-- A constant fixed-cost per-execution
+We use cross-validation to estimate generalizability of the predictor.
+Cross-validation proceeds in the following manner, given $n$ benchmarks and $f$ features.
 
-Similarly to benchmark minimization, we use cross-validated RMSE errors in log of overhead ratio and the number of features in each model to select the best.  [^DSK: grammar in prev sentence needs work.]
+1. Separate the $n$ benchmarks into $\alpha n$ "testing" benchmarks and $(1 - \alpha)n$ "training" benchmarks.
+
+2. Learn to predict the log overhead ratio based on  $f$ features of each of the $(1-\alpha)n$ training benchmarks.
+
+3. Using the model learned in the previous step, predict the log overhead ratio on $\alpha n$ testing benchmarks.
+
+4. Compute the RMSE of the difference between predicted and actual.
+
+5. Repeat to 1 with a different, but same-sized test/train split.
+
+6. Take the arithmetic average of all observed RMSE; this is an estimate of the RMSE of the predictor on out-of-sample data.
+
+While cross-validation does punish model-complexity and overfitting to some extent, we will still take the number of parameters into account when deciding the "best" model in the interest of epistemic modesty.
+Preferring fewer parameters makes the model more generalizable on out-of-domain data, since even our full cross-validation data is necessarily incomplete.
 
 # Results
 
@@ -498,7 +494,7 @@ The last column in the table categorizes the "state" of that provenance collecto
 ```
 \normalsize
 
-- **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2, ltrace, CDE).**
+- **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2, CDE).**
   We reproduced this provenance collector on all of the benchmarks^[TODO: Check to ensure CDE is working as expected.].
 
 \begin{table}
@@ -738,10 +734,10 @@ TODO: xSDK codes
 
 \begin{table}
 \caption{
-This table shows percent slowdown in various provenance collectors.
+This table shows percent overhead of the mean walltime when running with a provenance collector versus running without provenance.
 A value of 1 means the new execution takes 1% longer than the old.
 "Noprov" refers to a system without any provenance collection (native), for which the slowdown is 0 by definition.
-fsatracea ppears to have a negative slowdown in some cases  due to random statistical noise.
+fsatrace appears to have a negative slowdown in some cases  due to random statistical noise.
 }
 \label{tbl:benchmark-results}
 %\begin{minipage}{\columnwidth}
@@ -775,68 +771,147 @@ vcs & 3 & 0 & 453 & 169 & 185 \\
 \end{center}
 %\end{minipage}
 \end{table}
-<!-- TODO: put geomean overhead per prov collector -->
+<!--
+TODO: put geomean overhead per prov collector
+TODO: put measure of uncertainty.
+-->
+
+Although SPLASH-3 CPU-oriented benchmarks contain mostly CPU-bound tasks, they often need to load data from a file, which does invoke the I/O subsystem.
+They are CPU benchmarks when the CPU is changed and the I/O subsystem remains constant, but when the CPU is constant and the I/O subsystem is changed, the total running time is influenced by I/O-related overhead.
 
 ## Subsetted Benchmarks
 
-We introduce two additional parameters to sweep over:
-
-- For each method, we may use "performance in each provenance collector" and/or "other quantitative features";
-  The three non-empty combinations are denoted "perf+other", "perf", or "other" in @Fig:subsetting.
-  Training directly on performance features would be optimal if the population were perfectly known.
-  However, since we are training on a small sample of the population, it is possible that all features or just other features may encode knowledge that will help the model find diversity in its benchmarks.
-
-- These features may be standardized with $(x - \bar{x}) / \sigma_x$, which is denoted as "stand." in $Fig:subsetting, before use in the underlying algorithm.
-  Standardized discards the "absolute" value of each feature and replaces it with the "relative value"; before standardization, a value of 1 meant a single unit of that quantity, after standardization, a value of 1 means 1 standard deviation greater than the mean of that quantity on the observed data.
-
-\begin{figure}
-\centering
-\includegraphics[width=0.49\textwidth]{generated/subsetting.pdf}
-\caption{Competition for best benchmark subsetting algorith, sweeping over subset size on the x-axis. The algorithms are scored by how well the selected subset can predict the unselected ones, on the y-axis.}
+\begin{figure*}
+\subcaptionbox{
+  Subsetting algorithms scored by the RMSE of the distance of each benchmark to the nearest selected benchmark.
+  A dotted line shows the x- amd y-value of the point of diminishing return.
+}{
+  \includegraphics[width=0.44\textwidth]{generated/subsetting-dist.pdf}
+  \label{fig:subsetting-dist}
+}
+\subcaptionbox{
+  Subsetting algorithms scored by the RMSE of the difference between (weighted) features of the subset and features of the original set.
+  A dotted line shows the x- amd y-value of the point of diminishing return.
+}{
+  \includegraphics[width=0.44\textwidth]{generated/subsetting-accuracy.pdf}
+  \label{fig:subsetting-accuracy}
+}
+\caption{Competition for best benchmark subsetting algorithm, sweeping over subset size on the x-axis.}
 \label{fig:subsetting}
-\end{figure}
+\end{figure*}
 
+@Fig:subsetting shows the performance of various algorithms on benchmark susbetting.
 We have the following observations:
 
-- We notice that cross-validation seems to be punishing model complexity, because larger $k$ instances do not always preform better.
-  A larger $k$ means each unselected benchmark is predicted by a linear regression of larger number of variables, offering more degrees of freedom.
-  <!-- TODO: Isn't this massively underdefined if we're just trying to predict 1 unselected based on k selected benchmarks and k unknown coefficients? -->
+- PCA only maeks things worse.
+  The features are already standardized, so PCA has little to offer other than rotation and truncation.
+  However, the truncation is throwing away potentially useful data.
+  Since we have a large number of benchmarks, and the space of benchmarks is quite open-ended, the additional dimensions that PCA trims off appear be important for separating clusters of data.
 
-- For ID, $k$ must be less than the total number of features.
-  Otherwise, one would be factorizing a $m \times n$ matrix into a "taller" $m \times k$ and a $k \times n$ matrix.
-  This is why the "ID perf" and "ID others" lines stop in @Fig:subsetting.
+- K-means and agglomerative clustering yield nearly the same results.
+  They both attempt to minimize within-cluster variance, although by different methods.
 
-- ID seems to not do as well as PCA-kmeans, even though it is more optimal on in-sample data, it seems that PCA-kmeans contains intuition about the underling problem which helps it generalize to the out-of-sample test set.
+- RMSE of the residual of linear regression will eventually hit zero because the $k$ exceeds the rank of the matrix of features by benchmarks;
+  The linear regression has enough degrees of freedom to perfectly map the inputs to their respective outputs.
 
-It seems that "PCA-kmeans perf stand." with $k=7$ has quite good performance.
-It achieves an RMSE of about $0.47 = \log 1.6$, so the predictor was within a factor of 1.6 of the actual value most of the time.
-<!-- TODO: Give an unbiased estimate of the stddev. -->
-While larger $k$ may minimally improve performance, it appears to be a point of diminishing return.
-We examine the generated clusters and benchmark subset in @Fig:subset.
+It seems that agglomerative clustering with $k=20$ has quite good performance, and further increases in $k$ exhibit diminishing returns.
+We examine the generated clusters and benchmark subset in @Fig:subset and @Fig:dendrogram.
 
 \begin{figure*}
-\begin{centering}
 \subcaptionbox{
-  Benchmark subset, where color shows a posteriori kmeans clusters.
-}{\includegraphics[width=0.49\textwidth]{generated/pca0.pdf}\label{fig:benchmark-clusters}}
+  Benchmark subset, where color shows a posteriori agglomerative clusters.
+  Each cluster conceptually represents the same-color benchmarks being represented by a single benchmarks, which gives its name to the cluster.
+}{
+  \includegraphics[width=0.44\textwidth]{generated/pca0.pdf}
+  \label{fig:benchmark-clusters}
+}
 \subcaptionbox{
-  Benchmark susbet, where color shows a priori benchmark
-``type''.
-}{\includegraphics[width=0.49\textwidth]{generated/pca1.pdf}\label{fig:benchmark-groups}}
-\caption{Benchmarks, clustered by PCA-kmeans into 7 subsets using standardized performance features. These axes show only the 2D of a high-dimensional space.}
+  Benchmark subset, where color shows a priori benchmark ``type'' (see \Cref{tbl:implemented-benchmarks}).
+}{
+  \includegraphics[width=0.44\textwidth]{generated/pca1.pdf}
+  \label{fig:benchmark-groups}
+}
+\caption{Benchmarks, clustered agglomeratively into 20 subsets using standardized performance features. These axes show only two dimensions of a high-dimensional space. We apply PCA *after* computing the clusters, in order to project the data into a 2D plane.}
 \label{fig:subset}
-\end{centering}
 \end{figure*}
+
 
 <!-- TODO: Explain multiple iterations and averageing -->
 
-@Fig:benchmark-clusters shows the a posteriori clusters that kmeans found and the benchmarks it selected for each cluster.
-It may appear to not select the closest benchmark, but this is because we are viewing a 2D projection of a high-dimensional space, like how three stars may appear next to each other in the sky, but in reality one pair may be much closer than the other, since we cannot perceive the depth to the stars.
-The dark green cluster has a center near $(0,0)$ because it has one member near $(0,2)$ and another near $(0,-1.5)$.
-
+@Fig:benchmark-clusters shows the a posteriori clusters with colors.
 @Fig:benchmark-groups shows a priori benchmark "types", similar but more precise than those in @Tbl:implemented-benchmarks.
-We would expect the dark green "copy" benchmarks to occupy nearby points, since they are related programs, and indeed they do at $(2, 2)$.
-However, the benchmark groups globally do not map well to clusters in PCA space; this means that different benchmarks in the same group may have quite different performance characteristics.
+From these two, we offer the following observations:
+
+- @Fig:benchmark-clusters: It may appear that the algorithm did not select the benchmark closest to the cluster center, but this is because we are viewing a 2D projection of a high-dimensional space, like how three stars may appear next to each other in the sky, but in reality one pair may be much closer than the other, since we cannot perceive radial distance to each star.
+
+- @Fig:benchmark-clusters: Many of the clusters are singletons, for example the `python http.server` near $(5,6)$; this is surprising, but given there are not any other points nearby, it seems reasonable.
+
+- @Fig:benchmark-groups: We might expect that benchmarks of the same type would occupy nearby points in PCA space, but it seems they often do not.
+  lmbench is particularly scattered with points at $(-1, 0)$ and $(0, 5)$, perhaps because it is a microbenchmark suite where each microbenchmark program tests a different subsystem.
+
+\begin{figure*}
+\begin{center}
+\subcaptionbox{
+  Dendrogram showing the distance between clusters.
+  We label each cluster by their "selected benchmark".
+  If there is a colon and a number after the name, it indicates the number of benchmarks contained in that cluster.
+  Otherwise, the cluster is a singleton.
+}{
+  \includegraphics[width=0.45\textwidth]{generated/dendrogram.pdf}
+  \label{fig:dendrogram}
+}
+\subcaptionbox{
+  A table showing cluster membership and weights.
+  The weights show one way of approximating the features in the original set, which is by multiplying the features of the cluster representative by the weight and summing over all clusters.
+  Since these are coefficients, not proportions, the result need not add to 100\%, although we insert an equation which should guide the solution there.
+}{
+\scriptsize
+  \begin{tabular}{p{0.07\textwidth}p{0.07\textwidth}p{0.36\textwidth}}
+  \toprule
+  Cluster representative & Weight (\%) & Cluster members \\
+  \midrule  
+ls                             &  1.7 & echo, hello, ps, true \\
+postmark                       &  0.0 & archive, cp smaller \\
+unarchive pigz                 &  26.4 & git setuptools\_scm, python-hello-world, unarchive, unarchive gzip, wget \\
+latex-test                     &  13.0 & archive bzip2, archive gzip, blastn, comprehens, curl, latex-test2, lm-fstat, lm-stat, minihttp, python-import, titanic-da, unarchive bzip2 \\
+unarchive pbzip2               &  7.9 & archive pbzip2, archive pigz, lighttpd \\
+lm-fs                          &  3.9 & lm-open/close \\
+shell-echo                     &  1.5 &  \\
+shell-incr                     &  3.1 & splash-fft \\
+lm-protection-fault            &  24.2 & a-data-sci, blastp, blastx, lm-bw\_file\_rd, lm-bw\_pipe, lm-bw\_unix, lm-catch-signal, lm-getppid, lm-install-signal, lm-mmap, lm-page-fault, lm-read, lm-select-file, lm-select-tcp, lm-write, megabl, splash-cholesky, splash-lu, splash-ocean, splash-radiosity, splash-radix, splash-volrend, splash-water-nsquared, splash-water-spatial, tblast \\
+hg schema-validation           &  0.0 &  \\
+lm-fork                        &  0.1 &  \\
+gcc-hello-world threads        &  0.7 & gcc-hello-world \\
+ftp-curl                       &  2.4 & ftp-wget, lftp \\
+python http.server             &  1.3 &  \\
+proftpd with ftpbench          &  2.5 &  \\
+nginx                          &  1.5 &  \\
+lm-exec                        &  3.7 &  \\
+apache                         &  1.4 &  \\
+cp linux                       &  2.0 &  \\
+cd                             &  1.4 &  \\
+\midrule
+all                            & 98.8 & \\
+  \bottomrule
+  \normalsize
+  \end{tabular}
+  \label{fig:benchmark-groups}
+}
+\caption{Figures showing the relationships between clusters and the members of each cluster.}
+\label{fig:subset}
+\end{center}
+\end{figure*}
+
+To elucidate the structure of the clusters, we plotted a dendrogram (@Fig:dendrogram) and listed the members of each cluster (@Tbl:members).
+We offer the following observations:
+
+- Fork and exec are nearby in feature-space, probably because programs usually do both.
+
+- cd and shell-echo are nearby points, but it is surprising that blastn is also nearby, but they both have similar cputime-to-walltime ratios.
+
+- Many of the CPU-heavy workloads are grouped together, under lm-protection-fault.
+
+- Many of the un/archive benchmarks are grouped together with lighttpd, which also accesses many files.
 
 ## Predictive Model
 
@@ -850,11 +925,11 @@ Models with a large number of parameters are more likely to overfit to spurious 
 Overgeneralization is appropriately punished by cross-validation.
 
 \begin{figure}
-\begin{centering}
+\begin{center}
 \includegraphics[width=0.49\textwidth]{generated/predictive-performance.pdf}
 \caption{Competition between predictive performance models.}
 \label{fig:predictive-performance}
-\end{centering}
+\end{center}
 \end{figure}
 
 We observe the following:
@@ -911,6 +986,8 @@ $$
 $$
 \normalsize
 
+<!-- TODO: consider a non-negative matrix factorization -->
+
 The system calls features can be observed using strace.
 The CPU time and wall time of noprov can be observed using GNU time.
 One need not complete an entire execution to observe the these fatures; one merely needs to record the features until they stabilize (perhaps after several iterations of the main loop).
@@ -919,10 +996,12 @@ One need not complete an entire execution to observe the these fatures; one mere
 TODO: note that fsatrace has a hardcoded limit on the size of the buffer used to store file read/writes. If this size is exceeded, the program will exhibit undefined behavior. On my system, it crashes with a non-zero exit code but without any message.
 -->
 <!--
-"CDE WARNING (unsupported operation): %s '%s' is a relative path and dirfd != AT_FDCWD\n",
+TODO:
+CDE WARNING (unsupported operation): %s '%s' is a relative path and dirfd != AT_FDCWD
 -->
 
 <!--
+TODO:
 Active vs passive monitoring
 Reprozip, Sciunit, RR, CDE vs strace, ltrace
 -->
