@@ -152,6 +152,7 @@ There are three high-level methods by which one can capture computational proven
 \label{fig:prov}
 \end{figure*}
 
+^[DSK: in figure 1, the text column that has read A at the top is far too big in font]
 
 One may imagine an abstract tradeoff curve between "enabling provenance applications such as reproducibility" as the horizontal axis increasing rightwards and "cost of implementation" that provenance data on the vertical axis increasing upwards).
 A typical status quo, not collecting any provenance data and not using workflows, is at the bottom left:
@@ -735,7 +736,7 @@ TODO: xSDK codes
 \begin{table}
 \caption{
 This table shows percent overhead of the mean walltime when running with a provenance collector versus running without provenance.
-A value of 1 means the new execution takes 1% longer than the old.
+A value of 1 means the new execution takes 1\% longer than without provenance.
 "Noprov" refers to a system without any provenance collection (native), for which the slowdown is 0 by definition.
 fsatrace appears to have a negative slowdown in some cases  due to random statistical noise.
 }
@@ -801,9 +802,9 @@ They are CPU benchmarks when the CPU is changed and the I/O subsystem remains co
 \end{figure*}
 
 @Fig:subsetting shows the performance of various algorithms on benchmark susbetting.
-We have the following observations:
+We observe:
 
-- PCA only maeks things worse.
+- PCA only maeks things worse. ^[DSK: than what? maybe say that PCA isn't useful.]
   The features are already standardized, so PCA has little to offer other than rotation and truncation.
   However, the truncation is throwing away potentially useful data.
   Since we have a large number of benchmarks, and the space of benchmarks is quite open-ended, the additional dimensions that PCA trims off appear be important for separating clusters of data.
@@ -840,7 +841,7 @@ We examine the generated clusters and benchmark subset in @Fig:subset and @Fig:d
 
 @Fig:benchmark-clusters shows the a posteriori clusters with colors.
 @Fig:benchmark-groups shows a priori benchmark "types", similar but more precise than those in @Tbl:implemented-benchmarks.
-From these two, we offer the following observations:
+From these two, we offer the following observations: ^[DSK: remove the @Fig:benchmark-clusters in each bullet below?]
 
 - @Fig:benchmark-clusters: It may appear that the algorithm did not select the benchmark closest to the cluster center, but this is because we are viewing a 2D projection of a high-dimensional space, like how three stars may appear next to each other in the sky, but in reality one pair may be much closer than the other, since we cannot perceive radial distance to each star.
 
@@ -905,9 +906,9 @@ all                            & 98.8 & \\
 To elucidate the structure of the clusters, we plotted a dendrogram (@Fig:dendrogram) and listed the members of each cluster (@Tbl:members).
 We offer the following observations:
 
-- Fork and exec are nearby in feature-space, probably because programs usually do both.
+- Fork and exec are near each other in feature-space, probably because programs usually do both.
 
-- cd and shell-echo are nearby points, but it is surprising that blastn is also nearby, but they both have similar cputime-to-walltime ratios.
+- cd and shell-echo are near each other, but it is surprising that blastn is also nearby, but they both have similar cputime-to-walltime ratios. [^DSK: too many buts, confusing]
 
 - Many of the CPU-heavy workloads are grouped together, under lm-protection-fault.
 
@@ -972,7 +973,7 @@ strace & 0.000029 & -0.002243 & 0.229129 & 0.000312 \\
 %\end{minipage}
 \end{table}
 
-For example,
+For example, [^DSK: ?]
 
 \footnotesize
 $$
@@ -1015,8 +1016,8 @@ In the future, we plan to implement compilation for more packages, in particular
 # Conclusion
 
 We hope this work serves as a part of a bridge from research to practical use of provenance collectors.
-As such, we address practical concerns of a user wanting to use provenance collector.
-We identify the reproducible and usable subset of prior work, we evaluate their performance on synthetic and real-world workloads.
+As such, we address practical concerns of a user wanting to use a provenance collector.
+We identify collectors in the reproducible and usable subset of prior work, and we evaluate their performance on synthetic and real-world workloads.
 
 \appendix
 
