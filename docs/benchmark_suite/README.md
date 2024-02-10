@@ -482,10 +482,10 @@ The last column in the table categorizes the "state" of that provenance collecto
 - **Needs more time (DTrace, SPADE, eBPF/bpftrace).**
   We simply needed more time to implement these provenance collectors.
 
-- **Reproduced/excluded (ltrace, cde).**
+- **Reproduced/excluded (ltrace, CDE).**
   - **ltrace**.
      ltrace is an off-the-shelf tool, available in most Linux package repositories.
-     However, we found it could not handle several of our benchmark workloads.
+     While we could run ltrace on some of our benchmarks, it crashed when processing on the more complex benchmarks.
      We localized the problem to the following code^[See <https://gitlab.com/cespedes/ltrace/-/blob/8eabf684ba6b11ae7a1a843aca3c0657c6329d73/handle_event.c#L775>]:
 
      \scriptsize
@@ -501,16 +501,20 @@ The last column in the table categorizes the "state" of that provenance collecto
 
   - **CDE**.
     CDE is a research prototype proposed by Guo and Engler [@guoCDEUsingSystem2011].
-    However, CDE crashes with the following simple code
-    ```sh
-    $ result/bin/cde result/bin/proftpd --config /home/sam/box/prov/benchmark/.workdir/work/proftpd/conf
-    ...Fatal error in strcpy_from_child [cde.c:2650]
-    ```
-   CDE is trying to process an `openat` syscall by copying the name of the file from the child process, but somehow that is causing a crash.
-   We ensured the destination buffer was longer than the maximum allowable path length.
+    CDE can run some of our benchmarks, but crashes when trying to copy from the tracee process to the tracer due to `ret == NULL`^[See <https://github.com/usnistgov/corr-CDE/blob/v0.1/strace-4.6/cde.c#L2650>]:
 
-- **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2, CDE).**
-  We reproduced this provenance collector on all of the benchmarks^[TODO: Check to ensure CDE is working as expected.].
+   \scriptsize
+   ```C
+   static char* strcpy_from_child(struct tcb* tcp, long addr) {
+     char* ret = strcpy_from_child_or_null(tcp, addr);
+     EXITIF(ret == NULL);
+     return ret;
+   }
+   ```
+   \normalsize
+
+- **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2).**
+  We reproduced this provenance collector on all of the benchmarks.
 
 \begin{table}
 \caption{Provenance collectors mentioned in primary and secondary studies in our search results.}
@@ -615,7 +619,7 @@ Sciunit \cite{tonthatSciunitsReusableResearch2017}           & VIC, FIE         
 LPROV \cite{wangLprovPracticalLibraryaware2018}              & Apache, simplehttp, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                                      & Native                \\
 MCI \cite{kwonMCIModelingbasedCausality2018}                 & Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS, vim, elinks, alpine, zip, transmission, lftp, yafc, wget, ping, procps                         & BEEP                  \\
 RTAG \cite{jiEnablingRefinableCrossHost2018}                 & SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                                  & RAIN                  \\
-URSPRING \cite{rupprechtImprovingReproducibilityData2020}    & open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                                 & Native, SPADE  \\
+URSPRING \cite{rupprechtImprovingReproducibilityData2020}    & open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                                 & Native, SPADE         \\
 \bottomrule
 \normalsize
 \end{tabular}
@@ -851,13 +855,14 @@ We examine the generated clusters and benchmark subset in @Fig:subset and @Fig:d
   \label{fig:benchmark-groups}
 }
 \caption{Benchmarks, clustered agglomeratively into 20 subsets using standardized performance features. These axes show only two dimensions of a high-dimensional space. We apply PCA *after* computing the clusters, in order to project the data into a 2D plane.}
-\label{fig:subset}
+\label{fig:benchmark-pca}
 \end{figure*}
 
 
 <!-- TODO: Explain multiple iterations and averageing -->
 
-@Fig:benchmark-clusters shows the a posteriori clusters with colors.
+@Fig:benchmark-clusters 
+shows the a posteriori clusters with colors.
 @Fig:benchmark-groups shows a priori benchmark "types", similar but more precise than those in @Tbl:implemented-benchmarks.
 From these two, we offer the following observations:
 
@@ -914,7 +919,7 @@ all                            & 98.8 & \\
   \bottomrule
   \normalsize
   \end{tabular}
-  \label{fig:benchmark-groups}
+  \label{tbl:members}
 }
 \caption{Figures showing the relationships between clusters and the members of each cluster.}
 \label{fig:subset}
@@ -969,8 +974,6 @@ Greedy feature selection with 20 parameters (predicting the performance on 5 sys
 On 19 out of 20 cross-validation splits, greedy feature selection with $k=4$ chose the parameters in @Tbl:params.
 
 \begin{table}
-\caption{Benchmark results.}
-\label{tbl:benchmark-results}
 %\begin{minipage}{\columnwidth}
 \begin{center}
 \scriptsize
@@ -979,13 +982,13 @@ On 19 out of 20 cross-validation splits, greedy feature selection with $k=4$ cho
  & metadata-reads per walltime second & constant fraction & cputime / walltime & execs-and-forks per walltime second \\
 \midrule
 fsatrace & 0.000003 & -0.001236 & -0.024958 & 0.000064 \\
-noprov & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+nnnoprov & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
 reprozip & 0.000043 & -0.027311 & 0.266969 & 0.000438 \\
 rr & 0.000021 & -0.011208 & 0.404307 & 0.000878 \\
 strace & 0.000029 & -0.002243 & 0.229129 & 0.000312 \\
 \bottomrule
 \end{tabular}
-\caption{}
+\caption{Linear regression, using benchmark subset to approximate the original benchmark.}
 \label{tbl:params}
 \end{center}
 %\end{minipage}
@@ -1005,7 +1008,7 @@ $$
 $$
 \normalsize
 
-<!-- TODO: consider a non-negative matrix factorization -->
+<!-- TODO: consider a non-negative linear regression -->
 
 The system calls features can be observed using strace.
 The CPU time and wall time of noprov can be observed using GNU time.
@@ -1014,11 +1017,6 @@ One need not complete an entire execution to observe the these fatures; one mere
 <!--
 TODO: note that fsatrace has a hardcoded limit on the size of the buffer used to store file read/writes. If this size is exceeded, the program will exhibit undefined behavior. On my system, it crashes with a non-zero exit code but without any message.
 -->
-<!--
-TODO:
-CDE WARNING (unsupported operation): %s '%s' is a relative path and dirfd != AT_FDCWD
--->
-
 <!--
 TODO:
 Active vs passive monitoring

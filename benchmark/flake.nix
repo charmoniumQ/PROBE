@@ -432,19 +432,9 @@
             src = pkgs.fetchFromGitHub {
               owner = "selectel";
               repo = pname;
-              rev = "0d18b7ad1362857a1cf1f8ab55de8cd22027527d";
-              hash = "sha256-D4fOaQ/SdHFdVLZQThrPO/xZOEZ88USTrDIuy3nf3zQ=";
+              rev = "42dd3bb6a4623b628668167bcceee3210a050ada";
+              hash = "sha256-FIWwhGp6ucwFcMSeFJmnRSdCzcCEIRXViWMP4O4hjko=";
             };
-            patches = [
-              # (pkgs.fetchurl {
-              #   url = "https://patch-diff.githubusercontent.com/raw/selectel/ftpbench/pull/4.diff";
-              #   hash = "sha256-MfXmtFpRZybTU1tryy56QNvc/qGazql6iVT+hO5UE9A=";
-              # })
-              (pkgs.fetchurl {
-                url = "https://github.com/selectel/ftpbench/compare/master...charmoniumQ:ftpbench:patch-2.patch";
-                hash = "sha256-Qqr5F6oKtMkBxgXo6G7OCjA3LLzju4uZzPQNgut2x00=";
-              })
-            ];
             propagatedBuildInputs = [
               python.pkgs.setuptools
               python.pkgs.gevent
@@ -454,7 +444,7 @@
             ];
           };
           proftpd = pkgs.stdenv.mkDerivation rec {
-            pname = "protftpd";
+            pname = "proftpd";
             version = "1.3.8";
             srcs = [
               (pkgs.fetchFromGitHub {
@@ -476,9 +466,7 @@
             postUnpack = ''
               chmod --recursive u+w proftpd-mod_vroot
               cp --recursive proftpd-mod_vroot proftpd/contrib/mod_vroot
-              ls -ahlt
               cd proftpd
-              ls -ahlt
             '';
             buildInputs = [ pkgs.libxcrypt ];
             configureFlags = [ "--with-modules=mod_vroot" ];
@@ -684,8 +672,8 @@
                 pypkgs.psutil
 
                 # deps of notebooks
-                pypkgs.arviz
-                pypkgs.pymc3
+                # pypkgs.arviz
+                # pypkgs.pymc3
                 pypkgs.numpy # repeats are OK
                 pypkgs.pandas
                 pypkgs.matplotlib
