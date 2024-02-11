@@ -85,9 +85,35 @@ pagestyle: plain
 papersize: letter
 ---
 
+# Introduction
+
+Within the computational science and engineering (CSE) community, there is a consensus that greater reproducibility is a pathway towards increased productivity and more impactful science[@nasem2019report]. In the past decade, this has inspired a diverse range of research and development efforts meant to give us greater control over our software, including containers and virtual machines to capture environments[@boettiger2015introduction][@nust2020ten][@jansen2020curious][@satyanarayanan2023towards], package managers for fine-grained management of dependencies[@gamblin2015spack][@kowalewski2022sustainable], interactive notebooks and workflows[@beg2021using][@di2017nextflow][@koster2012snakemake], and online platforms for archiving and sharing computational experiments[@goecks2010galaxy][@stodden2012runmycode][@stodden2015researchcompendia][@chard2019implementing]. In this work, we focus our attention on **computational provenance** as another complementary strategy for managing reproducibility across the research software lifecycle. Computational provenance is the history of a computational task, describing the artifacts and processes that led to or influenced the end result[@freireProvenanceComputationalTasks2008]; the term encompasses a spectrum of tools and techniques ranging from simple logging to complex graphs decorated with sufficient detail to replay a computational experiment.
+
+Provenance data can provide crucial information about the hardware and software environments in which a code is executed. The use cases for this data are numerous, and many different tools for collecting it have independently developed. What has been lacking, however, is a rigorous comparison of those available tools and the extent to which they are practically usable in CSE application contexts^[DSK: usable globally or perhaps in particular situations?]. In an effort to summarize the state of the art and to establish goalposts for future research in this area, our paper makes the following contributions:
+
+- *A rapid review on available provenance tools*:
+    There are scores of academic publications on system-level provenance (see @Tbl:tools), and we collated a list of available of provenance tools. 
+	
+	^[DSK: as possible is problematic, probably need to rephrase] and classify them by _capture method_ (e.g., does the provenance collector require you to load a kernel module or run your code in a VM?). 
+
+- *A benchmark suite*:
+  Prior work does not use a consistent set of benchmarks; often publications use an overlapping set of benchmarks from prior work.
+  We collate benchmarks used in prior work, add some unrepresented areas, and find a statistically valid subset of the benchmark.
+
+- *A quantitative performance comparison of tools against this suite*:
+  Prior publications often only compares the performance their provenance tool to the baseline, no-provenance performance, not to other provenance tools.
+  It is difficult to compare provenance tools, given data of different benchmarks on different machines.
+  We run a consistent set of benchmarks on a single machine over all provenance tools.
+
+- *A predictive performance model for provenance tools*:
+  The performance overhead of a single provenance collector varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
+  We develop a statistical model for predicting the overhead of \$X application in \$Y provenance collector based on \$Y provenance collector's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
+  
+The remainder of the paper is structured as follows. [^RMM: Outline paper structure here.]
+
 # Background
 
-Computational provenance, "the computational input artifacts and computational processes that influenced a certain computational output artifact" [@freireProvenanceComputationalTasks2008], has many potential applications, including the following from Pimentel et al. [@pimentelSurveyCollectingManaging2019] and Sar and Cao [@sarLineageFileSystem]:
+Provenance tools and data have many potential applications, including the following from Pimentel et al. [@pimentelSurveyCollectingManaging2019] and Sar and Cao [@sarLineageFileSystem]:
 
 1. **Reproducibility**.
    A description of the inputs and processes used to generate a specific output can aid manual and automatic reproduction of that output[^acm-defns].
@@ -171,28 +197,6 @@ Even a minor overhead per I/O operation would become significant when amplified 
 Prior publications in system-level provenance usually contains some benchmark programs to evaluate the overhead imposed by the system-level provenance tool.
 However, the set of chosen benchmark programs are not consistent from one publication to another, and overhead can be extermely sensitive to the exact choice of benchmark, so these results are totally incomparable between publications.
 Most publications only benchmark their new system against native/no-provenance, so prior work cannot easily establish which system-level provenance tool is the fastest.
-
-# Contributions
-
-This work aims to summarize state of the art, establish goalposts for future research in the area, and identify which provenance tools are practically usable. ^[DSK: usable globally or perhaps in particular situations?]
-
-This work contributes:
-
-- **A rapid review**:
-    There are scores of academic publications on system-level provenance (see @Tbl:tools). We collate as many provenance tools as possible ^[DSK: as possible is problematic, probably need to rephrase] and classify them by _capture method_ (e.g., does the provenance collector require you to load a kernel module or run your code in a VM?). 
-
-- **A benchmark suite**:
-  Prior work does not use a consistent set of benchmarks; often publications use an overlapping set of benchmarks from prior work.
-  We collate benchmarks used in prior work, add some unrepresented areas, and find a statistically valid subset of the benchmark.
-
-- **A quantitative performance comparison**:
-  Prior publications often only compares the performance their provenance tool to the baseline, no-provenance performance, not to other provenance tools.
-  It is difficult to compare provenance tools, given data of different benchmarks on different machines.
-  We run a consistent set of benchmarks on a single machine over all provenance tools.
-
-- **A predictive performance model**:
-  The performance overhead of a single provenance collector varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
-  We develop a statistical model for predicting the overhead of \$X application in \$Y provenance collector based on \$Y provenance collector's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
 
 # Methods
 
