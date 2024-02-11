@@ -388,13 +388,30 @@
             nativeBuildInputs = [ python.pkgs.pip ];
             nativeCheckInputs = [
               python.pkgs.nose
+              python.pkgs.nose-exclude
               python.pkgs.mock
               python.pkgs.requests-mock
               python.pkgs.freezegun
               python.pkgs.ddt
               python.pkgs.testpath
               python.pkgs.numpy
+              provenance-to-use
+              sciunit-dedup
+              scripter
             ];
+            checkPhase = let
+              excludedTests = [
+                "tests.test_copy.TestCopy" # copies to File.io; depends on internet
+                "tests.test_export.TestExport" # runs pip install; depends on internet
+                "tests.test_given.TestGiven"
+                "tests.test_repeat.TestRepeat"
+              ];
+              nosetestArgs = builtins.map (test: "--exclude-test=${test}") excludedTests;
+            in ''
+              runHook preCheck1
+              nosetests --verbose --stop --nocapture --failure-detail ${builtins.concatStringsSep " " nosetestArgs}
+              runHook postCheck
+            '';
           };
           jupyter-contrib-nbextensions = python.pkgs.jupyter-contrib-nbextensions.overrideAttrs (self: super: {
             # Yes, this was very recently broken by [1]
