@@ -1313,7 +1313,6 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich", "spack glibc", "spack boost"} and workload.kind not in {"spack"}
     ],
     "working-ltrace": [
         workload
