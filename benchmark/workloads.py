@@ -841,7 +841,7 @@ class Blast(Workload):
 
     @staticmethod
     def get_all() -> list["Blast"]:
-        workdir = Path(".workdir/work")
+        workdir = Path(".workdir/0/work")
         Blast.static_setup(workdir)
         blastdir = workdir / "blast-benchmark/"
         blasts = []
@@ -866,7 +866,7 @@ class Blast(Workload):
     def static_setup(workdir: Path) -> None:
         blastdir = workdir / "blast-benchmark"
         if not blastdir.exists():
-            blastdir.mkdir()
+            blastdir.mkdir(parents=True)
             blast_targz = blastdir / "blast.tar.gz"
             download(blast_targz, "https://ftp.ncbi.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz")
             with tarfile.TarFile.open(blast_targz) as blast_targz_obj:
