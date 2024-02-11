@@ -93,7 +93,7 @@ def run_exec(
                 "/": DirMode.READ_ONLY,
                 "/home": DirMode.HIDDEN,
                 "/run": DirMode.HIDDEN,
-                "/tmp": DirMode.HIDDEN,
+                "/tmp": DirMode.FULL_ACCESS,
                 "/var": DirMode.HIDDEN,
             },
             **{
