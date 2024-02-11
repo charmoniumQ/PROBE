@@ -694,7 +694,7 @@
                 pypkgs.numpy # repeats are OK
                 pypkgs.pandas
                 pypkgs.matplotlib
-                pypkgs.distributed
+                (noPytest pypkgs.dask)
                 pypkgs.notebook
                 pypkgs.seaborn
                 pypkgs.scipy
