@@ -12,15 +12,21 @@ import urllib.request
 import warnings
 from collections.abc import Sequence, Mapping, Iterator, Iterable
 from typing import Callable, TypeVar, Any, TypeAlias, cast, Hashable
+import tqdm
 import scipy  # type: ignore
 import numpy
 
 
 def download(output: pathlib.Path, url: str) -> None:
+    class DownloadProgressBar(tqdm.tqdm):
+        def update_to(self, b=1, bsize=1, tsize=None):
+            if tsize is not None:
+                self.total = tsize
+            self.update(b * bsize - self.n)
     output.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url) as src_fobj:
-        with output.open("wb") as dst_fobj:
-            shutil.copyfileobj(src_fobj, dst_fobj)
+    with DownloadProgressBar(unit='B', unit_scale=True,
+                             miniters=1, desc=url.split('/')[-1]) as t:
+        urllib.request.urlretrieve(url, filename=output, reporthook=t.update_to)
 
 
 def terminate_or_kill(proc: subprocess.Popen[bytes], timeout: int) -> None:
