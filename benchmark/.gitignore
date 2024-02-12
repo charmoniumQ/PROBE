@@ -5,4 +5,5 @@
 __pycache__/
 output/
 notebook/.ipynb_checkpoints/
-runner.log
+*.exe
+*.log

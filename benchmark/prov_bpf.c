@@ -1,7 +1,19 @@
 /*
  * Compile me with
  *
- *     gcc -Wall -Wextra prov_bpf.c -Og -DDEBUG -o prov_bpf.exe
+ *     gcc -Wall -Wextra prov_bpf.c -Og -DDEBUG -DBPFTRACE_EXE -DBPFTRACE_CODE -DCHECK_PERMS -o prov_bpf.exe
+ *
+ * DEBUG is optional
+ *
+ * CHECK_PERMS is optional. If this is enabled, the binary will check that permissions are "rigid" enough that this setuid binary can't be abused.
+ *
+ * BPFTRACE should point to the path the binary of https://github.com/bpftrace/bpftrace. It's better to bake this in to the binary than use the $PATH because this is ssetuid, and arbitrary users could set their own $PATH.
+ *
+ * BPFTRACE_CODE should point to a bpftrace code. Again, this should be baked in to the binary.
+ *
+ * My commmandline args:
+ *
+ *     env - PATH=$PWD/result/bin result/bin/gcc -Wall -Wextra prov_bpf.c -Og -DNDEBUG -DBPFTRACE_EXE=$PWD/result/bin/bpftrace -DBPFTRACE_CODE=$PWD/prov.bt -o prov_bpf.exe
  *
  */
 
@@ -20,13 +32,19 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#ifdef DEBUG
 #define DEBUG_PRINT(...) do { fprintf( stderr, "DEBUG: " __VA_ARGS__ ); } while( false )
-
 #define DEBUG_VAR(var, kind) do { fprintf( stderr, "DEBUG: " #var " = " kind "\n", var ); } while( false )
+#else
+#define DEBUG_PRINT(...)
+#define DEBUG_VAR(var, kind)
+#endif
+
+#define unlikely(x)    __builtin_expect(!!(x), 0)
 
 #define EXPECT_NONNULL(expr) ({\
             void* ret = expr; \
-            if (ret == NULL) { \
+            if (unlikely(ret == NULL)) { \
                 fprintf(stderr, "failure on line %d: %s\nreturned NULL\nstrerror: %s\n", __LINE__, #expr, strerror(errno)); \
                 abort(); \
             } \
@@ -35,7 +53,7 @@
 
 #define EXPECT_POSITIVE(expr) ({\
             int ret = expr; \
-            if (ret < 0) { \
+            if (unlikely(ret < 0)) { \
                 fprintf(stderr, "failure on line %d: %s\nreturned a negative, %d\nstrerror: %s\n", __LINE__, #expr, ret, strerror(errno)); \
                 abort(); \
             } \
@@ -44,7 +62,7 @@
 
 #define EXPECT_ZERO(expr) ({\
             int ret = expr; \
-            if (ret != 0) { \
+            if (unlikely(ret != 0)) { \
                 fprintf(stderr, "failure on line %d: %s\nreturned a non-zero, %d\nstrerror: %s\n", __LINE__, #expr, ret, strerror(errno)); \
                 abort(); \
             } \
@@ -99,6 +117,7 @@ int main(__attribute__((unused)) int argc, char** argv) {
     char self[PATH_MAX - 10];
     EXPECT_POSITIVE(readlink("/proc/self/exe", self, PATH_MAX - 10));
     DEBUG_VAR(self, "%s");
+#ifdef CHECK_PERMS
     struct stat self_stat;
     EXPECT_ZERO(stat(self, &self_stat));
     if (self_stat.st_uid != 0 || self_stat.st_gid != 0) {
@@ -111,28 +130,37 @@ int main(__attribute__((unused)) int argc, char** argv) {
         fprintf(stderr, "Please `chmod ug+s  %s`\n", self);
         abort();
     }
+#endif
 
-    char* self_dir = dirname(self);
-    DEBUG_VAR(self_dir, "%s");
+#ifdef CHECK_PERMS
+    struct stat bpftrace_exe_stat;
+    EXPECT_ZERO(stat(BPFTRACE_EXE, &bpftrace_exe_stat));
+    if (bpftrace_exe_stat.st_uid != 0 || bpftrace_exe_stat.st_gid != 0) {
+        fprintf(stderr, "The bpftrace binary must be root, otherwise someone might try to replace it.\n");
+        fprintf(stderr, "Please `chown root:root %s`\n", BPFTRACE_EXE);
+        abort();
+    }
+    if (self_stat.st_mode & 00022) {
+        fprintf(stderr, "The bpftrace binary must be locked down, otherwise someone might try to replace it.\n");
+        fprintf(stderr, "Please `chmod go-w  %s`\n", BPFTRACE_EXE);
+        abort();
+    }
+#endif
 
-    char bpftrace_exe[PATH_MAX];
-    EXPECT_POSITIVE(snprintf(bpftrace_exe, PATH_MAX, "%s/result/bin/bpftrace", self_dir));
-    DEBUG_VAR(bpftrace_exe, "%s");
-
-    char prov_bt[PATH_MAX];
-    EXPECT_POSITIVE(snprintf(prov_bt, PATH_MAX, "%s/prov.bt", self_dir));
-    struct stat prov_bt_stat;
-    EXPECT_ZERO(stat(prov_bt, &prov_bt_stat));
-    if (prov_bt_stat.st_uid != 0 || prov_bt_stat.st_gid != 0) {
-        fprintf(stderr, "Please `chown root:root %s`\n", prov_bt);
+#ifdef CHECK_PERMS
+    struct stat bpftrace_code_stat;
+    EXPECT_ZERO(stat(BPFTRACE_CODE, &bpftrace_code_stat));
+    if (bpftrace_code_stat.st_uid != 0 || bpftrace_code_stat.st_gid != 0) {
+        fprintf(stderr, "Please `chown root:root %s`\n", BPFTRACE_CODE);
         fprintf(stderr, "Otherwise unprivileged users can use this setuid binary to run arbitrary bpftrace code.\n");
         abort();
     }
-    if (prov_bt_stat.st_mode & 00022) {
-        fprintf(stderr, "Please `chmod go-w %s`\n", prov_bt);
+    if (bpftrace_code_stat.st_mode & 00022) {
+        fprintf(stderr, "Please `chmod go-w %s`\n", BPFTRACE_CODE);
         fprintf(stderr, "Otherwise unprivileged users can use this setuid binary to run arbitrary bpftrace code.\n");
         abort();
     }
+#endif
 
     char* log_file = argv[1];
     DEBUG_VAR(log_file, "%s");
@@ -180,7 +208,7 @@ int main(__attribute__((unused)) int argc, char** argv) {
     // Compute the args for bpftrace *before* escalating privilege
     char tracee_pid_str[PATH_MAX];
     EXPECT_POSITIVE(snprintf(tracee_pid_str, PATH_MAX, "%d", tracee_pid));
-    char *bpftrace_argv[] = {bpftrace_exe, "-B", "full", "-f", "json", "-o", log_file, "prov.bt", tracee_pid_str, NULL};
+    char *bpftrace_argv[] = {BPFTRACE_EXE, "-B", "full", "-f", "json", "-o", log_file, BPFTRACE_CODE, tracee_pid_str, NULL};
 
     pid_t bpf_pid = EXPECT_POSITIVE(fork());
     if (bpf_pid == 0) {
@@ -196,7 +224,7 @@ int main(__attribute__((unused)) int argc, char** argv) {
         EXPECT_ZERO(setenv("BPFTRACE_STRLEN", "200", 1));
 
         // Exec bpftrace
-        EXPECT_ZERO(execv(bpftrace_exe, bpftrace_argv));
+        EXPECT_ZERO(execv(BPFTRACE_EXE, bpftrace_argv));
 
         // Even if exec fails, we would have aborted by now.
         __builtin_unreachable();
@@ -220,7 +248,7 @@ int main(__attribute__((unused)) int argc, char** argv) {
             bool bpf_ready = false;
             while (fgets(buffer, MAX_LINE, file)) {
                 DEBUG_PRINT("Checking line %s\n", buffer);
-                if (strstr(buffer, "launch_pid")) {
+                if (strstr(buffer, "attached_probes")) {
                     DEBUG_PRINT("line matches :)\n");
                     bpf_ready = true;
                     break;

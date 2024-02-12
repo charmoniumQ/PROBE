@@ -94,6 +94,8 @@ class SpackInstall(Workload):
         }
 
         # Install spack
+        if not workdir.exists():
+            workdir.mkdir(parents=True)
         spack_dir = workdir / "spack"
         if not spack_dir.exists():
             check_returncode(subprocess.run(
@@ -115,7 +117,9 @@ class SpackInstall(Workload):
         assert spack.exists()
 
         # Use our built $PWD/result/bin/sh, not system /bin/sh
-        spack.write_text(spack.read_text().replace("#!/bin/sh", f"#!{result_bin}/sh"))
+        spack_lines = spack.read_text().split("\n")
+        spack_lines[0] = "#!/usr/bin/env sh"
+        spack.write_text("\n".join(spack_lines))
 
         # Concretize env with desired specs
         env_dir = workdir / "spack_envs" / self.env_name
@@ -1320,6 +1324,8 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
+        if workload.name not in {"titanic-to"}
+
     ],
     "working-ltrace": [
         workload

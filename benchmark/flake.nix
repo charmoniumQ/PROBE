@@ -13,7 +13,6 @@
         noPytest = pypkg: pypkg.overrideAttrs (self: super: {
           pytestCheckPhase = ''true'';
         });
-        replaceDebugpy = pkg: pkgs.hello;
         removePackage = drv: pkgsToRemove: drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {name = pkgToRemove; value = null;}) pkgsToRemove));
         renameInDrv = drv: oldFile: newFile: pkgs.runCommand "${drv.name}-renamed" {} ''
           mkdir $out
