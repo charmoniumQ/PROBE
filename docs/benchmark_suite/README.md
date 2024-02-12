@@ -374,7 +374,7 @@ In particular, we use:
 
 In order to choose the subset, we will try clustering, preceded by optional dimensionality reduction.
 Once the benchmarks are grouped into clusters, we identify one benchmark from each of the $k$ clusters to consist the benchmark subset.
-We will sweep across $k$.
+We determine the best $k$ experimentally.
 We tried the following clustering algorithms:
 
 - **K-means.** K-means [@macqueenMethodsClassificationAnalysis1965] greedily minimizes within-cluster variance, which is equivalent to the "representativeness" RMSE distance we want to minimize.
@@ -965,7 +965,7 @@ Note that linear regression does not permit sweeping over the number of paramete
 Matrix factorization methods use only $(n_{\mathrm{benchmarks}} - k) \times (n_{\mathrm{features}} - k) = n_{\mathrm{benchmarks}} n_{\mathrm{features}} - k(n_{\mathrm{benchmarks}} + n_{\mathrm{features}}) + k^2$ parameters.
 When $k$ is low, matrix factorization is much fewer parameters than linear regression at the cost of some in-sample accuracy, but when $k$ approaches $n_{\mathrm{features}}$, it is less parameter-efficient than linear regression.
 Number of parameters is not truly an independent variable that can be directly swept over.
-Rather $k$ is an independent variable, we sweep over $k$, and plot the number-of-parameters on the x-axis, since that is more directly interpretable.
+Rather $k$ is an independent variable, we determine the best $k$ experimentally, and plot the number-of-parameters on the x-axis, since that is more directly interpretable.
 Models with a large number of parameters are more likely to overfit to spurious correlations on the test sample which generalize poorly on the train sample.
 Overgeneralization is appropriately punished by cross-validation.
 
