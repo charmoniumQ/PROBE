@@ -1,1 +1,2 @@
-result/bin/strace -o strace.log -e !arch_prctl,mmap,munmap,brk,mprotect,rseq,prlimit64,set_tid_address,set_robust_list,getrandom,futex,rt_sigaction,lseek,ioctl,fcntl,read,pread64,sysinfo -- "$@"
+#!/usr/bin/env bash
+result/bin/strace -f -o strace.log -e !arch_prctl,mmap,munmap,brk,mprotect,rseq,prlimit64,set_tid_address,set_robust_list,getrandom,futex,rt_sigaction,lseek,ioctl,fcntl,read,pread64,sysinfo -- "$@"

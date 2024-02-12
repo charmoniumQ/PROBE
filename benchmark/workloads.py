@@ -12,6 +12,9 @@ import yaml
 import tarfile
 import shlex
 from typing import cast, Any
+import getpass
+import pwd
+import grp
 
 # ruff: noqa: E501
 
@@ -19,7 +22,8 @@ cwd = Path(__file__).resolve()
 result_bin = (cwd.parent / "result").resolve() / "bin"
 result_lib = result_bin.parent / "lib"
 result = result_lib.parent
-
+username = getpass.getuser()
+groupname = grp.getgrgid(pwd.getpwnam(username).pw_gid).gr_name
 
 class Workload:
     kind: str
@@ -582,8 +586,8 @@ class Proftpd(Workload):
         (ftpdir / "conf").write_text(
             PROFTPD_CONF
             .replace("$PORT", str(self.ftp_port))
-            .replace("$USER", "benchexec")
-            .replace("$GROUP", "benchexec")
+            .replace("$USER", username)
+            .replace("$GROUP", groupname)
             .replace("$FTPDIR", str(ftpdir))
         )
         tmpdir = ftpdir / "tmp"
@@ -867,8 +871,11 @@ class Blast(Workload):
         blastdir = workdir / "blast-benchmark"
         if not blastdir.exists():
             blastdir.mkdir(parents=True)
-            blast_targz = blastdir / "blast.tar.gz"
+        blast_targz = blastdir / "blast.tar.gz"
+        if not blast_targz.exists():
             download(blast_targz, "https://ftp.ncbi.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz")
+        blast_makefile = blastdir / "Makefiile"
+        if not blast_makefile.exists():
             with tarfile.TarFile.open(blast_targz) as blast_targz_obj:
                 blast_targz_obj.extractall(
                     blastdir,

@@ -586,6 +586,7 @@
               pkgs.dpkg
               pkgs.gdb
               pkgs.bpftrace
+              pkgs.su
 
               # deps of notebooks
               pkgs.util-linux

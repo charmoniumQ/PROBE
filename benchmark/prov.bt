@@ -1,33 +1,120 @@
+///////////////////////////////////////////////////////////////////////////////
+// Initialize
+///////////////////////////////////////////////////////////////////////////////
+
 BEGIN {
+  printf("%d %d %d launch_pid %d\n", pid, tid, nsecs, $1);
   @pids[$1] = 1;
+  @main_pid[$1] = 1;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// Enter exit syscalls
+///////////////////////////////////////////////////////////////////////////////
+
+tracepoint:syscalls:sys_enter_exit {
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d exit %d\n", pid, tid, nsecs, args.error_code);
+    if (pid == tid) {
+      @pids[pid] = 0;
+      if (@main_pid[pid]) {
+        exit();
+      }
+    }
+  }
+}
+tracepoint:syscalls:sys_enter_exit_group {
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d exit %d\n", pid, tid, nsecs, args.error_code);
+    @pids[pid] = 0;
+    if (@main_pid[pid]) {
+      exit();
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Enter other syscalls + forky syscalls
+///////////////////////////////////////////////////////////////////////////////
 
 tracepoint:syscalls:sys_enter_open {
-  printf("%d %d %d open %s %d %d\n", pid, tid, nsecs, args.filename, args.flags, arg.mode);
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d open %s %d %d\n", pid, tid, nsecs, str(args.filename), args.flags, args.mode);
+  }
 }
 tracepoint:syscalls:sys_enter_openat {
-  printf("%d %d %d open %d %s %d %d\n", pid, tid, nsecs, args.filename, args.dirfd, args.flags, arg.mode);
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d openat %d %s %d %d\n", pid, tid, nsecs, args.dfd, str(args.filename), args.flags, args.mode);
+  }
 }
-tracepoint:syscalls:sys_enter_execve {
-  printf("%d %d %d execve %s [%s] [%s]\n", pid, tid, nsecs, args.filename, join(sys.argv, ","), join(sys.envp, ","));
+tracepoint:syscalls:sys_enter_execve {  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    //printf("%d %d %d execve %s [%s] [%s]\n", pid, tid, nsecs, str(args.filename), join(args.argv, ","), join(args.envp, ","));
+   printf("%d %d %d execve %s\n", pid, tid, nsecs, str(args.filename));
+  }
+}
+tracepoint:syscalls:sys_enter_newfstatat {
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d fork\n", pid, tid, nsecs);
+  }
 }
 tracepoint:syscalls:sys_enter_fork {
-  printf("%d %d %d fork\n", pid, tid, nsecs);
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d fork\n", pid, tid, nsecs);
+  }
 }
 tracepoint:syscalls:sys_enter_clone {
-  printf("%d %d %d clone %d %d %d %d\n", pid, tid, nsecs, args.clone_flags, args.newsp, args.parent_tid, args.child_tid);
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d clone %d %d\n", pid, tid, nsecs, args.clone_flags, args.newsp);
+  }
 }
 
-tracepoint:syscalls:sys_exit_clone {
-  printf("%d %d %d clone-ret %d\n", args.ret);
-}
-tracepoint:syscalls:sys_exit_fork {
-  printf("%d %d %d fork-ret %d\n", pid, tid, nsecs, args.ret);
-}
+///////////////////////////////////////////////////////////////////////////////
+// Exit other syscalls
+///////////////////////////////////////////////////////////////////////////////
 
 tracepoint:syscalls:sys_exit_open,
 tracepoint:syscalls:sys_exit_openat,
-tracepoint:syscalls:sys_exit_execve
+tracepoint:syscalls:sys_exit_execve,
+tracepoint:syscalls:sys_exit_fork,
+tracepoint:syscalls:sys_exit_clone
 {
-  printf("%d %d %d ret %d %d\n", pid, tid, nsecs, args.ret);
+  $task = (struct task_struct *)curtask;
+  if (@pids[$task->real_parent->pid]) {
+    @pids[pid] = 1;
+  }
+  if (@pids[pid]) {
+    printf("%d %d %d ret %d\n", pid, tid, nsecs, args.ret);
+  }
 }

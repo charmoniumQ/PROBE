@@ -724,7 +724,7 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
     "working": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "scunit"]
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "sciunit"]
         # ltrace
         # cde
     ],

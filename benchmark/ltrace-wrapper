@@ -1,3 +1,5 @@
+#!/urs/bin/env bash
+
 result/bin/ltrace -f -F ltrace.conf.3 -s 4096 -o ltrace.log -L -x '-*+@libc.so.6-_*-pthread*-*alloc*-free-cfree-brk-sbrk-mmap*-munmap*-sysconf-getpagesize-write-isatty-getopt*-tsearch-tfind-getdelim-maybe_split_for_insert*-sem_*-setlocale-add_alias*-unlink_chunk*-add_module-insert_module-index-rindex-read_int-getrandom-nl_lang*-msort*-qsort*-systrim*-localtime*-tzset_*-tcache*-tcgetattr*-new_composite_name-read_conf_file*-get_phys_pages-sysinfo-llseek-ftello-uselocale-dcgettext-find_derivation-derivation_compare-confstr-sigaction-sigempty*-fileno*-ffileno-fflush-str*-getenv-putenv-unsetenv-setenv-secure_*-mem*-wmem*-mbs*-mbr*-mblen-wcs*-fcntl*-opendir*-readdir*-fopen-read-stat-stat64-fstat-fstat64-*printf*-fread*-fseek-lseek*' "$@"
 
 # -fopen64
