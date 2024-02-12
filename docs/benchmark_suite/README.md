@@ -1052,9 +1052,9 @@ In the future, we plan to implement compilation for more packages, in particular
 
 # Conclusion
 
-We hope this work serves as a part of a bridge from research to practical use of provenance collectors.
-As such, we address practical concerns of a user wanting to use a provenance collector.
-We identify the reproducible and usable provenance collectors from prior work, and we evaluate their performance on synthetic and real-world workloads.
+We intend this work to bridge from research to practical use of provenance collectors.
+Specifically, we have identified reproducible and usable provenance collectors from prior work, and evaluated their performance on synthetic and real-world workloads. We believe these will address the practical concerns of a user wanting to use a provenance collector.
+
 
 \appendix
 
