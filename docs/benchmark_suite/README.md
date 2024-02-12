@@ -1014,7 +1014,7 @@ strace & 0.000029 & -0.002243 & 0.229129 & 0.000312 \\
 \end{center}
 %\end{minipage}
 \end{table}
-\footnotesize
+\scriptsize
 
 For example to estimate the overhead of fsatrace, we would use the first row of @Tbl:params,
 
