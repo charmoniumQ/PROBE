@@ -111,7 +111,7 @@ Provenance data can provide crucial information about the hardware and software 
   We run a consistent set of benchmarks on a single machine over all provenance tools.
 
 - *A predictive performance model for provenance tools*:
-  The performance overhead of a single provenance collector varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] based on the application, so a single number for overhead is not sufficient.
+  The performance overhead of a single provenance collector varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] than without provenance depending on the application, so a single number for overhead is not sufficient.
   We develop a statistical model for predicting the overhead of \$X application in \$Y provenance collector based on \$Y provenance collector's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
   
 The remainder of the paper is structured as follows. [^RMM: Outline paper structure here.]
@@ -169,16 +169,19 @@ There are three high-level methods by which one can capture computational proven
 \begin{figure*}
 \subcaptionbox{
   Application-level provenance has the most semantic information.
-}{\includegraphics[width=0.21\textwidth]{app-lvl-prov.pdf}\label{fig:app-lvl-prov}}
+}{\includegraphics[width=0.22\textwidth]{app-lvl-prov.pdf}\label{fig:app-lvl-prov}}
+\hspace{0.03\textwidth}%
 \subcaptionbox{
   Workflow-level provenance has an intermediate amount of semantic information.
-}{\includegraphics[width=0.21\textwidth]{wf-lvl-prov.pdf}\label{fig:wf-lvl-prov}}
+}{\includegraphics[width=0.22\textwidth]{wf-lvl-prov.pdf}\label{fig:wf-lvl-prov}}
+\hspace{0.03\textwidth}%
 \subcaptionbox{
   System-level log of I/O operations.
-}{\includegraphics[width=0.21\textwidth]{sys-lvl-log.pdf}\label{fig:sys-lvl-log}}
+}{\includegraphics[width=0.12\textwidth]{sys-lvl-log.pdf}\label{fig:sys-lvl-log}} % TODO: fix the aspect ratio here
+\hspace{0.03\textwidth}%
 \subcaptionbox{
   System-level provenance, inferred from the log in Fig. 1c., has the least amount of semantic information
-}{\includegraphics[width=0.21\textwidth]{sys-lvl-prov.pdf}\label{fig:sys-lvl-prov}}
+}{\includegraphics[width=0.22\textwidth]{sys-lvl-prov.pdf}\label{fig:sys-lvl-prov}}
 \caption{Several provenance graphs collected at different levels for the same application.}
 \label{fig:prov}
 \end{figure*}
@@ -307,9 +310,9 @@ TODO: explain why we don't disable ASLR
 \begin{table}
 \caption{Our experimental machine description.}
 \label{tbl:machine}
-\begin{minipage}{\columnwidth}
+%\begin{minipage}{\columnwidth}
 \begin{center}
-\scriptsize
+\small
 \begin{tabular}{ll}
 \toprule
 Name   & Value                                          \\
@@ -320,7 +323,7 @@ Kernel & Linux 6.1.64                                   \\
 \bottomrule
 \end{tabular}
 \end{center}
-\end{minipage}
+%\end{minipage}
 \end{table}
 
 ## Benchmark Subsetting
@@ -498,28 +501,34 @@ The last column in the table categorizes the "state" of that provenance collecto
      We localized the problem to the following code^[See <https://gitlab.com/cespedes/ltrace/-/blob/8eabf684ba6b11ae7a1a843aca3c0657c6329d73/handle_event.c#L775>]:
 
      \scriptsize
+
      ``` c
-     	/* FIXME: not good -- should use dynamic allocation. 19990703 mortene. */
-     	if (proc->callstack_depth == MAX_CALLDEPTH - 1) {
-     		fprintf(stderr, "%s: Error: call nesting too deep!\n", __func__);
-     		abort();
-     		return;
-     	}
+     /* FIXME: not good -- should use dynamic allocation. 19990703 mortene. */
+     if (proc->callstack_depth == MAX_CALLDEPTH - 1) {
+         fprintf(stderr, "%s: Error: call nesting too deep!\n", __func__);
+         abort();
+         return;
+     }
      ```
+
      \normalsize
 
   - **CDE**.
     CDE is a research prototype proposed by Guo and Engler [@guoCDEUsingSystem2011].
-    CDE can run some of our benchmarks, but crashes when trying to copy from the tracee process to the tracer due to `ret == NULL`^[See <https://github.com/usnistgov/corr-CDE/blob/v0.1/strace-4.6/cde.c#L2650>]:
+    CDE can run some of our benchmarks, but crashes when trying to copy from the tracee process to the tracer due to `ret == NULL`[^cde-note]:
 
    \scriptsize
-   ```C
+
+   ```c
    static char* strcpy_from_child(struct tcb* tcp, long addr) {
-     char* ret = strcpy_from_child_or_null(tcp, addr);
-     EXITIF(ret == NULL);
-     return ret;
+       char* ret = strcpy_from_child_or_null(tcp, addr);
+       EXITIF(ret == NULL);
+       return ret;
    }
    ```
+
+  [^cde-note]: See <https://github.com/usnistgov/corr-CDE/blob/v0.1/strace-4.6/cde.c#L2650>. The simplest explanation would be that the destination buffer is not large enough to store the data that `strcpy` wants to write. However, the destination buffer is `PATHMAX`.
+
    \normalsize
 
 - **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2).**
@@ -530,7 +539,7 @@ The last column in the table categorizes the "state" of that provenance collecto
 \label{tbl:tools}
 %\begin{minipage}{\columnwidth}
 \begin{center}
-\scriptsize
+\footnotesize
 \begin{tabular}{lll}
 \toprule
 Tool                                                               & Method                       & Status                     \\
@@ -707,7 +716,7 @@ We prioritized implementing frequently-used benchmarks, easy-to-implement benchm
 %\begin{minipage}{\columnwidth}
 \begin{center}
 \scriptsize
-\begin{tabular}{p{0.05\linewidth}p{0.24\linewidth}p{0.6\linewidth}}
+\begin{tabular}{p{0.05\linewidth}p{0.22\linewidth}p{0.6\linewidth}}
 \toprule
 Prior works & This work                 & Benchmark group and examples from prior work                                                                   \\
 \midrule
@@ -767,14 +776,14 @@ TODO: Explain the configuration for ltrace and strace
 \begin{table}
 \caption{
 This table shows percent overhead of the mean walltime when running with a provenance collector versus running without provenance.
-A value of 1 means the new execution takes 1% longer than the old.
+A value of 1 means the new execution takes 1\% longer than the old.
 "Noprov" refers to a system without any provenance collection (native), for which the slowdown is 0 by definition.
 fsatrace appears to have a negative slowdown in some cases  due to random statistical noise.
 }
 \label{tbl:benchmark-results}
 %\begin{minipage}{\columnwidth}
 \begin{center}
-\scriptsize
+\small
 \begin{tabular}{llllll}
 \toprule
 collector & fsatrace & noprov & reprozip & rr & strace \\
@@ -821,11 +830,12 @@ They are CPU benchmarks when the CPU is changed and the I/O subsystem remains co
   \includegraphics[width=0.44\textwidth]{generated/subsetting-dist.pdf}
   \label{fig:subsetting-dist}
 }
+\hspace{0.03\textwidth}%
 \subcaptionbox{
   Subsetting algorithms scored by the RMSE of the difference between (weighted) features of the subset and features of the original set.
   A dotted line shows the x- amd y-value of the point of diminishing return.
 }{
-  \includegraphics[width=0.44\textwidth]{generated/subsetting-accuracy.pdf}
+  \includegraphics[width=0.48\textwidth]{generated/subsetting-accuracy.pdf}
   \label{fig:subsetting-accuracy}
 }
 \caption{Competition for best benchmark subsetting algorithm, sweeping over subset size on the x-axis.}
@@ -833,10 +843,9 @@ They are CPU benchmarks when the CPU is changed and the I/O subsystem remains co
 \end{figure*}
 
 @Fig:subsetting shows the performance of various algorithms on benchmark susbetting.
-We have the following observations:
+We observe:
 
-- PCA only maeks things worse.
-  The features are already standardized, so PCA has little to offer other than rotation and truncation.
+- The features are already standardized, so PCA has little to offer other than rotation and truncation.
   However, the truncation is throwing away potentially useful data.
   Since we have a large number of benchmarks, and the space of benchmarks is quite open-ended, the additional dimensions that PCA trims off appear be important for separating clusters of data.
 
@@ -854,13 +863,14 @@ We examine the generated clusters and benchmark subset in @Fig:subset and @Fig:d
   Benchmark subset, where color shows a posteriori agglomerative clusters.
   Each cluster conceptually represents the same-color benchmarks being represented by a single benchmarks, which gives its name to the cluster.
 }{
-  \includegraphics[width=0.44\textwidth]{generated/pca0.pdf}
+  \includegraphics[width=0.45\textwidth]{generated/pca0.pdf}
   \label{fig:benchmark-clusters}
 }
+\hspace{0.03\textwidth}%
 \subcaptionbox{
   Benchmark subset, where color shows a priori benchmark ``type'' (see \Cref{tbl:implemented-benchmarks}).
 }{
-  \includegraphics[width=0.44\textwidth]{generated/pca1.pdf}
+  \includegraphics[width=0.45\textwidth]{generated/pca1.pdf}
   \label{fig:benchmark-groups}
 }
 \caption{Benchmarks, clustered agglomeratively into 20 subsets using standardized performance features. These axes show only two dimensions of a high-dimensional space. We apply PCA *after* computing the clusters, in order to project the data into a 2D plane.}
@@ -875,11 +885,11 @@ shows the a posteriori clusters with colors.
 @Fig:benchmark-groups shows a priori benchmark "types", similar but more precise than those in @Tbl:implemented-benchmarks.
 From these two, we offer the following observations:
 
-- @Fig:benchmark-clusters: It may appear that the algorithm did not select the benchmark closest to the cluster center, but this is because we are viewing a 2D projection of a high-dimensional space, like how three stars may appear next to each other in the sky, but in reality one pair may be much closer than the other, since we cannot perceive radial distance to each star.
+- It may appear that the algorithm did not select the benchmark closest to the cluster center, but this is because we are viewing a 2D projection of a high-dimensional space, like how three stars may appear next to each other in the sky, but in reality one pair may be much closer than the other, since we cannot perceive radial distance to each star.
 
-- @Fig:benchmark-clusters: Many of the clusters are singletons, for example the `python http.server` near $(5,6)$; this is surprising, but given there are not any other points nearby, it seems reasonable.
+- Many of the clusters are singletons, for example the `python http.server` near $(5,6)$; this is surprising, but given there are not any other points nearby, it seems reasonable.
 
-- @Fig:benchmark-groups: We might expect that benchmarks of the same type would occupy nearby points in PCA space, but it seems they often do not.
+- We might expect that benchmarks of the same type would occupy nearby points in PCA space, but it seems they often do not.
   lmbench is particularly scattered with points at $(-1, 0)$ and $(0, 5)$, perhaps because it is a microbenchmark suite where each microbenchmark program tests a different subsystem.
 
 \begin{figure*}
@@ -890,19 +900,20 @@ From these two, we offer the following observations:
   If there is a colon and a number after the name, it indicates the number of benchmarks contained in that cluster.
   Otherwise, the cluster is a singleton.
 }{
-  \includegraphics[width=0.45\textwidth]{generated/dendrogram.pdf}
+  \includegraphics[width=0.56\textwidth]{generated/dendrogram.pdf}
   \label{fig:dendrogram}
 }
+\hspace{0.03\textwidth}
 \subcaptionbox{
   A table showing cluster membership and weights.
   The weights show one way of approximating the features in the original set, which is by multiplying the features of the cluster representative by the weight and summing over all clusters.
   Since these are coefficients, not proportions, the result need not add to 100\%, although we insert an equation which should guide the solution there.
 }{
 \scriptsize
-  \begin{tabular}{p{0.07\textwidth}p{0.07\textwidth}p{0.36\textwidth}}
+  \begin{tabular}{p{0.07\textwidth}p{0.04\textwidth}p{0.18\textwidth}}
   \toprule
   Cluster representative & Weight (\%) & Cluster members \\
-  \midrule  
+  \midrule
 ls                             &  1.7 & echo, hello, ps, true \\
 postmark                       &  0.0 & archive, cp smaller \\
 unarchive pigz                 &  26.4 & git setuptools\_scm, python-hello-world, unarchive, unarchive gzip, wget \\
@@ -938,9 +949,10 @@ all                            & 98.8 & \\
 To elucidate the structure of the clusters, we plotted a dendrogram (@Fig:dendrogram) and listed the members of each cluster (@Tbl:members).
 We offer the following observations:
 
-- Fork and exec are nearby in feature-space, probably because programs usually do both.
+- Fork and exec are close in feature-space, probably because programs usually do both.
 
-- cd and shell-echo are nearby points, but it is surprising that blastn is also nearby, but they both have similar cputime-to-walltime ratios.
+- cd and shell-echo are near each other.
+  I is surprising that blastn is also near cd and shell-echo, but they both have similar cputime-to-walltime ratios.
 
 - Many of the CPU-heavy workloads are grouped together, under lm-protection-fault.
 
@@ -1002,10 +1014,10 @@ strace & 0.000029 & -0.002243 & 0.229129 & 0.000312 \\
 \end{center}
 %\end{minipage}
 \end{table}
-
-For example,
-
 \footnotesize
+
+For example to estimate the overhead of fsatrace, we would use the first row of @Tbl:params,
+
 $$
 \begin{array}{rl}
 \log \frac{\mathrm{walltime}_{\mathrm{fsatrace}}}{\mathrm{walltime}_{\mathrm{noprov}}} =
@@ -1041,8 +1053,8 @@ In the future, we plan to implement compilation for more packages, in particular
 # Conclusion
 
 We hope this work serves as a part of a bridge from research to practical use of provenance collectors.
-As such, we address practical concerns of a user wanting to use provenance collector.
-We identify the reproducible and usable subset of prior work, we evaluate their performance on synthetic and real-world workloads.
+As such, we address practical concerns of a user wanting to use a provenance collector.
+We identify the reproducible and usable provenance collectors from prior work, and we evaluate their performance on synthetic and real-world workloads.
 
 \appendix
 
