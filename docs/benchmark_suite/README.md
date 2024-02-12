@@ -3,7 +3,9 @@ from: markdown
 verbosity: INFO
 citeproc: yes
 ccite-method: citeproc
-bibliography: zotero
+bibliography:
+  - zotero
+  - reed
 link-citations: yes
 link-bibliography: yes
 notes-after-punctuation: yes
@@ -87,7 +89,10 @@ papersize: letter
 
 # Introduction
 
-Within the computational science and engineering (CSE) community, there is a consensus that greater reproducibility is a pathway towards increased productivity and more impactful science[@nasem2019report]. In the past decade, this has inspired a diverse range of research and development efforts meant to give us greater control over our software, including containers and virtual machines to capture environments[@boettiger2015introduction][@nust2020ten][@jansen2020curious][@satyanarayanan2023towards], package managers for fine-grained management of dependencies[@gamblin2015spack][@kowalewski2022sustainable], interactive notebooks and workflows[@beg2021using][@di2017nextflow][@koster2012snakemake], and online platforms for archiving and sharing computational experiments[@goecks2010galaxy][@stodden2012runmycode][@stodden2015researchcompendia][@chard2019implementing]. In this work, we focus our attention on **computational provenance** as another complementary strategy for managing reproducibility across the research software lifecycle. Computational provenance is the history of a computational task, describing the artifacts and processes that led to or influenced the end result[@freireProvenanceComputationalTasks2008]; the term encompasses a spectrum of tools and techniques ranging from simple logging to complex graphs decorated with sufficient detail to replay a computational experiment.
+Within the computational science and engineering (CSE) community, there is a consensus that greater reproducibility is a pathway towards increased productivity and more impactful science [@nasem2019report].
+In the past decade, this has inspired a diverse range of research and development efforts meant to give us greater control over our software, including containers and virtual machines to capture environments [@boettiger2015introduction; @nust2020ten; @jansen2020curious; @satyanarayanan2023towards], package managers for fine-grained management of dependencies [@gamblin2015spack; @kowalewski2022sustainable], interactive notebooks and workflows[@beg2021using; @di2017nextflow; @koster2012snakemake], and online platforms for archiving and sharing computational experiments[@goecks2010galaxy; @stodden2012runmycode; @stodden2015researchcompendia; @chard2019implementing].
+In this work, we focus our attention on **computational provenance** as another complementary strategy for managing reproducibility across the research software lifecycle.
+Computational provenance is the history of a computational task, describing the artifacts and processes that led to or influenced the end result [@freireProvenanceComputationalTasks2008]; the term encompasses a spectrum of tools and techniques ranging from simple logging to complex graphs decorated with sufficient detail to replay a computational experiment.
 
 Provenance data can provide crucial information about the hardware and software environments in which a code is executed. The use cases for this data are numerous, and many different tools for collecting it have independently developed. What has been lacking, however, is a rigorous comparison of those available tools and the extent to which they are practically usable in CSE application contexts^[DSK: usable globally or perhaps in particular situations?]. In an effort to summarize the state of the art and to establish goalposts for future research in this area, our paper makes the following contributions:
 

@@ -109,6 +109,7 @@
                       packageSet = {
                         "." = ./benchmark_suite;
                         "zotero.bib" = ./zotero.bib;
+                        "reed.bib" = ./reed.bib;
                         "acm-template.tex" = ./acm-template.tex;
                         "citations-to-latex.lua" = ./citations-to-latex.lua;
                       }

@@ -1,6 +1,7 @@
 .mypy_cache/
 .ruff_cache/
 .cache/
+.old-cache/
 .workdir/
 __pycache__/
 output/

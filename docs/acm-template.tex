@@ -214,9 +214,11 @@ $body$
 $if(acks)$\begin{acks}$acks$\end{acks}$endif$
 
 \bibliographystyle{ACM-Reference-Format}
+\bibliography{
 $for(bibliography)$
-\bibliography{$bibliography$}
+$bibliography$$sep$,
 $endfor$
+}
 
 $for(include-after)$
 $include-after$
