@@ -957,6 +957,37 @@ class Copy(Workload):
             {},
         )
 
+class CompileLinux(Workload):
+    kind = "compile"
+    name = "linux"
+
+    def __init__(self, url: str) -> None:
+        self.url = url
+
+    def setup(self, workdir: Path) -> None:
+        source_dir = workdir / "source"
+        source_dir.mkdir(exist_ok=True)
+        archive_tgz = workdir / "kernel.tar.gz"
+        source_dir = workdir / "source"
+        if not archive_tgz.exists():
+            download(archive_tgz, self.url)
+        if not source_dir.exists():
+            with tarfile.TarFile.open(archive_tgz) as archive_tgz_obj:
+                archive_tgz_obj.extractall(path=source_dir)
+
+    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+        source_dir = (workdir / "source")
+        # Makefile:763
+        # The all: target is the default when no target is given on the
+        # command line.
+        # This allow a user to issue only 'make' to build a kernel including modules
+        # Defaults to vmlinux, but the arch makefile usually adds further targets
+        return (
+            (result_bin / "sh", "-c", f"cd {source_dir} && make defconfig && make all -j $(nproc --all)"),
+            {}
+        )
+
+
 noop_cmd = (result_bin / "true",)
 def create_file_cmd(size: int) -> tuple[CmdArg, ...]:
     return (
@@ -1134,6 +1165,7 @@ WORKLOADS: list[Workload] = [
         (result_bin / "hg", "checkout"),
         (result_bin / "hg", "log", "--template={node}\n"),
     ),
+    CompileLinux(LINUX_TARBALL_URL),
     KaggleNotebook(
         "pmarcelino/comprehensive-data-exploration-with-python",
         "competitions/house-prices-advanced-regression-techniques",
