@@ -118,6 +118,7 @@
                         self."wf-lvl-prov.pdf"
                         self."sys-lvl-prov.pdf"
                         self."sys-lvl-log.pdf"
+                        self."prov-example.pdf"
                       ];
                     };
                     mainSrc = "README.md";
@@ -213,6 +214,13 @@
                     src = ./benchmark_suite;
                     main = "sys-lvl-prov.dot";
                     name = "sys-lvl-prov.pdf";
+                    outputFormat = "pdf";
+                    layoutEngine = "dot";
+                  })
+                  (nix-documents-lib.graphvizFigure {
+                    src = ./benchmark_suite;
+                    main = "prov-example.dot";
+                    name = "prov-example.pdf";
                     outputFormat = "pdf";
                     layoutEngine = "dot";
                   })

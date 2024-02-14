@@ -171,6 +171,21 @@
   file = {/home/sam/Zotero/storage/KXYB7A6B/Braun et al. - 2006 - Issues in Automatic Provenance Collection.pdf}
 }
 
+@inproceedings{burtonWorkloadCharacterizationUsing1998,
+  title = {Workload Characterization Using Lightweight System Call Tracing and Reexecution},
+  booktitle = {1998 {{IEEE International Performance}}, {{Computing}} and {{Communications Conference}}. {{Proceedings}} ({{Cat}}. {{No}}.{{98CH36191}})},
+  author = {Burton, A.N. and Kelly, P.H.J.},
+  year = {1998},
+  month = feb,
+  pages = {260--266},
+  issn = {1097-2641},
+  doi = {10.1109/PCCC.1998.659975},
+  urldate = {2024-02-13},
+  abstract = {This paper shows how system call traces can be obtained with minimal interference to the system being characterized, and used as realistic, repeatable workloads for experiments to evaluate operating system and file system designs and configuration alternatives. Our system call trace mechanism, called ULTra, captures a complete trace of each UNIX process's calls to the operating system. The performance impact is normally small, and it runs in user mode without special privileges. We show how the resulting traces can be used to drive full, repeatable reexecution of the captured behaviour, and present a case study which shows the usefulness and accuracy of the tool for predicting the impact of file system caching on a WWW server's performance.},
+  keywords = {operating systems,project-provenance-pp},
+  file = {/home/sam/Zotero/storage/VNTWDTX7/Burton and Kelly - 1998 - Workload characterization using lightweight system.pdf}
+}
+
 @inproceedings{buttProvONEProvenanceModel2020,
   title = {{{ProvONE}}+: {{A Provenance Model}} for {{Scientific Workflows}}},
   shorttitle = {{{ProvONE}}+},
@@ -426,6 +441,20 @@
   keywords = {project-acm-rep,project-provenance-pp,research software engineering},
   annotation = {interest: 99},
   file = {/home/sam/Zotero/storage/BWSF7UIR/Courtès and Wurmus - 2015 - Reproducible and User-Controlled Software Environm.pdf}
+}
+
+@inproceedings{daiLightweightProvenanceService2017,
+  title = {Lightweight {{Provenance Service}} for {{High-Performance Computing}}},
+  booktitle = {2017 26th {{International Conference}} on {{Parallel Architectures}} and {{Compilation Techniques}} ({{PACT}})},
+  author = {Dai, Dong and Chen, Yong and Carns, Philip and Jenkins, John and Ross, Robert},
+  year = {2017},
+  month = sep,
+  pages = {117--129},
+  doi = {10.1109/PACT.2017.14},
+  urldate = {2024-02-14},
+  abstract = {Provenance describes detailed information about the history of a piece of data, containing the relationships among elements such as users, processes, jobs, and workflows that contribute to the existence of data. Provenance is key to supporting many data management functionalities that are increasingly important in operations such as identifying data sources, parameters, or assumptions behind a given result; auditing data usage; or understanding details about how inputs are transformed into outputs. Despite its importance, however, provenance support is largely underdeveloped in highly parallel architectures and systems. One major challenge is the demanding requirements of providing provenance service in situ. The need to remain lightweight and to be always on often conflicts with the need to be transparent and offer an accurate catalog of details regarding the applications and systems. To tackle this challenge, we introduce a lightweight provenance service, called LPS, for high-performance computing (HPC) systems. LPS leverages a kernel instrument mechanism to achieve transparency and introduces representative execution and flexible granularity to capture comprehensive provenance with controllable overhead. Extensive evaluations and use cases have confirmed its efficiency and usability. We believe that LPS can be integrated into current and future HPC systems to support a variety of data management needs.},
+  keywords = {hpc,project-provenance-pp,provenance-tool},
+  file = {/home/sam/Zotero/storage/7RQBN6AC/8091224.html}
 }
 
 @phdthesis{davisTechnologyAcceptanceModel1985,
@@ -819,6 +848,25 @@
   address = {{Portland, OR, USA}},
   abstract = {It can be painfully hard to take software that runs on one person's machine and get it to run on another machine. Online forums and mailing lists are filled with discussions of users' troubles with compiling, installing, and configuring software and their myriad of dependencies. To eliminate this dependency problem, we created a system called CDE that uses system call interposition to monitor the execution of x86-Linux programs and package up the Code, Data, and Environment required to run them on other x86-Linux machines. Creating a CDE package is completely automatic, and running programs within a package requires no installation, configuration, or root permissions. Hundreds of people in both academia and industry have used CDE to distribute software, demo prototypes, make their scientific experiments reproducible, run software natively on older Linux distributions, and deploy experiments to compute clusters.},
   keywords = {project-provenance-pp,record-replay,reproducibility engineering}
+}
+
+@inproceedings{hanPROVIOOCentricProvenance2022,
+  title = {{{PROV-IO}}: {{An I}}/{{O-Centric Provenance Framework}} for {{Scientific Data}} on {{HPC Systems}}},
+  shorttitle = {{{PROV-IO}}},
+  booktitle = {Proceedings of the 31st {{International Symposium}} on {{High-Performance Parallel}} and {{Distributed Computing}}},
+  author = {Han, Runzhou and Byna, Suren and Tang, Houjun and Dong, Bin and Zheng, Mai},
+  year = {2022},
+  month = jun,
+  series = {{{HPDC}} '22},
+  pages = {213--226},
+  publisher = {{Association for Computing Machinery}},
+  address = {{New York, NY, USA}},
+  doi = {10.1145/3502181.3531477},
+  urldate = {2024-02-14},
+  abstract = {cData provenance, or data lineage, describes the life cycle of data. In scientific workflows on HPC systems, scientists often seek diverse provenance (e.g., origins of data products, usage patterns of datasets). Unfortunately, existing provenance solutions cannot address the challenges due to their incompatible provenance models and/or system implementations. In this paper, we analyze three representative scientific workflows in collaboration with the domain scientists to identify concrete provenance needs. Based on the first-hand analysis, we propose a provenance framework called PROV-IO, which includes an I/O-centric provenance model for describing scientific data and the associated I/O operations and environments precisely. Moreover, we build a prototype of PROV-IO to enable end-to-end provenance support on real HPC systems with little manual effort. The PROV-IO framework provides flexibility in selecting various classes of provenance. Our experiments with realistic workflows show that PROV-IO can address the provenance needs of the domain scientists effectively with reasonable performance (e.g., less than 3.5\% tracking overhead for most experiments). Moreover, PROV-IO outperforms a state-of-the-art system (i.e., ProvLake) in our experiments.},
+  isbn = {978-1-4503-9199-3},
+  keywords = {hpc,project-provenance-pp,provenance},
+  file = {/home/sam/Zotero/storage/FTWVMNMW/Han et al. - 2022 - PROV-IO An IO-Centric Provenance Framework for S.pdf}
 }
 
 @article{hassanOmegaLogHighFidelityAttack2020,
@@ -1404,6 +1452,38 @@
   file = {/home/sam/Zotero/storage/2NZWHDHT/Muniswamy-Reddy et al. - 2006 - Provenance-Aware Storage Systems.pdf;/home/sam/Zotero/storage/BYWE4X2D/Muniswamy-Reddy et al. - 2006 - Provenance-Aware Storage Systems.pdf}
 }
 
+@article{mytkowiczProducingWrongData2009,
+  title = {Producing Wrong Data without Doing Anything Obviously Wrong!},
+  author = {Mytkowicz, Todd and Diwan, Amer and Hauswirth, Matthias and Sweeney, Peter F.},
+  year = {2009},
+  month = mar,
+  journal = {SIGARCH Comput. Archit. News},
+  volume = {37},
+  number = {1},
+  pages = {265--276},
+  issn = {0163-5964},
+  doi = {10.1145/2528521.1508275},
+  urldate = {2022-04-11},
+  abstract = {This paper presents a surprising result: changing a seemingly innocuous aspect of an experimental setup can cause a systems researcher to draw wrong conclusions from an experiment. What appears to be an innocuous aspect in the experimental setup may in fact introduce a significant bias in an evaluation. This phenomenon is called measurement bias in the natural and social sciences. Our results demonstrate that measurement bias is significant and commonplace in computer system evaluation. By significant we mean that measurement bias can lead to a performance analysis that either over-states an effect or even yields an incorrect conclusion. By commonplace we mean that measurement bias occurs in all architectures that we tried (Pentium 4, Core 2, and m5 O3CPU), both compilers that we tried (gcc and Intel's C compiler), and most of the SPEC CPU2006 C programs. Thus, we cannot ignore measurement bias. Nevertheless, in a literature survey of 133 recent papers from ASPLOS, PACT, PLDI, and CGO, we determined that none of the papers with experimental results adequately consider measurement bias. Inspired by similar problems and their solutions in other sciences, we describe and demonstrate two methods, one for detecting (causal analysis) and one for avoiding (setup randomization) measurement bias.},
+  keywords = {project-acm-rep,project-provenance-pp,software benchmarking,software engineering},
+  annotation = {score: 95 interest: 70},
+  file = {/home/sam/Zotero/storage/WRXTAESN/1508284.1508275.pdf}
+}
+
+@inproceedings{namikiMethodConstructingResearch2023,
+  title = {A {{Method}} for {{Constructing Research Data Provenance}} in {{High-Performance Computing Systems}}},
+  booktitle = {2023 {{IEEE}} 19th {{International Conference}} on E-{{Science}} (e-{{Science}})},
+  author = {Namiki, Yuta and Hosomi, Takeo and Tanushi, Hideyuki and Yamashita, Akihiro and Date, Susumu},
+  year = {2023},
+  month = oct,
+  pages = {1--10},
+  issn = {2325-3703},
+  doi = {10.1109/e-Science58273.2023.10254932},
+  urldate = {2024-02-14},
+  abstract = {Research must be reproducible to be verifiable. Provenance, which describes how data was produced, is one of the metadata that can improve reproducibility. In this paper, we propose a method to construct the provenance of research data produced in high-performance computing (HPC) systems. Our method can construct a high-level and user-perspective provenance by integrating information available in HPC systems, such as a workload manager, with low-level data about running programs' behavior captured in an operating system kernel. The method enables users of HPC systems to collect the provenance without modifying assets such as programs and scripts.},
+  keywords = {hpc,project-provenance-pp,provenance}
+}
+
 @misc{ocallahanEngineeringRecordReplay2017,
   title = {Engineering {{Record And Replay For Deployability}}: {{Extended Technical Report}}},
   shorttitle = {Engineering {{Record And Replay For Deployability}}},
@@ -1476,6 +1556,17 @@
   file = {/home/sam/Zotero/storage/5M3Y9SK7/Perry - 2009 - Cross-Validation for Unsupervised Learning.pdf}
 }
 
+@inproceedings{phamUsingProvenanceRepeatability2013,
+  title = {Using {{Provenance}} for {{Repeatability}}},
+  booktitle = {5th {{USENIX Workshop}} on the {{Theory}} and {{Practice}} of {{Provenance}} ({{TaPP}} 13)},
+  author = {Pham, Quan and Malik, Tanu and Foster, Ian},
+  year = {2013},
+  urldate = {2024-02-14},
+  langid = {english},
+  keywords = {project-provenance-pp,provenance},
+  file = {/home/sam/Zotero/storage/SNTQWLYD/Pham et al. - 2013 - Using Provenance for Repeatability.pdf}
+}
+
 @article{pimentelSurveyCollectingManaging2019,
   title = {A {{Survey}} on {{Collecting}}, {{Managing}}, and {{Analyzing Provenance}} from {{Scripts}}},
   author = {Pimentel, Jo{\~a}o Felipe and Freire, Juliana and Murta, Leonardo and Braganholo, Vanessa},
@@ -1510,6 +1601,21 @@
   isbn = {978-1-4503-1312-4},
   keywords = {project-provenance-pp,provenance-tool},
   file = {/home/sam/Zotero/storage/HBBVHQER/Pohly et al. - 2012 - Hi-Fi collecting high-fidelity whole-system prove.pdf}
+}
+
+@inproceedings{prasadLocatingSystemProblems2005,
+  title = {Locating {{System Problems Using Dynamic Instrumentation}}},
+  booktitle = {Proceedings of the {{Linux Symposium}}},
+  author = {Prasad, Vara and Cohen, William and Eigler, Frank and Hunt, Martin and Keniston, Jim and Chen, Brad},
+  year = {2005},
+  month = jul,
+  volume = {2},
+  pages = {49--64},
+  publisher = {{kernel.org}},
+  address = {{Ottawa, Ontario, Canada}},
+  abstract = {Diagnosing complex performance or kernel debugging problems often requires kernel modifications with multiple rebuilds and reboots. This is tedious, time-consuming work that most developers would prefer to minimize. Systemtap uses the kprobes infrastructure to dynamically instrument the kernel and user applications. Systemtap instrumentation incurs low overhead when enabled, and zero overhead when disabled. SystemTap provides facilities to define instrumentation points in a high-level language, and to aggregate and analyze the instrumentation data. Details of the SystemTap architecture and implementation are presented, along with an example of its application.},
+  keywords = {operating systems,project-provenance-pp},
+  file = {/home/sam/Zotero/storage/ENCHXEJI/ols2005v2.pdf}
 }
 
 @inproceedings{priedhorskyCharliecloudUnprivilegedContainers2017,
@@ -1982,6 +2088,20 @@
   howpublished = {https://github.com/ewilderj/doap/wiki},
   keywords = {project-provenance-pp,semantic web},
   file = {/home/sam/Zotero/storage/6H2FHPPR/wiki.html}
+}
+
+@techreport{xuDXTDarshanEXtended2017,
+  title = {{{DXT}}: {{Darshan eXtended Tracing}}},
+  shorttitle = {{{DXT}}},
+  author = {Xu, Cong and Snyder, Shane and Venkatesan, Vishwanath and Carns, Philip and Kulkarni, Omkar and Byna, Suren and Sisneros, Roberto and Chadalavada, Kalyana},
+  year = {2017},
+  month = may,
+  institution = {{Argonne National Lab. (ANL), Argonne, IL (United States)}},
+  urldate = {2023-10-27},
+  abstract = {The U.S. Department of Energy's Office of Scientific and Technical Information},
+  langid = {english},
+  keywords = {project-provenance-pp,provenance-tool},
+  file = {/home/sam/Zotero/storage/3WW37QBM/Xu et al. - 2017 - DXT Darshan eXtended Tracing.pdf}
 }
 
 @inproceedings{yangUISCOPEAccurateInstrumentationfree2020,

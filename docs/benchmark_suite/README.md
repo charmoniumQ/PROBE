@@ -90,27 +90,24 @@ papersize: letter
 # Introduction
 
 Within the computational science and engineering (CSE) community, there is a consensus that greater reproducibility is a pathway towards increased productivity and more impactful science [@nasem2019report].
-In the past decade, this has inspired a diverse range of research and development efforts meant to give us greater control over our software, including containers and virtual machines to capture environments [@boettiger2015introduction; @nust2020ten; @jansen2020curious; @satyanarayanan2023towards], package managers for fine-grained management of dependencies [@gamblin2015spack; @kowalewski2022sustainable], interactive notebooks and workflows[@beg2021using; @di2017nextflow; @koster2012snakemake], and online platforms for archiving and sharing computational experiments[@goecks2010galaxy; @stodden2012runmycode; @stodden2015researchcompendia; @chard2019implementing].
+In the past decade, this has inspired a diverse range of research and development efforts meant to give us greater control over our software, including containers and virtual machines to capture environments [@boettiger2015introduction; @nust2020ten; @jansen2020curious; @satyanarayanan2023towards], package managers for fine-grained management of dependencies [@gamblin2015spack; @kowalewski2022sustainable], interactive notebooks and workflows [@beg2021using; @di2017nextflow; @koster2012snakemake], and online platforms for archiving and sharing computational experiments [@goecks2010galaxy; @stodden2012runmycode; @stodden2015researchcompendia; @chard2019implementing].
 In this work, we focus our attention on **computational provenance** as another complementary strategy for managing reproducibility across the research software lifecycle.
 Computational provenance is the history of a computational task, describing the artifacts and processes that led to or influenced the end result [@freireProvenanceComputationalTasks2008]; the term encompasses a spectrum of tools and techniques ranging from simple logging to complex graphs decorated with sufficient detail to replay a computational experiment.
 
 Provenance data can provide crucial information about the hardware and software environments in which a code is executed. The use cases for this data are numerous, and many different tools for collecting it have independently developed. What has been lacking, however, is a rigorous comparison of those available tools and the extent to which they are practically usable in CSE application contexts^[DSK: usable globally or perhaps in particular situations?]. In an effort to summarize the state of the art and to establish goalposts for future research in this area, our paper makes the following contributions:
 
-- *A rapid review on available provenance tools*:
-    There are scores of academic publications on system-level provenance (see @Tbl:tools), and we collated a list of available of provenance tools. 
-	
-	^[DSK: as possible is problematic, probably need to rephrase] and classify them by _capture method_ (e.g., does the provenance collector require you to load a kernel module or run your code in a VM?). 
+- *A rapid review on available system-level provenance collectors*.
 
-- *A benchmark suite*:
+- *A benchmark suite for system-level provenance collectors*:
   Prior work does not use a consistent set of benchmarks; often publications use an overlapping set of benchmarks from prior work.
   We collate benchmarks used in prior work, add some unrepresented areas, and find a statistically valid subset of the benchmark.
 
-- *A quantitative performance comparison of tools against this suite*:
+- *A quantitative performance comparison of system-level provenance collectors against this suite*:
   Prior publications often only compares the performance their provenance tool to the baseline, no-provenance performance, not to other provenance tools.
   It is difficult to compare provenance tools, given data of different benchmarks on different machines.
   We run a consistent set of benchmarks on a single machine over all provenance tools.
 
-- *A predictive performance model for provenance tools*:
+- *A predictive performance model for system-level provenance collectors*:
   The performance overhead of a single provenance collector varies from <1% to 23% [@muniswamy-reddyLayeringProvenanceSystems2009] than without provenance depending on the application, so a single number for overhead is not sufficient.
   We develop a statistical model for predicting the overhead of \$X application in \$Y provenance collector based on \$Y provenance collector's performance on our benchmark suite and \$X application's performance characteristics (e.g., number of I/O syscalls).
   
@@ -155,17 +152,57 @@ Provenance tools and data have many potential applications, including the follow
 
 There are three high-level methods by which one can capture computational provenance: 1) by modifying an application to report provenance data, 2) by leveraging a workflow engine or programming language to report provenance data, and 3) by leveraging an operating system to emit provenance data to report provenance data [@freireProvenanceComputationalTasks2008].
 
-- **Application-level** provenance is the most semantically rich, since it knows the use of each input at the application-level (see @Fig:app-lvl-prov), but the least general, since each application would have to be modified individually.
+- **Application-level** provenance is the most semantically rich, since it knows the use of each input at the application-level, but the least general, since each application would have to be modified individually.
 
 - **Workflow-level** or **language-level** provenance is a middle ground in semantic richness and generality;
-  it only knows the use of inputs in a dataflow sense (see @Fig:wf-lvl-prov), but all applications using the provenance-modified workflow engine or programming language would emit provenance data without themselves being modified to emit provenance data.
+  it only knows the use of inputs in a dataflow sense, but all applications using the provenance-modified workflow engine or programming language would emit provenance data without themselves being modified to emit provenance data.
 
-- **System-level** is the most general, since all applications on the system would emit provenance data, but it is the least semantically rich, since observed dependencies may overapproximate the true dependencies (see @Fig:sys-lvl-log and @Fig:sys-lvl-prov).
-  System-level provenance collectors may be implemented in **kernel-space** or in **user-space**.
-  Since kernel-space provenance collectors modify internals of the Linux kernel, keeping them up-to-date as the kernel changes is a significant maintenance burden.
-  High-security national labs may be wary of including a patched kernel.
-  On the other hand, user-space collectors compromise performance in exchange for requiring less maintenance and less privilege.
+- **System-level** is the most general, since all applications on the system would emit provenance data, but it is the least semantically rich, since observed dependencies may overapproximate the true dependencies.
 
+System-level provenance collectors may be implemented in **kernel-space** or in **user-space**.
+Since kernel-space provenance collectors modify internals of the Linux kernel, keeping them up-to-date as the kernel changes is a significant maintenance burden.
+High-security national labs may be wary of including a patched kernel.
+On the other hand, user-space collectors compromise performance in exchange for requiring less maintenance and less privilege.
+
+In the context of system-level provenance, artifacts are usually files, processes, or strings of bytes. Operations are usually syscalls involving artifacts, e.g., `fork`, `exec`, `open`, `close`.
+For example, suppose a bash script runs a Python script that uses matplotlib to create a figure.
+A provenance collector may record the events in @Fig:prov-example.
+
+\begin{figure*}
+\begin{center}
+\subcaptionbox{
+    List of events recorded by system-level provenance.
+  }{
+  \begin{minipage}{0.4\textwidth}
+  \begin{enumerate}
+    \item The user created a process, call it PID=1.
+    \item The process PID=1 executed bash.
+    \item The loader of process PID=1 loaded libc.so.6.
+    \item The process PID=1 forked a process, call it PID=2.
+    \item The process PID=2 executed python.
+    \item The process PID=2 read script.py.
+    \item The process PID=2 read matplotlib.py (script library).
+    \item The process PID=2 opened database` for reading and writing, which creates a new version of the node in th provenance graph.
+    \item The process PID=2 read data.csv.
+    \item The process PID=2 wrote figure.png+.
+  \end{enumerate}
+  \end{minipage}
+}
+\hspace{0.03\textwidth}%
+\subcaptionbox{
+  Graph of events recorded by system-level provenance.
+  The arrows point in the direction of dataflow.
+  Other authors use other conventions for what they render as nodes, edges, and arrow direction.
+}{\includegraphics[width=0.45\textwidth]{prov-example.pdf}}
+\label{fig:prov-example}
+\end{center}
+\end{figure*}
+
+This collector could infer the required files (including executables, dynamic libraries, scripts, script libraries (e.g., matplotlib), data) *without* knowing anything about the program or programming language.
+We defer to the cited works for details on versioning artifacts [@balakrishnanOPUSLightweightSystem2013] and cycles [@muniswamy-reddyProvenanceAwareStorageSystems2006].
+Some collectors may also record calls to network resources, the current time, process IPC, and other interactions.
+  
+<!--
 \begin{figure*}
 \subcaptionbox{
   Application-level provenance has the most semantic information.
@@ -185,7 +222,7 @@ There are three high-level methods by which one can capture computational proven
 \caption{Several provenance graphs collected at different levels for the same application.}
 \label{fig:prov}
 \end{figure*}
-
+-->
 
 One may imagine an abstract tradeoff curve between "enabling provenance applications such as reproducibility" as the horizontal axis increasing rightwards and "cost of implementation" that provenance data on the vertical axis increasing upwards).
 A typical status quo, not collecting any provenance data and not using workflows, is at the bottom left:
@@ -220,15 +257,17 @@ We conducted a rapid review with the following parameters:
 
 - **Objective**: Identify system-level provenance collection tools.
 
-- **Search terms**: "system-level" AND "provenance"
+- **Search terms**: "system-level AND provenance", "computational provenance"
 
 - **Search engine**: Google Scholar
 
-- **Number of results**: 50
+- **Number of results**: 50 of both searches
 
-  - This threshold is the point of diminishing returns, as no new tools came up in the 40th – 50th results.
+  - This threshold is the point of diminishing returns, as no new collectors came up in the 40th – 50th results.
 
-- **Criteria**: A relevant publication would center on one or more operating system-level tools that capture file provenance. A tool requiring that the user use a specific application or platform would be irrelevant.
+- **Criteria**:
+  A relevant publication would center on one or more operating system-level provenance collectors that capture file provenance.
+  A tool requiring that the user use a specific application or platform would be irrelevant.
 
 We record the following features for each system-level provenance tool:
 
@@ -301,11 +340,8 @@ We also added new benchmarks:
 
 To get consistent measurements, we select as many benchmarks and provenance tracers as we reasonably can, and run a complete matrix (every tracer on every benchmark).
 @Tbl:machine describes our experimental machine.
-We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system.
-
-<!--
-TODO: explain why we don't disable ASLR
--->
+We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes on the system with ASLR.
+ASLR does introduce non-determinism into the execution time, but it randomizes a variable that may otherwise have confounding effect [@mytkowiczProducingWrongData2009].
 
 \begin{table}
 \caption{Our experimental machine description.}
@@ -494,9 +530,13 @@ The last column in the table categorizes the "state" of that provenance collecto
 - **Needs more time (DTrace, SPADE, eBPF/bpftrace).**
   We simply needed more time to implement these provenance collectors.
 
-- **Reproduced/excluded (ltrace, CDE).**
+- **Partially reproduced (ltrace, CDE).**
+  These are provenance collectors that we could reproduce on some workloads but not others.
+  Missing values would complicate the data analysis too much, so we had to exclude these from our running-time experiment.
+
   - **ltrace**.
-     ltrace is an off-the-shelf tool, available in most Linux package repositories.
+     ltrace is an off-the-shelf tool, available in most Linux package repositories, that uses `ptrace` to trace library calls matching a certain filter.
+     Library calls are at a higher-level than syscalls.
      While we could run ltrace on some of our benchmarks, it crashed when processing on the more complex benchmarks.
      We localized the problem to the following code^[See <https://gitlab.com/cespedes/ltrace/-/blob/8eabf684ba6b11ae7a1a843aca3c0657c6329d73/handle_event.c#L775>]:
 
@@ -515,27 +555,52 @@ The last column in the table categorizes the "state" of that provenance collecto
 
   - **CDE**.
     CDE is a research prototype proposed by Guo and Engler [@guoCDEUsingSystem2011].
+    CDE is a record/replay tool.
+    During record, CDE  uses `ptrace` to intercept its syscalls, and copy relevant files into an archive.
+    During rerun, can use `ptrace` to intercept syscalls and redirect them to files in the archive.
+    Sciunit uses a modified version of CDE that works on all of our benchmarks, so we can use that as a proxy.
     CDE can run some of our benchmarks, but crashes when trying to copy from the tracee process to the tracer due to `ret == NULL`[^cde-note]:
 
-   \scriptsize
+    \scriptsize
 
-   ```c
-   static char* strcpy_from_child(struct tcb* tcp, long addr) {
-       char* ret = strcpy_from_child_or_null(tcp, addr);
-       EXITIF(ret == NULL);
-       return ret;
-   }
-   ```
+    ```c
+    static char* strcpy_from_child(struct tcb* tcp, long addr) {
+        char* ret = strcpy_from_child_or_null(tcp, addr);
+        EXITIF(ret == NULL);
+        return ret;
+    }
+    ```
+
+    \normalsize
 
   [^cde-note]: See <https://github.com/usnistgov/corr-CDE/blob/v0.1/strace-4.6/cde.c#L2650>. The simplest explanation would be that the destination buffer is not large enough to store the data that `strcpy` wants to write. However, the destination buffer is `PATHMAX`.
 
-   \normalsize
-
-- **Reproduced (strace, fsatrace, rr, ReproZip, Sciunit2).**
+- **Reproduced (Strace, FSAtrace, RR, ReproZip, Sciunit).**
   We reproduced this provenance collector on all of the benchmarks.
 
+  - **strace**
+    strace is a well-known system program that uses Linux's `ptrace` functionality to record syscalls, their arguments, and their return code to a file.
+    strace even parses datastructures to write strings and arrays rather than pointers.
+    TODO: strace configuration?
+
+  - **fsatrace**
+    Library-interpositioning is a technique where a program mimics the API of a standard library.
+    Programs are written to call into the standard library, but the loader sends those calls to the interpositioning library instead.
+    The interpositioning library can log the call and pass it to another library (possibly the "real" one), so the program's functionality is preserved.
+    FSAtrace uses library-interpositioning to intercept file I/O calls.
+
+  - **RR**
+    RR [@ocallahanEngineeringRecordReplay2017] is a "record/replay" tool like CDE.
+    TODO
+
+  - **ReproZip**
+    TODO
+
+  - **PTU/Sciunit**
+    TODO
+
 \begin{table}
-\caption{Provenance collectors mentioned in primary and secondary studies in our search results.}
+\caption{Provenance collectors from our search results and from experience.}
 \label{tbl:tools}
 %\begin{minipage}{\columnwidth}
 \begin{center}
@@ -546,14 +611,18 @@ Tool                                                               & Method     
 \midrule
 strace                                                             & tracing                      & Reproduced                 \\
 fsatrace                                                           & tracing                      & Reproduced                 \\
-ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      & Reproduced                 \\
-Sciunit2 \cite{tonthatSciunitsReusableResearch2017}                & tracing                      & Reproduced                 \\
 rr \cite{ocallahanEngineeringRecordReplay2017}                     & tracing                      & Reproduced                 \\
-CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      & Reproduced/excluded        \\
-ltrace                                                             & tracing                      & Reproduced/excluded        \\
+ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      & Reproduced                 \\
+PTU/Sciunit \cite{phamUsingProvenanceRepeatability2013}            & tracing                      & Reproduced                 \\
+CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      & Partially reproduced       \\
+ltrace                                                             & tracing                      & Partially Reproduced       \\
+Namiki et al. \cite{namikiMethodConstructingResearch2023}          & audit                        &                            \\
+PROV-IO \cite{hanPROVIOOCentricProvenance2022}                     & lib. ins.                    &                            \\
 SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, or compile-time   & Needs more time            \\
 DTrace \cite{DTrace}                                               & audit                        & Needs more time            \\
+LPS \cite{daiLightweightProvenanceService2017}                     & lib. ins.                    &                            \\
 eBPF/bpftrace                                                      & audit                        & Needs more time            \\
+SystemTap \cite{prasadLocatingSystemProblems2005}                  & audit                        & Needs more time            \\
 OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & lib. ins.                    & Not reproducible           \\
 CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kernel ins.                  & Requires custom kernel     \\
 Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kernel ins.                  & Requires custom kernel     \\
@@ -581,6 +650,7 @@ Sysmon \cite{markrussSysmonSysinternals2023}                       & audit      
 TREC \cite{vahdatTransparentResultCaching1998}                     & tracing                      & Not for Linux              \\
 URSprung \cite{rupprechtImprovingReproducibilityData2020}          & audit                        & Not for Linux\footnotemark \\
 Ma et al. \cite{maAccurateLowCost2015}                             & audit                        & Not for Linux              \\
+ULTra \cite{burtonWorkloadCharacterizationUsing1998}               & tracing                      & Not for Linux              \\
 \bottomrule
 \end{tabular}
 \normalsize
@@ -607,7 +677,7 @@ Ma et al. \cite{maAccurateLowCost2015}                             & audit      
 ## Implemented Benchmarks
 
 \begin{table}
-\caption{Benchmarks used in various provenance publications.}
+\caption{Benchmarks used by prior works on provenance collectors (sorted by year of publication).}
 \label{tbl:prior-benchmarks}
 %\begin{minipage}{\columnwidth}
 \begin{center}
@@ -616,13 +686,15 @@ Ma et al. \cite{maAccurateLowCost2015}                             & audit      
 \toprule
 Publication                                                  & Benchmarks                                                                                                                                      & Comparisons           \\
 \midrule
-TREC \cite{vahdatTransparentResultCaching1998}               & open/close, compile Apache, compile LaTeX doc                                                                                                   & Native                \\
+TREC \cite{vahdatTransparentResultCaching1998}               & open/close, compile Apache, LaTeX                                                                                                               & Native                \\
+ULTra \cite{burtonWorkloadCharacterizationUsing1998}         & getpid, LaTeX, Apache, compile package                                                                                                          & Native, strace        \\
 PASS \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & BLAST                                                                                                                                           & Native ext2           \\
 Panorama \cite{yinPanoramaCapturingSystemwide2007}           & curl, scp, gzip, bzip2                                                                                                                          & Native                \\
 PASSv2 \cite{muniswamy-reddyLayeringProvenanceSystems2009}   & BLAST, compile Linux, Postmark, Mercurial, Kepler                                                                                               & Native ext3, NFS      \\
 SPADEv2 \cite{gehaniSPADESupportProvenance2012}              & BLAST, compile Apache, Apache                                                                                                                   & Native                \\
 Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}             & lmbench, compile Linux, Postmark                                                                                                                & Native                \\
-libdft \cite{kemerlisLibdftPracticalDynamic2012}             & scp, {tar, gzip, bzip2} x {extract, compress}                                                                                                   & PIN                   \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}             & scp, \{tar, gzip, bzip2\} x \{extract, compress\}                                                                                               & PIN                   \\
+PTU \cite{phamUsingProvenanceRepeatability2013}              & Workflows (PEEL0, TextAnalyzer)                                                                                                                 & Native                \\
 LogGC \cite{leeLogGCGarbageCollecting2013}                   & RUBiS, Firefox, MC, Pidgin, Pine, Proftpd, Sendmail, sshd, vim, w3m, wget, xpdf, yafc, Audacious, bash, Apache, mysqld                          & None\footnotemark     \\
 LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015} & lmbench, compile Linux, Postmark, BLAST                                                                                                         & Native                \\
 Ma et al. \cite{maAccurateLowCost2015}                       & TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, simplehttp, Sublime Text                          & Native                \\
@@ -633,11 +705,14 @@ MPI \cite{maMPIMultiplePerspective2017}                      & Apache, bash, Evi
 CamFlow \cite{pasquierPracticalWholesystemProvenance2017}    & lmbench, postmark, unpack kernel, compile Linux, Apache, Memcache, redis, php, pybench                                                          & Native                \\
 BEEP \cite{leeHighAccuracyAttack2017}                        & Apache, Vim, Firefox, wget, Cherokee, w3m, ProFTPd, yafc, Transmission, Pine, bash, mc, sshd, sendmail                                          & Native                \\
 RAIN \cite{jiRAINRefinableAttack2017}                        & SPEC CPU 2006, cp linux, wget, compile libc, Firefox, SPLASH-3                                                                                  & Native                \\
-Sciunit \cite{tonthatSciunitsReusableResearch2017}           & VIC, FIE                                                                                                                                        & Native                \\
+Sciunit \cite{tonthatSciunitReusableResearch2017}            & Workflows (VIC, FIE)                                                                                                                            & Native                \\
+LPS \cite{daiLightweightProvenanceService2017}               & IOR benchmark, read/write, MDTest, HPCG                                                                                                         & Native                \\
 LPROV \cite{wangLprovPracticalLibraryaware2018}              & Apache, simplehttp, proftpd, sshd, firefox, filezilla, lynx, links, w3m, wget, ssh, pine, vim, emacs, xpdf                                      & Native                \\
 MCI \cite{kwonMCIModelingbasedCausality2018}                 & Firefox, Apache, Lighttpd, nginx, ProFTPd, CUPS, vim, elinks, alpine, zip, transmission, lftp, yafc, wget, ping, procps                         & BEEP                  \\
 RTAG \cite{jiEnablingRefinableCrossHost2018}                 & SPEC CPU 2006, scp, wget, compile llvm, Apache                                                                                                  & RAIN                  \\
 URSPRING \cite{rupprechtImprovingReproducibilityData2020}    & open/close, fork/exec/exit, pipe/dup/close, socket/connect, CleanML, Vanderbilt, Spark, ImageML                                                 & Native, SPADE         \\
+PROV-IO \cite{hanPROVIOOCentricProvenance2022}               & Workflows (Top Reco, DASSA), H5bench                                                                                                            & Native                \\
+Namiki et al. \cite{namikiMethodConstructingResearch2023}    & BT-IO                                                                                                                                           & Native                \\
 \bottomrule
 \normalsize
 \end{tabular}
@@ -711,7 +786,7 @@ We prioritized implementing frequently-used benchmarks, easy-to-implement benchm
   They weigh little in the argument that our benchmark suite represents prior work, since they are only used in one prior work.
 
 \begin{table}
-\caption{Benchmarks implemented by this work.}
+\caption{Benchmarks implemented by this work. For brevity, we consider categories of benchmarks in @Tbl:prior-benchmarks. TODO: update this table with latest lit results.}
 \label{tbl:implemented-benchmarks}
 %\begin{minipage}{\columnwidth}
 \begin{center}
@@ -721,12 +796,12 @@ We prioritized implementing frequently-used benchmarks, easy-to-implement benchm
 Prior works & This work                 & Benchmark group and examples from prior work                                                                   \\
 \midrule
 10          & yes (5/7 servers)         & HTTP server/traffic ({Apache httpd, miniHTTP, simplehttp, lighttpd, Nginx, tinyhttpd, cherokee} x apachebench) \\
-9           & yes (2/4 clients)         & HTTP serer/client (simplehttp x {curl, wget, prozilla, axel})                                                  \\
+9           & yes (2/4 clients)         & HTTP serer/client (simplehttp x \{curl, wget, prozilla, axel\})                                                \\
 8           & yes (3/5 orig + 4 others) & Compile user packages (Apache, LLVM, glibc, Linux, LaTeX document)                                             \\
-8           & no                        & Browsers ({Firefox, Chromium} x Sunspider)                                                                     \\
+8           & no                        & Browsers (\{Firefox, Chromium\} x Sunspider)                                                                   \\
 6           & yes (1/6) + 2 others      & FTP client (lftp, yafc, tnftp, skod, AdvancedFTP, NetFTP)                                                      \\
 5           & yes                       & FTP server/traffic (ProFTPd x ftpbench)                                                                        \\
-5           & yes                       & Un/archive ({compress, decompress} x tar x {nothing, bzip2, pbzip, gzip, pigz})                                \\
+5           & yes                       & Un/archive (\{compress, decompress\} x \{nothing, bzip2, pbzip, gzip, pigz\})                                  \\
 5           & yes                       & I/O microbenchmarks (Postmark, lmbench, custom)                                                                \\
 4           & yes                       & BLAST                                                                                                          \\
 3           & yes (1/2)                 & CPU benchmarks (SPEC CPU INT 2006, SPLASH-3)                                                                   \\
@@ -753,10 +828,6 @@ Prior works & This work                 & Benchmark group and examples from prio
 \end{center}
 \end{table}
 
-<!--
-TODO: xSDK codes
--->
-
 <!-- | 7 | Text-based browsers (w3m, lynx, elinks)                                                                              | Interactive                                           | -->
 <!-- | 7 | TUI apps (Vim, nano, sysstat, mc, emacs, alpine, pine)                                                               | Interactive                                           | -->
 <!-- | 5 | GUI apps (xpdf, Audacious, Sublime Text, Notepad++, Evince, Krusader, Mplayer, mpv, Transmission, FileZilla, Pidgin) | Interactive                                           | -->
@@ -768,10 +839,6 @@ TODO: xSDK codes
 <!-- | 1 | yopsweb                                                                                                              | Unknown program                                       | -->
 
 <!-- : Benchmarks rejected by this work {#tbl:rejected-bmarks} -->
-
-<!--
-TODO: Explain the configuration for ltrace and strace
--->
 
 \begin{table}
 \caption{
@@ -815,6 +882,7 @@ vcs & 3 & 0 & 453 & 169 & 185 \\
 <!--
 TODO: put geomean overhead per prov collector
 TODO: put measure of uncertainty.
+TODO: Wang et al. report ltrace
 -->
 
 Although SPLASH-3 CPU-oriented benchmarks contain mostly CPU-bound tasks, they often need to load data from a file, which does invoke the I/O subsystem.
@@ -861,7 +929,8 @@ We examine the generated clusters and benchmark subset in @Fig:subset and @Fig:d
 \begin{figure*}
 \subcaptionbox{
   Benchmark subset, where color shows a posteriori agglomerative clusters.
-  Each cluster conceptually represents the same-color benchmarks being represented by a single benchmarks, which gives its name to the cluster.
+  The same-color small dots are benchmarks in the same cluster, the "x" of that color is their hypothetical benchmark with their average features, and the big dot of that color is the closest actual benchmark to the average of their features.
+  A benchmark subset replaces each cluster of small dots with just the single big dot.
 }{
   \includegraphics[width=0.45\textwidth]{generated/pca0.pdf}
   \label{fig:benchmark-clusters}
@@ -869,6 +938,8 @@ We examine the generated clusters and benchmark subset in @Fig:subset and @Fig:d
 \hspace{0.03\textwidth}%
 \subcaptionbox{
   Benchmark subset, where color shows a priori benchmark ``type'' (see \Cref{tbl:implemented-benchmarks}).
+  For example, archive-with-gzip and archive-with-bzip2 are two benchmarks of the same type, and therefore color.
+  The "x" still shows a posteriori cluster centers as in \Cref{fig:benchmark-clusters}.
 }{
   \includegraphics[width=0.45\textwidth]{generated/pca1.pdf}
   \label{fig:benchmark-groups}
@@ -886,7 +957,7 @@ shows the a posteriori clusters with colors.
 From these two, we offer the following observations:
 
 - It may appear that the algorithm did not select the benchmark closest to the cluster center, but this is because we are viewing a 2D projection of a high-dimensional space, like how three stars may appear next to each other in the sky, but in reality one pair may be much closer than the other, since we cannot perceive radial distance to each star.
-
+n
 - Many of the clusters are singletons, for example the `python http.server` near $(5,6)$; this is surprising, but given there are not any other points nearby, it seems reasonable.
 
 - We might expect that benchmarks of the same type would occupy nearby points in PCA space, but it seems they often do not.
@@ -907,35 +978,35 @@ From these two, we offer the following observations:
 \subcaptionbox{
   A table showing cluster membership and weights.
   The weights show one way of approximating the features in the original set, which is by multiplying the features of the cluster representative by the weight and summing over all clusters.
-  Since these are coefficients, not proportions, the result need not add to 100\%, although we insert an equation which should guide the solution there.
 }{
 \scriptsize
   \begin{tabular}{p{0.07\textwidth}p{0.04\textwidth}p{0.18\textwidth}}
   \toprule
   Cluster representative & Weight (\%) & Cluster members \\
   \midrule
-ls                             &  1.7 & echo, hello, ps, true \\
-postmark                       &  0.0 & archive, cp smaller \\
 unarchive pigz                 &  26.4 & git setuptools\_scm, python-hello-world, unarchive, unarchive gzip, wget \\
+lm-protection-fault            &  24.2 & a-data-sci, blastp, blastx, lm-bw\_file\_rd, lm-bw\_pipe, lm-bw\_unix, lm-catch-signal, lm-getppid, lm-install-signal, lm-mmap, lm-page-fault, lm-read, lm-select-file, lm-select-tcp, lm-write, megabl, splash-cholesky, splash-lu, splash-ocean, splash-radiosity, splash-radix, splash-volrend, splash-water-nsquared, splash-water-spatial, tblast \\
 latex-test                     &  13.0 & archive bzip2, archive gzip, blastn, comprehens, curl, latex-test2, lm-fstat, lm-stat, minihttp, python-import, titanic-da, unarchive bzip2 \\
 unarchive pbzip2               &  7.9 & archive pbzip2, archive pigz, lighttpd \\
 lm-fs                          &  3.9 & lm-open/close \\
-shell-echo                     &  1.5 &  \\
-shell-incr                     &  3.1 & splash-fft \\
-lm-protection-fault            &  24.2 & a-data-sci, blastp, blastx, lm-bw\_file\_rd, lm-bw\_pipe, lm-bw\_unix, lm-catch-signal, lm-getppid, lm-install-signal, lm-mmap, lm-page-fault, lm-read, lm-select-file, lm-select-tcp, lm-write, megabl, splash-cholesky, splash-lu, splash-ocean, splash-radiosity, splash-radix, splash-volrend, splash-water-nsquared, splash-water-spatial, tblast \\
-hg schema-validation           &  0.0 &  \\
-lm-fork                        &  0.1 &  \\
-gcc-hello-world threads        &  0.7 & gcc-hello-world \\
-ftp-curl                       &  2.4 & ftp-wget, lftp \\
-python http.server             &  1.3 &  \\
-proftpd with ftpbench          &  2.5 &  \\
-nginx                          &  1.5 &  \\
 lm-exec                        &  3.7 &  \\
-apache                         &  1.4 &  \\
+shell-incr                     &  3.1 & splash-fft \\
+proftpd with ftpbench          &  2.5 &  \\
+ftp-curl                       &  2.4 & ftp-wget, lftp \\
 cp linux                       &  2.0 &  \\
+ls                             &  1.7 & echo, hello, ps, true \\
+shell-echo                     &  1.5 &  \\
+nginx                          &  1.5 &  \\
+apache                         &  1.4 &  \\
 cd                             &  1.4 &  \\
+python http.server             &  1.3 &  \\
+gcc-hello-world threads        &  0.7 & gcc-hello-world \\
+lm-fork                        &  0.1 &  \\
+postmark                       &  0.0 & archive, cp smaller \\
+hg schema-validation           &  0.0 &  \\
 \midrule
-all                            & 98.8 & \\
+all\footnote{Since these are coefficients, not proportions, the result need not add to 100\%, although we include an equation which rewards the solver when it gets the sum close to 100\%.}
+                               & 98.8 & \\
   \bottomrule
   \normalsize
   \end{tabular}
@@ -957,6 +1028,8 @@ We offer the following observations:
 - Many of the CPU-heavy workloads are grouped together, under lm-protection-fault.
 
 - Many of the un/archive benchmarks are grouped together with lighttpd, which also accesses many files.
+
+TODO: consider X-means, G-means, or something else to determine $k$.
 
 ## Predictive Model
 
@@ -1035,20 +1108,50 @@ The system calls features can be observed using strace.
 The CPU time and wall time of noprov can be observed using GNU time.
 One need not complete an entire execution to observe the these fatures; one merely needs to record the features until they stabilize (perhaps after several iterations of the main loop).
 
-<!--
-TODO: note that fsatrace has a hardcoded limit on the size of the buffer used to store file read/writes. If this size is exceeded, the program will exhibit undefined behavior. On my system, it crashes with a non-zero exit code but without any message.
--->
-<!--
-TODO:
-Active vs passive monitoring
-Reprozip, Sciunit, RR, CDE vs strace, ltrace
--->
+## Discussion
+
+**Prior work focuses on security, not computational science.**
+@Tbl:implemented-benchmarks shows the top-used benchmarks are server programs, followed by I/O benchmarks.
+Server programs access a lot of small files, with concurrency, which is a different file-access pattern than scientific applications.
+BLAST (used by 4 / 22 publications) is the only scientific program to be used as a benchmark by more than one publication.
+Benchmark subsetting includes two^[TODO: Check when we have the final data] different BLAST programs, because they are sufficiently different than the rest.
+
+**Security values infalibility with respect to adversaries**
+One difference between security and computational science is that security-oriented provenance collectors have to work with adverserial programs:
+there should be no way for the program to circumvent the provenance tracing, e.g. `PTRACE_DETACH`.
+Computational science, on the other hand, may satisfied by a solution that *can* be intentionally circumvented by an uncooperative program, but would work most of the time, provided it can at least detect when provenance collection is potentially incomplete.
+Interposing standard libraries, although circumventable, has been used by other tools [@xuDXTDarshanEXtended2017].
+
+**Prior work on provenance collectors doesn't test on many workflows.**
+Workflows, for the purposes of this discussion, are programs that are structured as a set of loosely coupled components whose execution order is determined by dataflow.
+Workflows are important for computational science, but also other domains, e.g., online analytical processing (also known as OLAP).
+Under this definition, non-trivial source-code compilation is a workflow.
+
+**There is no standard benchmark set; prior work tests on sometimes-overlapping sets of benchmarks.**
+
+
+**Provenance collectors vary in power, but fast-and-powerful could be possible.**
+While all bear the title, provenance collector, some are **monitoring**, merely recording a history of operations, while others are **interrupting**, interrupt the process when the program makes an operation.
+Fsatrace, Strace, and Ltrace are monitoring, while ReproZip, Sciunit, RR, and CDE are interrupting, using their interruption store a copy of the files that would be read or appended to by the process.
+We expect the monitoring collectors to be faster than the interrupting collectors, but the performance of strace is not that far off of the performance of RR^[TODO: Find a better example when we have the latest data.].
+Strace and rr both use ptrace, but strace does very little work while rr maintains may need to intercept and reinterpret the syscall, (see treatment of `mmap` in RR's publication [@ocallahanEngineeringRecordReplay2017]).
+This suggests most of the overhead actually be due to `ptrace` and its incurred context switches.
+None of the interrupting provenance collectors use library interposition or eBPF.
+Perhaps a faster underlying method would allow powerful features of interrupting collectors  in a reasonable overhead budget.
 
 ## Threats to Validity
 
 # Future Work
 
 In the future, we plan to implement compilation for more packages, in particular xSDK [@bartlettXSDKFoundationsExtremescale2017] packages.
+
+We encourage future work to consider implementing an interrupting provenance collector using library interposition or eBPF.
+
+While none of the monitoring collectors we know of exploit it, monitoring can be run off the critical path;
+the program need not wait for an I/O operation to be logged before continuing.
+
+None of the interrupting collectors we know of exploit it, some of the interruption work may be "postponed";
+if a file is read, it can be copied at any time unless/until it gets mutated.
 
 # Conclusion
 
@@ -1064,41 +1167,31 @@ The actual benchmark set and statistical analysis are open-source:
 
 - <https://github.com/charmoniumQ/prov-tracer/>
 
-This work necessitated modifying Spack, Sciunit, jupyter-contrib-nbextensions, Nixpkgs, ftpbench, and benchexec.
+This work necessitated modifying Spack, Sciunit, PTU, jupyter-contrib-nbextensions, Nixpkgs, ftpbench, and benchexec.
 Where appropriate, we submitted as pull-requests to the respective upstream projects.
 
 The following are merged PRs developed as a result of this work:
 
 - <https://github.com/depaul-dice/sciunit/pull/35>
-
+- <https://github.com/depaul-dice/provenance-to-use/pull/4>
+- <https://github.com/depaul-dice/provenance-to-use/pull/5>
 - <https://github.com/spack/spack/pull/42159>
-
 - <https://github.com/spack/spack/pull/42199>
-
 - <https://github.com/spack/spack/pull/42114>
-
 - <https://github.com/selectel/ftpbench/pull/5>
-
 - <https://github.com/selectel/ftpbench/pull/4>
-
 - <https://github.com/sosy-lab/benchexec/pull/984>
-
+- <https://github.com/sosy-lab/benchexec/pull/990>
 - <https://github.com/NixOS/nixpkgs/pull/263829>
-
 - <https://github.com/NixOS/nixpkgs/pull/257396>
 
 The following are open PRs developed as a result of this work:
 
 - <https://github.com/spack/spack/pull/39902>
-
 - <https://github.com/spack/spack/pull/42131>
-
 - <https://github.com/spack/spack/pull/41048>
-
 - <https://github.com/depaul-dice/sciunit/pull/36>
-
 - <https://github.com/ipython-contrib/jupyter_contrib_nbextensions/pull/1649>
-
 - <https://github.com/NixOS/nixpkgs/issues/268542>
 
 # References
