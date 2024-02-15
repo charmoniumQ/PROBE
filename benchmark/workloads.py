@@ -22,8 +22,10 @@ cwd = Path(__file__).resolve()
 result_bin = (cwd.parent / "result").resolve() / "bin"
 result_lib = result_bin.parent / "lib"
 result = result_lib.parent
-username = getpass.getuser()
-groupname = grp.getgrgid(pwd.getpwnam(username).pw_gid).gr_name
+# username = getpass.getuser()
+# groupname = grp.getgrgid(pwd.getpwnam(username).pw_gid).gr_name
+username = "benchexec"
+groupname = "benchexec"
 
 class Workload:
     kind: str
@@ -248,7 +250,7 @@ class SpackInstall(Workload):
         # assert "LD_LIBRARY_PATH" not in self._env_vars
         assert "HOME" not in self._env_vars
         # env=patchelf%400.13.1%3A0.13%20%25gcc%20target%3Dx86_64-openblas
-        # env - PATH=$PWD/result/bin HOME=$HOME $(jq  --join-output --raw-output 'to_entries[] | .key + "=" + .value + " "' .workdir/work/spack_envs/$env/env_vars.json) .workdir/work/spack/bin/spack --debug bootstrap status 2>~/Downloads/stderr_good.txt >~/Downloads/stdout_good.txt
+        # env - PATH=$PWD/result/bin HOME=$HOME $(jq  --join-output --raw-output 'to_entries[] | .key + "=" + .value + " "' .workdir/work/spack_envs/$env/env_vars.json) .workdir/workb/spack/bin/spack --debug bootstrap status 2>~/Downloads/stderr_good.txt >~/Downloads/stdout_good.txt
         # sed -i $'s/\033\[[0-9;]*m//g' ~/Downloads/stderr*.txt
         # sed -i 's/==> \[[0-9:. -]*\] //g' ~/Downloads/stderr*.txt
         return (
@@ -356,7 +358,7 @@ class HttpBench(Workload):
     def run_server(self, workdir: Path) -> str:
         raise NotImplementedError
 
-    def get_load(self) -> tuple[CmdArg, ...]:
+    def get_load(self, _workdir: Path) -> tuple[CmdArg, ...]:
         return str(result_bin / "hey"), "-n", str(self.n_requests), f"http://localhost:{self.port}/test"
 
     def stop_server(self) -> tuple[CmdArg, ...] | None:
@@ -370,7 +372,7 @@ class HttpBench(Workload):
                 "run_server_and_client.py",
                 self.run_server(workdir),
                 " && ".join([
-                    shlex.join(map(str, self.get_load())),
+                    shlex.join(map(str, self.get_load(workdir))),
                     *((shlex.join(map(bytes.decode, map(cmd_arg, stop_server))),) if stop_server is not None else ()),
                 ]),
                 shlex.join([
@@ -522,11 +524,11 @@ class HttpClient(SimpleHttp):
         self.kind = "http_client"
         self.http_client = http_client
 
-    def get_load(self) -> tuple[CmdArg, ...]:
+    def get_load(self, workdir: Path) -> tuple[CmdArg, ...]:
         http_client_cmd = tuple(
             cmd_arg(arg)
             .decode()
-            .replace("$outfile", ".workdir/work/downloaded_file")
+            .replace("$outfile", str(workdir / "downloaded_file"))
             .replace("$url", f"http://localhost:{HTTP_PORT}/test")
             for arg in self.http_client
         )
@@ -971,11 +973,12 @@ def create_file_cmd(size: int) -> tuple[CmdArg, ...]:
     )
 
 
-def repeat(n: int, cmd: tuple[CmdArg, ...]) -> tuple[CmdArg, ...]:
+def repeat(n: int, cmd: tuple[CmdArg, ...], no_stdout: bool = False) -> tuple[CmdArg, ...]:
+    output = " > /dev/null" if no_stdout else ""
     return (
         result_bin / "sh",
         "-c",
-        f"for i in $({result_bin}/seq {n}); do {shlex.join(cmd_arg(cmd_part).decode() for cmd_part in cmd)}; done",
+        f"for i in $({result_bin}/seq {n}); do {shlex.join(cmd_arg(cmd_part).decode() for cmd_part in cmd)}{output}; done",
     )
 
 
@@ -988,13 +991,13 @@ HTTP_REQUEST_SIZE = 16 * 1024
 # 10 seconds is enough time that I am sure the cost of initial file loading is not a factor.
 # Obviously, the Spack compile and Kaggle notebooks take much longer than this, and nothing can be done about that.
 WORKLOADS: list[Workload] = [
-    Cmds("simple", "hello", noop_cmd, repeat(1000, (result_bin / "hello",))),
-    Cmds("simple", "ps", noop_cmd, repeat(1000, (result_bin / "ps", "aux"))),
+    Cmds("simple", "hello", noop_cmd, repeat(1000, (result_bin / "hello",), no_stdout=True)),
+    Cmds("simple", "ps", noop_cmd, repeat(1000, (result_bin / "ps", "aux"), no_stdout=True)),
     Cmds("simple", "true", noop_cmd, repeat(1000, (result_bin / "true",))),
-    Cmds("simple", "echo", noop_cmd, repeat(1000, (result_bin / "echo", "hello", "world"))),
-    Cmds("simple", "ls", create_file_cmd(100), repeat(1000, (result_bin / "ls", "$WORKDIR/lmbench"))),
-    Cmds("python", "python-hello-world", noop_cmd, repeat(100, (result_bin / "python", "-c", "print('hello world')"))),
-    Cmds("python", "python-import", noop_cmd, repeat(10, (result_bin / "python", "-c", "import pandas, matplotlib; print('hi')"))),
+    Cmds("simple", "echo", noop_cmd, repeat(1000, (result_bin / "echo", "hello", "world"), no_stdout=True)),
+    Cmds("simple", "ls", create_file_cmd(100), repeat(1000, (result_bin / "ls", "$WORKDIR/lmbench"), no_stdout=True)),
+    Cmds("python", "python-hello-world", noop_cmd, repeat(100, (result_bin / "python", "-c", "print('hello world')"), no_stdout=True)),
+    Cmds("python", "python-import", noop_cmd, repeat(10, (result_bin / "python", "-c", "import pandas, matplotlib; print('hi')"), no_stdout=True)),
     Cmds("gcc", "gcc-hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
     Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
     # TOD: Fix shell workloads
@@ -1034,7 +1037,7 @@ WORKLOADS: list[Workload] = [
     Cmds("lmbench", "lm-bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-N", "10"), {"ENOUGH": "10000"}),
     Cmds("lmbench", "lm-fs", create_file_cmd(1024), (result_bin / "lat_fs", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
     # Cmds("splash-3", "splash-barnes", noop_cmd, (result_bin / "sh", "-c", f"{result_bin}/BARNES < {result}/inputs/barnes/n16384-p1")),
-    Cmds("splash-3", "splash-fmm", (result_bin / "mkdir", "--parents", "$WORKDIR/splash"), repeat(1000, (result_bin / "sh", "-c", f"{result_bin}/FMM -o $WORKDIR/splash/fmm-out < {result}/inputs/fmm/input.4.16384"))),
+    # Cmds("splash-3", "splash-fmm", (result_bin / "mkdir", "--parents", "$WORKDIR/splash"), repeat(1000, (result_bin / "sh", "-c", f"{result_bin}/FMM -o $WORKDIR/splash/fmm-out < {result}/inputs/fmm/input.4.16384"))),
     Cmds("splash-3", "splash-ocean", noop_cmd, (result_bin / "OCEAN", "-p1", "-n", "1026")),
     Cmds("splash-3", "splash-radiosity", noop_cmd, repeat(100, (result_bin / "RADIOSITY", "-p", "1", "-ae", "50000", "-bf", "0.1", "-en", "0.05", "-room", "-batch"))),
     Cmds("splash-3", "splash-raytrace", (result_bin / "mkdir", "--parents", "$WORKDIR/splash"), (result_bin / "sh", "-c", f"cd $WORKDIR/splash; {result_bin}/RAYTRACE -p1 -m512 {result}/inputs/raytrace/car.env")),
@@ -1102,7 +1105,7 @@ WORKLOADS: list[Workload] = [
     # ),
     # Proftpd(HTTP_PORT, 500), # unfortunately, this crashes in ltrace if this number is too big.
     # ltrace will alsosc crash if this number is too big: FtpClient(..., number)
-    Proftpd(HTTP_PORT, 500),
+    # Proftpd(HTTP_PORT, 500),
     FtpClient(
         "lftp",
         (result_bin / "lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),

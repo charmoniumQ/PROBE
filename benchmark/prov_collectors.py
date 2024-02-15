@@ -1,12 +1,14 @@
+import shutil
 import dataclasses
 import warnings
 import subprocess
 import os
 import yaml
+import tarfile
 import re
 from collections.abc import Sequence, Mapping
 from pathlib import Path
-from util import run_all, terminate_or_kill, CmdArg, check_returncode, flatten1
+from util import run_all, CmdArg, check_returncode, flatten1, to_str, SubprocessError, terminate_or_kill
 from typing import Callable, cast, Any
 from compound_pattern import CompoundPattern
 
@@ -35,9 +37,8 @@ class ProvCollector:
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return cmd
 
-    def stop(self, proc: None | subprocess.Popen[bytes]) -> None:
-        if proc:
-            terminate_or_kill(proc, 10)
+    def stop(self) -> None:
+        pass
 
     def __str__(self) -> str:
         return self.name
@@ -158,6 +159,7 @@ syscalls = ",".join([
     "truncate", "ftruncate",
     "mknod", "mknodat",
     "readlink", "readlinkat",
+    # TODO: Track fcntl and rerun results
 
     # sockets
     "bind", "accept", "accept4", "connect", "socketcall", "shutdown",
@@ -465,6 +467,23 @@ class FSATrace(AbstractTracer):
         return operations
 
 
+class PTU(ProvCollector):
+    method = "ptrace"
+    submethod = "syscalls"
+
+    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        assert log.is_dir()
+        assert list(log.iterdir()) == []
+        return (result_bin / "ptu", "-o", log, *cmd)
+
+    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
+        root = log / "cde-root"
+        return tuple(
+            ProvOperation("read", str(file.relative_to(root)), None, None)
+            for file in root.glob("**")
+        )
+
+
 class CDE(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
@@ -488,9 +507,19 @@ class RR(ProvCollector):
     name = "rr"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        import warnings
-        warnings.warn("Size of RR archives is not correct; see https://robert.ocallahan.org/2017/06/new-rr-pack-command.html")
-        return (result_bin / "env", f"_RR_TRACE_DIR={log}", result_bin / "rr", *cmd)
+        self.log = log
+        return (result_bin / "env", f"_RR_TRACE_DIR={self.log}", result_bin / "rr", "record", *cmd)
+
+    def stop(self) -> None:
+        subprocess.run(
+            [str(result_bin / "env"), f"_RR_TRACE_DIR={self.log}", str(result_bin / "rr"), "pack", str(self.log / "subdir")],
+            capture_output=True,
+            check=True,
+        )
+        for child in self.log.iterdir():
+            if child != "subdir":
+                shutil.rmtree(child)
+
 
 
 class ReproZip(ProvCollector):
@@ -521,7 +550,7 @@ class ReproZip(ProvCollector):
         )
 
 
-class SciUnit(ProvCollector):
+class Sciunit(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
     name = "sciunit"
@@ -559,17 +588,53 @@ class Darshan(ProvCollector):
 class BPFTrace(ProvCollector):
     method = "auditing"
     submethod = "eBPF"
-    name = "ebpf"
+    name = "bpftrace"
+    proc: subprocess.Popen[bytes] | None = None
+    proc_args: list[CmdArg] | None = None
+    proc_env: Mapping[str, str] | None = None
 
-    def __init__(self) -> None:
-        self.bpfscript = Path("prov.bt").read_text()
-
-    def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
-        raise NotImplementedError("Need to actually write script")
-        return (
-            result_bin / "env", f"BPFTRACE_STRLEN={size}", result_bin / "bpftrace", "-B", "full", "-f", "json", "-o", log, "-e",
-            self.bpfscript,
+    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        pid_fifo = log / "pid"
+        ready_fifo = log / "ready"
+        os.mkfifo(pid_fifo)
+        os.mkfifo(ready_fifo)
+        log_file = log / "trace.json"
+        self.proc_args = [result_bin / "python", "bpftrace_preexec.py", pid_fifo, ready_fifo, log_file]
+        self.proc_env = {
+            "LD_LIBRARY_PATH": str(result_lib),
+            "LIBRARY_PATH": str(result_lib),
+            "PATH": str(result_bin),
+        }
+        self.proc = subprocess.Popen(
+            self.proc_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=self.proc_env,
         )
+        return (result_bin / "python", "bpftrace_workload_preexec.py", pid_fifo, ready_fifo, *cmd)
+
+    def stop(self) -> None:
+        assert self.proc is not None
+        assert self.proc_args is not None
+        assert self.proc_env is not None
+        try:
+            stdout, stderr = self.proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            terminate_or_kill(self.proc, timeout=5)
+            stdout, stderr = self.proc.communicate()
+            print(stdout, stderr)
+        if self.proc.returncode != 0:
+            raise SubprocessError(
+                cmd=self.proc_args,
+                returncode=self.proc.returncode,
+                cwd=None,
+                env=dict(self.proc_env.items()),
+                stdout=to_str(stdout),
+                stderr=to_str(stderr),
+            )
+
+    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
+        return ()
 
 
 class SpadeFuse(ProvCollector):
@@ -679,6 +744,24 @@ class Auditd(ProvCollector):
         subprocess.run([result_bin / "auditctl", "-D"], check=True)
 
 
+class Care(ProvCollector):
+    method = "tracing"
+    submethod = "syscalls"
+    name = "care"
+
+    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        return (result_bin / "care", f"--output={log}/main.tar", *cmd)
+
+    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
+        prefix = "main/rootfs"
+        with tarfile.open(name=(log / "main.tar"), mode='r') as tar_obj:
+            return tuple(
+                ProvOperation("use", member.name[len(prefix):], None, None)
+                for member in tar_obj.getmembers()
+                if member.name.startswith(prefix)
+            )
+
+
 PROV_COLLECTORS: list[ProvCollector] = [
     NoProv(),
     STrace(),
@@ -687,7 +770,9 @@ PROV_COLLECTORS: list[ProvCollector] = [
     CDE(),
     RR(),
     ReproZip(),
-    SciUnit(),
+    Sciunit(),
+    Care(),
+    PTU(),
     SpadeFuse(),
     SpadeAuditd(),
     Darshan(),
@@ -719,13 +804,16 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
     "working-ltrace": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "ltrace"]
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "sciunit", "ptu", "care", "ltrace"]
+    ],
+    "old-working": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "reprozip"]
     ],
     "working": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "sciunit"]
-        # ltrace
-        # cde
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "sciunit", "ptu", "care"]
     ],
 }

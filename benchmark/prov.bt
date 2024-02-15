@@ -11,12 +11,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 BEGIN {
-  printf("%d %d %d launch_pid %d\n", pid, tid, nsecs, $1);
   @pids[$1] = 1;
   @main_pid[$1] = 1;
+  printf("%d %d %d launch_pid %d\n", pid, tid, nsecs, $1);
 }
-
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Enter exit syscalls
@@ -73,7 +71,8 @@ tracepoint:syscalls:sys_enter_openat {
     printf("%d %d %d openat %d %s %d %d\n", pid, tid, nsecs, args.dfd, str(args.filename), args.flags, args.mode);
   }
 }
-tracepoint:syscalls:sys_enter_execve {  $task = (struct task_struct *)curtask;
+tracepoint:syscalls:sys_enter_execve {
+  $task = (struct task_struct *)curtask;
   if (@pids[$task->real_parent->pid]) {
     @pids[pid] = 1;
   }

@@ -4,3 +4,5 @@
 - Run `nix build '.#env'`
 - Follow directions in [Benchexec](https://github.com/sosy-lab/benchexec/blob/main/doc/INSTALL.md) to enable cgroups. Run `result/bin/python -m benchexec.check_cgroups` and verify there are no errors.
 - Test `result/bin/rr record result/bin/ls`. If this issues an error regarding `kernel.perf_event_paranoid`, follow its advice and confirm that resolves the error.
+  - Zen CPUs may require [extra setup](https://github.com/rr-debugger/rr/wiki/Zen)
+  - Note that RR may require [extra setup](https://github.com/rr-debugger/rr/wiki/Will-rr-work-on-my-system) for virtual machines.

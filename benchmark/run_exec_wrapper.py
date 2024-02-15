@@ -104,12 +104,12 @@ def run_exec(
         # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/runexecutor.py#L304
         # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/containerexecutor.py#L297
         run_executor = RunExecutor(
-            use_namespaces=False,
-            # use_namespaces=True,
-            # dir_modes=dir_modes_processed,
-            # container_system_config=True,
-            # container_tmpfs=True,
-            # network_access=network_access,
+            # use_namespaces=False,
+            use_namespaces=True,
+            dir_modes=dir_modes_processed,
+            container_system_config=True,
+            container_tmpfs=True,
+            network_access=network_access,
         )
         caught_signal_number: Signal | None = None
         def run_executor_stop(signal_number: Signal, _: types.FrameType | None) -> None:

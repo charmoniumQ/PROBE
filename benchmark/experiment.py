@@ -256,6 +256,7 @@ def run_one_experiment(
         cmd = prov_collector.run(cmd, log_dir, size)
         # cmd = (result_bin / "setarch", "--addr-no-randomize", *cmd)
 
+    print("running")
     with ch_time_block.ctx(f"run {workload} in {prov_collector}"):
         full_env = merge_env_vars(
             {
@@ -278,6 +279,8 @@ def run_one_experiment(
             },
             network_access=workload.network_access,
         )
+
+    prov_collector.stop()
 
     if not stats.success:
         if ignore_failures:

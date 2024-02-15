@@ -158,11 +158,11 @@ def confidence_interval(data: Any, confidence_level: float, seed: int = 0) -> tu
 @dataclasses.dataclass
 class SubprocessError(Exception):
     cmd: Sequence[CmdArg]
-    env: Mapping[CmdArg, CmdArg]
-    cwd: pathlib.Path | None
     returncode: int
     stdout: str
     stderr: str
+    env: Mapping[CmdArg, CmdArg]
+    cwd: pathlib.Path | None = None
 
     def __init__(
         self,

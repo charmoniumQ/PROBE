@@ -183,11 +183,14 @@
           };
           charmonium-time-block = python.pkgs.buildPythonPackage rec {
             pname = "charmonium.time_block";
-            version = "0.3.2";
+            pyproject = true;
+            version = "0.3.4";
             src = pkgs.fetchPypi {
-              inherit pname version;
-              sha256 = "dbd15cf34e753117f25c404594ad984d91d658552a647ea680b1affd2b6374ce";
+              pname = "charmonium_time_block";
+              inherit version;
+              sha256 = "5cbde16fdfc927393a473297690138c2db169e51cdfff13accbbf6ec44486968";
             };
+            nativeBuildInputs = [ python.pkgs.poetry-core ];
             propagatedBuildInputs = [ python.pkgs.psutil ];
             checkInputs = [ python.pkgs.pytest ];
             pythonImportsCheck = [ "charmonium.time_block" ];
@@ -570,6 +573,36 @@
           cde = pkgs.cde.overrideAttrs (super: {
             patches = [ ./cde.patch ];
           });
+          care = pkgs.stdenv.mkDerivation rec {
+            pname = "care";
+            version = "5.4.0";
+            src = pkgs.fetchFromGitHub {
+              repo = "proot";
+              owner = "proot-me";
+              rev = "v${version}";
+              sha256 = "sha256-Z9Y7ccWp5KEVuo9xfHcgo58XqYVdFo7ck1jH7cnT2KA=";
+            };
+            postPatch = ''
+              substituteInPlace src/GNUmakefile \
+                --replace /bin/echo ${pkgs.coreutils}/bin/echo
+              # our cross machinery defines $CC and co just right
+              sed -i /CROSS_COMPILE/d src/GNUmakefile
+            '';
+            buildInputs = [ pkgs.ncurses pkgs.talloc pkgs.uthash pkgs.libarchive ];
+            nativeBuildInputs = [ pkgs.pkg-config pkgs.docutils pkgs.makeWrapper ];
+            makeFlags = [ "-C src" "care"];
+            postBuild = ''
+              make -C doc care/man.1
+            '';
+            installFlags = [ "PREFIX=${placeholder "out"}" ];
+            installTargets = "install-care";
+            postInstall = ''
+              install -Dm644 doc/care/man.1 $out/share/man/man1/care.1
+              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.lzop ]}
+            '';
+            # proot provides tests with `make -C test` however they do not run in the sandbox
+            doCheck = false;
+          };
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
@@ -586,6 +619,9 @@
               pkgs.gdb
               pkgs.bpftrace
               pkgs.su
+              provenance-to-use
+              care
+              pkgs.proot
 
               # deps of notebooks
               pkgs.util-linux

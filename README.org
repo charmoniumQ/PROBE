@@ -312,6 +312,8 @@ https://proot-me.github.io/care/
 - Few of the tools are applicable to comp sci due to methods
 - How many work for distributed systems
 - How to handle network
+- Microbechmark vs applications?
+- Non-negative linear regression
 
 *** TODO Story-telling
 - Gaps in prior work re comp sci
@@ -329,6 +331,9 @@ https://proot-me.github.io/care/
 *** TODO Page-limit
 
 *** TODO Reproducibility appendix
+- Need Intel CPU?
+
+*** TODO Why not VMs?
 
 * BACKLOG Record/replay reproducibility with library interposition
 - [[file:docs/record_replay/][Paper directory]]

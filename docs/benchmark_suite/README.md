@@ -182,9 +182,9 @@ A provenance collector may record the events in @Fig:prov-example.
     \item The process PID=2 executed python.
     \item The process PID=2 read script.py.
     \item The process PID=2 read matplotlib.py (script library).
-    \item The process PID=2 opened database` for reading and writing, which creates a new version of the node in th provenance graph.
+    \item The process PID=2 opened database for reading and writing, which creates a new version of the node in th provenance graph.
     \item The process PID=2 read data.csv.
-    \item The process PID=2 wrote figure.png+.
+    \item The process PID=2 wrote figure.png.
   \end{enumerate}
   \end{minipage}
 }
@@ -255,55 +255,17 @@ Although developed in medicine, Cartaxo et al. show that Rapid Reviews are usefu
 
 We conducted a rapid review with the following parameters:
 
-- **Objective**: Identify system-level provenance collection tools.
-
 - **Search terms**: "system-level AND provenance", "computational provenance"
 
 - **Search engine**: Google Scholar
 
-- **Number of results**: 50 of both searches
-
-  - This threshold is the point of diminishing returns, as no new collectors came up in the 40th – 50th results.
+- **Number of results**:
+  50 of both searches.
+  This threshold is the point of diminishing returns, as no new collectors came up in the 40th – 50th results.
 
 - **Criteria**:
   A relevant publication would center on one or more operating system-level provenance collectors that capture file provenance.
   A tool requiring that the user use a specific application or platform would be irrelevant.
-
-We record the following features for each system-level provenance tool:
-
-- **Capture method**: What method does the tool use to capture provenance?
-
-  - **User-level tracing**:
-    A provenance tool may use "debugging" or "tracing" features provided by the kernel, e.g., `ptrace(2)` [@Ptrace], to trace another program's I/O operations.
-
-  - **Built-in auditing service**:
-    A provenance tool may use auditing service built in to the kernel, e.g., Linux Auditing Framework [@madabhushanaConfigureLinuxSystem2021], enhanced Berkeley Packet Filter (eBPF) [@BPFDocumentation], kprobes [@kenistonKernelProbesKprobes], and ETW [@EventTracingWin322021] for Windows.
-
-  - **Filesystem instrumentation**:
-    A provenance tool may set up a file system, so it can log I/O operations, e.g., using Filesystem in User SpacE (FUSE) interface [@FUSE], or Virtual File System (VFS) interface [@goochOverviewLinuxVirtual].
-
-  - **Dynamic library instrumentation**:
-    A provenance tool may replace a library used to execute I/O operations (e.g., glibc) with one that logs the calls before executing them.
-
-  - **Binary instrumentation**:
-    A provenance tool may use binary instrumentation (dynamic or static) to identify I/O operations in another program.
-
-  - **Compile-time instrumentation**:
-    A provenance tool may be a compiler pass that modifies the program to emit provenance data, especially intra-program control flow.
-
-  - **Kernel instrumentation**:
-    A provenance tool may be a modified kernel either by directly modifying and recompiling the kernel's source tree.
-
-  - **Kernel module**:
-    Rather than directly modify the kernel's source, the provenance tool may simply require that the user load a custom kernel module.
-
-  - **VM instrumentation**:
-    A provenance tool may execute the program in a virtual machine, where it can observe the program's I/O operations.
-
-<!--
-- **Is source code available?**:
-  We use the categorical codes given by Collberg and Proebsting [@collbergRepeatabilityComputerSystems2016] to describe whether the source code is in the article, found on the web, found by an email from the author, refused from an email by the author, or the authors did not reply.
--->
 
 ## Benchmark Selection
 
@@ -369,31 +331,30 @@ A smaller, less-costly set of benchmarks may be sufficiently representative of t
 
 Following Yi et al. [@yiEvaluatingBenchmarkSubsetting2006], we evaluate the benchmark subset in two different ways:
 
-1. **Accuracy**.
+- **Accuracy**.
    How closely do features of the subset resemble features of the original set?
-   We will evaluate this by computing the root-mean squared error of a "non-negative" "linear regression" from the "standardized" features of selected benchmarks to the mean of features of the total set.
+   We will evaluate this by computing the root-mean squared error of a non-negative linear regression from the standardized features of selected benchmarks to the mean of features of the total set.
 
-   - We use a "linear regression" to account for the possibility that the total set has unequal proportions of benchmark clusters.
-     Suppose it contained 10 programs of type A, which all have similar performance, and 20 of type B: the benchmark subset need not contain two B programs and onerous A program.
-     We would rather have one A, one B, and write the total performance as a weighted combination of the performance of $A$ and $B$, perhaps $1 \cdot \mathrm{perf}_A + 2 \cdot \mathrm{perf}_B$).
-     We normalize these weights by adding an ancillary constant feature, so $\mathrm{weight}_A + \mathrm{weight}_B + \dotsb = 1$.
-     Yi et al. [@yiEvaluatingBenchmarkSubsetting2006] were attempting to subset with SPEC CPU 2006, which one can assume would already be balanced in these terms, so their analysis uses an unweighted average.
-
-   - We require the linear regression to be "non-negative" so that the benchmark subset is monotonic; doing better on every benchmark in the subset should result in doing better on the total set.
-
-   - "Standardized" means we transform raw features $x$ into $z_x = (x - \bar{x}) / \sigma_x$.
-     While $x$ is meaningful in absolute units, $z_x$ is meaningful in relative terms (i.e., a value of 1 means "1 standard deviation greater than the mean").
-     Yi et al., by contrast, only normalize their features $x_{\mathrm{norm}} = x / x_{\max}$ which does not take into account the mean value.
-     We want our features to be measured relative to the spread of those features in prior work.
-
-2. **Representativeness.**
+- **Representativeness.**
    How close are benchmarks in the original set to benchmarks in the subset?
    We will evaluate this by computing root mean squared error (RMSE) on the euclidean distance of standardized features from each benchmark in the original set to the closest benchmark in the selected subset.
 
-   - We opt for RMSE over mean absolute error (MAE), used by Yi et al. [@yiEvaluatingBenchmarkSubsetting2006], because RMSE punishes outliers more.
-     MAE would permits some distances to be large, so long it is made up for by other distances are small.
-     RMSE would prefer a more equitable distribution, which might be worse on average, but better on the outliers.
-     We think this aligns more with the intent of "representativeness."
+We use a non-negative linear regression to account for the possibility that the total set has unequal proportions of benchmark clusters.
+Suppose it contained 10 programs of type A, which all have similar performance, and 20 of type B: the benchmark subset need not contain two B programs and one A program.
+We would rather have one A, one B, and write the total performance as a weighted combination of the performance of $A$ and $B$.
+We require the weights to be non-negative, so doing better on each benchmark in the subset implies a better performance on the total.
+Finally, we normalize these weights by adding the following an equation to the linear regression: $\mathrm{weight}_A + \mathrm{weight}_B + \dotsb = 1$.
+Yi et al. [@yiEvaluatingBenchmarkSubsetting2006] were attempting to subset with SPEC CPU 2006, which one can assume would already be balanced in these terms, so their analysis uses an unweighted average.
+
+We standardize the features by mapping $x$ to $z_x = (x - \bar{x}) / \sigma_x$.
+While $x$ is meaningful in absolute units, $z_x$ is meaningful in relative terms (i.e., a value of 1 means "1 standard deviation greater than the mean").
+Yi et al., by contrast, only normalize their features $x_{\mathrm{norm}} = x / x_{\max}$ which does not take into account the mean value.
+We want our features to be measured relative to the spread of those features in prior work.
+
+We score by RMSE over mean absolute error (MAE), used by Yi et al. [@yiEvaluatingBenchmarkSubsetting2006], because RMSE punishes outliers more.
+MAE would permits some distances to be large, so long it is made up for by other distances are small.
+RMSE would prefer a more equitable distribution, which might be worse on average, but better on the outliers.
+We think this aligns more with the intent of "representativeness."
 
 For features, we will use features that are invariant between running a program ten times and running it once.
 This gives long benchmarks and short benchmarks which exercise the same functionality similar feature vectors.
@@ -481,6 +442,37 @@ Preferring fewer parameters makes the model more generalizable on out-of-domain 
 ## Selected Provenance Collectors
 
 @Tbl:tools shows the provenance collectors we collected and their qualitative features.
+Because there are not many open-source provenance collectors in prior work, we also include the following tools, which are not necessarily provenance collectors, but may be adapted as such: strace, ltrace, fsatrace, and RR.
+
+The second column shows the "collection method", which we categorize by the following:
+
+- **User-level tracing**:
+  A provenance tool may use "debugging" or "tracing" features provided by the kernel, e.g., `ptrace(2)` [@Ptrace], to trace another program's I/O operations.
+
+- **Built-in auditing service**:
+  A provenance tool may use auditing service built in to the kernel, e.g., Linux Auditing Framework [@madabhushanaConfigureLinuxSystem2021], enhanced Berkeley Packet Filter (eBPF) [@BPFDocumentation], kprobes [@kenistonKernelProbesKprobes], and ETW [@EventTracingWin322021] for Windows.
+
+- **Filesystem instrumentation**:
+  A provenance tool may set up a file system, so it can log I/O operations, e.g., using Filesystem in User SpacE (FUSE) interface [@FUSE], or Virtual File System (VFS) interface [@goochOverviewLinuxVirtual].
+
+- **Dynamic library instrumentation**:
+  A provenance tool may replace a library used to execute I/O operations (e.g., glibc) with one that logs the calls before executing them.
+
+- **Binary instrumentation**:
+  A provenance tool may use binary instrumentation (dynamic or static) to identify I/O operations in another program.
+
+- **Compile-time instrumentation**:
+  A provenance tool may be a compiler pass that modifies the program to emit provenance data, especially intra-program control flow.
+
+- **Kernel instrumentation**:
+  A provenance tool may be a modified kernel either by directly modifying and recompiling the kernel's source tree.
+
+- **Kernel module**:
+  Rather than directly modify the kernel's source, the provenance tool may simply require that the user load a custom kernel module.
+
+- **VM instrumentation**:
+  A provenance tool may execute the program in a virtual machine, where it can observe the program's I/O operations.
+
 The last column in the table categorizes the "state" of that provenance collector in this work into one of the following:
 
 - **Not for Linux.**
@@ -500,7 +492,7 @@ The last column in the table categorizes the "state" of that provenance collecto
   Some methods require certain CPUs, e.g., Intel CPUs for a dynamic instrumention tool called Intel PIN.
   Being limited to certain CPUs violates our goal of promulgating reproducibility to as many people as possible.
   
-- **No source.**
+- **No source^[TODO: Evaluate this first, so  "no source" AND "requires kernel changes" would be classified as "no source". Future work may be able to reproduce collectors which require kernel changes (or VMs), but has no chance of reproducing collectors which have no source.].**
   We searched the original papers, GitHub, BitBucket, Google, and emailed the first author (CCing the others).
   If we still could not find the source code for a particular provenance collector, we cannot reproduce it.
   Note, however, that RecProv is implemented using rr, so we can use rr as a lower-bound for RecProv.
@@ -558,7 +550,7 @@ The last column in the table categorizes the "state" of that provenance collecto
     CDE is a record/replay tool.
     During record, CDE  uses `ptrace` to intercept its syscalls, and copy relevant files into an archive.
     During rerun, can use `ptrace` to intercept syscalls and redirect them to files in the archive.
-    Sciunit uses a modified version of CDE that works on all of our benchmarks, so we can use that as a proxy.
+    PTU uses a modified version of CDE that works on all of our benchmarks, so we can use that as a proxy.
     CDE can run some of our benchmarks, but crashes when trying to copy from the tracee process to the tracer due to `ret == NULL`[^cde-note]:
 
     \scriptsize
@@ -575,19 +567,23 @@ The last column in the table categorizes the "state" of that provenance collecto
 
   [^cde-note]: See <https://github.com/usnistgov/corr-CDE/blob/v0.1/strace-4.6/cde.c#L2650>. The simplest explanation would be that the destination buffer is not large enough to store the data that `strcpy` wants to write. However, the destination buffer is `PATHMAX`.
 
-- **Reproduced (Strace, FSAtrace, RR, ReproZip, Sciunit).**
+- **Reproduced (strace, fsatrace, RR, ReproZip, PTU, Sciunit, CARE).**
   We reproduced this provenance collector on all of the benchmarks.
 
   - **strace**
     strace is a well-known system program that uses Linux's `ptrace` functionality to record syscalls, their arguments, and their return code to a file.
     strace even parses datastructures to write strings and arrays rather than pointers.
     TODO: strace configuration?
-
+  
   - **fsatrace**
     Library-interpositioning is a technique where a program mimics the API of a standard library.
     Programs are written to call into the standard library, but the loader sends those calls to the interpositioning library instead.
     The interpositioning library can log the call and pass it to another library (possibly the "real" one), so the program's functionality is preserved.
-    FSAtrace uses library-interpositioning to intercept file I/O calls.
+    This avoids some context-switching overhead of `ptrace`, since the logging happens in the tracee's process.
+    fsatrace uses library-interpositioning to intercept file I/O calls.
+
+  - **CARE**
+    CARE is a record/replay tool inspired by CDE.
 
   - **RR**
     RR [@ocallahanEngineeringRecordReplay2017] is a "record/replay" tool like CDE.
@@ -596,8 +592,10 @@ The last column in the table categorizes the "state" of that provenance collecto
   - **ReproZip**
     TODO
 
-  - **PTU/Sciunit**
+  - **PTU**
     TODO
+
+  - **Sciunit**
 
 \begin{table}
 \caption{Provenance collectors from our search results and from experience.}
@@ -613,20 +611,22 @@ strace                                                             & tracing    
 fsatrace                                                           & tracing                      & Reproduced                 \\
 rr \cite{ocallahanEngineeringRecordReplay2017}                     & tracing                      & Reproduced                 \\
 ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      & Reproduced                 \\
-PTU/Sciunit \cite{phamUsingProvenanceRepeatability2013}            & tracing                      & Reproduced                 \\
+Sciunit \cite{phamUsingProvenanceRepeatability2013}                & tracing                      & Reproduced                 \\
+PTU \cite{phamUsingProvenanceRepeatability2013}                    & tracing                      & Reproduced                 \\
+CARE \cite{janinCAREComprehensiveArchiver2014}                     & tracing                      & Reproduced                 \\
 CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      & Partially reproduced       \\
 ltrace                                                             & tracing                      & Partially Reproduced       \\
-Namiki et al. \cite{namikiMethodConstructingResearch2023}          & audit                        &                            \\
-PROV-IO \cite{hanPROVIOOCentricProvenance2022}                     & lib. ins.                    &                            \\
 SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, or compile-time   & Needs more time            \\
 DTrace \cite{DTrace}                                               & audit                        & Needs more time            \\
-LPS \cite{daiLightweightProvenanceService2017}                     & lib. ins.                    &                            \\
 eBPF/bpftrace                                                      & audit                        & Needs more time            \\
 SystemTap \cite{prasadLocatingSystemProblems2005}                  & audit                        & Needs more time            \\
 OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & lib. ins.                    & Not reproducible           \\
 CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kernel ins.                  & Requires custom kernel     \\
 Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kernel ins.                  & Requires custom kernel     \\
 LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & kernel ins.                  & Requires custom kernel     \\
+Namiki et al. \cite{namikiMethodConstructingResearch2023}          & audit                        &                            \\
+PROV-IO \cite{hanPROVIOOCentricProvenance2022}                     & lib. ins.                    &                            \\
+LPS \cite{daiLightweightProvenanceService2017}                     & lib. ins.                    &                            \\
 RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & tracing                      & No source                  \\
 LPROV \cite{wangLprovPracticalLibraryaware2018}                    & kernel mod., lib. ins.       & No source                  \\
 S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & kernel mod.                  & No source                  \\
@@ -636,10 +636,10 @@ PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & kernel ins.
 PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & kernel ins., FS, lib. ins.   & No source                  \\
 PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & kernel ins.                  & No source                  \\
 Lineage FS \cite{sarLineageFileSystem}                             & kernel ins.                  & No source                  \\
-RTAG \cite{jiEnablingRefinableCrossHost2018}                       & dyn./static bin. ins.        & No source                  \\
-BEEP \cite{leeHighAccuracyAttack2017}                              & dyn. bin. ins.               & Requires HW                \\
-libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & dyn. bin., kernel, lib. ins. & Requires HW                \\
-RAIN \cite{jiRAINRefinableAttack2017}                              & dyn. bin. ins.               & Requires HW                \\
+RTAG \cite{jiEnablingRefinableCrossHost2018}                       & bin. ins.                    & No source                  \\
+BEEP \cite{leeHighAccuracyAttack2017}                              & bin. ins.                    & Requires HW                \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & bin., kernel, lib. ins.      & Requires HW                \\
+RAIN \cite{jiRAINRefinableAttack2017}                              & bin. ins.                    & Requires HW                \\
 DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & compile-time ins.            & Requires HW                \\
 MPI\cite{maMPIMultiplePerspective2017}                             & compile-time ins.            & Requires recompilation     \\
 LDX \cite{kwonLDXCausalityInference2016}                           & VM ins.                      & Requires recompilation     \\
@@ -696,6 +696,7 @@ Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}             & lmbench, compile 
 libdft \cite{kemerlisLibdftPracticalDynamic2012}             & scp, \{tar, gzip, bzip2\} x \{extract, compress\}                                                                                               & PIN                   \\
 PTU \cite{phamUsingProvenanceRepeatability2013}              & Workflows (PEEL0, TextAnalyzer)                                                                                                                 & Native                \\
 LogGC \cite{leeLogGCGarbageCollecting2013}                   & RUBiS, Firefox, MC, Pidgin, Pine, Proftpd, Sendmail, sshd, vim, w3m, wget, xpdf, yafc, Audacious, bash, Apache, mysqld                          & None\footnotemark     \\
+CARE \cite{janinCAREComprehensiveArchiver2014}               & Compile perl, xz                                                                                                                                & Native                \\
 LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015} & lmbench, compile Linux, Postmark, BLAST                                                                                                         & Native                \\
 Ma et al. \cite{maAccurateLowCost2015}                       & TextTransfer, Chromium, DrawTool, NetFTP, AdvancedFTP, Apache, IE, Paint, Notepad, Notepad++, simplehttp, Sublime Text                          & Native                \\
 ProTracer \cite{maProTracerPracticalProvenance2016}          & Apache, miniHTTP, ProFTPD, Vim, Firefox, w3m, wget, mplayer, Pine, xpdf, MC, yafc                                                               & Auditd, BEEP          \\
@@ -1152,6 +1153,7 @@ the program need not wait for an I/O operation to be logged before continuing.
 
 None of the interrupting collectors we know of exploit it, some of the interruption work may be "postponed";
 if a file is read, it can be copied at any time unless/until it gets mutated.
+We term this optimization, copy-on-write-after-read.
 
 # Conclusion
 
