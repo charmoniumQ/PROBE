@@ -678,7 +678,7 @@ class Postmark(Workload):
         )
 
 
-LINUX_TARBALL_URL = "https://github.com/torvalds/linux/archive/refs/tags/v6.8-rc1.tar.gz"
+LINUX_TARBALL_URL = "https://github.com/torvalds/linux/archive/refs/tags/v6.8-rc4.tar.gz"
 SMALLER_TARBALL_URL = "https://files.pythonhosted.org/packages/60/7c/04f0706b153c63e94b01fdb1f3ccfca19c80fa7c42ac34c182f4b1a12c75/BenchExec-3.20.tar.gz"
 
 
@@ -971,9 +971,11 @@ class CompileLinux(Workload):
         source_dir = workdir / "source"
         if not archive_tgz.exists():
             download(archive_tgz, self.url)
-        if not source_dir.exists():
-            with tarfile.TarFile.open(archive_tgz) as archive_tgz_obj:
-                archive_tgz_obj.extractall(path=source_dir)
+        with tarfile.TarFile.open(archive_tgz) as archive_tgz_obj:
+            archive_tgz_obj.extractall(
+                path=source_dir,
+                filter=lambda member, dest_path: member.replace(name="/".join(member.name.split("/")[1:])),
+            )
 
     def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
         source_dir = (workdir / "source")
@@ -983,7 +985,7 @@ class CompileLinux(Workload):
         # This allow a user to issue only 'make' to build a kernel including modules
         # Defaults to vmlinux, but the arch makefile usually adds further targets
         return (
-            (result_bin / "sh", "-c", f"cd {source_dir} && make defconfig && make all -j $(nproc --all)"),
+            (result_bin / "sh", "-c", f"cd {source_dir} && make defconfig && make"),
             {}
         )
 
