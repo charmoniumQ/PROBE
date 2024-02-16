@@ -373,7 +373,7 @@ In particular, we use:
 
 In order to choose the subset, we will try clustering (k-means and agglomerative clustering with Ward linkage\footnote{k-means and agglomerative/Ward both minimize within cluster variance, which is equivalent to minimizing our metric of "representativeness" defined earlier, although they minimize it in different ways: k-means minimizes by moving clusters laterally; Agglomerative/Ward minimizes by greedily joining clusters.}), preceded by optional dimensionality reduction by principal component analysis (PCA).
 Once the benchmarks are grouped into clusters, we identify one benchmark from each of the $k$ clusters to consist the benchmark subset.
-We will sweep across $k$.
+We will determine the best $k$ experimentally.
 <!--
 
 - **K-means.** K-means [@macqueenMethodsClassificationAnalysis1965] greedily minimizes within-cluster variance, which is equivalent to the "representativeness" RMSE distance we want to minimize.
@@ -1074,9 +1074,10 @@ Perhaps the performance overhead would be low enough to be "always on", however 
 
 # Conclusion
 
-We hope this work serves as a part of a bridge from research to practical use of provenance collectors.
-As such, we address practical concerns of a user wanting to use a provenance collector.
-We identify the reproducible and usable provenance collectors from prior work, and we evaluate their performance on synthetic and real-world workloads.
+We intend this work to bridge from research to practical use of provenance collectors and an invitation for future research.
+In order to bridge research into practice, we identified reproducible and usable provenance collectors from prior work, and evaluated their performance on synthetic and real-world workloads.
+In order to invite future research, we collated and minimized a benchmark suite and identified gaps in prior work.
+We believe this work and the work it enables will address the practical concerns of a user wanting to use a provenance collector.
 
 \appendix
 
