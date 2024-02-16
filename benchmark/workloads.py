@@ -849,31 +849,11 @@ class VCSTraffic(Workload):
 class Blast(Workload):
     kind = "blast"
 
-    @staticmethod
-    def get_all() -> list["Blast"]:
-        workdir = Path(".workdir/0/work")
-        Blast.static_setup(workdir)
-        blastdir = workdir / "blast-benchmark/"
-        blasts = []
-        targets = ["blastn", "megablast", "tblastn", "tblastx", "blastp", "blastx"]
-        for line in (blastdir / "Makefile").read_text().split("\n"):
-            if line.count(":") == 1:
-                target, objects_str = line.split(":")
-                objects = objects_str.strip().split(" ")
-                if target in targets:
-                    # count = int(input(f"How many {target} (of {len(objects)})? "))
-                    # sampled_objects = objects
-                    # print(",\n".join(f'Blast("{target}-{object}", ("{object}",))' for object in sampled_objects) + ",")
-                    for object in objects:
-                        blasts.append(Blast(f"{target}-{object}", (object,)))
-        return blasts
-
     def __init__(self, name: str, which_targets: tuple[str, ...]) -> None:
         self.name = name
         self.which_targets = which_targets
 
-    @staticmethod
-    def static_setup(workdir: Path) -> None:
+    def setup(self, workdir: Path) -> None:
         blastdir = workdir / "blast-benchmark"
         if not blastdir.exists():
             blastdir.mkdir(parents=True)
@@ -897,10 +877,6 @@ class Blast(Workload):
         output_dir.mkdir()
         for subdir in ["blastn", "blastp", "blastx", "tblastn", "tblastx", "megablast", "idx_megablast"]:
             (output_dir / subdir).mkdir()
-
-
-    def setup(self, workdir: Path) -> None:
-        Blast.static_setup(workdir)
 
     def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
         blastdir = workdir / "blast-benchmark"
@@ -1002,7 +978,7 @@ WORKLOADS: list[Workload] = [
     Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
     # TOD: Fix shell workloads
     Cmds("shell", "shell-incr", noop_cmd, (result_bin / "bash", "-c", "i=0; for i in seq 10000; do i=$((i+1)); done")),
-    Cmds("shell", "cd", noop_cmd, (result_bin / "bash", "-c", "dir0={result_bin}/realpath $PWD; dir1={result_bin}/realpath $WORKDIR; for i in seq 10000; do cd $dir0; cd $dir1; done")),
+    Cmds("shell", "cd", noop_cmd, (result_bin / "bash", "-c", f"dir0={Path().resolve()}; dir1=$({result_bin}/realpath $WORKDIR); for i in seq 10000; do cd $dir0; cd $dir1; done")),
     Cmds("shell", "shell-echo", noop_cmd, (result_bin / "bash", "-c", "for i in seq 10000; do echo hi > /dev/null; done")),
     Cmds(
         "pdflatex",
@@ -1073,7 +1049,12 @@ WORKLOADS: list[Workload] = [
     # SpackInstall(["py-numpy"]),
     # SpackInstall(["py-scipy"]),
     # SpackInstall(["py-h5py"]),
-    *Blast.get_all(),
+    Blast("blastn", ("blastn",)),
+    Blast("megablast", ("megablast",)),
+    Blast("tblastn", ("tblastn",)),
+    Blast("tblastx", ("tblastx",)),
+    Blast("blastp", ("blastp",)),
+    Blast("blastx", ("blastx",)),
     Copy("cp linux", LINUX_TARBALL_URL),
     Copy("cp smaller", SMALLER_TARBALL_URL),
     Apache(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE // 10),
@@ -1327,7 +1308,7 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to"}
+        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost"}
 
     ],
     "working-ltrace": [

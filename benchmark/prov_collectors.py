@@ -512,14 +512,10 @@ class RR(ProvCollector):
 
     def stop(self) -> None:
         subprocess.run(
-            [str(result_bin / "env"), f"_RR_TRACE_DIR={self.log}", str(result_bin / "rr"), "pack", str(self.log / "subdir")],
+            [str(result_bin / "env"), str(result_bin / "rr"), "pack", str(self.log / "latest-trace")],
             capture_output=True,
             check=True,
         )
-        for child in self.log.iterdir():
-            if child != "subdir":
-                shutil.rmtree(child)
-
 
 
 class ReproZip(ProvCollector):
@@ -811,9 +807,14 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         for prov_collector in PROV_COLLECTORS
         if prov_collector.name in ["noprov", "strace", "fsatrace", "reprozip"]
     ],
+    "new-working": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in ["sciunit", "care"]
+    ],
     "working": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "sciunit", "ptu", "care"]
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "sciunit", "care"]
     ],
 }
