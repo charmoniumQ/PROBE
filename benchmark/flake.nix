@@ -628,6 +628,9 @@
               pkgs.texlive.combined.scheme-full
               pkgs.lftp
               splash-3
+              pkgs.bison
+              pkgs.flex
+              pkgs.libelf
 
               # Reproducibility tester
               pkgs.icdiff
