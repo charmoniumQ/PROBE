@@ -120,7 +120,9 @@ The remainder of the paper is structured as follows. [^RMM: Outline paper struct
 
 # Background
 
-Provenance tools and data have many potential applications, including the following from Pimentel et al. [@pimentelSurveyCollectingManaging2019] and Sar and Cao [@sarLineageFileSystem]:
+As one *Nature* editoralist put it, ``behind every great scientific finding of the modern age, there is a computer''[@perkel2021ten]. This is a point of great significance for computational provenance: the production of scientific results now often involve complex and lengthy operations on hardware and software systems; transparency is fundamental to the practice of science, and increasing the transparency of those processes is the end goal of provenance research. As we mentioned previously, provenance capture represents a wide spectrum of tools and techniques. A taxonomy by Regan et al. identifies five different kinds of provenance information: interaction (of user actions and commands on a system), data (of the transformation and movement of data), visualization (of the history of the representation of those results), insight (of the resulting hypotheses and analytic findings), and rationale (of the underlying reasoning and intentions behind running the software)[@ragan2015characterizing]. 
+
+In this paper, we focus our attention on system interaction and data provenance. A recent Department of Energy Advanced Scientific Computing Research report by Heroux et al. has called for further research to develop solutions for highly automatic and portable provenance capture and replay[@heroux2023basic]. The potential applications for such tools are numerous, including the following noted by Pimentel et al. [@pimentelSurveyCollectingManaging2019] and Sar and Cao [@sarLineageFileSystem]:
 
 1. **Reproducibility**.
    A description of the inputs and processes used to generate a specific output can aid manual and automatic reproduction of that output[^acm-defns].
