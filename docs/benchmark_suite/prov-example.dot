@@ -1,10 +1,8 @@
 digraph G {
 
   node [label="figure.png"] graph_png;
-  node [label="scripy.py"] script_py;
   node [label="/bin/python"] python;
   node [label="matplotlib.py"] matplotlib;
-  node [label="data.csv"] data_csv;
   node [label="PID=2"] proc2;
   node [label="PID=1"] proc1;
   node [label="/bin/bash"] bash;
@@ -21,9 +19,7 @@ digraph G {
 
   python -> proc2 [label="exec(binary, args, env)"];
   matplotlib -> proc2 [label="open read-only"];
-  script_py -> proc2 [label="open read-only"];
   database0 -> proc2 [label="open read/write"];
   proc2 -> database1 [label="open read/write"];
-  data_csv -> proc2 [label="open read-only"];
   proc2 -> graph_png [label="open write-only"];
 }

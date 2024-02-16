@@ -125,6 +125,11 @@ https://chu-data-lab.github.io/CleanML/
 - https://hg-git.github.io/
 - https://repo.mercurial-scm.org/hg
 
+*** TODO Create CVS workload
+- http://cvs.savannah.gnu.org/viewvc/cvs/ccvs/
+
+*** TODO Include xz in workload
+
 *** TODO VIC
 - Fig 1 of https://arxiv.org/pdf/1707.05731.pdf
 - https://github.com/Chicago/food-inspections-evaluation/tree/master/CODE
@@ -280,6 +285,8 @@ https://proot-me.github.io/care/
 
 *** TODO Revise bayesian model to use benchmark class
 - How many classes and benchmarks does one need?
+
+*** TODO Use G-means or X-means to learn the number of clusters
 
 ** Writing
 

@@ -43,6 +43,7 @@
               comment
               doclicense
               draftwatermark
+              enumitem
               environ
               etoolbox
               fancyhdr

@@ -180,8 +180,12 @@ $if(csquotes)$
 \usepackage{csquotes}
 $endif$
 
-\setlength{\emergencystretch}{3em} % prevent overfull lines
-\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+%\setlength{\emergencystretch}{3em} % prevent overfull lines
+%\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\tightlist}{}
+\usepackage{enumitem}
+\setlist{topsep=0pt, leftmargin=*}
+\setitemize{noitemsep,topsep=0pt,parsep=0pt,partopsep=0pt}
 
 \usepackage{bookmark}
 \usepackage{xurl}
