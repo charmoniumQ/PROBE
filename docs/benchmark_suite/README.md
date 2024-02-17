@@ -87,7 +87,7 @@ date: 2024-01-30
 pagestyle: plain
 papersize: letter
 abstract: >
-  Computational provenance has man important applications, especially to reproducibiliy.
+  Computational provenance has many important applications, especially to reproducibiliy.
   System-level provenance collectors claim to be able to track provenance data without requiring the user to change anything about their application.
   Anecdotally, however, system-level provenance collectors are not commonly used in computational science.
   This work aims to bring research in provenance collection closer to practice by evaluating prior work on a common benchmark subset and identifying gaps in prior work.
@@ -104,7 +104,7 @@ Computational provenance is the history of a computational task, describing the 
 Provenance data can provide crucial information about the hardware and software environments in which a code is executed. The use cases for this data are numerous, and many different tools for collecting it have independently developed. What has been lacking, however, is a rigorous comparison of those available tools and the extent to which they are practically usable in CSE application contexts^[DSK: usable globally or perhaps in particular situations?]. In an effort to summarize the state of the art and to establish goalposts for future research in this area, our paper makes the following contributions:
 
 - *A rapid review on available system-level provenance collectors*.
-  We identify 45 provenance collectors from prior work, identify their method-of-operation, and reproduce the ones that meet specific criteria.
+  We identify 45 provenance collectors from prior work, classify their method-of-operation, and reproduce the ones that meet specific criteria.
   We successfully reproduced 9 out of 15 collectors that met our criteria.
 
 - *A benchmark suite for system-level provenance collectors*:
@@ -120,10 +120,12 @@ Provenance data can provide crucial information about the hardware and software 
 -->
 
 - *We show that simple performance models are insufficient to capture the complexity of provenance collector overheads*:
-  We use linear models for predicting the overhead of \$X application in \$Y provenance collector based on \$X application's performance characteristics (e.g., number of file syscalls per second).
-  Despite trying linear regression, with and without rank reduction, with and without feature selection, our best model is still quite inaccurate, showing performance overhead of application \$X in provenance collector \$Y is not as simple as features of \$X times features of \$Y.
+  We use linear models for predicting the overhead of an application in particular provenance collector based on the application's performance characteristics (e.g., number of file syscalls per second).
+  Despite trying linear regression, with and without rank reduction, with and without feature selection, our best model is still quite inaccurate, showing performance overhead of provenance collector is not as simple.
   
-The remainder of the paper is structured as follows. [^RMM: Outline paper structure here.]
+The remainder of the paper is structured as follows.
+In \Cref{background}, we motivate the value of provenance and the pros/cons of system-level provenance compared to application- and workflow-level provenance.
+
 
 # Background
 
@@ -178,12 +180,13 @@ Since system-level provenance collection is a possibly valuable tradeoff between
 In the context of system-level provenance, artifacts are usually files, processes, or strings of bytes.
 Operations are usually syscalls involving artifacts, e.g., `fork`, `exec`, `open`, `close`.
 For example, suppose a bash script runs a Python script that uses matplotlib to create a figure.
-A provenance collector may record the events in @Fig:prov-example.
+A provenance collector may record the events in @Fig:prov-example, including all file dependencies of the process without knowledge of the underlying program or programming language.
 
 \begin{figure*}
 \begin{center}
 \subcaptionbox{
     Abridged list of events.
+   \label{fig:prov-example-list}
   }{
   \begin{minipage}{0.44\textwidth}
   \begin{enumerate}
@@ -203,13 +206,14 @@ A provenance collector may record the events in @Fig:prov-example.
   Abridged graph of events.
   The arrows point in the direction of dataflow.
   Other authors use other conventions for what they render as nodes, edges, and arrow direction.
+  \label{fig:prov-example-graph}
 }{\includegraphics[width=0.5\textwidth]{prov-example.pdf}}
-\label{fig:prov-example}
 \end{center}
 \caption{
   An abridged list and graph of events that a hypothetical system-level provenance collector would collect from a Bash script that invokes Python to plot some data.
   This collector could infer the required files (including executables, dynamic libraries, scripts, script libraries (e.g., matplotlib), data) \emph{without} knowing anything about the program or programming language.
 }
+\label{fig:prov-example}
 \end{figure*}
 
 We defer to the cited works for details on versioning artifacts [@balakrishnanOPUSLightweightSystem2013] and cycles [@muniswamy-reddyProvenanceAwareStorageSystems2006].
@@ -299,9 +303,9 @@ We also added new benchmarks:
 
 - **Compilations**:
   Prior work uses compilation of Apache or of Linux.
-  We added compilation of several other packages (any package in Spack) to our benchmark.
+  We added compilation of several other packages used in computational science to our benchmark.
   Compiling packages is a good use-case for a provenance collection because a user might trial-and-error multiple compile commands and not remember the exact sequence of "correct" commands;
-  the provenance tracker would be able to recall the commands which did not get overwritten, so the user can know what commands "actually worked" [@callahanManagingEvolutionDataflows2006].
+  the provenance tracker would be able to recall the commands which did not get overwritten, so the user can know what commands actually worked [@callahanManagingEvolutionDataflows2006].
 
 <!--
 - **Computational simulations**:
