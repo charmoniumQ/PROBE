@@ -25,6 +25,15 @@ def main(
         ignore_failures: Annotated[bool, typer.Option("--keep-going")] = False,
         parallelism: int = 1,
 ) -> None:
+    """
+    Run a full matrix of these workloads in those provenance collectors.
+
+    This program writes intermediate results to disk, so if it gets interrupted part
+    way through, it can pick back up where it left of last time. However, if you really
+    want to ignore prior runs, pass `--rerun`.
+
+    """
+
     collectors = list(flatten1([
         PROV_COLLECTOR_GROUPS[collector_name.value]
         for collector_name in collector_groups

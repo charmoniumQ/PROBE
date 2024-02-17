@@ -110,7 +110,7 @@ Provenance data can provide crucial information about the hardware and software 
 - *A benchmark suite for system-level provenance collectors*:
   Prior work does not use a consistent set of benchmarks; often publications use an overlapping set of benchmarks from prior work.
   We find the superset of all benchmarks used in the prior work our rapid review identified, identify unrepresented areas, and find a statistically valid subset of the benchmark.
-  Our benchmark subset is able to recover the original benchmark results within<!--TODO: update with data--> 5% of the acutal value 95% of the time, assuming errors are iid and normally distributed.
+  Our benchmark subset is able to recover the original benchmark results within 5% of the acutal value 95% of the time, assuming errors are iid and normally distributed.
 
 <!--
 - *A quantitative performance comparison of system-level provenance collectors against this suite*:
@@ -316,7 +316,7 @@ We also added new benchmarks:
 
 ## Performance Experiment
 
-To get consistent measurements, we select as many benchmarks and provenance tracers as we reasonably can, and run a complete matrix (every tracer on every benchmark) 3 times in a random order<!--TODO: update with data-->.
+To get consistent measurements, we select as many benchmarks and provenance tracers as we reasonably can, and run a complete matrix (every tracer on every benchmark) 3 times in a random order.
 @Tbl:machine describes our experimental machine.
 We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes.
 We disable ASLR, which does introduce non-determinism into the execution time, but it randomizes a variable that may otherwise have confounding effect [@mytkowiczProducingWrongData2009].
@@ -336,7 +336,7 @@ Name   & Value                                          \\
 CPU    & 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz \\
 RAM    & 16 GiB of SODIMM DDR4 Synchronous 2400 MHz     \\
 Kernel & Linux 6.1.64                                   \\
-%Disk   & TODO                                           \\
+Disk   & Sandisk Corp WD Black SN770 / PC SN740 250GB / PC SN 560 (DRAM-less) NVMe SSD \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -378,11 +378,11 @@ This gives long benchmarks and short benchmarks which exercise the same function
 In particular, we use:
 
 1. The log overhead ratio of running the benchmark in each provenance collectors.
-   We use the logarithm of the ratio, rather than the ratio directly because the ratio is be distributed symmetrically, but the logarithm may be.
+   We use the logarithm of the ratio, rather than the ratio directly because the ratio cannot be distributed symmetrically, but the logarithm may be.
    Suppose some provenance collector makes programs take roughly twice as long, but with a large amount of variance, so the expected value of the ratio is 2.
-   A symmetric distribution would require the probability of observing a ratio of -1 for a particular program is equal to the probability of observing a ratio of 5, but a ratio of -1 is clearly impossible, while 5 is may possible due to the large variance.
+   A symmetric distribution would require the probability of observing a ratio of -1 for a particular program is equal to the probability of observing a ratio of 5, but a ratio of -1 is impossible, while 5 is may possible due to the large variance.
    On the other hand, $\log x$ maps postive numbers (like ratios) to real numbers (which may be symmetrically distributed); $e^{0.3} \approx 2$, $e^{0.7} \approx 5$, and $e^{-0.1} = 0.9$ (negative logs indicate a speedup rather than slowdown, which are theoretically possible).
-   Another reason: exp(arithmean(log(x))) is equal to geomean(x), which is preferred over arithmean(x) for performance ratios according to Mashey \cite{masheyWarBenchmarkMeans2004}.
+   Also note that exp(arithmean(log(x))) is the same as geomean(x), which is preferred over arithmean(x) for performance ratios according to Mashey \cite{masheyWarBenchmarkMeans2004}.
 
 2. The ratio of CPU time to wall time.
    When limited to a single core on an unloaded system, wall time includes I/O but CPU time does not.
@@ -407,19 +407,27 @@ We will determine the best $k$ experimentally.
 
 ## Performance Model
 
-A related problem to subsetting is inferring a performance model.
+A related problem to subsetting is inferring a performance model, which would predict the approximate overhead of a workload under different provenance systems based on characteristics of the workload.
 There are two motivations for inferring a performance model:
 
 - A sysadmin may wish to provide a computational provenance capturing system to their institution, but getting approval to run new software on their system may be expensive (e.g., on highly secure systems, the sysadmin may need to acquire a security audit of the code before it can be approved for use).
   They may want to prospectively estimate the overhead of provenance collectors without having to install all the provenance collectors on their system, so they can select the optimal collector for their use-case.
 
-- Inferring a provenance model may improve our understanding of the bottlenecks in provenance collectors.
+- Inferring a performance model may improve our understanding of the bottlenecks in provenance collectors.
 
-A performance model should input features of a prospective workload and output the approximate overhead under different systems.
 A priori, provenance collectors put a "tax" on certain syscalls (e.g., file I/O operations, process forks, process execs), because the system has to intercept and record these
 Therefore, we expect a low-dimensional linear model (perhaps number of I/O operations per second times a weight plus number of forks per second times another weight) would predict overhead optimally.
-To estimate this, we use the following models:
+To estimate this, we use the following models non-negative LASSO regression.
+Non-negativity allows us to interpret the coefficients of the model as the slowdown imposed by specific syscalls.
+LASSO tries to find a sparse linear model, ignoring as many features as possible while still maintaining good results.
+LASSO's tradeoff between ignoring features and getting better accuracy is determined by $\alpha$.
+We will determine the optimal $\alpha$ through cross-validation.
+Outside of that cross-validation, we use a larger cross-validation to estimate out-of-sample standard error of the predictor.
 
+Unlike the previous section, we are not comparing provenance systems as a ratio to native; we are trying to find a dependency on the absolute number of system calls to an absolute amount of time (e.g., "every open costs 100 extra ns").
+Therefore, we regress the difference between provenance and no-provenance wallclock time, and we use absolute (non-standardized) features.
+
+<!--
 - **Ordinary least-squares (OLS) linear regression**.
   We estimate the runtime of each benchmark on each provenance collector as a linear regression of the features of each benchmark, learning weights for each feature in each provenance collector using ordinary least-squares.
   This would create a model like $\mathrm{weight}_1 \cdot \mathrm{feature}_1 + \mathrm{weight}_2 \cdot \mathrm{feature}_2 + \cdots$
@@ -433,12 +441,7 @@ To estimate this, we use the following models:
 - **OLS on a greedy/random subset of features.**
   This method proceeds like the OLS regression, except it only uses a subset of the features, ignoring the rest.
   We tried two algorithms: greedy, which picks one additional feature that decreases loss the most until it has $k$ features, and random, which selects a random $k$-sized subset, using $k n_{\mathrm{bmarks}}$ parameters.
-
-We use the same features as in \Cref{benchmark-subsetting}, but with the addition of a constant term, for a provenance collectors which have a fixed startup cost.
-
-We use k-fold cross-validation to estimate generalizability of the predictor.
-While cross-validation does punish model-complexity and overfitting to some extent, we will still take the number of parameters into account when deciding the "best" model in the interest of epistemic modesty.
-Preferring fewer parameters makes the model more generalizable on out-of-domain data, since even our full cross-validation data is necessarily incomplete.
+-->
 
 <!--
 
@@ -463,9 +466,8 @@ Cross-validation proceeds in the following manner, given $n$ benchmarks and $f$ 
 
 @Tbl:tools shows the provenance collectors we collected and their qualitative features.
 Because there are not many open-source provenance collectors in prior work, we also include the following tools, which are not necessarily provenance collectors, but may be adapted as such: strace, ltrace, fsatrace, and RR.
-See \Cref{notable-provenance-collectors} for more in-depth description of each collector.
-The second column shows the "collection method."
-See \Cref{collection-methods} for their exact definition.
+See \Cref{notable-provenance-collectors} for more in-depth description of notable provenance collectors.
+The second column shows the "collection method" (see \Cref{collection-methods} for their exact definition).
 
 The last column in the table categorizes the "state" of that provenance collector in this work into one of the following:
 
@@ -524,7 +526,10 @@ The last column in the table categorizes the "state" of that provenance collecto
   We reproduced this provenance collector on all of the benchmarks.
 
 \begin{table}
-\caption{Provenance collectors from our search results and from experience.}
+\caption{
+  Provenance collectors from our search results and from experience.
+  See \Cref{collection-methods} for their exact definition.
+}
 \label{tbl:tools}
 %\begin{minipage}{\columnwidth}
 \begin{center}
@@ -675,36 +680,39 @@ Prior works & This work & Instances     & Benchmark group and examples from prio
 \label{tbl:benchmark-results}
 \begin{center}
 \footnotesize
+%%%%%%%%% generated from script
 \begin{tabular}{lllllll}
 \toprule
  & (none) & fsatrace & CARE & strace & RR & ReproZip \\
 \midrule
-BLAST  & 0 & -0 & 1 & 2 & 93 & 8 \\
-CPU bench SPLASH-3 & 0 & 2 & 7 & 18 & 47 & 74 \\
-Compile Spack & 0 & 0 & 121 & 114 & 569 & 363 \\
-Compile gcc & 0 & 4 & 135 & 222 & 316 & 342 \\
-Compile latex & 0 & 5 & 70 & 39 & 19 & 288 \\
-Data science Notebook & 0 & 1 & 15 & 33 & 21 & 192 \\
-Data science python & 0 & 4 & 84 & 83 & 151 & 342 \\
-FTP srv/client & 0 & 0 & 2 & 4 & 5 & 18 \\
-HTTP srv/client & 0 & -32 & 11 & 19 & 114 & 207 \\
-HTTP srv/traffic & 0 & 5 & 138 & 421 & 1144 & 730 \\
-IO bench lmbench & 0 & -10 & 1 & 3 & 10 & 36 \\
-IO bench postmark & 0 & 13 & 261 & 804 & 292 & 1962 \\
-Un/archive Archive & 0 & -2 & 75 & 121 & 180 & 139 \\
-Un/archive Unarchive & 0 & 3 & 42 & 118 & 193 & 147 \\
-Utils  & 0 & 16 & 113 & 285 & 1366 & 693 \\
-Utils bash & 0 & 22 & 121 & 45 & 567 & 3864 \\
-VCS checkout  & 0 & 6 & 73 & 188 & 178 & 428 \\
-cp  & 0 & 42 & 650 & 393 & 246 & 5895 \\
+BLAST  & 0 & 0 & 2 & 2 & 93 & 8 \\
+CPU bench SPLASH-3 & 0 & 5 & 9 & 16 & 49 & 75 \\
+Compile w/Spack & 0 & -1 & 119 & 111 & 562 & 359 \\
+Compile w/gcc & 0 & 4 & 136 & 206 & 321 & 344 \\
+Compile w/latex & 0 & 7 & 72 & 40 & 23 & 288 \\
+Data science Notebook & 0 & 4 & 15 & 32 & 20 & 174 \\
+Data science python & 0 & 5 & 85 & 84 & 150 & 346 \\
+FTP srv/client & 0 & 1 & 2 & 4 & 5 & 18 \\
+HTTP srv/client & 0 & -23 & 20 & 33 & 165 & 248 \\
+HTTP srv/traffic & 0 & 5 & 135 & 414 & 1261 & 724 \\
+IO bench lmbench & 0 & -10 & 1 & 3 & 11 & 36 \\
+IO bench postmark & 0 & 2 & 231 & 650 & 259 & 1733 \\
+Tar Archive & 0 & -0 & 75 & 113 & 179 & 140 \\
+Tar Unarchive & 0 & 4 & 44 & 114 & 195 & 149 \\
+Utils  & 0 & 17 & 118 & 280 & 1378 & 697 \\
+Utils bash & 0 & 5 & 75 & 20 & 426 & 2933 \\
+VCS checkout  & 0 & 5 & 71 & 160 & 177 & 428 \\
+cp  & 0 & 37 & 641 & 380 & 232 & 5791 \\
 \midrule
-Total (gmean) & 0 & 0 & 45 & 69 & 145 & 196 \\
+Total (gmean) & 0 & 0 & 45 & 66 & 146 & 193 \\
 \bottomrule
 \end{tabular}
+%%%%%%%%%
 \normalsize
 \end{center}
 \end{table}
 
+Table @Tbl:benchmark-results shows the aggregated performance of our implemented benchmarks in our implemented provenance collectors.
 From this we observe:
 
 - Although SPLASH-3 CPU-oriented benchmarks contain mostly CPU-bound tasks, they often need to load data from a file, which does invoke the I/O subsystem.
@@ -789,7 +797,7 @@ From these two, we offer the following observations:
   lmbench is particularly scattered with points at $(-1, 0)$ and $(0, 5)$, perhaps because it is a microbenchmark suite where each microbenchmark program tests a different subsystem.
 
 4. Postmark is intended to simulate the file system traffic of a web server (many small file I/O).
-   Indeed the Postmark at $(4, -2)$ falls near several of the HTTP servers at $(4, -2)$ and $(6, -2)$.
+   Indeed the Postmark at $(3.5, -2)$ falls near several of the HTTP servers at $(6, -3)$ and $(7, -3)$.
    Copy is also similar.
 
 \begin{figure}
@@ -798,9 +806,7 @@ From these two, we offer the following observations:
 \caption{
   Dendrogram showing the distance between clusters.
   A fork at $x = x_0$ indicates that below that threshold of within-cluster variance, the two children clsuters are far away enough that they should be split into two; conversely, above that threshold they are close enough to be combined.
-  We label each cluster by their ``selected benchmark.''
-  If there is a colon and a number after the name, it indicates the number of benchmarks contained in that cluster.
-  Otherwise, the cluster is a singleton.
+  See \Cref{fig:dendrogram-full} for a bigger version that includes all benchmarks.
 }
 \label{fig:dendrogram}
 \end{center}
@@ -809,27 +815,41 @@ From these two, we offer the following observations:
 \begin{table}
 \begin{center}
 \footnotesize
-\begin{tabular}{p{0.11\textwidth}p{0.05\textwidth}p{0.25\textwidth}}
-Tar Unarchive (pigz)           &  0.0 & Compile gcc (hello-world), Compile gcc (threads), Data science python (python-hello-world), IO bench lmbench (fstat), IO bench lmbench (stat), Tar Unarchive (gzip), Tar Unarchive (unarchive), VCS checkout  (git git-repo-1), VCS checkout  (hg hg-repo-1) \\
-Compile Spack (perl)           &  5.7 & Compile Spack (git), Compile Spack (hdf5~mpi), Compile Spack (python) \\
-Utils  (hello)                 &  8.0 & Utils  (echo), Utils  (ls), Utils  (ps), Utils  (true) \\
-IO bench postmark (main)       &  8.8 & Tar Archive (archive), cp  (linux), cp  (smaller) \\
-Tar Archive (bzip2)            &  55.0 & BLAST  (blastn), BLAST  (blastp), BLAST  (blastx), BLAST  (mega), BLAST  (tblastn), BLAST  (tblastx), CPU bench SPLASH-3 (cholesky), CPU bench SPLASH-3 (lu), CPU bench SPLASH-3 (nsquared), CPU bench SPLASH-3 (ocean), CPU bench SPLASH-3 (radiosity), CPU bench SPLASH-3 (radix), CPU bench SPLASH-3 (raytrace), CPU bench SPLASH-3 (spatial), CPU bench SPLASH-3 (volrend), Compile latex (doc1), Compile latex (doc2), Data science Notebook (nb-1), Data science Notebook (nb-2), Data science Notebook (nb-3), Data science python (python-import), FTP srv/client (curl), FTP srv/client (lftp), FTP srv/client (wget), HTTP srv/client (curl), HTTP srv/client (wget), HTTP srv/traffic (minihttp), IO bench lmbench (bw\_file\_rd), IO bench lmbench (bw\_pipe), IO bench lmbench (bw\_unix), IO bench lmbench (catch-signal), IO bench lmbench (fs), IO bench lmbench (getppid), IO bench lmbench (install-signal), IO bench lmbench (mmap), IO bench lmbench (page-fault), IO bench lmbench (protection-fault), IO bench lmbench (read), IO bench lmbench (select-file), IO bench lmbench (select-tcp), IO bench lmbench (write), Tar Archive (gzip), Tar Unarchive (bzip2) \\
-Tar Unarchive (pbzip2)         &  7.7 & HTTP srv/traffic (lighttpd), Tar Archive (pbzip2), Tar Archive (pigz) \\
-IO bench lmbench (fork)        &  1.0 &  \\
-HTTP srv/traffic (apache)      &  0.7 &  \\
-IO bench lmbench (open/close)  &  2.2 &  \\
-HTTP srv/traffic (nginx)       &  2.0 &  \\
-Utils bash (shell-incr)        &  4.5 & CPU bench SPLASH-3 (fft), Utils bash (shell-echo) \\
-HTTP srv/traffic (simplehttp)  &  1.5 &  \\
-Utils bash (cd)                &  1.5 &  \\
-IO bench lmbench (exec)        &  1.5 &  \\
+\begin{tabular}{l p{0.4\textwidth}}
+\toprule
+W & \textbf{Representative} \\
+  & Members \\
+%%%%%%%%%%%%%%%% generated
 \midrule
-all                            & 100.2 & \\
+ 54.7 & \textbf{CPU bench SPLASH-3 (nsquared)}                                                            \\
+     & BLAST  (all), CPU bench SPLASH-3 (ocean, lu, cholesky, radiosity, spatial, volrend, radix, raytrace), Compile w/latex (all), Data science Notebook (all), FTP srv/client (all), HTTP srv/client (all), HTTP srv/traffic (minihttp), IO bench lmbench (write, select-file, mmap, catch-signal, protection-fault, getppid, install-signal, page-fault, fs, bw\_unix, select-tcp, bw\_file\_rd, bw\_pipe, read), Tar Archive (gzip, bzip2), Tar Unarchive (bzip2) \\
+ 12.7 & \textbf{IO bench postmark (main)}                                                                 \\
+     & Tar Archive (archive), cp  (all)                                                                  \\
+ 7.7 & \textbf{Tar Unarchive (pbzip2)}                                                                   \\
+     & HTTP srv/traffic (lighttpd), Tar Archive (pigz, pbzip2)                                           \\
+ 5.8 & \textbf{Compile w/Spack (python)}                                                                 \\
+     & Compile w/Spack (rest)                                                                            \\
+ 5.4 & \textbf{Utils  (hello)}                                                                           \\
+     & Utils  (rest)                                                                                     \\
+ 3.7 & \textbf{Utils bash (shell-incr)}                                                                  \\
+     & CPU bench SPLASH-3 (fft), Utils bash (shell-echo)                                                 \\
+ 1.6 & \textbf{Utils bash (cd)}                                                                          \\
+ 1.4 & \textbf{IO bench lmbench (exec)}                                                                  \\
+ 1.4 & \textbf{HTTP srv/traffic (nginx)}                                                                 \\
+ 1.3 & \textbf{IO bench lmbench (open/close)}                                                            \\
+ 1.2 & \textbf{HTTP srv/traffic (simplehttp)}                                                            \\
+ 1.0 & \textbf{IO bench lmbench (fork)}                                                                  \\
+ 0.2 & \textbf{HTTP srv/traffic (apache)}                                                                \\
+ 0.0 & \textbf{Tar Unarchive (pigz)}                                                                     \\
+     & Compile w/gcc (all), Data science python (all), IO bench lmbench (stat, fstat), Tar Unarchive (gzip, unarchive), VCS checkout  (all) \\
+\midrule
+98.1 & \textbf{Sum} \\
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\bottomrule
 \end{tabular}
 \normalsize
 \caption{
-  A table showing cluster membership and weights.
+  A table showing cluster membership and weights as percentages.
   The weights show one way of approximating the features in the original set, which is by multiplying the features of the cluster representative by the weight and summing over all clusters.
 }
 \label{tbl:members}
@@ -839,10 +859,12 @@ all                            & 100.2 & \\
 To elucidate the structure of the clusters, we plotted a dendrogram (@Fig:dendrogram) and listed the members of each cluster (@Tbl:members).
 We offer the following observations:
 
-1. Fork and exec are close in feature-space, probably because programs usually do both.
+1. lmbench fork and lmbenhc exec are close in feature-space, probably because programs usually do both.
 
-2. cd and shell-echo are near each other.
-   It is surprising that blastn is also near cd and shell-echo, but they both have similar cputime-to-walltime ratios.
+2. Utilities (especially GNU hello which just prints hello and exits), terminate very quickly, so they probably measure resources used to load and exit a program.
+   Note that we run these commands in a loop hundreds or thousands of times, so the runtime is more accurately measurable.
+   cd and shell-increment, on the other hand, are shell builtins, so they do not even need to load a program.
+   That cluster probably represents purely CPU-bound workloads.
 
 3. Many of the CPU-heavy workloads are grouped together, under lm-protection-fault.
 
@@ -872,71 +894,43 @@ Likewise, work on security should include HTTP servers.
 
 ## Predictive Model
 
-\begin{figure}
-\begin{center}
-\includegraphics[width=0.49\textwidth]{generated/predictive-performance.pdf}
-\caption{Competition between predictive performance models. Pure linear regression only has one instance with $n_{\mathrm{feats}} \times n_{\mathrm{bmarks}}$ parameters; the others have with varying numbers of parameters.}
-\label{fig:predictive-performance}
-\end{center}
-\end{figure}
-
-@Fig:predictive-performance shows us the competition between predictive performance models.
-We observe the following:
-
-- When the number of parameters is large, all of the algorithms preform similarly;
-  Even though greedy feature selection is more constrained than low-rank matrix factorization (every solution found by greedy is a candidate used by low-rank, but not vice versa), there are enough degrees of freedom to find similar enough candidates.
-
-- Linear regression has equivalent goodness-of-fit to matrix factorization with a high $k$, as expected.
-  When the compression factor is low, the compressed version is just as good as the original.
-
-- Random-best usually does not do better than greedy feature selection.
-  However, greedy is much easier to compute.
-  Greedy is not necessarily optimal, but our problem domain may lack the complexity to generate these cases.
-
-Greedy feature selection with 20 parameters (predicting the performance on 5 systems using only $k = 4$ of 16 features) seems to preform the best in cross-validation.
-Assuming the errors are iid and normally distributed, we find the standard error is about 0.95 in log-space or $e^{0.95} \approx 2.6$ in real-space.
-Within the sample, 68% of the data falls within a factor of 2.6 (one standard error) and 95% falls within a factor of $e^{2 \cdot 0.95} \approx 6.7$, which is quite bad.
-We view this result as saying, the performance overhead of provenance collectors is not easily predictable, even given our features (including the syscall-rates) of the program.
-
-<!--
-On 19 out of 20 cross-validation splits, greedy feature selection with $k=4$ chose the parameters in @Tbl:params.
-
-\begin{table}
+\begin{table*}
 \begin{center}
 \scriptsize
-\begin{tabular}{p{0.04\textwidth}p{0.09\textwidth}p{0.09\textwidth}p{0.09\textwidth}p{0.09\textwidth}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{tabular}{lllllllllll}
 \toprule
- & metadata-reads per walltime second & constant fraction & cputime / walltime & execs-and-forks per walltime second \\
+Collector  & Rel. err. 95\% interval& Intercept & Time multiplier    & \multicolumn{7}{c}{Estimate syscall latencies (microseconds)} \\
+           &                    &           &                    & metadata           & file              & IPC       & dir       & chdir     & other     & socket    \\
 \midrule
-fsatrace & 0.000003 & -0.001236 & -0.024958 & 0.000064 \\
-noprov & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
-reprozip & 0.000043 & -0.027311 & 0.266969 & 0.000438 \\
-rr & 0.000021 & -0.011208 & 0.404307 & 0.000878 \\
-strace & 0.000029 & -0.002243 & 0.229129 & 0.000312 \\
+CARE       &                1.5 &       0.7 &                1.0 &                  3 &                  8 &                444 &                  2 &               1326 &                810 &                    \\
+RR         &               42.6 &       5.2 &                1.1 &                 12 &                 17 &               4725 &                 17 &              10344 &               1031 &               1163 \\
+ReproZip   &               27.4 &       8.8 &                1.0 &                 16 &                 16 &               4287 &                    &                    &                203 &                165 \\
+fsatrace   &                0.1 &      -0.1 &                1.0 &                    &                    &                    &                    &                    &                    &                    \\
+strace     &                5.0 &       1.8 &                1.0 &                  8 &                  6 &                941 &                  1 &               1100 &                    &                148 \\
 \bottomrule
 \end{tabular}
-\caption{Linear regression, using benchmark subset to approximate the original benchmark.}
-\label{tbl:params}
-\end{center}
-\end{table}
-
-For example to estimate the overhead of fsatrace, we would use the first row of @Tbl:params,
-
-\small
-
-$$\begin{array}{rl}
-\log \frac{\mathrm{walltime}_{\mathrm{fsatrace}}}{\mathrm{walltime}_{\mathrm{noprov}}} =
-& 3 \times 10^{-6} \qty(\frac{\mathrm{metadata\ reads}}{\mathrm{walltime}_{\mathrm{noprov}}})
-- 0.001 \cdot \qty(\frac{1}{\mathrm{walltime}_{\mathrm{noprov}}}) \\
-& - 0.02 \cdot \qty( \frac{\mathrm{cputime}_\mathrm{noprov}}{\mathrm{walltime}_{\mathrm{noprov}}})
-+ 6 \times 10^{-5} \cdot \qty(\frac{\mathrm{execs\ and\ forks}}{\mathrm{walltime}_{\mathrm{noprov}}}) \\
-\end{array}$$
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \normalsize
+\end{center}
+\caption{
+  Coefficients of a predictive performance model.
+  95\% error interval shows that most of the time, the relative error percentage is bounded by the value in that cell.
+  The intercept represents a constant amount of time added on to the programs runtime. fsatrace does not make a program with no syscalls 0.1 seconds faster; this is how the model learned to minimize errors due to missing factors elsewhere.
+  The "original time" column is a multiplier on the original time, probably needed to represent slowdowns not associated with these particular syscalls.
+  Finally, syscall overheads columns show the learned cost of those sycalls in microseconds.
+}
+\label{tbl:predictive}
+\end{table*}
 
--->
+From the predictive performance model in @Tbl:predictive, we can see:
 
-<!-- TODO: consider a non-negative linear regression -->
+- The performance model for ReproZip and RR can be off by almost 30% and 50%, so we should be wary about drawing conclusions from the coefficients of that model.
+
+- RR appears to have a slowdown even on programs with no syscalls.
+  This could probably be externalized into other independent variables, but the variables we use are not a complete enough, so the model learned to predict runtimes by the heuristic that all programs get 10% slower, even before counting for syscalls.
+
+- 
 
 <!--
 The system calls features can be observed using strace.
@@ -950,7 +944,6 @@ One need not complete an entire execution to observe the these fatures; one mere
 @Tbl:implemented-benchmarks shows the top-used benchmarks are server programs, followed by I/O benchmarks.
 Server programs access a lot of small files, with concurrency, which is a different file-access pattern than scientific applications.
 BLAST (used by 5 / 29 publications with benchmarks, see @Tbl:prior-benchmarks) is the only scientific program to be used as a benchmark by more than one publication.
-Benchmark subsetting includes two<!--TODO: update with data--> different BLAST programs, because they are sufficiently different than the rest.
 
 One difference between security and computational science is that security-oriented provenance collectors have to work with adverserial programs:
 there should be no way for the program to circumvent the provenance tracing, e.g. `PTRACE_DETACH`.
@@ -965,7 +958,7 @@ Under this definition, non-trivial source-code compilation is a workflow.
 -->
 
 **Provenance collectors vary in power and speed, but fast-and-powerful could be possible.**
-While all bear the title, provenance collector, some are **monitoring**, merely recording a history of operations, while others are **interrupting**, interrupt the process when the program makes an operation.
+While all bear the title provenance collector, some are **monitoring**, merely recording a history of operations, while others are **interrupting**, interrupt the process when the program makes an operation.
 Fsatrace, Strace, and Ltrace are monitoring, while ReproZip, Sciunit, RR, CARE, and CDE are interrupting, using their interruption store a copy of the files that would be read or appended to by the process.
 We expect the monitoring collectors to be faster than the interrupting collectors, but the performance of strace is not that far off of the performance of RR<!--TODO: update with data.-->.
 Strace and RR both use ptrace, but strace does very little work while RR maintains may need to intercept and reinterpret the syscall, (see treatment of `mmap` in RR's publication [@ocallahanEngineeringRecordReplay2017]).
@@ -997,7 +990,7 @@ We mitigate measurement noise by:
 - Isolating the sample machine \Cref{performance-experiment}
 - Running the code in cgroups with a fixed allocation of CPU and RAM
 - Rewriting benchmarks that depend on internet resources to only depend on local resources
-- Averaging over 3<!--TODO: update--> iterations helps mitigate noise.
+- Averaging over 3 iterations helps mitigate noise.
 - Randomizing the order of each pair of collector and benchmark within each iteration
 We use cross-validation for the performance model
 
@@ -1113,7 +1106,6 @@ See @Tbl:prior-benchmarks for a list of prior publications and what benchmarks t
 \begin{table}[h]
 \caption{Benchmarks used by prior works on provenance collectors (sorted by year of publication).}
 \label{tbl:prior-benchmarks}
-%\begin{minipage}{\columnwidth}
 \begin{center}
 \scriptsize
 \begin{tabular}{p{0.10\textwidth}p{0.27\textwidth}p{0.06\textwidth}}
@@ -1153,9 +1145,19 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 \normalsize
 \end{tabular}
 \end{center}
-%\end{minipage}
 \end{table}
 \footnotetext{LogGC measures the offline running time and size of garbage collected logs; there is no comparison to native would be applicable.}
+
+\begin{figure*}
+\begin{center}
+\includegraphics[width=0.98\textwidth]{generated/dendrogram_full.pdf}
+\caption{
+  Dendrogram showing the distance between clusters.
+  See \Cref{fig:dendrogram} for details.
+}
+\label{fig:dendrogram-full}
+\end{center}
+\end{figure*}
 
 # Note on failed reproducibility
 
@@ -1194,7 +1196,8 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 
   [^cde-note]: See <https://github.com/usnistgov/corr-CDE/blob/v0.1/strace-4.6/cde.c#L2650>
 
-- **PTU** seemed to work outside of our container, but crashed strangely inside the container.
+- **PTU** seems to work on most test cases outside of our BenchExec container.
+  However, there is a bug causing it to crash inside our container.
   <!-- TODO: offer more details or debug -->
 
 - **Sciunit** works on most benchmarks, but exhausts the memory of our system when processing FTP server/client and Spack compile package.
@@ -1210,7 +1213,7 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 - **Compiling packages** from source is a common operation in computational science, so we implemented as many of these as we could and also implemented some of our own.
   However, compiling glibc and LLVM takes much longer than everything else in the benchmark suite, so we excluded LLVM and glibc.
   We implemented a pattern for compiling packages from Spack that discounts the time taken to download sources, counting only the time taken to unpack, patch, configure, compile, link, and install them.
-  We implemented compiling Python, Boost, HDF5, Apache, git, and Perl.<!--TODO: update with data.-->
+  We implemented compiling Python, HDF5, git, and Perl.
 
 - Implementing headless for **browsers** in "batch-mode" without GUI interaction is not impossibly difficult, but non-trivial.
   Furthermore, we deprioritized this benchmark because few computational science applications resemble the workload of a web browser.
@@ -1252,6 +1255,76 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 - The **other** benchmark programs are mostly specific desktop applications used only in one prior work.
   These would likely not yield any insights not already yielded by the benchmarks we implemented, and for each one we would need to build it from source, find a workload for it, and take the time to run it.
   They weigh little in the argument that our benchmark suite represents prior work, since they are only used in one prior work.
+
+# Reproducing
+
+We split this into three steps:
+
+1. Getting the software environment.
+2. Running the benchmarks.
+3. Running the analysis.
+
+## Getting the software environment with Nix
+
+Nix package manager^[See <https://nixos.org/guides/how-nix-works>] is a user-level package manager available on many platforms.
+Nix uses build-from-source and a binary cache; this is more resilient than Dockerhub because if the binary cache goes down or removes packages for any reason, the client can always build them from source, so long as the projects don't disappear from GitHub.
+We considered creating a Docker image, but BenchExec, the tool we use to get consistent running times, manipulates cgroups and systemd, and we did not have enough time to figure out how to run in Docker or Podman.
+
+Install Nix with:
+
+```sh
+$ curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+This installer also enables "flakes" and the "nix-command".
+If you installed Nix by another method, see [this page](https://nixos.wiki/wiki/Flakes) to enable flakes and the nix-command.
+
+```sh
+$ git clone https://github.com/charmoniumQ/prov-tracer
+$ cd prov-tracer/benchmark
+```
+
+Use Nix to build.
+We used `--max-jobs` to enable parallelism.
+This step takes about an hour on a modest machine with residential internet.
+
+```sh
+$ nix build --print-build-logs --max-jobs $(nproc) '.#env'
+```
+
+## Running the benchmarks
+
+Note that we use the Python from our software environment, not from the system, to improve determinism.
+We wrote a front-end to run the scripts called `runner.py`.
+
+
+Run with `--help` for more information.
+Briefly, it takes a `--collectors`, `--workloads`, `--iterations`, and `--parallelism` arguments, which specify what to run.
+For the paper, we ran
+
+```sh
+./result/bin/python runner.py --collectors working --workloads working --iterations 3 --parallelism 1
+```
+
+Multiple `--collectors` and `--workloads` can be given, for example,
+
+```sh
+./result/bin/python runner.py --collectors noprov --collectors strace --workloads lmbench --workloads postmark
+```
+
+See the bottom of `prov_collectors.py` and `workloads.py` for the name-mapping.
+
+# Running the analysis
+
+The analysis is written in a Jupyter notebook stored in `notebooks/cross-val.ipynb`.
+The notebook is commented.
+It begins by checking for anomalies in the data, which we've automated as much as possible, but please sanity check the graphs before proceeding.
+
+The notebook can eb launched from our software environment by:
+
+```sh
+env - PATH=$PWD/result/bin/jupyter notebook
+```
 
 # Open source contributions
 
