@@ -1,0 +1,183 @@
+@inproceedings{janinCAREComprehensiveArchiver2014,
+author = {Janin, Yves and Vincent, C\'{e}dric and Duraffort, R\'{e}mi},
+title = {CARE, the comprehensive archiver for reproducible execution},
+year = {2014},
+isbn = {9781450329514},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2618137.2618138},
+doi = {10.1145/2618137.2618138},
+abstract = {We present CARE, the Comprehensive Archiver for Reproducible Execution on Linux. CARE runs in userland, requires no setup and performs a single task: building an archive that contains selected executables and files accessed by a given application during an observation run. To reproduce computational results from this initial run, it is then enough to unpack the archive that comes equipped with all necessary tools for re-execution in a confined environment.Technically, CARE leverages on PRoot, a generic system call interposition engine that relies on the ptrace mechanism to monitor (and if needed to modify) system calls emitted by applications under scrutiny. PRoot is extensible and CARE is properly speaking an extension of PRoot. CARE is available on x86_64, x86 and ARM processors, and benefits from a new history-based algorithm that automatically selects files to be stored in a CARE archive.},
+booktitle = {Proceedings of the 1st ACM SIGPLAN Workshop on Reproducible Research Methodologies and New Publication Models in Computer Engineering},
+articleno = {1},
+numpages = {7},
+keywords = {CARE, Linux, PRoot, computational reproducibility, system calls},
+location = {Edinburgh, United Kingdom},
+series = {TRUST '14}
+}
+
+@article{liuProvBenchPerformanceProvenance2022,
+author = {Liu, Fang (Cherry) and Belgin, Mehmet and Zhang, Nuyun and Manalo, Kevin and Lara, Ruben and Stone, Christopher P. and Manno, Paul},
+title = {ProvBench: A performance provenance capturing framework for heterogeneous research computing environments},
+journal = {Concurrency and Computation: Practice and Experience},
+volume = {34},
+number = {10},
+pages = {e6820},
+keywords = {computing system, data analysis, performance benchmark, software tool},
+doi = {https://doi.org/10.1002/cpe.6820},
+url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/cpe.6820},
+eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/cpe.6820},
+abstract = {Abstract This article presents a benchmarking framework, namely “ProvBench,” with a specific focus on provenance of collected data, capable of identifying and measuring the impact of changes to hardware, operating system, software, middleware, and services that constitute a highly complex and heterogeneous research computing environment. The provenance is retained via detailed and automated recording of hardware details, runtime environment, software and libraries used, input data and results, as well as execution logs of the computation. This capability is particularly essential for constant monitoring and fast identification of abnormalities. The framework is compatible across different operating systems and varied software environments that support software modules. Its modular object-oriented design allows for easy expansions, that is, adding new software and tests is straightforward. ProvBench is being actively used in our center for testing acquired equipment, evaluation of preproduction systems, assessing the impact of system and software changes, finding bad nodes, and other useful purposes with successful results.},
+year = {2022}
+}
+
+@article{phansalkarSubsettingSPECCPU20062007,
+author = {Phansalkar, Aashish and Joshi, Ajay and John, Lizy K.},
+title = {Subsetting the SPEC CPU2006 benchmark suite},
+year = {2007},
+issue_date = {March 2007},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {35},
+number = {1},
+issn = {0163-5964},
+url = {https://doi.org/10.1145/1241601.1241616},
+doi = {10.1145/1241601.1241616},
+abstract = {On August 24, 2006, the Standard Performance Evaluation Corporation (SPEC) announced CPU2006 -- the next generation of industry-standardized CPU-intensive benchmark suite. The SPEC CPU benchmark suite has become the most frequently used suite for simulation-based computer architecture research. Detailed processor simulators take days to weeks to simulate each of the SPEC CPU programs. In order to reduce simulation to a tractable time, architects and researchers often use only a subset of benchmarks from the SPEC CPU suite to evaluate the potential of their ideas. Prior research has demonstrated that statistical techniques are most effective to find a representative subset of benchmark programs from a benchmark suite. The objective of this paper is to apply multivariate statistical data analysis techniques for selecting a representative subset of programs from the SPEC CPU2006 benchmark suite. We measure a set of performance counter based characteristics for the SPEC CPU2006 programs across a large number of architectures and apply multivariate statistical analysis techniques to find a representative subset of benchmarks and representative input sets wherever multiple input sets are provided. The results from this paper will help architects and researchers to find a smaller but representative set of programs from the SPEC CPU2006 benchmark suite, when time or resource constraints prohibit experimentation with the entire benchmark suite.},
+journal = {SIGARCH Comput. Archit. News},
+month = {mar},
+pages = {69–76},
+numpages = {8}
+}
+
+@inproceedings{devecseryEideticSystems2014,
+author = {David Devecsery and MIchael Chow and Xianzheng Dou and Jason Flinn and Peter M. Chen},
+title = {Eidetic Systems},
+booktitle = {11th USENIX Symposium on Operating Systems Design and Implementation (OSDI 14)},
+year = {2014},
+isbn = { 978-1-931971-16-4},
+address = {Broomfield, CO},
+pages = {525--540},
+url = {https://www.usenix.org/conference/osdi14/technical-sessions/presentation/devecsery},
+publisher = {USENIX Association},
+month = oct
+}
+
+@inproceedings{shanUsingIORAnalyze2007,
+title = {Using IOR to analyze the I/O Performance for HPC Platforms},
+author = {Shan, Hongzhang and Shalf, John},
+abstractNote = {The HPC community is preparing to deploy petaflop-scale computing platforms that may include hundreds of thousands to millions of computational cores over the next 3 years. Such explosive growth in concurrency creates daunting challenges for the design and implementation of the I/O system. In this work, we first analyzed the I/O practices and requirements of current HPC applications and used them as criteria to select a subset of microbenchmarks that reflect the workload requirements. Our analysis led to selection of IOR, an I/O benchmark developed by LLNL for the ASCI Purple procurement, as our tool to study the I/O performance on two HPC platforms. We selected parameterizations for IOR that match the requirements of key I/O intensive applications to assess its fidelity in reproducing their performance characteristics.},
+booktitle = {Conference: Cray User Group Conference},
+place = {Seattle, WA},
+url = {https://www.osti.gov/biblio/923356},
+place = {United States},
+year = {2007},
+month = {6}
+}
+
+@inproceedings{liH5benchHDF5IO2021,
+  title={h5bench: HDF5 I/O kernel suite for exercising HPC I/O patterns},
+  author={Li, Tonglin and Byna, Suren and Koziol, Quincey and Tang, Houjun and Bez, Jean Luca and Kang, Qiao},
+  booktitle={Proceedings of Cray User Group Meeting, CUG},
+  volume={2021},
+  year={2021}
+}
+
+@article{10.1145/225830.223990,
+author = {Woo, Steven Cameron and Ohara, Moriyoshi and Torrie, Evan and Singh, Jaswinder Pal and Gupta, Anoop},
+title = {The SPLASH-2 programs: characterization and methodological considerations},
+year = {1995},
+issue_date = {May 1995},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {23},
+number = {2},
+issn = {0163-5964},
+url = {https://doi.org/10.1145/225830.223990},
+doi = {10.1145/225830.223990},
+abstract = {The SPLASH-2 suite of parallel applications has recently been released to facilitate the study of centralized and distributed shared-address-space multiprocessors. In this context, this paper has two goals. One is to quantitatively characterize the SPLASH-2 programs in terms of fundamental properties and architectural interactions that are important to understand them well. The properties we study include the computational load balance, communication to computation ratio and traffic needs, important working set sizes, and issues related to spatial locality, as well as how these properties scale with problem size and the number of processors. The other, related goal is methodological: to assist people who will use the programs in architectural evaluations to prune the space of application and machine parameters in an informed and meaningful way. For example, by characterizing the working sets of the applications, we describe which operating points in terms of cache size and problem size are representative of realistic situations, which are not, and which re redundant. Using SPLASH-2 as an example, we hope to convey the importance of understanding the interplay of problem size, number of processors, and working sets in designing experiments and interpreting their results.},
+journal = {SIGARCH Comput. Archit. News},
+month = {may},
+pages = {24–36},
+numpages = {13}
+}
+
+@inproceedings{wooSPLASH2Programs1995,
+author = {Woo, Steven Cameron and Ohara, Moriyoshi and Torrie, Evan and Singh, Jaswinder Pal and Gupta, Anoop},
+title = {The SPLASH-2 programs: characterization and methodological considerations},
+year = {1995},
+isbn = {0897916980},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/223982.223990},
+doi = {10.1145/223982.223990},
+abstract = {The SPLASH-2 suite of parallel applications has recently been released to facilitate the study of centralized and distributed shared-address-space multiprocessors. In this context, this paper has two goals. One is to quantitatively characterize the SPLASH-2 programs in terms of fundamental properties and architectural interactions that are important to understand them well. The properties we study include the computational load balance, communication to computation ratio and traffic needs, important working set sizes, and issues related to spatial locality, as well as how these properties scale with problem size and the number of processors. The other, related goal is methodological: to assist people who will use the programs in architectural evaluations to prune the space of application and machine parameters in an informed and meaningful way. For example, by characterizing the working sets of the applications, we describe which operating points in terms of cache size and problem size are representative of realistic situations, which are not, and which re redundant. Using SPLASH-2 as an example, we hope to convey the importance of understanding the interplay of problem size, number of processors, and working sets in designing experiments and interpreting their results.},
+booktitle = {Proceedings of the 22nd Annual International Symposium on Computer Architecture},
+pages = {24–36},
+numpages = {13},
+location = {S. Margherita Ligure, Italy},
+series = {ISCA '95}
+}
+
+@techreport{herouxHPCGBenchmarkTechnical2013,
+title = {HPCG Benchmark Technical Specification},
+author = {Heroux, Michael Allen and Dongarra, Jack and Luszczek, Piotr},
+abstractNote = {The High Performance Conjugate Gradient (HPCG) benchmark [cite SNL, UTK reports] is a tool for ranking computer systems based on a simple additive Schwarz, symmetric Gauss-Seidel preconditioned conjugate gradient solver. HPCG is similar to the High Performance Linpack (HPL), or Top 500, benchmark [1] in its purpose, but HPCG is intended to better represent how today’s applications perform. In this paper we describe the technical details of HPCG: how it is designed and implemented, what code transformations are permitted and how to interpret and report results.},
+doi = {10.2172/1113870},
+url = {https://www.osti.gov/biblio/1113870},
+institution = {Sandia National Lab.},
+number = {SAND2013-8752},
+place = {United States},
+year = {2013},
+month = {10}
+}
+
+@article{kimProvenanceTrailsWings2008,
+author = {Kim, Jihie and Deelman, Ewa and Gil, Yolanda and Mehta, Gaurang and Ratnakar, Varun},
+title = {Provenance trails in the Wings/Pegasus system},
+journal = {Concurrency and Computation: Practice and Experience},
+volume = {20},
+number = {5},
+pages = {587-597},
+keywords = {semantic metadata, large scientific workflows, workflow validation, workflow mapping, workflow provenance, refinement provenance},
+doi = {https://doi.org/10.1002/cpe.1228},
+url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/cpe.1228},
+eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/cpe.1228},
+abstract = {Abstract Our research focuses on creating and executing large-scale scientific workflows that often involve thousands of computations over distributed, shared resources. We describe an approach to workflow creation and refinement that uses semantic representations to (1) describe complex scientific applications in a data-independent manner, (2) automatically generate workflows of computations for given data sets, and (3) map the workflows to available computing resources for efficient execution. Our approach is implemented in the Wings/Pegasus workflow system and has been demonstrated in a variety of scientific application domains. This paper illustrates the application-level provenance information generated Wings during workflow creation and the refinement provenance by the Pegasus mapping system for execution over grid computing environments. We show how this information is used in answering the queries of the First Provenance Challenge. Copyright © 2007 John Wiley \& Sons, Ltd.},
+year = {2008}
+}
+
+@INPROCEEDINGS{callahanManagingEvolutionDataflows2006,
+  author={Callahan, S.P. and Freire, J. and Santos, E. and Scheidegger, C.E. and Silva, C.T. and Huy T. Vo},
+  booktitle={22nd International Conference on Data Engineering Workshops (ICDEW'06)}, 
+  title={Managing the Evolution of Dataflows with VisTrails}, 
+  year={2006},
+  volume={},
+  number={},
+  pages={71-71},
+  abstract={Scientists are now faced with an incredible volume of data to analyze. To successfully analyze and validate various hypotheses, it is necessary to pose several queries, correlate disparate data, and create insightful visualizations of both the simulated processes and observed phenomena. Data exploration through visualization requires scientists to go through several steps. In essence, they need to assemble complex workflows that consist of dataset selection, specification of series of operations that need to be applied to the data, and the creation of appropriate visual representations, before they can finally view and analyze the results. Often, insight comes from comparing the results of multiple visualizations that are created during the data exploration process.},
+  keywords={Data visualization;Data analysis;Analytical models;Assembly systems;Pipelines;History;Software libraries;Navigation},
+  doi={10.1109/ICDEW.2006.75},
+  ISSN={},
+  month={April},}
+
+@article{masheyWarBenchmarkMeans2004,
+author = {Mashey, John R.},
+title = {War of the benchmark means: time for a truce},
+year = {2004},
+issue_date = {September 2004},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {32},
+number = {4},
+issn = {0163-5964},
+url = {https://doi.org/10.1145/1040136.1040137},
+doi = {10.1145/1040136.1040137},
+abstract = {For decades, computer benchmarkers have fought a War of Means. Although many have raised concerns with the geometric mean (GM), it continues to be used by SPEC and others. This war is an unnecessarymisunderstanding due to inadequately articulated implicit assumptions, plus confusio namong populations, their parameters, sampling methods, and sample statistics. In fact, all the Means have their uses, sometimes in combination. Metrics may be algebraically correct, but statistically irrelevant or misleading if applied to population distributions for which they are inappropriate. Normal (Gaussian) distributions are so useful that they are often assumed without question,but many important distributions are not normal.They require different analyses, most commonly by finding a mathematical transformations that yields a normal distribution,computing the metrics, and then back-transforming to the original scale. Consider the distribution of relative performance ratios of programs on two computers. The normal distribution is a good fit only when variance and skew are small, but otherwise generates logical impossibilities and misleading statistical measures. A much better choice is the lognormal (or log-normal) distribution, not just on theoretical grounds, but through the (necessary) validation with real data. Normal and lognormal distributions are similar for low variance and skew, but the lognormal handles skewed distributions reasonably, unlike the normal. Lognormal distributions occur frequently elsewhere are well-understood, and have standard methods of analysis.Everyone agrees that "Performance is not a single number," ... and then argues about which number is better. It is more important to understanding populations, appropriate methods, and proper ways to convey uncertainty. When population parameters are estimated via samples, statistically correct methods must be used to produce the appropriate means, measures of dispersion, Skew, confidence levels, and perhaps goodness-of-fit estimators. If the wrong Mean is chosen, it is difficult to achieve much. The GM predicts the mean relative performance of programs, not of workloads. The usual GM formula is rather unintuitive, and is often claimed to have no physical meaning. However, it is the back-transformed average of a lognormal distribution, as can be seen by the mathematical identity below. Its use is not onlystatistically appropriate in some cases, but enables straightforward computation of other useful statistics.<display equation>"If a man will begin in certainties, he shall end in doubts, but if he will be content to begin with doubts, he shall end with certainties."  — Francis Bacon, in Savage.},
+journal = {SIGARCH Comput. Archit. News},
+month = {sep},
+pages = {1–14},
+numpages = {14},
+keywords = {lognormal distribution, geometric mean, benchmarking}
+}
+

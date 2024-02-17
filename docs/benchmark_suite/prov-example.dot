@@ -9,9 +9,6 @@ digraph G {
   node [label="libc.so.6"] libc;
   node [label="database@v0"] database0;
   node [label="database@v1"] database1;
-  node [label="entry", shape="none"] user;
-
-  user -> proc1;
 
   bash -> proc1 [label="exec(binary, args, env)"];
   libc -> proc1 [label="loader"];
