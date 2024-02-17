@@ -3,8 +3,8 @@ digraph G {
   node [label="figure.png"] graph_png;
   node [label="/bin/python"] python;
   node [label="matplotlib.py"] matplotlib;
-  node [label="PID=2"] proc2;
-  node [label="PID=1"] proc1;
+  node [label="PID=123"] proc2;
+  node [label="PID=456"] proc1;
   node [label="/bin/bash"] bash;
   node [label="libc.so.6"] libc;
   node [label="database@v0"] database0;
