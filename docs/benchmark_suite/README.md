@@ -119,17 +119,26 @@ Provenance data can provide crucial information about the hardware and software 
   We run a consistent set of benchmarks on a single machine over all provenance tools.
 -->
 
-- *We show that simple performance models are insufficient to capture the complexity of provenance collector overheads*:
+- *We develop a predictive performance model for each provenance collector*:
   We use linear models for predicting the overhead of an application in particular provenance collector based on the application's performance characteristics (e.g., number of file syscalls per second).
-  Despite trying linear regression, with and without rank reduction, with and without feature selection, our best model is still quite inaccurate, showing performance overhead of provenance collector is not as simple.
-  
+  These models can estimate hidden latencies in the system without directly observing them.
+
 The remainder of the paper is structured as follows.
 In \Cref{background}, we motivate the value of provenance and the pros/cons of system-level provenance compared to application- and workflow-level provenance.
 
 
 # Background
 
-Provenance tools and data have many potential applications, including the following from Pimentel et al. [@pimentelSurveyCollectingManaging2019] and Sar and Cao [@sarLineageFileSystem]:
+As one *Nature* editoralist put it, ``behind every great scientific finding of the modern age, there is a computer''[@perkel2021ten].
+The production of scientific results now often involve complex and lengthy operations on hardware and software systems;
+transparency is fundamental to the practice of science, and increasing the transparency of those processes is the end goal of provenance research.
+Provenance capture represents a wide spectrum of tools and techniques.
+A taxonomy by Regan et al. identifies five different kinds of provenance information:
+interaction (of user actions and commands on a system), data (of the transformation and movement of data), visualization (of the history of the representation of those results), insight (of the resulting hypotheses and analytic findings), and rationale (of the underlying reasoning and intentions behind running the software)[@ragan2015characterizing]. 
+
+In this paper, we focus our attention on system interaction and data provenance.
+A recent Department of Energy Advanced Scientific Computing Research report by Heroux et al. has called for further research to develop solutions for highly automatic and portable provenance capture and replay[@heroux2023basic].
+The potential applications for such tools are numerous, including the following noted by Pimentel et al. [@pimentelSurveyCollectingManaging2019] and Sar and Cao [@sarLineageFileSystem]:
 
 1. **Reproducibility**.
    A description of the inputs and processes used to generate a specific output can aid manual and automatic reproduction of that output[^acm-defns].
@@ -408,12 +417,7 @@ We will determine the best $k$ experimentally.
 ## Performance Model
 
 A related problem to subsetting is inferring a performance model, which would predict the approximate overhead of a workload under different provenance systems based on characteristics of the workload.
-There are two motivations for inferring a performance model:
-
-- A sysadmin may wish to provide a computational provenance capturing system to their institution, but getting approval to run new software on their system may be expensive (e.g., on highly secure systems, the sysadmin may need to acquire a security audit of the code before it can be approved for use).
-  They may want to prospectively estimate the overhead of provenance collectors without having to install all the provenance collectors on their system, so they can select the optimal collector for their use-case.
-
-- Inferring a performance model may improve our understanding of the bottlenecks in provenance collectors.
+Inferring a performance model may improve our understanding of the bottlenecks in provenance collectors.
 
 A priori, provenance collectors put a "tax" on certain syscalls (e.g., file I/O operations, process forks, process execs), because the system has to intercept and record these
 Therefore, we expect a low-dimensional linear model (perhaps number of I/O operations per second times a weight plus number of forks per second times another weight) would predict overhead optimally.
@@ -759,7 +763,7 @@ We observe:
 It seems that agglomerative clustering with $k=20$ has quite good performance, and further increases in $k$ exhibit diminishing returns.
 At that point, the RMSE of the linear regression is about 1.12.
 Assuming the error is iid and normally distributed, we can estimate the standard error of the approximation of the total benchmark by linear regression is about 0.12 (log-space) or $e^{0.12} \approx 1.12$ (real-space).
-Within the sample, 68% of the data falls within one standard error (either multiplied or divided by a factor of 1.12x) and 95% of the data falls within two standard errors (a factor of $e^{2 \cdot 0.12}$ or 1.25x).
+Within the sample, 68% of the data falls within one standard error (either multiplied or divided by a factor of 1.12x) and 95% of the data falls within two standard errors ( $e^{2 \cdot 0.12}$ or 1.25x).
 We examine the generated clusters and benchmark subset in @Fig:dendrogram and  @Tbl:members.
 
 \begin{figure*}
@@ -817,7 +821,7 @@ From these two, we offer the following observations:
 \footnotesize
 \begin{tabular}{l p{0.4\textwidth}}
 \toprule
-W & \textbf{Representative} \\
+  & \textbf{Representative} \\
   & Members \\
 %%%%%%%%%%%%%%%% generated
 \midrule
@@ -870,7 +874,7 @@ We offer the following observations:
 
 4. Many of the un/archive benchmarks are grouped together with lighttpd, which also accesses many files.
 
-### Our suggestion
+### Our suggested subset
 
 The programs in lmbench have very different performance characteristics (see @Fig:benchmark-groups).
 Due to their simplicity, their results are interpretable (e.g., testing latency of `open()` followed by `close()` in a tight loop).
@@ -879,10 +883,12 @@ If one has to run part of lmbench, it is not too hard to run all of lmbench.
 
 [^lmbench-usage]: Users should set the environment variable `ENOUGH` to a large integer, otherwise lmbench will choose a number of iterations based on the observed speed of the machine which can vary between runs.
 
-One should also include an application that does _some_ CPU processing but manipulats many small files like Postmark.
-One need not go through the trouble of setting up Nginx, and although Apache appears a cluster representative, that cluster is also similar to Postmark.
+@Fig:benchmark-groups shows that HTTP servers are very "unique".
+Three of five were selected as cluster centers, and we can tell from @Fig:benchmark-clusters they are quite far from other programs in feature-space.
+This "uniqueness" means that future work interested in representativeness and consistency with prior work should include HTTP servers, but future work that is not on security may be able to do without them.
+In that case, they should run Postmark instead, which is intended to mimic the workload of a webserver, and according to @Fig:benchmark, will pull the benchmarks the direction of Nginx and ApacheHttpd.
 
-<!-- TODO: Write more once we have better results. -->
+
 
 There is an old adage, \emph{the best benchmark is always the target application}.
 Benchmarking lmbench reveals how well certain aspects of performance, but benchmarking the target application reveals one the _actual_ performance.
@@ -892,11 +898,15 @@ This is why we are surprised why such a large domain, computational science, is 
 Future work on system-level provenance for computational science should of course use a computational science benchmark, such as BLAST, compiling programs with Spack, or a workflow, whether or not they are selected by this clustering analysis.
 Likewise, work on security should include HTTP servers.
 
+Finally, researchers presenting new provenance collectors should report _all_ benchmark runtimes, not just a geometric mean [@masheyWarBenchmarkMeans2004].
+Readers can be the ones to determine weights for which benchmarks are most relevant to their workload.
+<!-- TODO: We should do that -->
+
 ## Predictive Model
 
 \begin{table*}
 \begin{center}
-\scriptsize
+\small
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{tabular}{lllllllllll}
 \toprule
@@ -923,6 +933,8 @@ strace     &                5.0 &       1.8 &                1.0 &              
 \label{tbl:predictive}
 \end{table*}
 
+<!-- TODO: Compare these to lmbench -->
+
 From the predictive performance model in @Tbl:predictive, we can see:
 
 - The performance model for ReproZip and RR can be off by almost 30% and 50%, so we should be wary about drawing conclusions from the coefficients of that model.
@@ -930,13 +942,15 @@ From the predictive performance model in @Tbl:predictive, we can see:
 - RR appears to have a slowdown even on programs with no syscalls.
   This could probably be externalized into other independent variables, but the variables we use are not a complete enough, so the model learned to predict runtimes by the heuristic that all programs get 10% slower, even before counting for syscalls.
 
-- 
+- Our LASSO regression is able to ignore features when they seem to not matter.
+  The model for fsatrace is quite parsimonious.
+  While there certainly is some syscall overhead, it is so small that multiplying by the original time by $1 + \epsilon$ for a small, positive $\epsilon$ is sufficient to approximate the runtime quite well.
 
-<!--
-The system calls features can be observed using strace.
-The CPU time and wall time of noprov can be observed using GNU time.
-One need not complete an entire execution to observe the these fatures; one merely needs to record the features until they stabilize (perhaps after several iterations of the main loop).
--->
+- Directory- and socket-related calls are the most expensive.
+  This includes renames (since they modify the directory entry structure) in which most provenance collectors will copy the entire file into an archive.
+
+- IPC is particularly tricky for RR, which is recording the exact streams of bytes sent and received.
+  Other provenance collectors may be more relaxed with respect to IPC.
 
 ## Discussion
 
@@ -960,10 +974,7 @@ Under this definition, non-trivial source-code compilation is a workflow.
 **Provenance collectors vary in power and speed, but fast-and-powerful could be possible.**
 While all bear the title provenance collector, some are **monitoring**, merely recording a history of operations, while others are **interrupting**, interrupt the process when the program makes an operation.
 Fsatrace, Strace, and Ltrace are monitoring, while ReproZip, Sciunit, RR, CARE, and CDE are interrupting, using their interruption store a copy of the files that would be read or appended to by the process.
-We expect the monitoring collectors to be faster than the interrupting collectors, but the performance of strace is not that far off of the performance of RR<!--TODO: update with data.-->.
-Strace and RR both use ptrace, but strace does very little work while RR maintains may need to intercept and reinterpret the syscall, (see treatment of `mmap` in RR's publication [@ocallahanEngineeringRecordReplay2017]).
-This suggests most of the overhead actually be due to `ptrace` and its incurred context switches.
-None of the interrupting provenance collectors use library interposition or eBPF.
+None of the interrupting provenance collectors we tested use library interposition or eBPF (although PROV-IO does, we did not have time to implement it).
 Perhaps a faster underlying method would allow powerful features of interrupting collectors in a reasonable overhead budget.
 
 **Provenance collectors are too slow for "always on".**
@@ -975,7 +986,8 @@ fsatrace is able to so much faster because it uses library interpositioning rath
 **The space of benchmark performance in provenance systems is highly dimensional.**
 The space of benchmarks is naturally embedded in a space with features as dimensions.
 If there were many linear relations between the features (e.g., CPU time per second = 1 - (file syscalls per second) * (file syscall latency)), then we would expect clustering to reveal fewer clusters than the number of features.
-Indeed, there are somewhat fewer clusters than the number of features (20 &lt; 21)<!--TODO: update with data-->, it seems that most dimensions are not redundant or if they are, their redundancy is not expressible as linear relationship.
+Indeed, there are somewhat more clusters than features (14 &gt; 12), it seems that most dimensions are not redundant or if they are, their redundancy is not expressible as linear relationship.
+Even the relationship between workloads is non-linear; if A is a weighted average of B and C in feature-space, its runtime is not necessarily the same weighted average of B and C's runtime.
 This complexity is also present when trying to predict performance as a function of workload features; either the relationship is non-linear, or we are missing a relevant feature.
 
 **Computational scientists may already be using workflows.**
