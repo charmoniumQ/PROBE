@@ -1308,7 +1308,7 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost"}
+        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost", "spack spack-repo.apacheHttpd"}
 
     ],
     "working-ltrace": [

@@ -603,6 +603,13 @@
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
           };
+          env-image = pkgs.dockerTools.buildImage {
+            name = "prov-tracer-benchmark-env";
+            copyToRoot = [ env ];
+            config = {
+              Cmd = [ "${env}/bin/bash" ];
+            };
+          };
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
