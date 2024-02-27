@@ -964,7 +964,9 @@ class CompileLinux(Workload):
         # Defaults to vmlinux, but the arch makefile usually adds further targets
         return (
             (result_bin / "sh", "-c", f"cd {source_dir} && make defconfig && make"),
-            {}
+            {
+                "CPATH": str(result_bin.parent / "include"),
+            },
         )
 
 

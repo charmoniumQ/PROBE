@@ -641,7 +641,7 @@
               # Deps of runner script
               pkgs.libseccomp.lib
               pkgs.glibc_multi.bin
-              pkgs.glibc_multi
+              # pkgs.glibc_multi # Breaks CompileLinux for some reason
               pkgs.libfaketime
               pkgs.util-linux # for setarch
 
@@ -674,6 +674,11 @@
               pkgs.bison
               pkgs.flex
               pkgs.libelf
+              pkgs.bc
+              pkgs.diffutils
+              pkgs.elfutils.dev
+              pkgs.elfutils.out
+              pkgs.openssl.dev
 
               # Reproducibility tester
               pkgs.icdiff
