@@ -673,12 +673,12 @@
               splash-3
               pkgs.bison
               pkgs.flex
-              pkgs.libelf
               pkgs.bc
               pkgs.diffutils
               pkgs.elfutils.dev
               pkgs.elfutils.out
               pkgs.openssl.dev
+              pkgs.openssl.out
 
               # Reproducibility tester
               pkgs.icdiff
