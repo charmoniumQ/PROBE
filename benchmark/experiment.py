@@ -41,7 +41,7 @@ def get_results(
     size = 256
     key = (cache_dir / ("results_" + "_".join([
         *[prov_collector.name for prov_collector in prov_collectors],
-        hashlib.sha256("".join(workload.name for workload in workloads).encode()).hexdigest()[:10],
+        hashlib.sha256("".join(sorted(workload.name for workload in workloads)).encode()).hexdigest()[:10],
         str(iterations),
         str(size),
         str(seed),
@@ -52,7 +52,8 @@ def get_results(
             if file.name.startswith("results_"):
                 file.unlink()
     if key.exists():
-        return expect_type(pandas.DataFrame, pickle.loads(key.read_bytes()))
+        with key.open("rb") as key_file:
+            return expect_type(pandas.DataFrame, pickle.load(key_file))
     else:
         results_df = run_experiments(
             prov_collectors,
@@ -126,31 +127,36 @@ def run_experiments(
             scheduler="processes",
             num_workers=parallelism,
         )[0]
+
     with ch_time_block.ctx("Construct DataFrame"):
+        records: list[dict[str, object] | None] = [None] * (len(prov_collectors) * len(workloads) * iterations)
+        # Loop through each one at a time
+        # Extracting a minimal set of fields
+        # So we don't have all ExperimentStats in memory at once
+        for i, (prov_collector, workload, stats) in enumerate(result_list):
+            counter = collections.Counter(
+                op.type for op in stats.operations
+            ) if stats is not None else None
+            record = {
+                "collector": prov_collector.name,
+                "collector_method": prov_collector.method,
+                "collector_submethod": prov_collector.submethod,
+                "workload": workload.name,
+                "workload_kind": workload.kind,
+                "cputime": stats.cputime,
+                "walltime": stats.walltime,
+                "memory": stats.memory,
+                "storage": stats.provenance_size,
+                "n_ops": len(stats.operations),
+                # "n_unique_files": n_unique(itertools.chain(
+                #     (op.target0 for op in stats.operations),
+                #     (op.target1 for op in stats.operations),
+                # )),
+                "op_type_counts": counter,
+            } if stats is not None else None
+            records.append(record)
         results_df = (
-            pandas.DataFrame.from_records(
-                {
-                    "collector": prov_collector.name,
-                    "collector_method": prov_collector.method,
-                    "collector_submethod": prov_collector.submethod,
-                    "workload": workload.name,
-                    "workload_kind": workload.kind,
-                    "cputime": stats.cputime,
-                    "walltime": stats.walltime,
-                    "memory": stats.memory,
-                    "storage": stats.provenance_size,
-                    "n_ops": len(stats.operations),
-                    "n_unique_files": n_unique(itertools.chain(
-                        (op.target0 for op in stats.operations),
-                        (op.target1 for op in stats.operations),
-                    )),
-                    "op_type_counts": collections.Counter(
-                        op.type for op in stats.operations
-                    ),
-                }
-                for prov_collector, workload, stats in result_list
-                if stats is not None
-            )
+            pandas.DataFrame.from_records(list(filter(bool, records)))
             .assign(**{
                 "collector": lambda df: df["collector"].astype("category"),
                 "collector_method": lambda df: df["collector_method"].astype("category"),
@@ -190,7 +196,9 @@ def run_one_experiment_cached(
         str(iteration)
     ]))).with_suffix(".pkl")
     if (not rerun) and key.exists():
-        return expect_type(ExperimentStats, pickle.loads(key.read_bytes()))
+        with ch_time_block.ctx(f"pickle.loads {prov_collector.name} {workload.name} {iteration}", do_gc=True):
+            with key.open("rb") as key_file:
+                return expect_type(ExperimentStats, pickle.load(key_file))
     else:
         delete_children(temp_dir)
         stats = run_one_experiment(

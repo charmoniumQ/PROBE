@@ -10,7 +10,7 @@
 * DONE Provenance presentation to UBC
 - Presentation on Google Drive
 
-* IN-PROGRESS Measuring provenance overheads
+* DONE Measuring provenance overheads
 :LOGBOOK:
 CLOCK: [2024-01-15 Mon 14:38]--[2024-01-15 Mon 15:15] =>  0:37
 :END:
@@ -35,7 +35,7 @@ CLOCK: [2024-01-15 Mon 14:38]--[2024-01-15 Mon 15:15] =>  0:37
 - https://joaofelipe.github.io/snowballing/start.html
 - https://dl.acm.org/doi/10.1145/2601248.2601268
 
-*** TODO Include record/replay terms
+*** DONE Include record/replay terms
 - Add sciunit
 - Add reprozip
 - Add DetTrace
@@ -184,7 +184,7 @@ https://github.com/PyLCARS/YT_BeyondAstro
 - Should have --re-run, which removes ~.cache/results_*~ and ~.cache/$hash~
 
 *** TODO Refactor ~run_exec_wrapper.py~
-- Should fail gracefully when cgroups are not available
+- Should fail gracefully when cgroups are not available, or even degrade to using no containerse
 
 *** DONE Refactor ~stats.py~
 - Should have Callable[pandas.DataFrame, None]
@@ -196,9 +196,6 @@ https://github.com/PyLCARS/YT_BeyondAstro
 - Should accept a tempdir
 - Should be smaller
 - Should have teardown
-- Should export instances
-- Categories: build Spack, build Deb, BLAST, compile Linux, HTTP bench, FTP bench
-- Should have license()
 
 *** DONE Write ~run.py~
 - Just runs one workload
@@ -228,7 +225,7 @@ https://github.com/PyLCARS/YT_BeyondAstro
 
 *** DONE Fix strace unparsable lines
 
-*** TODO Fix rr to measure storage overhead
+*** DONE Fix rr to measure storage overhead
 
 *** TODO Fix Spade+FUSE
 - We need to get src_sh{./result/bin/python runner.py spade_fuse} to work.
@@ -242,7 +239,7 @@ https://github.com/PyLCARS/YT_BeyondAstro
 *** TODO [#C] Write BPF trace
 - We need to write a basic prov collector for BPF trace. The collector should log files read/written by the process and all children processes. Start by writing [[file:benchmark/prov.bt][prov.bt]].
 
-*** TODO Package CARE
+*** DONE Package CARE
 https://proot-me.github.io/care/
 
 *** TODO Write a sleepy ptracer
@@ -303,7 +300,7 @@ https://proot-me.github.io/care/
 - Lead with the problem
 - 1 problem -> provenance (vs perf overhead) -> 3 other problems solved -> 3 ways to gather
 
-*** TODO Explain how strace, ltrace, fsatrace, rr got to be there
+*** DONE Explain how strace, ltrace, fsatrace, rr got to be there
 
 *** DONE Explain how Sciunits, ReproZip got to be there
 
@@ -312,7 +309,7 @@ https://proot-me.github.io/care/
 *** TODO Explain the capabilities/features of each prov tracer
 - Table of capabilities (vDSO)
 
-*** TODO Discussion
+*** DONE Discussion
 - What provenance methods are most promising?
 - Threats to validity
 - Mathematical model
@@ -329,13 +326,13 @@ https://proot-me.github.io/care/
 - Longterm archiving an execution, such that it is re-executable
 - I/O defn? I/O includes stuff like username, clock_gettime
 
-*** TODO Conclusion
+*** DONE Conclusion
 
-*** TODO Threats to validity
+*** DONE Threats to validity
 
-*** TODO Background
+*** DONE Background
 
-*** TODO Page-limit
+*** DONE Page-limit
 
 *** TODO Reproducibility appendix
 - Need Intel CPU?
@@ -347,7 +344,7 @@ https://proot-me.github.io/care/
 - Record/replay is an easier way to get reproducibility than Docker/Nix/etc.
 - Use library interpositioning to make a record/replay tool that is faster than other record/replay tools
 
-** BACKLOG Get global state vars
+** TODO Get global state vars
 - Library constructors get called twice (2 copies of library global variables)
 - https://stackoverflow.com/questions/77782964/how-to-run-code-exactly-once-in-ld-preloaded-shared-library
 

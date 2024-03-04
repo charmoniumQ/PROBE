@@ -937,7 +937,7 @@ class Copy(Workload):
 
 class CompileLinux(Workload):
     kind = "compile"
-    name = "linux"
+    name = "compile-linux"
 
     def __init__(self, url: str) -> None:
         self.url = url
@@ -1344,8 +1344,13 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost", "spack spack-repo.apacheHttpd"}
+        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost", "spack spack-repo.apacheHttpd", "compile-linux"}
 
+    ],
+    "working-low-mem": [
+        workload
+        for workload in WORKLOADS
+        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost", "spack spack-repo.apacheHttpd", "compile-linux", "spack hdf5~mpi", "spack git"}
     ],
     "working-ltrace": [
         workload
