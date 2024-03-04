@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html><body><div class="container"><style>@page {
+  size: 44in 34in;
+  margin: 3cm;
+}
+* {
+  font-family: sans-serif;
+}
+h1 {
+  font-weight: normal;
+  text-align: center;
+  font-size: 1.0in;
+  margin-bottom: 0in;
+}
+h2 {
+  font-weight: normal;
+  font-size: 0.75in;
+}
+p, li, table {
+  font-size: 0.5in;
+}
+.row {
+  display: flex;
+  /*display: grid;*/
+  /*grid-template-columns: 50% 50%;*/
+}
+.column {
+  flex: 50%;
+  margin-left: 4%;
+  margin-right: 4%;
+}
+.container {
+  width: 44in;
+  height: 34in;
+  /*background-color: lightblue;*/
+  overflow: scroll;
+}
+.performance th {
+  background-color: lightgray;
+}
+.performance {
+  font-size: 0.3in;
+}
+.features td[data-content="yes"] {
+  background-color: lightgreen;
+}
+.features td[data-content="no"] {
+  background-color: salmon;
+}
+.features th {
+  background-color: lightgray;
+}
+.features td {
+  background-color: lightgray;
+}
+table {
+  margin-left: auto;
+  margin-right: auto;
+}
+img.center {
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+.byline {
+  text-align: center;
+  font-size: 0.6in;
+}</style>
+<section><div class="center"><h1>How to collect computational provenance</h1><p class="byline">Samuel Grayson, Reed Milewicz, Daniel S. Katz, Darko Marinov</p></div><div class="row"><div class="column"><section><h2>What is provenance?</h2><p>The inputs (binaries, scripts, data) used to produce specific output</p>
+
+<p>Can be collected <em>without</em> modifying programs</p>
+
+<figure style="margin: auto; width: 100%"><img style="width: 17in" src="example.dot.svg"/></figure></section>
+<section><h2>Why provenance?</h2><ul><li>Reproducibility: what inputs do you need to run this program?</li><li>Caching: when inputs are changed, what outputs are stale</li><li>Comprehension: what version of the data did this output use</li></ul></section>
+<section><h2>Methods for collecting provenance</h2><table class="features"><thead><tr><th scope="col"></th><th scope="col">Safe</th><th scope="col">Fast</th><th scope="col">Infallible</th><th scope="col">Rootless</th></tr></thead><tbody><tr><td data-content="Kern. mod">Kern. mod</td><td data-content="no">no</td><td data-content="yes">yes</td><td data-content="yes">yes</td><td data-content="no">no</td></tr><tr><td data-content="ptrace">ptrace</td><td data-content="yes">yes</td><td data-content="no">no</td><td data-content="yes">yes</td><td data-content="yes">yes</td></tr><tr><td data-content="LD_PRELOAD">LD_PRELOAD</td><td data-content="yes">yes</td><td data-content="yes">yes</td><td data-content="no">no</td><td data-content="yes">yes</td></tr><tr><td data-content="eBPF">eBPF</td><td data-content="yes">yes</td><td data-content="yes">yes</td><td data-content="yes">yes</td><td data-content="no">no</td></tr></tbody></table></section>
+<p>Ptrace is most studied, but LD_PRELOAD and eBPF are most compelling.</p>
+<section><h2>Is it fast?</h2><figure style="margin: auto; width: 14in"><img src="log_overhead_hist.svg" style="width: 7in"/></figure>
+<p>Depends on the application!</p></section></div>
+<div class="column"><section><h2>How to make it faster?</h2><figure style="margin: auto; width: 13in"><img src="dendrogram.svg" style="width: 12in"/></figure>
+<figure style="margin: auto; width: 13in"><img src="clustering2.svg" style="width: 7in"/></figure>
+<table class="performance"><thead><tr><th scope="col">Collector</th><th scope="col">Intercept</th><th scope="col">IPC syscalls</th><th scope="col">socket syscalls</th><th scope="col">chdir syscalls</th><th scope="col">other syscalls</th></tr></thead><tbody><tr><th scope="row">CARE</th><td>0.6</td><td>670</td><td></td><td>2426</td><td></td></tr><tr><th scope="row">RR</th><td>6.5</td><td></td><td>1144</td><td></td><td>13568</td></tr><tr><th scope="row">ReproZip</th><td>5.8</td><td>2187</td><td>128</td><td></td><td></td></tr><tr><th scope="row">fsatrace</th><td>0.0</td><td></td><td></td><td></td><td></td></tr><tr><th scope="row">strace</th><td>1.7</td><td>678</td><td>143</td><td>1287</td><td></td></tr></tbody></table></section>
+<section><h2>What next?</h2><ul><li>Record/replay (get reproducibility "for free")</li><li>Differential debugging</li><li>Make without Makefile</li><li>How to eliminate redundancies?</li></ul></section></div></div></section></div></body></html>
