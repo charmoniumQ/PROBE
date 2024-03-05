@@ -679,6 +679,7 @@
               pkgs.elfutils.out
               pkgs.openssl.dev
               pkgs.openssl.out
+              pkgs.perl
 
               # Reproducibility tester
               pkgs.icdiff
