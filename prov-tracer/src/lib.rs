@@ -235,27 +235,27 @@ project_specific_macros::populate_libc_calls_and_hook_fns!{
         let emulated_ret = if ret > 0 { 0 } else { -1 };
         self.prov_logger.post_op(UnaryFileOp::MetadataRead, dirfd, filename, emulated_ret, this_errno);
     }
-}
 
-struct NullCallLogger();
-impl NullCallLogger { fn new() -> Self { Self() } }
-impl CallLogger for NullCallLogger { }
+    int execv (const char *filename, char **const argv) { } { }
 
-struct VerboseCallLogger {
-    file: std::fs::File,
-}
-impl VerboseCallLogger {
-    fn new() -> Self {
-        crate::globals::ENABLE_TRACE.set(false);
-        let filename =
-            std::env::var("PROV_TRACER_FILE")
-            .unwrap_or("%p.%t.prov_trace".to_string())
-            .replace("%p", std::process::id().to_string().as_str())
-            .replace("%t", std::thread::current().id().as_u64().to_string().as_str());
-        let file = std::fs::File::create(filename).unwrap();
-        crate::globals::ENABLE_TRACE.set(true);
-        Self { file }
-    }
+    int execl (const char *filename, const char * arg0/*, ...*/) { } { }
+
+    int execve (const char *filename, char **const argv, char **const envp) { } { }
+
+    int fexecve (int fd, char **const filename, char **const argv, char **const envp) { } { }
+
+    int execle (const char *filename, const char * arg0/*, ..., char **const envp*/) { } { }
+
+    int execvp (const char *filename, char **const argv, char **const envp) { } { }
+
+    int execlp (const char *filename, char **const argv/*, ...*/) { } { }
+
+    // https://linux.die.net/man/3/execvpe1
+    int execvpe(const char *file, char **const argv, char **const envp) { } { }
+
+    pid_t fork (void) { } { }
+    pid_t _Fork (void) { } { }
+    pid_t vfork (void) { } { }
 }
 
 #[derive(Debug)]
@@ -388,6 +388,35 @@ trait ProvLogger {
     ) { }
 }
 
+struct NullCallLogger();
+impl NullCallLogger { fn new() -> Self { Self() } }
+impl CallLogger for NullCallLogger { }
+
+struct VerboseCallLogger {
+    file: std::boxed::Box<std::fs::File>,
+}
+impl VerboseCallLogger {
+    fn get_file() -> std::fs::File {
+        crate::globals::ENABLE_TRACE.set(false);
+        let filename = std::env::var("PROV_TRACER_FILE")
+            .unwrap_or("prov_trace.%p.%t.%c".to_string())
+            .replace("%p", std::process::id().to_string().as_str())
+            .replace("%t", std::thread::current().id().as_u64().to_string().as_str())
+            .replace("%c", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string().as_str())
+            // .replace("%r", .as_str())
+            ;
+        let file = std::fs::File::create(filename).unwrap();
+        crate::globals::ENABLE_TRACE.set(true);
+        file
+    }
+    fn new() -> Self {
+        println!("(VerboseCallLogger::new");
+        let file = std::boxed::Box::new(Self::get_file());
+        println!(")");
+        Self { file }
+    }
+}
+
 struct CallLoggerToProvLogger<MyProvLogger> {
     prov_logger: MyProvLogger,
     tmp_fd: libc::c_int,
@@ -412,9 +441,11 @@ impl VerboseProvLogger {
         crate::globals::ENABLE_TRACE.set(false);
         let filename =
             std::env::var("PROV_TRACER_FILE")
-            .unwrap_or("%p.%t.prov_trace".to_string())
+            .unwrap_or("prov_trace.%p.%t.%c".to_string())
             .replace("%p", std::process::id().to_string().as_str())
-            .replace("%t", std::thread::current().id().as_u64().to_string().as_str());
+            .replace("%t", std::thread::current().id().as_u64().to_string().as_str())
+            .replace("%c", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string().as_str())
+            ;
         let file = std::fs::File::create(filename).unwrap();
         crate::globals::ENABLE_TRACE.set(true);
         println!(")");
@@ -478,6 +509,14 @@ impl ProvLogger for VerboseProvLogger {
         } else {
             writeln!(self.file, "op code: {:?} file0: ({:?} {:?}) file1: ({:?} {:?})", op_code, dirfd0, util::short_cstr(path0), dirfd1, util::short_cstr(path1)).unwrap();
         }
+    }
+}
+
+redhook::hook! {
+    #![feature(c_variadic)]
+    unsafe fn execlp(file: *const libc::c_char, mut args: ...) -> i32 => my_execlp {
+        println!("execlp");
+        redhook::real!(execlp)(file, args);
     }
 }
 
@@ -663,13 +702,11 @@ impl<T> Drop for DisableLoggingInDrop<T> {
 }
 
 thread_local! {
-    static CALL_LOGGER:
-    std::cell::RefCell<DisableLoggingInDrop<
-        // VerboseCallLogger
-        CallLoggerToProvLogger<VerboseProvLogger>
-        >>
-        = std::cell::RefCell::new(DisableLoggingInDrop::new(
-                // VerboseCallLogger::new()
-                CallLoggerToProvLogger::new(VerboseProvLogger::new())
-        ));
+    static CALL_LOGGER: std::cell::RefCell<DisableLoggingInDrop<
+        VerboseCallLogger
+        // CallLoggerToProvLogger<VerboseProvLogger>
+     >> = std::cell::RefCell::new(DisableLoggingInDrop::new(
+         VerboseCallLogger::new()
+        // CallLoggerToProvLogger::new(VerboseProvLogger::new())
+    ));
 }

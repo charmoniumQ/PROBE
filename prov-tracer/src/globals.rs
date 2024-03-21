@@ -9,5 +9,5 @@ thread_local!{
      * initialized twice (?).
      *
      * */
-    pub static ENABLE_TRACE: std::cell::Cell<bool> = false.into();
+    pub static ENABLE_TRACE: std::cell::Cell<bool> = true.into();
 }

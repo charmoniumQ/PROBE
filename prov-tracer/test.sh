@@ -1,10 +1,13 @@
+#!/usr/bin/env bash
 set -e -x
 
 cmds=(
     # "true"
     # "ls -l .."
     # "head ../flake.nix"
-    "python -c 'print(2)'"
+    # "../tests/forking_exec"
+    "../tests/raw_exec"
+    # "python -c 'print(2)'"
     # "python -c 'import itertools'"
     # "python -c 'import os, pathlib; list(pathlib.Path().iterdir()); os.chdir(\"..\"); list(pathlib.Path().iterdir())'"
 )
@@ -16,7 +19,7 @@ fi
 
 for cmd in "${cmds[@]}"; do
     echo ============ $cmd ============
-    env --chdir=tmp RUST_BACKTRACE=1 LD_PRELOAD=$PWD/target/debug/libprov_tracer.so sh -c "$cmd" &
+    env --chdir=tmp RUST_BACKTRACE=1 LD_PRELOAD=$PWD/target/debug/libprov_tracer.so $cmd &
     pid=$!
     wait $pid
     success="$?"

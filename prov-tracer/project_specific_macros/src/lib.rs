@@ -183,7 +183,8 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
             quote!{
                 fn #post_name(&mut self, #(#arg_colon_types,)* ret: #return_type, this_errno: errno::Errno) {
                     use std::io::Write;
-                    std::write!(self.file, #whole_arg_str, #(#arg_fmt_args,)* ret, this_errno).unwrap();
+                    // println!(#whole_arg_str, #(#arg_fmt_args,)* ret, this_errno);
+                    std::write!(*self.file, #whole_arg_str, #(#arg_fmt_args,)* ret, this_errno).unwrap();
                 }
             }
         });
@@ -218,10 +219,18 @@ pub fn populate_libc_calls_and_hook_fns(input: proc_macro::TokenStream) -> proc_
 
     proc_macro::TokenStream::from(quote!{
         trait CallLogger {
+            fn flush(&mut self) { }
             #(#call_logger_trait_fns)*
         }
 
         impl CallLogger for VerboseCallLogger {
+            fn flush(&mut self) {
+                // println!("flushing");
+                // println!("Closing {:?}", self.file);
+                // let file = Self::get_file();
+                // println!("Opening {:?}", file);
+                // std::mem::replace(&mut *self.file, file);
+            }
             #(#verbose_call_logger_fns)*
         }
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 set -e -x
 
 gcc -Wall -shared -fPIC -o libtesth.so lib.c

@@ -1,30 +1,23 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <unistd.h>
-#include <stdbool.h>
+#include <sys/stat.h>
+#include <dlfcn.h>
 
-extern bool initialized = false;
-void __attribute__ ((constructor)) setup() {
-    printf("constructor %d %d %d\n", getpid(), gettid(), initialized);
-    initialized = true;
+static void __attribute__ ((constructor)) init() {
+    printf("constructor %d\n", getpid());
 }
 
-/* bool initialized2 = false; */
-/* void setup_once() { */
-/*     if (!initialized2) { */
-/*         printf("setup\n"); */
-/*         initialized2 = true; */
-/*     } */
-/* } */
+static void __attribute__ ((destructor)) destructor() {
+    printf("destructor %d\n", getpid());
+}
 
-/* #include <dlfcn.h> */
-/* int (*real_open)(const char*, int); */
+static int (*real_open)(const char *, int, mode_t) = 0;
 
-/* int open(const char *pathname, int flags) { */
-/*     fprintf(stderr, "open(%s, %d)\n", pathname, flags); */
-/*     if (!real_open) { */
-/*         real_open = dlsym(RTLD_NEXT, "open"); */
-/*     } */
-/*     setup_once(); */
-/*     return real_open(pathname, flags); */
-/* } */
+int open(const char *p, int f, mode_t m) {
+    if (!real_open) {
+        real_open = dlsym(RTLD_NEXT, "open");
+    }
+    printf("open %d %s %d %d\n", getpid(), p, f, m);
+	return real_open(p, f, m);
+}

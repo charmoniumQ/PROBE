@@ -18,6 +18,7 @@ pub enum CPrimType {
     Ftw64FuncT(Ident),
     NftwFuncT(Ident),
     Nftw64FuncT(Ident),
+    PidT(Ident),
 }
 
 impl Parse for CPrimType {
@@ -44,12 +45,14 @@ impl Parse for CPrimType {
             "__ftw64_func_t" => Ok(CPrimType::Ftw64FuncT(ident)),
             "__nftw_func_t" => Ok(CPrimType::NftwFuncT(ident)),
             "__nftw64_func_t" => Ok(CPrimType::Nftw64FuncT(ident)),
+            "pid_t" => Ok(CPrimType::PidT(ident)),
             _ => Err(Error::new(ident.span(), "Unable to parse inner CType")),
         }
     }
 }
 
 pub enum CType {
+    PtrMutConst(Token![*], Token![*], Token![const], CPrimType),
     PtrMut(Token![*], CPrimType),
     PtrConst(Token![*], Option<Token![const]>, CPrimType),
     PrimType(CPrimType),
@@ -66,7 +69,13 @@ impl Parse for CType {
             let inner: CPrimType = input.parse()?;
             if input.peek(Token![*]) {
                 let star = input.parse()?;
-                Ok(CType::PtrMut(star, inner))
+                if input.peek(Token![*]) {
+                    let star2 = input.parse()?;
+                    let constt = input.parse()?;
+                    Ok(CType::PtrMutConst(star, star2, constt, inner))
+                } else {
+                    Ok(CType::PtrMut(star, inner))
+                }
             } else {
                 Ok(CType::PrimType(inner))
             }
@@ -169,11 +178,16 @@ pub fn cprim_type_to_type(typ: &CPrimType) -> proc_macro2::TokenStream {
         CPrimType::Ftw64FuncT(_) => quote!(*const libc::c_void),
         CPrimType::NftwFuncT(_) => quote!(*const libc::c_void),
         CPrimType::Nftw64FuncT(_) => quote!(*const libc::c_void),
+        CPrimType::PidT(_) => quote!(*const libc::pid_t),
     }
 }
 
 pub fn ctype_to_type(typ: &CType) -> proc_macro2::TokenStream {
     match typ {
+        CType::PtrMutConst(_, _, _, cprim_type) => {
+            let inner = cprim_type_to_type(cprim_type);
+            quote!(*mut *const #inner)
+        },
         CType::PtrConst(_, _, cprim_type) => {
             let inner = cprim_type_to_type(cprim_type);
             quote!(*const #inner)
@@ -202,11 +216,16 @@ pub fn cprim_type_to_obj(typ: &CPrimType) -> proc_macro2::TokenStream {
         CPrimType::Ftw64FuncT(_) => quote!(CPrimType::Ftw64FuncT),
         CPrimType::NftwFuncT(_) => quote!(CPrimType::NftwFuncT),
         CPrimType::Nftw64FuncT(_) => quote!(CPrimType::Nftw64FuncT),
+        CPrimType::PidT(_) => quote!(CPrimType::PidT),
     }
 }
 
 pub fn ctype_to_obj(typ: &CType) -> proc_macro2::TokenStream {
     match typ {
+        CType::PtrMutConst(_, _, _, cprim_type) => {
+            let inner = cprim_type_to_obj(cprim_type);
+            quote!(CType::PtrMutConst(#inner))
+        },
         CType::PtrConst(_, _, cprim_type) => {
             let inner = cprim_type_to_obj(cprim_type);
             quote!(CType::PtrConst(#inner))
