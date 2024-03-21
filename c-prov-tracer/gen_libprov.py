@@ -109,7 +109,7 @@ with tempfile.TemporaryDirectory() as _tmpdir:
             name=func_prefix + func.name,
             quals=[],
             align=[],
-            storage=[],
+            storage=["static"],
             funcspec=[],
             type=pycparser.c_ast.PtrDecl(
                 quals=[],
@@ -119,11 +119,9 @@ with tempfile.TemporaryDirectory() as _tmpdir:
             bitsize=None,
         )
         for func in funcs
-        if func.name != "fopen"
-        # fopen is handled specially in libprov_prefix.c
     ]
-    libprov_setup = ParsedFunc(
-        name="libprov_setup",
+    setup_function_pointers = ParsedFunc(
+        name="setup_function_pointers",
         params=[],
         return_type=pycparser.c_ast.IdentifierType(names=['void']),
         varargs=False,
@@ -170,7 +168,17 @@ with tempfile.TemporaryDirectory() as _tmpdir:
                     ),
                 ),
                 bitsize=None
-            )] if not func.void_return else []),
+            )] if not func.void_return else [pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(
+                    name=func_prefix + func.name,
+                ),
+                args=pycparser.c_ast.ExprList(
+                    exprs=[
+                        pycparser.c_ast.ID(name=param_name)
+                        for param_name, _ in func.params
+                    ],
+                ),
+            )]),
             pycparser.c_ast.FuncCall(
                 name=pycparser.c_ast.ID("fprintf"),
                 args=pycparser.c_ast.ExprList(
@@ -194,6 +202,6 @@ with tempfile.TemporaryDirectory() as _tmpdir:
     ]
     print(generator.visit(pycparser.c_ast.FileAST(ext=[
         *func_pointer_declarations,
-        libprov_setup,
+        setup_function_pointers,
         *static_args_wrapper_func_declarations,
     ])))

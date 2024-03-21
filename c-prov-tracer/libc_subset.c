@@ -9,6 +9,14 @@ typedef void* __nftw_func_t;
 typedef void* __nftw64_func_t;
 typedef void* size_t;
 typedef void* ssize_t;
+typedef void* off_t;
+typedef void* off64_t;
+typedef void* dev_t;
+typedef void* uid_t;
+typedef void* gid_t;
+struct stat;
+struct stat64;
+struct utimebuf;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype);
@@ -91,6 +99,66 @@ int symlinkat(const char *target, int newdirfd, const char *linkpath);
 ssize_t readlink (const char *filename, char *buffer, size_t size);
 ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size);
 
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html */
+int unlink (const char *filename);
+int rmdir (const char *filename);
+int remove (const char *filename);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Renaming-Files.html */
+int rename (const char *oldname, const char *newname);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-Directories.html */
+int mkdir (const char *filename, mode_t mode);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html */
+int stat (const char *filename, struct stat *buf);
+int stat64 (const char *filename, struct stat64 *buf);
+int fstat (int filedes, struct stat *buf);
+int fstat64 (int filedes, struct stat64 *buf);
+int lstat (const char *filename, struct stat *buf);
+int lstat64 (const char *filename, struct stat64 *buf);
+
+/* Docs: https://www.man7.org/linux/man-pages/man2/statx.2.html */
+int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
+int chown (const char *filename, uid_t owner, gid_t group);
+int fchown (int filedes, uid_t owner, gid_t group);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Setting-Permissions.html  */
+int chmod (const char *filename, mode_t mode);
+int fchmod (int filedes, mode_t mode);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Testing-File-Access.html */
+int access (const char *filename, int how);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Times.html */
+/* int utime (const char *filename, const struct utimbuf *times); */
+/* int utimes (const char *filename, const struct timeval tvp[2]); */
+/* int lutimes (const char *filename, const struct timeval tvp[2]); */
+/* int futimes (int fd, const struct timeval tvp[2]); */
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Size.html */
+int truncate (const char *filename, off_t length);
+int truncate64 (const char *name, off64_t length);
+int ftruncate (int fd, off_t length);
+int ftruncate64 (int id, off64_t length);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Making-Special-Files.html */
+int mknod (const char *filename, mode_t mode, dev_t dev);
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Temporary-Files.html */
+FILE * tmpfile (void);
+FILE * tmpfile64 (void);
+/* TODO */
+/* char * tmpnam (char *result); */
+/* char * tmpnam_r (char *result); */
+char * tempnam (const char *dir, const char *prefix);
+char * mktemp (char *template);
+int mkstemp (char *template);
+char * mkdtemp (char *template);
+
+/* TODO */
 /* /\* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html *\/ */
 /* /\* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing *\/ */
 /* int execv (const char *filename, char *const argv[]); */

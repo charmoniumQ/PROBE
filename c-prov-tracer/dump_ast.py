@@ -2,8 +2,9 @@ import pycparser
 import pycparser.c_generator
 import sys
 
-ast = pycparser.parse_file(sys.argv[1], use_cpp=False)
+
+parser = pycparser.CParser()
+ast = parser.parse(sys.stdin.read(), "test.c")
 ast.show(showcoord=False)
 print(ast)
 c_generator = pycparser.c_generator.CGenerator()
-print(c_generator.visit(ast))
