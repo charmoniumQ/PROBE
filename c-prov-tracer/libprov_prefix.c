@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -29,5 +30,6 @@ pid_t gettid(void);
     })
 
 static __thread FILE* log = NULL;
+static __thread bool disable_log = false;
 
 static FILE* get_prov_log_file();

@@ -6,6 +6,7 @@ __attribute__ ((constructor)) void setup_libprov() {
 
 static FILE* get_prov_log_file() {
     if (log == NULL) {
+        disable_log = true;
         struct statx prov_dir_statx;
         int prov_dir_statx_ret = _o_statx(AT_FDCWD, PROV_DIR, 0, STATX_TYPE, &prov_dir_statx);
         if (prov_dir_statx_ret != 0) {
@@ -28,6 +29,7 @@ static FILE* get_prov_log_file() {
         log = _o_fopen(log_name, "a");
         EXPECT(== 0, log == NULL);
         setbuf(log, NULL);
+        disable_log = false;
     }
     return log;
 }

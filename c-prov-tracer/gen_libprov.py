@@ -179,19 +179,30 @@ with tempfile.TemporaryDirectory() as _tmpdir:
                     ],
                 ),
             )]),
-            pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID("fprintf"),
-                args=pycparser.c_ast.ExprList(
-                    exprs=[
+            pycparser.c_ast.If(
+                cond=pycparser.c_ast.UnaryOp(
+                    op='!',
+                    expr=pycparser.c_ast.ID(name='disable_log'),
+                ),
+                iftrue=pycparser.c_ast.Compound(
+                    block_items=[
                         pycparser.c_ast.FuncCall(
-                            name=pycparser.c_ast.ID("get_prov_log_file"),
+                            name=pycparser.c_ast.ID("fprintf"),
                             args=pycparser.c_ast.ExprList(
-                                exprs=[],
+                                exprs=[
+                                    pycparser.c_ast.FuncCall(
+                                        name=pycparser.c_ast.ID("get_prov_log_file"),
+                                        args=pycparser.c_ast.ExprList(
+                                            exprs=[],
+                                        ),
+                                    ),
+                                    pycparser.c_ast.Constant(type="string", value='"' + func.name +  '\\n"'),
+                                ],
                             ),
                         ),
-                        pycparser.c_ast.Constant(type="string", value='"' + func.name +  '\\n"'),
                     ],
                 ),
+                iffalse=None,
             ),
             pycparser.c_ast.Return(
                 expr=(pycparser.c_ast.ID(name="ret") if not func.void_return else None),
