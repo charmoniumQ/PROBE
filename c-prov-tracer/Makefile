@@ -1,5 +1,5 @@
 test: libprov.so
-	rm -rf .prov && LD_PRELOAD=$(PWD)/libprov.so stat flake.nix > /dev/null && cat .prov/*
+	rm -rf .prov && LD_PRELOAD=$(PWD)/libprov.so head flake.nix && cat .prov/*
 
 .PHONY: test
 

@@ -36,22 +36,35 @@ int fclose (FILE *stream) { }
 int fcloseall(void) { }
 
 /* Docs: https://linux.die.net/man/2/openat */
-int openat(int dirfd, const char *pathname, int flags, ...) { }
-/* Variadic: See variadic note on open64 */
+int openat(int dirfd, const char *pathname, int flags, ...) {
+    size_t varargs_size = sizeof(dirfd) + sizeof(pathname) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
+    /* Re varag_size, See variadic note on open
+     * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open64.c#L33
+     */
+}
 
 /* Docs: https://refspecs.linuxbase.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/baselib-openat64.html */
-int openat64(int dirfd, const char *pathname, int flags, ...) { }
-/* Variadic: See variadic note on open64
- * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/openat64.c#L28 */
+int openat64(int dirfd, const char *pathname, int flags, ...) {
+    size_t varargs_size = sizeof(dirfd) + sizeof(pathname) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
+    /* Re varag_size, See variadic note on open
+     * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/openat64.c#L31
+     */
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
-int open (const char *filename, int flags, ...) { }
-int open64 (const char *filename, int flags, ...) { }
-/* Variadic:
- * We use the third-arg (of type mode_t) when ((oflag) & O_CREAT) != 0 || ((oflag) & __O_TMPFILE) == __O_TMPFILE.
- * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/openat.c#L33
- * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open.c#L35
- * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/io/fcntl.h#L40 */
+int open (const char *filename, int flags, ...) {
+    size_t varargs_size = sizeof(filename) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
+    /* Re varag_size
+     * We use the third-arg (of type mode_t) when ((oflag) & O_CREAT) != 0 || ((oflag) & __O_TMPFILE) == __O_TMPFILE.
+     * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/openat.c#L33
+     * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open.c#L35
+     * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/io/fcntl.h#L40
+     */
+}
+int open64 (const char *filename, int flags, ...) {
+    size_t varargs_size = sizeof(filename) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
+    /* Re varag_size, See variadic note on open */
+}
 int creat (const char *filename, mode_t mode) { }
 int creat64 (const char *filename, mode_t mode) { }
 int close (int filedes) { }
@@ -66,7 +79,8 @@ int dup2 (int old, int new) { }
 int dup3 (int old, int new) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
-int fcntl (int filedes, int command, ...) { }
+/* TODO */
+/* int fcntl (int filedes, int command, ...) { } */
 /* Variadic:
  * https://www.man7.org/linux/man-pages/man2/fcntl.2.html
  * "The required argument type is indicated in parentheses after each cmd name" */
