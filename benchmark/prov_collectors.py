@@ -31,7 +31,7 @@ class ProvCollector:
     def requires_empty_dir(self) -> bool:
         return False
 
-    def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None | Sequence[CmdArg]:
         return None
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
@@ -57,6 +57,10 @@ class ProvCollector:
     @property
     def submethod(self) -> str:
         return "None"
+
+    @property
+    def nix_packages(self) -> list[str]:
+        return []
 
 
 class NoProv(ProvCollector):
@@ -226,6 +230,8 @@ class STrace(AbstractTracer):
     method = "tracing"
     submethod = "syscalls"
     name = "strace"
+
+    nix_packages = [".#strace"]
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return (

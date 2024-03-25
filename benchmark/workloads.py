@@ -31,8 +31,9 @@ class Workload:
     kind: str
     name: str
     network_access = False
+    nix_packages: list[str]
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         pass
 
     def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
@@ -686,13 +687,15 @@ SMALLER_TARBALL_URL = "https://files.pythonhosted.org/packages/60/7c/04f0706b153
 
 class Archive(Workload):
     kind = "archive"
+    nix_packages = [".#gnutar", ".#gzip", ".#pigz", ".#bzip2", ".#pbzip2", ".#xz"]
+
     def __init__(self, algorithm: str, url: str, repetitions: int) -> None:
         self.algorithm = algorithm
         self.name = f"archive {self.algorithm}".strip()
         self.url = url
         self.repetitions = repetitions
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         resource_dir = workdir / "archive"
         resource_dir.mkdir(exist_ok=True)
         archive_tgz = resource_dir / "archive.tar.gz"
@@ -1136,11 +1139,13 @@ WORKLOADS: list[Workload] = [
     Archive("pigz", SMALLER_TARBALL_URL, 100),
     Archive("bzip2", SMALLER_TARBALL_URL, 30),
     Archive("pbzip2", SMALLER_TARBALL_URL, 30),
+    Archive("xz", SMALLER_TARBALL_URL, 30),
     Unarchive("", SMALLER_TARBALL_URL, 100),
     Unarchive("gzip", SMALLER_TARBALL_URL, 100),
     Unarchive("pigz", SMALLER_TARBALL_URL, 100),
     Unarchive("bzip2", SMALLER_TARBALL_URL, 100),
     Unarchive("pbzip2", SMALLER_TARBALL_URL, 100),
+    Unarchive("xz", SMALLER_TARBALL_URL, 30),
     VCSTraffic(
         "https://github.com/pypa/setuptools_scm",
         (result_bin / "git", "clone"),

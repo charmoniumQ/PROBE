@@ -22,6 +22,13 @@
         '';
       in {
         packages = rec {
+          strace = pkgs.strace;
+          gnutar = pkgs.gnutar;
+          gzip = pkgs.gzip;
+          pigz = pkgs.pigz;
+          bzip2 = pkgs.bzip2;
+          pbzip2 = pkgs.pbzip2;
+          xz = pkgs.xz;
           apacheHttpd = renameInDrv pkgs.apacheHttpd "bin/httpd" "bin/apacheHttpd";
           miniHttpd = renameInDrv pkgs.miniHttpd "bin/httpd" "bin/miniHttpd";
           postmark-binary = pkgs.stdenv.mkDerivation rec {
@@ -692,11 +699,6 @@
               pkgs.gfortran
               pkgs.gfortran.cc
               pkgs.gnupatch
-              pkgs.gnutar
-              pkgs.gzip
-              pkgs.unzip
-              pkgs.bzip2
-              pkgs.xz
               pkgs.file
               pkgs.lsb-release
               pkgs.gnupg24
@@ -711,6 +713,7 @@
               pkgs.libnsl
               pkgs.libxcrypt.out
               pkgs.findutils
+              pkgs.which
 
               # Python pkgs!
               (python.withPackages (pypkgs: [

@@ -5,6 +5,7 @@ import contextlib
 import signal
 import warnings
 import types
+import logging
 from pathlib import Path
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Callable, TypeAlias, Union
@@ -103,6 +104,8 @@ def run_exec(
         }
         # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/runexecutor.py#L304
         # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/containerexecutor.py#L297
+        logger = logging.getLogger()
+        before_handlers = logger.handlers
         run_executor = RunExecutor(
             # use_namespaces=False,
             use_namespaces=True,
@@ -111,11 +114,16 @@ def run_exec(
             container_tmpfs=True,
             network_access=network_access,
         )
+        # Runexec appears to install its own logging handlers, but we might already have one
+        after_handlers = logger.handlers
+        if before_handlers:
+            for handler in set(after_handlers) - set(before_handlers):
+                logger.removeHandler(handler)
         caught_signal_number: Signal | None = None
         def run_executor_stop(signal_number: Signal, _: types.FrameType | None) -> None:
             warnings.warn(f"In signal catcher for {signal_number}")
             run_executor.stop()
-            global caught_signal
+            nonlocal caught_signal_number
             caught_signal_number = signal_number
 
         with catch_signals(

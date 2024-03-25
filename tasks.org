@@ -190,9 +190,6 @@ https://www.nas.nasa.gov/software/npb.html
 *** TODO [#A] Allow classes to specify Nix packages
 - setup() should do ~nix build~ and add to path
 
-*** TODO [#C] Refactor ~prov_collectors.py~
-- Should have teardown
-
 *** TODO [#C] Refactor ~workloads.py~
 - Should accept a tempdir
 - Should be smaller
