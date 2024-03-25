@@ -114,25 +114,28 @@ To summarize the state of the art and to establish goalposts for future research
   Prior work does not use a consistent set of benchmarks; publications often use an overlapping set of benchmarks from their prior work.
   We find the superset of all benchmarks used in the prior work, identify unrepresented areas, and find a statistically valid subset of the benchmark.
   Our benchmark subset is able to recover the original benchmark results within 5% of the actual value 95% of the time.
+  [_Text removed_]{style=red}
 
-<!--
+::: {style=hidden}
+
 - *A quantitative performance comparison of system-level provenance collectors against this suite*:
   Prior publications often only compares the performance their provenance tool to the baseline, no-provenance performance, not to other provenance tools.
   It is difficult to compare provenance tools, given data of different benchmarks on different machines.
   We run a consistent set of benchmarks on a single machine over all provenance tools.
--->
 
 - *We develop a predictive performance model for each provenance collector*:
   We use linear models for predicting the overhead of an application in a provenance collector based on the application's performance characteristics (e.g., number of file syscalls per second).
   These models can estimate hidden latencies in the system without directly observing them.
 
+:::
+
 The remainder of the paper is structured as follows.
 In \Cref{background}, we motivate the value of provenance and the pros/cons of system-level provenance compared to application- and workflow-level provenance.
-
+[TODO: Update outline]{style=red}
 
 # Background
 
-As one *Nature* editoralist put it, ``behind every great scientific finding of the modern age, there is a computer''[@perkel2021ten].
+As one *Nature* editoralist put it, "behind every great scientific finding of the modern age, there is a computer"[@perkel2021ten].
 The production of scientific results now often involve complex and lengthy operations on hardware and software systems;
 transparency is fundamental to the practice of science, and increasing the transparency of those processes is the end goal of provenance research.
 Provenance capture represents a wide spectrum of tools and techniques.
@@ -166,7 +169,7 @@ The potential applications for such tools are numerous, including the following 
    An automated tool that consumes provenance can answer queries like "What version of the data did I use for this figure?" and "Does this workflow include FERPA-protected data?".
    A user might have run dozens of different versions of their workflow and may want to ask an automated system, "show me the results I previously computed based on that data with this algorithm?".
 
-There are three high-level methods by which one can capture computational provenance: 1) by modifying an application to report provenance data, 2) by leveraging a workflow engine or programming language to report provenance data, and 3) by leveraging an operating system to report provenance data [@freireProvenanceComputationalTasks2008].
+There are three high-level methods by which one can capture computational provenance: **application-level** (modifying an application to report provenance data), **workflow-level**, (leveraging a workflow engine or programming language to report provenance data), and **system-level** (leveraging an operating system to report provenance data) [@freireProvenanceComputationalTasks2008].
 Application-level provenance is the most semantically rich but the least general since it only applies to particular applications modified to disclose provenance.
 Workflow- and language-level provenance is a middle ground between semantic richness and generality, applying to all programs using a certain workflow or programming language.
 System-level provenance is the least semantically rich but most general, applying to all programs on that particular system.
@@ -189,10 +192,10 @@ The implementation cost of adopting system-level provenance in a project that cu
 Although the user may eventually use a more semantically rich provenance, low-initial-cost system-level provenance would get provenance's "foot in the door".
 Since system-level provenance collection is a possibly valuable tradeoff between implementation cost and enabling provenance applications, system-level provenance will be the subject of this work.
 
-In the context of system-level provenance, artifacts are usually files, processes, or strings of bytes.
+In the context of system-level provenance, artifacts are usually files or processes.
 Operations are usually syscalls involving artifacts, e.g., `fork`, `exec`, `open`, `close`.
 For example, suppose a bash script runs a Python script that uses matplotlib to create a figure.
-A provenance collector may record the events in @Fig:prov-example, including all file dependencies of the process, without knowledge of the underlying program or programming language.
+A provenance collector may record the events in @Fig:prov-example, including all file dependencies of the process, without knowledge of the underlying program or programming language. [tweaked paragraph]{style=red}
 
 \begin{figure*}
 \begin{center}
@@ -302,7 +305,9 @@ We excluded benchmarks for which we could not even find the original program (e.
 We implemented the benchmarks as packages for the Nix package manager^[See https://nixos.org/guides/how-nix-works], so they are runnable on many different platforms.
 Nix has official installers for Linux, Mac OS X, and Windows Subsystem for Linux on i686, x86_64, and aarch64 architectures, but FreeBSD and OpenBSD both package Nix themselves, and it can likely be built from source on even more platforms.
 
-We also added new benchmarks:
+We also added new benchmarks for data science and compiling-from-source. [_Text removed_]{style=red}
+
+::: {style=hidden}
 
 <!--
 - **Workflows**:
@@ -325,6 +330,8 @@ We also added new benchmarks:
   These HPC applications may have access patterns quite different than conventional desktop applications.
   The xSDK framework [@bartlettXSDKFoundationsExtremescale2017] collects a ^[DSK: end is missing]
 -->
+
+:::
 
 ## Performance Experiment
 
@@ -391,6 +398,8 @@ In particular, we use:
 
 1. The log overhead ratio of running the benchmark in each provenance collector.
    We use the logarithm of the ratio rather than the ratio directly because the ratio cannot be distributed symmetrically, but the logarithm may be.
+
+[^log-footnote]:
    Suppose some provenance collector makes programs take roughly twice as long but with a large amount of variance, so the expected value of the ratio is 2.
    A symmetric distribution would require the probability of observing a ratio of -1 for a particular program is equal to the probability of observing a ratio of 5, but a ratio of -1 is impossible, while 5 is possible due to the large variance.
    On the other hand, $\log x$ maps positive numbers (like ratios) to real numbers (which may be symmetrically distributed); choosing 2x as our center, $e^{0.3} \approx 2$,  $e^{0.7} \approx 5$ and $e^{-0.1} = 0.9$ are equidistant in log-space (negative logs indicate a speedup rather than slowdown, which are theoretically possible).
@@ -416,6 +425,8 @@ We will determine the best $k$ experimentally.
   The Ward Linkage is a metric that joins the pair of clusters resulting in the smallest within-cluster variance, which is exactly what "representativeness" RMSE distance wants to minimize.
   Agglomerative clustering can output hierarchical clusters, which may be useful in other contexts.
 -->
+
+::: {style=hidden}
 
 ## Performance Model
 
@@ -468,6 +479,14 @@ Cross-validation proceeds in the following manner, given $n$ benchmarks and $f$ 
 6. Take the arithmetic average of all observed RMSE; this is an estimate of the RMSE of the predictor on out-of-sample data.
 -->
 
+:::
+
+::: {style=red}
+
+_Section removed_
+
+:::
+
 # Results
 
 ## Selected Provenance Collectors
@@ -476,6 +495,8 @@ Cross-validation proceeds in the following manner, given $n$ benchmarks and $f$ 
 Because there are not many open-source provenance collectors in prior work, we also include the following tools, which are not necessarily provenance collectors, but may be adapted as such: strace, ltrace, fsatrace, and RR.
 See \Cref{notable-provenance-collectors} for more in-depth description of notable provenance collectors.
 The second column shows the "collection method" (see \Cref{collection-methods} for their exact definition).
+
+::: {style=hidden}
 
 The last column in the table categorizes the "state" of that provenance collector in this work into one of the following:
 
@@ -527,11 +548,18 @@ The last column in the table categorizes the "state" of that provenance collecto
   We simply needed more time to implement these provenance collectors.
 
 - **Reproduced/rejected (ltrace, CDE, Sciunit, PTU).**
-  We could reproduce These provenance collectors on some workloads but not others (see \Cref{note-on-failed-reproducibility}).
+  We could reproduce These provenance collectors on some workloads but not others[ (see \Cref{note-on-failed-reproducibility})]{style=hidden}.
   Missing values would complicate the data analysis, so we had to exclude these from our running-time experiment.
+  See our technical report (TODO) for more information.
 
 - **Reproduced (strace, fsatrace, RR, ReproZip, CARE).**
   We reproduced this provenance collector on all of the benchmarks.
+
+:::
+
+[_Text replaced with the following paragraph:_]{style=red}
+Although we could reproduce ltrace, CDE, Sciunit, and PTU on _certain_ benchmarks, since we couldn't reproduce them on all benchmarks, we excluded them from further consideration.
+
 
 \begin{table}
 \caption{
@@ -629,7 +657,7 @@ We prioritized implementing frequently-used benchmarks, easy-to-implement benchm
 %\begin{minipage}{\columnwidth}
 \begin{center}
 \footnotesize
-\begin{tabular}{p{0.03\textwidth}p{0.03\textwidth}p{0.03\textwidth}p{0.33\textwidth}}
+\begin{tabular}{p{0.03\textwidth}p{0.03\textwidth}p{0.032\textwidth}p{0.31\textwidth}}
 \toprule
 Prior works & This work & Instances     & Benchmark group and examples from prior work                                                                   \\
 \midrule
@@ -764,7 +792,7 @@ We observe:
 3. RMSE of the residual of linear regression will eventually hit zero because the $k$ exceeds the rank of the matrix of features by benchmarks;
    Linear regression has enough degrees of freedom to perfectly map the inputs to their respective outputs.
 
-It seems that agglomerative clustering with $k=14$ has performs qquite well, and further increases in $k$ exhibit diminishing returns.
+It seems that agglomerative clustering with $k=14$ has performs quite well, and further increases in $k$ exhibit diminishing returns.
 At that point, the RMSE of the linear regression is about 0.02.
 Assuming the error is iid and normally distributed, we can estimate the standard error of the approximation of the total benchmark by linear regression is about 0.02 (log-space) or $e^{0.02} \approx 1.02$ (real-space).
 Within the sample, 68% of the data falls within one standard error (either multiplied or divided by a factor of 1.02x) and 95% of the data falls within two standard errors ( $e^{2 \cdot 0.04}$ or 1.04x).
@@ -789,7 +817,7 @@ We examine the generated clusters and benchmark subset in @Fig:dendrogram and  @
   \includegraphics[width=0.45\textwidth]{generated/pca1.pdf}
 }
 \caption{Benchmarks, clustered agglomeratively into 20 subsets using standardized performance features. These axes show only two dimensions of a high-dimensional space. We apply PCA \emph{after} computing the clusters, in order to project the data into a 2D plane.}
-\label{fig:benchmark-pca}
+\label{fig:benchmark}
 \end{figure*}
 
 @Fig:benchmark-clusters 
@@ -910,6 +938,8 @@ Finally, researchers presenting new provenance collectors should report _all_ be
 Readers can be the ones to determine weights for which benchmarks are most relevant to their workload.
 <!-- TODO: We should do that -->
 
+::: {style=hidden}
+
 ## Predictive Model
 
 \begin{table*}
@@ -961,6 +991,14 @@ From the predictive performance model in @Tbl:predictive, we can see:
 - IPC is particularly tricky for RR, which records the exact streams of bytes sent and received.
   Other provenance collectors may be more relaxed with respect to IPC.
 
+:::
+
+::: {style=red}
+
+_text removed_
+
+:::
+
 ## Discussion
 
 **Prior work focuses on security, not computational science.**
@@ -986,7 +1024,7 @@ Fsatrace, Strace, and Ltrace are monitoring, while ReproZip, Sciunit, RR, CARE, 
 None of the interrupting provenance collectors we tested use library interposition or eBPF (although PROV-IO does, we did not have time to implement it).
 Perhaps a faster underlying method would allow powerful features of interrupting collectors in a reasonable overhead budget.
 
-**Provenance collectors are too slow for "always on".**
+**Current provenance collectors are too slow for "always on".**
 One point of friction when using system-level provenance collection is that users have to remember to turn it on, or else the system is useless.
 An "always on" provenance system could alleviate that problem; for example, a user might change their login shell to start within a provenance collector.
 Unfortunately, the conventional provenance collectors exhibit an intolerably high overhead to be always used, with the exception of fsatrace.
@@ -1007,20 +1045,32 @@ That may explain why prior work on system-level provenance focuses more on secur
 ## Threats to Validity
 
 **Internal validity**:
+
 We mitigate measurement noise by:
+
 - Isolating the sample machine \Cref{performance-experiment}
 - Running the code in cgroups with a fixed allocation of CPU and RAM
 - Rewriting benchmarks that depend on internet resources to only depend on local resources
 - Averaging over 3 iterations helps mitigate noise.
-- Randomizing the order of each pair of collector and benchmark within each iteration
+- Randomizing the order of each pair of collector and benchmark within each iteration. [_text removed_]{style=red}
+
+::: {style=hidden}
+
 We use cross-validation for the performance model
+
+:::
 
 **External validity**:
 When measuring the representativeness of our benchmark subset, we use other workload characteristics, not just performance in each collector.
 Therefore, our set also maintains variety and representativeness in underlying characteristics, not just in the performance we observe.
 Rather than select the highest cluster value, we select the point of diminishing return, which is more likely to be generalizable.
+[_text removed_]{style=red}
+
+::: {style=hidden}
 
 Regarding the performance model, we use cross-validation to asses out-of-sample generalizability.
+
+:::
 
 <!--
 **Construct validity**:
@@ -1169,6 +1219,14 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 \end{table}
 \footnotetext{LogGC measures the offline running time and size of garbage collected logs; there is no comparison to native would be applicable.}
 
+::: {style=red}
+
+_Figure removed._
+
+:::
+
+::: {style=hidden}
+
 \begin{figure*}
 \begin{center}
 \includegraphics[width=0.98\textwidth]{generated/dendrogram_full.pdf}
@@ -1179,6 +1237,10 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 \label{fig:dendrogram-full}
 \end{center}
 \end{figure*}
+
+:::
+
+::: {style=hidden}
 
 # Note on failed reproducibility
 
@@ -1223,6 +1285,8 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 
 - **Sciunit** works on most benchmarks, but exhausts the memory of our system when processing FTP server/client and Spack compile package.
   We believe this is simply due to the benchmarks manipulating a large number of files and Sciunit trying to deduplicate them all.
+
+:::
 
 # Benchmark descriptions
 
@@ -1294,7 +1358,8 @@ We considered creating a Docker image, but BenchExec, the tool we use to get con
 Install Nix with:
 
 ```sh
-$ curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+$ url=https://install.determinate.systems/nix
+$ curl -f -L $url | sh -s -- install
 ```
 
 This installer also enables "flakes" and the "nix-command".
@@ -1324,28 +1389,37 @@ Briefly, it takes a `--collectors`, `--workloads`, `--iterations`, and `--parall
 For the paper, we ran
 
 ```sh
-./result/bin/python runner.py --collectors working --workloads working --iterations 3 --parallelism 1
+$ ./result/bin/python runner.py \
+    --collectors working \
+    --workloads working \
+    --iterations 3 \
+    --parallelism 1
 ```
 
 Multiple `--collectors` and `--workloads` can be given, for example,
 
 ```sh
-./result/bin/python runner.py --collectors noprov --collectors strace --workloads lmbench --workloads postmark
+$ ./result/bin/python runner.py \
+    --collectors noprov \
+    --collectors strace \
+    --workloads lmbench \
+    --workloads postmark
 ```
 
 See the bottom of `prov_collectors.py` and `workloads.py` for the name-mapping.
 
-# Running the analysis
+## Running the analysis
 
-The analysis is written in a Jupyter notebook stored in `notebooks/cross-val.ipynb`.
-The notebook is commented.
+The analysis is written in a Jupyter notebook called ``notebooks/cross-val.ipynb''.
 It begins by checking for anomalies in the data, which we've automated as much as possible, but please sanity check the graphs before proceeding.
 
-The notebook can eb launched from our software environment by:
+The notebook can be launched from our software environment by:
 
 ```sh
 env - PATH=$PWD/result/bin/jupyter notebook
 ```
+
+::: {style=hidden}
 
 # Open source contributions
 
@@ -1379,5 +1453,7 @@ The following are open PRs developed as a result of this work:
 - <https://github.com/depaul-dice/provenance-to-use/pull/5>
 - <https://github.com/ipython-contrib/jupyter_contrib_nbextensions/pull/1649>
 - <https://github.com/NixOS/nixpkgs/issues/268542>
+
+:::
 
 # References

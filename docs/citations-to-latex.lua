@@ -53,3 +53,22 @@ function Table(table)
     return table
   end
 end
+
+function Span(elem)
+  style = elem.attributes["style"]
+  if style == nil then
+    return elem
+  else
+    if style == "hidden" then
+      return {}
+    elseif style == "red" then
+      return {pandoc.RawInline("latex", "{\\color{red}"), elem, pandoc.RawInline("latex", "}")}
+    else
+      return elem
+    end
+  end
+end
+
+function Div(elem)
+  return Span(elem)
+end

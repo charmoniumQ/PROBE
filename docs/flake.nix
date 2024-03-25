@@ -161,43 +161,6 @@
                     '';
                     phases = [ "unpackPhase" "buildPhase" ];
                   })
-                  (pkgs.stdenvNoCC.mkDerivation rec {
-                    src = nix-utils-lib.mergeDerivations {
-                      packageSet = {
-                        "test.tex" = ./test.tex;
-                      };
-                    };
-                    latexStem = "test";
-                    latexTemplate = "acm-template.tex";
-                    name = "test";
-                    date = 1707292740;
-                    latexmkFlagForEngine = "-pdf";
-                    pandocFlagForEngine = "latexmk"; # pdfLaTeX vs LuaLaTeX vs XeLaTeX
-                    FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ ]; };
-                    buildInputs = [
-                      (pkgs.texlive.combine texlivePackages)
-                    ];
-                    buildPhase = ''
-                      tmp=$(mktemp --directory)
-                      HOME=$(mktemp --directory)
-                      export SOURCE_DATE_EPOCH=${builtins.toString date}
-                      set +e
-                      latexmk ${latexmkFlagForEngine} -shell-escape -emulate-aux-dir -auxdir=$tmp -Werror ${latexStem}
-                      latexmk_status=$?
-                      set -e
-                      mkdir $out/
-                      ls -ahlt
-                      cp *.{svg,pdf,bbl,tex,docx} $out/
-                      ls -ahlt $out/
-                      if [ $latexmk_status -ne 0 ]; then
-                        mv $tmp/${latexStem}.log $out
-                        cat $out/${latexStem}.log
-                        echo "Aborting: Latexmk failed"
-                        # exit $latexmk_status
-                      fi
-                    '';
-                    phases = [ "unpackPhase" "buildPhase" ];
-                  })
                   (nix-documents-lib.graphvizFigure {
                     src = ./benchmark_suite;
                     main = "app-lvl-prov.dot";
