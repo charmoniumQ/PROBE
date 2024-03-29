@@ -20,14 +20,14 @@ import grp
 
 cwd = Path(__file__).resolve()
 result_bin = (cwd.parent / "result").resolve() / "bin"
-result_lib = result_bin.parent / "lib"
-result = result_lib.parent
+result = result_bin.parent
 # username = getpass.getuser()
 # groupname = grp.getgrgid(pwd.getpwnam(username).pw_gid).gr_name
 username = "benchexec"
 groupname = "benchexec"
 
 class Workload:
+    superkind: str
     kind: str
     name: str
     network_access = False
@@ -36,8 +36,8 @@ class Workload:
     def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         pass
 
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
-        return ["true"], {"PATH": str(result_bin)}
+    def run(self, workdir: Path) -> Sequence[CmdArg]:
+        return ["true"]
 
     def __str__(self) -> str:
         return self.name
@@ -62,7 +62,10 @@ class SpackInstall(Workload):
 
     """
 
-    kind = "spack"
+    nix_packages = [".#spack-env"]
+
+    superkind = "Compile"
+    kind = "w/Spack"
 
     def __init__(
             self,
@@ -86,14 +89,14 @@ class SpackInstall(Workload):
         else:
             return env_name
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
+        python_path = shutil.which("python", path=env["PATH"])
+        assert python_path is not None
         self._env_vars = {
-            "PATH": str(result_bin),
+            **env,
             "SPACK_USER_CACHE_PATH": str(workdir),
             "SPACK_USER_CONFIG_PATH": str(workdir),
-            "LD_LIBRARY_PATH": str(result_lib),
-            "LIBRARY_PATH": str(result_lib),
-            "SPACK_PYTHON": f"{result_bin}/python",
+            "SPACK_PYTHON": python_path,
         }
 
         # Install spack
@@ -104,11 +107,11 @@ class SpackInstall(Workload):
             check_returncode(subprocess.run(
                 run_all(
                     (
-                        f"{result_bin}/git", "clone", "-c", "feature.manyFiles=true",
+                        f"git", "clone", "-c", "feature.manyFiles=true",
                         "https://github.com/spack/spack.git", str(spack_dir),
                     ),
                     (
-                        f"{result_bin}/git", "-C", str(spack_dir), "checkout",
+                        f"git", "-C", str(spack_dir), "checkout",
                         self._version, "--force",
                     ),
                 ),
@@ -143,7 +146,7 @@ class SpackInstall(Workload):
         ), env=self._env_vars).stdout
         pattern = re.compile('^export ([a-zA-Z0-9_]+)="?(.*?)"?;?$', flags=re.MULTILINE)
         self._env_vars = cast(Mapping[str, str], merge_env_vars(
-            cast(Mapping[CmdArg, str], self._env_vars),
+            cast(Mapping[str, str], self._env_vars),
             {
                 match.group(1): match.group(2)
                 for match in pattern.finditer(exports)
@@ -182,11 +185,11 @@ class SpackInstall(Workload):
         conf_obj = yaml.safe_load((env_dir / "spack.yaml").read_text())
         compilers = conf_obj["spack"]["compilers"]
         assert len(compilers) == 1, "Multiple compilers detected; I'm not sure how to choose and configure those."
-        compiler = compilers[0]["compiler"]
-        env_obj = compiler.setdefault("environment", {})
-        prepend_path = env_obj.setdefault("prepend_path", {})
-        prepend_path["LIBRARY_PATH"] = str(result_lib)
-        prepend_path["CPATH"] = str(result_lib.parent / "include")
+        # compiler = compilers[0]["compiler"]
+        # env_obj = compiler.setdefault("environment", {})
+        # prepend_path = env_obj.setdefault("prepend_path", {})
+        # prepend_path["LIBRARY_PATH"] = str(result_lib)
+        # prepend_path["CPATH"] = str(result_lib.parent / "include")
         (env_dir / "spack.yaml").write_text(yaml.dump(conf_obj))
 
         check_returncode(subprocess.run(
@@ -245,7 +248,7 @@ class SpackInstall(Workload):
                     ), env=self._env_vars)
 
 
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> Sequence[CmdArg]:
         spack = workdir / "spack/bin/spack"
         assert "LD_PRELOAD" not in self._env_vars
         # assert "LD_LIBRARY_PATH" not in self._env_vars
@@ -254,20 +257,26 @@ class SpackInstall(Workload):
         # env - PATH=$PWD/result/bin HOME=$HOME $(jq  --join-output --raw-output 'to_entries[] | .key + "=" + .value + " "' .workdir/work/spack_envs/$env/env_vars.json) .workdir/workb/spack/bin/spack --debug bootstrap status 2>~/Downloads/stderr_good.txt >~/Downloads/stdout_good.txt
         # sed -i $'s/\033\[[0-9;]*m//g' ~/Downloads/stderr*.txt
         # sed -i 's/==> \[[0-9:. -]*\] //g' ~/Downloads/stderr*.txt
-        return (
-            (spack, "install"),
-            {k: v for k, v in self._env_vars.items()},
+        return env_command(
+            env=self._env_vars,
+            cwd=None,
+            clear_env=False,
+            cmd=(spack, "install")
         )
 
 
 class KaggleNotebook(Workload):
-    kind = "notebook"
+    superkind = "Data science"
+    kind = "Notebook"
+
+    nix_packages = [".#notebook-env"]
 
     def __init__(
             self,
             kernel: str,
             competition: str,
             replace: Sequence[tuple[str, str]],
+            name: str,
     ) -> None:
         # kaggle kernels pull pmarcelino/comprehensive-data-exploration-with-python
         # kaggle competitions download -c house-prices-advanced-regression-techniques
@@ -276,10 +285,9 @@ class KaggleNotebook(Workload):
         self._replace = replace
         self._notebook: None | Path = None
         self._data_zip: None | Path = None
-        author, name = self._kernel.split("/")
-        self.name = name[:10]
+        self.name = name
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         self._kaggle_dir = workdir / "kaggle"
         self._kernel_dir = self._kaggle_dir / "kernel"
         self._input_dir = self._kaggle_dir / "input"
@@ -288,10 +296,9 @@ class KaggleNotebook(Workload):
         if not self._notebook.exists():
             check_returncode(subprocess.run(
                 [
-                    result_bin / "kaggle", "kernels", "pull", "--path",
-                    self._kernel_dir, self._kernel
+                    "kaggle", "kernels", "pull", "--path", self._kernel_dir, self._kernel
                 ],
-                env={"PATH": str(result_bin)},
+                env=env,
                 check=False,
                 capture_output=True,
             ))
@@ -302,32 +309,24 @@ class KaggleNotebook(Workload):
         if not self._data_zip.exists():
             check_returncode(subprocess.run(
                 [
-                    result_bin / "kaggle", "competitions", "download", "--path",
-                    self._kaggle_dir, self._competition.split("/")[1]
+                    "kaggle", "competitions", "download", "--path", self._kaggle_dir, self._competition.split("/")[1]
                 ],
                 check=False,
                 capture_output=True,
+                env=env,
             ))
         if self._input_dir.exists():
             shutil.rmtree(self._input_dir)
         check_returncode(subprocess.run(
-            [result_bin / "unzip", "-o", "-d", self._input_dir, self._data_zip],
-            env={"PATH": str(result_bin)},
+            ["unzip", "-o", "-d", self._input_dir, self._data_zip],
+            env=env,
             check=False,
             capture_output=True,
         ))
 
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> Sequence[CmdArg]:
         assert self._notebook
-        return (
-            (
-                (result_bin / "python").resolve(), "-m", "jupyter", "nbconvert", "--execute",
-                "--to=markdown", self._notebook,
-            ),
-            {
-                "PATH": str(result_bin),
-            },
-        )
+        return ("python", "-m", "jupyter", "nbconvert", "--execute", "--to=markdown", self._notebook)
 
 
 # See https://superuser.com/a/1079037
@@ -345,13 +344,18 @@ DocumentRoot $SRV_ROOT
 
 
 class HttpBench(Workload):
-    kind = "http_server"
+    superkind = "HTTP"
+    kind = "srv/traffic"
     network_access = True
 
     def __init__(self, port: int, n_requests: int, request_size: int):
         self.port = port
         self.n_requests = n_requests
         self.request_size = request_size
+        self.nix_packages = [".#curl", ".#python", ".#hey"] + self.get_server_nix_packages()
+
+    def get_server_nix_packages(self) -> list[str]:
+        return []
 
     def write_request_payload(self, path: Path) -> None:
         path.write_text("A" * self.request_size)
@@ -360,27 +364,24 @@ class HttpBench(Workload):
         raise NotImplementedError
 
     def get_load(self, _workdir: Path) -> tuple[CmdArg, ...]:
-        return str(result_bin / "hey"), "-n", str(self.n_requests), f"http://localhost:{self.port}/test"
+        return "hey" "-n", str(self.n_requests), f"http://localhost:{self.port}/test"
 
     def stop_server(self) -> tuple[CmdArg, ...] | None:
         return None
 
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> Sequence[CmdArg]:
         stop_server = self.stop_server()
         return (
-            (
-                result_bin / "python",
-                "run_server_and_client.py",
-                self.run_server(workdir),
-                " && ".join([
-                    shlex.join(map(str, self.get_load(workdir))),
-                    *((shlex.join(map(bytes.decode, map(cmd_arg, stop_server))),) if stop_server is not None else ()),
-                ]),
-                shlex.join([
-                    str(result_bin / "curl"), "--silent", "--fail", "--output", "/dev/null", f"http://localhost:{HTTP_PORT}/test",
-                ]),
-            ),
-            {},
+            "python",
+            "run_server_and_client.py",
+            self.run_server(workdir),
+            " && ".join([
+                shlex.join(map(str, self.get_load(workdir))),
+                *((shlex.join(map(bytes.decode, map(cmd_arg, stop_server))),) if stop_server is not None else ()),
+            ]),
+            shlex.join([
+                "curl", "--silent", "--fail", "--output", "/dev/null", f"http://localhost:{HTTP_PORT}/test",
+            ]),
         )
 
 
@@ -388,7 +389,10 @@ class Apache(HttpBench):
     name = "apache"
 
     # def stop_server(self) -> tuple[CmdArg, ...] | None:
-    #     return (result_bin / "apacheHttpd", "-k", "graceful-stop")
+    #     return ("apacheHttpd", "-k", "graceful-stop")
+
+    def get_server_nix_packages(self) -> list[str]:
+        return [".#apacheHttpd"]
 
     def run_server(self, workdir: Path) -> str:
         httpd_root = (workdir / "apache").resolve()
@@ -399,21 +403,21 @@ class Apache(HttpBench):
         srv_root.mkdir()
         self.write_request_payload(srv_root / "test")
         conf_file = httpd_root / "httpd.conf"
-        modules_root = result_lib.parent / "modules"
+        # modules_root = result_lib.parent / "modules"
         conf_file.write_text(
             APACHE_CONF
             .replace("$HTTPD_ROOT", str(httpd_root))
-            .replace("$MODULES_ROOT", str(modules_root))
+            # .replace("$MODULES_ROOT", str(modules_root))
             .replace("$SRV_ROOT", str(srv_root))
             .replace("$PORT", str(HTTP_PORT))
         )
         return shlex.join([
-            str(result_bin / "apacheHttpd"), "-k", "start", "-f", str(conf_file), "-X",
+            "apacheHttpd", "-k", "start", "-f", str(conf_file), "-X",
         ])
 
 
 class SimpleHttp(HttpBench):
-    name = "python http.server"
+    name = "simplehttp"
 
     def run_server(self, workdir: Path) -> str:
         httpd_root = workdir / "simple"
@@ -422,12 +426,15 @@ class SimpleHttp(HttpBench):
         httpd_root.mkdir()
         self.write_request_payload(httpd_root / "test")
         return shlex.join([
-            str(result_bin / "python"), "-m", "http.server", str(HTTP_PORT), "--directory", str(httpd_root)
+            "python", "-m", "http.server", str(HTTP_PORT), "--directory", str(httpd_root)
         ]) + f" > {httpd_root}/stdout 2> {httpd_root}/stderr"
 
 
 class MiniHttp(HttpBench):
     name = "minihttp"
+
+    def get_server_nix_packages(self) -> list[str]:
+        return [".#miniHttpd"]
 
     def run_server(self, workdir: Path) -> str:
         httpd_root = (workdir / "minihttpd").resolve()
@@ -438,7 +445,7 @@ class MiniHttp(HttpBench):
         (httpd_root / "localhost").mkdir()
         self.write_request_payload(httpd_root / "localhost/test")
         return shlex.join([
-            str(result_bin / "miniHttpd"), "--logfile", str(httpd_root / "logs"), "--port",
+            "miniHttpd", "--logfile", str(httpd_root / "logs"), "--port",
             str(HTTP_PORT), "--change-root", "", "--document-root", str(httpd_root)
         ])
 
@@ -453,6 +460,9 @@ server.errorlog = "$HTTPD_ROOT/error.log"
 
 class Lighttpd(HttpBench):
     name = "lighttpd"
+
+    def get_server_nix_packages(self) -> list[str]:
+        return [".#lighttpd"]
 
     def run_server(self, workdir: Path) -> str:
         httpd_root = (workdir / "lighttpd").resolve()
@@ -470,7 +480,7 @@ class Lighttpd(HttpBench):
             .replace("$HTTPD_ROOT", str(httpd_root))
         )
         return shlex.join([
-            str(result_bin / "lighttpd"), "-D", "-f", str(conf_path),
+            str("lighttpd"), "-D", "-f", str(conf_path),
         ])
 
 
@@ -498,6 +508,9 @@ http {
 class Nginx(HttpBench):
     name = "nginx"
 
+    def get_server_nix_packages(self) -> list[str]:
+        return [".#nginx"]
+
     def run_server(self, workdir: Path) -> str:
         nginx_root = (workdir / "nginx").resolve()
         if nginx_root.exists():
@@ -514,11 +527,14 @@ class Nginx(HttpBench):
             .replace("$SRV_ROOT", str(srv_root))
         )
         return shlex.join([
-            str(result_bin / "nginx"), "-p", str(nginx_root), "-c", "test.conf", "-e", "stderr",
+            "nginx", "-p", str(nginx_root), "-c", "test.conf", "-e", "stderr",
         ])
 
 
 class HttpClient(SimpleHttp):
+    superkind = "HTTP"
+    kind = "srv/traffic"
+
     def __init__(self, name: str, http_client: tuple[CmdArg, ...], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = name
@@ -571,9 +587,15 @@ username:$6$3FjBjHLcRPwcOK8h$DpG7OtbJXsQJ0g/TTAQjYiw47ZApeNdo6k9tRlcHQzfALKsoDxe
 
 
 class Proftpd(Workload):
-    kind = "ftp_server"
-    name = "proftpd with ftpbench"
+    superkind = "FTP"
+    kind = "srv/traffic"
+    name = "proftpd"
     network_access = True
+
+
+    def get_server_nix_packages(self) -> list[str]:
+        return [".#proftpd", ".#ftpbench"]
+
 
     def __init__(self, ftp_port: int, n_requests: int) -> None:
         self.ftp_port = ftp_port
@@ -602,7 +624,7 @@ class Proftpd(Workload):
 
     def get_load(self, tmpdir: Path) -> tuple[CmdArg, ...]:
         return (
-            str(result_bin / "ftpbench"),
+            "ftpbench",
             "--host",
             f"127.0.0.1:{self.ftp_port}",
             "--user",
@@ -615,26 +637,25 @@ class Proftpd(Workload):
             str(tmpdir),
         )
 
-    def run(self, workdir: Path) -> tuple[Sequence[CmdArg], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> Sequence[CmdArg]:
         ftpdir = (workdir / "proftpd").resolve()
         tmpdir = ftpdir / "tmp"
         return (
-            (
-                result_bin / "python",
-                "run_server_and_client.py",
-                shlex.join([
-                    str(result_bin / "proftpd"), "--nodaemon", "--config", str(ftpdir / "conf")
-                ]),
-                shlex.join(cmd_arg(arg).decode() for arg in self.get_load(tmpdir)),
-                shlex.join([
-                    str(result_bin / "curl"), "--silent", "--output", f"{tmpdir}/test", f"ftp://anonymous:@127.0.0.1:{self.ftp_port}/test"
-                ])
-            ),
-            {},
+            "python",
+            "run_server_and_client.py",
+            shlex.join([
+                "proftpd", "--nodaemon", "--config", str(ftpdir / "conf")
+            ]),
+            shlex.join(cmd_arg(arg).decode() for arg in self.get_load(tmpdir)),
+            shlex.join([
+                "curl", "--silent", "--output", f"{tmpdir}/test", f"ftp://anonymous:@127.0.0.1:{self.ftp_port}/test"
+            ])
         )
 
 
 class FtpClient(Proftpd):
+    superkind = "FTP"
+    kind = "srv/client"
     def __init__(self, name: str, ftp_client: tuple[CmdArg, ...], *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.kind = "ftp_client"
@@ -658,8 +679,11 @@ class FtpClient(Proftpd):
 
 
 class Postmark(Workload):
-    kind = "postmark"
-    name = "postmark"
+    superkind = "IO Bench"
+    kind ="Postmark"
+    name = "all"
+
+    nix_packages = [".#dash", ".#postmark-from-src"]
 
     def __init__(self, n_transactions: int) -> None:
         self.n_transactions = n_transactions
@@ -672,26 +696,30 @@ class Postmark(Workload):
         postmark_input = postmark_dir / "postmark.input"
         postmark_input.write_text("\n".join([f"set transactions {self.n_transactions}", "run", ""]))
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         postmark_dir = workdir / "postmark"
         postmark_input = postmark_dir / "postmark.input"
-        return (
-            (result_bin / "sh", "-c", f"{result_bin}/env --chdir {postmark_dir} {result_bin}/postmark < {postmark_input}"),
-            {},
-        )
+        return ("dash", "-e", "-c", "env --chdir {postmark_dir} postmark < {postmark_input}")
 
 
+SYSTEMD_TARBALL_URL = "https://github.com/systemd/systemd/archive/refs/tags/v255.tar.gz"
 LINUX_TARBALL_URL = "https://github.com/torvalds/linux/archive/refs/tags/v6.8-rc4.tar.gz"
 SMALLER_TARBALL_URL = "https://files.pythonhosted.org/packages/60/7c/04f0706b153c63e94b01fdb1f3ccfca19c80fa7c42ac34c182f4b1a12c75/BenchExec-3.20.tar.gz"
 
 
 class Archive(Workload):
-    kind = "archive"
-    nix_packages = [".#gnutar", ".#gzip", ".#pigz", ".#bzip2", ".#pbzip2", ".#xz"]
+    superkind = "Un/archive"
+    kind = ""
+
+    nix_packages = [".#un-archive-env"]
 
     def __init__(self, algorithm: str, url: str, repetitions: int) -> None:
         self.algorithm = algorithm
-        self.name = f"archive {self.algorithm}".strip()
+        self.name = "_".join([
+            "Tar",
+            url.split('/')[-1].split('.')[0],
+            self.algorithm if self.algorithm is not None else "raw",
+        ])
         self.url = url
         self.repetitions = repetitions
 
@@ -709,30 +737,38 @@ class Archive(Workload):
         if newarchive.exists():
             newarchive.unlink()
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         resource_dir = workdir / "archive"
         newarchive = resource_dir / ("newarchive.tar.compressed" if self.algorithm else "newarchive.tar")
         source_dir = resource_dir / "source"
-        use_compress_prog = ("--use-compress-prog", str(result_bin / self.algorithm)) if self.algorithm else ()
-        return (
-            repeat(self.repetitions, (result_bin / "tar", "--create", "--file", newarchive, *use_compress_prog, "--directory", source_dir, ".")),
-            {},
-        )
+        use_compress_prog = ("--use-compress-prog", self.algorithm) if self.algorithm else ()
+        return repeat(self.repetitions, (
+            "tar", "--create", "--file", newarchive, *use_compress_prog, "--directory", source_dir, ".",
+        ))
 
 
 class Unarchive(Workload):
-    kind = "unarchive"
+    superkind = "Un/archive"
+    kind = ""
+
+    nix_packages = [".#un-archive-env"]
+
     def __init__(self, algorithm: str, url: str, repetitions: int) -> None:
         self.algorithm = algorithm
-        self.name = f"unarchive {algorithm}".strip()
+        self.archive_name = url.split('/')[-1].split('.')[0]
+        self.name = "_".join([
+            "Untar",
+            url.split('/')[-1].split('.')[0],
+            self.algorithm if self.algorithm is not None else "raw",
+        ])
         self.url = url
         self.target_archive: None | Path = None
         self.repetitions = repetitions
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         resource_dir = workdir / "unarchive"
         resource_dir.mkdir(exist_ok=True)
-        archive_targz = resource_dir / "archive.tar.gz"
+        archive_targz = (resource_dir / self.archive_name).with_suffix(".tar.gz")
         source_dir = resource_dir / "source"
         if source_dir.exists():
             shutil.rmtree(source_dir)
@@ -742,41 +778,52 @@ class Unarchive(Workload):
         if self.algorithm in {"gzip", "pigz"}:
             self.target_archive = archive_targz
         else:
-            archive_tar = resource_dir / "archive.tar"
+            archive_tar = (resource_dir / self.archive_name).with_suffix(".tar")
             if not archive_tar.exists():
-                subprocess.run([result_bin / "pigz", "--decompress", archive_targz], check=True)
+                subprocess.run(["pigz", "--decompress", archive_targz], check=True, env=env)
+                assert archive_tar.exists()
             if self.algorithm == "":
                 self.target_archive = archive_tar
             elif self.algorithm in {"pbzip2", "bzip2"}:
-                archive_tarbz = resource_dir / "archive.tar.bz2"
+                archive_tarbz = (resource_dir / self.archive_name).with_suffix(".tar.bz2")
                 if not archive_tarbz.exists():
-                    subprocess.run([result_bin / "pbzip2", "--compress", archive_tar], check=True)
+                    subprocess.run(["pbzip2", "--compress", archive_tar], check=True, env=env)
                 self.target_archive = archive_tarbz
+                assert archive_tarbz.exists()
+            elif self.algorithm == "xz":
+                archive_tarxz = (resource_dir / self.archive_name).with_suffix(".tar.xz")
+                if not archive_tarxz.exists():
+                    subprocess.run(["xz", "--compress", archive_tar], check=True, env=env)
+                self.target_archive = archive_tarxz
+                assert archive_tarxz.exists()
+            elif self.algorithm == "lzop":
+                archive_tarlzo = (resource_dir / self.archive_name).with_suffix(".tar.lzo")
+                if not archive_tarlzo.exists():
+                    subprocess.run(["lzop", archive_tar], check=True, env=env)
+                    assert archive_tarlzo.exists()
+                self.target_archive = archive_tarlzo
             else:
                 raise NotImplementedError(f"No compression handler for algorithm {self.algorithm}")
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         resource_dir = workdir / "unarchive"
         source_dir = resource_dir / "source"
         if self.target_archive is None:
             raise RuntimeError("self.target_archive should have been set during setup()")
-        use_compress_prog = ("--use-compress-prog", str(result_bin / self.algorithm)) if self.algorithm else ()
-        return (
-            repeat(self.repetitions, (
-                result_bin / "tar", "--extract", "--file", self.target_archive,
-                *use_compress_prog, "--directory", source_dir, "--strip-components", "1", "--overwrite",
-            )),
-            {},
-        )
+        use_compress_prog = ("--use-compress-prog", self.algorithm) if self.algorithm else ()
+        return repeat(self.repetitions, (
+            "tar", "--extract", "--file", self.target_archive,
+            *use_compress_prog, "--directory", source_dir, "--strip-components", "1", "--overwrite",
+        ))
 
 
 class Cmds(Workload):
-    def __init__(self, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...], run_env: Mapping[CmdArg, CmdArg] = {}) -> None:
+    def __init__(self, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...], nix_packages: list[str]) -> None:
         self.kind = kind
         self.name = name
         self._setup = setup
         self._run = run
-        self.run_env = run_env
+        self.nix_packages = nix_packages
 
     def _replace_args(self, args: tuple[CmdArg, ...], workdir: Path) -> tuple[CmdArg, ...]:
         return tuple(
@@ -790,20 +837,22 @@ class Cmds(Workload):
             for arg in args
         )
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         check_returncode(subprocess.run(
             self._replace_args(self._setup, workdir),
-            env={"PATH": str(result_bin)},
+            env=env,
             check=False,
             capture_output=True,
         ))
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
-        return tuple(self._replace_args(self._run, workdir)), self.run_env
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
+        return self._replace_args(self._run, workdir)
 
 
 class VCSTraffic(Workload):
-    kind = "vcs"
+    superkind = "VCS"
+    kind = ""
+
     def __init__(
             self,
             url: str,
@@ -812,7 +861,11 @@ class VCSTraffic(Workload):
             list_commits_cmd: tuple[CmdArg, ...],
             first_n_commits: None | int = None,
     ) -> None:
-        self.name = str(clone_cmd[0]).split("/")[-1] + " " + url.split("/")[-1]
+        self.name = "_".join([
+            str(clone_cmd[0]).split("/")[-1],
+            url.split("/")[-1],
+            *(() if first_n_commits is None else (str(first_n_commits),)),
+        ])
         self.url = url
         self.clone_cmd = clone_cmd
         self.checkout_cmd = checkout_cmd
@@ -820,37 +873,45 @@ class VCSTraffic(Workload):
         self.repo_dir: None | Path = None
         self.commits: None | list[str] = None
         self.first_n_commits = first_n_commits
+        if clone_cmd[0] == "git":
+            self.nix_packages = [".#git", ".#dash"]
+        elif clone_cmd[0] == "hg":
+            self.nix_packages = [".#mercurial", ".#dash"]
+        else:
+            raise NotImplementedError()
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         self.repo_dir = workdir / "vcs" / hashlib.sha256(self.url.encode()).hexdigest()[:10]
         if self.repo_dir.exists():
             shutil.rmtree(self.repo_dir)
-        subprocess.run([*self.clone_cmd, self.url, self.repo_dir], check=True, capture_output=True)
+        subprocess.run([*self.clone_cmd, self.url, self.repo_dir], check=True, capture_output=True, env=env)
         self.commits = subprocess.run(
             [*self.list_commits_cmd],
             check=True,
             capture_output=True,
             text=True,
             cwd=self.repo_dir,
+            env=env,
         ).stdout.strip().split("\n")[:self.first_n_commits]
+        # Unfortunately, this exceeds the maximum number of args that can be passed at the command line
         (self.repo_dir / "script").write_text(
             f"cd {self.repo_dir}\n" + "\n".join([
-                shlex.join([*map(str, self.checkout_cmd), commit]) + " >/dev/null"
+                shlex.join([*map(str, self.checkout_cmd), commit]) + " >/dev/null 2>&1"
                 for commit in self.commits
             ])
         )
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         assert self.repo_dir is not None
         assert self.commits is not None
-        return (
-            (result_bin / "sh", self.repo_dir / "script"),
-            {},
-        )
+        return ("dash", "-e", self.repo_dir / "script")
 
 
 class Blast(Workload):
-    kind = "blast"
+    superkind = "BLAST"
+    kind = ""
+
+    nix_packages = [".#gnumake"]
 
     def __init__(self, name: str, which_targets: tuple[str, ...]) -> None:
         self.name = name
@@ -885,17 +946,8 @@ class Blast(Workload):
         blastdir = workdir / "blast-benchmark"
         return (
             (
-                result_bin / "make",
+                "make",
                 f"--directory={blastdir}",
-                f"BLASTN={result_bin}/blastn",
-                f"BLASTP={result_bin}/blastp",
-                f"BLASTX={result_bin}/blastx",
-                f"TBLASTN={result_bin}/tblastn",
-                f"TBLASTP={result_bin}/tblastp",
-                f"MEGABLAST={result_bin}/blastn -task megablast -use_index false",
-                f"IDX_MEGABLAST={result_bin}/blastn -task megablast -use_index true",
-                f"IDX_MEGABLAST={result_bin}/blastn -task megablast -use_index true",
-                f"MAKEMBINDEX={result_bin}/makembindex -iformat blastdb -old_style_index false",
                 "TIME=",
                 *self.which_targets,
             ),
@@ -904,7 +956,10 @@ class Blast(Workload):
 
 
 class Copy(Workload):
-    kind = "copy"
+    superkind = "Copy"
+    kind = ""
+
+    nix_packages = [".#coreutils"]
 
     def __init__(self, name: str, url: str) -> None:
         self.name = name
@@ -930,17 +985,18 @@ class Copy(Workload):
         if dst_dir.exists():
             shutil.rmtree(dst_dir)
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         src_dir = workdir / self.name_hash
         dst_dir = workdir / "dst"
-        return (
-            (result_bin / "cp", "--recursive", str(src_dir), str(dst_dir)),
-            {},
-        )
+        return ("cp", "--recursive", str(src_dir), str(dst_dir))
+
 
 class CompileLinux(Workload):
-    kind = "compile"
-    name = "compile-linux"
+    superkind = "Compile"
+    kind = ""
+    name = "Linux"
+
+    nix_packages = [".#dash"]
 
     def __init__(self, url: str) -> None:
         self.url = url
@@ -965,18 +1021,18 @@ class CompileLinux(Workload):
         # command line.
         # This allow a user to issue only 'make' to build a kernel including modules
         # Defaults to vmlinux, but the arch makefile usually adds further targets
-        return (
-            (result_bin / "sh", "-c", f"cd {source_dir} && make defconfig && make"),
-            {
-                "CPATH": str(result_bin.parent / "include"),
-            },
-        )
+        return ("dash", "-e", "-c", "\n".join([
+            f"cd {source_dir}",
+            # f"export CPATH={result_bin.parent / 'include'}",
+            "make defconfig",
+            "make",
+        ]))
 
 
-noop_cmd = (result_bin / "true",)
+noop_cmd = ("true",)
 def create_file_cmd(size: int) -> tuple[CmdArg, ...]:
     return (
-        result_bin / "python",
+        "python",
         "-c",
         "\n".join([
             "import pathlib",
@@ -990,9 +1046,10 @@ def create_file_cmd(size: int) -> tuple[CmdArg, ...]:
 def repeat(n: int, cmd: tuple[CmdArg, ...], no_stdout: bool = False) -> tuple[CmdArg, ...]:
     output = " > /dev/null" if no_stdout else ""
     return (
-        result_bin / "sh",
+        "dash",
+        "-e",
         "-c",
-        f"for i in $({result_bin}/seq {n}); do {shlex.join(cmd_arg(cmd_part).decode() for cmd_part in cmd)}{output}; done",
+        f"for i in $(seq {n}); do {shlex.join(cmd_arg(cmd_part).decode() for cmd_part in cmd)}{output}; done",
     )
 
 
@@ -1000,68 +1057,72 @@ HTTP_PORT = 54123
 HTTP_N_REQUESTS = 50000
 HTTP_REQUEST_SIZE = 16 * 1024
 
+archive_reps = 3
+archive_test_tarball = LINUX_TARBALL_URL
+
 
 # NOTE: where there are repetitions, I've balanced these as best as I can to make them take between 10 and 30 seconds.
 # 10 seconds is enough time that I am sure the cost of initial file loading is not a factor.
 # Obviously, the Spack compile and Kaggle notebooks take much longer than this, and nothing can be done about that.
 WORKLOADS: list[Workload] = [
-    Cmds("simple", "hello", noop_cmd, repeat(1000, (result_bin / "hello",), no_stdout=True)),
-    Cmds("simple", "ps", noop_cmd, repeat(1000, (result_bin / "ps", "aux"), no_stdout=True)),
-    Cmds("simple", "true", noop_cmd, repeat(1000, (result_bin / "true",))),
-    Cmds("simple", "echo", noop_cmd, repeat(1000, (result_bin / "echo", "hello", "world"), no_stdout=True)),
-    Cmds("simple", "ls", create_file_cmd(100), repeat(1000, (result_bin / "ls", "$WORKDIR/lmbench"), no_stdout=True)),
-    Cmds("python", "python-hello-world", noop_cmd, repeat(100, (result_bin / "python", "-c", "print('hello world')"), no_stdout=True)),
-    Cmds("python", "python-import", noop_cmd, repeat(10, (result_bin / "python", "-c", "import pandas, matplotlib; print('hi')"), no_stdout=True)),
-    Cmds("gcc", "gcc-hello-world", noop_cmd, repeat(100, (result_bin / "gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
-    Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, (result_bin / "gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
-    # TOD: Fix shell workloads
-    Cmds("shell", "shell-incr", noop_cmd, (result_bin / "bash", "-c", "i=0; for i in seq 10000; do i=$((i+1)); done")),
-    Cmds("shell", "cd", noop_cmd, (result_bin / "bash", "-c", f"dir0={Path().resolve()}; dir1=$({result_bin}/realpath $WORKDIR); for i in seq 10000; do cd $dir0; cd $dir1; done")),
-    Cmds("shell", "shell-echo", noop_cmd, (result_bin / "bash", "-c", "for i in seq 10000; do echo hi > /dev/null; done")),
-    Cmds(
-        "pdflatex",
-        "latex-test",
-        (result_bin / "sh", "-c", f"{result_bin}/mkdir --parents $WORKDIR/latex && {result_bin}/cp test.tex $WORKDIR/latex/test.tex"),
-        (result_bin / "env", "--chdir", "$WORKDIR/latex", "pdflatex", "test.tex"),
-    ),
-    Cmds(
-        "pdflatex",
-        "latex-test2",
-        (result_bin / "sh", "-c", f"{result_bin}/mkdir --parents $WORKDIR/latex && {result_bin}/cp test2.tex $WORKDIR/latex/test2.tex"),
-        (result_bin / "env", "--chdir", "$WORKDIR/latex", "pdflatex", "test2.tex"),
-    ),
-    Cmds("lmbench", "lm-getppid", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "null"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-read", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "read"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-write", noop_cmd, (result_bin / "lat_syscall", "-N", "1000", "write"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-stat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-fstat", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-open/close", create_file_cmd(1024), (result_bin / "lat_syscall", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-fork", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-exec", noop_cmd, (result_bin / "lat_proc", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-shell", noop_cmd, (result_bin / "lat_proc", "-N", "100", "shell")), # broke
-    Cmds("lmbench", "lm-install-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
-    Cmds("lmbench", "lm-catch-signal", noop_cmd, (result_bin / "lat_sig", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
-    Cmds("lmbench", "lm-protection-fault", create_file_cmd(1024), (result_bin / "lat_sig", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-page-fault", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-select-file", create_file_cmd(1024), (result_bin / "env", "--chdir", "$WORKDIR", result_bin / "lat_select", "-n", "100", "-N", "1000", "file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-select-tcp", create_file_cmd(1024), (result_bin / "lat_select", "-n", "100", "-N", "1000", "tcp"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-mmap", create_file_cmd(8 * 1024 * 1024), (result_bin / "lat_mmap", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-bw_file_rd", create_file_cmd(1024), (result_bin / "bw_file_rd", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-bw_unix", noop_cmd, (result_bin / "bw_unix", "-N", "10"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-bw_pipe", noop_cmd, (result_bin / "bw_pipe", "-N", "10"), {"ENOUGH": "10000"}),
-    Cmds("lmbench", "lm-fs", create_file_cmd(1024), (result_bin / "lat_fs", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
-    # Cmds("splash-3", "splash-barnes", noop_cmd, (result_bin / "sh", "-c", f"{result_bin}/BARNES < {result}/inputs/barnes/n16384-p1")),
-    # Cmds("splash-3", "splash-fmm", (result_bin / "mkdir", "--parents", "$WORKDIR/splash"), repeat(1000, (result_bin / "sh", "-c", f"{result_bin}/FMM -o $WORKDIR/splash/fmm-out < {result}/inputs/fmm/input.4.16384"))),
-    Cmds("splash-3", "splash-ocean", noop_cmd, (result_bin / "OCEAN", "-p1", "-n", "1026")),
-    Cmds("splash-3", "splash-radiosity", noop_cmd, repeat(100, (result_bin / "RADIOSITY", "-p", "1", "-ae", "50000", "-bf", "0.1", "-en", "0.05", "-room", "-batch"))),
-    Cmds("splash-3", "splash-raytrace", (result_bin / "mkdir", "--parents", "$WORKDIR/splash"), (result_bin / "sh", "-c", f"cd $WORKDIR/splash; {result_bin}/RAYTRACE -p1 -m512 {result}/inputs/raytrace/car.env")),
-    Cmds("splash-3", "splash-volrend", noop_cmd, (result_bin / "VOLREND", "1", f"{result}/inputs/volrend/head", "256")),
-    Cmds("splash-3", "splash-water-nsquared", noop_cmd, repeat(300, (result_bin / "sh", "-c", f"{result_bin}/WATER-NSQUARED < {result}/inputs/water-nsquared/n512-p1"))),
-    Cmds("splash-3", "splash-water-spatial", noop_cmd, repeat(300, (result_bin / "sh", "-c", f"{result_bin}/WATER-SPATIAL < {result}/inputs/water-spatial/n512-p1"))),
-    Cmds("splash-3", "splash-cholesky", noop_cmd, repeat(300, (result_bin / "sh", "-c", f"{result_bin}/CHOLESKY -p1 < {result}/inputs/cholesky/tk15.O"))),
-    Cmds("splash-3", "splash-fft", noop_cmd, (result_bin / "FFT", "-p1", "-m256")),
-    Cmds("splash-3", "splash-lu", noop_cmd, repeat(10, (result_bin / "LU", "-p1", "-n4096"))),
-    Cmds("splash-3", "splash-radix", noop_cmd, (result_bin / "RADIX", "-p1", "-n134217728")),
+    # Cmds("simple", "hello", noop_cmd, repeat(1000, ("hello",), no_stdout=True)),
+    # Cmds("simple", "ps", noop_cmd, repeat(1000, ("ps", "aux"), no_stdout=True)),
+    # Cmds("simple", "true", noop_cmd, repeat(1000, ("true",))),
+    # Cmds("simple", "echo", noop_cmd, repeat(1000, ("echo", "hello", "world"), no_stdout=True)),
+    # Cmds("simple", "ls", create_file_cmd(100), repeat(1000, ("ls", "$WORKDIR/lmbench"), no_stdout=True)),
+    # Cmds("python", "python-hello-world", noop_cmd, repeat(100, ("python", "-c", "print('hello world')"), no_stdout=True)),
+    # Cmds("python", "python-import", noop_cmd, repeat(10, ("python", "-c", "import pandas, matplotlib; print('hi')"), no_stdout=True)),
+    # Cmds("gcc", "gcc-hello-world", noop_cmd, repeat(100, ("gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
+    # Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, ("gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
+    # # TOD: Fix shell workloads
+    # Cmds("shell", "shell-incr", noop_cmd, ("bash", "-c", "i=0; for i in seq 10000; do i=$((i+1)); done")),
+    # Cmds("shell", "cd", noop_cmd, ("bash", "-c", f"dir0={Path().resolve()}; dir1=$(realpath $WORKDIR); for i in seq 10000; do cd $dir0; cd $dir1; done")),
+    # Cmds("shell", "shell-echo", noop_cmd, ("bash", "-c", "for i in seq 10000; do echo hi > /dev/null; done")),
+    # Cmds(
+    #     "pdflatex",
+    #     "latex-test",
+    #     ("dash", "-c", f"mkdir --parents $WORKDIR/latex && cp test.tex $WORKDIR/latex/test.tex"),
+    #     ("env", "--chdir", "$WORKDIR/latex", "pdflatex", "test.tex"),
+    # ),
+    # Cmds(
+    #     "pdflatex",
+    #     "latex-test2",
+    #     ("sh", "-c", f"mkdir --parents $WORKDIR/latex && cp test2.tex $WORKDIR/latex/test2.tex"),
+    #     ("env", "--chdir", "$WORKDIR/latex", "pdflatex", "test2.tex"),
+    # ),
+    # Cmds("lmbench", "lm-getppid", noop_cmd, ("lat_syscall", "-N", "1000", "null"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-read", noop_cmd, ("lat_syscall", "-N", "1000", "read"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-write", noop_cmd, ("lat_syscall", "-N", "1000", "write"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-stat", create_file_cmd(1024), ("lat_syscall", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-fstat", create_file_cmd(1024), ("lat_syscall", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-open/close", create_file_cmd(1024), ("lat_syscall", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-fork", noop_cmd, ("lat_proc", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-exec", noop_cmd, ("lat_proc", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
+    # # Cmds("lmbench", "lm-shell", noop_cmd, ("lat_proc", "-N", "100", "shell")), # broke
+    # Cmds("lmbench", "lm-install-signal", noop_cmd, ("lat_sig", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
+    # Cmds("lmbench", "lm-catch-signal", noop_cmd, ("lat_sig", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
+    # Cmds("lmbench", "lm-protection-fault", create_file_cmd(1024), ("lat_sig", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-page-fault", create_file_cmd(8 * 1024 * 1024), ("lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-select-file", create_file_cmd(1024), ("env", "--chdir", "$WORKDIR", "lat_select", "-n", "100", "-N", "1000", "file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-select-tcp", create_file_cmd(1024), ("lat_select", "-n", "100", "-N", "1000", "tcp"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-mmap", create_file_cmd(8 * 1024 * 1024), ("lat_mmap", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-bw_file_rd", create_file_cmd(1024), ("bw_file_rd", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-bw_unix", noop_cmd, ("bw_unix", "-N", "10"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-bw_pipe", noop_cmd, ("bw_pipe", "-N", "10"), {"ENOUGH": "10000"}),
+    # Cmds("lmbench", "lm-fs", create_file_cmd(1024), ("lat_fs", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
+    # # Cmds("splash-3", "splash-barnes", noop_cmd, ("sh", "-c", f"BARNES < {result}/inputs/barnes/n16384-p1")),
+    # # Cmds("splash-3", "splash-fmm", ("mkdir", "--parents", "$WORKDIR/splash"), repeat(1000, ("sh", "-c", f"FMM -o $WORKDIR/splash/fmm-out < {result}/inputs/fmm/input.4.16384"))),
+    # Cmds("splash-3", "splash-ocean", noop_cmd, ("OCEAN", "-p1", "-n", "1026")),
+    # Cmds("splash-3", "splash-radiosity", noop_cmd, repeat(100, ("RADIOSITY", "-p", "1", "-ae", "50000", "-bf", "0.1", "-en", "0.05", "-room", "-batch"))),
+    # Cmds("splash-3", "splash-raytrace", ("mkdir", "--parents", "$WORKDIR/splash"), ("sh", "-c", f"cd $WORKDIR/splash; RAYTRACE -p1 -m512 {result}/inputs/raytrace/car.env")),
+    # Cmds("splash-3", "splash-volrend", noop_cmd, ("VOLREND", "1", f"{result}/inputs/volrend/head", "256")),
+    # Cmds("splash-3", "splash-water-nsquared", noop_cmd, repeat(300, ("sh", "-c", f"WATER-NSQUARED < {result}/inputs/water-nsquared/n512-p1"))),
+    # Cmds("splash-3", "splash-water-spatial", noop_cmd, repeat(300, ("sh", "-c", f"WATER-SPATIAL < {result}/inputs/water-spatial/n512-p1"))),
+    # Cmds("splash-3", "splash-cholesky", noop_cmd, repeat(300, ("sh", "-c", f"CHOLESKY -p1 < {result}/inputs/cholesky/tk15.O"))),
+    # Cmds("splash-3", "splash-fft", noop_cmd, ("FFT", "-p1", "-m256")),
+    # Cmds("splash-3", "splash-lu", noop_cmd, repeat(10, ("LU", "-p1", "-n4096"))),
+    # Cmds("splash-3", "splash-radix", noop_cmd, ("RADIX", "-p1", "-n134217728")),
+
     # SpackInstall(["trilinos"]), # Broke: openblas
     SpackInstall(["python"]),
     # SpackInstall(["openmpi", "spack-repo.krb5"]),
@@ -1088,7 +1149,7 @@ WORKLOADS: list[Workload] = [
     # SpackInstall(["py-scipy"]),
     # SpackInstall(["py-h5py"]),
     Blast("blastn", ("blastn",)),
-    Blast("megablast", ("megablast",)),
+    Blast("mega", ("megablast",)),
     Blast("tblastn", ("tblastn",)),
     Blast("tblastx", ("tblastx",)),
     Blast("blastp", ("blastp",)),
@@ -1101,79 +1162,73 @@ WORKLOADS: list[Workload] = [
     Lighttpd(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     Nginx(HTTP_PORT, HTTP_N_REQUESTS, HTTP_REQUEST_SIZE),
     # For some reason in wget/curl in ltrace is reallly slow, so we need to run fewer requests.
-    HttpClient(
-        "curl",
-        (result_bin / "curl", "--silent", "--output", "$outfile", "$url"),
-        HTTP_PORT,
-        HTTP_N_REQUESTS // 10_000,
-        HTTP_REQUEST_SIZE,
-    ),
-    HttpClient(
-        "wget",
-        (result_bin / "wget", "--quiet", "--output-document", "$outfile", "$url"),
-        HTTP_PORT,
-        HTTP_N_REQUESTS // 10_000,
-        HTTP_REQUEST_SIZE,
-    ),
+    # HttpClient(
+    #     "curl",
+    #     ("curl", "--silent", "--output", "$outfile", "$url"),
+    #     HTTP_PORT,
+    #     HTTP_N_REQUESTS // 10_000,
+    #     HTTP_REQUEST_SIZE,
+    # ),
+    # HttpClient(
+    #     "wget",
+    #     ("wget", "--quiet", "--output-document", "$outfile", "$url"),
+    #     HTTP_PORT,
+    #     HTTP_N_REQUESTS // 10_000,
+    #     HTTP_REQUEST_SIZE,
+    # ),
     # HttpClient(
     #     "axel",
-    #     (result_bin / "axel", "--output", "$outfile", "$url"),
+    #     ("axel", "--output", "$outfile", "$url"),
     #     HTTP_PORT,
     #     HTTP_N_REQUESTS // 100,
     #     HTTP_REQUEST_SIZE,
     # ),
     # Proftpd(HTTP_PORT, 500), # unfortunately, this crashes in ltrace if this number is too big.
     # ltrace will alsosc crash if this number is too big: FtpClient(..., number)
-    # Proftpd(HTTP_PORT, 500),
-    FtpClient(
-        "lftp",
-        (result_bin / "lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),
-        HTTP_PORT,
-        10,
-    ),
-    FtpClient("ftp-curl", (result_bin / "curl", "--silent", "--output", "$dst", "$url"), HTTP_PORT, 10),
-    FtpClient("ftp-wget", (result_bin / "wget", "--quiet", "--output-document", "$dst", "$url"), HTTP_PORT, 10),
+    Proftpd(HTTP_PORT, 50),
+    # FtpClient(
+    #     "lftp",
+    #     ("lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),
+    #     HTTP_PORT,
+    #     10,
+    # ),
+    # FtpClient("ftp-curl", ("curl", "--silent", "--output", "$dst", "$url"), HTTP_PORT, 10),
+    # FtpClient("ftp-wget", ("wget", "--quiet", "--output-document", "$dst", "$url"), HTTP_PORT, 10),
     Postmark(100_000),
-    Archive("", SMALLER_TARBALL_URL, 100),
-    Archive("gzip", SMALLER_TARBALL_URL, 100),
-    Archive("pigz", SMALLER_TARBALL_URL, 100),
-    Archive("bzip2", SMALLER_TARBALL_URL, 30),
-    Archive("pbzip2", SMALLER_TARBALL_URL, 30),
-    Archive("xz", SMALLER_TARBALL_URL, 30),
-    Unarchive("", SMALLER_TARBALL_URL, 100),
-    Unarchive("gzip", SMALLER_TARBALL_URL, 100),
-    Unarchive("pigz", SMALLER_TARBALL_URL, 100),
-    Unarchive("bzip2", SMALLER_TARBALL_URL, 100),
-    Unarchive("pbzip2", SMALLER_TARBALL_URL, 100),
-    Unarchive("xz", SMALLER_TARBALL_URL, 30),
+    Archive("", LINUX_TARBALL_URL, archive_reps),
+    Archive("gzip", LINUX_TARBALL_URL, archive_reps),
+    Archive("pigz", LINUX_TARBALL_URL, archive_reps),
+    Archive("bzip2", LINUX_TARBALL_URL, archive_reps),
+    Archive("pbzip2", LINUX_TARBALL_URL, archive_reps),
+    Archive("xz", LINUX_TARBALL_URL, archive_reps),
+    Archive("lzop", LINUX_TARBALL_URL, archive_reps),
+    Unarchive("", LINUX_TARBALL_URL, archive_reps),
+    Unarchive("gzip", LINUX_TARBALL_URL, archive_reps),
+    Unarchive("pigz", LINUX_TARBALL_URL, archive_reps),
+    Unarchive("bzip2", LINUX_TARBALL_URL, archive_reps),
+    Unarchive("pbzip2", LINUX_TARBALL_URL, archive_reps),
+    Unarchive("xz", LINUX_TARBALL_URL, archive_reps),
+    Unarchive("lzop", LINUX_TARBALL_URL, archive_reps),
+    VCSTraffic(
+        "https://github.com/strace/strace",
+        ("git", "clone"),
+        ("git", "checkout"),
+        ("git", "log", "--format=%H"),
+        500,
+    ),
     VCSTraffic(
         "https://github.com/pypa/setuptools_scm",
-        (result_bin / "git", "clone"),
-        (result_bin / "git", "checkout"),
-        (result_bin / "git", "log", "--format=%H"),
+        ("git", "clone"),
+        ("git", "checkout"),
+        ("git", "log", "--format=%H"),
     ),
     VCSTraffic(
         "https://hg.mozilla.org/schema-validation",
-        (result_bin / "hg", "clone"),
-        (result_bin / "hg", "checkout"),
-        (result_bin / "hg", "log", "--template={node}\n"),
+        ("hg", "clone"),
+        ("hg", "checkout"),
+        ("hg", "log", "--template={node}\n"),
     ),
     CompileLinux(LINUX_TARBALL_URL),
-    KaggleNotebook(
-        "pmarcelino/comprehensive-data-exploration-with-python",
-        "competitions/house-prices-advanced-regression-techniques",
-        replace=(
-            (".corr()", ".corr(numeric_only=True)"),
-            (
-                "df_train['SalePrice'][:,np.newaxis]",
-                "df_train['SalePrice'].values[:,np.newaxis]",
-            ),
-            (
-                "df_train.drop((missing_data[missing_data['Total'] > 1]).index,1)",
-                "df_train.drop((missing_data[missing_data['Total'] > 1]).index, axis=1)",
-            ),
-        ),
-    ),
     KaggleNotebook(
         "startupsci/titanic-data-science-solutions",
         "competitions/titanic",
@@ -1195,6 +1250,7 @@ WORKLOADS: list[Workload] = [
                 "sns.FacetGrid(train_df, row='Pclass', col='Sex', height=",
             )
         ),
+        name="0",
     ),
     KaggleNotebook(
         "ldfreeman3/a-data-science-framework-to-achieve-99-accuracy",
@@ -1222,93 +1278,111 @@ WORKLOADS: list[Workload] = [
                 "data2.loc[index, 'Random_Predict'] = 1",
             ),
         ),
+        name="1",
     ),
-    KaggleNotebook(
-        "yassineghouzam/titanic-top-4-with-ensemble-modeling",
-        "competitions/titanic",
-        replace=(
-            ("sns.factorplot(", "sns.catplot("),
-            (
-                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 0) & (train[\"Age\"].notnull())], color=\"Red\", shade',
-                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 0) & (train[\"Age\"].notnull())], color=\"Red\", fill',
-            ),
-            (
-                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 1) & (train[\"Age\"].notnull())], ax =g, color=\"Blue\", shade',
-                r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 1) & (train[\"Age\"].notnull())], ax =g, color=\"Blue\", fill'
-            ),
-            ("dataset['Age'].iloc[i]", "dataset.loc[i, 'Age']"),
-            ("sns.distplot", "sns.histplot"),
-            (
-                r'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", size',
-                r'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", height',
-            ),
-            (
-                r'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", size',
-                r'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", height',
-            ),
-            (
-                r'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", size',
-                r'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", height',
-            ),
-            (
-                r'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   size',
-                r'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   height'),
-            (
-                r'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   size',
-                r'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   height',
-            ),
-            (
-                r'sns.catplot(\"Pclass\", col=\"Embarked\",  data=train,\n                   size',
-                r'sns.catplot(x=\"Pclass\", col=\"Embarked\",  data=train,\n                   height',
-            ),
-            (
-                r'set_xticklabels([\"Master\",\"Miss/Ms/Mme/Mlle/Mrs\",\"Mr\",\"Rare\"])',
-                r'set_xticks(range(4), labels=[\"Master\",\"Miss/Ms/Mme/Mlle/Mrs\",\"Mr\",\"Rare\"])',
-            ),
-            (
-                "sns.countplot(dataset[\\\"Cabin\\\"],order=['A','B','C','D','E','F','G','T','X'])",
-                "sns.countplot(dataset, x='Cabin', order=['A','B','C','D','E','F','G','T','X'])",
-            ),
-            (
-                "sns.barplot(\\\"CrossValMeans\\\",\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\",**{'xerr':cv_std})",
-                "sns.barplot(x=\\\"CrossValMeans\\\",y=\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\")",
-            ),
-            (
-                "train = dataset[:train_len]\ntest = dataset[train_len:]\n",
-                "train = dataset[:train_len].copy()\ntest = dataset[train_len:].copy()\n",
-            ),
-            # (r'g.set_xlabel(\"Mean Accuracy\")', ""),
-            # (r'g = g.set_title(\\"Cross validation scores\\")', ""),
-            ('\'loss\' : [\\"deviance\\"]', '\'loss\' : [\\"log_loss\\"]'),
-            ("n_jobs=4", "n_jobs=1"),
-            ("n_jobs= 4", "n_jobs=1"),
-            # Skip boring CPU-heavy computation
-            (
-                r'\"learning_rate\":  [0.0001, 0.001, 0.01, 0.1, 0.2, 0.3,1.5]',
-                r'\"learning_rate\":  [0.3]',
-            ),
-            (
-                r'\"min_samples_split\": [2, 3, 10]',
-                r'\"min_samples_split\": [3]',
-            ),
-            (
-                r'\"min_samples_leaf\": [1, 3, 10]',
-                r'\"min_samples_leaf\": [3]',
-            ),
-            (
-                r"'n_estimators' : [100,200,300]",
-                r"'n_estimators' : [200]",
-            ),
-            (
-                r"'C': [1, 10, 50, 100,200,300, 1000]",
-                r"'C': [10]",
-            ),
-            (
-                "kfold = StratifiedKFold(n_splits=10)",
-                "kfold = StratifiedKFold(n_splits=3)",
-            )
-        ),
-    ),
+    # KaggleNotebook(
+    #     "yassineghouzam/titanic-top-4-with-ensemble-modeling",
+    #     "competitions/titanic",
+    #     replace=(
+    #         ("sns.factorplot(", "sns.catplot("),
+    #         (
+    #             r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 0) & (train[\"Age\"].notnull())], color=\"Red\", shade',
+    #             r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 0) & (train[\"Age\"].notnull())], color=\"Red\", fill',
+    #         ),
+    #         (
+    #             r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 1) & (train[\"Age\"].notnull())], ax =g, color=\"Blue\", shade',
+    #             r'sns.kdeplot(train[\"Age\"][(train[\"Survived\"] == 1) & (train[\"Age\"].notnull())], ax =g, color=\"Blue\", fill'
+    #         ),
+    #         ("dataset['Age'].iloc[i]", "dataset.loc[i, 'Age']"),
+    #         ("sns.distplot", "sns.histplot"),
+    #         (
+    #             r'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", size',
+    #             r'sns.catplot(x=\"SibSp\",y=\"Survived\",data=train,kind=\"bar\", height',
+    #         ),
+    #         (
+    #             r'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", size',
+    #             r'sns.catplot(x=\"Parch\",y=\"Survived\",data=train,kind=\"bar\", height',
+    #         ),
+    #         (
+    #             r'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", size',
+    #             r'sns.catplot(x=\"Pclass\",y=\"Survived\",data=train,kind=\"bar\", height',
+    #         ),
+    #         (
+    #             r'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   size',
+    #             r'sns.catplot(x=\"Pclass\", y=\"Survived\", hue=\"Sex\", data=train,\n                   height'),
+    #         (
+    #             r'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   size',
+    #             r'sns.catplot(x=\"Embarked\", y=\"Survived\",  data=train,\n                   height',
+    #         ),
+    #         (
+    #             r'sns.catplot(\"Pclass\", col=\"Embarked\",  data=train,\n                   size',
+    #             r'sns.catplot(x=\"Pclass\", col=\"Embarked\",  data=train,\n                   height',
+    #         ),
+    #         (
+    #             r'set_xticklabels([\"Master\",\"Miss/Ms/Mme/Mlle/Mrs\",\"Mr\",\"Rare\"])',
+    #             r'set_xticks(range(4), labels=[\"Master\",\"Miss/Ms/Mme/Mlle/Mrs\",\"Mr\",\"Rare\"])',
+    #         ),
+    #         (
+    #             "sns.countplot(dataset[\\\"Cabin\\\"],order=['A','B','C','D','E','F','G','T','X'])",
+    #             "sns.countplot(dataset, x='Cabin', order=['A','B','C','D','E','F','G','T','X'])",
+    #         ),
+    #         (
+    #             "sns.barplot(\\\"CrossValMeans\\\",\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\",**{'xerr':cv_std})",
+    #             "sns.barplot(x=\\\"CrossValMeans\\\",y=\\\"Algorithm\\\",data = cv_res, palette=\\\"Set3\\\",orient = \\\"h\\\")",
+    #         ),
+    #         (
+    #             "train = dataset[:train_len]\ntest = dataset[train_len:]\n",
+    #             "train = dataset[:train_len].copy()\ntest = dataset[train_len:].copy()\n",
+    #         ),
+    #         # (r'g.set_xlabel(\"Mean Accuracy\")', ""),
+    #         # (r'g = g.set_title(\\"Cross validation scores\\")', ""),
+    #         ('\'loss\' : [\\"deviance\\"]', '\'loss\' : [\\"log_loss\\"]'),
+    #         ("n_jobs=4", "n_jobs=1"),
+    #         ("n_jobs= 4", "n_jobs=1"),
+    #         # Skip boring CPU-heavy computation
+    #         (
+    #             r'\"learning_rate\":  [0.0001, 0.001, 0.01, 0.1, 0.2, 0.3,1.5]',
+    #             r'\"learning_rate\":  [0.3]',
+    #         ),
+    #         (
+    #             r'\"min_samples_split\": [2, 3, 10]',
+    #             r'\"min_samples_split\": [3]',
+    #         ),
+    #         (
+    #             r'\"min_samples_leaf\": [1, 3, 10]',
+    #             r'\"min_samples_leaf\": [3]',
+    #         ),
+    #         (
+    #             r"'n_estimators' : [100,200,300]",
+    #             r"'n_estimators' : [200]",
+    #         ),
+    #         (
+    #             r"'C': [1, 10, 50, 100,200,300, 1000]",
+    #             r"'C': [10]",
+    #         ),
+    #         (
+    #             "kfold = StratifiedKFold(n_splits=10)",
+    #             "kfold = StratifiedKFold(n_splits=3)",
+    #         )
+    #     ),
+    #     name="2",
+    # ),
+    # KaggleNotebook(
+    #     "pmarcelino/comprehensive-data-exploration-with-python",
+    #     "competitions/house-prices-advanced-regression-techniques",
+    #     replace=(
+    #         (".corr()", ".corr(numeric_only=True)"),
+    #         (
+    #             "df_train['SalePrice'][:,np.newaxis]",
+    #             "df_train['SalePrice'].values[:,np.newaxis]",
+    #         ),
+    #         (
+    #             "df_train.drop((missing_data[missing_data['Total'] > 1]).index,1)",
+    #             "df_train.drop((missing_data[missing_data['Total'] > 1]).index, axis=1)",
+    #         ),
+    #     ),
+    #     name="3",
+    # ),
 ]
 
 
@@ -1324,13 +1398,13 @@ for name, count in collections.Counter(all_names).most_common():
 WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     # Singleton groups
     **{
-        workload.name: [workload]
+        workload.name.lower(): [workload]
         for workload in WORKLOADS
     },
 
-    # Main groups
+    # Kind-groups
     **{
-        group_name: list(group)
+        group_name.lower(): list(group)
         for group_name, group in groupby_dict(
                 WORKLOADS,
                 lambda workload: workload.kind,
@@ -1338,7 +1412,17 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
         ).items()
     },
 
-    # Second order groups
+    # Superkind-groups
+    **{
+        group_name.lower(): list(group)
+        for group_name, group in groupby_dict(
+                WORKLOADS,
+                lambda workload: workload.superkind,
+                lambda workload: workload,
+        ).items()
+    },
+
+    # Other groups
     # TODO: try spack boost, other spacks
     "file_servers": [
         workload

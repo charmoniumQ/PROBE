@@ -80,7 +80,7 @@ class DirMode:
 def run_exec(
     cmd: Sequence[CmdArg] = ("true",),
     cwd: Path = Path().resolve(),
-    env: Mapping[CmdArg, CmdArg] = {},
+    env: Mapping[str, str] = {},
     dir_modes: Mapping[Path, DirMode] = {},
     time_limit: None | int = None,
     mem_limit: None | int = None,

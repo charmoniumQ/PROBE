@@ -13,10 +13,6 @@ from typing import Callable, cast, Any
 from compound_pattern import CompoundPattern
 
 
-result_bin = (Path(__file__).parent / "result/bin").resolve()
-result_lib = result_bin.parent / "lib"
-
-
 # TODO: change ProvOperation.targets from str to Path
 @dataclasses.dataclass(frozen=True)
 class ProvOperation:
@@ -31,13 +27,13 @@ class ProvCollector:
     def requires_empty_dir(self) -> bool:
         return False
 
-    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None | Sequence[CmdArg]:
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
         return None
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return cmd
 
-    def stop(self) -> None:
+    def stop(self, env: Mapping[str, str]) -> None:
         pass
 
     def __str__(self) -> str:
@@ -235,8 +231,7 @@ class STrace(AbstractTracer):
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return (
-            result_bin / "strace", "--follow-forks", "--trace",
-            syscalls, "--output", log / self.log_name, "-s", f"{size}", *cmd,
+            "strace", "--follow-forks", "--trace", syscalls, "--output", log / self.log_name, "-s", f"{size}", *cmd,
         )
 
     # Log line example:
@@ -315,7 +310,7 @@ ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+\(")
 def _get_dlibs(exe_or_dlib: str, found: set[str]) -> None:
     env: Mapping[str, str] = {}
     proc = subprocess.run(
-        [result_bin / "ldd", exe_or_dlib],
+        ["ldd", exe_or_dlib],
         text=True,
         capture_output=True,
         env=env,
@@ -339,10 +334,12 @@ class LTrace(AbstractTracer):
     submethod = "libc calls"
     name = "ltrace"
 
+    nix_packages = [".#ltrace", ".#glibc_bin", ".#coreutils"]
+
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         return (
-            result_bin / "ltrace", "-f", "--config", "ltrace.conf.3", "-L", "-x", f"{libcalls}",
-            "--output", log / self.log_name, "-s", f"{size}", "--", result_bin / "env", *cmd,
+            "ltrace", "-f", "--config", "ltrace.conf.3", "-L", "-x", f"{libcalls}",
+            "--output", log / self.log_name, "-s", f"{size}", "--", "env", *cmd,
         )
 
     def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
@@ -461,9 +458,11 @@ class FSATrace(AbstractTracer):
     line_pattern = CompoundPattern(re.compile(r"^(?P<op>.)\|(?P<target0>[^|]*)(?:\|(?P<target1>.*))?$"))
     use_get_dlib_on_exe = True
 
+    nix_packages = [".#fsatrace", ".#coreutils"]
+
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         (log / self.log_name).write_text("")
-        return (result_bin / "fsatrace", "rwmdqt", log / self.log_name, "--", result_bin / "env", *cmd)
+        return ("fsatrace", "rwmdqt", log / self.log_name, "--", "env", *cmd)
 
     def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
         operations = [op]
@@ -477,10 +476,12 @@ class PTU(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
 
+    nix_packages = ["provenance-to-use"]
+
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         assert log.is_dir()
         assert list(log.iterdir()) == []
-        return (result_bin / "ptu", "-o", log, *cmd)
+        return ("ptu", "-o", log, *cmd)
 
     def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
         root = log / "cde-root"
@@ -494,10 +495,12 @@ class CDE(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
 
+    nix_packages = [".#cde"]
+
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         assert log.is_dir()
         assert list(log.iterdir()) == []
-        return (result_bin / "cde", "-o", log, *cmd)
+        return ("cde", "-o", log, *cmd)
 
     def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
         root = log / "cde-root"
@@ -512,13 +515,16 @@ class RR(ProvCollector):
     submethod = "syscalls"
     name = "rr"
 
+    nix_packages = [".#rr", ".#coreutils"]
+
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         self.log = log
-        return (result_bin / "env", f"_RR_TRACE_DIR={self.log}", result_bin / "rr", "record", *cmd)
+        return ("env", f"_RR_TRACE_DIR={self.log}", "rr", "record", *cmd)
 
-    def stop(self) -> None:
+    def stop(self, env: Mapping[str, str]) -> None:
         subprocess.run(
-            [str(result_bin / "env"), str(result_bin / "rr"), "pack", str(self.log / "latest-trace")],
+            ["rr", "pack", str(self.log / "latest-trace")],
+            env=env,
             capture_output=True,
             check=True,
         )
@@ -529,14 +535,19 @@ class ReproZip(ProvCollector):
     submethod = "syscalls"
     name = "reprozip"
 
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        subprocess.run(
-            [result_bin / "reprozip", "usage_report", "--disable"],
-            check=True,
+    nix_packages = [".#reprozip"]
+
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
+        check_returncode(subprocess.run(
+            ["reprozip", "usage_report", "--disable"],
+            check=False,
             capture_output=True,
-        )
+            env=env,
+        ), env)
         assert not (log / "reprozip").exists()
-        return (result_bin / "reprozip", "trace", "--dir", log / "reprozip", *cmd)
+
+    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        return ("reprozip", "trace", "--dir", log / "reprozip", *cmd)
 
     def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
         config = yaml.safe_load((log / "reprozip/config.yml").read_text())
@@ -557,9 +568,11 @@ class Sciunit(ProvCollector):
     submethod = "syscalls"
     name = "sciunit"
 
+    nix_packages = [".#sciunit2", ".#coreutils"]
+
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         subprocess.run(
-            [result_bin / "sciunit", "create", "-f", "test"],
+            ["sciunit", "create", "-f", "test"],
             check=True,
             env={
                 "SCIUNIT_HOME": str(log.resolve()),
@@ -567,9 +580,9 @@ class Sciunit(ProvCollector):
         )
         cwd = Path().resolve()
         return (
-            result_bin / "env", f"--chdir={log.resolve()}", f"SCIUNIT_HOME={log.resolve()}",
-            result_bin / "sciunit", "exec",
-            result_bin / "env", f"--chdir={cwd.resolve()}",
+            "env", f"--chdir={log.resolve()}", f"SCIUNIT_HOME={log.resolve()}",
+            "sciunit", "exec",
+            "env", f"--chdir={cwd.resolve()}",
             *cmd,
         )
 
@@ -579,12 +592,7 @@ class Darshan(ProvCollector):
     submethod = "libc I/O"
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        lib = result_lib / "libdarshan.so"
-        return (
-            result_bin / "env", f"DARSHAN_LOG_PATH={log}",
-            "DARSHAN_MOD_ENABLE=DXT_POSIX", "DARSHAN_ENABLE_NONMPI=1",
-            f"LD_PRELOAD={lib}", *cmd,
-        )
+        raise NotImplementedError()
 
 
 class BPFTrace(ProvCollector):
@@ -596,47 +604,13 @@ class BPFTrace(ProvCollector):
     proc_env: Mapping[str, str] | None = None
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        pid_fifo = log / "pid"
-        ready_fifo = log / "ready"
-        os.mkfifo(pid_fifo)
-        os.mkfifo(ready_fifo)
-        log_file = log / "trace.json"
-        self.proc_args = [result_bin / "python", "bpftrace_preexec.py", pid_fifo, ready_fifo, log_file]
-        self.proc_env = {
-            "LD_LIBRARY_PATH": str(result_lib),
-            "LIBRARY_PATH": str(result_lib),
-            "PATH": str(result_bin),
-        }
-        self.proc = subprocess.Popen(
-            self.proc_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=self.proc_env,
-        )
-        return (result_bin / "python", "bpftrace_workload_preexec.py", pid_fifo, ready_fifo, *cmd)
+        raise NotImplementedError()
 
-    def stop(self) -> None:
-        assert self.proc is not None
-        assert self.proc_args is not None
-        assert self.proc_env is not None
-        try:
-            stdout, stderr = self.proc.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            terminate_or_kill(self.proc, timeout=5)
-            stdout, stderr = self.proc.communicate()
-            print(stdout, stderr)
-        if self.proc.returncode != 0:
-            raise SubprocessError(
-                cmd=self.proc_args,
-                returncode=self.proc.returncode,
-                cwd=None,
-                env=dict(self.proc_env.items()),
-                stdout=to_str(stdout),
-                stderr=to_str(stderr),
-            )
+    def stop(self, env: Mapping[str, str]) -> None:
+        raise NotImplementedError()
 
     def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
-        return ()
+        raise NotImplementedError()
 
 
 class SpadeFuse(ProvCollector):
@@ -661,39 +635,39 @@ class SpadeFuse(ProvCollector):
         "dump all",
     ])
 
-    def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
         self._workdir = workdir
         # SPADE FUSE must start in a non-existant directory
         self._workdir.unlink()
         assert not self._workdir.exists()
         subprocess.run(
-            [result_bin / "spade", "start"],
+            ["spade", "start"],
             check=True,
             capture_output=True,
+            env=env,
         )
-        return None
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         assert self._workdir is not None
         subprocess.run(
-            [result_bin / "spade", "control"],
+            ["spade", "control"],
             check=True,
             capture_output=True,
             text=True,
             input=self._start.format(workdir=self._workdir, log=log),
         )
-
         return (
             "env", "--chdir", self._workdir, *cmd
         )
 
-    def stop(self, proc: None | subprocess.Popen[bytes]) -> None:
+    def stop(self, env: Mapping[str, str]) -> None:
         subprocess.run(
-            [result_bin / "spade", "control"],
+            ["spade", "control"],
             check=True,
             capture_output=True,
             text=True,
-            input=self._stop.format()
+            input=self._stop.format(),
+            env=env,
         )
 
 
@@ -702,19 +676,18 @@ class SpadeAuditd(ProvCollector):
     submethod = "auditd"
     name = "SPADE+Auditd"
 
-    def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
         # https://github.com/ashish-gehani/SPADE/blob/b24daa56332e8478711bee80e5ac1f1558ff5e52/src/spade/reporter/audit/AuditControlManager.java#L57
         syscalls = ("fileIO=false", "netIO=true", "IPC=true")
-        return run_all(
-            (result_bin / "spade", "start"),
-            (result_bin / "spade", "control", "add", "reporter", "Audit", *syscalls),
-        )
+        subprocess.run(["spade", "start"], check=True, capture_output=True, env=env)
+        subprocess.run(["spade", "control", "add", "reporter", "Audit", *syscalls], check=True, capture_output=True, env=env)
 
-    def stop(self, proc: None | subprocess.Popen[bytes]) -> None:
+    def stop(self, env: Mapping[str, str]) -> None:
         subprocess.run(
-            [result_bin / "spade", "stop"],
+            ["spade", "stop"],
             check=True,
             capture_output=True,
+            env=env,
         )
 
 
@@ -722,7 +695,7 @@ class Auditd(ProvCollector):
     method = "auditing"
     submethod = "auditd"
 
-    def start(self, log: Path, size: int, workdir: Path) -> None | Sequence[CmdArg]:
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
         raise NotImplementedError(
             "I want to trace specific syscalls before continuing"
         )
@@ -736,14 +709,15 @@ class Auditd(ProvCollector):
         # to the workload.
         subprocess.run(
             run_all(
-                (result_bin / "auditctl", "-D"),
-                (result_bin / "auditctl", *auditctl_rules),
+                ("auditctl", "-D"),
+                ("auditctl", *auditctl_rules),
             ),
             check=True,
+            env=env,
         )
 
-    def stop(self, proc: None | subprocess.Popen[bytes]) -> None:
-        subprocess.run([result_bin / "auditctl", "-D"], check=True)
+    def stop(self, env: Mapping[str, str]) -> None:
+        subprocess.run(["auditctl", "-D"], check=True, env=env)
 
 
 class Care(ProvCollector):
@@ -751,8 +725,10 @@ class Care(ProvCollector):
     submethod = "syscalls"
     name = "care"
 
+    nix_packages = [".#care", ".#lzop"]
+
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        return (result_bin / "care", f"--output={log}/main.tar", *cmd)
+        return ("care", f"--output={log}/main.tar", "--revealed-path=tmp", "--revealed-path=/home/benchexec", "--verbose=-1", *cmd)
 
     def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
         prefix = "main/rootfs"

@@ -10,6 +10,7 @@ import json
 import random
 import pathlib
 import collections
+import typing
 import tqdm  # type: ignore
 import pickle
 import pandas  # type: ignore
@@ -216,14 +217,14 @@ def run_one_experiment_cached(
 _nix_path = shutil.which("nix")
 if _nix_path is None:
     raise ValueError("Please add `nix` to the $PATH")
-NIX_BIN_PATH = pathlib.Path(_nix_path).parent
+NIX_BIN_PATH = pathlib.Path(_nix_path)
 
 
 def get_nix_env(packages: list[str]) -> Mapping[str, str]:
     if packages:
         return json.loads(check_returncode(subprocess.run(
-            ["nix", "shell", *packages, "--command", sys.executable, "-c", "import os, json; print(json.dumps(dict(**os.environ)))"],
-            env={"PATH": str(NIX_BIN_PATH)},
+            [NIX_BIN_PATH, "shell", *packages, "--command", sys.executable, "-c", "import os, json; print(json.dumps(dict(**os.environ)))"],
+            env=typing.cast(Mapping[str, str], {}),
             capture_output=True,
             text=True,
             check=False,
@@ -254,10 +255,15 @@ def run_one_experiment(
     log_dir = log_dir / str(worker_number)
     temp_dir = temp_dir / str(worker_number)
 
-    with ch_time_block.ctx(f"setup {workload}"):
+    workload_name = "-".join([workload.superkind, workload.kind, workload.name]).lower()
+
+    with ch_time_block.ctx(f"Compiling Nix env for {prov_collector} and {workload_name}"):
+        collector_env = get_nix_env(prov_collector.nix_packages)
+        workload_env = get_nix_env(workload.nix_packages)
+
+    with ch_time_block.ctx(f"setup {workload_name}"):
         try:
             work_dir.mkdir(exist_ok=True, parents=True)
-            workload_env = get_nix_env(workload.nix_packages)
             workload.setup(work_dir, workload_env)
         except SubprocessError as exc:
             print(str(exc))
@@ -272,7 +278,6 @@ def run_one_experiment(
         delete_children(log_dir)
 
     with ch_time_block.ctx(f"setup {prov_collector}"):
-        collector_env = get_nix_env(prov_collector.nix_packages)
         if prov_collector.requires_empty_dir:
             (temp_dir / "old_work_dir").mkdir()
             hardlink_children(work_dir, temp_dir / "old_work_dir")
@@ -281,18 +286,22 @@ def run_one_experiment(
             move_children(temp_dir / "old_work_dir", work_dir)
         else:
             prov_collector.start(log_dir, size, work_dir, collector_env)
-        cmd, custom_env = workload.run(work_dir)
+        cmd = workload.run(work_dir)
         # TODO: factor out custom_env
-        main_executable = cmd[0]
-        assert isinstance(main_executable, pathlib.Path)
+        prog = cmd[0]
+        if isinstance(prog, pathlib.Path):
+            main_executable = prog
+        elif isinstance(prog, str):
+            _main_executable = shutil.which(str(prog), path=workload_env["PATH"])
+            if _main_executable is None:
+                raise RuntimeError(f"{prog} not found in {workload_env['PATH']}")
+            main_executable = pathlib.Path(_main_executable)
         cmd = prov_collector.run(cmd, log_dir, size)
         # cmd = (result_bin / "setarch", "--addr-no-randomize", *cmd)
 
 
-    with ch_time_block.ctx(f"run {workload} in {prov_collector}"):
-        full_env = merge_env_vars(
-            workload_env, collector_env, custom_env # typing: ignore
-        )
+    with ch_time_block.ctx(f"run {workload_name} in {prov_collector}"):
+        full_env = merge_env_vars(workload_env, collector_env)
         stats = run_exec(
             cmd=cmd,
             env=full_env,
@@ -305,7 +314,7 @@ def run_one_experiment(
             network_access=workload.network_access,
         )
 
-    prov_collector.stop()
+    prov_collector.stop(collector_env)
 
     if not stats.success:
         if ignore_failures:

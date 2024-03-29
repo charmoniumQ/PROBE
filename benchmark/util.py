@@ -229,17 +229,16 @@ def merge_dicts(dcts: Iterable[Mapping[_T, _V]]) -> dict[_T, _V]:
     return dict(itertools.chain.from_iterable(dct.items() for dct in dcts))
 
 
-def merge_env_vars(*envs: Mapping[CmdArg, CmdArg]) -> Mapping[CmdArg, CmdArg]:
+def merge_env_vars(*envs: Mapping[str, str]) -> Mapping[str, str]:
     result_env: dict[str, str] = {}
     for env in envs:
         for key, value in env.items():
-            pre_existing_value = result_env.get(to_str(key), None)
+            pre_existing_value = result_env.get(key, None)
             if pre_existing_value:
-                result_env[to_str(key)] = pre_existing_value + ":" + to_str(value)
+                result_env[key] = pre_existing_value + ":" + value
             else:
-                result_env[to_str(key)] = to_str(value)
-    return cast(Mapping[CmdArg, CmdArg], result_env)
-
+                result_env[key] = value
+    return result_env
 
 
 def remove_keys(dct: Mapping[_T, _V], keys: set[_T]) -> Mapping[_T, _V]:

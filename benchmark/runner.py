@@ -11,13 +11,13 @@ import enum
 
 
 CollectorGroup = enum.Enum("CollectorGroup", {key: key for key in PROV_COLLECTOR_GROUPS})  # type: ignore
-WorkloadGroup = enum.Enum("WorkloadGroup", {key: key for key in WORKLOAD_GROUPS.keys()})  # type: ignore
+WorkloadGroup = enum.Enum("WorkloadGroup", {key.lower(): key.lower() for key in WORKLOAD_GROUPS.keys() if key})  # type: ignore
 StatsNames = enum.Enum("Sats", {key: key for key in STATS.keys()})  # type: ignore
 
 
 def main(
         collector_groups: Annotated[list[CollectorGroup], typer.Option("--collectors", "-c")] = [CollectorGroup.noprov],
-        workload_groups: Annotated[list[WorkloadGroup], typer.Option("--workloads", "-w")] = [WorkloadGroup["hello"]],
+        workload_groups: Annotated[list[WorkloadGroup], typer.Option("--workloads", "-w")] = [WorkloadGroup["fast"]],
         stats_names: Annotated[list[StatsNames], typer.Option("--stats", "-s")] = [],
         iterations: int = 1,
         seed: int = 0,

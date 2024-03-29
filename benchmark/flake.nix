@@ -23,12 +23,91 @@
       in {
         packages = rec {
           strace = pkgs.strace;
-          gnutar = pkgs.gnutar;
-          gzip = pkgs.gzip;
-          pigz = pkgs.pigz;
-          bzip2 = pkgs.bzip2;
-          pbzip2 = pkgs.pbzip2;
-          xz = pkgs.xz;
+          fsatrace = pkgs.fsatrace;
+          rr = pkgs.rr;
+          coreutils = pkgs.coreutils;
+          glibc_bin = pkgs.glibc.bin;
+          lzop = pkgs.lzop;
+          mercurial = pkgs.mercurial;
+          git = pkgs.git;
+          dash = pkgs.dash;
+          lighttpd = pkgs.lighttpd;
+          hey = pkgs.hey;
+          nginx = pkgs.nginx;
+          curl = pkgs.curl;
+          un-archive-env = pkgs.symlinkJoin {
+            name = "un-archve-env";
+            paths = [
+              pkgs.dash
+              pkgs.coreutils
+              pkgs.gnutar
+              pkgs.gzip
+              pkgs.pigz
+              pkgs.bzip2
+              pkgs.pbzip2
+              pkgs.xz
+              pkgs.lzop
+            ];
+          };
+          notebook-env = pkgs.symlinkJoin {
+            name = "notebook-env";
+            paths = [
+              pkgs.coreutils
+              pkgs.unzip
+              (python.withPackages (pypkgs: [
+                pypkgs.pandas
+                pypkgs.kaggle
+                pypkgs.tqdm
+                pypkgs.matplotlib
+                (noPytest pypkgs.dask)
+                pypkgs.notebook
+                pypkgs.seaborn
+                pypkgs.scipy
+                pypkgs.scikit-learn
+                pypkgs.nbconvert
+                jupyter-contrib-nbextensions
+              ]))
+            ];
+          };
+          spack-env = pkgs.symlinkJoin {
+            name = "spack-env";
+            paths = [
+              pkgs.stdenv.cc # https://ryantm.github.io/nixpkgs/stdenv/stdenv/#sec-tools-of-stdenv
+              pkgs.gfortran
+              pkgs.gfortran.cc
+              pkgs.gnupatch
+              pkgs.file
+              pkgs.lsb-release
+              pkgs.gnupg24
+              pkgs.gitMinimal
+              pkgs.coreutils
+              # TODO: Add these to the package which uses them
+              pkgs.gnumake
+              pkgs.bash
+              pkgs.gnused
+              pkgs.gnugrep
+              pkgs.gawk
+              pkgs.libnsl
+              pkgs.libxcrypt.out
+              pkgs.findutils
+              pkgs.which
+            ];
+          };
+          linux-env = pkgs.symlinkJoin {
+            name = "linux-env";
+            paths = [
+              pkgs.bison
+              pkgs.flex
+              pkgs.bc
+              pkgs.diffutils
+              pkgs.elfutils.dev
+              pkgs.elfutils.out
+              pkgs.openssl.dev
+              pkgs.openssl.out
+              pkgs.perl
+            ];
+          };
+          # Rename to avoid conflict when merging
           apacheHttpd = renameInDrv pkgs.apacheHttpd "bin/httpd" "bin/apacheHttpd";
           miniHttpd = renameInDrv pkgs.miniHttpd "bin/httpd" "bin/miniHttpd";
           postmark-binary = pkgs.stdenv.mkDerivation rec {
@@ -236,7 +315,7 @@
             # Check tries to upload usage statistics to localhost over TCP which will not work in the Nix sandbox
             doCheck = false;
           };
-          reprozip = python.pkgs.buildPythonPackage rec {
+          reprozip = python.pkgs.buildPythonApplication rec {
             pname = "reprozip";
             version = "1.2";
             src = pkgs.fetchPypi {
@@ -245,7 +324,14 @@
             };
             checkInputs = [ python.pkgs.pip ];
             buildInputs = [ pkgs.sqlite ];
-            propagatedBuildInputs = [ rpaths usagestats distro python.pkgs.pyyaml pkgs.dpkg ];
+            propagatedBuildInputs = [
+              rpaths
+              usagestats
+              distro
+              python.pkgs.pyyaml
+              pkgs.dpkg
+              python.pkgs.setuptools
+            ];
             pythonImportsCheck = [ pname ];
           };
           reprounzip = python.pkgs.buildPythonPackage rec {
@@ -620,119 +706,17 @@
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
-              # Provenance tools:
-              darshan-runtime
-              darshan-util
-              spade
-              pkgs.fsatrace
-              pkgs.strace
-              ltrace
-              cde
-              pkgs.rr
-              pkgs.dpkg
-              pkgs.gdb
-              pkgs.bpftrace
-              pkgs.su
-              provenance-to-use
-              care
-              pkgs.proot
-
-              # deps of notebooks
-              pkgs.util-linux
-              pkgs.iproute2
-              pkgs.graphviz
-
-              # Deps of pylsp
               pkgs.ruff
-
-              # Deps of runner script
               pkgs.libseccomp.lib
               pkgs.glibc_multi.bin
-              # pkgs.glibc_multi # Breaks CompileLinux for some reason
-              pkgs.libfaketime
-              pkgs.util-linux # for setarch
-
-              # Benchmark
-              pkgs.blast
-              postmark-from-src
-              pkgs.lighttpd
-              apacheHttpd
-              miniHttpd
-              pkgs.hey
-              ftpbench
-              proftpd
-              yafc
-              pkgs.nginx
-              lmbench
-              pkgs.pigz
-              pkgs.pbzip2
-              pkgs.mercurial
-              pkgs.gitMinimal
-              pkgs.curl
-              pkgs.procps
-              pkgs.psmisc
-              pkgs.curl
-              pkgs.wget
-              pkgs.axel
-              pkgs.bash
-              pkgs.texlive.combined.scheme-full
-              pkgs.lftp
-              splash-3
-              pkgs.bison
-              pkgs.flex
-              pkgs.bc
-              pkgs.diffutils
-              pkgs.elfutils.dev
-              pkgs.elfutils.out
-              pkgs.openssl.dev
-              pkgs.openssl.out
-              pkgs.perl
-
-              # Reproducibility tester
-              pkgs.icdiff
-              pkgs.disorderfs
-              pkgs.fuse
-
-              # Deps of Spack workloads
-              # https://spack.readthedocs.io/en/latest/getting_started.html
-              pkgs.stdenv.cc # https://ryantm.github.io/nixpkgs/stdenv/stdenv/#sec-tools-of-stdenv
-              pkgs.gfortran
-              pkgs.gfortran.cc
-              pkgs.gnupatch
-              pkgs.file
-              pkgs.lsb-release
-              pkgs.gnupg24
-              pkgs.gitMinimal
-              pkgs.coreutils
-              # TODO: Add these to the package which uses them
-              pkgs.gnumake
-              pkgs.bash
-              pkgs.gnused
-              pkgs.gnugrep
-              pkgs.gawk
-              pkgs.libnsl
-              pkgs.libxcrypt.out
-              pkgs.findutils
-              pkgs.which
-
+              pkgs.nix
               # Python pkgs!
               (python.withPackages (pypkgs: [
                 # Provenance tools:
-                reprozip
-                reprounzip-docker
-                sciunit2
-
-                # Language server
-                pypkgs.python-lsp-server
                 pypkgs.mypy
-                pypkgs.jedi
-                pypkgs.pylsp-mypy
-                pypkgs.python-lsp-black
-                pypkgs.python-lsp-ruff
 
                 # Deps of script
                 pypkgs.pandas
-                pypkgs.kaggle
                 pypkgs.tqdm
                 pypkgs.ipython
                 pypkgs.pyyaml
@@ -742,12 +726,7 @@
                 benchexec
                 charmonium-time-block
                 pypkgs.psutil
-
-                # deps of notebooks
-                # pypkgs.arviz
-                # pypkgs.pymc3
-                pypkgs.numpy # repeats are OK
-                pypkgs.pandas
+                pypkgs.numpy
                 pypkgs.matplotlib
                 (noPytest pypkgs.dask)
                 pypkgs.notebook
