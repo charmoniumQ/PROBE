@@ -8,7 +8,7 @@ import signal
 import pathlib
 import psutil
 
-shell = "dash"
+shell = "bash"
 
 server_prog = sys.argv[1]
 client_prog = sys.argv[2]
