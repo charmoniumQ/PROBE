@@ -102,7 +102,8 @@
         {
           packages = {
             test = (pkgs.texlive.combine texlivePackages);
-            default = nix-utils-lib.mergeDerivations {
+            default = self.packages."${system}".acm-rep;
+            acm-rep = nix-utils-lib.mergeDerivations {
               packageSet = nix-utils-lib.packageSetRec
                 (self: [
                   (pkgs.stdenvNoCC.mkDerivation rec {

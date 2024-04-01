@@ -187,24 +187,22 @@ https://www.nas.nasa.gov/software/npb.html
 *** DONE Refactor ~stats.py~
 - Should have Callable[pandas.DataFrame, None]
 
-*** TODO [#A] Allow classes to specify Nix packages
+*** DONE [#A] Allow classes to specify Nix packages
 - setup() should do ~nix build~ and add to path
 
-*** TODO [#C] Refactor ~workloads.py~
+*** TODO Refactor ~workloads.py~
 - Should accept a tempdir
 - Should be smaller
 - Should have teardown
 
-*** TODO [#C] Refactor ~run_exec_wrapper.py~
+*** TODO Refactor ~run_exec_wrapper.py~
 - Should fail gracefully when cgroups are not available, or even degrade to using no containers
 
-*** TODO [#C] Document user interface
+*** TODO Document user interface
 
 ** Make easier to install
 
 *** TODO [#C] Package Python code for PyPI using Poetry
-
-*** TODO [#C] Document installation
 
 ** Provenance collectors
 
@@ -229,8 +227,7 @@ https://proot-me.github.io/care/
 
 *** TODO [#A] Debug PTU
 
-*** TODO [#A] Research Parrot
-
+*** DONE [#A] Research Parrot
 *** TODO [#C] Write BPF trace
 - We need to write a basic prov collector for BPF trace. The collector should log files read/written by the process and all children processes. Start by writing [[file:benchmark/prov.bt][prov.bt]].
 
