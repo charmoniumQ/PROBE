@@ -1121,7 +1121,7 @@ WORKLOADS: list[Workload] = [
     # Cmds("CPU-bench", "splash3", "fmm", ("mkdir", "--parents", "$WORKDIR/splash"), repeat(1000, ("sh", "-c", f"FMM -o $WORKDIR/splash/fmm-out < {splash_path}/inputs/fmm/input.4.16384"))),
     Cmds("CPU-bench", "splash3", "ocean", (), ("OCEAN", "-n2050", "-p1", "-e1e-07", "-r20000", "-t28800"), [".#bash", ".#splash3", ".#coreutils"]),
     Cmds("CPU-bench", "splash3", "radiosity", (), repeat(100, ("RADIOSITY", "-p", "1", "-ae", "50000", "-bf", "0.1", "-en", "0.05", "-room", "-batch")), [".#bash", ".#splash3", ".#coreutils"]),
-    Cmds("CPU-bench", "splash3", "raytrace", ("mkdir", "--parents", "$WORKDIR/splash"), ("bash", "-c", f"cd $WORKDIR/splash; RAYTRACE -n100 -p1 -m512 {splash_path}/inputs/raytrace/car.env"), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "raytrace", ("mkdir", "--parents", "$WORKDIR/splash"), ("bash", "-c", f"cd $WORKDIR/splash; RAYTRACE -a100 -p1 -m512 {splash_path}/inputs/raytrace/car.env"), [".#bash", ".#splash3", ".#coreutils"]),
     Cmds("CPU-bench", "splash3", "volrend", ("bash", "-c", f"mkdir --parents $WORKDIR/splash && cp {splash_path}/inputs/volrend/head.den $WORKDIR/splash/head.den"), ("VOLREND", "1", "$WORKDIR/splash/head", "128"), [".#bash", ".#splash3", ".#coreutils"]),
     Cmds("CPU-bench", "splash3", "water-nsquared", (), repeat(300, ("bash", "-c", f"WATER-NSQUARED < {splash_path}/inputs/water-nsquared/n512-p1")), [".#bash", ".#splash3", ".#coreutils"]),
     Cmds("CPU-bench", "splash3", "water-spatial", (), repeat(300, ("bash", "-c", f"WATER-SPATIAL < {splash_path}/inputs/water-spatial/n512-p1")), [".#bash", ".#splash3", ".#coreutils"]),
