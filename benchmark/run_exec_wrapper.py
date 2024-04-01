@@ -77,6 +77,16 @@ class DirMode:
     OVERLAY: DirMode = container.DIR_OVERLAY
 
 
+@contextlib.contextmanager
+def dont_add_handler() -> Iterator[None]:
+    logger = logging.getLogger()
+    before_handlers = logger.handlers[:]
+    yield
+    after_handlers = logger.handlers[:]
+    for handler in set(after_handlers) - set(before_handlers):
+        logger.removeHandler(handler)
+
+
 def run_exec(
     cmd: Sequence[CmdArg] = ("true",),
     cwd: Path = Path().resolve(),
@@ -104,21 +114,16 @@ def run_exec(
         }
         # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/runexecutor.py#L304
         # https://github.com/sosy-lab/benchexec/blob/2c56e08d5f0f44b3073f9c82a6c5f166a12b45e7/benchexec/containerexecutor.py#L297
-        logger = logging.getLogger()
-        before_handlers = logger.handlers
-        run_executor = RunExecutor(
-            # use_namespaces=False,
-            use_namespaces=True,
-            dir_modes=dir_modes_processed,
-            container_system_config=True,
-            container_tmpfs=True,
-            network_access=network_access,
-        )
+        with dont_add_handler():
+            run_executor = RunExecutor(
+                # use_namespaces=False,
+                use_namespaces=True,
+                dir_modes=dir_modes_processed,
+                container_system_config=True,
+                container_tmpfs=True,
+                network_access=network_access,
+            )
         # Runexec appears to install its own logging handlers, but we might already have one
-        after_handlers = logger.handlers
-        if before_handlers:
-            for handler in set(after_handlers) - set(before_handlers):
-                logger.removeHandler(handler)
         caught_signal_number: Signal | None = None
         def run_executor_stop(signal_number: Signal, _: types.FrameType | None) -> None:
             warnings.warn(f"In signal catcher for {signal_number}")
@@ -138,23 +143,24 @@ def run_exec(
                 if time_limit is not None else
                 None
             )
-            run_exec_run = run_executor.execute_run(
-                args=tuple(map(to_str, cmd)),
-                environments={
-                    "keepEnv": {},
-                    "newEnv": {
-                        cmd_arg(key): cmd_arg(val)
-                        for key, val in env.items()
+            with dont_add_handler():
+                run_exec_run = run_executor.execute_run(
+                    args=tuple(map(to_str, cmd)),
+                    environments={
+                        "keepEnv": {},
+                        "newEnv": {
+                            cmd_arg(key): cmd_arg(val)
+                            for key, val in env.items()
+                        },
                     },
-                },
-                workingDir=cmd_arg(cwd),
-                write_header=False,
-                output_filename=stdout,
-                error_filename=stderr,
-                softtimelimit=time_limit,
-                hardtimelimit=hard_time_limit,
-                memlimit=mem_limit,
-            )
+                    workingDir=cmd_arg(cwd),
+                    write_header=False,
+                    output_filename=stdout,
+                    error_filename=stderr,
+                    softtimelimit=time_limit,
+                    hardtimelimit=hard_time_limit,
+                    memlimit=mem_limit,
+                )
         if caught_signal_number is not None:
             raise InterruptedError(f"Caught signal {caught_signal_number}")
         return RunexecStats.create(

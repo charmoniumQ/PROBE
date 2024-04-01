@@ -7,7 +7,7 @@ import re
 import urllib.parse
 from collections.abc import Sequence, Mapping
 from pathlib import Path
-from util import run_all, CmdArg, check_returncode, merge_env_vars, download, groupby_dict, cmd_arg
+from util import run_all, CmdArg, check_returncode, merge_env_vars, download, groupby_dict, cmd_arg, get_nix_env
 import yaml
 import tarfile
 import shlex
@@ -329,30 +329,16 @@ class KaggleNotebook(Workload):
         return ("python", "-m", "jupyter", "nbconvert", "--execute", "--to=markdown", self._notebook)
 
 
-# See https://superuser.com/a/1079037
-APACHE_CONF = '''
-ServerRoot $HTTPD_ROOT
-PidFile $HTTPD_ROOT/httpd.pid
-ErrorLog $HTTPD_ROOT/errors.log
-ServerName localhost
-Listen $PORT
-LoadModule mpm_event_module $MODULES_ROOT/mod_mpm_event.so
-LoadModule unixd_module $MODULES_ROOT/mod_unixd.so
-LoadModule authz_core_module $MODULES_ROOT/mod_authz_core.so
-DocumentRoot $SRV_ROOT
-'''
-
-
 class HttpBench(Workload):
-    superkind = "HTTP"
-    kind = "srv/traffic"
+    superkind = "Net"
+    kind = "HTTP-srv/traffic"
     network_access = True
 
     def __init__(self, port: int, n_requests: int, request_size: int):
         self.port = port
         self.n_requests = n_requests
         self.request_size = request_size
-        self.nix_packages = [".#curl", ".#python", ".#hey"] + self.get_server_nix_packages()
+        self.nix_packages = [".#http-python-env"] + self.get_server_nix_packages()
 
     def get_server_nix_packages(self) -> list[str]:
         return []
@@ -364,7 +350,7 @@ class HttpBench(Workload):
         raise NotImplementedError
 
     def get_load(self, _workdir: Path) -> tuple[CmdArg, ...]:
-        return "hey" "-n", str(self.n_requests), f"http://localhost:{self.port}/test"
+        return ("hey", "-n", str(self.n_requests), f"http://localhost:{self.port}/test")
 
     def stop_server(self) -> tuple[CmdArg, ...] | None:
         return None
@@ -385,6 +371,21 @@ class HttpBench(Workload):
         )
 
 
+# See https://stackoverflow.com/a/4684910/1078199
+# See https://superuser.com/a/1079037
+APACHE_CONF = '''
+ServerRoot $HTTPD_ROOT
+PidFile $HTTPD_ROOT/httpd.pid
+ErrorLog $HTTPD_ROOT/errors.log
+ServerName localhost
+Listen $PORT
+LoadModule mpm_event_module $APACHE_MODULES_PATH/mod_mpm_event.so
+LoadModule unixd_module $APACHE_MODULES_PATH/mod_unixd.so
+LoadModule authz_core_module $APACHE_MODULES_PATH/mod_authz_core.so
+DocumentRoot $SRV_ROOT
+'''
+
+
 class Apache(HttpBench):
     name = "apache"
 
@@ -392,7 +393,7 @@ class Apache(HttpBench):
     #     return ("apacheHttpd", "-k", "graceful-stop")
 
     def get_server_nix_packages(self) -> list[str]:
-        return [".#apacheHttpd"]
+        return [".#apacheHttpd", ".#bash", ".#coreutils", "#gnused", ".#which"]
 
     def run_server(self, workdir: Path) -> str:
         httpd_root = (workdir / "apache").resolve()
@@ -403,13 +404,14 @@ class Apache(HttpBench):
         srv_root.mkdir()
         self.write_request_payload(srv_root / "test")
         conf_file = httpd_root / "httpd.conf"
-        # modules_root = result_lib.parent / "modules"
+        apache_modules_path = Path(get_nix_env([".#apacheHttpd"])["PATH"].split(":")[0]).parent / "modules"
+        assert apache_modules_path.exists()
         conf_file.write_text(
             APACHE_CONF
             .replace("$HTTPD_ROOT", str(httpd_root))
-            # .replace("$MODULES_ROOT", str(modules_root))
             .replace("$SRV_ROOT", str(srv_root))
             .replace("$PORT", str(HTTP_PORT))
+            .replace("$APACHE_MODULES_PATH", str(apache_modules_path))
         )
         return shlex.join([
             "apacheHttpd", "-k", "start", "-f", str(conf_file), "-X",
@@ -532,7 +534,8 @@ class Nginx(HttpBench):
 
 
 class HttpClient(SimpleHttp):
-    superkind = "HTTP"
+    superkind = "net"
+    kind = "HTTP"
     kind = "srv/traffic"
 
     def __init__(self, name: str, http_client: tuple[CmdArg, ...], *args, **kwargs):
@@ -587,21 +590,20 @@ username:$6$3FjBjHLcRPwcOK8h$DpG7OtbJXsQJ0g/TTAQjYiw47ZApeNdo6k9tRlcHQzfALKsoDxe
 
 
 class Proftpd(Workload):
-    superkind = "FTP"
-    kind = "srv/traffic"
+    superkind = "Net"
+    kind = "FTP-srv/traffic"
     name = "proftpd"
     network_access = True
 
 
-    def get_server_nix_packages(self) -> list[str]:
-        return [".#proftpd", ".#ftpbench"]
+    nix_packages = [".#proftpd", ".#ftpbench", ".#http-python-env"]
 
 
     def __init__(self, ftp_port: int, n_requests: int) -> None:
         self.ftp_port = ftp_port
         self.n_requests = n_requests
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         ftpdir = (workdir / "proftpd").resolve()
         if ftpdir.exists():
             shutil.rmtree(ftpdir)
@@ -683,12 +685,12 @@ class Postmark(Workload):
     kind ="Postmark"
     name = "all"
 
-    nix_packages = [".#dash", ".#postmark-from-src"]
+    nix_packages = [".#bash", ".#postmark-from-src", ".#coreutils"]
 
     def __init__(self, n_transactions: int) -> None:
         self.n_transactions = n_transactions
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         postmark_dir = workdir / "postmark"
         if postmark_dir.exists():
             shutil.rmtree(postmark_dir)
@@ -699,7 +701,7 @@ class Postmark(Workload):
     def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         postmark_dir = workdir / "postmark"
         postmark_input = postmark_dir / "postmark.input"
-        return ("dash", "-e", "-c", "env --chdir {postmark_dir} postmark < {postmark_input}")
+        return ("bash", "-e", "-c", f"env --chdir {postmark_dir} postmark < {postmark_input}")
 
 
 SYSTEMD_TARBALL_URL = "https://github.com/systemd/systemd/archive/refs/tags/v255.tar.gz"
@@ -818,7 +820,8 @@ class Unarchive(Workload):
 
 
 class Cmds(Workload):
-    def __init__(self, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...], nix_packages: list[str]) -> None:
+    def __init__(self, superkind: str, kind: str, name: str, setup: tuple[CmdArg, ...], run: tuple[CmdArg, ...], nix_packages: list[str]) -> None:
+        self.superkind = superkind
         self.kind = kind
         self.name = name
         self._setup = setup
@@ -838,12 +841,13 @@ class Cmds(Workload):
         )
 
     def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
-        check_returncode(subprocess.run(
-            self._replace_args(self._setup, workdir),
-            env=env,
-            check=False,
-            capture_output=True,
-        ))
+        if self._setup:
+            check_returncode(subprocess.run(
+                self._replace_args(self._setup, workdir),
+                env=env,
+                check=False,
+                capture_output=True,
+            ))
 
     def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         return self._replace_args(self._run, workdir)
@@ -874,9 +878,9 @@ class VCSTraffic(Workload):
         self.commits: None | list[str] = None
         self.first_n_commits = first_n_commits
         if clone_cmd[0] == "git":
-            self.nix_packages = [".#git", ".#dash"]
+            self.nix_packages = [".#git", ".#bash"]
         elif clone_cmd[0] == "hg":
-            self.nix_packages = [".#mercurial", ".#dash"]
+            self.nix_packages = [".#mercurial", ".#bash"]
         else:
             raise NotImplementedError()
 
@@ -904,26 +908,26 @@ class VCSTraffic(Workload):
     def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         assert self.repo_dir is not None
         assert self.commits is not None
-        return ("dash", "-e", self.repo_dir / "script")
+        return ("bash", "-e", self.repo_dir / "script")
 
 
 class Blast(Workload):
     superkind = "BLAST"
     kind = ""
 
-    nix_packages = [".#gnumake"]
+    nix_packages = [".#gnumake", ".#bash", ".#blast"]
 
     def __init__(self, name: str, which_targets: tuple[str, ...]) -> None:
         self.name = name
         self.which_targets = which_targets
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         blastdir = workdir / "blast-benchmark"
         if not blastdir.exists():
             blastdir.mkdir(parents=True)
         blast_targz = blastdir / "blast.tar.gz"
         if not blast_targz.exists():
-            download(blast_targz, "https://ftp.ncbi.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz")
+            download(blast_targz, "https://ftp.ncbi.nlm.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz")
         blast_makefile = blastdir / "Makefiile"
         if not blast_makefile.exists():
             with tarfile.TarFile.open(blast_targz) as blast_targz_obj:
@@ -942,17 +946,9 @@ class Blast(Workload):
         for subdir in ["blastn", "blastp", "blastx", "tblastn", "tblastx", "megablast", "idx_megablast"]:
             (output_dir / subdir).mkdir()
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         blastdir = workdir / "blast-benchmark"
-        return (
-            (
-                "make",
-                f"--directory={blastdir}",
-                "TIME=",
-                *self.which_targets,
-            ),
-            {},
-        )
+        return ("make", f"--directory={blastdir}", "TIME=", *self.which_targets)
 
 
 class Copy(Workload):
@@ -966,7 +962,7 @@ class Copy(Workload):
         self.url = url
         self.name_hash = hashlib.sha256(self.url.encode()).hexdigest()[:10]
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         main_dir = (workdir / "copy")
         if not main_dir.exists():
             main_dir.mkdir()
@@ -993,15 +989,16 @@ class Copy(Workload):
 
 class CompileLinux(Workload):
     superkind = "Compile"
-    kind = ""
+    kind = "w/gcc"
     name = "Linux"
 
-    nix_packages = [".#dash"]
+    nix_packages = [".#linux-env"]
 
     def __init__(self, url: str) -> None:
         self.url = url
+        self.env = dict[str, str]()
 
-    def setup(self, workdir: Path) -> None:
+    def setup(self, workdir: Path, env: Mapping[str, str]) -> None:
         source_dir = workdir / "source"
         source_dir.mkdir(exist_ok=True)
         archive_tgz = workdir / "kernel.tar.gz"
@@ -1013,40 +1010,38 @@ class CompileLinux(Workload):
                 path=source_dir,
                 filter=lambda member, dest_path: member.replace(name="/".join(member.name.split("/")[1:])),
             )
+        paths = map(Path, env["PATH"].split(":"))
+        elfutil_path = [
+            path.parent
+            for path in paths
+            if (path.parent / "include/gelf.h").exists()
+        ][0]
+        self.env["CPATH"] = str(elfutil_path / "include")
+        self.env["LIBRARY_PATH"] = str(elfutil_path / "lib")
 
-    def run(self, workdir: Path) -> tuple[tuple[CmdArg, ...], Mapping[CmdArg, CmdArg]]:
+    def run(self, workdir: Path) -> tuple[CmdArg, ...]:
         source_dir = (workdir / "source")
         # Makefile:763
         # The all: target is the default when no target is given on the
         # command line.
         # This allow a user to issue only 'make' to build a kernel including modules
         # Defaults to vmlinux, but the arch makefile usually adds further targets
-        return ("dash", "-e", "-c", "\n".join([
+        return ("bash", "-e", "-c", "\n".join([
             f"cd {source_dir}",
-            # f"export CPATH={result_bin.parent / 'include'}",
+            "export " + " ".join(f"{key}={value}" for key, value in self.env.items()),
             "make defconfig",
             "make",
         ]))
 
 
-noop_cmd = ("true",)
 def create_file_cmd(size: int) -> tuple[CmdArg, ...]:
-    return (
-        "python",
-        "-c",
-        "\n".join([
-            "import pathlib",
-            "dir = pathlib.Path('$WORKDIR/lmbench')",
-            "dir.mkdir(exist_ok=True)",
-            f"(dir / 'file').write_text({size} * 'A')",
-        ]),
-    )
+    return ("dd", "if=/dev/zero", "of=$WORKDIR/test_file", f"bs={size}", "count=1")
 
 
 def repeat(n: int, cmd: tuple[CmdArg, ...], no_stdout: bool = False) -> tuple[CmdArg, ...]:
     output = " > /dev/null" if no_stdout else ""
     return (
-        "dash",
+        "bash",
         "-e",
         "-c",
         f"for i in $(seq {n}); do {shlex.join(cmd_arg(cmd_part).decode() for cmd_part in cmd)}{output}; done",
@@ -1061,68 +1056,79 @@ archive_reps = 3
 archive_test_tarball = LINUX_TARBALL_URL
 
 
+splash_path = Path(get_nix_env([".#splash3"])["PATH"].split(":")[0]).parent
+print(splash_path)
+assert (splash_path / "inputs").exists()
+
+
 # NOTE: where there are repetitions, I've balanced these as best as I can to make them take between 10 and 30 seconds.
 # 10 seconds is enough time that I am sure the cost of initial file loading is not a factor.
 # Obviously, the Spack compile and Kaggle notebooks take much longer than this, and nothing can be done about that.
 WORKLOADS: list[Workload] = [
-    # Cmds("simple", "hello", noop_cmd, repeat(1000, ("hello",), no_stdout=True)),
-    # Cmds("simple", "ps", noop_cmd, repeat(1000, ("ps", "aux"), no_stdout=True)),
-    # Cmds("simple", "true", noop_cmd, repeat(1000, ("true",))),
-    # Cmds("simple", "echo", noop_cmd, repeat(1000, ("echo", "hello", "world"), no_stdout=True)),
-    # Cmds("simple", "ls", create_file_cmd(100), repeat(1000, ("ls", "$WORKDIR/lmbench"), no_stdout=True)),
-    # Cmds("python", "python-hello-world", noop_cmd, repeat(100, ("python", "-c", "print('hello world')"), no_stdout=True)),
-    # Cmds("python", "python-import", noop_cmd, repeat(10, ("python", "-c", "import pandas, matplotlib; print('hi')"), no_stdout=True)),
-    # Cmds("gcc", "gcc-hello-world", noop_cmd, repeat(100, ("gcc", "-Wall", "-Og", "test.c", "-o", "$WORKDIR/test.exe"))),
-    # Cmds("gcc", "gcc-hello-world threads", noop_cmd, repeat(100, ("gcc", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.c", "-o", "$WORKDIR/test.exe", "-lpthread"))),
-    # # TOD: Fix shell workloads
-    # Cmds("shell", "shell-incr", noop_cmd, ("bash", "-c", "i=0; for i in seq 10000; do i=$((i+1)); done")),
-    # Cmds("shell", "cd", noop_cmd, ("bash", "-c", f"dir0={Path().resolve()}; dir1=$(realpath $WORKDIR); for i in seq 10000; do cd $dir0; cd $dir1; done")),
-    # Cmds("shell", "shell-echo", noop_cmd, ("bash", "-c", "for i in seq 10000; do echo hi > /dev/null; done")),
-    # Cmds(
-    #     "pdflatex",
-    #     "latex-test",
-    #     ("dash", "-c", f"mkdir --parents $WORKDIR/latex && cp test.tex $WORKDIR/latex/test.tex"),
-    #     ("env", "--chdir", "$WORKDIR/latex", "pdflatex", "test.tex"),
-    # ),
-    # Cmds(
-    #     "pdflatex",
-    #     "latex-test2",
-    #     ("sh", "-c", f"mkdir --parents $WORKDIR/latex && cp test2.tex $WORKDIR/latex/test2.tex"),
-    #     ("env", "--chdir", "$WORKDIR/latex", "pdflatex", "test2.tex"),
-    # ),
-    # Cmds("lmbench", "lm-getppid", noop_cmd, ("lat_syscall", "-N", "1000", "null"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-read", noop_cmd, ("lat_syscall", "-N", "1000", "read"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-write", noop_cmd, ("lat_syscall", "-N", "1000", "write"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-stat", create_file_cmd(1024), ("lat_syscall", "-N", "1000", "stat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-fstat", create_file_cmd(1024), ("lat_syscall", "-N", "1000", "fstat", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-open/close", create_file_cmd(1024), ("lat_syscall", "-N", "1000", "open", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-fork", noop_cmd, ("lat_proc", "-N", "1000", "fork"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-exec", noop_cmd, ("lat_proc", "-N", "1000", "exec"), {"ENOUGH": "10000"}),
-    # # Cmds("lmbench", "lm-shell", noop_cmd, ("lat_proc", "-N", "100", "shell")), # broke
-    # Cmds("lmbench", "lm-install-signal", noop_cmd, ("lat_sig", "-N", "1000", "install"), {"ENOUGH": "10000"}), # noisy
-    # Cmds("lmbench", "lm-catch-signal", noop_cmd, ("lat_sig", "-N", "1000", "catch"), {"ENOUGH": "10000"}), # noisy
-    # Cmds("lmbench", "lm-protection-fault", create_file_cmd(1024), ("lat_sig", "-N", "300", "prot", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-page-fault", create_file_cmd(8 * 1024 * 1024), ("lat_pagefault", "-N", "1000", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-select-file", create_file_cmd(1024), ("env", "--chdir", "$WORKDIR", "lat_select", "-n", "100", "-N", "1000", "file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-select-tcp", create_file_cmd(1024), ("lat_select", "-n", "100", "-N", "1000", "tcp"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-mmap", create_file_cmd(8 * 1024 * 1024), ("lat_mmap", "-N", "1000", "1M", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-bw_file_rd", create_file_cmd(1024), ("bw_file_rd", "-N", "1000", "1M", "io_only", "$WORKDIR/lmbench/file"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-bw_unix", noop_cmd, ("bw_unix", "-N", "10"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-bw_pipe", noop_cmd, ("bw_pipe", "-N", "10"), {"ENOUGH": "10000"}),
-    # Cmds("lmbench", "lm-fs", create_file_cmd(1024), ("lat_fs", "-N", "100", "$WORKDIR/lmbench"), {"ENOUGH": "10000"}),
-    # # Cmds("splash-3", "splash-barnes", noop_cmd, ("sh", "-c", f"BARNES < {result}/inputs/barnes/n16384-p1")),
-    # # Cmds("splash-3", "splash-fmm", ("mkdir", "--parents", "$WORKDIR/splash"), repeat(1000, ("sh", "-c", f"FMM -o $WORKDIR/splash/fmm-out < {result}/inputs/fmm/input.4.16384"))),
-    # Cmds("splash-3", "splash-ocean", noop_cmd, ("OCEAN", "-p1", "-n", "1026")),
-    # Cmds("splash-3", "splash-radiosity", noop_cmd, repeat(100, ("RADIOSITY", "-p", "1", "-ae", "50000", "-bf", "0.1", "-en", "0.05", "-room", "-batch"))),
-    # Cmds("splash-3", "splash-raytrace", ("mkdir", "--parents", "$WORKDIR/splash"), ("sh", "-c", f"cd $WORKDIR/splash; RAYTRACE -p1 -m512 {result}/inputs/raytrace/car.env")),
-    # Cmds("splash-3", "splash-volrend", noop_cmd, ("VOLREND", "1", f"{result}/inputs/volrend/head", "256")),
-    # Cmds("splash-3", "splash-water-nsquared", noop_cmd, repeat(300, ("sh", "-c", f"WATER-NSQUARED < {result}/inputs/water-nsquared/n512-p1"))),
-    # Cmds("splash-3", "splash-water-spatial", noop_cmd, repeat(300, ("sh", "-c", f"WATER-SPATIAL < {result}/inputs/water-spatial/n512-p1"))),
-    # Cmds("splash-3", "splash-cholesky", noop_cmd, repeat(300, ("sh", "-c", f"CHOLESKY -p1 < {result}/inputs/cholesky/tk15.O"))),
-    # Cmds("splash-3", "splash-fft", noop_cmd, ("FFT", "-p1", "-m256")),
-    # Cmds("splash-3", "splash-lu", noop_cmd, repeat(10, ("LU", "-p1", "-n4096"))),
-    # Cmds("splash-3", "splash-radix", noop_cmd, ("RADIX", "-p1", "-n134217728")),
-
+    Cmds("Utils", "", "hello-bin", (), repeat(1000, ("hello",), no_stdout=True), [".#hello", ".#bash", ".#coreutils"]),
+    Cmds("Utils", "", "ps", (), repeat(1000, ("ps", "aux"), no_stdout=True), [".#procps", ".#bash", ".#coreutils"]),
+    Cmds("Utils", "", "true", (), repeat(10000, ("true",)), [".#coreutils", ".#bash"]),
+    Cmds("Utils", "", "ls", create_file_cmd(100), repeat(1000, ("ls", "$WORKDIR"), no_stdout=True), [".#coreutils", ".#bash"]),
+    Cmds("Utils", "", "shell-incr", (), ("bash", "-c", "i=0; for i in $(seq 1000000); do i=$((i+1)); done"), [".#bash", ".#coreutils"]),
+    Cmds("Utils", "", "cd", (), ("bash", "-c", f"dir0={Path().resolve()}; dir1=$(realpath $WORKDIR); for i in $(seq 1000000); do cd $dir0; cd $dir1; done"), [".#bash", ".#coreutils"]),
+    Cmds("Utils", "", "shell-echo", (), ("bash", "-c", "for i in $(seq 100000); do echo hi > /dev/null; done"), [".#bash", ".#coreutils"]),
+    Cmds("Data science", "python", "import-pandas", (), ("python", "-c", "\n".join([
+        "import importlib",
+        "import pandas",
+        "for _ in range(100):",
+        "  importlib.reload(pandas)",
+        "  import pandas",
+    ])), [".#notebook-env"]),
+    Cmds("Compile", "w/gcc", "hello", (), ("g++", "-Wall", "-O3", "test.cxx", "-o", "$WORKDIR/test.exe"), [".#gcc"]),
+    Cmds("Compile", "w/gcc", "hello-threads", (), ("g++", "-DUSE_THREADS", "-Wall", "-O3", "-pthread", "test.cxx", "-o", "$WORKDIR/test.exe", "-lpthread"), [".#gcc"]),
+    Cmds(
+        "Compile",
+        "latex",
+        "letter",
+        ("bash", "-c", "mkdir --parents $WORKDIR/latex && cp test.tex $WORKDIR/latex/test.tex"),
+        ("bash", "-c", "cd $WORKDIR/latex && pdflatex test2.tex && pdflatex test2.tex"),
+        [".#bash", ".#coreutils", ".#tex"],
+    ),
+    Cmds(
+        "Compile",
+        "latex",
+        "acmart",
+        ("bash", "-c", "mkdir --parents $WORKDIR/latex && cp test2.tex $WORKDIR/latex/test2.tex"),
+        ("bash", "-c", "cd $WORKDIR/latex && pdflatex test2.tex && pdflatex test2.tex"),
+        [".#bash", ".#coreutils", ".#tex"],
+    ),
+    Cmds("IO-bench", "lmbench", "getppid", (), ("env", "ENOUGH=10000", "lat_syscall", "-N", "300", "null"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "read", (), ("env", "ENOUGH=10000", "lat_syscall", "-N", "300", "read"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "write", (), ("env", "ENOUGH=10000", "lat_syscall", "-N", "300", "write"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "stat", create_file_cmd(1024), ("env", "ENOUGH=10000", "lat_syscall", "-N", "300", "stat", "$WORKDIR/test_file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "fstat", create_file_cmd(1024), ("env", "ENOUGH=10000", "lat_syscall", "-N", "300", "fstat", "$WORKDIR/test_file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "open/close", create_file_cmd(1024), ("env", "ENOUGH=10000", "lat_syscall", "-N", "300", "open", "$WORKDIR/test_file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "fork", (), ("env", "ENOUGH=10000", "lat_proc", "-N", "300", "fork"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "exec", (), ("env", "ENOUGH=10000", "lat_proc", "-N", "300", "exec"), [".#lmbench", ".#coreutils"]),
+    # Cmds("IO-bench", "lmbench", "shell", (), ("env", "ENOUGH=10000", "lat_proc", "-N", "100", "shell")), # broke
+    Cmds("IO-bench", "lmbench", "install-signal", (), ("env", "ENOUGH=10000", "lat_sig", "-N", "300", "install"), [".#lmbench", ".#coreutils"]), # noisy
+    Cmds("IO-bench", "lmbench", "catch-signal", (), ("env", "ENOUGH=10000", "lat_sig", "-N", "100", "catch"), [".#lmbench", ".#coreutils"]), # noisy
+    Cmds("IO-bench", "lmbench", "protection-fault", create_file_cmd(1024), ("env", "ENOUGH=10000", "lat_sig", "-N", "100", "prot", "$WORKDIR/test_file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "page-fault", create_file_cmd(8 * 1024 * 1024), ("env", "ENOUGH=10000", "lat_pagefault", "-N", "100", "$WORKDIR/test_file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "select-file", create_file_cmd(1024), ("env", "--chdir", "$WORKDIR", "lat_select", "-n", "100", "-N", "300", "file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "select-tcp", create_file_cmd(1024), ("env", "ENOUGH=10000", "lat_select", "-n", "100", "-N", "300", "tcp"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "mmap", create_file_cmd(8 * 1024 * 1024), ("env", "ENOUGH=10000", "lat_mmap", "-N", "300", "1M", "$WORKDIR/test_file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "bw_file_rd", create_file_cmd(1024), ("bw_file_rd", "-N", "10", "1M", "io_only", "$WORKDIR/test_file"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "bw_unix", (), ("bw_unix", "-N", "1"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "bw_pipe", (), ("bw_pipe", "-N", "1"), [".#lmbench", ".#coreutils"]),
+    Cmds("IO-bench", "lmbench", "fs", create_file_cmd(1024), ("env", "ENOUGH=10000", "lat_fs", "-N", "10", "$WORKDIR/lmbench"), [".#lmbench", ".#coreutils"]),
+    # Cmds("CPU-bench", "splash3", "barnes", (), ("sh", "-c", f"BARNES < {splash_path}/inputs/barnes/n16384-p1")),
+    # Cmds("CPU-bench", "splash3", "fmm", ("mkdir", "--parents", "$WORKDIR/splash"), repeat(1000, ("sh", "-c", f"FMM -o $WORKDIR/splash/fmm-out < {splash_path}/inputs/fmm/input.4.16384"))),
+    Cmds("CPU-bench", "splash3", "ocean", (), ("OCEAN", "-n2050", "-p1", "-e1e-07", "-r20000", "-t28800"), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "radiosity", (), repeat(100, ("RADIOSITY", "-p", "1", "-ae", "50000", "-bf", "0.1", "-en", "0.05", "-room", "-batch")), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "raytrace", ("mkdir", "--parents", "$WORKDIR/splash"), ("bash", "-c", f"cd $WORKDIR/splash; RAYTRACE -n100 -p1 -m512 {splash_path}/inputs/raytrace/car.env"), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "volrend", ("bash", "-c", f"mkdir --parents $WORKDIR/splash && cp {splash_path}/inputs/volrend/head.den $WORKDIR/splash/head.den"), ("VOLREND", "1", "$WORKDIR/splash/head", "128"), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "water-nsquared", (), repeat(300, ("bash", "-c", f"WATER-NSQUARED < {splash_path}/inputs/water-nsquared/n512-p1")), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "water-spatial", (), repeat(300, ("bash", "-c", f"WATER-SPATIAL < {splash_path}/inputs/water-spatial/n512-p1")), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "cholesky", (), repeat(300, ("bash", "-c", f"CHOLESKY -p1 < {splash_path}/inputs/cholesky/tk15.O")), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "fft", (), ("FFT", "-m26", "-p1", "-n65536", "-l4"), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "lu", (), repeat(10, ("LU", "-p1", "-n2048")), [".#bash", ".#splash3", ".#coreutils"]),
+    Cmds("CPU-bench", "splash3", "radix", (), ("RADIX", "-p1", "-n134217728"), [".#bash", ".#splash3", ".#coreutils"]),
     # SpackInstall(["trilinos"]), # Broke: openblas
     SpackInstall(["python"]),
     # SpackInstall(["openmpi", "spack-repo.krb5"]),
@@ -1433,23 +1439,13 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost", "spack spack-repo.apacheHttpd", "compile-linux"}
+        if workload.name not in {"w/spack"}
 
-    ],
-    "working-low-mem": [
-        workload
-        for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "spack glibc", "spack spack-repo.mpich", "spack boost", "spack spack-repo.apacheHttpd", "compile-linux", "spack hdf5~mpi", "spack git"}
-    ],
-    "working-ltrace": [
-        workload
-        for workload in WORKLOADS
-        if workload.name not in {"titanic-to", "select-tcp", "spack spack-repo.mpich", "spack glibc", "spack boost"} and workload.kind not in {"spack", "ftp_client", "splash-3"}
     ],
     "fast": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server", "splash-3"}
+        if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server", "splash3"}
     ],
     "superfast": [
         workload

@@ -23,7 +23,7 @@ from run_exec_wrapper import run_exec, DirMode
 from util import (
     delete_children, move_children,
     hardlink_children, shuffle, expect_type, to_str, merge_env_vars,
-    SubprocessError, check_returncode,
+    SubprocessError, check_returncode, get_nix_env,
 )
 
 
@@ -212,25 +212,6 @@ def run_one_experiment_cached(
             cache_dir.mkdir(exist_ok=True, parents=True)
             key.write_bytes(pickle.dumps(stats))
         return stats
-
-
-_nix_path = shutil.which("nix")
-if _nix_path is None:
-    raise ValueError("Please add `nix` to the $PATH")
-NIX_BIN_PATH = pathlib.Path(_nix_path)
-
-
-def get_nix_env(packages: list[str]) -> Mapping[str, str]:
-    if packages:
-        return json.loads(check_returncode(subprocess.run(
-            [NIX_BIN_PATH, "shell", *packages, "--command", sys.executable, "-c", "import os, json; print(json.dumps(dict(**os.environ)))"],
-            env=typing.cast(Mapping[str, str], {}),
-            capture_output=True,
-            text=True,
-            check=False,
-        )).stdout)
-    else:
-        return {}
 
 
 def run_one_experiment(

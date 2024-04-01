@@ -8,8 +8,7 @@ import signal
 import pathlib
 import psutil
 
-result_bin = pathlib.Path("result/bin").resolve()
-shell = str(result_bin / "sh")
+shell = "dash"
 
 server_prog = sys.argv[1]
 client_prog = sys.argv[2]
@@ -47,7 +46,7 @@ load_proc = subprocess.run(
     check=False,
 )
 
-subprocess.run([str(result_bin / "pstree"), "--show-pids", "--show-parents", str(server_proc.pid)])
+# subprocess.run(["pstree", "--show-pids", "--show-parents", str(server_proc.pid)])
 
 print(f"Terminating server prog {server_proc.pid}")
 # Note that in some ptrace programs (reprozip, possibly strace) this will leave a zombie process

@@ -30,15 +30,35 @@
           lzop = pkgs.lzop;
           mercurial = pkgs.mercurial;
           git = pkgs.git;
-          dash = pkgs.dash;
           lighttpd = pkgs.lighttpd;
           hey = pkgs.hey;
           nginx = pkgs.nginx;
           curl = pkgs.curl;
+          gnused = pkgs.gnused;
+          which = pkgs.which;
+          procps = pkgs.procps;
+          hello = pkgs.hello;
+          gcc = pkgs.gcc;
+          tex = pkgs.texlive.combined.scheme-full;
+          gnumake = pkgs.gnumake;
+          bash = pkgs.bash;
+          blast = pkgs.blast;
+          http-python-env = pkgs.symlinkJoin {
+            name = "http-python-env";
+            paths = [
+              pkgs.bash
+              curl
+              hey
+              pkgs.psmisc
+              (pkgs.python312.withPackages (pypkgs: [
+                pypkgs.psutil
+              ]))
+            ];
+          };
           un-archive-env = pkgs.symlinkJoin {
             name = "un-archve-env";
             paths = [
-              pkgs.dash
+              pkgs.bash
               pkgs.coreutils
               pkgs.gnutar
               pkgs.gzip
@@ -99,12 +119,20 @@
               pkgs.bison
               pkgs.flex
               pkgs.bc
+              pkgs.bash
               pkgs.diffutils
               pkgs.elfutils.dev
               pkgs.elfutils.out
               pkgs.openssl.dev
               pkgs.openssl.out
               pkgs.perl
+              pkgs.gnumake
+              pkgs.coreutils
+              pkgs.gnused
+              pkgs.stdenv.cc
+              pkgs.findutils
+              pkgs.gnugrep
+              pkgs.gawk
             ];
           };
           # Rename to avoid conflict when merging
@@ -140,7 +168,23 @@
               install postmark $out/bin
             '';
           };
-          splash-3 = pkgs.stdenv.mkDerivation rec {
+          # parrot = pkgs.stdenv.mkDerivation rec {
+          #   pname = "parrot";
+          #   version = "0.9.15";
+          #   src = pkgs.fetchurl {
+          #     url = "https://pages.cs.wisc.edu/~thain/research/parrot/parrot-0_9_15.tar.gz";
+          #     hash = "sha256-8LF1glOqKzAUpzC7uQMCNgEDX1+9MCfs4PEm0EJWdEE=";
+          #   };
+          #   buildInputs = [ pkgs.gdbm ];
+          #   dontAddPrefix = true;
+          #   preConfigure = ''
+          #     configureFlagsArray+=(--prefix $out --with-gdbm-path ${pkgs.gdbm.out});
+          #   '';
+          #   installPhase = ''
+          #     install parrot $out/bin
+          #   '';
+          # };
+          splash3 = pkgs.stdenv.mkDerivation rec {
             pname = "splash";
             version = "3";
             src = pkgs.fetchFromGitHub {
@@ -149,6 +193,7 @@
               rev = "master";
               hash = "sha256-HFgqYEHanlwA0FA/7kOSsmcPzcb8BLJ3lG74DV5RtBA=";
             };
+            a="hi";
             patches = [ ./splash-3.diff ];
             nativeBuildInputs = [ pkgs.m4 pkgs.binutils ];
             sourceRoot = "source/codes";
@@ -526,7 +571,7 @@
           });
           pcre2-dev = pkgs.pcre2.dev.overrideAttrs (super: {
             postFixup = super.postFixup + ''
-              ${pkgs.gnused}/bin/sed --in-place s=/bin/sh=${pkgs.dash}/bin/dash=g $dev/bin/pcre2-config
+              ${pkgs.gnused}/bin/sed --in-place s=/bin/sh=${pkgs.bash}/bin/bash=g $dev/bin/pcre2-config
             '';
           });
           pyTimecard = python.pkgs.buildPythonPackage rec {

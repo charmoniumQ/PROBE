@@ -29,7 +29,7 @@ $ cd prov-tracer/benchmark
 
 Use Nix to build.
 We used `--max-jobs` to enable parallelism.
-This step takes about an hour on a modest machine with residential internet.
+This step takes about half an hour on a modest machine with residential internet.
 
 ```sh
 $ nix build --print-build-logs --max-jobs $(nproc) '.#env'
@@ -41,7 +41,7 @@ $ nix build --print-build-logs --max-jobs $(nproc) '.#env'
 
 - Follow directions in [Benchexec](https://github.com/sosy-lab/benchexec/blob/main/doc/INSTALL.md) to enable cgroups. Run `result/bin/python -m benchexec.check_cgroups` and verify there are no errors.
 
-- Test `result/bin/rr record result/bin/ls`. If this issues an error regarding `kernel.perf_event_paranoid`, follow its advice and confirm that resolves the error.
+- Test `nix shell '.#rr' --command rr record result/bin/ls`. If this issues an error regarding `kernel.perf_event_paranoid`, follow its advice and confirm that resolves the error.
 
   - Zen CPUs may require [extra setup](https://github.com/rr-debugger/rr/wiki/Zen)
 
@@ -87,3 +87,23 @@ The notebook can be launched from our software environment by:
 ```sh
 env - result/bin/jupyter notebook
 ```
+
+## Adding new benchmark items or provenance collectors
+
+For new benchmark items,
+
+1. Go to `workload.py`.
+2. Write a new workload class that implements the `Workload` interface.
+3. Add an instance of your workload class to `WORKLOAD_GROUPS`.
+4. Call `./result/bin/runner` (see above) with `--workloads $selector` where `$selector` is the lowercased name, kind, superkind, or group-name of your workload class.
+
+For new provenance collectors:
+
+1. Go to `collectors.py`.
+2. Write a new class that implements the `Collector` interface.
+3. Add an instance of your workload class to `COLLECTORS`.
+4. Call `./result/bin/runner` (see above) with `--collectors $selector` where `$selector` is the lowercased name or group-name of your workload class.
+
+
+Note that the attribute `nix_packages`, in both cases, contains a list of strings that reference packages defined as in package outputs for the current architecture the `flake.nix`.
+Using Nix to build our software environment ensures that all architectures and POSIX platforms can reproducibly build the relevant software environments.

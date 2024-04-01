@@ -1,5 +1,7 @@
 import itertools
 import os
+import json
+import sys
 import dataclasses
 import random
 import tempfile
@@ -26,6 +28,7 @@ def download(output: pathlib.Path, url: str) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     with DownloadProgressBar(unit='B', unit_scale=True,
                              miniters=1, desc=url.split('/')[-1]) as t:
+        print(url)
         urllib.request.urlretrieve(url, filename=output, reporthook=t.update_to)
 
 
@@ -161,7 +164,7 @@ class SubprocessError(Exception):
     returncode: int
     stdout: str
     stderr: str
-    env: Mapping[CmdArg, CmdArg]
+    env: Mapping[str, str]
     cwd: pathlib.Path | None = None
 
     def __init__(
@@ -257,3 +260,22 @@ def all_unique(it: Iterable[Hashable]) -> bool:
 
 def n_unique(it: Iterable[Hashable]) -> int:
     return len(set(it))
+
+
+_nix_path = shutil.which("nix")
+if _nix_path is None:
+    raise ValueError("Please add `nix` to the $PATH")
+NIX_BIN_PATH = pathlib.Path(_nix_path)
+
+
+def get_nix_env(packages: list[str]) -> Mapping[str, str]:
+    if packages:
+        return json.loads(check_returncode(subprocess.run(
+            [NIX_BIN_PATH, "shell", *packages, "--command", sys.executable, "-c", "import os, json; print(json.dumps(dict(**os.environ)))"],
+            env=cast(Mapping[str, str], {}),
+            capture_output=True,
+            text=True,
+            check=False,
+        )).stdout)
+    else:
+        return {}
