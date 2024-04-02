@@ -46,6 +46,8 @@ $ nix build --print-build-logs --max-jobs $(nproc) '.#env'
   - Zen CPUs may require [extra setup](https://github.com/rr-debugger/rr/wiki/Zen)
 
   - Note that RR may require [extra setup](https://github.com/rr-debugger/rr/wiki/Will-rr-work-on-my-system) for virtual machines.
+  
+  - Finally, Intel CPUs are hit-or-miss with rr, due to its low-level machine-code operations. This is a known weakness of `rr`. If you can't `rr` to work, and you can't get an AMD CPU, you may disable `rr` by removing it from `working` at the bottom of `prov_collectors.py`.
 
 ## Running the benchmarks
 
