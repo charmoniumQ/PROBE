@@ -43,11 +43,11 @@ $ nix build --print-build-logs --max-jobs $(nproc) '.#env'
 
 - Test `nix shell '.#rr' --command rr record result/bin/ls`. If this issues an error regarding `kernel.perf_event_paranoid`, follow its advice and confirm that resolves the error.
 
-  - Zen CPUs may require [extra setup](https://github.com/rr-debugger/rr/wiki/Zen)
+  - AMD Zen CPUs may require [extra setup](https://github.com/rr-debugger/rr/wiki/Zen)
 
   - Note that RR may require [extra setup](https://github.com/rr-debugger/rr/wiki/Will-rr-work-on-my-system) for virtual machines.
   
-  - Finally, Intel CPUs are hit-or-miss with rr, due to its low-level machine-code operations. This is a known weakness of `rr`. If you can't `rr` to work, and you can't get an AMD CPU, you may disable `rr` by removing it from `working` at the bottom of `prov_collectors.py`.
+  - Finally, AMD CPUs are hit-or-miss with rr, due to its low-level machine-code operations. This is a known weakness of `rr`. If you can't get `rr` to work, and you can't get an Intel CPU, you may disable `rr` by removing it from `working` at the bottom of `prov_collectors.py`. You will still be able to collect statistics on the other (more portable) provenance collectors.
 
 ## Running the benchmarks
 

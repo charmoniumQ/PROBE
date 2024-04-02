@@ -727,7 +727,7 @@ Total (gmean) & 0 & 0 & 45 & 66 & 146 & 193 \\
 \end{center}
 \end{table}
 
-Table @Tbl:benchmark-results shows the aggregated performance of our implemented benchmarks in our implemented provenance collectors.
+@Tbl:benchmark-results shows the aggregated performance of our implemented benchmarks in our implemented provenance collectors.
 From this, we observe:
 
 - Although SPLASH-3 CPU-oriented benchmarks contain mostly CPU-bound tasks, they often need to load data from a file, which does invoke the I/O subsystem.
@@ -821,7 +821,7 @@ From these two, we offer the following observations:
 \caption{
   Dendrogram showing the distance between clusters.
   A fork at $x = x_0$ indicates that below that threshold of within-cluster variance, the two children clsuters are far away enough that they should be split into two; conversely, above that threshold they are close enough to be combined.
-  [_Text removed_]{style=red}
+  \textcolor{red}{\textit{Text removed}}
 }
 \label{fig:dendrogram}
 \end{center}
@@ -1362,3 +1362,5 @@ The following are open PRs developed as a result of this work:
 :::
 
 # References
+
+_TODO: Add appendix major heading. Fix the double occurrence of references. Get rid of extra page number._
