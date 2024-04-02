@@ -1057,7 +1057,6 @@ archive_test_tarball = LINUX_TARBALL_URL
 
 
 splash_path = Path(get_nix_env([".#splash3"])["PATH"].split(":")[0]).parent
-print(splash_path)
 assert (splash_path / "inputs").exists()
 
 

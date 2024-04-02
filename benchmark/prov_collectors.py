@@ -522,12 +522,11 @@ class RR(ProvCollector):
         return ("env", f"_RR_TRACE_DIR={self.log}", "rr", "record", *cmd)
 
     def stop(self, env: Mapping[str, str]) -> None:
-        subprocess.run(
+        check_returncode(subprocess.run(
             ["rr", "pack", str(self.log / "latest-trace")],
             env=env,
             capture_output=True,
-            check=True,
-        )
+        ), env)
 
 
 class ReproZip(ProvCollector):
@@ -571,13 +570,13 @@ class Sciunit(ProvCollector):
     nix_packages = [".#sciunit2", ".#coreutils"]
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        subprocess.run(
+        check_returncode(subprocess.run(
             ["sciunit", "create", "-f", "test"],
-            check=True,
+            check=False,
             env={
                 "SCIUNIT_HOME": str(log.resolve()),
             },
-        )
+        ), {})
         cwd = Path().resolve()
         return (
             "env", f"--chdir={log.resolve()}", f"SCIUNIT_HOME={log.resolve()}",
