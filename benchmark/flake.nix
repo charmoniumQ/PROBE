@@ -60,7 +60,9 @@
             paths = [
               pkgs.bash
               pkgs.coreutils
-              pkgs.gnutar
+              (pkgs.gnutar.overrideAttrs (super: {
+                patches = (if (super ? patches) then super.patches else []) ++ [ ./tar.patch ];
+              }))
               pkgs.gzip
               pkgs.pigz
               pkgs.bzip2

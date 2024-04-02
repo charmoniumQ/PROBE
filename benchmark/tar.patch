@@ -1,0 +1,34 @@
+diff --git a/src/system.c b/src/system.c
+index eae0a17a..169400cb 100644
+--- a/src/system.c
++++ b/src/system.c
+@@ -31,11 +31,23 @@ xexec (const char *cmd)
+ {
+   char *argv[4];
+
+-  argv[0] = (char *) "/bin/sh";
+-  argv[1] = (char *) "-c";
+-  argv[2] = (char *) cmd;
+-  argv[3] = NULL;
+-
+-  execv ("/bin/sh", argv);
++  /*
++   * We will call sh from $PATH instead of /bin/sh.
++   * This is necessary when using Nix-on-distro and fsatrace because /bin/sh (defined by distro) may be linked against a different glibc than sh (defined by Nix).
++   * And fsatrace's use of LD_PRELOAD prevents the loader from finding the right glibc.
++   * Instead, if we pull sh from the users $PATH, that binary will set the RUNPATH such that the right glibc will be found.
++   * Here is a command that fails without this patch:
++
++    env --ignore-environment \
++        $(which nix) shell .#un-archive-env .#fsatrace .#coreutils --command \
++        fsatrace rwmdq .workdir/log/0/fsatrace.out -- \
++        tar --create --file .workdir/work/0/archive/newarchive.tar.compressed --directory .workdir/work/0/archive/source --use-compress-prog cat .
++   */
++  argv[0] = (char *) "sh";
++  argv[1] = (char *) "-c";
++  argv[2] = (char *) cmd;
++  argv[3] = NULL;
++
++  execvp ("sh", argv);
+   exec_fatal (cmd);
+ }
