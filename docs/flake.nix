@@ -81,6 +81,7 @@
               scheme-small
               selnolig
               setspace
+              soul
               subfig
               supertabular
               svg
@@ -146,17 +147,17 @@
                            --pdf-engine=${pandocFlagForEngine} \
                            --template=${latexTemplate} \
                            ${mainSrc}
-                      # ${pkgs.pandoc}/bin/pandoc --output=${latexStem}.docx ${mainSrc}
                       # lacheck ${latexStem}.tex
                       set +e
-                      latexmk ${latexmkFlagForEngine} -shell-escape -emulate-aux-dir -auxdir=$tmp -Werror ${latexStem}
+                      latexmk ${latexmkFlagForEngine} -shell-escape -emulate-aux-dir -auxdir=$tmp -Werror ${latexStem} > /dev/null
                       latexmk_status=$?
                       set -e
                       mkdir $out/
                       cp *.{svg,pdf,bbl,tex,docx} $out/
                       if [ $latexmk_status -ne 0 ]; then
-                        mv $tmp/${latexStem}.log $out
+                        cp $tmp/${latexStem}.log $out
                         echo "Aborting: Latexmk failed"
+                        cat $tmp/${latexStem}.log
                         # exit $latexmk_status
                       fi
                     '';
