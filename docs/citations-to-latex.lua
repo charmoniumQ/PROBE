@@ -15,17 +15,18 @@ local function dump(o)
    end
 end
 
-local function red(elem)
-  return {pandoc.RawInline("latex", "\\textcolor{myred}{{"), elem, pandoc.RawInline("latex", "}}")}
+local function color(elem, color)
+  return {pandoc.RawInline("latex", "{\\color{" .. color .. "}"), elem, pandoc.RawInline("latex", "}")}
 end
 
-local function green(elem)
-  return {pandoc.RawInline("latex", "\\textcolor{mygreen}{{"), elem, pandoc.RawInline("latex", "}}")}
-end
+styles = {}
 
 return {
   {
     Meta = function (elem)
+      if elem.styles ~= nil then
+        styles = elem.styles
+      end
       return elem
     end,
   },
@@ -53,37 +54,45 @@ return {
   },
   {
     Div = function (elem)
-      if #elem.attr.classes == 0 then
+      if elem.attr.classes == nil or elem.attr.classes[1] == nil then
         return elem
       else
-        div_classes = elem.attr.classes
-        local function wrap_in_span(elem)
-          return pandoc.Span(elem, pandoc.Attr("", div_classes))
+        class = elem.attr.classes[1]
+        style = pandoc.utils.stringify(styles[class])
+        if style == "removed" then
+          return {}
+        elseif style == "default" then
+          return elem
+        elseif style == "red" then
+          return color(elem, "myred")
+        elseif style == "green" then
+          return color(elem, "mygreen")
+        else
+          print("Unknown style", style)
+          return elem
         end
-        new_elem = elem:walk {
-          -- Header = function(elem)
-          --   return pandoc.Header(elem.level, wrap_in_span(elem.content), elem.attr)
-          -- end,
-          Para = function(elem)
-            return pandoc.Para(wrap_in_span(elem.content))
-          end,
-        }
-        return new_elem
       end
     end,
   },
   {
     Span = function(elem)
-      if elem.classes:includes('removed') then
-        return red(elem)
-      elseif elem.classes:includes('added') then
-        return green(elem)
-      elseif elem.classes:includes('only-in-new') then
-        return {}
-      elseif elem.classes:includes('only-in-old') then
+      if elem.attr.classes == nil or elem.attr.classes[1] == nil then
         return elem
       else
-        return elem
+        class = elem.attr.classes[1]
+        style = pandoc.utils.stringify(styles[class])
+        if style == "removed" then
+          return {}
+        elseif style == "default" then
+          return elem
+        elseif style == "red" then
+          return color(elem, "myred")
+        elseif style == "green" then
+          return color(elem, "mygreen")
+        else
+          print("Unknown style", style)
+          return elem
+        end
       end
     end,
   },

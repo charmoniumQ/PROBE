@@ -3,6 +3,12 @@ from: markdown
 verbosity: INFO
 citeproc: yes
 ccite-method: citeproc
+publisher:
+  conference:
+    acronym: ACM REP
+    name: ACM Reproducibility
+    daterange: 2024
+    location: Rennes, France
 bibliography:
   - zotero
   - reed
@@ -329,9 +335,9 @@ We conducted a rapid review with the following parameters:
 
 Using the tools selected above, we identified all benchmarks that have been used in prior work.
 We excluded benchmarks for which we could not even find the original program (e.g., TextTransfer), benchmarks that were not available for Linux (e.g., Internet Explorer), benchmarks with a graphical component (e.g., Notepad++), and benchmarks with an interactive component (e.g., GNU Midnight Commander).
+We used Nix package manager to build the software environment, so the environment is buildable on many different platforms[^nix-footnote].
 
-We implemented the benchmarks as packages for the Nix package manager^[See https://nixos.org/guides/how-nix-works], so they are runnable on many different platforms.
-Nix has official installers for Linux, Mac OS X, and Windows Subsystem for Linux on i686, x86_64, and aarch64 architectures, but FreeBSD and OpenBSD both package Nix themselves, and it can likely be built from source on even more platforms.
+[^nix-footnote]: Nix has official installers for Linux, Mac OS X, and Windows Subsystem for Linux on i686, x86_64, and aarch64 architectures, but FreeBSD and OpenBSD both package Nix themselves, and it can likely be built from source on even more platforms. See <https://nixos.org/guides/how-nix-works>
 
 We also added new benchmarks for data science and compiling-from-source.
 
@@ -363,10 +369,9 @@ We also added new benchmarks for data science and compiling-from-source.
 
 ## Performance Experiment
 
-To get consistent measurements, we run a complete matrix (every collector on every benchmark) 3 times in a random order.
-@Tbl:machine describes our experimental machine.
-We use BenchExec [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes) in a Linux CGroup without networking, isolated from other processes.
-We disable ASLR, which does introduce non-determinism into the execution time, but it randomizes a variable that may otherwise have a confounding effect [@mytkowiczProducingWrongData2009].
+We run a complete matrix (every collector on every benchmark) 3 times in a random order on the machine described by @Tbl:machine.
+We use CGroups [@beyerReliableBenchmarkingRequirements2019] to precisely measure the CPU time, wall time, memory utilization, and other attributes of the process (including child processes).
+We enable ASLR, which introduces non-determinism into the execution time, but helpfully randomizes a variable that may otherwise have a confounding effect [@mytkowiczProducingWrongData2009].
 We restrict the program to a single core to eliminate unpredictable scheduling and prevent other daemons from perturbing the experiment (they can run on the other N-1 cores).
 We wrap the programs that exit quickly in loops so they take about 3 seconds without any provenance system, isolating the cold-start costs.
 [
@@ -411,7 +416,7 @@ Following Yi et al. [@yiEvaluatingBenchmarkSubsetting2006], we evaluate the benc
 We use a non-negative linear regression to account for the possibility that the total set has unequal proportions of benchmark clusters.
 We require the weights to be non-negative, so doing better on each benchmark in the subset implies a better performance on the total.
 Finally, we normalize these weights by adding several copies of the following equation to the linear regression: $\mathrm{weight}_A + \mathrm{weight}_B + \dotsb = 1$.
-Yi et al. [@yiEvaluatingBenchmarkSubsetting2006] were attempting to subset SPEC CPU 2006, which one can assume would already be balanced in these terms, so their analysis uses an unweighted average.
+Yi et al. [@yiEvaluatingBenchmarkSubsetting2006] used an unweighted average, perhaps because they could assume the benchmarks in SPEC CPU 2006 were already balanced.
 
 We standardize the features by mapping $x$ to $z_x = (x - \bar{x}) / \sigma_x$.
 While $x$ is meaningful in absolute units, $z_x$ is meaningful in relative terms (i.e., a value of 1 means "1 standard deviation greater than the mean").
@@ -433,7 +438,7 @@ In particular, we use:
 [^log-footnote]:
    Suppose some provenance collector makes programs take roughly twice as long but with a large amount of variance, so the expected value of the ratio is 2.
    A symmetric distribution would require the probability of observing a ratio of -1 for a particular program is equal to the probability of observing a ratio of 5, but a ratio of -1 is impossible, while 5 is possible due to the large variance.
-   On the other hand, $\log x$ maps positive numbers (like ratios) to real numbers (which may be symmetrically distributed); choosing 2x as our center, $e^{0.3} \approx 2$,  $e^{0.7} \approx 5$ and $e^{-0.1} = 0.9$ are equidistant in log-space (negative logs indicate a speedup rather than slowdown, which are theoretically possible).
+   On the other hand, $\log x$ maps positive numbers (like ratios) to real numbers (which may be symmetrically distributed); choosing $2 \approx e^{0.3}$ as our center,  $5 \approx e^{0.7}$ and $0.9 \approx e^{-0.1}$ are equidistant in log-space (negative logs indicate a speedup rather than slowdown, which are theoretically possible when comparing two runtimes).
    Also note that exp(arithmean(log(x))) is the same as geomean(x), which is preferred over arithmean(x) for performance ratios according to Mashey \cite{masheyWarBenchmarkMeans2004}.
 
 2. The ratio of CPU time to wall time.
@@ -444,6 +449,7 @@ In particular, we use:
 In order to choose the subset, we will try clustering (k-means and agglomerative clustering with Ward linkage\footnote{k-means and agglomerative/Ward both minimize within-cluster variance, which is equivalent to minimizing our metric of "representativeness" defined earlier, although they minimize it in different ways: k-means minimizes by moving clusters laterally; Agglomerative/Ward minimizes by greedily joining clusters.}), preceded by optional dimensionality reduction by principal component analysis (PCA).
 Once the benchmarks are grouped into clusters, we identify one benchmark from each of the $k$ clusters to consist the benchmark subset.
 We will determine the best $k$ experimentally.
+
 <!--
 
 - **K-means.** K-means [@macqueenMethodsClassificationAnalysis1965] greedily minimizes within-cluster variance, which is equivalent to the "representativeness" RMSE distance we want to minimize.
@@ -590,7 +596,7 @@ The last column in the table categorizes the "state" of that provenance collecto
 
 :::
 
-Although we could reproduce ltrace, CDE, Sciunit, and PTU on _certain_ benchmarks, since we couldn't reproduce them on all benchmarks, we excluded them from further consideration.
+Although we could reproduce ltrace, CDE, Sciunit, and PTU on _certain_ benchmarks, we couldn't reproduce them on all benchmarks, so we excluded them from further consideration.
 
 
 \begin{table}
@@ -709,18 +715,7 @@ Prior works & This work & Instances     & Benchmark group and examples from prio
 2           & no        &               & Sendmail                                                                                                       \\
 2           & no        &               & Machine learning workflows (CleanML, Spark, ImageML)                                                           \\
 1           & no        &               & Data processing workflows (VIC, FIE)                                                                           \\
-1           & no        &               & RUBiS                                                                                                          \\
-1           & no        &               & x264                                                                                                           \\
-1           & no        &               & mysqld                                                                                                         \\
-1           & no        &               & gocr                                                                                                           \\
-1           & no        &               & Memcache                                                                                                       \\
-1           & no        &               & Redis                                                                                                          \\
-1           & no        &               & php                                                                                                            \\
-1           & no        &               & pybench                                                                                                        \\
-1           & no        &               & ping                                                                                                           \\
-1           & no        &               & mp3info                                                                                                        \\
-1           & no        &               & ngircd                                                                                                         \\
-1           & no        &               & CUPS                                                                                                           \\
+1           & no        &               & benchmarks occurring in only one prior work (RUBiS, x64, mysqld, gocr, Memcache, Redis, php, pybench, ping, mp3info, ngircd, CUPS) \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -738,12 +733,21 @@ Prior works & This work & Instances     & Benchmark group and examples from prio
 
 <!-- : Benchmarks rejected by this work {#tbl:rejected-bmarks} -->
 
+@Tbl:benchmark-results shows the aggregated performance of our implemented benchmarks in our implemented provenance collectors.
+From this, we observe:
+
+- Although SPLASH-3 CPU-oriented benchmarks contain mostly CPU-bound tasks, they often need to load data from a file, which does invoke the I/O subsystem.
+  They are CPU benchmarks when the CPU is changed and the I/O subsystem remains constant, but when the CPU is constant and the I/O subsystem is changed, the total running time is influenced by I/O-related overhead.
+
+- `cp` is the slowest benchmark.
+  It even induces a 45% overhead on fsatrace.
+
 \begin{table}
 \caption{
-  This table shows percent overhead of the mean walltime when running with a provenance collector versus running without provenance.
-  A value of 1\% means the execution in that cell takes 1.01 times the execution without provenance.
+  The percent overhead of the mean walltime when running with a provenance collector versus running without provenance.
+  A value of 3 means the execution in that cell takes 1.03 times the execution without provenance.
   Negative slowdown can occur sometimes due to random statistical noise.
-  We aggregate values using geometric mean.
+  We aggregate values across iterations and benchmark cases (each cell) and across benchmark classes (last row) using geometric mean.
 }
 \label{tbl:benchmark-results}
 \begin{center}
@@ -780,15 +784,6 @@ Total (gmean) & 0 & 0 & 45 & 66 & 146 & 193 \\
 \end{center}
 \end{table}
 
-@Tbl:benchmark-results shows the aggregated performance of our implemented benchmarks in our implemented provenance collectors.
-From this, we observe:
-
-- Although SPLASH-3 CPU-oriented benchmarks contain mostly CPU-bound tasks, they often need to load data from a file, which does invoke the I/O subsystem.
-  They are CPU benchmarks when the CPU is changed and the I/O subsystem remains constant, but when the CPU is constant and the I/O subsystem is changed, the total running time is influenced by I/O-related overhead.
-
-- `cp` is the slowest benchmark.
-  It even induces a 45% overhead on fsatrace.
-
 ## Subsetted Benchmarks
 
 \begin{figure*}
@@ -796,7 +791,7 @@ From this, we observe:
   Subsetting algorithms scored by the RMSE of the distance of each benchmark to the nearest selected benchmark.
   A dotted line shows the x- amd y-value of the point of diminishing return.
 }{
-  \includegraphics[width=0.44\textwidth]{generated/subsetting-dist.pdf}
+  \includegraphics[width=0.38\textwidth]{generated/subsetting-dist.pdf}
   \label{fig:subsetting-dist}
 }
 \hspace{0.03\textwidth}%
@@ -804,7 +799,7 @@ From this, we observe:
   Subsetting algorithms scored by the RMSE of the difference between (weighted) features of the subset and features of the original set.
   A dotted line shows the x- amd y-value of the point of diminishing return.
 }{
-  \includegraphics[width=0.48\textwidth]{generated/subsetting-accuracy.pdf}
+  \includegraphics[width=0.38\textwidth]{generated/subsetting-accuracy.pdf}
   \label{fig:subsetting-accuracy}
 }
 \caption{Competition for best benchmark subsetting algorithm, sweeping over subset size on the x-axis.}
@@ -851,7 +846,6 @@ We examine the generated clusters and benchmark subset in @Fig:dendrogram and  @
 \caption{
   Benchmarks, clustered agglomeratively into 20 subsets using standardized performance features. 
   These axes show only two dimensions of a high-dimensional space. We apply PCA \emph{after} computing the clusters, in order to project the data into a 2D plane.
-  \textcolor{myred}{See \Cref{fig:dendrogram-full} for a bigger version that includes all benchmarks.}
 }
 \label{fig:benchmark}
 \end{figure*}
@@ -874,7 +868,7 @@ From these two, we offer the following observations:
 
 \begin{figure}
 \begin{center}
-\includegraphics[width=0.48\textwidth]{generated/dendrogram.pdf}
+\includegraphics[width=0.38\textwidth]{generated/dendrogram.pdf}
 \caption{
   Dendrogram showing the distance between clusters.
   A fork at $x = x_0$ indicates that below that threshold of within-cluster variance, the two children clsuters are far away enough that they should be split into two; conversely, above that threshold they are close enough to be combined.
@@ -962,12 +956,14 @@ We offer the following observations:
 - Surprisingly, **shell builtins** and **Linux utilities** in a tight loop exercise provenance collectors well according to @Tbl:benchmark-results, probably due to their fast execution time compared to the fixed cost of loading a program and its libraries into memory.
   At least they are easy to run.
 
+[
 There is an old adage, \emph{the best benchmark is always the target application}.
 Benchmarking lmbench reveals certain aspects of performance, but benchmarking the target application reveals the _actual_ performance.
 If we may hazard a corollary, we might say, \emph{the second best benchmark is one from the target domain}.
 Supposing one does not know the exact application or inputs their audience will use, selecting applications from that domain is the next best option.
 Future work on system-level provenance for computational science should, of course, use a computational science benchmark, such as BLAST, compiling programs with Spack, or a workflow, whether or not they are selected by this clustering analysis.
 Likewise, work on security should include HTTP servers.
+]{.removed}
 
 Finally, researchers presenting new provenance collectors should report _all_ benchmark runtimes, not just a geometric mean [@masheyWarBenchmarkMeans2004].
 Readers can be the ones to determine weights for which benchmarks are most relevant to their workload.
@@ -1044,8 +1040,8 @@ BLAST (used by 5 / 29 publications with benchmarks; see @Tbl:prior-benchmarks) i
 
 One difference between security and computational science is that security-oriented provenance collectors have to work with adversarial programs:
 there should be no way for the program to circumvent the provenance tracing, e.g. `PTRACE_DETACH`.
-Computational science, on the other hand, may satisfied by a solution that *can* be intentionally circumvented by an uncooperative program but would work most of the time, provided it can at least detect when provenance collection is potentially incomplete.
-Interposing standard libraries, although circumventable, has been used by other tools [@xuDXTDarshanEXtended2017].
+Computational science, on the other hand, may satisfied by a solution that *can* be intentionally circumvented by an uncooperative program but would work most of the time[, provided it can at least detect when provenance collection is potentially incomplete]{.removed}.
+Other computational science tools use circumventable methods without mention [@xuDXTDarshanEXtended2017].
 
 <!--
 **Prior work on provenance collectors doesn't test on many workflows.**
@@ -1068,10 +1064,12 @@ fsatrace is able to so much faster because it uses library interpositioning rath
 
 **The space of benchmark performance in provenance systems is highly dimensional.**
 The space of benchmarks is naturally embedded in a space with features as dimensions.
-If there were many linear relations between the features (e.g., CPU time per second = 1 - (file syscalls per second) * (file syscall latency)), then we would expect clustering to reveal fewer clusters than the number of features.
-Indeed, there are somewhat more clusters than features (14 &gt; 12), it seems that most dimensions are not redundant or if they are, their redundancy is not expressible as linear relationship.
-Even the relationship between workloads is non-linear; if A is a weighted average of B and C in feature-space, its runtime is not necessarily the same weighted average of B and C's runtime.
+If there were many linear relations between the features (e.g., slowdown = (app syscalls / sec) * (prov syscall latency)), then we would expect clustering to reveal fewer clusters than the number of features.
+However, there are more clusters than features (14 &gt; 12); it seems that most dimensions are not linearly redundant.
+Even the relationship between workloads is non-linear; if workload A is a weighted average of B and C in feature-space (e.g., num of syscalls), its runtime is not necessarily the same weighted average of B and C's runtime.
+[
 This complexity is also present when predicting performance as a function of workload features; either the relationship is non-linear, or we are missing a relevant feature.
+]{.removed}
 
 **Computational scientists may already be using workflows.**
 While system-level provenance is the easiest way to get provenance out of many applications, if the application is already written in a workflow engine, such as Pegasus [@kimProvenanceTrailsWings2008], they can get provenance through the engine.
@@ -1080,9 +1078,7 @@ That may explain why prior work on system-level provenance focuses more on secur
 
 ## Threats to Validity
 
-**Internal validity**:
-
-We mitigate measurement noise by:
+**Internal validity**: We mitigate measurement noise by:
 
 - Isolating the sample machine \Cref{performance-experiment}
 - Running the code in cgroups with a fixed allocation of CPU and RAM
@@ -1139,71 +1135,73 @@ We believe this work and the work it enables will address the practical concerns
 
 \appendix
 
-# Notable provenance collectors
+# Apendices
 
-- **CDE** is a record/replay tool proposed by Guo and Engler [@guoCDEUsingSystem2011].
-  During record, CDE  uses `ptrace` to intercept its syscalls, and copy relevant files into an archive.
-  During rerun, can use `ptrace` to intercept syscalls and redirect them to files in the archive.
-  PTU uses a modified version of CDE that works on all of our benchmarks, so we can use that as a proxy.
+## Notable provenance collectors
 
-- **ltrace** similar to strace, but it traces dynamic library calls not necessarily syscalls.
-  It still uses `ptrace`.
+**CDE** is a record/replay tool proposed by Guo and Engler [@guoCDEUsingSystem2011].
+During record, CDE  uses `ptrace` to intercept its syscalls, and copy relevant files into an archive.
+During rerun, can use `ptrace` to intercept syscalls and redirect them to files in the archive.
+PTU uses a modified version of CDE that works on all of our benchmarks, so we can use that as a proxy.
 
-- **strace** is a well-known system program that uses Linux's `ptrace` functionality to record syscalls, their arguments, and their return code to a file.
-  strace even parses datastructures to write strings and arrays rather than pointers.
-  In this work, we use an strace configuration that captures all file-related syscalls but read/write[^read/write], file-metadata realated syscalls, socket- and IPC- related sycalls but send/recv, and process-related syscalls.
+**ltrace** similar to strace, but it traces dynamic library calls not necessarily syscalls.
+It still uses `ptrace`.
 
-  [^read/write]: We do not need to capture individual reads and writes, so long as we capture that the file was opened for reading/writing.
+**strace** is a well-known system program that uses Linux's `ptrace` functionality to record syscalls, their arguments, and their return code to a file.
+strace even parses datastructures to write strings and arrays rather than pointers.
+In this work, we use an strace configuration that captures all file-related syscalls but read/write[^read/write], file-metadata realated syscalls, socket- and IPC- related sycalls but send/recv, and process-related syscalls.
 
-- **fsatrace** reports file I/O using library-interpositioning, a technique where a program mimics the API of a standard library.
-  Programs are written to call into the standard library, but the loader sends those calls to the interpositioning library instead.
-  The interpositioning library can log the call and pass it to another library (possibly the "real" one), so the program's functionality is preserved.
-  This avoids some context-switching overhead of `ptrace`, since the logging happens in the tracee's process.
+[^read/write]: We do not need to capture individual reads and writes, so long as we capture that the file was opened for reading/writing.
 
-- **CARE** is a record/replay tool inspired by CDE.
-  However, CARE has optimizations enabling it to copy fewer files, and CARE archives can be replayed using `chroot`, `lxc`, or `ptrace` (by emulating `chroot`); CDE only supports `ptrace`, which is slower than the other two.
+**fsatrace** reports file I/O using library-interpositioning, a technique where a program mimics the API of a standard library.
+Programs are written to call into the standard library, but the loader sends those calls to the interpositioning library instead.
+The interpositioning library can log the call and pass it to another library (possibly the "real" one), so the program's functionality is preserved.
+This avoids some context-switching overhead of `ptrace`, since the logging happens in the tracee's process.
 
-- **RR** [@ocallahanEngineeringRecordReplay2017] is a record/replay tool.
-  It captures more syscalls than just file I/O, including `getrandom` and `clock_gettime` and it is able to replay its recordings in a debugger.
-  Where other record/replay tools try to identify the relevant files, RR only memorizes the responses to each syscall, so it can only replay that exact code path.
-  CDE, CARE, ReproZip, PTU, and Sciunit allow one to replay a different binary or supply different inputs in the filesystem of an existing recording.
+**CARE** is a record/replay tool inspired by CDE.
+However, CARE has optimizations enabling it to copy fewer files, and CARE archives can be replayed using `chroot`, `lxc`, or `ptrace` (by emulating `chroot`); CDE only supports `ptrace`, which is slower than the other two.
 
-- **ReproZip** is a record/replay inspired by CDE.
-  ReproZip archives can be replayed in Vagrant, Docker, Chroot, or natively.
-  Unlike other record/replay tools, ReproZip explicitly constructs the computational provenance graph.
+**RR** [@ocallahanEngineeringRecordReplay2017] is a record/replay tool.
+It captures more syscalls than just file I/O, including `getrandom` and `clock_gettime` and it is able to replay its recordings in a debugger.
+Where other record/replay tools try to identify the relevant files, RR only memorizes the responses to each syscall, so it can only replay that exact code path.
+CDE, CARE, ReproZip, PTU, and Sciunit allow one to replay a different binary or supply different inputs in the filesystem of an existing recording.
 
-- **PTU** (Provenance-To-Use) is an adaptation of CDE which explicitly constructs the computational provenance graph.
+**ReproZip** is a record/replay inspired by CDE.
+ReproZip archives can be replayed in Vagrant, Docker, Chroot, or natively.
+Unlike other record/replay tools, ReproZip explicitly constructs the computational provenance graph.
 
-- **Sciunit** is a wrapper around PTU that also applies block-based deduplication.
+**PTU** (Provenance-To-Use) is an adaptation of CDE which explicitly constructs the computational provenance graph.
 
-# Collection methods
+**Sciunit** is a wrapper around PTU that also applies block-based deduplication.
 
-- **User-level tracing**:
-  A provenance tool may use "debugging" or "tracing" features provided by the kernel, e.g., `ptrace(2)` [@Ptrace], to trace another program's I/O operations.
+## Collection methods
 
-- **Built-in auditing service**:
-  A provenance tool may use auditing service built in to the kernel, e.g., Linux Auditing Framework [@madabhushanaConfigureLinuxSystem2021], enhanced Berkeley Packet Filter (eBPF) [@BPFDocumentation], kprobes [@kenistonKernelProbesKprobes], and ETW [@EventTracingWin322021] for Windows.
+**User-level tracing**:
+A provenance tool may use "debugging" or "tracing" features provided by the kernel, e.g., `ptrace(2)` [@Ptrace], to trace another program's I/O operations.
 
-- **Filesystem instrumentation**:
-  A provenance tool may set up a file system, so it can log I/O operations, e.g., using Filesystem in User SpacE (FUSE) interface [@FUSE], or Virtual File System (VFS) interface [@goochOverviewLinuxVirtual].
+**Built-in auditing service**:
+A provenance tool may use auditing service built in to the kernel, e.g., Linux Auditing Framework [@madabhushanaConfigureLinuxSystem2021], enhanced Berkeley Packet Filter (eBPF) [@BPFDocumentation], kprobes [@kenistonKernelProbesKprobes], and ETW [@EventTracingWin322021] for Windows.
 
-- **Dynamic library instrumentation**:
-  A provenance tool may replace a library used to execute I/O operations (e.g., glibc) with one that logs the calls before executing them.
+**Filesystem instrumentation**:
+A provenance tool may set up a file system, so it can log I/O operations, e.g., using Filesystem in User SpacE (FUSE) interface [@FUSE], or Virtual File System (VFS) interface [@goochOverviewLinuxVirtual].
 
-- **Binary instrumentation**:
-  A provenance tool may use binary instrumentation (dynamic or static) to identify I/O operations in another program.
+**Dynamic library instrumentation**:
+A provenance tool may replace a library used to execute I/O operations (e.g., glibc) with one that logs the calls before executing them.
 
-- **Compile-time instrumentation**:
-  A provenance tool may be a compiler pass that modifies the program to emit provenance data, especially intra-program control flow.
+**Binary instrumentation**:
+A provenance tool may use binary instrumentation (dynamic or static) to identify I/O operations in another program.
 
-- **Kernel instrumentation**:
-  A provenance tool may be a modified kernel either by directly modifying and recompiling the kernel's source tree.
+**Compile-time instrumentation**:
+A provenance tool may be a compiler pass that modifies the program to emit provenance data, especially intra-program control flow.
 
-- **Kernel module**:
-  Rather than directly modify the kernel's source, the provenance tool may simply require that the user load a custom kernel module.
+**Kernel instrumentation**:
+A provenance tool may be a modified kernel either by directly modifying and recompiling the kernel's source tree.
 
-- **VM instrumentation**:
-  A provenance tool may execute the program in a virtual machine, where it can observe the program's I/O operations.
+**Kernel module**:
+Rather than directly modify the kernel's source, the provenance tool may simply require that the user load a custom kernel module.
+
+**VM instrumentation**:
+A provenance tool may execute the program in a virtual machine, where it can observe the program's I/O operations.
 
 See @Tbl:prior-benchmarks for a list of prior publications and what benchmarks they use, if, for example, one wishes to see the original contexts in which Firefox was used.
 
@@ -1272,7 +1270,7 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 
 ::: {.removed}
 
-# Note on failed reproducibility
+## Note on failed reproducibility
 
 - While we could run **ltrace** on some of our benchmarks, it crashed when processing on the more complex benchmarks, for example FTP server/client.
   We localized the problem to the following code^[See <https://gitlab.com/cespedes/ltrace/-/blob/8eabf684ba6b11ae7a1a843aca3c0657c6329d73/handle_event.c#L775>]:
@@ -1318,60 +1316,60 @@ Namiki et al. \cite{namikiMethodConstructingResearch2023}    & I/O microbenchmar
 
 :::
 
-# Benchmark descriptions
+## Benchmark descriptions
 
-- The most common benchmark classes from prior work are, **HTTP servers/traffic**, **HTTP servers/clients**, **FTP servers/traffic**, and **FTP servers/clients** are popular because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics).
-  While these benchmarks may not be specifically relevant for computational science workloads, we wanted to include them in our suite to improve our coverage of benchmarks used frequently in prior works.
-  We implemented 5 HTTP servers (ApacheHttpd, miniHTTP, Python's http.server, lighttpd, Nginx) running against traffic from Hey (successor to ApacheBench) and 2 HTTP clients (curl and Wget).
-  We implemented 1 FTP server (ProFTPD) running against traffic from httpbench^[See <https://github.com/selectel/ftpbench>] and 3 FTP clients (curl, Wget, and lftp).
+The most common benchmark classes from prior work are, **HTTP servers/traffic**, **HTTP servers/clients**, **FTP servers/traffic**, and **FTP servers/clients** are popular because prior work focuses overwhelmingly on provenance for the sake of security (auditing, intrusion detection, or digital forensics).
+While these benchmarks may not be specifically relevant for computational science workloads, we wanted to include them in our suite to improve our coverage of benchmarks used frequently in prior works.
+We implemented 5 HTTP servers (ApacheHttpd, miniHTTP, Python's http.server, lighttpd, Nginx) running against traffic from Hey (successor to ApacheBench) and 2 HTTP clients (curl and Wget).
+We implemented 1 FTP server (ProFTPD) running against traffic from httpbench^[See <https://github.com/selectel/ftpbench>] and 3 FTP clients (curl, Wget, and lftp).
 
-- **Compiling packages** from source is a common operation in computational science, so we implemented as many of these as we could and also implemented some of our own.
-  However, compiling glibc and LLVM takes much longer than everything else in the benchmark suite, so we excluded LLVM and glibc.
-  We implemented a pattern for compiling packages from Spack that discounts the time taken to download sources, counting only the time taken to unpack, patch, configure, compile, link, and install them.
-  We implemented compiling Python, HDF5, git, and Perl.
+**Compiling packages** from source is a common operation in computational science, so we implemented as many of these as we could and also implemented some of our own.
+However, compiling glibc and LLVM takes much longer than everything else in the benchmark suite, so we excluded LLVM and glibc.
+We implemented a pattern for compiling packages from Spack that discounts the time taken to download sources, counting only the time taken to unpack, patch, configure, compile, link, and install them.
+We implemented compiling Python, HDF5, git, and Perl.
 
-- Implementing headless for **browsers** in "batch-mode" without GUI interaction is not impossibly difficult, but non-trivial.
-  Furthermore, we deprioritized this benchmark because few computational science applications resemble the workload of a web browser.
+Implementing headless for **browsers** in "batch-mode" without GUI interaction is not impossibly difficult, but non-trivial.
+Furthermore, we deprioritized this benchmark because few computational science applications resemble the workload of a web browser.
 
-- **Archive** and **unarchiving** is a common task for retrieving data or source code.
-  We benchmark un/archiving several archives with several compression algorithms.
-  Choosing a compression algorithm may turn an otherwise I/O-bound workload to a CPU-bound workload, which would make the impact of provenance tracing smaller.
-  We implemented archive and unarchiving a medium-sized project (7 MiB uncompressed) with no compression, gzip, pigz, bzip, and pbzip2.
+**Archive** and **unarchiving** is a common task for retrieving data or source code.
+We benchmark un/archiving several archives with several compression algorithms.
+Choosing a compression algorithm may turn an otherwise I/O-bound workload to a CPU-bound workload, which would make the impact of provenance tracing smaller.
+We implemented archive and unarchiving a medium-sized project (7 MiB uncompressed) with no compression, gzip, pigz, bzip, and pbzip2.
 
-- **I/O microbenchmarks** could be informative for explicating which I/O operations are most affected.
-  Prior work uses lmbench [@mcvoyLmbenchPortableTools1996], which benchmarks individual syscalls, Postmark [@katcherPostMarkNewFile2005], which focuses on many small I/O operations (typical for web servers), IOR [@shanUsingIORAnalyze2007], H5bench [@liH5benchHDF5IO2021] and BT-IO^[See <https://www.nas.nasa.gov/software/npb.html>], which are specialized for parallel I/O on high-performance machines, and custom benchmarks, for example running open/close in a tight loop.
-  Since we did not have access to a high-performance machine, we used lmbench and Postmark.
-  We further restrict lmbench to the test-cases relevant to I/O and used by prior work.
+**I/O microbenchmarks** could be informative for explicating which I/O operations are most affected.
+Prior work uses lmbench [@mcvoyLmbenchPortableTools1996], which benchmarks individual syscalls, Postmark [@katcherPostMarkNewFile2005], which focuses on many small I/O operations (typical for web servers), IOR [@shanUsingIORAnalyze2007], H5bench [@liH5benchHDF5IO2021] and BT-IO^[See <https://www.nas.nasa.gov/software/npb.html>], which are specialized for parallel I/O on high-performance machines, and custom benchmarks, for example running open/close in a tight loop.
+Since we did not have access to a high-performance machine, we used lmbench and Postmark.
+We further restrict lmbench to the test-cases relevant to I/O and used by prior work.
 
-- **BLAST** [@altschulBasicLocalAlignment1990] is a search for a fuzzy string in a protein database.
-  However, unlike prior work, we split the benchmark into query groups described by Coulouris [@coulourisBlastBenchmark2016], since the queries have different performance characteristics:
-  blastn (nucleotide-nucleotide BLAST), megablast (large numbers of query sequences) blastp (protein-protein BLAST), blastx (nucleotide query sequence against a protein sequence database), tblastn (protein query against the six-frame translations of a nucleotide sequence database), tblastx (nucleotide query against the six-frame translations of a nucleotide sequence database).
+**BLAST** [@altschulBasicLocalAlignment1990] is a search for a fuzzy string in a protein database.
+However, unlike prior work, we split the benchmark into query groups described by Coulouris [@coulourisBlastBenchmark2016], since the queries have different performance characteristics:
+blastn (nucleotide-nucleotide BLAST), megablast (large numbers of query sequences) blastp (protein-protein BLAST), blastx (nucleotide query sequence against a protein sequence database), tblastn (protein query against the six-frame translations of a nucleotide sequence database), tblastx (nucleotide query against the six-frame translations of a nucleotide sequence database).
 
-- Prior work uses several **CPU benchmarks**: SPEC CPU INT 2006 [@henningSPECCPU2006Benchmark2006], SPLASH-3 [@sakalisSplash3ProperlySynchronized2016], SPLASH-2 [@wooSPLASH2Programs1995] and HPCG [@herouxHPCGBenchmarkTechnical2013].
-  While we do not expect CPU benchmarks to be particularly enlightening for provenance collectors, which usually only affect I/O performance, it was used in three prior works, so we tried to implement both.
-  SPLASH-3 is an updated and fixed version of the same benchmarks in SPLASH-2.
-  However, SPEC CPU INT 2006 is not free (as in beer), so we could only implement SPLASH-3.
+Prior work uses several **CPU benchmarks**: SPEC CPU INT 2006 [@henningSPECCPU2006Benchmark2006], SPLASH-3 [@sakalisSplash3ProperlySynchronized2016], SPLASH-2 [@wooSPLASH2Programs1995] and HPCG [@herouxHPCGBenchmarkTechnical2013].
+While we do not expect CPU benchmarks to be particularly enlightening for provenance collectors, which usually only affect I/O performance, it was used in three prior works, so we tried to implement both.
+SPLASH-3 is an updated and fixed version of the same benchmarks in SPLASH-2.
+However, SPEC CPU INT 2006 is not free (as in beer), so we could only implement SPLASH-3.
 
-- **Sendmail** is a quite old mail server program.
-  Mail servers do not resemble a computational science workload, and it is unclear what workload we would run against the server.
-  Therfore, we deprioritized this benchmark and did not implement it.
+**Sendmail** is a quite old mail server program.
+Mail servers do not resemble a computational science workload, and it is unclear what workload we would run against the server.
+Therfore, we deprioritized this benchmark and did not implement it.
 
-- **VCS checkouts** are a common computational science operation.
-  We simply clone a repository (untimed) and run `$vcs checkout $commit` for random commits in the repository.
-  CVS does not have a notion of global commits, so we use Mercurial and Git.
+**VCS checkouts** are a common computational science operation.
+We simply clone a repository (untimed) and run `$vcs checkout $commit` for random commits in the repository.
+CVS does not have a notion of global commits, so we use Mercurial and Git.
 
-- VIC, FIE, ImageML, and Spark are real-world examples of **Data processing** and **machine-learning workflows**.
-  We would like to implement these, but reproducing those workflows is non-trivial; they each require their own computational stack.
-  For FIE, in particular, there is no script that glues all of the operations together; we would have to read the publication [@billahUsingDataGrid2016] which FIE supports to understand the workflow, and write our own script which glues the operations together.
+VIC, FIE, ImageML, and Spark are real-world examples of **Data processing** and **machine-learning workflows**.
+We would like to implement these, but reproducing those workflows is non-trivial; they each require their own computational stack.
+For FIE, in particular, there is no script that glues all of the operations together; we would have to read the publication [@billahUsingDataGrid2016] which FIE supports to understand the workflow, and write our own script which glues the operations together.
 
-- We did not see a huge representative value in **coreutils and friends (bash, cp, ls, procps)** that would not already be gleaned from lmbench, but due to its simplicity and use in prior work, we implemented it anyway.
-  For `bash`, we do not know what exact workload prior works are using, but we test the speed of incrementing an integer and changing directories (`cd`).
+We did not see a huge representative value in **coreutils and friends (bash, cp, ls, procps)** that would not already be gleaned from lmbench, but due to its simplicity and use in prior work, we implemented it anyway.
+For `bash`, we do not know what exact workload prior works are using, but we test the speed of incrementing an integer and changing directories (`cd`).
 
-- The **other** benchmark programs are mostly specific desktop applications used only in one prior work.
-  These would likely not yield any insights not already yielded by the benchmarks we implemented, and for each one we would need to build it from source, find a workload for it, and take the time to run it.
-  They weigh little in the argument that our benchmark suite represents prior work, since they are only used in one prior work.
+The **other** benchmark programs are mostly specific desktop applications used only in one prior work.
+These would likely not yield any insights not already yielded by the benchmarks we implemented, and for each one we would need to build it from source, find a workload for it, and take the time to run it.
+They weigh little in the argument that our benchmark suite represents prior work, since they are only used in one prior work.
 
-# Reproducing
+## Reproducing
 
 See the Zenodo frozen release^[<https://doi.org/10.5281/zenodo.10905186>] or GitHub rolling release^[<https://github.com/charmoniumQ/prov-tracer/>].
 In either, look for `benchmark/REPRODUCING.md`, which explains how to reproduce or extend this work.
@@ -1384,7 +1382,7 @@ We split this into three steps:
 2. Running the benchmarks.
 3. Running the analysis.
 
-## Getting the software environment with Nix
+### Getting the software environment with Nix
 
 Nix package manager^[See <https://nixos.org/guides/how-nix-works>] is a user-level package manager available on many platforms.
 Nix uses build-from-source and a binary cache; this is more resilient than Dockerhub because if the binary cache goes down or removes packages for any reason, the client can always build them from source, so long as the projects don't disappear from GitHub.
@@ -1412,7 +1410,7 @@ This step takes about an hour on a modest machine with residential internet.
 $ nix build --print-build-logs --max-jobs $(nproc) '.#env'
 ```
 
-## Running the benchmarks
+### Running the benchmarks
 
 Note that we use the Python from our software environment, not from the system, to improve determinism.
 We wrote a front-end to run the scripts called `runner.py`.
@@ -1446,7 +1444,7 @@ The notebook can eb launched from our software environment by:
 env - PATH=$PWD/result/bin/jupyter notebook
 ```
 
-# Open source contributions
+## Open source contributions
 
 The actual benchmark set and statistical analysis are open-source:
 
@@ -1480,5 +1478,3 @@ The following are open PRs developed as a result of this work:
 - <https://github.com/NixOS/nixpkgs/issues/268542>
 
 :::
-
-_TODO: Add appendix major heading. Fix the double occurrence of references. Get rid of extra page number._
