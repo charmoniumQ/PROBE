@@ -100,6 +100,10 @@ abstract: >
   We use benchmark minimization to select a minimal subset of benchmarks, which can be used as goalposts for future work on system-level provenance collectors.
 ---
 
+[
+\textbf{Green text is added in this revision; red text is removed in this revision. To show that it satisfies the ten page requirement (not counting references), we included a "clean" copy at the end. We do not highlight changes which are minor rewordings.}
+]{.only-in-trans}
+
 # Introduction
 
 [
@@ -142,7 +146,7 @@ In \Cref{background}, we motivate the value of provenance and the pros/cons of s
 ]{.removed}
 [
 \Cref{background} motivates provenance and describe the different methods of collecting it.
-\Cref{methods} describes how we will execute the rapid review, implement and execute benchmarks, and statistically subset the results.
+\Cref{methods} describes how we execute the rapid review, implement and execute benchmarks, and statistically subset the results.
 \Cref{results} shows the results of the rapid review, performance experiment, and benchmark subsetting.
 \Cref{discussion} explains what the results show and touches on some problems they bring up.
 \Cref{conclusion} summarizes the work.
@@ -529,7 +533,7 @@ The second column shows the "collection method" (see \Cref{collection-methods} f
 
 ::: {.added}
 
-To acquire the source code, we looked in the original publication for a links, checked the first 50 results in GitHub, BitBucket, and Google for the prototype name (e.g., "LPROV"), and then tried emailing the original authors.
+To acquire the source code, we looked in the original publication for links, checked the first 50 results in GitHub, BitBucket, and Google for the prototype name (e.g., "LPROV"), and then tried emailing the original authors.
 Several of the authors wrote back to say that their source code was not available at all, and some never wrote back.
 We mark both as "No source".
 

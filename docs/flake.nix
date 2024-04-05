@@ -141,25 +141,29 @@
                       tmp=$(mktemp --directory)
                       HOME=$(mktemp --directory)
                       export SOURCE_DATE_EPOCH=${builtins.toString date}
-                      # ${pkgs.pandoc}/bin/pandoc \
-                      #      --output=${latexStem}-plain.tex \
-                      #      --lua-filter=citations-to-latex.lua \
-                      #      --pdf-engine=${pandocFlagForEngine} \
-                      #      --template=${latexTemplate} \
-                      #      --metadata-file=<(echo {"styles": {"removed": "removed", "added": "default", "only-in-new": "default", "only-in-old": "removed"}}) \
-                      #      ${mainSrc}
+                      ${pkgs.pandoc}/bin/pandoc \
+                           --output=${latexStem}-plain.tex \
+                           --lua-filter=citations-to-latex.lua \
+                           --pdf-engine=${pandocFlagForEngine} \
+                           --template=${latexTemplate} \
+                           --metadata-file=<(echo {"styles": {"removed": "removed", "added": "default", "only-in-new": "default", "only-in-old": "removed", "only-in-trans": "removed"}}) \
+                           ${mainSrc}
                       ${pkgs.pandoc}/bin/pandoc \
                            --output=${latexStem}.tex \
                            --lua-filter=citations-to-latex.lua \
                            --pdf-engine=${pandocFlagForEngine} \
                            --template=${latexTemplate} \
-                           --metadata-file=<(echo {"styles": {"removed": "red", "added": "green", "only-in-new": "default", "only-in-old": "removed"}}) \
+                           --metadata-file=<(echo {"styles": {"removed": "red", "added": "green", "only-in-new": "default", "only-in-old": "removed", "only-in-trans": "default"}}) \
                            ${mainSrc}
                       # lacheck ${latexStem}.tex
                       set +e
                       latexmk ${latexmkFlagForEngine} -shell-escape -emulate-aux-dir -auxdir=$tmp -Werror ${latexStem}
+                      ls -ahlt
+                      latexmk ${latexmkFlagForEngine} -shell-escape -emulate-aux-dir -auxdir=$tmp -Werror ${latexStem}-plain
+                      ls -ahlt
                       latexmk_status=$?
                       set -e
+                      ${pkgs.pdftk}/bin/pdftk ${latexStem}.pdf ${latexStem}-plain.pdf cat output ${latexStem}-full.pdf
                       mkdir $out/
                       cp *.{svg,pdf,bbl,tex,docx} $out/
                       if [ $latexmk_status -ne 0 ]; then
@@ -168,8 +172,6 @@
                         cat $tmp/${latexStem}.log
                         # exit $latexmk_status
                       fi
-                      #latexmk ${latexmkFlagForEngine} -shell-escape -emulate-aux-dir -auxdir=$tmp -Werror ${latexStem}-plain > /dev/null
-                      #${pkgs.pdftk}/bin/pdftk ${latexStem}.pdf ${latexStem}-plain.pdf cat output ${latexStem}-full.pdf
                     '';
                     phases = [ "unpackPhase" "buildPhase" ];
                   })
