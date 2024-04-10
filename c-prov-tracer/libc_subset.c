@@ -1,7 +1,7 @@
 /*
  * This file looks like C, but it is not read by the C compiler!
  * It is input to gen_libprov.py.
- * It re-uses C's grammar, so I get syntax highlighting and I can parse it into C syntax easily.
+ * It re-uses C's grammar, so I get syntax highlighting and I can parse it into fragments of C syntax easily.
  */
 
 /* Need these typedefs to make pycparser parse the functions */
@@ -79,11 +79,18 @@ int dup2 (int old, int new) { }
 int dup3 (int old, int new) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
-/* TODO */
-/* int fcntl (int filedes, int command, ...) { } */
-/* Variadic:
- * https://www.man7.org/linux/man-pages/man2/fcntl.2.html
- * "The required argument type is indicated in parentheses after each cmd name" */
+int fcntl (int filedes, int command, ...) {
+    size_t varargs_size = sizeof(filedes) + sizeof(command) + (
+        (command == F_DUPFD || command == F_DUPFD_CLOEXEC || command == F_SETFD || command == F_SETFL || command == F_SETOWN || command == F_SETSIG || command == F_SETLEASE || command == F_NOTIFY || command == F_SETPIPE_SZ || command == F_ADD_SEALS)
+        ? sizeof(int)
+        : (command == F_SETLK || command == F_SETLKW || command == F_GETLK || /* command == F_OLD_SETLK || command == F_OLD_SETLKW || command == F_OLD_GETLK || */ command == F_GETOWN_EX || command == F_SETOWN_EX || command == F_GET_RW_HINT || command == F_SET_RW_HINT || command == F_GET_FILE_RW_HINT || command == F_SET_FILE_RW_HINT)
+        ? sizeof(void*)
+        : 0
+    );
+    /* Variadic:
+     * https://www.man7.org/linux/man-pages/man2/fcntl.2.html
+     * "The required argument type is indicated in parentheses after each cmd name" */
+}
 
 /* Need: We need this so that opens relative to the current working directory can be resolved */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-Directory.html */
@@ -94,6 +101,7 @@ int fchdir (int filedes) { }
 DIR * opendir (const char *dirname) { }
 DIR * fdopendir (int fd) { }
 
+/* TODO: add readdir (need directory listing order) */
 /*  We don't need to do these, since we track opendir
  * readdir readdir_r readdir64 readdir64_r
  * rewindir, seekdir, telldir
@@ -153,6 +161,7 @@ int fchmod (int filedes, mode_t mode) { }
 int access (const char *filename, int how) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Times.html */
+/* TODO */
 /* int utime (const char *filename, const struct utimbuf *times) { } */
 /* int utimes (const char *filename, const struct timeval tvp[2]) { } */
 /* int lutimes (const char *filename, const struct timeval tvp[2]) { } */
@@ -178,22 +187,45 @@ char * mktemp (char *template) { }
 int mkstemp (char *template) { }
 char * mkdtemp (char *template) { }
 
-/* TODO */
-/* /\* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html *\/ */
-/* /\* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing *\/ */
-/* int execv (const char *filename, char *const argv[]) { } */
-/* int execl (const char *filename, const char *arg0, ...) { } */
-/* /\* Variadic: var args end with a sentinel NULL arg *\/ */
-/* int execve (const char *filename, char *const argv[], char *const env[]) { } */
-/* int fexecve (int fd, char *const argv[], char *const env[]) { } */
-/* int execle (const char *filename, const char *arg0, ...) { } */
-/* /\* Variadic: var args end with a sentinel NULL arg + 1 final char *const env[] *\/ */
-/* int execvp (const char *filename, char *const argv[]) { } */
-/* int execlp (const char *filename, const char *arg0, ...) { } */
-/* /\* Variadic: var args end with a sentinel NULL arg *\/ */
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html */
+/* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing */
+int execv (const char *filename, char *const argv[]) { }
+int execl (const char *filename, const char *arg0, ...) {
+    size_t varargs_size = ({
+        size_t n_varargs = 0;
+        while (n_varargs[arg0]) {
+            ++n_varargs;
+        }
+        sizeof(char*) + (n_varargs + 1) * sizeof(char*);
+    });
+}
+/* Variadic: var args end with a sentinel NULL arg */
+int execve (const char *filename, char *const argv[], char *const env[]) { }
+int fexecve (int fd, char *const argv[], char *const env[]) { }
+int execle (const char *filename, const char *arg0, ...) {
+    size_t varargs_size = ({
+        size_t n_varargs = 0;
+        while (n_varargs[arg0]) {
+            ++n_varargs;
+        }
+        sizeof(char*) + (n_varargs + 1) * sizeof(char*);
+    });
+}
+/* Variadic: var args end with a sentinel NULL arg + 1 final char *const env[] */
+int execvp (const char *filename, char *const argv[]) { }
+int execlp (const char *filename, const char *arg0, ...) {
+    size_t varargs_size = ({
+        size_t n_varargs = 0;
+        while (n_varargs[arg0]) {
+            ++n_varargs;
+        }
+        sizeof(char*) + (n_varargs + 1) * sizeof(char*);
+    });
+}
+/* Variadic: var args end with a sentinel NULL arg */
 
-/* /\* Docs: https://linux.die.net/man/3/execvpe1 *\/ */
-/* int execvpe(const char *file, char *const argv[], char *const envp[]) { } */
+/* Docs: https://linux.die.net/man/3/execvpe1 */
+int execvpe(const char *file, char *const argv[], char *const envp[]) { }
 
 /* Need: Fork does copy-on-write, so we want to deduplicate our structures first */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-a-Process.html */

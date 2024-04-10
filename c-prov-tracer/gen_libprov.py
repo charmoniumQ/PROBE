@@ -6,10 +6,30 @@ import pycparser.c_generator
 import tempfile
 import pathlib
 import collections.abc
+import sys
+
+
+class GccCGenerator(pycparser.c_generator.CGenerator):
+    """A C generator that is able to emit gcc statement-expr ({...;})"""
+
+    def visit_Assignment(self, n):
+        rval_str = self._parenthesize_if(
+            n.rvalue,
+            lambda n: isinstance(n, (pycparser.c_ast.Assignment, pycparser.c_ast.Compound)),
+        )
+        return '%s %s %s' % (self.visit(n.lvalue), n.op, rval_str)
+
+    def visit_Decl(self, n, no_type=False):
+        s = n.name if no_type else self._generate_decl(n)
+        if n.bitsize: s += ' : ' + self.visit(n.bitsize)
+        if n.init:
+            s += ' = ' + self._parenthesize_if(n.init, lambda n: isinstance(n, (pycparser.c_ast.Assignment, pycparser.c_ast.Compound)))
+        return s
 
 
 def is_void(node: pycparser.c_ast.Node) -> bool:
     return isinstance(node.type, pycparser.c_ast.IdentifierType) and node.type.names[0] == "void"
+
 
 def define_var(var_type: pycparser.c_ast.Node, var_name: str, value: pycparser.c_ast.Node) -> pycparser.c_ast.Decl:
     return pycparser.c_ast.Decl(
@@ -23,7 +43,9 @@ def define_var(var_type: pycparser.c_ast.Node, var_name: str, value: pycparser.c
         bitsize=None,
     )
 
+
 void = pycparser.c_ast.IdentifierType(names=['void'])
+
 
 def ptr_type(type: pycparser.c_ast.Node) -> pycparser.c_ast.PtrDecl:
     return pycparser.c_ast.PtrDecl(
@@ -35,6 +57,7 @@ def ptr_type(type: pycparser.c_ast.Node) -> pycparser.c_ast.PtrDecl:
             type=type,
         ),
     )
+
 
 void_fn_ptr = pycparser.c_ast.Typename(
     name=None,
@@ -53,6 +76,7 @@ void_fn_ptr = pycparser.c_ast.Typename(
         ),
     ),
 )
+
 
 @dataclasses.dataclass(frozen=True)
 class ParsedFunc:
@@ -93,12 +117,7 @@ class ParsedFunc:
                         align=[],
                         storage=[],
                         funcspec=[],
-                        type=pycparser.c_ast.TypeDecl(
-                            declname=param_name,
-                            quals=[],
-                            align=[],
-                            type=param_type,
-                        ),
+                        type=param_type,
                         init=None,
                         bitsize=None,
                     )
@@ -131,12 +150,13 @@ class ParsedFunc:
             ),
         )
 
+
 filename = pathlib.Path("libc_subset.c")
 with tempfile.TemporaryDirectory() as _tmpdir:
     tmpdir = pathlib.Path(_tmpdir)
     (tmpdir / filename).write_text(re.sub("/\\*.*?\\*/", "", filename.read_text(), flags=re.DOTALL))
     ast = pycparser.parse_file(tmpdir / filename, use_cpp=False)
-generator = pycparser.c_generator.CGenerator()
+generator = GccCGenerator()
 funcs = [
     ParsedFunc.from_defn(node)
     for node in ast.ext
@@ -183,6 +203,7 @@ setup_function_pointers = ParsedFunc(
 ).definition()
 def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
     stmts = []
+    need_to_pop = False
     if func.variadic:
         varargs_stmts = [
             stmt
@@ -209,6 +230,9 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
         if is_void(func.return_type):
             func_call = uncasted_func_call
         else:
+            stmts.append(pycparser.c_ast.Pragma(string='GCC diagnostic push'))
+            stmts.append(pycparser.c_ast.Pragma(string='GCC diagnostic ignored "-Wcast-function-type"'))
+            need_to_pop = True
             func_call = pycparser.c_ast.UnaryOp(
                 op="*",
                 expr=pycparser.c_ast.Cast(
@@ -255,6 +279,8 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
     )
     if is_void(func.return_type):
         stmts.append(func_call)
+        if need_to_pop:
+            stmts.append(pycparser.c_ast.Pragma(string="GCC diagnostic pop"))
         stmts.append(loggy_stuff)
         stmts.append(pycparser.c_ast.Return(expr=None))
     else:
@@ -273,6 +299,8 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
             init=func_call,
             bitsize=None
         ))
+        if need_to_pop:
+            stmts.append(pycparser.c_ast.Pragma(string="GCC diagnostic pop"))
         stmts.append(loggy_stuff)
         stmts.append(pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret")))
     return tuple(stmts)
