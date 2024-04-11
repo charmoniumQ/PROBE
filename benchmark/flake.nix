@@ -474,7 +474,7 @@
             pythonImportsCheck = [ pname ];
             nativeCheckInputs = [
               python.pkgs.nose
-              python.pkgs.strict-rfc3339
+              (python.pkgs.strict-rfc3339.overrideAttrs (_: { doCheck = false; }))
               python.pkgs.freezegun
               python.pkgs.pytz
             ];
