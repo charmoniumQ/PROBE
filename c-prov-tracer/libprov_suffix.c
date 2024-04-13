@@ -2,57 +2,60 @@ __attribute__ ((constructor)) void setup_libprov() {
     setup_function_pointers();
 }
 
-static char* const libprov_dir_var = "LIBPROV_DIR";
-static char* const default_libprov_dir = ".prov";
-static char* cached_libprov_dir = NULL;
-static char* get_libprov_dir() {
-    if (cached_libprov_dir == NULL) {
-        cached_libprov_dir = getenv(libprov_dir_var);
-        if (cached_libprov_dir == NULL) {
-            cached_libprov_dir = default_libprov_dir;
+static char* const __prov_log_dir_envvar = "PROV_LOG_DIR";
+static char* const __default_prov_log_dir = ".prov";
+static char* __prov_log_dir = NULL;
+static char* get_prov_log_dir() {
+    if (__prov_log_dir == NULL) {
+        __prov_log_dir = getenv(__prov_log_dir_envvar);
+        if (__prov_log_dir == NULL) {
+            __prov_log_dir = __default_prov_log_dir;
         }
-        assert(cached_libprov_dir);
-        fprintf(stderr, "Using %s\n", cached_libprov_dir);
+        assert(__prov_log_dir);
     }
-    return cached_libprov_dir;
+    return __prov_log_dir;
 }
 
-static FILE* get_prov_log_file() {
-    if (log == NULL) {
-        char* libprov_dir = get_libprov_dir();
-        disable_log = true;
-        struct statx prov_dir_statx;
-        int prov_dir_statx_ret = o_statx(AT_FDCWD, libprov_dir, 0, STATX_TYPE, &prov_dir_statx);
-        if (prov_dir_statx_ret != 0) {
-            EXPECT(== 0, o_mkdir(libprov_dir, 0755));
-        } else {
-            if ((prov_dir_statx.stx_mode & S_IFMT) != S_IFDIR) {
-                fprintf(stderr, "%s already exists but is not a directory\n", libprov_dir);
-                abort();
+static void prov_log_save() {
+    if (__prov_log_head != NULL && __prov_log_head->capacity != 0) {
+        prov_log_disable();
+        {
+            char* prov_log_dir = get_prov_log_dir();
+            struct statx prov_dir_statx;
+            int prov_dir_statx_ret = o_statx(AT_FDCWD, prov_log_dir, 0, STATX_TYPE, &prov_dir_statx);
+            if (prov_dir_statx_ret != 0) {
+                EXPECT(== 0, o_mkdir(prov_log_dir, 0755));
+            } else {
+                if ((prov_dir_statx.stx_mode & S_IFMT) != S_IFDIR) {
+                    fprintf(stderr, "%s already exists but is not a directory\n", prov_log_dir);
+                    abort();
+                }
             }
+            char log_name [PATH_MAX];
+            struct timespec ts;
+            EXPECT(> 0, timespec_get(&ts, TIME_UTC));
+            EXPECT(> 0, snprintf(
+                       log_name,
+                       PATH_MAX,
+                       "%s/prov.pid-%d.tid-%d.sec-%ld.nsec-%ld",
+                       prov_log_dir, getpid(), gettid(), ts.tv_sec, ts.tv_nsec
+            ));
+            FILE* log;
+            EXPECT(, log = o_fopen(log_name, "w"));
+            struct __ProvLogCell* cur_cell = __prov_log_head;
+            while (cur_cell != NULL) {
+                for (size_t i = 0; i < cur_cell->capacity; ++i) {
+                    fprintf_op(log, cur_cell->ops[i]);
+                }
+                cur_cell = cur_cell->next;
+            }
+            /* Do the allocation somewhat proactively here, because we are already stopped to do a big task. */
+            EXPECT(, __prov_log_head = __prov_log_tail = malloc(sizeof(struct __ProvLogCell)));
+            __prov_log_head->next = NULL;
+            EXPECT(== 0, o_fclose(log));
         }
-        char log_name [PATH_MAX];
-        struct timespec ts;
-        EXPECT(> 0, timespec_get(&ts, TIME_UTC));
-        EXPECT(> 0, snprintf(
-            log_name,
-            PATH_MAX,
-            "%s/prov.pid-%d.tid-%d.sec-%ld.nsec-%ld",
-            libprov_dir, getpid(), gettid(), ts.tv_sec, ts.tv_nsec
-        ));
-        log = o_fopen(log_name, "a");
-        EXPECT(== 0, log == NULL);
-        setbuf(log, NULL);
-        disable_log = false;
+        prov_log_enable();
     }
-    return log;
-}
-
-static void save_prov_log() {
-    EXPECT(== 0, fflush(log));
-    EXPECT(== 0, o_fclose(log));
-    log = NULL;
-    get_prov_log_file();
 }
 
 /*

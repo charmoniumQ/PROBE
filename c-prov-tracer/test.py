@@ -15,7 +15,7 @@ def run_command_with_prov(cmd: tuple[str, ...]) -> tuple[str, ...]:
                 "LIBPROV_DIR": str(tmpdir),
             },
             check=True,
-            capture_output=True,
+            capture_output=False,
         )
         return tuple(
             line

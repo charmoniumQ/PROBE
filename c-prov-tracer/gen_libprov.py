@@ -51,7 +51,12 @@ def define_var(var_type: pycparser.c_ast.Node, var_name: str, value: pycparser.c
         align=[],
         storage=[],
         funcspec=[],
-        type=type,
+        type=pycparser.c_ast.TypeDecl(
+            declname=var_name,
+            quals=[],
+            align=None,
+            type=var_type,
+        ),
         init=value,
         bitsize=None,
     )
@@ -134,7 +139,7 @@ class ParsedFunc:
                         init=None,
                         bitsize=None,
                     )
-                        for param_name, param_type in self.params
+                    for param_name, param_type in self.params
                 ] + ([pycparser.c_ast.EllipsisParam()] if self.variadic else []),
             ),
             type=pycparser.c_ast.TypeDecl(
@@ -169,16 +174,23 @@ with tempfile.TemporaryDirectory() as _tmpdir:
     tmpdir = pathlib.Path(_tmpdir)
     (tmpdir / filename).write_text(re.sub("/\\*.*?\\*/", "", filename.read_text(), flags=re.DOTALL))
     ast = pycparser.parse_file(tmpdir / filename, use_cpp=False)
-generator = GccCGenerator()
-funcs = [
-    ParsedFunc.from_defn(node)
+orig_funcs = {
+    node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
     if isinstance(node, pycparser.c_ast.FuncDef)
-]
+}
+funcs = {
+    **orig_funcs,
+    **{
+        node.name: dataclasses.replace(orig_funcs[node.init.name], name=node.name)
+        for node in ast.ext
+        if isinstance(node, pycparser.c_ast.Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
+    },
+}
 func_prefix = "o_"
 func_pointer_declarations = [
     pycparser.c_ast.Decl(
-        name=func_prefix + func.name,
+        name=func_prefix + func_name,
         quals=[],
         align=[],
         storage=["static"],
@@ -190,28 +202,28 @@ func_pointer_declarations = [
         init=None,
         bitsize=None,
     )
-    for func in funcs
+    for func_name, func in funcs.items()
 ]
 setup_function_pointers = ParsedFunc(
     name="setup_function_pointers",
     params=(),
-    return_type=pycparser.c_ast.IdentifierType(names=['void']),
+    return_type=void,
     variadic=False,
     stmts=tuple(
         pycparser.c_ast.Assignment(
             op='=',
-            lvalue=pycparser.c_ast.ID(name=func_prefix + func.name),
+            lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
             rvalue=pycparser.c_ast.FuncCall(
                 name=pycparser.c_ast.ID(name="dlsym"),
                 args=pycparser.c_ast.ExprList(
                     exprs=[
                         pycparser.c_ast.ID(name="RTLD_NEXT"),
-                        pycparser.c_ast.Constant(type="string", value='"' + func.name + '"'),
+                        pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
                     ],
                 ),
             ),
         )
-        for func in funcs
+        for func_name, func in funcs.items()
     ),
 ).definition()
 
@@ -225,14 +237,14 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
     return lambda *args, **kwarsg: raise_(exception)
 
 
-def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str) -> pycparser.c_ast.Decl:
+def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str) -> pycparser.c_ast.Decl | None:
     relevant_stmts = [
         stmt
         for stmt in block
         if isinstance(stmt, pycparser.c_ast.Decl) and stmt.name == name
     ]
     if not relevant_stmts:
-        raise ValueError(f"No definition of {name} found")
+        None
     elif len(relevant_stmts) > 1:
         raise ValueError(f"Multiple definitions of {name}")
     else:
@@ -240,19 +252,44 @@ def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str) -> pycparser.c
 
 
 def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
-    stmts = []
-    need_to_pop = False
-    try:
-        save_prov_log_before = find_decl(func.stmts, "save_prov_log_before")
-        if save_prov_log_before.init.name == "true":
-            stmts.append(pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID(name="save_prov_log"),
-                args=pycparser.c_ast.ExprList(exprs=[]),
-            ))
-    except ValueError:
-        pass
+    pre_call_stmts = []
+    post_call_stmts = []
+
+    pre_call_action = find_decl(func.stmts, "pre_call")
+    if pre_call_action:
+        if isinstance(pre_call_action.init, pycparser.c_ast.Compound):
+            pre_call_stmts.extend(pre_call_action.init.block_items)
+        else:
+            pre_call_stmts.append(pre_call_action.init);
+
+    prov_log_is_enabled = pycparser.c_ast.FuncCall(
+        name=pycparser.c_ast.ID(name="prov_log_is_enabled"),
+        args=pycparser.c_ast.ExprList(exprs=[]),
+    )
+
+    log_pre_call_action = find_decl(func.stmts, "log_pre_call")
+    if log_pre_call_action:
+        pre_call_stmts.append(
+            pycparser.c_ast.If(
+                cond=prov_log_is_enabled,
+                iftrue=log_pre_call_action.init,
+                iffalse=None,
+            )
+        )
+
+    log_post_call_action = find_decl(func.stmts, "log_post_call")
+    if log_post_call_action:
+        post_call_stmts.append(
+            pycparser.c_ast.If(
+                cond=prov_log_is_enabled,
+                iftrue=log_post_call_action.init,
+                iffalse=None,
+            )
+        )
+
     if func.variadic:
-        stmts.append(find_decl(func.stmts, "varargs_size"))
+        varargs_size_decl = find_decl(func.stmts, "varargs_size")
+        pre_call_stmts.append(varargs_size_decl)
         # Generates: __builtin_apply((void (*)())_o_open, __builtin_apply_args(), varargs_size)
         uncasted_func_call = pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="__builtin_apply"),
@@ -270,9 +307,6 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
         if is_void(func.return_type):
             func_call = uncasted_func_call
         else:
-            stmts.append(pycparser.c_ast.Pragma(string="GCC diagnostic push"))
-            stmts.append(pycparser.c_ast.Pragma(string='GCC diagnostic ignored "-Wcast-function-type"'))
-            need_to_pop = True
             func_call = pycparser.c_ast.UnaryOp(
                 op="*",
                 expr=pycparser.c_ast.Cast(
@@ -292,56 +326,20 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
                 ],
             ),
         )
-    loggy_stuff = pycparser.c_ast.If(
-        cond=pycparser.c_ast.UnaryOp(
-            op="!",
-            expr=pycparser.c_ast.ID(name="disable_log"),
-        ),
-        iftrue=pycparser.c_ast.Compound(
-            block_items=[
-                pycparser.c_ast.FuncCall(
-                    name=pycparser.c_ast.ID("fprintf"),
-                    args=pycparser.c_ast.ExprList(
-                        exprs=[
-                            pycparser.c_ast.FuncCall(
-                                name=pycparser.c_ast.ID("get_prov_log_file"),
-                                args=pycparser.c_ast.ExprList(exprs=[]),
-                            ),
-                            pycparser.c_ast.Constant(type="string", value='"' + func.name +  '\\n"'),
-                        ],
-                    ),
-                ),
-            ],
-        ),
-        iffalse=None,
-    )
+
     if is_void(func.return_type):
-        stmts.append(loggy_stuff)
-        stmts.append(func_call)
-        if need_to_pop:
-            stmts.append(pycparser.c_ast.Pragma(string="GCC diagnostic pop"))
-        stmts.append(pycparser.c_ast.Return(expr=None))
+        return (
+            *pre_call_stmts,
+            func_call,
+            *post_call_stmts,
+        )
     else:
-        stmts.append(loggy_stuff)
-        stmts.append(pycparser.c_ast.Decl(
-            name="ret",
-            quals=[],
-            align=[],
-            storage=[],
-            funcspec=[],
-            type=pycparser.c_ast.TypeDecl(
-                declname="ret",
-                quals=[],
-                align=None,
-                type=func.return_type,
-            ),
-            init=func_call,
-            bitsize=None
-        ))
-        if need_to_pop:
-            stmts.append(pycparser.c_ast.Pragma(string="GCC diagnostic pop"))
-        stmts.append(pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret")))
-    return tuple(stmts)
+        return (
+            *pre_call_stmts,
+            define_var(func.return_type, "ret", func_call),
+            *post_call_stmts,
+            pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret"))
+        )
 
 
 static_args_wrapper_func_declarations = [
@@ -349,9 +347,9 @@ static_args_wrapper_func_declarations = [
         func,
         stmts=wrapper_func_body(func),
     ).definition()
-    for func in funcs
+    for _, func in funcs.items()
 ]
-print(generator.visit(pycparser.c_ast.FileAST(ext=[
+print(GccCGenerator().visit(pycparser.c_ast.FileAST(ext=[
     *func_pointer_declarations,
     setup_function_pointers,
     *static_args_wrapper_func_declarations,

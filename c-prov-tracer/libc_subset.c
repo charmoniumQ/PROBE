@@ -24,50 +24,111 @@ typedef int bool;
 struct stat;
 struct stat64;
 struct utimebuf;
+typedef void* Path;
+typedef void* OpCode;
+typedef void* fn;
+typedef void* va_list;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
-FILE * fopen (const char *filename, const char *opentype) { }
-FILE * fopen64 (const char *filename, const char *opentype) { }
-FILE * freopen (const char *filename, const char *opentype, FILE *stream) { }
-FILE * freopen64 (const char *filename, const char *opentype, FILE *stream) { }
+FILE * fopen (const char *filename, const char *opentype) {
+    void* pre_call = ({
+        struct Path path = normalize_path(AT_FDCWD, filename);
+    });
+    void* log_pre_call = ({
+        prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
+    });
+    void* log_post_call = ({
+        if (ret != NULL) {
+            prov_log_record(make_op(fopen_to_opcode(opentype), path, fileno(ret), null_mode));
+        }
+    });
+}
+fn fopen64 = fopen;
+FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
+    void* pre_call = ({
+        struct Path path = normalize_path(AT_FDCWD, filename);
+        int original_fd = fileno(stream);
+    });
+    void* log_pre_call = ({
+        prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
+    });
+    void* log_post_call = ({
+        if (ret != NULL) {
+            prov_log_record(make_op(Close, get_null_path(), original_fd, null_mode));
+            prov_log_record(make_op(fopen_to_opcode(opentype), path, fileno(ret), null_mode));
+        }
+    });
+}
+fn freopen64 = freopen;
 
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
-int fclose (FILE *stream) { }
-int fcloseall(void) { }
+int fclose (FILE *stream) {
+    void* pre_call = ({
+        int original_fd = fileno(stream);
+    });
+    void* log_post_call = ({
+        prov_log_record(make_op(Close, get_null_path(), original_fd, null_mode));
+    });
+}
+int fcloseall(void) {
+}
 
 /* Docs: https://linux.die.net/man/2/openat */
 int openat(int dirfd, const char *pathname, int flags, ...) {
-    size_t varargs_size = sizeof(dirfd) + sizeof(pathname) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
+    void* pre_call = ({
+        struct Path path = normalize_path(dirfd, pathname);
+        bool has_mode_arg = ((flags) & O_CREAT) != 0 || ((flags) & __O_TMPFILE) == __O_TMPFILE;
+        /* va_list ap; */
+        /* va_start(ap, flags); */
+        /* mode_t mode_arg = has_mode_arg ? va_arg(ap, mode_t) : null_mode; */
+        /* va_end(ap); */
+    });
+    size_t varargs_size = sizeof(dirfd) + sizeof(pathname) + sizeof(flags) + (has_mode_arg ? sizeof(mode_t) : 0);
     /* Re varag_size, See variadic note on open
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open64.c#L33
      */
+    void* log_pre_call = ({
+        prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
+    });
+    void* log_post_call = ({
+        if (ret != -1) {
+            prov_log_record(make_op(open_flag_to_opcode(flags), path, ret, /* mode_arg */null_mode));
+        }
+    });
 }
 
-/* Docs: https://refspecs.linuxbase.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/baselib-openat64.html */
-int openat64(int dirfd, const char *pathname, int flags, ...) {
-    size_t varargs_size = sizeof(dirfd) + sizeof(pathname) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
-    /* Re varag_size, See variadic note on open
-     * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/openat64.c#L31
-     */
-}
+fn openat64 = openat;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open (const char *filename, int flags, ...) {
-    size_t varargs_size = sizeof(filename) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
+    void* pre_call = ({
+        struct Path path = normalize_path(AT_FDCWD, filename);
+        bool has_mode_arg = ((flags) & O_CREAT) != 0 || ((flags) & __O_TMPFILE) == __O_TMPFILE;
+        /* va_list ap; */
+        /* va_start(ap, flags); */
+        /* mode_t mode_arg = has_mode_arg ? va_arg(ap, mode_t) : null_mode; */
+        /* va_end(ap); */
+    });
+    size_t varargs_size = sizeof(filename) + sizeof(flags) + (has_mode_arg ? sizeof(mode_t) : 0);
     /* Re varag_size
-     * We use the third-arg (of type mode_t) when ((oflag) & O_CREAT) != 0 || ((oflag) & __O_TMPFILE) == __O_TMPFILE.
+     * We use the third-arg (of type mode_t) when ((flags) & O_CREAT) != 0 || ((flags) & __O_TMPFILE) == __O_TMPFILE.
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/openat.c#L33
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open.c#L35
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/io/fcntl.h#L40
      */
+    void* log_pre_call = ({
+        prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
+    });
+    void* log_post_call = ({
+        if (ret != -1) {
+            prov_log_record(make_op(open_flag_to_opcode(flags), path, ret, /* mode_arg */null_mode));
+        }
+    });
 }
-int open64 (const char *filename, int flags, ...) {
-    size_t varargs_size = sizeof(filename) + sizeof(flags) + (((flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE) ? sizeof(mode_t) : 0);
-    /* Re varag_size, See variadic note on open */
-}
+fn open64 = open;
 int creat (const char *filename, mode_t mode) { }
-int creat64 (const char *filename, mode_t mode) { }
+fn create64 = creat;
 int close (int filedes) { }
 int close_range (unsigned int lowfd, unsigned int maxfd, int flags) { }
 void closefrom (int lowfd) { }
@@ -191,10 +252,14 @@ char * mkdtemp (char *template) { }
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html */
 /* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
 }
 int execl (const char *filename, const char *arg0, ...) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
     size_t varargs_size = ({
         (void)filename;
         size_t n_varargs = 0;
@@ -206,13 +271,19 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 /* Variadic: var args end with a sentinel NULL arg */
 int execve (const char *filename, char *const argv[], char *const env[]) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
 }
 int execle (const char *filename, const char *arg0, ...) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
     size_t varargs_size = ({
         (void)filename;
         size_t n_varargs = 0;
@@ -224,10 +295,14 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 /* Variadic: var args end with a sentinel NULL arg + 1 final char *const env[] */
 int execvp (const char *filename, char *const argv[]) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
 }
 int execlp (const char *filename, const char *arg0, ...) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
     size_t varargs_size = ({
         (void)filename;
         size_t n_varargs = 0;
@@ -241,7 +316,9 @@ int execlp (const char *filename, const char *arg0, ...) {
 
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
-    bool save_prov_log_before = true;
+    void* pre_call = ({
+        prov_log_save();
+    });
 }
 
 /* Need: Fork does copy-on-write, so we want to deduplicate our structures first */
@@ -257,3 +334,9 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/BSD-Wait-Functions.html */
 pid_t wait3 (int *status_ptr, int options, struct rusage *usage) { }
+
+void exit (int status) {
+    void* pre_call = ({
+        prov_log_save();
+    });
+}
