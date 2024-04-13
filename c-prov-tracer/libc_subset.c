@@ -20,6 +20,7 @@ typedef void* off64_t;
 typedef void* dev_t;
 typedef void* uid_t;
 typedef void* gid_t;
+typedef int bool;
 struct stat;
 struct stat64;
 struct utimebuf;
@@ -189,9 +190,13 @@ char * mkdtemp (char *template) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html */
 /* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing */
-int execv (const char *filename, char *const argv[]) { }
+int execv (const char *filename, char *const argv[]) {
+    bool save_prov_log_before = true;
+}
 int execl (const char *filename, const char *arg0, ...) {
+    bool save_prov_log_before = true;
     size_t varargs_size = ({
+        (void)filename;
         size_t n_varargs = 0;
         while (n_varargs[arg0]) {
             ++n_varargs;
@@ -200,10 +205,16 @@ int execl (const char *filename, const char *arg0, ...) {
     });
 }
 /* Variadic: var args end with a sentinel NULL arg */
-int execve (const char *filename, char *const argv[], char *const env[]) { }
-int fexecve (int fd, char *const argv[], char *const env[]) { }
+int execve (const char *filename, char *const argv[], char *const env[]) {
+    bool save_prov_log_before = true;
+}
+int fexecve (int fd, char *const argv[], char *const env[]) {
+    bool save_prov_log_before = true;
+}
 int execle (const char *filename, const char *arg0, ...) {
+    bool save_prov_log_before = true;
     size_t varargs_size = ({
+        (void)filename;
         size_t n_varargs = 0;
         while (n_varargs[arg0]) {
             ++n_varargs;
@@ -212,9 +223,13 @@ int execle (const char *filename, const char *arg0, ...) {
     });
 }
 /* Variadic: var args end with a sentinel NULL arg + 1 final char *const env[] */
-int execvp (const char *filename, char *const argv[]) { }
+int execvp (const char *filename, char *const argv[]) {
+    bool save_prov_log_before = true;
+}
 int execlp (const char *filename, const char *arg0, ...) {
+    bool save_prov_log_before = true;
     size_t varargs_size = ({
+        (void)filename;
         size_t n_varargs = 0;
         while (n_varargs[arg0]) {
             ++n_varargs;
@@ -225,7 +240,9 @@ int execlp (const char *filename, const char *arg0, ...) {
 /* Variadic: var args end with a sentinel NULL arg */
 
 /* Docs: https://linux.die.net/man/3/execvpe1 */
-int execvpe(const char *file, char *const argv[], char *const envp[]) { }
+int execvpe(const char *file, char *const argv[], char *const envp[]) {
+    bool save_prov_log_before = true;
+}
 
 /* Need: Fork does copy-on-write, so we want to deduplicate our structures first */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-a-Process.html */

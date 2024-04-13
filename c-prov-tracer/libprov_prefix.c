@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <assert.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -21,15 +22,20 @@ pid_t getpid(void);
 pid_t gettid(void);
 
 #define EXPECT(cond, expr) ({\
-            int ret = expr; \
-            if (!(ret cond)) { \
-                fprintf(stderr, "failure on %s:%d: %s: !(%d %s)\nstrerror: %s\n", __FILE__, __LINE__, #expr, ret, #cond, strerror(errno)); \
-                abort(); \
-            } \
-            ret; \
-    })
+    int ret = expr; \
+    if (!(ret cond)) { \
+        fprintf(stderr, "failure on %s:%d: %s: !(%d %s)\nstrerror: %s\n", __FILE__, __LINE__, #expr, ret, #cond, strerror(errno)); \
+        abort(); \
+    } \
+    ret; \
+})
 
 static __thread FILE* log = NULL;
 static __thread bool disable_log = false;
 
-static FILE* get_prov_log_file();
+static FILE* get_prov_log_file(void);
+
+static void save_prov_log(void);
+
+/* static char getname_buffer[PATH_MAX]; */
+/* static char* getname(const FILE* file); */

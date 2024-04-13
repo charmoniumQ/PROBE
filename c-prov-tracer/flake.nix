@@ -8,8 +8,14 @@
         devShells = {
           default = pkgs.mkShell {
             buildInputs = [
-              (pkgs.python312.withPackages (pypkgs: [pypkgs.pycparser]))
+              (pkgs.python312.withPackages (pypkgs: [
+                pypkgs.pycparser
+                pypkgs.pytest
+              ]))
               pkgs.gcc
+              pkgs.gdb
+              pkgs.coreutils
+              pkgs.bash
             ];
           };
         };
