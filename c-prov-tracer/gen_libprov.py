@@ -293,18 +293,10 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
                         exprs=[
                             pycparser.c_ast.FuncCall(
                                 name=pycparser.c_ast.ID("get_prov_log_file"),
-                                args=pycparser.c_ast.ExprList(
-                                    exprs=[],
-                                ),
+                                args=pycparser.c_ast.ExprList(exprs=[]),
                             ),
                             pycparser.c_ast.Constant(type="string", value='"' + func.name +  '\\n"'),
                         ],
-                    ),
-                ),
-                pycparser.c_ast.FuncCall(
-                    name=pycparser.c_ast.ID("save_prov_log"),
-                    args=pycparser.c_ast.ExprList(
-                        exprs=[],
                     ),
                 ),
             ],
