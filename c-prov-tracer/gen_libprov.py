@@ -27,6 +27,18 @@ class GccCGenerator(pycparser.c_generator.CGenerator):
             s += ' = ' + self._parenthesize_if(n.init, lambda n: isinstance(n, (pycparser.c_ast.Assignment, pycparser.c_ast.Compound)))
         return s
 
+    def _parenthesize_if(self, n, condition):
+        self.indent_level += 2
+        s = self._visit_expr(n)
+        self.indent_level -= 2
+        if condition(n):
+            if isinstance(n, pycparser.c_ast.Compound):
+                return "(\n" + s + self._make_indent() + ")"
+            else:
+                return '(' + s + ')'
+        else:
+            return s
+
 
 def is_void(node: pycparser.c_ast.Node) -> bool:
     return isinstance(node.type, pycparser.c_ast.IdentifierType) and node.type.names[0] == "void"
