@@ -267,30 +267,10 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
         args=pycparser.c_ast.ExprList(exprs=[]),
     )
 
-    log_pre_call_action = find_decl(func.stmts, "log_pre_call")
-    if log_pre_call_action:
-        pre_call_stmts.append(
-            pycparser.c_ast.If(
-                cond=prov_log_is_enabled,
-                iftrue=log_pre_call_action.init,
-                iffalse=None,
-            )
-        )
-
     post_call_action = find_decl(func.stmts, "post_call")
     if post_call_action:
         post_call_stmts.extend(
             post_call_action.init.block_items,
-        )
-
-    log_post_call_action = find_decl(func.stmts, "log_post_call")
-    if log_post_call_action:
-        post_call_stmts.append(
-            pycparser.c_ast.If(
-                cond=prov_log_is_enabled,
-                iftrue=log_post_call_action.init,
-                iffalse=None,
-            )
         )
 
     if func.variadic:
