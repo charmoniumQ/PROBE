@@ -277,6 +277,12 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
             )
         )
 
+    post_call_action = find_decl(func.stmts, "post_call")
+    if post_call_action:
+        post_call_stmts.extend(
+            post_call_action.init.block_items,
+        )
+
     log_post_call_action = find_decl(func.stmts, "log_post_call")
     if log_post_call_action:
         post_call_stmts.append(

@@ -2,6 +2,12 @@ struct Path {
     const char* raw_path;
 };
 
+struct Path from_abs_path(const char* raw_path) {
+    struct Path dst;
+    EXPECT(, dst.raw_path = raw_path);
+    return dst;
+}
+
 static struct Path normalize_path(int fd, const char* path) {
     /* TODO: make this relative to fd, if passed */
     (void)fd;
@@ -15,9 +21,10 @@ enum OpCode {
     OpenReadWrite,
     OpenOverWrite,
     OpenWritePart,
+    Execute,
     Close,
     Chdir,
-    Opendir,
+    OpenDir,
     WalkDir,
     MetadataRead,
     MetadataWritePart,
@@ -69,11 +76,12 @@ static const char* op_code_to_string(enum OpCode op_code) {
         case OpenWritePart: return "OpenWritePart";
         case Close: return "Close";
         case Chdir: return "Chdir";
-        case Opendir: return "Opendir";
+        case OpenDir: return "OpenDir";
         case WalkDir: return "WalkDir";
         case MetadataRead: return "MetadataRead";
         case MetadataWritePart: return "MetadataWritePart";
         case ReadLink: return "ReadLink";
+        case Execute: return "Execute";
         default:
             fprintf(stderr, "Unknown op_code %d (should be %d to %d)", op_code, OpenRead, ReadLink);
             abort();
@@ -81,7 +89,18 @@ static const char* op_code_to_string(enum OpCode op_code) {
 }
 
 static void fprintf_op(FILE* stream, struct Op op) {
-    EXPECT(> 0, fprintf(stream, "%s %d %d %s\n", op_code_to_string(op.op_code), op.fd, op.mode, op.path.raw_path));
+    char null_byte = '\0';
+    /* Technically the path can have anything except null-byte, so I will have to use that as the delimiter */
+    EXPECT(
+        > 0,
+        fprintf(
+            stream,
+            "%s %d %d %s%c\n",
+            op_code_to_string(op.op_code),
+            op.fd,
+            op.mode,
+            op.path.raw_path,
+            null_byte));
 }
 
 int null_fd = -1;
@@ -134,3 +153,5 @@ enum OpCode open_flag_to_opcode(int flag) {
         abort();
     }
 }
+
+#include "fd_table.c"

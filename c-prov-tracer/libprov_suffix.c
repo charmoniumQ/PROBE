@@ -46,8 +46,12 @@ static void prov_log_save() {
             while (cur_cell != NULL) {
                 for (size_t i = 0; i < cur_cell->capacity; ++i) {
                     fprintf_op(log, cur_cell->ops[i]);
+                    // Free-ing counts as modifying
+                    free((char*) cur_cell->ops[i].path.raw_path);
                 }
+                struct __ProvLogCell* old_cur_cell = cur_cell;
                 cur_cell = cur_cell->next;
+                free(old_cur_cell);
             }
             /* Do the allocation somewhat proactively here, because we are already stopped to do a big task. */
             EXPECT(, __prov_log_head = __prov_log_tail = malloc(sizeof(struct __ProvLogCell)));
@@ -58,13 +62,32 @@ static void prov_log_save() {
     }
 }
 
-/*
-static char* getname(const FILE* file) {
-    int fd = EXPECT(> 0, fileno(file));
+static char* lookup_on_path(const char* bin_name) {
+    const char* path = getenv("PATH");
+    char* path_copy;
+    EXPECT(, path_copy = strdup(path));
+    char candidate_file[PATH_MAX] = {0};
+    char* path_entry = strtok(path_copy, ":");
+    while (path_entry != NULL) {
+        EXPECT(< PATH_MAX, snprintf(candidate_file, PATH_MAX, "%s/%s", path_entry, bin_name));
+        if (o_access(candidate_file, X_OK)) {
+            char* return_val;
+            EXPECT(, return_val = strdup(candidate_file));
+            free(path_copy);
+            return return_val;
+        }
+        path_entry = strtok(path_copy, ":");
+    }
+    free(path_copy);
+    return NULL;
+}
+
+__attribute__((unused)) static char* getname(const FILE* file) {
+    int fd = EXPECT(> 0, fileno((FILE*) file));
     char dev_fd[PATH_MAX] = {0};
     EXPECT(< PATH_MAX, snprintf(dev_fd, PATH_MAX, "/dev/fd/%d", fd));
+    char* getname_buffer = malloc(PATH_MAX);
     int length = EXPECT(> 0, o_readlink(dev_fd, getname_buffer, PATH_MAX));
     getname_buffer[length] = '\0';
     return getname_buffer;
 }
-*/

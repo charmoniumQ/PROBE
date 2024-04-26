@@ -13,7 +13,9 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <ftw.h>
+#include <stdarg.h>
 #include <sys/resource.h>
+#include <pthread.h>
 
 /*
  * I can't include unistd.h because it also defines dup3.
@@ -68,11 +70,12 @@ static void prov_log_record(struct Op op) {
         __prov_log_tail->next = NULL;
         old_tail->next = __prov_log_tail;
     }
-    /* TODO: Figure out workarounds for this copy */
     /* We will duplicate this string, because it could disappear from the tracee's stack at any time. */
     char* new_raw_path = strdup(op.path.raw_path);
     op.path.raw_path = new_raw_path;
     __prov_log_tail->ops[__prov_log_tail->capacity] = op;
-    fprintf_op(stderr, op);
+    //fprintf_op(stderr, op);
     ++__prov_log_tail->capacity;
 }
+
+static char* lookup_on_path(const char* bin_name);
