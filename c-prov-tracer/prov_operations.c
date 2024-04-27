@@ -2,13 +2,19 @@ struct Path {
     const char* raw_path;
 };
 
-struct Path from_abs_path(const char* raw_path) {
+/*
+ * Note that ret.raw_path is BORROWED.
+ * */
+struct Path from_abs_path(BORROWED const char* raw_path) {
     struct Path dst;
     EXPECT(, dst.raw_path = raw_path);
     return dst;
 }
 
-static struct Path normalize_path(int fd, const char* path) {
+/*
+ * Note that ret.raw_path is BORROWED.
+ * */
+static struct Path normalize_path(int fd, OWNED const char* path) {
     /* TODO: make this relative to fd, if passed */
     (void)fd;
     struct Path normalized_path;
@@ -38,7 +44,7 @@ struct Op {
     mode_t mode;
 };
 
-static enum OpCode fopen_to_opcode(const char* fopentype) {
+static enum OpCode fopen_to_opcode(BORROWED const char* fopentype) {
     bool plus = fopentype[1] == '+' || (fopentype[1] != '\0' && fopentype[2] == '+');
     if (false) {
     } else if (fopentype[0] == 'r' && !plus) {
@@ -68,7 +74,7 @@ struct Op make_op(enum OpCode op_code, struct Path path, int fd, mode_t mode) {
     return op;
 }
 
-static const char* op_code_to_string(enum OpCode op_code) {
+static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
         case OpenRead: return "OpenRead";
         case OpenReadWrite: return "OpenReadWrite";
@@ -88,7 +94,7 @@ static const char* op_code_to_string(enum OpCode op_code) {
     }
 }
 
-static void fprintf_op(FILE* stream, struct Op op) {
+static void fprintf_op(BORROWED FILE* stream, struct Op op) {
     char null_byte = '\0';
     /* Technically the path can have anything except null-byte, so I will have to use that as the delimiter */
     EXPECT(
@@ -99,7 +105,7 @@ static void fprintf_op(FILE* stream, struct Op op) {
             op_code_to_string(op.op_code),
             op.fd,
             op.mode,
-            op.path.raw_path,
+            op.path.raw_path ? op.path.raw_path : "",
             null_byte));
 }
 
@@ -108,7 +114,7 @@ mode_t null_mode = -1;
 
 static struct Path get_null_path() {
     struct Path path;
-    path.raw_path = "";
+    path.raw_path = NULL;
     return path;
 }
 

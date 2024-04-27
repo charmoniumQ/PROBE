@@ -81,9 +81,11 @@ fn freopen64 = freopen;
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
 int fclose (FILE *stream) {
+    void* pre_call = ({
+        int original_fd = fileno(stream);
+    });
     void* post_call = ({
         if (prov_log_is_enabled() && ret == 0) {
-            int original_fd = fileno(stream);
             prov_log_record(make_op(Close, get_null_path(), original_fd, null_mode));
             fd_table_close(original_fd);
         }
@@ -544,6 +546,7 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) { }
 void exit (int status) {
     void* pre_call = ({
         prov_log_save();
+        prov_log_disable();
     });
     void* post_call = ({
         __builtin_unreachable();
