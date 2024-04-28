@@ -106,3 +106,11 @@ static void prov_log_record(struct Op op) {
 }
 
 static OWNED char* lookup_on_path(BORROWED const char* bin_name);
+
+/*
+ * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
+ * so we use some macros instead.
+ * To pycparser, these macros are defined as variable names (parsable as arguments).
+ * To GCC these macros are defined as type names.
+ * */
+#define __type_mode_t mode_t

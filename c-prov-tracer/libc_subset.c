@@ -35,6 +35,7 @@ typedef void* OpCode;
 typedef void* fn;
 typedef void* va_list;
 struct Path;
+int __type_mode_t;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
@@ -118,8 +119,7 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                /* TODO: this */
-                /* mode_arg = va_arg(ap, mode_t); */
+                mode_arg = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
             prov_log_record(make_op(MetadataRead, path, null_fd, mode_arg));
@@ -152,8 +152,7 @@ int open (const char *filename, int flags, ...) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                /* TODO: this */
-                /* mode_arg = va_arg(ap, mode_t); */
+                mode_arg = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
             path = normalize_path(AT_FDCWD, filename);

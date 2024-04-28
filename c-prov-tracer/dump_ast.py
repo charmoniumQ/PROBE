@@ -1,10 +1,16 @@
+import pathlib
+import tempfile
 import pycparser
 import pycparser.c_generator
 import sys
 
 
-parser = pycparser.CParser()
-ast = parser.parse(sys.stdin.read(), "test.c")
+with tempfile.TemporaryDirectory() as tmpdir:
+    src_file = pathlib.Path(tmpdir) / "test.c"
+    src_file.write_text(sys.stdin.read())
+    ast = pycparser.parse_file(src_file, use_cpp=True)
+
+
 ast.show(showcoord=False)
 print(ast)
 c_generator = pycparser.c_generator.CGenerator()
