@@ -79,19 +79,16 @@ static void prov_log_save() {
             );
             FILE* log;
             EXPECT(, log = o_fopen(log_name, "w"));
-            struct __ProvLogCell* cur_cell = __prov_log_head;
-            while (cur_cell != NULL) {
-                for (size_t i = 0; i < cur_cell->capacity; ++i) {
-                    fprintf_op(log, cur_cell->ops[i]);
+            while (__prov_log_head != NULL) {
+                for (size_t i = 0; i < __prov_log_head->capacity; ++i) {
+                    fprintf_op(log, __prov_log_head->ops[i]);
                     // Free-ing counts as modifying
-                    free((char*) cur_cell->ops[i].owned_normalized_path);
-                    cur_cell->ops[i].owned_normalized_path = NULL;
+                    free((char*) __prov_log_head->ops[i].owned_normalized_path);
+                    __prov_log_head->ops[i].owned_normalized_path = NULL;
                 }
-                {
-                    struct __ProvLogCell* old_cur_cell = cur_cell;
-                    cur_cell = cur_cell->next;
-                    free(old_cur_cell);
-                }
+                struct __ProvLogCell* old_head = __prov_log_head;
+                __prov_log_head = __prov_log_head->next;
+                free(old_head);
             }
             EXPECT(== 0, o_fclose(log));
         }

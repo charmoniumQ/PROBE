@@ -35,10 +35,10 @@
     })
 
 static void path_join(char* path_buf, ssize_t left_size, const char* left, ssize_t right_size, const char* right) {
-    assert(left[left_size] == '\0');
     if (left_size == -1) {
         left_size = strlen(left);
     }
+    assert(left[left_size] == '\0');
     EXPECT(, memcpy(path_buf, left, left_size));
     path_buf[left_size] = '/';
     if (right_size == -1) {

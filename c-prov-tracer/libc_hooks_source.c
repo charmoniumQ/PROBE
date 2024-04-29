@@ -50,7 +50,7 @@ FILE * fopen (const char *filename, const char *opentype) {
     });
     void* post_call = ({
         if (prov_log_is_enabled() && ret != NULL) {
-            prov_log_record(make_op(fopen_to_opcode(opentype), path, fileno(ret), null_mode));
+            prov_log_record(make_op(fopen_to_opcode(opentype), strndup(path, PATH_MAX), fileno(ret), null_mode));
             fd_table_associate(fileno(ret), path);
         }
     });
@@ -70,7 +70,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         if (prov_log_is_enabled()) {
             if (ret != NULL) {
                 prov_log_record(make_op(Close, null_path, original_fd, null_mode));
-                prov_log_record(make_op(fopen_to_opcode(opentype), path, fileno(ret), null_mode));
+                prov_log_record(make_op(fopen_to_opcode(opentype), strndup(path, PATH_MAX), fileno(ret), null_mode));
                 fd_table_associate(fileno(ret), path);
             } else {
                 fprintf(stderr, "Don't know how to handle the case where freopen fails. Does it fail during close, the open, or both?\n");
@@ -129,7 +129,7 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     });
     void* post_call = ({
         if (prov_log_is_enabled() && ret != -1) {
-            prov_log_record(make_op(open_flag_to_opcode(flags), path, ret, mode_arg));
+            prov_log_record(make_op(open_flag_to_opcode(flags), strndup(path, PATH_MAX), ret, mode_arg));
             fd_table_associate(ret, path);
         }
     });
@@ -163,7 +163,7 @@ int open (const char *filename, int flags, ...) {
     });
     void* post_call = ({
         if (prov_log_is_enabled() && ret != -1) {
-            prov_log_record(make_op(open_flag_to_opcode(flags), path, ret, mode_arg));
+            prov_log_record(make_op(open_flag_to_opcode(flags), strndup(path, PATH_MAX), ret, mode_arg));
             fd_table_associate(ret, path);
         }
     });
@@ -180,7 +180,7 @@ int creat (const char *filename, mode_t mode) {
     void* post_call = ({
         if (prov_log_is_enabled() && ret != -1) {
             /* TODO: check that this should be open with writepart */
-            prov_log_record(make_op(OpenWritePart, path, ret, mode));
+            prov_log_record(make_op(OpenWritePart, strndup(path, PATH_MAX), ret, mode));
             fd_table_associate(ret, path);
         }
     });
@@ -294,7 +294,7 @@ DIR * opendir (const char *dirname) {
     void* post_call = ({
         if (prov_log_is_enabled() && ret != NULL) {
             int fd = dirfd(ret);
-            prov_log_record(make_op(OpenDir, path, fd, null_mode));
+            prov_log_record(make_op(OpenDir, strndup(path, PATH_MAX), fd, null_mode));
             fd_table_associate(fd, path);
         }
     });
@@ -310,7 +310,7 @@ DIR * fdopendir (int fd) {
     void* post_call = ({
         if (prov_log_is_enabled() && ret != NULL) {
             int fd = dirfd(ret);
-            prov_log_record(make_op(OpenDir, path, fd, null_mode));
+            prov_log_record(make_op(OpenDir, strndup(path, PATH_MAX), fd, null_mode));
             fd_table_associate(fd, path);
         }
     });

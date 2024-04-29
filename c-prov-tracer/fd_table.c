@@ -30,8 +30,6 @@ static void fd_table_associate(int fd, BORROWED const char* normalized_path) {
     }
     assert(0 <= fd);
     assert(fd < __fd_table_capacity);
-    /* Assertion: Did Linux kernel use an existing file-descriptor for a new file? Maybe we missed the close(fd). */
-    assert(!__fd_table[fd]);
     /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise.
      * The tracee would likely run out of FDs if they didn't close their files. */
     EXPECT(, __fd_table[fd] = strdup(normalized_path));

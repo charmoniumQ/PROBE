@@ -23,7 +23,8 @@ static void __unlocked_cwd_path_init(bool read_only) {
         EXPECT(== 0, pthread_rwlock_init(&__cwd_lock, NULL));
         EXPECT(== 0, pthread_rwlock_wrlock(&__cwd_lock));
         __realpath_getcwd(__cwd);
-        EXPECT(== 0, pthread_rwlock_rdlock(&__cwd_lock));
+        __cwd_length = strlen(__cwd);
+        EXPECT(== 0, pthread_rwlock_unlock(&__cwd_lock));
     }
 
     if (read_only) {
@@ -33,11 +34,13 @@ static void __unlocked_cwd_path_init(bool read_only) {
     }
     /* Postconditions: */
     assert(__cwd);
-    assert_is_normalized_path(__cwd);
+    assert(strlen(__cwd) == __cwd_length);
+    /* Somehow this is recursive: */
+    /* assert_is_normalized_path(__cwd); */
     #ifndef NDEBUG
     char expected_cwd[PATH_MAX + 1] = {0};
     __realpath_getcwd(expected_cwd);
-    if (!strncmp(expected_cwd, __cwd, PATH_MAX)) {
+    if (strncmp(expected_cwd, __cwd, PATH_MAX)) {
         fprintf(stderr, "realpath(getcwd()) = '%s', but __cwd = '%s'\n", expected_cwd, __cwd);
         abort();
     }
@@ -133,6 +136,7 @@ static void track_chdir(BORROWED const char* path) {
 
     /* Postconditions: */
     assert_is_normalized_path(__cwd);
+    assert(strlen(__cwd) == __cwd_length);
 }
 
 /*

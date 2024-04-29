@@ -46,6 +46,10 @@ char *getcwd(char *buf, size_t size);
 
 #include "libc_hooks.c"
 
-__attribute__ ((constructor)) void setup_libprov() {
+__attribute__ ((constructor)) void construct_libprov() {
     setup_function_pointers();
+}
+
+__attribute__ ((destructor)) void destruct_libprov() {
+    prov_log_save();
 }
