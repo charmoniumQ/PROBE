@@ -1,27 +1,3 @@
-struct Path {
-    const char* raw_path;
-};
-
-/*
- * Note that ret.raw_path is BORROWED.
- * */
-struct Path from_abs_path(BORROWED const char* raw_path) {
-    struct Path dst;
-    EXPECT(, dst.raw_path = raw_path);
-    return dst;
-}
-
-/*
- * Note that ret.raw_path is BORROWED.
- * */
-static struct Path normalize_path(int fd, OWNED const char* path) {
-    /* TODO: make this relative to fd, if passed */
-    (void)fd;
-    struct Path normalized_path;
-    normalized_path.raw_path = path;
-    return normalized_path;
-}
-
 enum OpCode {
     OpenRead,
     OpenReadWrite,
@@ -39,7 +15,7 @@ enum OpCode {
 
 struct Op {
     enum OpCode op_code;
-    struct Path path;
+    const char* owned_normalized_path;
     int fd;
     mode_t mode;
 };
@@ -65,10 +41,13 @@ static enum OpCode fopen_to_opcode(BORROWED const char* fopentype) {
     }
 }
 
-struct Op make_op(enum OpCode op_code, struct Path path, int fd, mode_t mode) {
+struct Op make_op(enum OpCode op_code, const char* OWNED normalized_path, int fd, mode_t mode) {
     struct Op op;
     op.op_code = op_code;
-    op.path = path;
+    if (normalized_path) {
+        assert_is_normalized_path(normalized_path);
+    }
+    op.owned_normalized_path = normalized_path;
     op.fd = fd;
     op.mode = mode;
     return op;
@@ -105,18 +84,13 @@ static void fprintf_op(BORROWED FILE* stream, struct Op op) {
             op_code_to_string(op.op_code),
             op.fd,
             op.mode,
-            op.path.raw_path ? op.path.raw_path : "",
+            op.owned_normalized_path ? op.owned_normalized_path : "",
             null_byte));
 }
 
 int null_fd = -1;
 mode_t null_mode = -1;
-
-static struct Path get_null_path() {
-    struct Path path;
-    path.raw_path = NULL;
-    return path;
-}
+const char* null_path = NULL;
 
 enum OpCode open_flag_to_opcode(int flag) {
     if ((flag & O_ACCMODE) == O_RDWR) {
@@ -159,5 +133,3 @@ enum OpCode open_flag_to_opcode(int flag) {
         abort();
     }
 }
-
-#include "fd_table.c"

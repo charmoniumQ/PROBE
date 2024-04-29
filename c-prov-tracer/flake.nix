@@ -16,6 +16,7 @@
               pkgs.gdb
               pkgs.coreutils
               pkgs.bash
+              pkgs.valgrind
             ];
           };
         };

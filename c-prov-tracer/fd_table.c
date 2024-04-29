@@ -1,16 +1,22 @@
-
 /*
+ * This file is responsible for tracking the process-global mapping between
+ * file-descriptors and file paths.
+ * Since this is process-global, access must be mediate by the readers/writers lock __fd_table_lock.
  * __fd_table is dynamic array of capacity __fd_table_size_factor * i
- * We will lock this with a readers/writers lock.
- * The lock has three states: available, some-people-are-currently-reading, and one-person-is-currently-writing.
- * It permits parallel reads, which mitigates the performance hit of using a lock.
  * */
 const int __fd_table_size_factor =  1024;
 static int __fd_table_capacity = 0;
-static struct Path* __fd_table = NULL;
-static pthread_rwlock_t __fd_table_lock;
+static OWNED const char **__fd_table = NULL;
+static pthread_rwlock_t __fd_table_lock = PTHREAD_RWLOCK_INITIALIZER;
 
-void fd_table_associate(struct Path path, int fd) {
+static void assert_is_normalized_path(BORROWED const char* path);
+
+/*
+ * This is borrowed because the lifetime of normalized path will be bound by the lifetime of Op in the Op buffer
+ * But the lifetime of our copy of it is bound by the lifetime of fd_table
+ * */
+static void fd_table_associate(int fd, BORROWED const char* normalized_path) {
+    assert_is_normalized_path(normalized_path);
     EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
     if (fd >= __fd_table_capacity) {
         size_t multiples = fd / __fd_table_size_factor + 1;
@@ -25,52 +31,77 @@ void fd_table_associate(struct Path path, int fd) {
     assert(0 <= fd);
     assert(fd < __fd_table_capacity);
     /* Assertion: Did Linux kernel use an existing file-descriptor for a new file? Maybe we missed the close(fd). */
-    assert(!__fd_table[fd].raw_path);
-    /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise. Oh well. */
-    EXPECT(, __fd_table[fd].raw_path = strdup(path.raw_path));
+    assert(!__fd_table[fd]);
+    /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise.
+     * The tracee would likely run out of FDs if they didn't close their files. */
+    EXPECT(, __fd_table[fd] = strdup(normalized_path));
     EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
 }
 
-void fd_table_close(int fd) {
+static void fd_table_close(int fd) {
     EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
     assert(0 <= fd);
     assert(fd < __fd_table_capacity);
-    assert(__fd_table[fd].raw_path);
-    free((char*) __fd_table[fd].raw_path);
-    __fd_table[fd].raw_path = NULL;
+    assert(__fd_table[fd]);
+    free((char*) __fd_table[fd]);
+    __fd_table[fd] = NULL;
     EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
 }
 
-size_t fd_table_size() {
+static size_t fd_table_size() {
     EXPECT(== 0, pthread_rwlock_rdlock(&__fd_table_lock));
     int ret = __fd_table_capacity;
     EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
     return ret;
 }
 
-bool fd_table_is_used(int fd) {
+static bool fd_table_is_used(int fd) {
     EXPECT(== 0, pthread_rwlock_rdlock(&__fd_table_lock));
     assert(0 <= fd);
     assert(fd < __fd_table_capacity);
-    bool ret = (bool) __fd_table[fd].raw_path;
+    bool ret = (bool) __fd_table[fd];
     EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
     return ret;
 }
 
-static struct Path* __cwd = NULL;
-static pthread_rwlock_t __cwd_lock;
-
-void dir_tracker_chdir(struct Path path) {
-    /*
-     * Note that calling chdir in two different threads leaves the process in an undetermined directory.
-     * Therefore, we usually will not contend for write-access to this resource.
-     * That means the performance tax of this lock is relatively low.
-     * */
-    EXPECT(== 0, pthread_rwlock_wrlock(&__cwd_lock));
-    if (__cwd != NULL) {
-        free((char*)__cwd->raw_path);
-        __cwd->raw_path = NULL;
+/*
+ * If buf is NULL, return new buffer containing fd path.
+ * Otherwise, write fd path into buf. Return buf.
+ */
+static OWNED char* fd_table_copy(BORROWED char* buf, int fd) {
+    EXPECT(== 0, pthread_rwlock_rdlock(&__fd_table_lock));
+    assert(0 <= fd);
+    assert(fd < __fd_table_capacity);
+    assert_is_normalized_path(__fd_table[fd]);
+    if (buf) {
+        EXPECT(, strncpy(buf, __fd_table[fd], PATH_MAX));
+    } else {
+        /* This allocation is freed by the user, since the return is OWNED */
+        EXPECT(, buf = strndup( __fd_table[fd], PATH_MAX));
     }
-    __cwd->raw_path = strdup(path.raw_path);
-    EXPECT(== 0, pthread_rwlock_unlock(&__cwd_lock));
+    EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
+    return buf;
+}
+
+static void fd_table_join(BORROWED char* path_buf, int fd, BORROWED const char* rel_path) {
+    EXPECT(== 0, pthread_rwlock_rdlock(&__fd_table_lock));
+    assert(0 <= fd);
+    assert(fd < __fd_table_capacity);
+    assert_is_normalized_path(__fd_table[fd]);
+    path_join(path_buf, -1, __fd_table[fd], -1, rel_path);
+    EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
+}
+
+/*
+ * An alternative method:
+ * */
+__attribute__((unused)) static OWNED char* getname(BORROWED const FILE* file) {
+    int fd = EXPECT(> 0, fileno((FILE*) file));
+    char dev_fd [PATH_MAX + 1] = {0};
+    CHECK_SNPRINTF(dev_fd, PATH_MAX, "/dev/fd/%d", fd);
+    /* This allocation is freed by user-code, since the returned pointer is OWNED. */
+    char* getname_buffer = malloc(PATH_MAX);
+    int length = EXPECT(> 0, o_readlink(dev_fd, getname_buffer, PATH_MAX));
+    getname_buffer[length] = '\0';
+    return getname_buffer;
 }

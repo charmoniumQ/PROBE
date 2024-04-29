@@ -169,7 +169,7 @@ class ParsedFunc:
         )
 
 
-filename = pathlib.Path("libc_subset.c")
+filename = pathlib.Path("libc_hooks_source.c")
 with tempfile.TemporaryDirectory() as _tmpdir:
     tmpdir = pathlib.Path(_tmpdir)
     (tmpdir / filename).write_text(re.sub("/\\*.*?\\*/", "", filename.read_text(), flags=re.DOTALL))
@@ -335,8 +335,18 @@ static_args_wrapper_func_declarations = [
     ).definition()
     for _, func in funcs.items()
 ]
-print(GccCGenerator().visit(pycparser.c_ast.FileAST(ext=[
-    *func_pointer_declarations,
-    setup_function_pointers,
-    *static_args_wrapper_func_declarations,
-])))
+pathlib.Path("libc_hooks.h").write_text(
+    GccCGenerator().visit(
+        pycparser.c_ast.FileAST(ext=[
+            *func_pointer_declarations,
+        ])
+    )
+)
+pathlib.Path("libc_hooks.c").write_text(
+    GccCGenerator().visit(
+        pycparser.c_ast.FileAST(ext=[
+            setup_function_pointers,
+            *static_args_wrapper_func_declarations,
+        ])
+    )
+)

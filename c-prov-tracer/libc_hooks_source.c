@@ -42,26 +42,26 @@ int __type_mode_t;
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         if (prov_log_is_enabled()) {
-            path = normalize_path(AT_FDCWD, filename);
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
         }
     });
     void* post_call = ({
         if (prov_log_is_enabled() && ret != NULL) {
             prov_log_record(make_op(fopen_to_opcode(opentype), path, fileno(ret), null_mode));
-            fd_table_associate(path, fileno(ret));
+            fd_table_associate(fileno(ret), path);
         }
     });
 }
 fn fopen64 = fopen;
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         int original_fd = null_fd;
         if (prov_log_is_enabled()) {
-            path = normalize_path(AT_FDCWD, filename);
+            path = normalize_path(path, AT_FDCWD, filename);
             original_fd = fileno(stream);
             prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
         }
@@ -69,9 +69,9 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* post_call = ({
         if (prov_log_is_enabled()) {
             if (ret != NULL) {
-                prov_log_record(make_op(Close, get_null_path(), original_fd, null_mode));
+                prov_log_record(make_op(Close, null_path, original_fd, null_mode));
                 prov_log_record(make_op(fopen_to_opcode(opentype), path, fileno(ret), null_mode));
-                fd_table_associate(path, fileno(ret));
+                fd_table_associate(fileno(ret), path);
             } else {
                 fprintf(stderr, "Don't know how to handle the case where freopen fails. Does it fail during close, the open, or both?\n");
                 abort();
@@ -89,7 +89,7 @@ int fclose (FILE *stream) {
     });
     void* post_call = ({
         if (prov_log_is_enabled() && ret == 0) {
-            prov_log_record(make_op(Close, get_null_path(), original_fd, null_mode));
+            prov_log_record(make_op(Close, null_path, original_fd, null_mode));
             fd_table_close(original_fd);
         }
     });
@@ -99,7 +99,7 @@ int fcloseall(void) {
         if (prov_log_is_enabled() && ret == 0) {
             size_t upper_limit = fd_table_size();
             for (size_t fd = 0; fd < upper_limit; ++fd) {
-                prov_log_record(make_op(Close, get_null_path(), fd, null_mode));
+                prov_log_record(make_op(Close, null_path, fd, null_mode));
                 fd_table_close(fd);
             }
         }
@@ -113,11 +113,11 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open64.c#L33
      */
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
         mode_t mode_arg = null_mode;
         if (prov_log_is_enabled()) {
-            path = normalize_path(dirfd, pathname);
+            path = normalize_path(path, dirfd, pathname);
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
@@ -130,7 +130,7 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     void* post_call = ({
         if (prov_log_is_enabled() && ret != -1) {
             prov_log_record(make_op(open_flag_to_opcode(flags), path, ret, mode_arg));
-            fd_table_associate(path, ret);
+            fd_table_associate(ret, path);
         }
     });
 }
@@ -147,7 +147,7 @@ int open (const char *filename, int flags, ...) {
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/io/fcntl.h#L40
      */
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
         mode_t mode_arg = null_mode;
         if (prov_log_is_enabled()) {
@@ -157,23 +157,23 @@ int open (const char *filename, int flags, ...) {
                 mode_arg = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
-            path = normalize_path(AT_FDCWD, filename);
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(MetadataRead, path, null_fd, mode_arg));
         }
     });
     void* post_call = ({
         if (prov_log_is_enabled() && ret != -1) {
             prov_log_record(make_op(open_flag_to_opcode(flags), path, ret, mode_arg));
-            fd_table_associate(path, ret);
+            fd_table_associate(ret, path);
         }
     });
 }
 fn open64 = open;
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         if (prov_log_is_enabled()) {
-            path = normalize_path(AT_FDCWD, filename);
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
         }
     });
@@ -181,7 +181,7 @@ int creat (const char *filename, mode_t mode) {
         if (prov_log_is_enabled() && ret != -1) {
             /* TODO: check that this should be open with writepart */
             prov_log_record(make_op(OpenWritePart, path, ret, mode));
-            fd_table_associate(path, ret);
+            fd_table_associate(ret, path);
         }
     });
 }
@@ -189,7 +189,7 @@ fn create64 = creat;
 int close (int filedes) {
     void* post_call = ({
          if (prov_log_is_enabled() && ret == 0) {
-            prov_log_record(make_op(Close, get_null_path(), filedes, null_mode));
+            prov_log_record(make_op(Close, null_path, filedes, null_mode));
             fd_table_close(filedes);
         }
     });
@@ -201,7 +201,7 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
             for (size_t fd = lowfd; fd < maxfd; ++fd) {
                 if (fd_table_is_used(fd)) {
                     fd_table_close(fd);
-                    prov_log_record(make_op(Close, get_null_path(), fd, null_mode));
+                    prov_log_record(make_op(Close, null_path, fd, null_mode));
                 }
             }
         } else {
@@ -218,7 +218,7 @@ void closefrom (int lowfd) {
             for (size_t fd = lowfd; fd < maxfd; ++fd) {
                 if (fd_table_is_used(fd)) {
                     fd_table_close(fd);
-                    prov_log_record(make_op(Close, get_null_path(), fd, null_mode));
+                    prov_log_record(make_op(Close, null_path, fd, null_mode));
                 }
             }
         }
@@ -255,29 +255,29 @@ int fcntl (int filedes, int command, ...) {
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-Directory.html */
 int chdir (const char *filename) {
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         if (prov_log_is_enabled()) {
-            path = normalize_path(AT_FDCWD, filename);
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(Chdir, path, null_fd, null_mode));
         }
     });
     void* post_call = ({
         if (prov_log_is_enabled()) {
-            dir_tracker_chdir(path);
+            track_chdir(path);
         }
     });
 }
 int fchdir (int filedes) {
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         if (prov_log_is_enabled()) {
-            path = normalize_path(filedes, "");
+            path = normalize_path(path, filedes, NULL);
             prov_log_record(make_op(Chdir, path, null_fd, null_mode));
         }
     });
     void* post_call = ({
         if (prov_log_is_enabled()) {
-            dir_tracker_chdir(path);
+            track_chdir(path);
         }
     });
 }
@@ -285,9 +285,9 @@ int fchdir (int filedes) {
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-a-Directory.html */
 DIR * opendir (const char *dirname) {
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         if (prov_log_is_enabled()) {
-            path = normalize_path(AT_FDCWD, dirname);
+            path = normalize_path(path, AT_FDCWD, dirname);
             prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
         }
     });
@@ -295,15 +295,15 @@ DIR * opendir (const char *dirname) {
         if (prov_log_is_enabled() && ret != NULL) {
             int fd = dirfd(ret);
             prov_log_record(make_op(OpenDir, path, fd, null_mode));
-            fd_table_associate(path, fd);
+            fd_table_associate(fd, path);
         }
     });
 }
 DIR * fdopendir (int fd) {
     void* pre_call = ({
-        struct Path path;
+        char* path = NULL;
         if (prov_log_is_enabled()) {
-            path = normalize_path(fd, "");
+            path = normalize_path(path, fd, NULL);
             prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
         }
     });
@@ -311,7 +311,7 @@ DIR * fdopendir (int fd) {
         if (prov_log_is_enabled() && ret != NULL) {
             int fd = dirfd(ret);
             prov_log_record(make_op(OpenDir, path, fd, null_mode));
-            fd_table_associate(path, fd);
+            fd_table_associate(fd, path);
         }
     });
 }
@@ -353,6 +353,8 @@ int symlink (const char *oldname, const char *newname) { }
 int symlinkat(const char *target, int newdirfd, const char *linkpath) { }
 ssize_t readlink (const char *filename, char *buffer, size_t size) { }
 ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size) { }
+char * canonicalize_file_name (const char *name) { }
+char * realpath (const char *restrict name, char *restrict resolved) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html */
 int unlink (const char *filename) { }
@@ -417,7 +419,8 @@ char * mkdtemp (char *template) { }
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
         if (prov_log_is_enabled()) {
-            struct Path path = from_abs_path(filename);
+            char* path = NULL;
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(Execute, path, null_fd, null_mode));
             prov_log_save();
         } else {
@@ -428,7 +431,8 @@ int execv (const char *filename, char *const argv[]) {
 int execl (const char *filename, const char *arg0, ...) {
         void* pre_call = ({
         if (prov_log_is_enabled()) {
-            struct Path path = from_abs_path(filename);
+            char* path = NULL;
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(Execute, path, null_fd, null_mode));
             prov_log_save();
         } else {
@@ -447,7 +451,8 @@ int execl (const char *filename, const char *arg0, ...) {
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
         if (prov_log_is_enabled()) {
-            struct Path path = from_abs_path(filename);
+            char* path = NULL;
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(Execute, path, null_fd, null_mode));
             prov_log_save();
         } else {
@@ -458,7 +463,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
 int fexecve (int fd, char *const argv[], char *const env[]) {
     void* pre_call = ({
         if (prov_log_is_enabled()) {
-            prov_log_record(make_op(Execute, get_null_path(), fd, null_mode));
+            prov_log_record(make_op(Execute, null_path, fd, null_mode));
             prov_log_save();
         } else {
             prov_log_save();
@@ -468,7 +473,8 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
 int execle (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
         if (prov_log_is_enabled()) {
-            struct Path path = from_abs_path(filename);
+            char* path = NULL;
+            path = normalize_path(path, AT_FDCWD, filename);
             prov_log_record(make_op(Execute, path, null_fd, null_mode));
             prov_log_save();
         } else {
@@ -487,11 +493,10 @@ int execle (const char *filename, const char *arg0, ...) {
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
         if (prov_log_is_enabled()) {
-            char* true_filename = lookup_on_path(filename);
-            if (true_filename) {
-                struct Path path = from_abs_path(true_filename);
+            char* path = NULL;
+            bool bin_exists = lookup_on_path(path, filename);
+            if (bin_exists) {
                 prov_log_record(make_op(Execute, path, null_fd, null_mode));
-                free(true_filename);
                 prov_log_save();
             }
         } else {
@@ -509,11 +514,10 @@ int execlp (const char *filename, const char *arg0, ...) {
     });
     void* pre_call = ({
         if (prov_log_is_enabled()) {
-            char* true_filename = lookup_on_path(filename);
-            if (true_filename) {
-                struct Path path = from_abs_path(true_filename);
+            char* path = NULL;
+            bool bin_exists = lookup_on_path(path, filename);
+            if (bin_exists) {
                 prov_log_record(make_op(Execute, path, null_fd, null_mode));
-                free(true_filename);
                 prov_log_save();
             }
         } else {
@@ -527,11 +531,10 @@ int execlp (const char *filename, const char *arg0, ...) {
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
     void* pre_call = ({
         if (prov_log_is_enabled()) {
-            char* true_filename = lookup_on_path(argv[0]);
-            if (true_filename) {
-                struct Path path = from_abs_path(true_filename);
+            char* path = NULL;
+            bool bin_exists = lookup_on_path(path, argv[0]);
+            if (bin_exists) {
                 prov_log_record(make_op(Execute, path, null_fd, null_mode));
-                free(true_filename);
                 prov_log_save();
             }
         } else {

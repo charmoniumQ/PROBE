@@ -1,4 +1,5 @@
 .prov
 libprov.so
-libprov_middle.c
+libc_hooks.c
+libc_hooks.h
 __pycache__/
