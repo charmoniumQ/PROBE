@@ -35,6 +35,8 @@ typedef void* OpCode;
 typedef void* fn;
 typedef void* va_list;
 struct Path;
+struct utimbuf;
+struct dirent;
 int __type_mode_t;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
@@ -314,12 +316,24 @@ DIR * fdopendir (int fd) {
     });
 }
 
-/* TODO: add readdir (need directory listing order) */
-/*  We don't need to do these, since we track opendir
- * readdir readdir_r readdir64 readdir64_r
- * rewindir, seekdir, telldir
- * scandir, scandirat
- */
+/* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html */
+struct dirent * readdir (DIR *dirstream) { }
+int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) { }
+struct dirent64 * readdir64 (DIR *dirstream) { }
+int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) { }
+int closedir (DIR *dirstream) { }
+
+/* https://www.gnu.org/software/libc/manual/html_node/Random-Access-Directory.html */
+void rewinddir (DIR *dirstream) { }
+long int telldir (DIR *dirstream) { }
+void seekdir (DIR *dirstream, long int pos) { }
+
+/* https://www.gnu.org/software/libc/manual/html_node/Scanning-Directory-Content.html */
+int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const struct dirent *), int (*cmp) (const struct dirent **, const struct dirent **)) { }
+int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) { }
+
+/* https://www.gnu.org/software/libc/manual/html_node/Low_002dlevel-Directory-Access.html */
+ssize_t getdents64 (int fd, void *buffer, size_t length) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-with-Directory-Trees.html */
 /* Need: These operations walk a directory recursively */
@@ -374,11 +388,10 @@ int fchmod (int filedes, mode_t mode) { }
 int access (const char *filename, int how) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Times.html */
-/* TODO */
-/* int utime (const char *filename, const struct utimbuf *times) { } */
-/* int utimes (const char *filename, const struct timeval tvp[2]) { } */
-/* int lutimes (const char *filename, const struct timeval tvp[2]) { } */
-/* int futimes (int fd, const struct timeval tvp[2]) { } */
+int utime (const char *filename, const struct utimbuf *times) { }
+int utimes (const char *filename, const struct timeval tvp[2]) { }
+int lutimes (const char *filename, const struct timeval tvp[2]) { }
+int futimes (int fd, const struct timeval tvp[2]) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Size.html */
 int truncate (const char *filename, off_t length) { }
@@ -392,9 +405,8 @@ int mknod (const char *filename, mode_t mode, dev_t dev) { }
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Temporary-Files.html */
 FILE * tmpfile (void) { }
 FILE * tmpfile64 (void) { }
-/* TODO */
-/* char * tmpnam (char *result) { } */
-/* char * tmpnam_r (char *result) { } */
+char * tmpnam (char *result) { }
+char * tmpnam_r (char *result) { }
 char * tempnam (const char *dir, const char *prefix) { }
 char * mktemp (char *template) { }
 int mkstemp (char *template) { }

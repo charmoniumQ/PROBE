@@ -22,6 +22,7 @@
  */
 pid_t getpid(void);
 pid_t gettid(void);
+struct utimbuf;
 
 /*
  * OWNED/BORROWED determins who is responsible for freeing a pointer received or returned by a function-call.

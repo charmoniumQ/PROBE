@@ -1,4 +1,4 @@
-CFLAGS=-Wno-cast-function-type -g -std=c11 -ldl -Wall -Wextra -nostdlib -nodefaultlibs -fPIC
+CFLAGS=-Wno-cast-function-type -Wno-array-parameter -g -std=c11 -ldl -Wall -Wextra -nostdlib -nodefaultlibs -fPIC
 
 test-raw: libprov.so
 	rm -rf .prov && env LD_PRELOAD=./libprov.so LIBPROV_DIR=.prov/ bash -c 'head flake.nix' && cat .prov/*
