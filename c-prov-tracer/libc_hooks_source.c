@@ -30,11 +30,9 @@ typedef int bool;
 struct stat;
 struct stat64;
 struct utimebuf;
-typedef void* Path;
 typedef void* OpCode;
 typedef void* fn;
 typedef void* va_list;
-struct Path;
 struct utimbuf;
 struct dirent;
 int __type_mode_t;
@@ -42,40 +40,29 @@ int __type_mode_t;
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
     void* pre_call = ({
-        char* path = NULL;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, null_mode));
         }
     });
     void* post_call = ({
-        if (prov_log_is_enabled() && ret != NULL) {
-            prov_log_record(make_op(fopen_to_opcode(opentype), strndup(path, PATH_MAX), fileno(ret), null_mode));
-            fd_table_associate(fileno(ret), path);
+        if (likely(prov_log_is_enabled() && ret != NULL)) {
+            prov_log_record(make_op(fopen_to_opcode(opentype), AT_FDCWD, filename, fileno(ret), null_mode));
         }
     });
 }
 fn fopen64 = fopen;
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
-        char* path = NULL;
         int original_fd = null_fd;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, AT_FDCWD, filename);
+        if (likely(prov_log_is_enabled())) {
             original_fd = fileno(stream);
-            prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
+            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, null_mode));
         }
     });
     void* post_call = ({
-        if (prov_log_is_enabled()) {
-            if (ret != NULL) {
-                prov_log_record(make_op(Close, null_path, original_fd, null_mode));
-                prov_log_record(make_op(fopen_to_opcode(opentype), strndup(path, PATH_MAX), fileno(ret), null_mode));
-                fd_table_associate(fileno(ret), path);
-            } else {
-                fprintf(stderr, "Don't know how to handle the case where freopen fails. Does it fail during close, the open, or both?\n");
-                abort();
-            }
+        if (likely(prov_log_is_enabled() && ret != NULL)) {
+            prov_log_record(make_op(Close, AT_FDCWD, NULL, original_fd, null_mode));
+            prov_log_record(make_op(fopen_to_opcode(opentype), AT_FDCWD, filename, fileno(ret), null_mode));
         }
     });
 }
@@ -88,19 +75,17 @@ int fclose (FILE *stream) {
         int original_fd = fileno(stream);
     });
     void* post_call = ({
-        if (prov_log_is_enabled() && ret == 0) {
-            prov_log_record(make_op(Close, null_path, original_fd, null_mode));
-            fd_table_close(original_fd);
+        if (likely(prov_log_is_enabled() && ret == 0)) {
+            prov_log_record(make_op(Close, null_fd, NULL, original_fd, null_mode));
         }
     });
 }
 int fcloseall(void) {
     void* post_call = ({
-        if (prov_log_is_enabled() && ret == 0) {
+        if (likely(prov_log_is_enabled() && ret == 0)) {
             size_t upper_limit = fd_table_size();
             for (size_t fd = 0; fd < upper_limit; ++fd) {
-                prov_log_record(make_op(Close, null_path, fd, null_mode));
-                fd_table_close(fd);
+                prov_log_record(make_op(Close, null_fd, NULL, fd, null_mode));
             }
         }
     });
@@ -113,24 +98,21 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open64.c#L33
      */
     void* pre_call = ({
-        char* path = NULL;
         bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
         mode_t mode_arg = null_mode;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, dirfd, pathname);
+        if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
                 mode_arg = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
-            prov_log_record(make_op(MetadataRead, path, null_fd, mode_arg));
+            prov_log_record(make_op(MetadataRead, dirfd, pathname, null_fd, mode_arg));
         }
     });
     void* post_call = ({
-        if (prov_log_is_enabled() && ret != -1) {
-            prov_log_record(make_op(open_flag_to_opcode(flags), strndup(path, PATH_MAX), ret, mode_arg));
-            fd_table_associate(ret, path);
+        if (likely(prov_log_is_enabled() && ret != -1)) {
+            prov_log_record(make_op(open_flag_to_opcode(flags), dirfd, pathname, ret, mode_arg));
         }
     });
 }
@@ -147,61 +129,52 @@ int open (const char *filename, int flags, ...) {
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/io/fcntl.h#L40
      */
     void* pre_call = ({
-        char* path = NULL;
         bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
         mode_t mode_arg = null_mode;
-        if (prov_log_is_enabled()) {
+        if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
                 mode_arg = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(MetadataRead, path, null_fd, mode_arg));
+            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, mode_arg));
         }
     });
     void* post_call = ({
-        if (prov_log_is_enabled() && ret != -1) {
-            prov_log_record(make_op(open_flag_to_opcode(flags), strndup(path, PATH_MAX), ret, mode_arg));
-            fd_table_associate(ret, path);
+        if (likely(prov_log_is_enabled() && ret != -1)) {
+            prov_log_record(make_op(open_flag_to_opcode(flags), AT_FDCWD, filename, ret, mode_arg));
         }
     });
 }
 fn open64 = open;
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
-        char* path = NULL;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, null_mode));
         }
     });
     void* post_call = ({
-        if (prov_log_is_enabled() && ret != -1) {
-            /* TODO: check that this should be open with writepart */
-            prov_log_record(make_op(OpenWritePart, strndup(path, PATH_MAX), ret, mode));
-            fd_table_associate(ret, path);
+        if (likely(prov_log_is_enabled() && ret != -1)) {
+            prov_log_record(make_op(OpenOverWrite, AT_FDCWD, filename, ret, mode));
         }
     });
 }
 fn create64 = creat;
 int close (int filedes) {
     void* post_call = ({
-         if (prov_log_is_enabled() && ret == 0) {
-            prov_log_record(make_op(Close, null_path, filedes, null_mode));
-            fd_table_close(filedes);
+         if (likely(prov_log_is_enabled() && ret == 0)) {
+            prov_log_record(make_op(Close, null_fd, NULL, filedes, null_mode));
         }
     });
 }
 int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
     void* post_call = ({
-        if (prov_log_is_enabled() && ret == 0) {
+        if (likely(prov_log_is_enabled() && ret == 0)) {
             size_t maxfd = fd_table_size();
             for (size_t fd = lowfd; fd < maxfd; ++fd) {
                 if (fd_table_is_used(fd)) {
-                    fd_table_close(fd);
-                    prov_log_record(make_op(Close, null_path, fd, null_mode));
+                    prov_log_record(make_op(Close, null_fd, NULL, fd, null_mode));
                 }
             }
         } else {
@@ -213,12 +186,11 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
 }
 void closefrom (int lowfd) {
     void* post_call = ({
-        if (prov_log_is_enabled()) {
+        if (likely(prov_log_is_enabled())) {
             size_t maxfd = fd_table_size();
             for (size_t fd = lowfd; fd < maxfd; ++fd) {
                 if (fd_table_is_used(fd)) {
-                    fd_table_close(fd);
-                    prov_log_record(make_op(Close, null_path, fd, null_mode));
+                    prov_log_record(make_op(Close, null_fd, NULL, fd, null_mode));
                 }
             }
         }
@@ -254,64 +226,33 @@ int fcntl (int filedes, int command, ...) {
 /* Need: We need this so that opens relative to the current working directory can be resolved */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-Directory.html */
 int chdir (const char *filename) {
-    void* pre_call = ({
-        char* path = NULL;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(Chdir, path, null_fd, null_mode));
-        }
-    });
     void* post_call = ({
-        if (prov_log_is_enabled()) {
-            track_chdir(path);
+        if (likely(prov_log_is_enabled() && ret == 0)) {
+            prov_log_record(make_op(Chdir, AT_FDCWD, filename, null_fd, null_mode));
         }
     });
 }
 int fchdir (int filedes) {
-    void* pre_call = ({
-        char* path = NULL;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, filedes, NULL);
-            prov_log_record(make_op(Chdir, path, null_fd, null_mode));
-        }
-    });
     void* post_call = ({
-        if (prov_log_is_enabled()) {
-            track_chdir(path);
+        if (likely(prov_log_is_enabled() && ret == 0)) {
+            prov_log_record(make_op(Chdir, filedes, "", null_fd, null_mode));
         }
     });
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-a-Directory.html */
 DIR * opendir (const char *dirname) {
-    void* pre_call = ({
-        char* path = NULL;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, AT_FDCWD, dirname);
-            prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
-        }
-    });
     void* post_call = ({
-        if (prov_log_is_enabled() && ret != NULL) {
+        if (likely(prov_log_is_enabled() && ret != NULL)) {
             int fd = dirfd(ret);
-            prov_log_record(make_op(OpenDir, strndup(path, PATH_MAX), fd, null_mode));
-            fd_table_associate(fd, path);
+            prov_log_record(make_op(OpenDir, AT_FDCWD, dirname, fd, null_mode));
         }
     });
 }
 DIR * fdopendir (int fd) {
-    void* pre_call = ({
-        char* path = NULL;
-        if (prov_log_is_enabled()) {
-            path = normalize_path(path, fd, NULL);
-            prov_log_record(make_op(MetadataRead, path, null_fd, null_mode));
-        }
-    });
     void* post_call = ({
-        if (prov_log_is_enabled() && ret != NULL) {
-            int fd = dirfd(ret);
-            prov_log_record(make_op(OpenDir, strndup(path, PATH_MAX), fd, null_mode));
-            fd_table_associate(fd, path);
+        if (likely(prov_log_is_enabled() && ret != NULL)) {
+            prov_log_record(make_op(OpenDir, fd, "", null_fd, null_mode));
         }
     });
 }
@@ -418,10 +359,8 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            char* path = NULL;
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(Execute, path, null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
             prov_log_save();
         } else {
             prov_log_save();
@@ -430,10 +369,8 @@ int execv (const char *filename, char *const argv[]) {
 }
 int execl (const char *filename, const char *arg0, ...) {
         void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            char* path = NULL;
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(Execute, path, null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
             prov_log_save();
         } else {
             prov_log_save();
@@ -450,10 +387,8 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            char* path = NULL;
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(Execute, path, null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
             prov_log_save();
         } else {
             prov_log_save();
@@ -462,8 +397,8 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            prov_log_record(make_op(Execute, null_path, fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            prov_log_record(make_op(Execute, null_fd, NULL, fd, null_mode));
             prov_log_save();
         } else {
             prov_log_save();
@@ -472,10 +407,8 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
 }
 int execle (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            char* path = NULL;
-            path = normalize_path(path, AT_FDCWD, filename);
-            prov_log_record(make_op(Execute, path, null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
             prov_log_save();
         } else {
             prov_log_save();
@@ -492,13 +425,9 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            char* path = NULL;
-            bool bin_exists = lookup_on_path(path, filename);
-            if (bin_exists) {
-                prov_log_record(make_op(Execute, path, null_fd, null_mode));
-                prov_log_save();
-            }
+        if (likely(prov_log_is_enabled())) {
+            lookup_on_path(filename);
+            prov_log_save();
         } else {
             prov_log_save();
         }
@@ -506,6 +435,7 @@ int execvp (const char *filename, char *const argv[]) {
 }
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = ({
+        /* Variadic: var args end with a sentinel NULL arg */
         size_t n_varargs = 0;
         while (n_varargs[arg0]) {
             ++n_varargs;
@@ -513,30 +443,21 @@ int execlp (const char *filename, const char *arg0, ...) {
         sizeof(char*) + (n_varargs + 1) * sizeof(char*);
     });
     void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            char* path = NULL;
-            bool bin_exists = lookup_on_path(path, filename);
-            if (bin_exists) {
-                prov_log_record(make_op(Execute, path, null_fd, null_mode));
-                prov_log_save();
-            }
+        if (likely(prov_log_is_enabled())) {
+            lookup_on_path(filename);
+            prov_log_save();
         } else {
             prov_log_save();
         }
     });
 }
-/* Variadic: var args end with a sentinel NULL arg */
 
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
     void* pre_call = ({
-        if (prov_log_is_enabled()) {
-            char* path = NULL;
-            bool bin_exists = lookup_on_path(path, argv[0]);
-            if (bin_exists) {
-                prov_log_record(make_op(Execute, path, null_fd, null_mode));
-                prov_log_save();
-            }
+        if (likely(prov_log_is_enabled())) {
+            lookup_on_path(argv[0]);
+            prov_log_save();
         } else {
             prov_log_save();
         }
@@ -566,3 +487,7 @@ void exit (int status) {
         __builtin_unreachable();
     });
 }
+
+/*
+** TODO: getcwd, getwd
+ */

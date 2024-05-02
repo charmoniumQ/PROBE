@@ -15,6 +15,8 @@
 #include <stdarg.h>
 #include <sys/resource.h>
 #include <pthread.h>
+#include <malloc.h>
+#include <sys/sysmacros.h>
 
 /*
  * I can't include unistd.h because it also defines dup3.
@@ -32,17 +34,36 @@ char *getcwd(char *buf, size_t size);
  * */
 #define __type_mode_t mode_t
 
+void construct_libprov_thread();
+
+static char* const __prov_log_verbose_envvar = "PROV_LOG_VERBOSE";
+static int __prov_log_verbose = -1;
+/* -1 means unknown; 0 means known false; 1 means known true  */
+static int prov_log_verbose() {
+    if (__prov_log_verbose == -1) {
+        char* __prov_log_verbose_envval = getenv(__prov_log_verbose_envvar);
+        if (__prov_log_verbose_envval && __prov_log_verbose_envval[0] != '\0') {
+            __prov_log_verbose = 1;
+        } else {
+            __prov_log_verbose = 0;
+        }
+    }
+    return __prov_log_verbose;
+}
+
 #include "libc_hooks.h"
 
 #include "util.c"
 
-#include "fd_table.c"
+#include "inode_triple.c"
 
-#include "path_lib.c"
+#include "fd_table.c"
 
 #include "prov_operations.c"
 
 #include "prov_buffer.c"
+
+#include "lookup_on_path.c"
 
 #include "libc_hooks.c"
 

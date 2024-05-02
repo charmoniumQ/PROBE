@@ -13,7 +13,6 @@ int main (int argc, char **argv) {
     }
     char* test = malloc(10);
     free(test);
-    free(test);
 
     #define BUFFER_SIZE 1024
     char buffer [BUFFER_SIZE];

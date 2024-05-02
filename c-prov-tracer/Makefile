@@ -4,10 +4,10 @@ simple: simple.c
 	gcc -g -Wall -Wextra simple.c -o simple
 
 test-simple: libprov.so simple
-	rm -rf .prov && env MALLOC_CHECK_=7 LD_PRELOAD=./libprov.so LIBPROV_DIR=.prov/ head flake.nix && cat .prov/*
+	rm -rf .prov && env MALLOC_CHECK_=7 LD_PRELOAD=./libprov.so PROV_LOG_VERBOSE=1 head flake.nix && cat .prov/*
 
 test-suite: libprov.so test.py
-	python3.12 -m pytest test.py
+	python3.12 -m pytest test.py --maxfail=1 --capture=tee-sys --verbose
 
 gdb: libprov.so
 	gdb --quiet $$(which env) --args $$(which env) MALLOC_CHECK_=0 LD_PRELOAD=./libprov.so head flake.nix

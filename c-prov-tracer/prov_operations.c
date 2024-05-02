@@ -15,8 +15,10 @@ enum OpCode {
 
 struct Op {
     enum OpCode op_code;
-    const char* owned_normalized_path;
+    int dirfd;
+    OWNED const char* path;
     int fd;
+    struct InodeTriple inode_triple;
     mode_t mode;
 };
 
@@ -41,15 +43,20 @@ static enum OpCode fopen_to_opcode(BORROWED const char* fopentype) {
     }
 }
 
-struct Op make_op(enum OpCode op_code, const char* OWNED normalized_path, int fd, mode_t mode) {
+struct Op make_op(enum OpCode op_code, int dirfd, const char* OWNED path, int fd, mode_t mode) {
     struct Op op;
     op.op_code = op_code;
-    if (normalized_path) {
-        assert_is_normalized_path(normalized_path);
-    }
-    op.owned_normalized_path = normalized_path;
+    op.dirfd = dirfd;
     op.fd = fd;
     op.mode = mode;
+    if (path) {
+        op.inode_triple = get_inode_triple(dirfd, path);
+        /* This gets freed when the op gets logged in prov_log_save */
+        EXPECT(, op.path = strndup(path, PATH_MAX));
+    } else {
+        op.inode_triple = null_inode_triple;
+        op.path = path;
+    }
     return op;
 }
 
@@ -75,22 +82,29 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
 
 static void fprintf_op(BORROWED FILE* stream, struct Op op) {
     char null_byte = '\0';
-    /* Technically the path can have anything except null-byte, so I will have to use that as the delimiter */
+    /*
+     * Technically the path can have anything except null-byte, so I will have to use that to delimit the path
+     * The op-code string, on the other hand, comes from an enum above, and can't contain werid chars.
+     * The integers are likewise easy-to-parse.
+     * */
     EXPECT(
         > 0,
         fprintf(
             stream,
-            "%s %d %d %s%c\n",
+            "%s %d %d %d %d %d %d %s%c\n",
             op_code_to_string(op.op_code),
             op.fd,
+            op.dirfd,
             op.mode,
-            op.owned_normalized_path ? op.owned_normalized_path : "",
+            op.inode_triple.inode,
+            op.inode_triple.device_major,
+            op.inode_triple.device_minor,
+            op.path ? op.path : "",
             null_byte));
 }
 
 int null_fd = -1;
 mode_t null_mode = -1;
-const char* null_path = NULL;
 
 enum OpCode open_flag_to_opcode(int flag) {
     if ((flag & O_ACCMODE) == O_RDWR) {

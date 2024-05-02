@@ -14,9 +14,12 @@
 #define OWNED
 #define BORROWED
 
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+
 #define EXPECT(cond, expr) ({\
     size_t ret = (size_t) (expr); \
-    if (!(ret cond)) { \
+    if (unlikely(!(ret cond))) { \
         fprintf(stderr, "failure on %s:%d: %s: !(%ld %s)\nerrno: %d\nstrerror: %s\n", __FILE__, __LINE__, #expr, ret, #cond, errno, strerror(errno)); \
         abort(); \
     } \
@@ -25,26 +28,30 @@
 
 #define CHECK_SNPRINTF(s, n, ...) ({\
         int ret = snprintf(s, n, __VA_ARGS__); \
-        if (ret < 0) { \
+        if (unlikely(ret < 0)) { \
             fprintf(stderr, "failure on %s:%d: snprintf: %s\n", __FILE__, __LINE__, strerror(errno)); \
             abort(); \
         } \
-        if (n <= ret) { \
+        if (unlikely(n <= ret)) { \
             fprintf(stderr, "failure on %s:%d: snprintf: %d-long string exceeds destination %d-long destination buffer\n", __FILE__, __LINE__, ret, n); \
             abort(); } \
     })
 
-static void path_join(char* path_buf, ssize_t left_size, const char* left, ssize_t right_size, const char* right) {
+static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size, BORROWED const char* right) {
     if (left_size == -1) {
         left_size = strlen(left);
     }
     assert(left[left_size] == '\0');
-    EXPECT(, memcpy(path_buf, left, left_size));
-    path_buf[left_size] = '/';
     if (right_size == -1) {
         right_size = strlen(right);
     }
     assert(right[right_size] == '\0');
+    if (!path_buf) {
+        path_buf = malloc(left_size + right_size + 2);
+    }
+    EXPECT(, memcpy(path_buf, left, left_size));
+    path_buf[left_size] = '/';
     EXPECT(, memcpy(path_buf + left_size + 1, right, right_size));
     path_buf[left_size + 1 + right_size] = '\0';
+    return path_buf;
 }

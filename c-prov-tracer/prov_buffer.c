@@ -49,8 +49,32 @@ static void prov_log_record(struct Op op) {
         old_tail->next = __prov_log_tail;
     }
     __prov_log_tail->ops[__prov_log_tail->capacity] = op;
-    //fprintf_op(stderr, op);
+
+    if (prov_log_verbose()) {
+        fprintf(stderr, "prov log op: ");
+        fprintf_op(stderr, op);
+    }
+
     ++__prov_log_tail->capacity;
+    if (op.op_code == OpenRead || op.op_code == OpenReadWrite || op.op_code == OpenOverWrite || op.op_code == OpenWritePart || op.op_code == OpenDir) {
+        assert(op.dirfd);
+        assert(op.path);
+        assert(op.fd);
+        assert(op.inode_triple.inode > 0);
+        fd_table_associate(op.fd, op.dirfd, op.path, op.inode_triple);
+    } else if (op.op_code == Close) {
+        fd_table_close(op.fd);
+    } else if (op.op_code == Chdir) {
+        if (op.path) {
+            assert(op.fd == -1);
+            fd_table_close(AT_FDCWD);
+            fd_table_associate(AT_FDCWD, AT_FDCWD, op.path, op.inode_triple);
+        } else {
+            assert(op.fd > 0);
+            fd_table_close(AT_FDCWD);
+            fd_table_dup(op.fd, AT_FDCWD);
+        }
+    }
 }
 
 static void prov_log_save() {
@@ -82,9 +106,11 @@ static void prov_log_save() {
             while (__prov_log_head != NULL) {
                 for (size_t i = 0; i < __prov_log_head->capacity; ++i) {
                     fprintf_op(log, __prov_log_head->ops[i]);
-                    // Free-ing counts as modifying
-                    free((char*) __prov_log_head->ops[i].owned_normalized_path);
-                    __prov_log_head->ops[i].owned_normalized_path = NULL;
+                    if (__prov_log_head->ops[i].path) {
+                        // Free-ing counts as modifying, so we must cast away the const.
+                        free((char*) __prov_log_head->ops[i].path);
+                    }
+                    __prov_log_head->ops[i].path = NULL;
                 }
                 struct __ProvLogCell* old_head = __prov_log_head;
                 __prov_log_head = __prov_log_head->next;
