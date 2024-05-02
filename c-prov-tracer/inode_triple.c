@@ -12,17 +12,22 @@ struct InodeTriple {
 
 static struct InodeTriple get_inode_triple(int dirfd, BORROWED const char* path) {
     struct InodeTriple ret = {0};
-    struct statx statx_buf = {0};
     assert(dirfd > 0 || dirfd == AT_FDCWD);
     assert(path);
+    int stat_ret;
+    struct stat stat_buf;
     /*
-     * AT_EMPTY_PATH means that if path == "", then the target for statx is the dir specified by dirfd.
+     * if path == "", then the target is the dir specified by dirfd.
      * */
-    int statx_ret = o_statx(dirfd, path, AT_EMPTY_PATH, STATX_INO, &statx_buf);
-    if (statx_ret == 0) {
-        ret.device_major = statx_buf.stx_dev_major;
-        ret.device_minor = statx_buf.stx_dev_minor;
-        ret.inode = statx_buf.stx_ino;
+    if (path[0] == '\0') {
+        stat_ret = o_fstat(dirfd, &stat_buf);
+    } else {
+        stat_ret = o_fstatat(dirfd, path, &stat_buf, 0);
+    }
+    if (stat_ret == 0) {
+        ret.device_major = major(stat_buf.st_dev);
+        ret.device_minor = minor(stat_buf.st_dev);
+        ret.inode = stat_buf.st_ino;
         assert(ret.inode > 0);
     } else {
         ret.inode = -1;

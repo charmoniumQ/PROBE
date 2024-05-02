@@ -82,12 +82,12 @@ static void prov_log_save() {
         prov_log_disable();
         {
             char* prov_log_dir = get_prov_log_dir();
-            struct statx prov_dir_statx;
-            int prov_dir_statx_ret = o_statx(AT_FDCWD, prov_log_dir, 0, STATX_TYPE, &prov_dir_statx);
-            if (prov_dir_statx_ret != 0) {
+            struct stat stat_buf;
+            int stat_ret = o_fstatat(AT_FDCWD, prov_log_dir, &stat_buf, 0);
+            if (stat_ret != 0) {
                 EXPECT(== 0, o_mkdir(prov_log_dir, 0755));
             } else {
-                if ((prov_dir_statx.stx_mode & S_IFMT) != S_IFDIR) {
+                if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
                     fprintf(stderr, "%s already exists but is not a directory\n", prov_log_dir);
                     abort();
                 }

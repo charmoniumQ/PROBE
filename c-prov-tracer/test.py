@@ -81,7 +81,7 @@ def match_list(actual_ops: tuple[Op, ...], expected_ops: tuple[Op | MatchAny, ..
 
 def run_command_with_prov(
         cmd: tuple[str, ...],
-        verbose: bool = True,
+        verbose: bool = False,
 ) -> tuple[Op, ...]:
     with tempfile.TemporaryDirectory() as _prov_log_dir:
         prov_log_dir = pathlib.Path(_prov_log_dir)
