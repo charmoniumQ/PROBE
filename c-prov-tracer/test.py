@@ -67,7 +67,7 @@ def match_list(actual_ops: tuple[Op, ...], expected_ops: tuple[Op | MatchAny, ..
     assert len(actual_ops) == len(expected_ops)
     expected_op_index = 0
     for actual_op, expected_op in zip(actual_ops, expected_ops):
-        # print("Actual:", actual_op)
+        print("Actual:", actual_op)
         # print("Expected:", expected_op)
         if not isinstance(expected_op, MatchAny):
             assert actual_op.op_code == expected_op.op_code
@@ -81,7 +81,7 @@ def match_list(actual_ops: tuple[Op, ...], expected_ops: tuple[Op | MatchAny, ..
 
 def run_command_with_prov(
         cmd: tuple[str, ...],
-        verbose: bool = False,
+        verbose: bool = True,
 ) -> tuple[Op, ...]:
     with tempfile.TemporaryDirectory() as _prov_log_dir:
         prov_log_dir = pathlib.Path(_prov_log_dir)

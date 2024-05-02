@@ -319,6 +319,14 @@ int lstat64 (const char *filename, struct stat64 *buf) { }
 /* Docs: https://www.man7.org/linux/man-pages/man2/statx.2.html */
 int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf) { }
 
+/* Docs: https://linux.die.net/man/2/fstatat */
+int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags) {}
+fn fstatat64 = fstatat;
+fn newfstatat = fstatat;
+
+/* Docs: https://linux.die.net/man/2/faccessat */
+int faccessat(int dirfd, const char *pathname, int mode, int flags);
+
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
 int chown (const char *filename, uid_t owner, gid_t group) { }
 int fchown (int filedes, uid_t owner, gid_t group) { }
