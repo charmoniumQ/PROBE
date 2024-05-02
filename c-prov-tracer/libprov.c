@@ -11,7 +11,6 @@
 #include <dlfcn.h>
 #include <sys/types.h>
 #include <dirent.h>
-#include <ftw.h>
 #include <stdarg.h>
 #include <sys/resource.h>
 #include <pthread.h>
@@ -20,7 +19,7 @@
 
 /*
  * I can't include unistd.h because it also defines dup3.
- */
+  */
 pid_t getpid(void);
 pid_t gettid(void);
 struct utimbuf;

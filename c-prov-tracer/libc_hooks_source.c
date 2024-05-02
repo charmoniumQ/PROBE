@@ -278,10 +278,13 @@ ssize_t getdents64 (int fd, void *buffer, size_t length) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-with-Directory-Trees.html */
 /* Need: These operations walk a directory recursively */
+/*
 int ftw (const char *filename, __ftw_func_t func, int descriptors) { }
 int ftw64 (const char *filename, __ftw64_func_t func, int descriptors) { }
 int nftw (const char *filename, __nftw_func_t func, int descriptors, int flag) { }
 int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int flag) { }
+I can't include ftw.h on some systems because it defines fstatat as extern int on Sandia machines.
+*/
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html */
 int link (const char *oldname, const char *newname) { }
