@@ -1,4 +1,4 @@
-CFLAGS=-Wno-cast-function-type -Wno-array-parameter -g -std=c11 -ldl -Wall -Wextra -fPIC
+CFLAGS=-Wno-cast-function-type -Wno-array-parameter -g -std=c11 -ldl -Wall -Wextra -fPIC -pthread
 
 simple: simple.c
 	gcc -g -Wall -Wextra simple.c -o simple
@@ -18,7 +18,7 @@ valgrind: libprov.so simple
 pdb: gen_libc_hooks.py libc_hooks_source.c
 	python3.12 -m pdb gen_libc_hooks.py
 
-libprov.so: *.c
+libprov.so: *.c libc_hooks.c
 	gcc $(CFLAGS) -shared -o $@ libprov.c
 
 libc_hooks.c: gen_libc_hooks.py libc_hooks_source.c

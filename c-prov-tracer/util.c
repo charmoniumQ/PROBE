@@ -18,9 +18,10 @@
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
 #define EXPECT(cond, expr) ({\
+    errno = 0; \
     size_t ret = (size_t) (expr); \
     if (unlikely(!(ret cond))) { \
-        fprintf(stderr, "failure on %s:%d: %s: !(%ld %s)\nerrno: %d\nstrerror: %s\n", __FILE__, __LINE__, #expr, ret, #cond, errno, strerror(errno)); \
+        fprintf(stderr, "failure on %s:%d: %s: assertion !(%ret %s) failed for ret=%ld; errno=%d, strerror(errno)=\"%s\"\n", __FILE__, __LINE__, #expr, #cond, ret, errno, strerror(errno)); \
         abort(); \
     } \
     ret; \
