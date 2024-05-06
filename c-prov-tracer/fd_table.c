@@ -30,8 +30,6 @@ static int __unmap_fd(int fd) {
     return (fd == 0) ? AT_FDCWD : (fd - 1);
 }
 
-const char* NULL_PATH = "";
-
 static void __fd_table_ensure_capacity(int mapped_fd) {
     if (unlikely(mapped_fd >= __fd_table_capacity)) {
         size_t new_fd_table_capacity = __fd_table_size_factor * (mapped_fd / __fd_table_size_factor + 1);
@@ -66,8 +64,32 @@ static void __fd_table_ensure_capacity(int mapped_fd) {
             __fd_table[__map_fd(AT_FDCWD)].dirfd_version = 0;
             __fd_table[__map_fd(AT_FDCWD)].fd = AT_FDCWD;
             __fd_table[__map_fd(AT_FDCWD)].version = 0;
-            __fd_table[__map_fd(AT_FDCWD)].path = NULL_PATH;
+            __fd_table[__map_fd(AT_FDCWD)].path = strndup("", PATH_MAX);
             __fd_table[__map_fd(AT_FDCWD)].inode_triple = get_inode_triple(AT_FDCWD, "");
+
+	    /*
+	     * Set up default stdin, stderr, stdout
+	     * */
+	    __fd_table[__map_fd(STDIN_FILENO)].dirfd = AT_FDCWD;
+	    __fd_table[__map_fd(STDIN_FILENO)].dirfd_version = 0;
+	    __fd_table[__map_fd(STDIN_FILENO)].fd = STDIN_FILENO;
+	    __fd_table[__map_fd(STDIN_FILENO)].version = 0;
+	    __fd_table[__map_fd(STDIN_FILENO)].path = strndup("/dev/stdin", PATH_MAX);
+	    __fd_table[__map_fd(STDIN_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stdin");
+
+	    __fd_table[__map_fd(STDOUT_FILENO)].dirfd = AT_FDCWD;
+	    __fd_table[__map_fd(STDOUT_FILENO)].dirfd_version = 0;
+	    __fd_table[__map_fd(STDOUT_FILENO)].fd = STDOUT_FILENO;
+	    __fd_table[__map_fd(STDOUT_FILENO)].version = 0;
+	    __fd_table[__map_fd(STDOUT_FILENO)].path = strndup("/dev/stdout", PATH_MAX);
+	    __fd_table[__map_fd(STDOUT_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stdout");
+
+	    __fd_table[__map_fd(STDERR_FILENO)].dirfd = AT_FDCWD;
+	    __fd_table[__map_fd(STDERR_FILENO)].dirfd_version = 0;
+	    __fd_table[__map_fd(STDERR_FILENO)].fd = STDERR_FILENO;
+	    __fd_table[__map_fd(STDERR_FILENO)].version = 0;
+	    __fd_table[__map_fd(STDERR_FILENO)].path = strndup("/dev/stderr", PATH_MAX);
+	    __fd_table[__map_fd(STDERR_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stderr");
         }
 
         __fd_table_capacity = new_fd_table_capacity;
@@ -108,10 +130,7 @@ static void fd_table_close(int fd) {
     fd = __map_fd(fd);
     EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
     assert(0 <= fd && fd < __fd_table_capacity && __fd_table[fd].path);
-    if (__fd_table[fd].path != NULL_PATH) {
-        /* NULL_PATH is not dynamically allocated; no need to free. */
-        free((char*) __fd_table[fd].path);
-    }
+    free((char*) __fd_table[fd].path);
     __fd_table[fd].path = NULL;
     EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
 }

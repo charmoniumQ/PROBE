@@ -25,6 +25,9 @@ pid_t gettid(void);
 struct utimbuf;
 char *getcwd(char *buf, size_t size);
 struct statx; /* TODO: old glibc's don't have statx. How to deal? */
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)

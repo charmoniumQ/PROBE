@@ -63,13 +63,23 @@ class Op:
         return tuple(output)
 
 
-def match_list(actual_ops: tuple[Op, ...], expected_ops: tuple[Op | MatchAny, ...]):
-    assert len(actual_ops) == len(expected_ops)
+@dataclasses.dataclass
+class OptionalOp:
+    op: Op
+
+
+def match_list(actual_ops: tuple[Op, ...], expected_ops: tuple[OptionalOp | Op | MatchAny, ...]):
+    actual_op_index = 0
     expected_op_index = 0
-    for actual_op, expected_op in zip(actual_ops, expected_ops):
+    while actual_op_index < len(actual_ops):
+        actual_op = actual_ops[actual_op_index]
+        expected_op = expected_ops[expected_op_index]
         print("Actual:", actual_op)
-        # print("Expected:", expected_op)
-        if not isinstance(expected_op, MatchAny):
+        print("Expected:", expected_op)
+        if isinstance(expected_op, MatchAny):
+            expected_op_index += 1
+            actual_op_index += 1
+        elif isinstance(expected_op, Op):
             assert actual_op.op_code == expected_op.op_code
             assert (isinstance(expected_op.fd, MatchPositive) and isinstance(actual_op.fd, int) and actual_op.fd > 0) or actual_op.fd == expected_op.fd
             assert actual_op.dirfd == expected_op.dirfd
@@ -77,6 +87,25 @@ def match_list(actual_ops: tuple[Op, ...], expected_ops: tuple[Op | MatchAny, ..
             assert isinstance(expected_op.device_major, MatchAny) or actual_op.device_major == expected_op.device_major
             assert isinstance(expected_op.device_minor, MatchAny) or actual_op.device_minor == expected_op.device_minor
             assert actual_op.path == expected_op.path
+            expected_op_index += 1
+            actual_op_index += 1
+        elif isinstance(expected_op, OptionalOp):
+            expected_op = expected_op.op
+            if all([
+                    actual_op.op_code == expected_op.op_code,
+                    (isinstance(expected_op.fd, MatchPositive) and isinstance(actual_op.fd, int) and actual_op.fd > 0) or actual_op.fd == expected_op.fd,
+                    actual_op.dirfd == expected_op.dirfd,
+                    (isinstance(expected_op.inode, MatchPositive) and isinstance(actual_op.inode, int) and actual_op.inode > 0) or actual_op.inode == expected_op.inode,
+                    isinstance(expected_op.device_major, MatchAny) or actual_op.device_major == expected_op.device_major,
+                    isinstance(expected_op.device_minor, MatchAny) or actual_op.device_minor == expected_op.device_minor,
+                    actual_op.path == expected_op.path,
+            ]):
+                expected_op_index += 1
+                actual_op_index += 1
+            else:
+                expected_op_index += 1
+        else:
+            raise TypeError()
 
 
 def run_command_with_prov(
@@ -137,8 +166,18 @@ def open_ops(op_code: str, dirfd: int, fd: int | MatchPositive, path: pathlib.Pa
         ),
     )
 
-def isatty_ops(fd: int | MatchPositive) -> tuple[Op, ...]:
-    return (*open_ops("OpenReadWrite", AT_FDCWD, fd, pathlib.Path("/dev/tty")), close_op(3))
+def initial_ops() -> tuple[Op | OptionalOp, ...]:
+    return (
+        # isatty
+        *open_ops("OpenReadWrite", AT_FDCWD, 3, pathlib.Path("/dev/tty")),
+        close_op(3),
+        *map(OptionalOp, open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path("/lib/terminfo/x/xterm"))),
+        OptionalOp(close_op(3)),
+    )
+
+
+def closing_ops() -> tuple[OptionalOp, ...]:
+    return (close_op(1), close_op(2))
 
 
 def test_head() -> None:
@@ -147,6 +186,7 @@ def test_head() -> None:
         (
             *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
             close_op(3),
+            *closing_ops(),
         ),
     )
 
@@ -155,10 +195,11 @@ def test_shell() -> None:
     match_list(
         run_command_with_prov(("bash", "-c", "head --bytes=5 flake.nix")),
         (
-            *isatty_ops(3),
+            *initial_ops(),
             Op(op_code='Execute', fd=NULL_FD, dirfd=AT_FDCWD, inode=MatchPositive(), mode=NULL_MODE, device_major=MatchAny(), device_minor=MatchAny(), path=head),
             *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
             close_op(3),
+            *closing_ops(),
         )
     )
 
@@ -171,14 +212,16 @@ def test_chdir() -> None:
         match_list(
             run_command_with_prov(("bash", "-c", f"head --bytes=5 flake.nix; cd {tmpdir!s}; head --bytes=5 flake.nix")),
             (
-                *isatty_ops(3),
+                *initial_ops(),
                 Op(op_code='Chdir', fd=NULL_FD, dirfd=AT_FDCWD, inode=MatchPositive(), mode=NULL_MODE, device_major=MatchAny(), device_minor=MatchAny(), path=tmpdir),
                 Op(op_code='Execute', fd=NULL_FD, dirfd=AT_FDCWD, inode=MatchPositive(), mode=NULL_MODE, device_major=MatchAny(), device_minor=MatchAny(), path=head),
                 *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
                 close_op(3),
-                *isatty_ops(3),
+                *closing_ops(),
+                *initial_ops(),
                 Op(op_code='Execute', fd=NULL_FD, dirfd=AT_FDCWD, inode=MatchPositive(), mode=NULL_MODE, device_major=MatchAny(), device_minor=MatchAny(), path=head),
                 *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
                 close_op(3),
+                *closing_ops(),
             )
         )
