@@ -9,8 +9,8 @@ run-simple: libprov.so simple
 run-head: libprov.so
 	rm -rf .prov && env MALLOC_CHECK_=7 LD_PRELOAD=./libprov.so PROV_LOG_VERBOSE=1 head flake.nix && cat .prov/*
 
-test-suite: libprov.so test.py
-	python3 -m pytest test.py --maxfail=1 --capture=tee-sys --verbose
+test-suite: libprov.so test_suite.py
+	python3 -m pytest test_suite.py --maxfail=1 --capture=tee-sys --verbose
 
 gdb-head: libprov.so
 	gdb --quiet $$(which env) --args $$(which env) MALLOC_CHECK_=0 PROV_LOG_VERBOSE=1 LD_PRELOAD=./libprov.so head flake.nix

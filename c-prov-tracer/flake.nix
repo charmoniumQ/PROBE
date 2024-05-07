@@ -11,6 +11,7 @@
               (pkgs.python312.withPackages (pypkgs: [
                 pypkgs.pycparser
                 pypkgs.pytest
+                pypkgs.mypy
               ]))
               pkgs.gcc
               pkgs.gdb

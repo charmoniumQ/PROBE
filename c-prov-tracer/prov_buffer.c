@@ -66,7 +66,7 @@ static void prov_log_record(struct Op op) {
         fd_table_close(op.fd);
     } else if (op.op_code == Chdir) {
         if (op.path) {
-            assert(op.fd == -1);
+            assert(op.fd == null_fd);
             fd_table_close(AT_FDCWD);
             fd_table_associate(AT_FDCWD, AT_FDCWD, op.path, op.inode_triple);
         } else {

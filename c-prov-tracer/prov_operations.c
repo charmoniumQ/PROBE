@@ -103,8 +103,8 @@ static void fprintf_op(BORROWED FILE* stream, struct Op op) {
             null_byte));
 }
 
-int null_fd = -1;
-mode_t null_mode = -1;
+int null_fd = -20;
+mode_t null_mode = -20;
 
 enum OpCode open_flag_to_opcode(int flag) {
     if ((flag & O_ACCMODE) == O_RDWR) {

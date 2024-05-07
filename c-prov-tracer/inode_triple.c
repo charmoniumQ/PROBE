@@ -10,8 +10,9 @@ struct InodeTriple {
     int inode;
 };
 
+static const struct InodeTriple null_inode_triple = {-20, -20, -20};
+
 static struct InodeTriple get_inode_triple(int dirfd, BORROWED const char* path) {
-    struct InodeTriple ret = {0};
     assert(dirfd > 0 || dirfd == AT_FDCWD);
     assert(path);
     int stat_ret;
@@ -25,19 +26,16 @@ static struct InodeTriple get_inode_triple(int dirfd, BORROWED const char* path)
         stat_ret = o_fstatat(dirfd, path, &stat_buf, 0);
     }
     if (stat_ret == 0) {
-        ret.device_major = major(stat_buf.st_dev);
-        ret.device_minor = minor(stat_buf.st_dev);
-        ret.inode = stat_buf.st_ino;
+        struct InodeTriple ret = {major(stat_buf.st_dev), minor(stat_buf.st_dev), stat_buf.st_ino};
         assert(ret.inode > 0);
+        if (prov_log_verbose()) {
+            fprintf(stderr, "inode_triple: {device_major=%d, device_minor=%d, inode=%d} = get_inode_triple(%d, \"%s\")\n", ret.device_major, ret.device_minor, ret.inode, dirfd, path);
+        }
+        return ret;
     } else {
-        ret.inode = -1;
-        ret.device_major = -1;
-        ret.device_minor = -1;
+        if (prov_log_verbose()) {
+            fprintf(stderr, "inode_triple: null_inode_triple = get_inode_triple(%d, \"%s\")\n", dirfd, path);
+        }
+        return null_inode_triple;
     }
-    if (prov_log_verbose()) {
-        fprintf(stderr, "inode_triple: {device_major=%d, device_minor=%d, inode=%d} = get_inode_triple(%d, \"%s\")\n", ret.device_major, ret.device_minor, ret.inode, dirfd, path);
-    }
-    return ret;
 }
-
-static const struct InodeTriple null_inode_triple = {-1, -1, -1};
