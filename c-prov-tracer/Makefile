@@ -1,4 +1,7 @@
 CFLAGS=-Wno-cast-function-type -Wno-array-parameter -g -std=c11 -ldl -Wall -Wextra -fPIC -pthread
+ENV ?= /usr/bin/env
+# On some systems, /usr/bin/env is a script that invokes the "true" binary env. GDB needs the binary one.
+# So we use the default-assignment operator ?=.
 
 simple: simple.c
 	gcc -g -Wall -Wextra simple.c -o simple
@@ -13,10 +16,10 @@ test-suite: libprov.so test_suite.py
 	python3 -m pytest test_suite.py --maxfail=1 --capture=tee-sys --verbose
 
 gdb-head: libprov.so
-	gdb --quiet $$(which env) --args $$(which env) MALLOC_CHECK_=0 PROV_LOG_VERBOSE=1 LD_PRELOAD=./libprov.so head flake.nix
+	gdb --quiet --args $(ENV) MALLOC_CHECK_=0 PROV_LOG_VERBOSE=1 LD_PRELOAD=./libprov.so head flake.nix
 
 gdb-simple: libprov.so simple
-	gdb --quiet $$(which env) --args $$(which env) MALLOC_CHECK_=0 PROV_LOG_VERBOSE=1 LD_PRELOAD=./libprov.so ./simple flake.nix
+	gdb --quiet --args $(ENV) MALLOC_CHECK_=0 PROV_LOG_VERBOSE=1 LD_PRELOAD=./libprov.so ./simple flake.nix
 
 valgrind: libprov.so simple
 	valgrind --quiet --trace-children=yes --leak-check=full --track-origins=yes env MALLOC_CHECK_=0 LD_PRELOAD=./libprov.so head flake.nix
@@ -31,6 +34,6 @@ libc_hooks.c: gen_libc_hooks.py libc_hooks_source.c
 	python3 gen_libc_hooks.py
 
 clean:
-	rm libprov.so libc_hooks.{c,h} simple
+	touch libprov.so libc_hooks.{c,h} simple && rm libprov.so libc_hooks.{c,h} simple
 
 .PHONY: clean run-simple run-head run-all gdb-simple gdb-head

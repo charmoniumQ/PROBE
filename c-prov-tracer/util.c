@@ -19,9 +19,19 @@
 
 #define EXPECT(cond, expr) ({\
     errno = 0; \
-    size_t ret = (size_t) (expr); \
+    ssize_t ret = (ssize_t) (expr); \
     if (unlikely(!(ret cond))) { \
         fprintf(stderr, "failure on %s:%d: %s: assertion !(ret %s) failed for ret=%ld; errno=%d, strerror(errno)=\"%s\"\n", __FILE__, __LINE__, #expr, #cond, ret, errno, strerror(errno)); \
+        abort(); \
+    } \
+    ret; \
+})
+
+#define EXPECT_NONNULL(expr) ({\
+    errno = 0; \
+    void* ret = (void*) (expr); \
+    if (unlikely(!ret)) { \
+        fprintf(stderr, "failure on %s:%d: %s returned unexpected null pointer; errno=%d, strerror(errno)=\"%s\"\n", __FILE__, __LINE__, #expr, errno, strerror(errno)); \
         abort(); \
     } \
     ret; \
@@ -36,6 +46,7 @@
         if (unlikely(n <= ret)) { \
             fprintf(stderr, "failure on %s:%d: snprintf: %d-long string exceeds destination %d-long destination buffer\n", __FILE__, __LINE__, ret, n); \
             abort(); } \
+	ret; \
     })
 
 static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size, BORROWED const char* right) {
@@ -56,3 +67,19 @@ static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWE
     path_buf[left_size + 1 + right_size] = '\0';
     return path_buf;
 }
+
+static pid_t my_gettid(){
+    return (pid_t)syscall(SYS_gettid);
+}
+
+#define COUNT_NONNULL_VARARGS(first_vararg) \
+    ({ \
+        va_list vl; \
+        va_start(vl, first_vararg); \
+        size_t n_varargs = 0; \
+        while (va_arg(vl, char*)) { \
+            ++n_varargs; \
+        } \
+        va_end(vl); \
+        n_varargs; \
+    })

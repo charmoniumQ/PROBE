@@ -42,21 +42,23 @@ class Op:
     path: pathlib.Path | None
 
     @staticmethod
-    def parse_prov_log_dir(prov_log_path: pathlib.Path) -> tuple[Op, ...]:
+    def parse_prov_log_dir(prov_log_path: pathlib.Path, verbose: bool = True) -> tuple[Op, ...]:
         output = list[Op]()
         for child in sorted(prov_log_path.iterdir()):
-            output.extend(Op.parse_prov_log_file(child))
+            if verbose:
+                print(child)
+            output.extend(Op.parse_prov_log_file(child, verbose))
         return tuple(output)
 
     @staticmethod
-    def parse_prov_log_file(prov_log_file: pathlib.Path) -> tuple[Op, ...]:
+    def parse_prov_log_file(prov_log_file: pathlib.Path, verbose: bool) -> tuple[Op, ...]:
         output = list[Op]()
         for line in prov_log_file.read_text().split("\0"):
             if line.startswith("\n"):
                 line = line[1:]
             if line:
                 op_code, fd, dirfd, mode, inode, device_major, device_minor, path = line.split(" ")
-                output.append(Op(
+                op = Op(
                     op_code,
                     int(fd) if fd != "-20" else None,
                     int(dirfd) if dirfd != "-20" else None,
@@ -65,7 +67,15 @@ class Op:
                     int(device_major) if device_major != "-20" else None,
                     int(device_minor) if device_minor != "-20" else None,
                     pathlib.Path(path) if path else None,
-                ))
+                )
+                if verbose:
+                    print(op.op_code, end=" ")
+                    if op.fd:
+                        print(op.fd, end=" ")
+                    if op.path:
+                        print(op.path, end=" ")
+                    print()
+                output.append(op)
         return tuple(output)
 
 
@@ -145,21 +155,21 @@ class OpTemplate:
             actual_ops: tuple[Op, ...],
             expected_ops: tuple[OpTemplate | MatchAny, ...],
     ) -> None:
-        i, j, prop, i_val, j_val = OpTemplate.match_list(actual_ops, expected_ops)
+        actual_op_index, expected_op_index, prop, actual, expected = OpTemplate.match_list(actual_ops, expected_ops)
         if prop:
             for i, op in enumerate(actual_ops):
                 print(i, op)
             for i, op2 in enumerate(expected_ops):
                 print(i, op2)
-        assert prop is None, (i, j, prop, i_val, j_val)
+        assert prop is None, (actual_op_index, expected_op_index, prop, actual, expected)
 
 def run_command_with_prov(
         cmd: tuple[str, ...],
-        verbose: bool = False,
+        verbose: bool = True,
 ) -> tuple[Op, ...]:
     with tempfile.TemporaryDirectory() as _prov_log_dir:
         prov_log_dir = pathlib.Path(_prov_log_dir)
-        print("\n$ " + shlex.join(cmd))
+        print(f"\n$ LD_PRELOAD={pwd}/libprov.so " + shlex.join(cmd))
         subprocess.run(
             cmd,
             env={
@@ -219,17 +229,20 @@ def optional_op(op: OpTemplate) -> OpTemplate:
 def initial_ops() -> tuple[OpTemplate, ...]:
     return (
         # isatty
-        *open_ops("OpenReadWrite", AT_FDCWD, 3, pathlib.Path("/dev/tty")),
-        close_op(3),
-        *map(optional_op, open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path("/lib/terminfo/x/xterm"))),
-        optional_op(close_op(3)),
+        *open_ops("OpenReadWrite", AT_FDCWD, MatchPositive(), pathlib.Path("/dev/tty")),
+        close_op(MatchPositive()),
+        *map(optional_op, open_ops("OpenRead", AT_FDCWD, MatchPositive(), pathlib.Path("/lib/terminfo/x/xterm"))),
+        optional_op(close_op(MatchPositive())),
     )
 
 
+STDOUT_FILENO = 1
+STDERR_FILENO = 2
+
 def closing_ops() -> tuple[OpTemplate, ...]:
     return (
-        optional_op(close_op(1)),
-        optional_op(close_op(2)),
+        optional_op(close_op(STDOUT_FILENO)),
+        optional_op(close_op(STDERR_FILENO)),
     )
 
 
@@ -237,8 +250,8 @@ def test_head() -> None:
     OpTemplate.assert_match_list(
         run_command_with_prov(("head", "--bytes=5", "flake.nix")),
         (
-            *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
-            close_op(3),
+            *open_ops("OpenRead", AT_FDCWD, MatchPositive(), pathlib.Path('flake.nix')),
+            close_op(MatchPositive()),
             *closing_ops(),
         ),
     )
@@ -250,8 +263,8 @@ def test_shell() -> None:
         (
             *initial_ops(),
             OpTemplate(op_code='Execute', fd=None, dirfd=AT_FDCWD, inode=MatchPositive(), mode=None, device_major=MatchAny(), device_minor=MatchAny(), path=head),
-            *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
-            close_op(3),
+            *open_ops("OpenRead", AT_FDCWD, MatchPositive(), pathlib.Path('flake.nix')),
+            close_op(MatchPositive()),
             *closing_ops(),
         ),
     )
@@ -266,15 +279,14 @@ def test_chdir() -> None:
             run_command_with_prov(("bash", "-c", f"head --bytes=5 flake.nix; cd {tmpdir!s}; head --bytes=5 flake.nix")),
             (
                 *initial_ops(),
+                OpTemplate(op_code='Execute', fd=None, dirfd=AT_FDCWD, inode=MatchPositive(), mode=None, device_major=MatchAny(), device_minor=MatchAny(), path=head),
+                *open_ops("OpenRead", AT_FDCWD, MatchPositive(), pathlib.Path('flake.nix')),
+                close_op(MatchPositive()),
+                *closing_ops(),
                 OpTemplate(op_code='Chdir', fd=None, dirfd=AT_FDCWD, inode=MatchPositive(), mode=None, device_major=MatchAny(), device_minor=MatchAny(), path=tmpdir),
                 OpTemplate(op_code='Execute', fd=None, dirfd=AT_FDCWD, inode=MatchPositive(), mode=None, device_major=MatchAny(), device_minor=MatchAny(), path=head),
-                *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
-                close_op(3),
-                *closing_ops(),
-                *initial_ops(),
-                OpTemplate(op_code='Execute', fd=None, dirfd=AT_FDCWD, inode=MatchPositive(), mode=None, device_major=MatchAny(), device_minor=MatchAny(), path=head),
-                *open_ops("OpenRead", AT_FDCWD, 3, pathlib.Path('flake.nix')),
-                close_op(3),
+                *open_ops("OpenRead", AT_FDCWD, MatchPositive(), pathlib.Path('flake.nix')),
+                close_op(MatchPositive()),
                 *closing_ops(),
             ),
         )

@@ -37,6 +37,8 @@ struct utimbuf;
 struct dirent;
 int __type_mode_t;
 
+typedef int (*fn_ptr_int_void_ptr)(void*);
+
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
     void* pre_call = ({
@@ -387,14 +389,7 @@ int execl (const char *filename, const char *arg0, ...) {
             prov_log_save();
         }
     });
-    size_t varargs_size = ({
-        /* Variadic: var args end with a sentinel NULL arg */
-        size_t n_varargs = 0;
-        while (n_varargs[arg0]) {
-            ++n_varargs;
-        }
-        sizeof(char*) + (n_varargs + 1) * sizeof(char*);
-    });
+    size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
@@ -425,14 +420,7 @@ int execle (const char *filename, const char *arg0, ...) {
             prov_log_save();
         }
     });
-    size_t varargs_size = ({
-        /* Variadic: var args end with a sentinel NULL arg + 1 final char *const env[] */
-        size_t n_varargs = 0;
-        while (n_varargs[arg0]) {
-            ++n_varargs;
-        }
-        sizeof(char*) + (n_varargs + 1) * sizeof(char*);
-    });
+    size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
@@ -445,14 +433,7 @@ int execvp (const char *filename, char *const argv[]) {
     });
 }
 int execlp (const char *filename, const char *arg0, ...) {
-    size_t varargs_size = ({
-        /* Variadic: var args end with a sentinel NULL arg */
-        size_t n_varargs = 0;
-        while (n_varargs[arg0]) {
-            ++n_varargs;
-        }
-        sizeof(char*) + (n_varargs + 1) * sizeof(char*);
-    });
+    size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
         if (likely(prov_log_is_enabled())) {
             lookup_on_path(filename);
@@ -477,9 +458,41 @@ int execvpe(const char *file, char *const argv[], char *const envp[]) {
 
 /* Need: Fork does copy-on-write, so we want to deduplicate our structures first */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-a-Process.html */
-pid_t fork (void) { }
-pid_t _Fork (void) { }
-pid_t vfork (void) { }
+pid_t fork (void) {
+    void* pre_call = ({
+      prov_log_save();
+    });
+}
+pid_t _Fork (void) {
+    void* pre_call = ({
+      prov_log_save();
+    });
+}
+pid_t vfork (void) {
+    void* pre_call = ({
+      prov_log_save();
+    });
+}
+
+/* Docs: https://man7.org/linux/man-pages/man2/clone.2.html */
+int clone(
+	  fn_ptr_int_void_ptr fn,
+	  void *stack,
+	  int flags,
+          void * arg,
+	  ...
+	  /* pid_t *_Nullable parent_tid,
+	     void *_Nullable tls,
+	     pid_t *_Nullable child_tid */ ) {
+    void* pre_call = ({
+	/* Mark these variables as used to suppress "unused variable" compiler warning" */
+	(void) fn;
+	(void) stack;
+	(void) flags;
+        prov_log_save();
+    });
+    size_t varargs_size = sizeof(void*) + sizeof(void*) + sizeof(int) + (COUNT_NONNULL_VARARGS(arg) + 1) * sizeof(void*) + sizeof(pid_t*) + sizeof(void*) + sizeof(pid_t*);
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Process-Completion.html */
 pid_t waitpid (pid_t pid, int *status_ptr, int options) { }

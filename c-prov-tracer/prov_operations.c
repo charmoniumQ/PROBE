@@ -52,7 +52,7 @@ struct Op make_op(enum OpCode op_code, int dirfd, const char* OWNED path, int fd
     if (path) {
         op.inode_triple = get_inode_triple(dirfd, path);
         /* This gets freed when the op gets logged in prov_log_save */
-        EXPECT(, op.path = strndup(path, PATH_MAX));
+        op.path = EXPECT_NONNULL(strndup(path, PATH_MAX));
     } else {
         op.inode_triple = null_inode_triple;
         op.path = path;
@@ -80,27 +80,33 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     }
 }
 
-static void fprintf_op(BORROWED FILE* stream, struct Op op) {
+#define __OP_BUFFER_SIZE PATH_MAX * 4
+static char __op_buffer [__OP_BUFFER_SIZE];
+
+static void write_op(int fd, struct Op op) {
     char null_byte = '\0';
     /*
      * Technically the path can have anything except null-byte, so I will have to use that to delimit the path
      * The op-code string, on the other hand, comes from an enum above, and can't contain werid chars.
      * The integers are likewise easy-to-parse.
      * */
-    EXPECT(
-        > 0,
-        fprintf(
-            stream,
+    int length = CHECK_SNPRINTF(
+	    __op_buffer,
+	    __OP_BUFFER_SIZE,
             "%s %d %d %d %d %d %d %s%c\n",
             op_code_to_string(op.op_code),
             op.fd,
             op.dirfd,
             op.mode,
+	    /* We don't need to write the inode's null-ness because that can be deduced from the Op type.
+             * That's field only exists for a run-time assertion check.
+             * */
             op.inode_triple.inode,
             op.inode_triple.device_major,
             op.inode_triple.device_minor,
             op.path ? op.path : "",
-            null_byte));
+            null_byte) + 1;
+    write(fd, __op_buffer, length);
 }
 
 int null_fd = -20;

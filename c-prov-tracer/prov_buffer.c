@@ -1,17 +1,3 @@
-static char* const __prov_log_dir_envvar = "PROV_LOG_DIR";
-static char* const __default_prov_log_dir = ".prov";
-static char* __prov_log_dir = NULL;
-static BORROWED char* get_prov_log_dir() {
-    if (__prov_log_dir == NULL) {
-        __prov_log_dir = getenv(__prov_log_dir_envvar);
-        if (__prov_log_dir == NULL) {
-            __prov_log_dir = __default_prov_log_dir;
-        }
-        assert(__prov_log_dir);
-    }
-    return __prov_log_dir;
-}
-
 static __thread bool __prov_log_disable = false;
 
 static void prov_log_disable() { __prov_log_disable = true; }
@@ -33,17 +19,18 @@ static void prov_log_record(struct Op op) {
         /* First time! Allocate new buffer */
         assert(__prov_log_head == NULL);
         /* This allocation is mirrored by a free in prov_log_save. */
-        EXPECT(, __prov_log_head = __prov_log_tail = malloc(sizeof(struct __ProvLogCell)));
+        __prov_log_head = __prov_log_tail = EXPECT_NONNULL(malloc(sizeof(struct __ProvLogCell)));
         __prov_log_head->capacity = 0;
         __prov_log_head->next = NULL;
     }
     assert(__prov_log_tail);
+    assert(__prov_log_head);
     assert(__prov_log_tail->capacity <= __prov_log_cell_size);
     if (__prov_log_tail->capacity == __prov_log_cell_size) {
         /* Not first time, but old one is full */
         struct __ProvLogCell* old_tail = __prov_log_tail;
         /* This allocation is mirrored by a free in prov_log_save. */
-        EXPECT(, __prov_log_tail = malloc(sizeof(struct __ProvLogCell)));
+        __prov_log_tail = EXPECT_NONNULL(malloc(sizeof(struct __ProvLogCell)));
         __prov_log_tail->next = NULL;
         __prov_log_tail->capacity = 0;
         old_tail->next = __prov_log_tail;
@@ -52,7 +39,7 @@ static void prov_log_record(struct Op op) {
 
     if (prov_log_verbose()) {
         fprintf(stderr, "prov log op: ");
-        fprintf_op(stderr, op);
+        write_op(STDERR_FILENO, op);
     }
 
     ++__prov_log_tail->capacity;
@@ -60,7 +47,7 @@ static void prov_log_record(struct Op op) {
         assert(op.dirfd);
         assert(op.path);
         assert(op.fd);
-        assert(op.inode_triple.inode > 0);
+        assert(!op.inode_triple.null);
         fd_table_associate(op.fd, op.dirfd, op.path, op.inode_triple);
     } else if (op.op_code == Close) {
         fd_table_close(op.fd);
@@ -77,20 +64,34 @@ static void prov_log_record(struct Op op) {
     }
 }
 
+static char* const __prov_log_dir_envvar = "PROV_LOG_DIR";
+static int __prov_log_dirfd = 0;
+
 static void prov_log_save() {
     if (__prov_log_head != NULL && __prov_log_head->capacity != 0) {
         prov_log_disable();
         {
-            char* prov_log_dir = get_prov_log_dir();
-            struct stat stat_buf;
-            int stat_ret = o_fstatat(AT_FDCWD, prov_log_dir, &stat_buf, 0);
-            if (stat_ret != 0) {
-                EXPECT(== 0, o_mkdir(prov_log_dir, 0755));
-            } else {
-                if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
-                    fprintf(stderr, "%s already exists but is not a directory\n", prov_log_dir);
-                    abort();
+            if (__prov_log_dirfd == 0) {
+	        char* relative_prov_log_dir = getenv(__prov_log_dir_envvar);
+	        if (relative_prov_log_dir == NULL) {
+	          relative_prov_log_dir = ".prov";
+	        }
+                struct stat stat_buf;
+                int stat_ret = o_fstatat(AT_FDCWD, relative_prov_log_dir, &stat_buf, 0);
+                if (stat_ret != 0) {
+                    EXPECT(== 0, o_mkdir(relative_prov_log_dir, 0755));
+                } else {
+                    if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
+                        fprintf(stderr, "%s already exists but is not a directory\n", relative_prov_log_dir);
+                        abort();
+                    }
                 }
+	        __prov_log_dirfd = EXPECT(!= -1, o_openat(AT_FDCWD, relative_prov_log_dir, O_RDONLY | O_DIRECTORY));
+		char absolute_prov_log_dir [PATH_MAX + 1] = {0};
+	        EXPECT_NONNULL(o_realpath(relative_prov_log_dir, absolute_prov_log_dir));
+	        /* Setenv, so child processes will be using the same prov log dir, even if they change directories. */
+	        setenv(__prov_log_dir_envvar, absolute_prov_log_dir, true);
+
             }
             char log_name [PATH_MAX + 1] = {0};
             struct timespec ts;
@@ -98,17 +99,23 @@ static void prov_log_save() {
             CHECK_SNPRINTF(
                    log_name,
                    PATH_MAX,
-                   "%s/prov.pid-%d.tid-%d.sec-%ld.nsec-%ld",
-                   prov_log_dir, getpid(), gettid(), ts.tv_sec, ts.tv_nsec
+                   "prov.time-%ld.%ld.pid-%d.tid-%d",
+		   ts.tv_sec, ts.tv_nsec, getpid(), my_gettid()
             );
-            FILE* log;
-            EXPECT(, log = o_fopen(log_name, "w"));
+	    int log_fd = EXPECT(!= -1, o_openat(__prov_log_dirfd, log_name, O_WRONLY | O_CREAT | O_APPEND));
+            if (prov_log_verbose()) {
+                char absolute_prov_log_dir [PATH_MAX + 1] = {0};
+                char proc_self_fd [PATH_MAX + 1] = {0};
+                CHECK_SNPRINTF(proc_self_fd, PATH_MAX + 1, "/proc/self/fd/%d", __prov_log_dirfd);
+                EXPECT_NONNULL(o_realpath(proc_self_fd, absolute_prov_log_dir));
+                fprintf(stderr, "prov_log_save: dirfd=%d, dir=\"%s\"; fname=\"%s\"; fd=%d\n", __prov_log_dirfd, absolute_prov_log_dir, log_name, log_fd);
+	    }
             while (__prov_log_head != NULL) {
                 for (size_t i = 0; i < __prov_log_head->capacity; ++i) {
-                    fprintf_op(log, __prov_log_head->ops[i]);
+                    write_op(log_fd, __prov_log_head->ops[i]);
                     if (__prov_log_head->ops[i].path) {
                         // Free-ing counts as modifying, so we must cast away the const.
-                        free((char*) __prov_log_head->ops[i].path);
+                        free((char*) EXPECT_NONNULL(__prov_log_head->ops[i].path));
                     }
                     __prov_log_head->ops[i].path = NULL;
                 }
@@ -116,7 +123,8 @@ static void prov_log_save() {
                 __prov_log_head = __prov_log_head->next;
                 free(old_head);
             }
-            EXPECT(== 0, o_fclose(log));
+	    __prov_log_head = __prov_log_tail = NULL;
+            EXPECT(== 0, o_close(log_fd));
         }
         prov_log_enable();
     }

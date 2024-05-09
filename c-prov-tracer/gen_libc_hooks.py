@@ -209,7 +209,24 @@ setup_function_pointers = ParsedFunc(
     params=(),
     return_type=void,
     variadic=False,
-    stmts=tuple(
+    stmts=[
+        pycparser.c_ast.If(
+            cond=pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(name="prov_log_verbose"),
+                args=pycparser.c_ast.ExprList(exprs=[]),
+            ),
+            iftrue=pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(name="fprintf"),
+                args=pycparser.c_ast.ExprList(
+                    exprs=[
+                        pycparser.c_ast.ID(name="stderr"),
+                        pycparser.c_ast.Constant(type="string", value="\"setup_function_pointers\\n\""),
+                    ],
+                ),
+            ),
+            iffalse=None,
+        ),
+    ] + [
         pycparser.c_ast.Assignment(
             op='=',
             lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
@@ -224,7 +241,7 @@ setup_function_pointers = ParsedFunc(
             ),
         )
         for func_name, func in funcs.items()
-    ),
+    ],
 ).definition()
 
 

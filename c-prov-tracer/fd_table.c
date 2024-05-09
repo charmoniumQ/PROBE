@@ -40,7 +40,7 @@ static void __fd_table_ensure_capacity(int mapped_fd) {
          *
          * Note that this has to be zero-initialized, otherwise we won't know which __fd_table entries are populated.
          * */
-        EXPECT(, __fd_table = realloc(__fd_table, new_fd_table_capacity * sizeof(*__fd_table)));
+        __fd_table = EXPECT_NONNULL(realloc(__fd_table, new_fd_table_capacity * sizeof(*__fd_table)));
         memset(__fd_table + __fd_table_capacity, 0, new_fd_table_capacity - __fd_table_capacity);
 
         /* Special case going from 0 to n. Must initialize process-global AT_FDCWD */
@@ -112,7 +112,7 @@ static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, str
     assert(!__fd_table[fd].path);
     /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise.
      * The tracee would likely run out of FDs if they didn't close their files. */
-    EXPECT(, __fd_table[fd].path = strndup(path, PATH_MAX));
+    __fd_table[fd].path = EXPECT_NONNULL(strndup(path, PATH_MAX));
     __fd_table[fd].dirfd = __unmap_fd(dirfd);
     /* Capture dirfd version before doing version++
      * Just in case fd == dirfd, as in chdir("foo") */
@@ -163,7 +163,7 @@ void fd_table_dup(int oldfd, int newfd) {
     __fd_table_ensure_capacity(newfd);
     /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise.
      * The tracee would likely run out of FDs if they didn't close their files. */
-    EXPECT(, __fd_table[newfd].path = strndup(__fd_table[oldfd].path, PATH_MAX));
+    __fd_table[newfd].path = EXPECT_NONNULL(strndup(__fd_table[oldfd].path, PATH_MAX));
     __fd_table[newfd].dirfd = __fd_table[oldfd].dirfd;
     __fd_table[newfd].dirfd_version = __fd_table[oldfd].dirfd_version;
     __fd_table[newfd].fd = __unmap_fd(newfd);
