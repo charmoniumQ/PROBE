@@ -72,10 +72,10 @@ static void prov_log_save() {
         prov_log_disable();
         {
             if (__prov_log_dirfd == 0) {
-	        char* relative_prov_log_dir = getenv(__prov_log_dir_envvar);
-	        if (relative_prov_log_dir == NULL) {
-	          relative_prov_log_dir = ".prov";
-	        }
+                char* relative_prov_log_dir = getenv(__prov_log_dir_envvar);
+                if (relative_prov_log_dir == NULL) {
+                    relative_prov_log_dir = ".prov";
+                }
                 struct stat stat_buf;
                 int stat_ret = o_fstatat(AT_FDCWD, relative_prov_log_dir, &stat_buf, 0);
                 if (stat_ret != 0) {
@@ -86,30 +86,38 @@ static void prov_log_save() {
                         abort();
                     }
                 }
-	        __prov_log_dirfd = EXPECT(!= -1, o_openat(AT_FDCWD, relative_prov_log_dir, O_RDONLY | O_DIRECTORY));
-		char absolute_prov_log_dir [PATH_MAX + 1] = {0};
-	        EXPECT_NONNULL(o_realpath(relative_prov_log_dir, absolute_prov_log_dir));
-	        /* Setenv, so child processes will be using the same prov log dir, even if they change directories. */
-	        setenv(__prov_log_dir_envvar, absolute_prov_log_dir, true);
+                __prov_log_dirfd = EXPECT(!= -1, o_openat(AT_FDCWD, relative_prov_log_dir, O_RDONLY | O_DIRECTORY));
+                char absolute_prov_log_dir [PATH_MAX + 1] = {0};
+                EXPECT_NONNULL(o_realpath(relative_prov_log_dir, absolute_prov_log_dir));
+                /* Setenv, so child processes will be using the same prov log dir, even if they change directories. */
+                setenv(__prov_log_dir_envvar, absolute_prov_log_dir, true);
 
             }
             char log_name [PATH_MAX + 1] = {0};
             struct timespec ts;
             EXPECT(> 0, timespec_get(&ts, TIME_UTC));
+            /* TODO: use fixed-string formatting instead of snprintf
+             * Fixed-string might be faster and less error-prone.
+             * Also, putting in leading zeros will help the sort.
+             * */
             CHECK_SNPRINTF(
-                   log_name,
-                   PATH_MAX,
-                   "prov.time-%ld.%ld.pid-%d.tid-%d",
-		   ts.tv_sec, ts.tv_nsec, getpid(), my_gettid()
+                log_name,
+                PATH_MAX,
+                "prov.time-%ld.%ld.pid-%d.tid-%d",
+                ts.tv_sec, ts.tv_nsec, getpid(), my_gettid()
             );
-	    int log_fd = EXPECT(!= -1, o_openat(__prov_log_dirfd, log_name, O_WRONLY | O_CREAT | O_APPEND));
+            /* Note that the mode is not actually set to 0777.
+             * > The effective mode is modified by the process's umask in the usual way: ... mode & ~umask
+             * https://www.man7.org/linux/man-pages/man2/openat.2.html
+             * */
+            int log_fd = EXPECT(!= -1, o_openat(__prov_log_dirfd, log_name, O_WRONLY | O_CREAT | O_APPEND, 0777));
             if (prov_log_verbose()) {
                 char absolute_prov_log_dir [PATH_MAX + 1] = {0};
                 char proc_self_fd [PATH_MAX + 1] = {0};
                 CHECK_SNPRINTF(proc_self_fd, PATH_MAX + 1, "/proc/self/fd/%d", __prov_log_dirfd);
                 EXPECT_NONNULL(o_realpath(proc_self_fd, absolute_prov_log_dir));
                 fprintf(stderr, "prov_log_save: dirfd=%d, dir=\"%s\"; fname=\"%s\"; fd=%d\n", __prov_log_dirfd, absolute_prov_log_dir, log_name, log_fd);
-	    }
+            }
             while (__prov_log_head != NULL) {
                 for (size_t i = 0; i < __prov_log_head->capacity; ++i) {
                     write_op(log_fd, __prov_log_head->ops[i]);
@@ -123,7 +131,7 @@ static void prov_log_save() {
                 __prov_log_head = __prov_log_head->next;
                 free(old_head);
             }
-	    __prov_log_head = __prov_log_tail = NULL;
+            __prov_log_head = __prov_log_tail = NULL;
             EXPECT(== 0, o_close(log_fd));
         }
         prov_log_enable();

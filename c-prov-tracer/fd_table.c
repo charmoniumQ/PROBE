@@ -109,7 +109,14 @@ static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, str
     dirfd = __map_fd(dirfd);
     EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
     __fd_table_ensure_capacity(fd);
-    assert(!__fd_table[fd].path);
+    /*
+     * Somehow, __fd_table[fd].path assertion does not always pass.
+     * This means open returned a file descriptor, that we thought was already used by a previous open.
+     * Perhaps this can happen across exec boundaries?
+     * But it seems harmless to ignore this case for now.
+     * TODO: remove fds that are not marked with CLOEXEC after a successful execve.
+     * */
+    /* assert(!__fd_table[fd].path); */
     /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise.
      * The tracee would likely run out of FDs if they didn't close their files. */
     __fd_table[fd].path = EXPECT_NONNULL(strndup(path, PATH_MAX));

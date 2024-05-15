@@ -42,7 +42,7 @@ class Op:
     path: pathlib.Path | None
 
     @staticmethod
-    def parse_prov_log_dir(prov_log_path: pathlib.Path, verbose: bool = True) -> tuple[Op, ...]:
+    def parse_prov_log_dir(prov_log_path: pathlib.Path, verbose: bool = False) -> tuple[Op, ...]:
         output = list[Op]()
         for child in sorted(prov_log_path.iterdir()):
             if verbose:
@@ -165,12 +165,12 @@ class OpTemplate:
 
 def run_command_with_prov(
         cmd: tuple[str, ...],
-        verbose: bool = True,
+        verbose: bool = False,
 ) -> tuple[Op, ...]:
     with tempfile.TemporaryDirectory() as _prov_log_dir:
         prov_log_dir = pathlib.Path(_prov_log_dir)
         print(f"\n$ LD_PRELOAD={pwd}/libprov.so " + shlex.join(cmd))
-        subprocess.run(
+        proc = subprocess.run(
             cmd,
             env={
                 **os.environ,
@@ -181,6 +181,7 @@ def run_command_with_prov(
             check=True,
             capture_output=False,
         )
+        print(proc.returncode)
         print()
         return Op.parse_prov_log_dir(prov_log_dir)
 
@@ -290,3 +291,7 @@ def test_chdir() -> None:
                 *closing_ops(),
             ),
         )
+
+
+def test_shell2() -> None:
+    run_command_with_prov(("bash", "-c", "python -c 'print(4)'; head --bytes=5 flake.nix"))
