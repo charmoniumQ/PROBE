@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 #include <time.h>
 #include <linux/limits.h>
 #include <errno.h>
@@ -17,19 +18,9 @@
 #include <malloc.h>
 #include <sys/sysmacros.h>
 #include <sys/syscall.h>
+#include <sys/stat.h>
 
-/*
- * I can't include unistd.h because it also defines dup3.
-  */
-ssize_t write(int fd, const char* buf, size_t count);
-long syscall(long number, ...);
-pid_t getpid(void);
-struct utimbuf;
-char *getcwd(char *buf, size_t size);
-struct statx; /* TODO: old glibc's don't have statx. How to deal? */
-#define STDIN_FILENO 0
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2
+#include "unistd_subset.h"
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
@@ -45,20 +36,20 @@ struct statx; /* TODO: old glibc's don't have statx. How to deal? */
  * */
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
-void construct_libprov_thread();
+static void maybe_init_thread();
+static void term_process();
 
 static char* const __prov_log_verbose_envvar = "PROV_LOG_VERBOSE";
-static int __prov_log_verbose = -1;
-/* -1 means unknown; 0 means known false; 1 means known true  */
-static int prov_log_verbose() {
-    if (__prov_log_verbose == -1) {
-        char* __prov_log_verbose_envval = getenv(__prov_log_verbose_envvar);
-        if (__prov_log_verbose_envval && __prov_log_verbose_envval[0] != '\0') {
-            __prov_log_verbose = 1;
-        } else {
-            __prov_log_verbose = 0;
-        }
+static bool __prov_log_verbose = false;
+static void init_prov_log_verbose() {
+    char* __prov_log_verbose_envval = getenv(__prov_log_verbose_envvar);
+    if (__prov_log_verbose_envval && __prov_log_verbose_envval[0] != '\0') {
+        __prov_log_verbose = true;
+    } else {
+        __prov_log_verbose = false;
     }
+}
+static bool prov_log_verbose() {
     return __prov_log_verbose;
 }
 
@@ -66,15 +57,13 @@ static int prov_log_verbose() {
 
 #include "util.c"
 
-#include "inode_triple.c"
-
-#include "fd_table.c"
+/* #include "fd_table.c" */
 
 #include "prov_operations.c"
 
 #include "prov_buffer.c"
 
-#include "lookup_on_path.c"
+/* #include "lookup_on_path.c" */
 
 #include "libc_hooks.c"
 
@@ -87,33 +76,71 @@ static int prov_log_verbose() {
  * */
 static int (*o___fxstat) (int __ver, int __filedesc, struct stat *__stat_buf);
 static int fallback_fstat (int __fd, struct stat *__statbuf) {
-  return (*o___fxstat)(1, __fd, __statbuf);
+    return (*o___fxstat)(1, __fd, __statbuf);
 }
 static int (*o___fxstatat)(int ver, int dirfd, const char * path, struct stat * stat_buf, int flags);
 static int fallback_fstatat (int __fd, const char *__filename, struct stat *__statbuf, int __flag) {
-  return (*o___fxstatat)(1, __fd, __filename, __statbuf, __flag);
+    return (*o___fxstatat)(1, __fd, __filename, __statbuf, __flag);
 }
 
-__attribute__ ((constructor)) void construct_libprov() {
-    setup_function_pointers();
+static void check_function_pointers() {
     /* We use these o_ function pointers in our code.
      * The rest of the o_ function pointers are only used if the application (tracee) calls the corresponding libc (without o_ prefix) function.
      * */
-    assert(o_access);
-    assert(o_mkdir);
-    assert(o_fopen); /* TODO: replace fopen/fclose with openat/close */
+    assert(o_access); /* TODO: replace with faccessat */
+    assert(o_mkdir); /* TODO: replace with mkdirat */
     assert(o_openat);
-    assert(o_fclose);
     if (!o_fstat) {
-      EXPECT(, o___fxstat = dlsym(RTLD_NEXT, "__fxstat"));
+      o___fxstat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstat"));
       o_fstat = &fallback_fstat;
     }
     if (!o_fstatat) {
-      EXPECT(, o___fxstatat = dlsym(RTLD_NEXT, "__fxstatat"));
+      o___fxstatat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstatat"));
       o_fstatat = &fallback_fstatat;
     }
 }
 
-__attribute__ ((destructor)) void destruct_libprov() {
-    prov_log_save();
+static bool __process_inited = false;
+static void maybe_init_process() {
+    if (unlikely(!__process_inited)) {
+        prov_log_disable();
+        init_prov_log_verbose();
+        init_function_pointers();
+        check_function_pointers();
+        init_process_id();
+        init_process_birth_time();
+        init_exec_epoch();
+        init_process_prov_log();
+        __process_inited = true;
+        prov_log_enable();
+        struct Op op = {
+            init_process_op_code,
+            {.init_process = init_current_process()},
+        };
+        prov_log_try(op);
+        prov_log_record(op);
+    }
+}
+
+static __thread bool __thread_inited = false;
+static void maybe_init_thread() {
+    if (unlikely(!__thread_inited)) {
+        prov_log_disable();
+        maybe_init_process();
+        init_sams_thread_id();
+        init_thread_prov_log();
+        __thread_inited = true;
+        prov_log_enable();
+        struct Op op = {
+            init_thread_op_code,
+            {.init_thread = init_current_thread()},
+        };
+        prov_log_try(op);
+        prov_log_record(op);
+    }
+}
+
+static void term_process() {
+    prov_log_disable();
+    prov_log_term_process();
 }

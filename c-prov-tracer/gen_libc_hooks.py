@@ -170,10 +170,7 @@ class ParsedFunc:
 
 
 filename = pathlib.Path("libc_hooks_source.c")
-with tempfile.TemporaryDirectory() as _tmpdir:
-    tmpdir = pathlib.Path(_tmpdir)
-    (tmpdir / filename).write_text(re.sub("/\\*.*?\\*/", "", filename.read_text(), flags=re.DOTALL))
-    ast = pycparser.parse_file(tmpdir / filename, use_cpp=False)
+ast = pycparser.parse_file(filename, use_cpp=True)
 orig_funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
@@ -187,6 +184,10 @@ funcs = {
         if isinstance(node, pycparser.c_ast.Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
     },
 }
+# funcs = {
+#     key: val
+#     for key, val in list(funcs.items())
+# }
 func_prefix = "o_"
 func_pointer_declarations = [
     pycparser.c_ast.Decl(
@@ -204,8 +205,8 @@ func_pointer_declarations = [
     )
     for func_name, func in funcs.items()
 ]
-setup_function_pointers = ParsedFunc(
-    name="setup_function_pointers",
+init_function_pointers = ParsedFunc(
+    name="init_function_pointers",
     params=(),
     return_type=void,
     variadic=False,
@@ -220,7 +221,7 @@ setup_function_pointers = ParsedFunc(
                 args=pycparser.c_ast.ExprList(
                     exprs=[
                         pycparser.c_ast.ID(name="stderr"),
-                        pycparser.c_ast.Constant(type="string", value="\"setup_function_pointers\\n\""),
+                        pycparser.c_ast.Constant(type="string", value="\"init_function_pointers\\n\""),
                     ],
                 ),
             ),
@@ -254,7 +255,7 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
     return lambda *args, **kwarsg: raise_(exception)
 
 
-def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str) -> pycparser.c_ast.Decl | None:
+def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str, comment: typing.Any) -> pycparser.c_ast.Decl | None:
     relevant_stmts = [
         stmt
         for stmt in block
@@ -263,16 +264,21 @@ def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str) -> pycparser.c
     if not relevant_stmts:
         None
     elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}")
+        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
     else:
         return relevant_stmts[0]
 
 
 def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
-    pre_call_stmts = []
+    pre_call_stmts = [
+        pycparser.c_ast.FuncCall(
+            name=pycparser.c_ast.ID(name="maybe_init_thread"),
+            args=pycparser.c_ast.ExprList(exprs=[]),
+        ),
+    ]
     post_call_stmts = []
 
-    pre_call_action = find_decl(func.stmts, "pre_call")
+    pre_call_action = find_decl(func.stmts, "pre_call", func.name)
     if pre_call_action:
         if isinstance(pre_call_action.init, pycparser.c_ast.Compound):
             pre_call_stmts.extend(pre_call_action.init.block_items)
@@ -284,14 +290,15 @@ def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
         args=pycparser.c_ast.ExprList(exprs=[]),
     )
 
-    post_call_action = find_decl(func.stmts, "post_call")
+    post_call_action = find_decl(func.stmts, "post_call", func.name)
+
     if post_call_action:
         post_call_stmts.extend(
             post_call_action.init.block_items,
         )
 
     if func.variadic:
-        varargs_size_decl = find_decl(func.stmts, "varargs_size")
+        varargs_size_decl = find_decl(func.stmts, "varargs_size", func.name)
         pre_call_stmts.append(varargs_size_decl)
         # Generates: __builtin_apply((void (*)())_o_open, __builtin_apply_args(), varargs_size)
         uncasted_func_call = pycparser.c_ast.FuncCall(
@@ -362,7 +369,7 @@ pathlib.Path("libc_hooks.h").write_text(
 pathlib.Path("libc_hooks.c").write_text(
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
-            setup_function_pointers,
+            init_function_pointers,
             *static_args_wrapper_func_declarations,
         ])
     )

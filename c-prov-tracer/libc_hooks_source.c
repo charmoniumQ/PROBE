@@ -42,29 +42,64 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
     void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename),
+                .flags = fopen_to_flags(opentype),
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
-            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, null_mode));
+            prov_log_try(op);
         }
     });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret != NULL)) {
-            prov_log_record(make_op(fopen_to_opcode(opentype), AT_FDCWD, filename, fileno(ret), null_mode));
+        if (likely(prov_log_is_enabled())) {
+            if (ret == NULL) {
+                op.data.open.ferrno = errno;
+            } else {
+                op.data.open.fd = fileno(ret);
+            }
+            prov_log_record(op);
         }
     });
 }
 fn fopen64 = fopen;
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
-        int original_fd = null_fd;
+        int original_fd = fileno(stream);
+        struct Op open_op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename),
+                .flags = fopen_to_flags(opentype),
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+        };
+        struct Op close_op = {
+            close_op_code,
+            {.close = {original_fd, original_fd, 0}},
+        };
         if (likely(prov_log_is_enabled())) {
-            original_fd = fileno(stream);
-            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, null_mode));
+            prov_log_try(open_op);
+            prov_log_try(close_op);
         }
     });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret != NULL)) {
-            prov_log_record(make_op(Close, AT_FDCWD, NULL, original_fd, null_mode));
-            prov_log_record(make_op(fopen_to_opcode(opentype), AT_FDCWD, filename, fileno(ret), null_mode));
+        if (likely(prov_log_is_enabled())) {
+            if (ret == NULL) {
+                open_op.data.open.ferrno = errno;
+                close_op.data.close.ferrno = errno;
+            } else {
+                open_op.data.open.fd = fileno(ret);
+            }
+            prov_log_record(open_op);
+            prov_log_record(close_op);
         }
     });
 }
@@ -74,47 +109,73 @@ fn freopen64 = freopen;
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
 int fclose (FILE *stream) {
     void* pre_call = ({
-        int original_fd = fileno(stream);
+        int fd = fileno(stream);
+        struct Op op = {
+            close_op_code,
+            {.close = {fd, fd, 0}},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
     });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret == 0)) {
-            prov_log_record(make_op(Close, null_fd, NULL, original_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            op.data.close.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
         }
     });
 }
 int fcloseall(void) {
+    void* pre_call = ({
+        struct Op op = {
+            close_op_code,
+            {.close = {0, INT_MAX, 0}},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret == 0)) {
-            size_t upper_limit = fd_table_size();
-            for (size_t fd = 0; fd < upper_limit; ++fd) {
-                prov_log_record(make_op(Close, null_fd, NULL, fd, null_mode));
-            }
+        if (likely(prov_log_is_enabled())) {
+            op.data.close.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
         }
     });
 }
 
 /* Docs: https://linux.die.net/man/2/openat */
-int openat(int dirfd, const char *pathname, int flags, ...) {
-    size_t varargs_size = sizeof(dirfd) + sizeof(pathname) + sizeof(flags) + (has_mode_arg ? sizeof(mode_t) : 0);
+int openat(int dirfd, const char *filename, int flags, ...) {
+    size_t varargs_size = sizeof(dirfd) + sizeof(filename) + sizeof(flags) + (has_mode_arg ? sizeof(mode_t) : 0);
     /* Re varag_size, See variadic note on open
      * https://github.com/bminor/glibc/blob/2367bf468ce43801de987dcd54b0f99ba9d62827/sysdeps/unix/sysv/linux/open64.c#L33
      */
     void* pre_call = ({
         bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
-        mode_t mode_arg = null_mode;
+        struct Op op = {
+            open_op_code,
+            .data = {.open = {
+                .path = create_path_lazy(dirfd, filename),
+                .flags = flags,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                mode_arg = va_arg(ap, __type_mode_t);
+                op.data.open.mode = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
-            prov_log_record(make_op(MetadataRead, dirfd, pathname, null_fd, mode_arg));
+            prov_log_try(op);
         }
     });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret != -1)) {
-            prov_log_record(make_op(open_flag_to_opcode(flags), dirfd, pathname, ret, mode_arg));
+        if (likely(prov_log_is_enabled())) {
+            op.data.open.ferrno = ret == -1 ? errno : 0;
+            op.data.open.fd = ret;
+            prov_log_record(op);
         }
     });
 }
@@ -132,73 +193,119 @@ int open (const char *filename, int flags, ...) {
      */
     void* pre_call = ({
         bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
-        mode_t mode_arg = null_mode;
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename),
+                .flags = flags,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                mode_arg = va_arg(ap, __type_mode_t);
+                op.data.open.mode = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
-            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, mode_arg));
+            prov_log_try(op);
         }
     });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret != -1)) {
-            prov_log_record(make_op(open_flag_to_opcode(flags), AT_FDCWD, filename, ret, mode_arg));
+        if (likely(prov_log_is_enabled())) {
+            op.data.open.ferrno = ret == -1 ? errno : 0;
+            op.data.open.fd = ret;
+            prov_log_record(op);
         }
     });
 }
 fn open64 = open;
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
+        /**
+         * According to docs
+         * creat(foo, mode) == open(foo, O_WRONLY|O_CREAT|O_TRUNC, mode)
+         * Docs: https://man7.org/linux/man-pages/man3/creat.3p.html */
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename),
+                .flags = O_WRONLY | O_CREAT | O_TRUNC,
+                .mode = mode,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
-            prov_log_record(make_op(MetadataRead, AT_FDCWD, filename, null_fd, null_mode));
+            prov_log_try(op);
         }
     });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret != -1)) {
-            prov_log_record(make_op(OpenOverWrite, AT_FDCWD, filename, ret, mode));
+        if (likely(prov_log_is_enabled())) {
+            op.data.open.ferrno = ret == -1 ? errno : 0;
+            op.data.open.fd = ret;
+            prov_log_record(op);
         }
     });
 }
 fn create64 = creat;
 int close (int filedes) {
+    void* pre_call = ({
+        struct Op op = {
+            close_op_code,
+            {.close = {filedes, filedes, 0}},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
     void* post_call = ({
-         if (likely(prov_log_is_enabled() && ret == 0)) {
-            prov_log_record(make_op(Close, null_fd, NULL, filedes, null_mode));
+         if (likely(prov_log_is_enabled())) {
+            op.data.close.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
         }
     });
 }
 int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
+    void* pre_call = ({
+        if (flags != 0) {
+            NOT_IMPLEMENTED("I don't know how to handle close_rnage flags yet");
+        }
+        struct Op op = {
+            close_op_code,
+            {.close = {lowfd, maxfd, 0}},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret == 0)) {
-            size_t maxfd = fd_table_size();
-            for (size_t fd = lowfd; fd < maxfd; ++fd) {
-                if (fd_table_is_used(fd)) {
-                    prov_log_record(make_op(Close, null_fd, NULL, fd, null_mode));
-                }
-            }
-        } else {
-            fprintf(stderr, "Don't know what to do when close_range fails\n");
-            /* Does it close part of the range or none of it? */
-            abort();
+         if (likely(prov_log_is_enabled())) {
+            op.data.close.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
         }
     });
 }
 void closefrom (int lowfd) {
-    void* post_call = ({
+    void* pre_call = ({
+        struct Op op = {
+            close_op_code,
+            {.close = {lowfd, INT_MAX, 0}},
+        };
         if (likely(prov_log_is_enabled())) {
-            size_t maxfd = fd_table_size();
-            for (size_t fd = lowfd; fd < maxfd; ++fd) {
-                if (fd_table_is_used(fd)) {
-                    prov_log_record(make_op(Close, null_fd, NULL, fd, null_mode));
-                }
-            }
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+         if (likely(prov_log_is_enabled())) {
+            prov_log_record(op);
         }
     });
 }
 
+/* TODO: dup family */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html */
 int dup (int old) { }
 int dup2 (int old, int new) { }
@@ -206,6 +313,7 @@ int dup2 (int old, int new) { }
 /* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
 int dup3 (int old, int new) { }
 
+/* TODO: fcntl */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
 int fcntl (int filedes, int command, ...) {
     void* pre_call = ({
@@ -228,43 +336,122 @@ int fcntl (int filedes, int command, ...) {
 /* Need: We need this so that opens relative to the current working directory can be resolved */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-Directory.html */
 int chdir (const char *filename) {
+    void* pre_call = ({
+        struct Op op = {
+            chdir_op_code,
+            {.chdir = {
+                .path = create_path_lazy(AT_FDCWD, filename),
+                .ferrno = 0,
+            }},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret == 0)) {
-            prov_log_record(make_op(Chdir, AT_FDCWD, filename, null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            op.data.chdir.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
         }
     });
 }
 int fchdir (int filedes) {
+    void* pre_call = ({
+        struct Op op = {
+            chdir_op_code,
+            {.chdir = {
+                .path = create_path_lazy(filedes, ""),
+                .ferrno = 0,
+            }},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret == 0)) {
-            prov_log_record(make_op(Chdir, filedes, "", null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            op.data.chdir.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
         }
     });
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-a-Directory.html */
 DIR * opendir (const char *dirname) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, dirname),
+                /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
+                .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret != NULL)) {
-            int fd = dirfd(ret);
-            prov_log_record(make_op(OpenDir, AT_FDCWD, dirname, fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            op.data.open.ferrno = ret == NULL ? errno : 0;
+            op.data.open.fd = dirfd(ret);
+            prov_log_record(op);
         }
     });
 }
 DIR * fdopendir (int fd) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(fd, ""),
+                /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
+                .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
     void* post_call = ({
-        if (likely(prov_log_is_enabled() && ret != NULL)) {
-            prov_log_record(make_op(OpenDir, fd, "", null_fd, null_mode));
+        if (likely(prov_log_is_enabled())) {
+            op.data.open.ferrno = ret == NULL ? errno : 0;
+            op.data.open.fd = dirfd(ret);
+            prov_log_record(op);
         }
     });
 }
 
+/* TODO: dirent manipulation */
 /* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html */
 struct dirent * readdir (DIR *dirstream) { }
 int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) { }
 struct dirent64 * readdir64 (DIR *dirstream) { }
 int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) { }
-int closedir (DIR *dirstream) { }
+int closedir (DIR *dirstream) {
+    void* pre_call = ({
+        int fd = dirfd(dirstream);
+        struct Op op = {
+            close_op_code,
+            {.close = {fd, fd, 0}},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            op.data.close.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
+        }
+    });
+}
 
 /* https://www.gnu.org/software/libc/manual/html_node/Random-Access-Directory.html */
 void rewinddir (DIR *dirstream) { }
@@ -317,7 +504,7 @@ int mkdir (const char *filename, mode_t mode) { }
 int stat (const char *filename, struct stat *buf) { }
 int stat64 (const char *filename, struct stat64 *buf) { }
 int fstat (int filedes, struct stat *buf) { }
-int fstat64 (int filedes, struct stat64 *buf) { }
+int fstat64 (int filedes, struct stat64 * restrict buf) { }
 int lstat (const char *filename, struct stat *buf) { }
 int lstat64 (const char *filename, struct stat64 *buf) { }
 
@@ -325,9 +512,10 @@ int lstat64 (const char *filename, struct stat64 *buf) { }
 int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf) { }
 
 /* Docs: https://linux.die.net/man/2/fstatat */
-int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags) {}
-fn fstatat64 = fstatat;
-fn newfstatat = fstatat;
+int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags) {}
+
+int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf, int flags) { }
+/* fn newfstatat = fstatat; */
 
 /* Docs: https://linux.die.net/man/2/faccessat */
 int faccessat(int dirfd, const char *pathname, int mode, int flags);
@@ -372,86 +560,216 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(0, filename),
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
-            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
         }
     });
+    void* post_call = ({
+        /*
+         * If exec is successful {
+         *   Exec should jump to a new process.
+         *   It won't return here.
+         *   If the process has _any_ side-effects {
+         *     construct_libprov should get called when the first side-effects occur.
+         *   } else {
+         *     A tree fell in the forest and nobody was around to hear it. It didn't make a sound.
+         *     A process launched in the system and it never made any side-effects. We don't care about it for the sake of provenance.
+         *   }
+         * } else {
+         *   Exec returns here.
+         *   There must have been an error
+         * }
+         * */
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
+        }
+    });
 }
 int execl (const char *filename, const char *arg0, ...) {
-        void* pre_call = ({
+    void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(0, filename),
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
-            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
         }
     });
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(0, filename),
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
-            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
         }
     });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
+        }
+    });
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
-    void* pre_call = ({
+        void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(fd, ""),
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
-            prov_log_record(make_op(Execute, null_fd, NULL, fd, null_mode));
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
         }
     });
 }
 int execle (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(0, filename),
+                .ferrno = 0,
+            }},
+        };
         if (likely(prov_log_is_enabled())) {
-            prov_log_record(make_op(Execute, AT_FDCWD, filename, null_fd, null_mode));
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
         }
     });
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
 }
 int execvp (const char *filename, char *const argv[]) {
-    void* pre_call = ({
+        void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(0, filename),
+                .ferrno = 0,
+            }},
+        };
+        /* TODO: generate accesses to other candidates on the $PATH */
         if (likely(prov_log_is_enabled())) {
-            lookup_on_path(filename);
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
         }
     });
 }
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
-    void* pre_call = ({
+        void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(0, filename),
+                .ferrno = 0,
+            }},
+        };
+        /* TODO: generate accesses to other candidates on the $PATH */
         if (likely(prov_log_is_enabled())) {
-            lookup_on_path(filename);
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
         }
     });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
+        }
+    });
 }
 
 /* Docs: https://linux.die.net/man/3/execvpe1 */
-int execvpe(const char *file, char *const argv[], char *const envp[]) {
-    void* pre_call = ({
+int execvpe(const char *filename, char *const argv[], char *const envp[]) {
+        void* pre_call = ({
+        struct Op op = {
+            exec_op_code,
+            {.exec = {
+                .path = create_path_lazy(0, filename),
+                .ferrno = 0,
+            }},
+        };
+        /* TODO: generate accesses to other candidates on the $PATH */
         if (likely(prov_log_is_enabled())) {
-            lookup_on_path(argv[0]);
+            prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            assert(errno > 0);
+            op.data.exec.ferrno = errno;
+            prov_log_record(op);
         }
     });
 }
@@ -460,18 +778,138 @@ int execvpe(const char *file, char *const argv[], char *const envp[]) {
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-a-Process.html */
 pid_t fork (void) {
     void* pre_call = ({
-      prov_log_save();
+        struct Op op = {
+            clone_op_code,
+            {.clone = {
+                /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
+                 * I could be wrong.
+                 * */
+                .flags = 0,
+                .run_pthread_atfork_handlers = true,
+                .child_process_id = -1,
+                .child_thread_id = -1,
+                .ferrno = 0,
+            }},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+            prov_log_save();
+        } else {
+            prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret == -1) {
+                /* Failure */
+                op.data.clone.ferrno = errno;
+                prov_log_record(op);
+            } else if (ret == 0) {
+                /* Success; child */
+                /* We could initialize the prov log here, but then there would be two entrypoints to initializing the prov log:
+                 * 1) after first prov operation, 2) after fork().
+                 * I think it's more robust to only have one. */
+            } else {
+                /* Success; parent */
+                op.data.clone.child_process_id = ret;
+                /* Since fork makes processes, child TID = child PID */
+                op.data.clone.child_thread_id = ret;
+                prov_log_record(op);
+            }
+        }
     });
 }
 pid_t _Fork (void) {
-    void* pre_call = ({
-      prov_log_save();
+     void* pre_call = ({
+        struct Op op = {
+            clone_op_code,
+            {.clone = {
+                /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
+                 * I could be wrong.
+                 * */
+                .flags = 0,
+                .run_pthread_atfork_handlers = false,
+                .child_process_id = -1,
+                .child_thread_id = -1,
+                .ferrno = 0,
+            }},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+            prov_log_save();
+        } else {
+            prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret == -1) {
+                /* Failure */
+                op.data.clone.ferrno = errno;
+                prov_log_record(op);
+            } else if (ret == 0) {
+                /* Success; child */
+            } else {
+                /* Success; parent */
+                op.data.clone.child_process_id = ret;
+                /* Since fork makes processes, child TID = child PID */
+                op.data.clone.child_thread_id = ret;
+                prov_log_record(op);
+            }
+        }
     });
 }
 pid_t vfork (void) {
     void* pre_call = ({
-      prov_log_save();
+        struct Op op = {
+            clone_op_code,
+            {.clone = {
+                /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
+                 * I could be wrong.
+                 * */
+                .flags = CLONE_VFORK,
+                .run_pthread_atfork_handlers = false,
+                .child_process_id = -1,
+                .child_thread_id = -1,
+                .ferrno = 0,
+            }},
+        };
+        bool was_prov_log_enabled = prov_log_is_enabled();
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+            prov_log_save();
+            /* It seems we can't do anything here...
+             * > the behavior is undefined if the process created by vfork() either modifies any data other than a variable of type pid_t used to store the return value from vfork(), or returns from the function in which vfork() was called, or calls any other function before successfully calling _exit(2) or one of the exec(3) family of functions.
+             * httpss://man7.org/linux/man-pages/man2/vfork.2.html
+             * At least the client has to call execve, so we will get a fresh prov buffer when they do that.
+             * I really hope returning from this function is fine even though it is technically undefined behavior...
+             **/
+            prov_log_disable();
+        } else {
+            prov_log_save();
+            prov_log_disable();
+        }
     });
+    void* post_call = ({
+        if (ret == -1) {
+            /* Failure */
+            prov_log_set_enabled(was_prov_log_enabled);
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.ferrno = errno;
+                prov_log_record(op);
+            }
+        } else if (ret == 0) {
+            /* Success; child. Can't do anything here. */
+        } else {
+            /* Success; parent */
+            prov_log_set_enabled(was_prov_log_enabled);
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.child_process_id = ret;
+                op.data.clone.child_thread_id = ret; /* Since fork makes processes, child TID = child PID */
+                prov_log_record(op);
+            }
+        }
+   });
 }
 
 /* Docs: https://man7.org/linux/man-pages/man2/clone.2.html */
@@ -479,19 +917,65 @@ int clone(
 	  fn_ptr_int_void_ptr fn,
 	  void *stack,
 	  int flags,
-          void * arg,
+      void * arg,
 	  ...
-	  /* pid_t *_Nullable parent_tid,
-	     void *_Nullable tls,
-	     pid_t *_Nullable child_tid */ ) {
-    void* pre_call = ({
-	/* Mark these variables as used to suppress "unused variable" compiler warning" */
-	(void) fn;
-	(void) stack;
-	(void) flags;
-        prov_log_save();
-    });
+	  /* pid_t *_Nullable parent_tid, */
+	  /* void *_Nullable tls, */
+	  /* pid_t *_Nullable child_tid */
+) {
     size_t varargs_size = sizeof(void*) + sizeof(void*) + sizeof(int) + (COUNT_NONNULL_VARARGS(arg) + 1) * sizeof(void*) + sizeof(pid_t*) + sizeof(void*) + sizeof(pid_t*);
+    void* pre_call = ({
+        /* Mark these variables as used to suppress "unused variable" compiler warning" */
+        (void) fn;
+        (void) stack;
+        struct Op op = {
+            clone_op_code,
+            {.clone = {
+                /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
+                 * I could be wrong.
+                 * */
+                .flags = flags,
+                .run_pthread_atfork_handlers = false,
+                .child_process_id = -1,
+                .child_thread_id = -1,
+                .ferrno = 0,
+            }},
+        };
+        bool was_prov_log_enabled = prov_log_is_enabled();
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+            prov_log_save();
+            if (flags & CLONE_VFORK) {
+                prov_log_disable();
+            }
+        } else {
+            prov_log_save();
+        }
+    });
+    void* post_call = ({
+        if (ret == -1) {
+            /* Failure */
+            if (flags & CLONE_VFORK) {
+                prov_log_set_enabled(was_prov_log_enabled);
+            }
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.ferrno = errno;
+                prov_log_record(op);
+            }
+        } else if (ret == 0) {
+            /* Success; child. */
+        } else {
+            /* Success; parent */
+            if (flags & CLONE_VFORK) {
+                prov_log_set_enabled(was_prov_log_enabled);
+            }
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.child_process_id = (flags & CLONE_THREAD) ? getpid() : ret;
+                op.data.clone.child_thread_id = ret;
+                prov_log_record(op);
+            }
+        }
+   });
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Process-Completion.html */
@@ -504,8 +988,7 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) { }
 
 void exit (int status) {
     void* pre_call = ({
-        prov_log_save();
-        prov_log_disable();
+        term_process();
     });
     void* post_call = ({
         __builtin_unreachable();
@@ -513,5 +996,5 @@ void exit (int status) {
 }
 
 /*
-** TODO: getcwd, getwd
+** TODO: getcwd, getwd, chroot, _exit
  */

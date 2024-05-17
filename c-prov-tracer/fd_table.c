@@ -13,7 +13,7 @@ static OWNED struct {
     int fd;
     int version;
     OWNED const char* path;
-    struct InodeTriple inode_triple;
+    /* struct InodeTriple inode_triple; TODO */
 } * __fd_table = NULL;
 static pthread_rwlock_t __fd_table_lock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -65,7 +65,7 @@ static void __fd_table_ensure_capacity(int mapped_fd) {
             __fd_table[__map_fd(AT_FDCWD)].fd = AT_FDCWD;
             __fd_table[__map_fd(AT_FDCWD)].version = 0;
             __fd_table[__map_fd(AT_FDCWD)].path = strndup("", PATH_MAX);
-            __fd_table[__map_fd(AT_FDCWD)].inode_triple = get_inode_triple(AT_FDCWD, "");
+            /* __fd_table[__map_fd(AT_FDCWD)].inode_triple = get_inode_triple(AT_FDCWD, ""); */
 
 	    /*
 	     * Set up default stdin, stderr, stdout
@@ -75,21 +75,21 @@ static void __fd_table_ensure_capacity(int mapped_fd) {
 	    __fd_table[__map_fd(STDIN_FILENO)].fd = STDIN_FILENO;
 	    __fd_table[__map_fd(STDIN_FILENO)].version = 0;
 	    __fd_table[__map_fd(STDIN_FILENO)].path = strndup("/dev/stdin", PATH_MAX);
-	    __fd_table[__map_fd(STDIN_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stdin");
+	    /* __fd_table[__map_fd(STDIN_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stdin"); */
 
 	    __fd_table[__map_fd(STDOUT_FILENO)].dirfd = AT_FDCWD;
 	    __fd_table[__map_fd(STDOUT_FILENO)].dirfd_version = 0;
 	    __fd_table[__map_fd(STDOUT_FILENO)].fd = STDOUT_FILENO;
 	    __fd_table[__map_fd(STDOUT_FILENO)].version = 0;
 	    __fd_table[__map_fd(STDOUT_FILENO)].path = strndup("/dev/stdout", PATH_MAX);
-	    __fd_table[__map_fd(STDOUT_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stdout");
+	    /* __fd_table[__map_fd(STDOUT_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stdout"); */
 
 	    __fd_table[__map_fd(STDERR_FILENO)].dirfd = AT_FDCWD;
 	    __fd_table[__map_fd(STDERR_FILENO)].dirfd_version = 0;
 	    __fd_table[__map_fd(STDERR_FILENO)].fd = STDERR_FILENO;
 	    __fd_table[__map_fd(STDERR_FILENO)].version = 0;
 	    __fd_table[__map_fd(STDERR_FILENO)].path = strndup("/dev/stderr", PATH_MAX);
-	    __fd_table[__map_fd(STDERR_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stderr");
+	    /* __fd_table[__map_fd(STDERR_FILENO)].inode_triple = get_inode_triple(AT_FDCWD, "/dev/stderr"); */
         }
 
         __fd_table_capacity = new_fd_table_capacity;
@@ -125,7 +125,7 @@ static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, str
      * Just in case fd == dirfd, as in chdir("foo") */
     __fd_table[fd].dirfd_version = __fd_table[dirfd].version;
     __fd_table[fd].fd = __unmap_fd(fd);
-    __fd_table[fd].inode_triple = inode_triple;
+    /* __fd_table[fd].inode_triple = inode_triple; */
     __fd_table[fd].version++;
     EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
 }
@@ -174,6 +174,6 @@ void fd_table_dup(int oldfd, int newfd) {
     __fd_table[newfd].dirfd = __fd_table[oldfd].dirfd;
     __fd_table[newfd].dirfd_version = __fd_table[oldfd].dirfd_version;
     __fd_table[newfd].fd = __unmap_fd(newfd);
-    __fd_table[newfd].inode_triple = __fd_table[oldfd].inode_triple;
+    /* __fd_table[newfd].inode_triple = __fd_table[oldfd].inode_triple; */
     EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
 }

@@ -17,37 +17,41 @@
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#define ASSERTF(cond, ...) \
+    if (unlikely(!(cond))) { \
+        fprintf(stderr, __FILE__ ":%d:%s: Assertion " #cond " failed: ", __LINE__, __func__); \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, ", errno = %d %s\n", errno, strerror(errno)); \
+        abort(); \
+    }
+
+#define NOT_IMPLEMENTED(...) ({ \
+    fprintf(stderr, __FILE__ ":%d:%s: Not implemented: ", __LINE__, __func__); \
+    fprintf(stderr, __VA_ARGS__); \
+    fprintf(stderr, "\n"); \
+    abort(); \
+})
+
 #define EXPECT(cond, expr) ({\
     errno = 0; \
-    ssize_t ret = (ssize_t) (expr); \
-    if (unlikely(!(ret cond))) { \
-        fprintf(stderr, "failure on %s:%d: %s: assertion !(ret %s) failed for ret=%ld; errno=%d, strerror(errno)=\"%s\"\n", __FILE__, __LINE__, #expr, #cond, ret, errno, strerror(errno)); \
-        abort(); \
-    } \
+    ssize_t ret = (expr); \
+    ASSERTF((ret cond), "Expected %s %s, but %s == %ld", #expr, #cond, #expr, ret); \
     ret; \
 })
 
 #define EXPECT_NONNULL(expr) ({\
     errno = 0; \
-    void* ret = (void*) (expr); \
-    if (unlikely(!ret)) { \
-        fprintf(stderr, "failure on %s:%d: %s returned unexpected null pointer; errno=%d, strerror(errno)=\"%s\"\n", __FILE__, __LINE__, #expr, errno, strerror(errno)); \
-        abort(); \
-    } \
+    void* ret = (expr); \
+    ASSERTF(ret, "Expected non-null pointer from %s", #expr); \
     ret; \
 })
 
 #define CHECK_SNPRINTF(s, n, ...) ({\
-        int ret = snprintf(s, n, __VA_ARGS__); \
-        if (unlikely(ret < 0)) { \
-            fprintf(stderr, "failure on %s:%d: snprintf: %s\n", __FILE__, __LINE__, strerror(errno)); \
-            abort(); \
-        } \
-        if (unlikely(n <= ret)) { \
-            fprintf(stderr, "failure on %s:%d: snprintf: %d-long string exceeds destination %d-long destination buffer\n", __FILE__, __LINE__, ret, n); \
-            abort(); } \
-	ret; \
-    })
+    int ret = snprintf(s, n, __VA_ARGS__); \
+    ASSERTF(ret > 0, "snprintf returned %d", ret); \
+    ASSERTF(ret < n, "%d-long string exceeds destination %d-long destination buffer\n", ret, n); \
+    ret; \
+})
 
 static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size, BORROWED const char* right) {
     if (left_size == -1) {
@@ -61,15 +65,11 @@ static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWE
     if (!path_buf) {
         path_buf = malloc(left_size + right_size + 2);
     }
-    EXPECT(, memcpy(path_buf, left, left_size));
+    EXPECT_NONNULL(memcpy(path_buf, left, left_size));
     path_buf[left_size] = '/';
-    EXPECT(, memcpy(path_buf + left_size + 1, right, right_size));
+    EXPECT_NONNULL(memcpy(path_buf + left_size + 1, right, right_size));
     path_buf[left_size + 1 + right_size] = '\0';
     return path_buf;
-}
-
-static pid_t my_gettid(){
-    return (pid_t)syscall(SYS_gettid);
 }
 
 #define COUNT_NONNULL_VARARGS(first_vararg) \
@@ -83,3 +83,6 @@ static pid_t my_gettid(){
         va_end(vl); \
         n_varargs; \
     })
+
+/* len(str(2**32)) == 10. Let's add 1 for a null byte and 1 just for luck :) */
+const int unsigned_int_string_size = 12;
