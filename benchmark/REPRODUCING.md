@@ -37,7 +37,7 @@ $ nix build --print-build-logs --max-jobs $(nproc) '.#env'
 
 ### Extra steps
 
-- One needs Kaggle credentials to run the data science notebooks. Log in to Kaggle, go to Profile, go to Account, generated an API key called "kaggle.json", download it, move it to `​~/.kaggle/kaggle.json`, `chmod 600 ~/.kaggle/kaggle.json`. Run `kaggle --help` and verify there are no errors.
+- One needs Kaggle credentials to run the data science notebooks. Log in to Kaggle, go to Profile, go to Account, generated an API key called "kaggle.json", download it, move it to `​~/.kaggle/kaggle.json`, `chmod 600 ~/.kaggle/kaggle.json`. Run `nix shell '.#kaggle' --command kaggle --help` and verify there are no errors.
 
 - Follow directions in [Benchexec](https://github.com/sosy-lab/benchexec/blob/main/doc/INSTALL.md) to enable cgroups. Run `result/bin/python -m benchexec.check_cgroups` and verify there are no errors.
 

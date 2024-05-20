@@ -75,6 +75,9 @@
               pkgs.lzop
             ];
           };
+          kaggle = python.withPackages (pypkgs: [
+            pypkgs.kaggle
+          ]);
           notebook-env = pkgs.symlinkJoin {
             name = "notebook-env";
             paths = [
