@@ -23,7 +23,7 @@ from run_exec_wrapper import run_exec, DirMode
 from util import (
     delete_children, move_children,
     hardlink_children, shuffle, expect_type, to_str, merge_env_vars,
-    SubprocessError, check_returncode, get_nix_env,
+    SubprocessError, get_nix_env,
 )
 
 

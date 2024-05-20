@@ -476,12 +476,15 @@ class PTU(ProvCollector):
     method = "ptrace"
     submethod = "syscalls"
 
-    nix_packages = ["provenance-to-use"]
+    nix_packages = [".#provenance-to-use", ".#coreutils"]
 
     def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         assert log.is_dir()
         assert list(log.iterdir()) == []
-        return ("ptu", "-o", log, *cmd)
+        assert not log.is_absolute(), "This logic won't work to 'un-chdir' from log if log is absolute"
+        undo_log_chdir = Path(*(len(log.parts) * [".."]))
+        assert log.exists()
+        return ("env", "--chdir", log, "ptu", "-o", ".", "env", "--chdir", undo_log_chdir, *cmd)
 
     def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
         root = log / "cde-root"

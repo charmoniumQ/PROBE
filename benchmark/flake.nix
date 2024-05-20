@@ -1,6 +1,9 @@
 {
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  outputs = { self, nixpkgs, flake-utils }:
+  # Use newer Nix to apply this bugfix
+  # https://github.com/NixOS/nix/pull/10467
+  inputs.new-nixos.url = "github:NixOS/nixpkgs";
+  outputs = { self, nixpkgs, flake-utils, ... }@inputs:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -22,6 +25,7 @@
         '';
       in {
         packages = rec {
+          nix = inputs.new-nixos.legacyPackages.${system}.nix;
           strace = pkgs.strace;
           fsatrace = pkgs.fsatrace;
           rr = pkgs.rr;

@@ -262,10 +262,17 @@ def n_unique(it: Iterable[Hashable]) -> int:
     return len(set(it))
 
 
-_nix_path = shutil.which("nix")
-if _nix_path is None:
+_system_nix_path = shutil.which("nix")
+if _system_nix_path is None:
     raise ValueError("Please add `nix` to the $PATH")
-NIX_BIN_PATH = pathlib.Path(_nix_path)
+_project_nix_path = check_returncode(subprocess.run(
+    [_system_nix_path, "shell", ".#which", ".#nix", "--command", "which", "nix"],
+    env=cast(Mapping[str, str], {}),
+    capture_output=True,
+    text=True,
+    check=False,
+)).stdout.strip()
+NIX_BIN_PATH = pathlib.Path(_project_nix_path)
 
 
 def get_nix_env(packages: list[str]) -> Mapping[str, str]:
