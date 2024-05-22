@@ -17,36 +17,64 @@
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-#define ASSERTF(cond, ...) \
+#define FREE(p) ({free(p); })
+/* #define FREE(p) ({ \ */
+/*     DEBUG("free: %s: %p", #p, p); \ */
+/*     free(p); \ */
+/* }) */
+
+#define __LOG(...) ({ \
+    fprintf(stderr, __VA_ARGS__); \
+})
+
+#define __LOG_SOURCE(msg) ({ \
+    __LOG(__FILE__ ":%d:%s(): ", __LINE__, __func__); \
+})
+
+#define DEBUG(...) ({ \
+    if (prov_log_verbose()) { \
+        __LOG("    debug: "); \
+        __LOG_SOURCE(); \
+        __LOG(__VA_ARGS__); \
+        __LOG("\n"); \
+    } \
+})
+
+#define ASSERTF(cond, ...) ({ \
     if (unlikely(!(cond))) { \
-        fprintf(stderr, __FILE__ ":%d:%s: Assertion " #cond " failed: ", __LINE__, __func__); \
-        fprintf(stderr, __VA_ARGS__); \
-        fprintf(stderr, ", errno = %d %s\n", errno, strerror(errno)); \
+        __LOG("    error: "); \
+        __LOG_SOURCE(); \
+        __LOG("Assertion " #cond " failed: "); \
+        __LOG(__VA_ARGS__); \
+        __LOG("\n"); \
         abort(); \
-    }
+    } \
+})
 
 #define NOT_IMPLEMENTED(...) ({ \
-    fprintf(stderr, __FILE__ ":%d:%s: Not implemented: ", __LINE__, __func__); \
-    fprintf(stderr, __VA_ARGS__); \
-    fprintf(stderr, "\n"); \
+    __LOG("    error: "); \
+    __LOG_SOURCE(); \
+    __LOG("Not implemented: "); \
+    __LOG(__VA_ARGS__); \
+    __LOG("\n"); \
     abort(); \
 })
 
-#define EXPECT(cond, expr) ({\
+#define EXPECT(cond, expr) ({ \
     errno = 0; \
     ssize_t ret = (expr); \
     ASSERTF((ret cond), "Expected %s %s, but %s == %ld", #expr, #cond, #expr, ret); \
     ret; \
 })
 
-#define EXPECT_NONNULL(expr) ({\
+#define EXPECT_NONNULL(expr) ({ \
     errno = 0; \
     void* ret = (expr); \
     ASSERTF(ret, "Expected non-null pointer from %s", #expr); \
     ret; \
 })
 
-#define CHECK_SNPRINTF(s, n, ...) ({\
+#define CHECK_SNPRINTF(s, n, ...) ({ \
     int ret = snprintf(s, n, __VA_ARGS__); \
     ASSERTF(ret > 0, "snprintf returned %d", ret); \
     ASSERTF(ret < n, "%d-long string exceeds destination %d-long destination buffer\n", ret, n); \
@@ -72,17 +100,20 @@ static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWE
     return path_buf;
 }
 
-#define COUNT_NONNULL_VARARGS(first_vararg) \
-    ({ \
-        va_list vl; \
-        va_start(vl, first_vararg); \
-        size_t n_varargs = 0; \
-        while (va_arg(vl, char*)) { \
-            ++n_varargs; \
-        } \
-        va_end(vl); \
-        n_varargs; \
-    })
+#define COUNT_NONNULL_VARARGS(first_vararg) ({ \
+    va_list vl; \
+    va_start(vl, first_vararg); \
+    size_t n_varargs = 0; \
+    while (va_arg(vl, char*)) { \
+        ++n_varargs; \
+    } \
+    va_end(vl); \
+    n_varargs; \
+})
 
 /* len(str(2**32)) == 10. Let's add 1 for a null byte and 1 just for luck :) */
 const int unsigned_int_string_size = 12;
+/* len(str(2**64)) == 20 */
+const int unsigned_long_string_size = 22;
+/* len(str(2**63)) + 1 == 20 */
+const int signed_long_string_size = 22;

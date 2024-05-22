@@ -95,8 +95,30 @@ The shared library constructor does not get called after `exec()` (TODO: link), 
 Checking on the first operation has the downside that it could slow down every operation a bit (although branch prediction mitigates this), and some processes might not get logged, if they do not do any prov operations before crashing.
 What a weird process to have. I'll take this tradeoff any day.
 
-Exiting will be hooked by interposing `exit`, `_exit`, and maybe signal handlers.
+Destruction is different. There is no indication which is the last operation in a given process or thread.
+
+I don't know of a way of hooking a thread's exit. Threads will have to write their information into some structure that can get processed at process-exit time.
+
+One can hook the process's exit with:
+
+- atexit/on_exit()
+- Interpose exit()
+- library destructor
+
+Not sure which is best.
 
 # TODO: be correct when there are signal handlers
 
 I think this is called re-entrancy.
+
+https://stackoverflow.com/questions/2799023/what-exactly-is-a-reentrant-function
+
+# TODO: default PATH
+
+When PATH is not defined, use /bin and /usr/bin
+
+https://www.man7.org/linux/man-pages/man3/exec.3.html
+
+# TODO: don't zero-initialize, use malloc instead of calloc, or free-then-null  in opt mode
+
+# TODO: have opt mode (-O3)

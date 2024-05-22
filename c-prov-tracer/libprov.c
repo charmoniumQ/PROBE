@@ -19,8 +19,9 @@
 #include <sys/sysmacros.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
-
-#include "unistd_subset.h"
+#include <utime.h>
+#include <unistd.h>
+#include <signal.h>
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
@@ -38,20 +39,11 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 
 static void maybe_init_thread();
 static void term_process();
+static bool prov_log_verbose();
 
-static char* const __prov_log_verbose_envvar = "PROV_LOG_VERBOSE";
-static bool __prov_log_verbose = false;
-static void init_prov_log_verbose() {
-    char* __prov_log_verbose_envval = getenv(__prov_log_verbose_envvar);
-    if (__prov_log_verbose_envval && __prov_log_verbose_envval[0] != '\0') {
-        __prov_log_verbose = true;
-    } else {
-        __prov_log_verbose = false;
-    }
-}
-static bool prov_log_verbose() {
-    return __prov_log_verbose;
-}
+#define ENV_VAR_PREFIX "PROV_LOG_"
+
+#define PRIVATE_ENV_VAR_PREFIX "__PROV_LOG_"
 
 #include "libc_hooks.h"
 
@@ -59,11 +51,15 @@ static bool prov_log_verbose() {
 
 /* #include "fd_table.c" */
 
-#include "prov_operations.c"
+#include "prov_ops.h"
+
+#include "global_state.c"
+
+#include "prov_ops.c"
 
 #include "prov_buffer.c"
 
-/* #include "lookup_on_path.c" */
+#include "lookup_on_path.c"
 
 #include "libc_hooks.c"
 
@@ -100,47 +96,65 @@ static void check_function_pointers() {
     }
 }
 
-static bool __process_inited = false;
-static void maybe_init_process() {
-    if (unlikely(!__process_inited)) {
-        prov_log_disable();
-        init_prov_log_verbose();
-        init_function_pointers();
-        check_function_pointers();
-        init_process_id();
-        init_process_birth_time();
-        init_exec_epoch();
-        init_process_prov_log();
-        __process_inited = true;
-        prov_log_enable();
-        struct Op op = {
-            init_process_op_code,
-            {.init_process = init_current_process()},
-        };
-        prov_log_try(op);
-        prov_log_record(op);
-    }
+void handler(int signo, siginfo_t *info, void *context) {
+    fflush(stdout);
+    fprintf(stderr, "Got SIGSEGV in process %d, thread %d\n", get_process_id(), get_sams_thread_id());
+    _exit(1);
+}
+void setup_signal_handlers() {
+    struct sigaction sa = {0};
+    sa.sa_sigaction = &handler;
+    sa.sa_flags = SA_SIGINFO;
+    /* EXPECT(== 0, sigaction(SIGSEGV, &sa, NULL)); */
 }
 
+static bool __process_inited = false;
 static __thread bool __thread_inited = false;
 static void maybe_init_thread() {
     if (unlikely(!__thread_inited)) {
+        bool was_process_inited = __process_inited;
         prov_log_disable();
-        maybe_init_process();
-        init_sams_thread_id();
-        init_thread_prov_log();
-        __thread_inited = true;
+        {
+            if (unlikely(!__process_inited)) {
+                prov_log_disable();
+                init_function_pointers();
+                check_function_pointers();
+                init_process_global_state();
+                setup_signal_handlers();
+                DEBUG("Initializing process %d", get_process_id());
+                init_process_prov_log();
+                atexit(term_process);
+                __process_inited = true;
+            }
+            init_thread_global_state();
+            DEBUG("Initializing thread %d of process %d", get_sams_thread_id(), get_process_id());
+            init_thread_prov_log();
+        }
         prov_log_enable();
+        __thread_inited = true;
+
+        if (!was_process_inited) {
+            struct Op op = {
+                init_process_op_code,
+                {.init_process = init_current_process()},
+            };
+            prov_log_try(op);
+            prov_log_record(op);
+        }
+
         struct Op op = {
             init_thread_op_code,
             {.init_thread = init_current_thread()},
         };
         prov_log_try(op);
         prov_log_record(op);
+        prov_log_enable();
     }
 }
 
 static void term_process() {
+    DEBUG("cleanup started %d %d", get_process_id(), get_sams_thread_id());
     prov_log_disable();
     prov_log_term_process();
+    DEBUG("cleanup done %d %d", get_process_id(), get_sams_thread_id());
 }

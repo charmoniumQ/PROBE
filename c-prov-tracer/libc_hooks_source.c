@@ -153,7 +153,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
         bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
         struct Op op = {
             open_op_code,
-            .data = {.open = {
+            {.open = {
                 .path = create_path_lazy(dirfd, filename),
                 .flags = flags,
                 .mode = 0,
@@ -311,7 +311,7 @@ int dup (int old) { }
 int dup2 (int old, int new) { }
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
-int dup3 (int old, int new) { }
+int dup3 (int old, int new, int flags) { }
 
 /* TODO: fcntl */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
@@ -339,10 +339,7 @@ int chdir (const char *filename) {
     void* pre_call = ({
         struct Op op = {
             chdir_op_code,
-            {.chdir = {
-                .path = create_path_lazy(AT_FDCWD, filename),
-                .ferrno = 0,
-            }},
+            {.chdir = {create_path_lazy(AT_FDCWD, filename), 0}},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -359,10 +356,7 @@ int fchdir (int filedes) {
     void* pre_call = ({
         struct Op op = {
             chdir_op_code,
-            {.chdir = {
-                .path = create_path_lazy(filedes, ""),
-                .ferrno = 0,
-            }},
+            {.chdir = {create_path_lazy(filedes, ""), 0}},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -517,9 +511,6 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf, int flags) { }
 /* fn newfstatat = fstatat; */
 
-/* Docs: https://linux.die.net/man/2/faccessat */
-int faccessat(int dirfd, const char *pathname, int mode, int flags);
-
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
 int chown (const char *filename, uid_t owner, gid_t group) { }
 int fchown (int filedes, uid_t owner, gid_t group) { }
@@ -529,7 +520,42 @@ int chmod (const char *filename, mode_t mode) { }
 int fchmod (int filedes, mode_t mode) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Testing-File-Access.html */
-int access (const char *filename, int how) { }
+int access (const char *filename, int how) {
+    void* pre_call = ({
+        struct Op op = {
+            access_op_code,
+            {.access = {create_path_lazy(AT_FDCWD, filename), how, 0, 0}},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            op.data.access.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
+        }
+    });
+}
+
+/* Docs: https://linux.die.net/man/2/faccessat */
+int faccessat(int dirfd, const char *pathname, int mode, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            access_op_code,
+            {.access = {create_path_lazy(dirfd, pathname), mode, flags, 0}},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            op.data.access.ferrno = ret == 0 ? 0 : errno;
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Times.html */
 int utime (const char *filename, const struct utimbuf *times) { }
@@ -696,15 +722,19 @@ int execle (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
 }
 int execvp (const char *filename, char *const argv[]) {
-        void* pre_call = ({
+    void* pre_call = ({
+        char bin_path[PATH_MAX + 1];
+        lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(0, filename),
+                /* maybe we could get rid of this allocation somehow
+                 * i.e., construct the .path in-place
+                 * */
+                .path = create_path_lazy(0, bin_path),
                 .ferrno = 0,
             }},
         };
-        /* TODO: generate accesses to other candidates on the $PATH */
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
@@ -722,15 +752,19 @@ int execvp (const char *filename, char *const argv[]) {
 }
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
-        void* pre_call = ({
+    void* pre_call = ({
+        char bin_path[PATH_MAX + 1];
+        lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(0, filename),
+                /* maybe we could get rid of this allocation somehow
+                 * i.e., construct the .path in-place
+                 * */
+                .path = create_path_lazy(0, bin_path),
                 .ferrno = 0,
             }},
         };
-        /* TODO: generate accesses to other candidates on the $PATH */
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
@@ -749,15 +783,19 @@ int execlp (const char *filename, const char *arg0, ...) {
 
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
-        void* pre_call = ({
+    void* pre_call = ({
+        char bin_path[PATH_MAX + 1];
+        lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(0, filename),
+                /* maybe we could get rid of this allocation somehow
+                 * i.e., construct the .path in-place
+                 * */
+                .path = create_path_lazy(0, bin_path),
                 .ferrno = 0,
             }},
         };
-        /* TODO: generate accesses to other candidates on the $PATH */
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
@@ -986,15 +1024,44 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) { }
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/BSD-Wait-Functions.html */
 pid_t wait3 (int *status_ptr, int options, struct rusage *usage) { }
 
-void exit (int status) {
-    void* pre_call = ({
-        term_process();
-    });
-    void* post_call = ({
-        __builtin_unreachable();
-    });
-}
+/* void exit (int status) { */
+/*     void* pre_call = ({ */
+/*         struct Op op = { */
+/*             exit_op_code, */
+/*             {.exit = { */
+/*                 .status = status, */
+/*                 .run_atexit_handlers = true, */
+/*             }}, */
+/*         }; */
+/*         prov_log_try(op); */
+/*         prov_log_record(op); */
+/*         term_process(); */
+/*     }); */
+/*     void* post_call = ({ */
+/*         __builtin_unreachable(); */
+/*     }); */
+/* } */
+
+/* void _exit(int status) { */
+/*     void* pre_call = ({ */
+/*         struct Op op = { */
+/*             exit_op_code, */
+/*             {.exit = { */
+/*                 .status = status, */
+/*                 .run_atexit_handlers = false, */
+/*             }}, */
+/*         }; */
+/*         prov_log_try(op); */
+/*         prov_log_record(op); */
+/*         term_process(); */
+/*     }); */
+/*     void* post_call = ({ */
+/*         __builtin_unreachable(); */
+/*     }); */
+/* } */
+
+/* fn _Exit = _exit; */
 
 /*
-** TODO: getcwd, getwd, chroot, _exit
+** TODO: getcwd, getwd, chroot
  */

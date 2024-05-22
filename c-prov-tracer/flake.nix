@@ -13,6 +13,8 @@
                 pypkgs.pytest
                 pypkgs.mypy
               ]))
+              pkgs.strace
+              pkgs.ltrace
               pkgs.gcc
               pkgs.gdb
               pkgs.coreutils
