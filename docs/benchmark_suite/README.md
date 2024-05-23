@@ -4,10 +4,16 @@ verbosity: INFO
 citeproc: yes
 ccite-method: citeproc
 publisher:
+  copyrightYear: 2024
+  year: 2024
+  copyright: rightsretained
+  booktitle: ACM Conference on Reproducibility and Replicability (ACM REP '24), June 18--20, 2024, Rennes, France
+  doi: 10.1145/3641525.3663627
+  isbn: 979-8-4007-0530-4/24/06
   conference:
-    acronym: ACM REP
-    name: ACM Reproducibility
-    daterange: 2024
+    acronym: ACM REP '24
+    name: ACM Conference on Reproducibility and Replicability
+    daterange: June 18--20, 2024
     location: Rennes, France
 bibliography:
   - zotero
@@ -78,7 +84,7 @@ author:
 classoption:
   - sigconf
   - screen=true
-  - review=true
+  - review=false
   - authordraft=false
   - timestamp=false
   - balance=false
@@ -801,6 +807,11 @@ We intend this work to bridge research to practical use of provenance collectors
 In order to bridge research into practice, we identified reproducible and usable provenance collectors from prior work and evaluated their performance on synthetic and real-world workloads.
 In order to invite future research, we collated and minimized a benchmark suite and identified gaps in prior work.
 We believe this work and the work it enables will address the practical concerns of a user wanting to use a provenance collector.
+
+\begin{acks}
+This work was partially supported by NSF grants CCF-1763788 and CCF-1956374.
+We acknowledge support for research on flaky tests from Google and Meta.
+\end{acks}
 
 \appendix
 

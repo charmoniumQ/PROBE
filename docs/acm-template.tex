@@ -4,7 +4,8 @@
 $if(publisher.journal)$\acmJournal{$publisher.journal$}$endif$
 $if(publisher.conference)$
   \acmConference[$publisher.conference.acryonym$]{$publisher.conference.name$}{$publisher.conference.daterange$}{$publisher.conference.location$}
-$else$
+$endif$
+$if(publisher.booktitle)$
   \acmBooktitle{$publisher.booktitle$}
 $endif$
 $for(editor)$\editor{editor}$endfor$
