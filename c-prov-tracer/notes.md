@@ -122,3 +122,11 @@ https://www.man7.org/linux/man-pages/man3/exec.3.html
 # TODO: don't zero-initialize, use malloc instead of calloc, or free-then-null  in opt mode
 
 # TODO: have opt mode (-O3)
+
+# TODO: Write a wrapper script
+
+- Ensure private env vars are unset
+- Ensure prov path is readable and possibly empty
+- Have --help
+  - Link to GitHub repo and issues
+- Make sure we are not already tracing prov, or maybe prov tracing should be "stackable"?

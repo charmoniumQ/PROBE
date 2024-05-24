@@ -1,7 +1,19 @@
-typedef int32_t Fd;
+#ifdef PYCPARSER
+#define _BITS_BYTESWAP_H
+#define __attribute__(x)
+#define __bswap_64(x)
+#define __restrict
+#define __inline
+#define __extension__
+#define BORROWED
+#define OWNED
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#endif
 
 struct Path {
-    Fd dirfd_minus_at_fdcwd;
+    int32_t dirfd_minus_at_fdcwd;
     const char* path;
     dev_t device_major;
     dev_t device_minor;
@@ -51,13 +63,13 @@ struct OpenOp {
     struct Path path;
     int flags;
     mode_t mode;
-    Fd fd;
+    int32_t fd;
     int ferrno;
 };
 
 struct CloseOp {
-    Fd low_fd;
-    Fd high_fd;
+    int32_t low_fd;
+    int32_t high_fd;
     int ferrno;
 };
 

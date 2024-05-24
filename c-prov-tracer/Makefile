@@ -40,7 +40,7 @@ valgrind: libprov.so simple
 pdb: gen_libc_hooks.py libc_hooks_source.c
 	python3 -m pdb gen_libc_hooks.py
 
-libprov.so: *.c libc_hooks.c
+libprov.so: *.c *.h libc_hooks.c
 	gcc $(CFLAGS) -shared -o $@ libprov.c
 
 libc_hooks.c: gen_libc_hooks.py libc_hooks_source.c

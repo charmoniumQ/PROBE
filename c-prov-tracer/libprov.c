@@ -96,18 +96,6 @@ static void check_function_pointers() {
     }
 }
 
-void handler(int signo, siginfo_t *info, void *context) {
-    fflush(stdout);
-    fprintf(stderr, "Got SIGSEGV in process %d, thread %d\n", get_process_id(), get_sams_thread_id());
-    _exit(1);
-}
-void setup_signal_handlers() {
-    struct sigaction sa = {0};
-    sa.sa_sigaction = &handler;
-    sa.sa_flags = SA_SIGINFO;
-    /* EXPECT(== 0, sigaction(SIGSEGV, &sa, NULL)); */
-}
-
 static bool __process_inited = false;
 static __thread bool __thread_inited = false;
 static void maybe_init_thread() {
@@ -120,7 +108,6 @@ static void maybe_init_thread() {
                 init_function_pointers();
                 check_function_pointers();
                 init_process_global_state();
-                setup_signal_handlers();
                 DEBUG("Initializing process %d", get_process_id());
                 init_process_prov_log();
                 atexit(term_process);
