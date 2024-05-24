@@ -12,6 +12,7 @@
                 pypkgs.pycparser
                 pypkgs.pytest
                 pypkgs.mypy
+                pypkgs.ipython
               ]))
               pkgs.strace
               pkgs.ltrace

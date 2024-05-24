@@ -7,20 +7,27 @@
 #define __extension__
 #define BORROWED
 #define OWNED
+#define _GNU_SOURCE
+#define __signed__ signed
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #endif
 
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
-    const char* path;
+    const char* path; /* path valid if non-null */
     dev_t device_major;
     dev_t device_minor;
     ino_t inode;
+    /* TODO: throw in mtime too. */
+    /* struct statx_timestamp modification_time; */
+    bool stat_valid;
+    bool dirfd_valid;
 };
 
-static struct Path null_path = {-1, NULL, -20, -20, -20};
+static struct Path null_path = {-1, NULL, -1, -1, -1, false, false};
 static struct Path create_path(int dirfd, BORROWED const char* path);
 static int path_to_string(struct Path path, char* buffer, int buffer_length);
 static void free_path(struct Path path);
@@ -147,6 +154,7 @@ struct Op {
         struct ChmodOp chmod;
         struct ReadLinkOp read_link;
     } data;
+    struct timespec time;
 };
 
 static void free_op(struct Op op);

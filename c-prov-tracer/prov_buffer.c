@@ -81,6 +81,10 @@ static void prov_log_record(struct Op op) {
         assert(thread_local_op_buffer->used == 0);
     }
 
+    if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
+        EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));
+    }
+
     thread_local_op_buffer->ops[thread_local_op_buffer->used] = op;
     ++thread_local_op_buffer->used;
 

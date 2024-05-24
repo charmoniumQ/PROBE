@@ -51,6 +51,7 @@ FILE * fopen (const char *filename, const char *opentype) {
                 .fd = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -80,10 +81,12 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
                 .fd = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         struct Op close_op = {
             close_op_code,
             {.close = {original_fd, original_fd, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(open_op);
@@ -113,6 +116,7 @@ int fclose (FILE *stream) {
         struct Op op = {
             close_op_code,
             {.close = {fd, fd, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -130,6 +134,7 @@ int fcloseall(void) {
         struct Op op = {
             close_op_code,
             {.close = {0, INT_MAX, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -160,6 +165,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
                 .fd = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
@@ -202,6 +208,7 @@ int open (const char *filename, int flags, ...) {
                 .fd = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
@@ -237,6 +244,7 @@ int creat (const char *filename, mode_t mode) {
                 .fd = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -256,6 +264,7 @@ int close (int filedes) {
         struct Op op = {
             close_op_code,
             {.close = {filedes, filedes, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -276,6 +285,7 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
         struct Op op = {
             close_op_code,
             {.close = {lowfd, maxfd, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -293,6 +303,7 @@ void closefrom (int lowfd) {
         struct Op op = {
             close_op_code,
             {.close = {lowfd, INT_MAX, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -340,6 +351,7 @@ int chdir (const char *filename) {
         struct Op op = {
             chdir_op_code,
             {.chdir = {create_path_lazy(AT_FDCWD, filename), 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -356,7 +368,8 @@ int fchdir (int filedes) {
     void* pre_call = ({
         struct Op op = {
             chdir_op_code,
-            {.chdir = {create_path_lazy(filedes, ""), 0}},
+            {.chdir = {create_path_lazy(filedes, NULL), 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -383,6 +396,7 @@ DIR * opendir (const char *dirname) {
                 .fd = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -401,13 +415,14 @@ DIR * fdopendir (int fd) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(fd, ""),
+                .path = create_path_lazy(fd, NULL),
                 /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
                 .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -434,6 +449,7 @@ int closedir (DIR *dirstream) {
         struct Op op = {
             close_op_code,
             {.close = {fd, fd, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -525,6 +541,7 @@ int access (const char *filename, int how) {
         struct Op op = {
             access_op_code,
             {.access = {create_path_lazy(AT_FDCWD, filename), how, 0, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -544,6 +561,7 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
         struct Op op = {
             access_op_code,
             {.access = {create_path_lazy(dirfd, pathname), mode, flags, 0}},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -592,6 +610,7 @@ int execv (const char *filename, char *const argv[]) {
                 .path = create_path_lazy(0, filename),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -631,6 +650,7 @@ int execl (const char *filename, const char *arg0, ...) {
                 .path = create_path_lazy(0, filename),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -656,6 +676,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
                 .path = create_path_lazy(0, filename),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -677,9 +698,10 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(fd, ""),
+                .path = create_path_lazy(fd, NULL),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -704,6 +726,7 @@ int execle (const char *filename, const char *arg0, ...) {
                 .path = create_path_lazy(0, filename),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -734,6 +757,7 @@ int execvp (const char *filename, char *const argv[]) {
                 .path = create_path_lazy(0, bin_path),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -764,6 +788,7 @@ int execlp (const char *filename, const char *arg0, ...) {
                 .path = create_path_lazy(0, bin_path),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -795,6 +820,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
                 .path = create_path_lazy(0, bin_path),
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -828,6 +854,7 @@ pid_t fork (void) {
                 .child_thread_id = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -871,6 +898,7 @@ pid_t _Fork (void) {
                 .child_thread_id = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -911,6 +939,7 @@ pid_t vfork (void) {
                 .child_thread_id = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         bool was_prov_log_enabled = prov_log_is_enabled();
         if (likely(prov_log_is_enabled())) {
@@ -978,6 +1007,7 @@ int clone(
                 .child_thread_id = -1,
                 .ferrno = 0,
             }},
+            {0},
         };
         bool was_prov_log_enabled = prov_log_is_enabled();
         if (likely(prov_log_is_enabled())) {

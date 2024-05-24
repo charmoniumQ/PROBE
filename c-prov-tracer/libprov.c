@@ -124,6 +124,7 @@ static void maybe_init_thread() {
             struct Op op = {
                 init_process_op_code,
                 {.init_process = init_current_process()},
+                {0},
             };
             prov_log_try(op);
             prov_log_record(op);
@@ -132,6 +133,7 @@ static void maybe_init_thread() {
         struct Op op = {
             init_thread_op_code,
             {.init_thread = init_current_thread()},
+            {0},
         };
         prov_log_try(op);
         prov_log_record(op);

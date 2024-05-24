@@ -1,23 +1,26 @@
 static struct Path create_path(int dirfd, BORROWED const char* path) {
     struct Path ret = {
         dirfd - AT_FDCWD,
-        EXPECT_NONNULL(strndup(path, PATH_MAX)),
-        -20,
-        -20,
-        -20,
+        (path != NULL ? EXPECT_NONNULL(strndup(path, PATH_MAX)) : NULL),
+        -1,
+        -1,
+        -1,
+        false,
+        true,
     };
 
     /*
      * If dirfd == 0, then the user is asserting it is not needed.
      * Path must be absolute. */
-    assert(dirfd != 0 || path[0] == '/');
+    assert(dirfd != 0 || (path != NULL && path[0] == '/'));
 
     /*
-     * if path == "", then the target is the dir specified by dirfd.
+     * if path == NULL, then the target is the dir specified by dirfd.
      * */
     struct stat stat_buf;
     int stat_ret;
-    if (path[0] == '\0') {
+    /* TODO: convert to statx */
+    if (path == NULL) {
         stat_ret = o_fstat(dirfd, &stat_buf);
     } else {
         stat_ret = o_fstatat(dirfd, path, &stat_buf, 0);
@@ -26,6 +29,7 @@ static struct Path create_path(int dirfd, BORROWED const char* path) {
         ret.device_major = major(stat_buf.st_dev);
         ret.device_minor = minor(stat_buf.st_dev);
         ret.inode = stat_buf.st_ino;
+        ret.stat_valid = true;
     }
     return ret;
 }

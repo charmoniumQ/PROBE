@@ -7,6 +7,7 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
         struct Op op = {
             access_op_code,
             {.access = {create_path_lazy(0, bin_path), 0, 0, 0}},
+            {0},
         };
         prov_log_try(op);
         int access_ret = o_access(bin_path, X_OK);
