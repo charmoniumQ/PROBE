@@ -60,6 +60,7 @@
     abort(); \
 })
 
+/* TODO: rewrite this as (const_val, binary_op, expr) */
 #define EXPECT(cond, expr) ({ \
     errno = 0; \
     ssize_t ret = (expr); \

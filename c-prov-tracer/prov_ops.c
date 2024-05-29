@@ -21,9 +21,9 @@ static struct Path create_path(int dirfd, BORROWED const char* path) {
     int stat_ret;
     /* TODO: convert to statx */
     if (path == NULL) {
-        stat_ret = o_fstat(dirfd, &stat_buf);
+        stat_ret = wrapped_fstat(dirfd, &stat_buf);
     } else {
-        stat_ret = o_fstatat(dirfd, path, &stat_buf, 0);
+        stat_ret = wrapped_fstatat(dirfd, path, &stat_buf, 0);
     }
     if (stat_ret == 0) {
         ret.device_major = major(stat_buf.st_dev);

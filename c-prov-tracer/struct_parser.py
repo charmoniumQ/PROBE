@@ -1,3 +1,4 @@
+from __future__ import annotations
 import ctypes
 import _ctypes
 import dataclasses
@@ -102,10 +103,10 @@ for type_name in default_c_types.keys():
     assert _normalize_name(type_name) == type_name
 
 
-def int_representing_pointer(inner_type: CType) -> CType:
+def int_representing_pointer(inner_c_type: CType) -> CType:
     class PointerStruct(ctypes.Structure):
         _fields_ = [("value", ctypes.c_ulong)]
-    PointerStruct.inner_type = inner_type
+    PointerStruct.inner_c_type = inner_c_type
     return PointerStruct
 
 
@@ -256,11 +257,12 @@ def parse_struct_or_union(
             field_py_types.append(py_type)
 
     keyword = "struct" if is_struct else "union"
+
     py_types[(keyword, name)] = dataclasses.make_dataclass(
         name,
         zip(field_names, field_py_types),
         bases=(PyStructBase if is_struct else PyUnionBase,)
-    )
+    ) # type: ignore
 
     if c_type_error is None:
         c_types[(keyword, name)] = type(
@@ -390,42 +392,154 @@ def c_type_to_c_source(c_type: CType, top_level: bool = True) -> str:
         raise TypeError(f"{type(c_type)}: {c_type}")
 
 
-def convert_c_bytes_to_py_obj(
-        c_types: CTypeMap,
-        py_types: PyTypeMap,
-        typ: tuple[str, ...],
-        buffer: bytes,
-) -> PyType:
-    c_type = c_types[typ]
-    py_type = py_types[typ]
-    c_obj = c_type.from_buffer_copy(buffer)
-    return convert_c_obj_to_py_obj(c_obj, py_type)
+@dataclasses.dataclass(frozen=True)
+class MemorySegment:
+    buffr: bytes
+    start: int
+    stop: int
+
+    def __post_init__(self) -> None:
+        self._check()
+
+    def _check(self) -> None:
+        assert self.stop > self.start
+        assert len(self.buffr) == self.stop - self.start
+
+    @property
+    def length(self) -> int:
+        return self.stop - self.start
+
+    @typing.overload
+    def __getitem__(self, idx: slice) -> bytes: ...
+
+    @typing.overload
+    def __getitem__(self, idx: int) -> int: ...
+
+    def __getitem__(self, idx: slice | int) -> bytes | int:
+        if isinstance(idx, slice):
+            if not (self.start <= idx.start <= idx.stop <= self.stop):
+                raise IndexError()
+            return self.buffr[idx.start - self.start : idx.start - self.start : idx.step]
+        elif isinstance(idx, int):
+            return self.buffr[idx - self.start]
+
+    def __contains__(self, idx: int) -> bool:
+        return self.start <= idx < self.stop
+
+    def overlaps(self, other: MemorySegment) -> bool:
+        return any((
+            self.start <= other.start < self.stop,
+            self.start <= other.stop < self.stop,
+            other.start <= self.start < other.stop,
+            # other.start <= self.end < other.end, # redundant case
+        ))
+
+
+@dataclasses.dataclass(frozen=True)
+class MemorySegments:
+    segments: typing.Sequence[MemorySegment]
+
+    def __post_init__(self) -> None:
+        self._check()
+
+    def _check(self) -> None:
+        assert not any(
+            segment_a.overlaps(segment_b)
+            for a, segment_a in enumerate(self.segments)
+            for segment_b in self.segments[a + 1:]
+        )
+        assert sorted(self.segments, key=lambda segment: segment.start) == self.segments
+
+    @typing.override
+    def __getitem__(self, idx: slice) -> bytes: ...
+
+    @typing.override
+    def __getitem__(self, idx: int) -> int: ...
+
+    def __getitem__(self, idx: slice | int) -> bytes | int:
+        if isinstance(idx, slice):
+            buffr = b''
+            for segment in self.segments:
+                buffr += segment.buffr[max(idx.start, segment.start) - segment.start : max(idx.stop, segment.stop) - segment.start]
+            return buffr
+        else:
+            for segment in self.segments:
+                if idx in segment:
+                    return segment[idx]
+            else:
+                raise IndexError(idx)
+
+    def __contains__(self, idx: int) -> bool:
+        return any(idx in segment for segment in self.segments)
 
 
 def convert_c_obj_to_py_obj(
         c_obj: CType,
         py_type: PyType,
+        info: typing.Any,
+        memory: MemorySegments,
 ) -> PyType:
     if False:
         pass
+    elif c_obj.__class__.__name__ == "PointerStruct":
+        # Unfortunately, `list[int] is not list`
+        assert py_type.__name__ == "list" or py_type is str
+        inner_py_type = py_type.__args__[0]  # type: ignore
+        inner_c_type = c_obj.inner_c_type
+        size = ctypes.sizeof(inner_c_type)
+        pointer_int = _expect_type(int, convert_c_obj_to_py_obj(c_obj, int, None, memory))
+        lst: inner_py_type = []  # type: ignore
+        idx = 0
+        while True:
+            cont, sub_info = (memory[pointer_int] != 0, None) if info is None else info[0](memory, pointer_int)
+            if cont:
+                inner_c_obj = inner_c_type.from_buffer_copy(memory[pointer_int : pointer_int + size])
+                lst.append(convert_c_obj_to_py_obj(  # type: ignore
+                    inner_c_obj,
+                    inner_py_type,
+                    sub_info,
+                    memory,
+                ))
+                pointer_int += size
+            else:
+                break
+        if py_type is str:
+            return "".join(lst) # type: ignore
+        else:
+            return lst
     elif isinstance(c_obj, ctypes.Structure):
-        assert dataclasses.is_dataclass(py_type)
-        return py_type(**{
-            py_field.name: convert_c_obj_to_py_obj(
+        if not dataclasses.is_dataclass(py_type):
+            raise TypeError(f"If {type(c_obj)} is a struct, then {py_type} should be a dataclass")
+        fields = dict[str, typing.Any]()
+        for py_field in dataclasses.fields(py_type):
+            fields[py_field.name] = convert_c_obj_to_py_obj(
                 getattr(c_obj, py_field.name),
                 py_field.type,
+                None if info is None else info(fields, py_field.name),
+                memory
             )
-            for py_field in dataclasses.fields(py_type)
-        })
+    elif isinstance(c_obj, ctypes.Union):
+        if not dataclasses.is_dataclass(py_type):
+            raise TypeError(f"If {type(c_obj)} is a union, then {py_type} should be a dataclass")
+        for field in dataclasses.fields(py_type):
+            if field.name == info[0]:
+                break
+        else:
+            raise KeyError(f"No field {info[0]} in {[field.name for field in dataclasses.fields(py_type)]}")
+        return convert_c_obj_to_py_obj(
+            getattr(c_obj, info[0]),
+            field.type,
+            info[1],
+            memory,
+        )
     elif isinstance(c_obj, ctypes._SimpleCData):
         if isinstance(py_type, enum.EnumType):
             assert isinstance(c_obj.value, int)
-            return py_type(c_obj.value)
+            return py_type(c_obj.value)  # type: ignore
         else:
             assert dataclasses.is_dataclass(py_type)
             ret = c_obj.value
-            assert isinstance(ret, py_type)
-            return ret
+            return _expect_type(py_type, ret)
     elif isinstance(c_obj, py_type):
         return c_obj
     elif isinstance(c_obj, int) and isinstance(py_type, enum.EnumType):

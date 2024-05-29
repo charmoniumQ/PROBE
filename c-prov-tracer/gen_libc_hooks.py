@@ -188,7 +188,7 @@ funcs = {
 #     key: val
 #     for key, val in list(funcs.items())
 # }
-func_prefix = "o_"
+func_prefix = "wrapped_"
 func_pointer_declarations = [
     pycparser.c_ast.Decl(
         name=func_prefix + func_name,

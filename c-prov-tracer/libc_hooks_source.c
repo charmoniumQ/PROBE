@@ -3,7 +3,7 @@
  * It is a place-holder for C code and is processed by gen_libprov.py and put into libprov_middle.c.
  * It re-uses C's grammar, so I get syntax highlighting and I can parse it into fragments of C syntax easily.
  * Rationale: In this part of the project, there are many repetitions of code automatically generated.
- * For example, for each function $foo, we define a wrapper function $foo that calls the original function o_$foo with the same arguments.
+ * For example, for each function $foo, we define a wrapper function $foo that calls the original function wrapped_$foo with the same arguments.
  * Just read libprov_middle.c.
  * I can more easily refactor how it works if I don't have to edit each individual instance.
  * gen_libprov.py reads the function signatures, and inside the function bodies, it looks for some specific variable declarations of the form: Type var_name = var_val;

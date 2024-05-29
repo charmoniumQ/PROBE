@@ -138,6 +138,16 @@ static bool prov_log_verbose() {
     return __prov_log_verbose;
 }
 
+static size_t __page_size = 0;
+static void init_page_size() {
+    assert(__page_size == 0);
+    __page_size = sysconf(_SC_PAGESIZE);
+}
+static size_t get_page_size() {
+    assert(__page_size != 0);
+    return __page_size;
+}
+
 /* TODO: Hack exec-family of functions to propagate these environment variables. */
 
 static void init_process_global_state() {
@@ -146,6 +156,7 @@ static void init_process_global_state() {
     init_process_id();
     init_exec_epoch();
     init_process_birth_time();
+    init_page_size();
 }
 
 static void init_thread_global_state() {
