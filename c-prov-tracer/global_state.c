@@ -103,6 +103,7 @@ static void init_process_birth_time() {
     }
 }
 static struct timespec get_process_birth_time() {
+    DEBUG("%ld.%ld\n", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
     assert(__process_birth_time.tv_sec != -1 && __process_birth_time.tv_nsec != 0);
     return __process_birth_time;
 }

@@ -33,7 +33,7 @@
 
 #define DEBUG(...) ({ \
     if (prov_log_verbose()) { \
-        __LOG("    debug: "); \
+        __LOG("    debug:%d ", getpid()); \
         __LOG_SOURCE(); \
         __LOG(__VA_ARGS__); \
         __LOG("\n"); \
@@ -66,14 +66,14 @@
 #define EXPECT(cond, expr) ({ \
     errno = 0; \
     ssize_t ret = (expr); \
-    ASSERTF((ret cond), "Expected %s %s, but %s == %ld", #expr, #cond, #expr, ret); \
+    ASSERTF((ret cond), "Expected %s %s, but %s == %ld: %s (%d)", #expr, #cond, #expr, ret, strerror(errno), errno); \
     ret; \
 })
 
 #define EXPECT_NONNULL(expr) ({ \
     errno = 0; \
     void* ret = (expr); \
-    ASSERTF(ret, "Expected non-null pointer from %s", #expr); \
+    ASSERTF(ret, "Expected non-null pointer from %s: %s (%d)", #expr, strerror(errno), errno); \
     ret; \
 })
 

@@ -80,12 +80,13 @@ static void prov_log_record(struct Op op) {
     arena_uninstantiate_all_but_last(&data_arena);
 }
 
-static int mkdir_and_descend(int dirfd, long child, char* buffer) {
+static int mkdir_and_descend(int dirfd, long child, char* buffer, bool exists_ok) {
     CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
-    EXPECT(== 0, unwrapped_mkdirat(dirfd, buffer, 0777));
-    int ret = EXPECT(!= -1, unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY));
+    int mkdir_ret = unwrapped_mkdirat(dirfd, buffer, 0777);
+    assert(mkdir_ret == 0 || (exists_ok && errno == EEXIST));
+    int sub_dirfd = EXPECT(!= -1, unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY));
     EXPECT(== 0, unwrapped_close(dirfd));
-    return ret;
+    return sub_dirfd;
 }
 
 static int __epoch_dirfd = -1;
@@ -105,14 +106,16 @@ static void init_process_prov_log() {
     } else {
         ASSERTF((stat_buf.st_mode & S_IFMT) == S_IFDIR, "%s already exists but is not a directory\n", relative_dir);
     }
+    DEBUG("cd %s", relative_dir);
     int cwd = EXPECT(!= -1, unwrapped_openat(AT_FDCWD, relative_dir, O_RDONLY | O_DIRECTORY));
 
     struct timespec process_birth_time = get_process_birth_time();
     char dir_name [signed_long_string_size + 1];
-    cwd = mkdir_and_descend(cwd, process_birth_time.tv_sec, dir_name);
-    cwd = mkdir_and_descend(cwd, process_birth_time.tv_nsec, dir_name);
-    cwd = mkdir_and_descend(cwd, get_process_id(), dir_name);
-    __epoch_dirfd = mkdir_and_descend(cwd, get_exec_epoch(), dir_name);
+    /* Could have multiple launches per second and nanosecond even (clock granularity is rarely 1 ns even though the API is) */
+    cwd = mkdir_and_descend(cwd, process_birth_time.tv_sec, dir_name, true);
+    cwd = mkdir_and_descend(cwd, process_birth_time.tv_nsec, dir_name, true);
+    cwd = mkdir_and_descend(cwd, get_process_id(), dir_name, false);
+    __epoch_dirfd = mkdir_and_descend(cwd, get_exec_epoch(), dir_name, false);
 
     /* TODO: pass process_dirfd directly to subsequent exec epochs (since the default is ~O_CLOEXEC) rather than the realpath */
     char absolute_dir [PATH_MAX + 1] = {0};
@@ -127,7 +130,7 @@ static const size_t prov_log_arena_size = 256 * 1024;
 static void init_thread_prov_log() {
     pid_t thread_id = get_sams_thread_id();
     char dir_name [signed_long_string_size + 1];
-    int cwd = mkdir_and_descend(__epoch_dirfd, thread_id, dir_name);
+    int cwd = mkdir_and_descend(__epoch_dirfd, thread_id, dir_name, false);
     EXPECT(== 0, arena_create(&op_arena, cwd, "ops", prov_log_arena_size));
     EXPECT(== 0, arena_create(&data_arena, cwd, "data", prov_log_arena_size));
 
