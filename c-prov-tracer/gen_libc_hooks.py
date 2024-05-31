@@ -100,10 +100,10 @@ void_fn_ptr = pycparser.c_ast.Typename(
 class ParsedFunc:
     name: str
     # Using tuples rather than lists since tuples are covariant
-    params: tuple[tuple[str, pycparser.c_ast.Node], ...]
+    params: typing.Sequence[tuple[str, pycparser.c_ast.Node]]
     return_type: pycparser.c_ast.Node
     variadic: bool = False
-    stmts: tuple[pycparser.c_ast.Node, ...] = ()
+    stmts: typing.Sequence[pycparser.c_ast.Node] = ()
 
     @staticmethod
     def from_decl(decl: pycparser.c_ast.Decl) -> ParsedFunc:
@@ -238,7 +238,7 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
     return lambda *args, **kwarsg: raise_(exception)
 
 
-def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str, comment: typing.Any) -> pycparser.c_ast.Decl | None:
+def find_decl(block: typing.Sequence[pycparser.c_ast.Node], name: str, comment: typing.Any) -> pycparser.c_ast.Decl | None:
     relevant_stmts = [
         stmt
         for stmt in block
@@ -252,7 +252,7 @@ def find_decl(block: tuple[pycparser.c_ast.Node, ...], name: str, comment: typin
         return relevant_stmts[0]
 
 
-def wrapper_func_body(func: ParsedFunc) -> tuple[pycparser.c_ast.Node, ...]:
+def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[pycparser.c_ast.Node]:
     pre_call_stmts = [
         pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="maybe_init_thread"),

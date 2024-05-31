@@ -5,7 +5,8 @@ static void prov_log_enable () { __prov_log_disable = false; }
 static bool prov_log_is_enabled () { return !__prov_log_disable; }
 static void prov_log_set_enabled (bool value) { __prov_log_disable = value; }
 
-static __thread struct ArenaDir thread_local_arena;
+static __thread struct ArenaDir op_arena;
+static __thread struct ArenaDir data_arena;
 
 static void prov_log_save() {
     /*
@@ -46,7 +47,7 @@ static void prov_log_record(struct Op op) {
     /* TODO: we currently log ops by constructing them on the stack and copying them into the arena.
      * Ideally, we would construct them in the arena (no copy necessary).
      * */
-    struct Op* dest = arena_calloc(&thread_local_arena, 1, sizeof(struct Op));
+    struct Op* dest = arena_calloc(&op_arena, 1, sizeof(struct Op));
     memcpy(dest, &op, sizeof(struct Op));
 
     /* TODO: Special handling of ops that affect process state */
@@ -75,7 +76,8 @@ static void prov_log_record(struct Op op) {
     }
 */
 
-    arena_uninstantiate_all_but_last(&thread_local_arena);
+    arena_uninstantiate_all_but_last(&op_arena);
+    arena_uninstantiate_all_but_last(&data_arena);
 }
 
 static int mkdir_and_descend(int dirfd, long child, char* buffer) {
@@ -123,11 +125,13 @@ static void init_process_prov_log() {
 
 static const size_t prov_log_arena_size = 256 * 1024;
 static void init_thread_prov_log() {
+    pid_t thread_id = get_sams_thread_id();
     char dir_name [signed_long_string_size + 1];
-    CHECK_SNPRINTF(dir_name, signed_long_string_size, "%d", get_sams_thread_id());
-    EXPECT(== 0, arena_create(&thread_local_arena, __epoch_dirfd, dir_name, prov_log_arena_size));
+    int cwd = mkdir_and_descend(__epoch_dirfd, thread_id, dir_name);
+    EXPECT(== 0, arena_create(&op_arena, cwd, "ops", prov_log_arena_size));
+    EXPECT(== 0, arena_create(&data_arena, cwd, "data", prov_log_arena_size));
 
-    DEBUG("init_thread_prov_log: %d", get_sams_thread_id());
+    DEBUG("init_thread_prov_log: %d", thread_id);
 }
 
 static void prov_log_term_process() { }
@@ -136,7 +140,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
     if (likely(prov_log_is_enabled())) {
         struct Path ret = {
             dirfd - AT_FDCWD,
-            (path != NULL ? EXPECT_NONNULL(arena_strndup(&thread_local_arena, path, PATH_MAX)) : NULL),
+            (path != NULL ? EXPECT_NONNULL(arena_strndup(&data_arena, path, PATH_MAX)) : NULL),
             -1,
             -1,
             -1,
@@ -178,7 +182,7 @@ struct InitProcessOp init_current_process() {
         .process_id = get_process_id(),
         .process_birth_time = get_process_birth_time(),
         .exec_epoch = get_exec_epoch(),
-        .program_name = arena_strndup(&thread_local_arena, __progname, PATH_MAX),
+        .program_name = arena_strndup(&data_arena, __progname, PATH_MAX),
     };
     return ret;
 }

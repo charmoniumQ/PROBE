@@ -2,6 +2,12 @@
 #define ARENA
 
 #define _GNU_SOURCE
+#ifdef PYCPARSER
+#define __attribute__(x)
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#else
 #include <stddef.h>
 #include <stdio.h>
 #include <stdalign.h>
@@ -11,6 +17,11 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#endif
+
+#ifdef ARENA_DEBUG
+#define ARENA_PERROR
+#endif
 
 #ifndef USE_UNWRAPPED_LIBC
 #define unwrapped_mkdirat mkdirat
@@ -135,6 +146,16 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     CURRENT_ARENA->capacity = capacity;
     CURRENT_ARENA->used = sizeof(struct Arena);
 
+#ifdef ARENA_DEBUG
+        fprintf(
+            stderr,
+            "arena_calloc: instantiation of %p, using %ld for Arena, rest starts at %p\n",
+            CURRENT_ARENA->base_address,
+            CURRENT_ARENA->used,
+            CURRENT_ARENA->base_address + CURRENT_ARENA->used
+        );
+#endif
+
     /* Update for next instantiation */
     arena_dir->next_instantiation++;
 
@@ -146,6 +167,17 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
 static void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_size) {
     size_t padding = __arena_align(CURRENT_ARENA->used, _Alignof(void*)) - CURRENT_ARENA->used;
     if (CURRENT_ARENA->used + padding + type_count * type_size > CURRENT_ARENA->capacity) {
+#ifdef ARENA_DEBUG
+        fprintf(
+            stderr,
+            "arena_calloc: Current arena (at %p, used %ld / %ld) is too small for allocation of %ld * %ld + %ld = %ld\n",
+            CURRENT_ARENA->base_address, CURRENT_ARENA->used, CURRENT_ARENA->capacity,
+            type_count,
+            type_size,
+            padding,
+            padding + type_count * type_size
+        );
+#endif
         /* Current arena is too small for this allocation;
          * Let's allocate a new one. */
         int ret = __arena_reinstantiate(arena_dir, __ARENA_MAX(CURRENT_ARENA->capacity, type_count * type_size + sizeof(struct Arena)));
@@ -158,6 +190,19 @@ static void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t 
         padding = 0;
         assert(CURRENT_ARENA->used + padding + type_count * type_size <= CURRENT_ARENA->capacity);
     }
+#ifdef ARENA_DEBUG
+        fprintf(
+            stderr,
+            "arena_calloc: allocation of %ld * %ld + %ld = %ld, %p -> %p <--> %p\n",
+            type_count,
+            type_size,
+            padding,
+            padding + type_count * type_size,
+            CURRENT_ARENA->base_address + CURRENT_ARENA->used,
+            CURRENT_ARENA->base_address + CURRENT_ARENA->used + padding,
+            CURRENT_ARENA->base_address + CURRENT_ARENA->used + padding + type_count * type_size
+        );
+#endif
     void* ret = CURRENT_ARENA->base_address + CURRENT_ARENA->used + padding;
     CURRENT_ARENA->used = CURRENT_ARENA->used + padding + type_count * type_size;
     ((char*)ret)[0] = '\0'; /* Test memory is valid */

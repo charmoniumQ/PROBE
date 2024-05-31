@@ -749,7 +749,7 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        char* bin_path = arena_calloc(&thread_local_arena, PATH_MAX + 1, sizeof(char));
+        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
         lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -780,7 +780,7 @@ int execvp (const char *filename, char *const argv[]) {
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
-        char* bin_path = arena_calloc(&thread_local_arena, PATH_MAX + 1, sizeof(char));
+        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
         lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -812,7 +812,7 @@ int execlp (const char *filename, const char *arg0, ...) {
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
-        char* bin_path = arena_calloc(&thread_local_arena, PATH_MAX + 1, sizeof(char));
+        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
         lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,

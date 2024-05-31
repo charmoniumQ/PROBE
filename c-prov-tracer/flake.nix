@@ -14,6 +14,7 @@
                 pypkgs.mypy
                 pypkgs.ipython
               ]))
+              pkgs.tree
               pkgs.strace
               pkgs.ltrace
               pkgs.gcc

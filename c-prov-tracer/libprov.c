@@ -57,6 +57,7 @@ static bool prov_log_verbose();
 
 #include "prov_ops.c"
 
+#define ARENA_DEBUG
 #define USE_UNWRAPPED_LIBC
 #include "arena/arena.c"
 
