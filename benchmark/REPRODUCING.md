@@ -97,14 +97,14 @@ For new benchmark items,
 1. Go to `workload.py`.
 2. Write a new workload class that implements the `Workload` interface.
 3. Add an instance of your workload class to `WORKLOAD_GROUPS`.
-4. Call `./result/bin/runner` (see above) with `--workloads $selector` where `$selector` is the lowercased name, kind, superkind, or group-name of your workload class.
+4. Call `./result/bin/runner` (see above) with `--workloads workload_name` where `workload_name` is the lowercased name of your workload class or name of a group containing your workload class.
 
 For new provenance collectors:
 
 1. Go to `collectors.py`.
 2. Write a new class that implements the `Collector` interface.
 3. Add an instance of your workload class to `COLLECTORS`.
-4. Call `./result/bin/runner` (see above) with `--collectors $selector` where `$selector` is the lowercased name or group-name of your workload class.
+4. Call `./result/bin/runner` (see above) with `--collectors collector_name` where `collector_name` is the lowercased name of your collector class or name of a group containing your collector class.
 
 
 Note that the attribute `nix_packages`, in both cases, contains a list of strings that reference packages defined as in package outputs for the current architecture the `flake.nix`.

@@ -518,28 +518,28 @@ From this, we observe:
 %%%%%%%%% generated from script
 \begin{tabular}{lllllll}
 \toprule
- & (none) & fsatrace & CARE & strace & RR & ReproZip \\
+                      & (none) & fsatrace & CARE & strace & RR   & ReproZip \\
 \midrule
-BLAST  & 0 & 0 & 2 & 2 & 93 & 8 \\
-CPU bench SPLASH-3 & 0 & 5 & 9 & 16 & 49 & 75 \\
-Compile w/Spack & 0 & -1 & 119 & 111 & 562 & 359 \\
-Compile w/gcc & 0 & 4 & 136 & 206 & 321 & 344 \\
-Compile w/latex & 0 & 7 & 72 & 40 & 23 & 288 \\
-Data science Notebook & 0 & 4 & 15 & 32 & 20 & 174 \\
-Data science python & 0 & 5 & 85 & 84 & 150 & 346 \\
-FTP srv/client & 0 & 1 & 2 & 4 & 5 & 18 \\
-HTTP srv/client & 0 & -23 & 20 & 33 & 165 & 248 \\
-HTTP srv/traffic & 0 & 5 & 135 & 414 & 1261 & 724 \\
-IO bench lmbench & 0 & -10 & 1 & 3 & 11 & 36 \\
-IO bench postmark & 0 & 2 & 231 & 650 & 259 & 1733 \\
-Tar Archive & 0 & -0 & 75 & 113 & 179 & 140 \\
-Tar Unarchive & 0 & 4 & 44 & 114 & 195 & 149 \\
-Utils  & 0 & 17 & 118 & 280 & 1378 & 697 \\
-Utils bash & 0 & 5 & 75 & 20 & 426 & 2933 \\
-VCS checkout  & 0 & 5 & 71 & 160 & 177 & 428 \\
-cp  & 0 & 37 & 641 & 380 & 232 & 5791 \\
+BLAST                 & 0      & 0        & 2    & 2      & 93   & 8        \\
+CPU bench SPLASH-3    & 0      & 5        & 9    & 16     & 49   & 75       \\
+Compile w/Spack       & 0      & -1       & 119  & 111    & 562  & 359      \\
+Compile w/gcc         & 0      & 4        & 136  & 206    & 321  & 344      \\
+Compile w/latex       & 0      & 7        & 72   & 40     & 23   & 288      \\
+Data science Notebook & 0      & 4        & 15   & 32     & 20   & 174      \\
+Data science python   & 0      & 5        & 85   & 84     & 150  & 346      \\
+FTP srv/client        & 0      & 1        & 2    & 4      & 5    & 18       \\
+HTTP srv/client       & 0      & -23      & 20   & 33     & 165  & 248      \\
+HTTP srv/traffic      & 0      & 5        & 135  & 414    & 1261 & 724      \\
+IO bench lmbench      & 0      & -10      & 1    & 3      & 11   & 36       \\
+IO bench postmark     & 0      & 2        & 231  & 650    & 259  & 1733     \\
+Tar Archive           & 0      & -0       & 75   & 113    & 179  & 140      \\
+Tar Unarchive         & 0      & 4        & 44   & 114    & 195  & 149      \\
+Utils                 & 0      & 17       & 118  & 280    & 1378 & 697      \\
+Utils bash            & 0      & 5        & 75   & 20     & 426  & 2933     \\
+VCS checkout          & 0      & 5        & 71   & 160    & 177  & 428      \\
+cp                    & 0      & 37       & 641  & 380    & 232  & 5791     \\
 \midrule
-Total (gmean) & 0 & 0 & 45 & 66 & 146 & 193 \\
+Total (gmean)         & 0      & 0        & 45   & 66     & 146  & 193      \\
 \bottomrule
 \end{tabular}
 %%%%%%%%%

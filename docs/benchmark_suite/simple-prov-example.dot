@@ -1,0 +1,22 @@
+digraph G {
+
+  node [label="figure.png"] graph_png;
+  node [label="/bin/python"] python;
+  node [label="matplotlib.py"] matplotlib;
+  node [label="PID=2"] proc2;
+  node [label="PID=1"] proc1;
+  node [label="/bin/bash"] bash;
+  node [label="libc.so.6"] libc;
+  node [label="database@v0"] database0;
+  node [label="database@v1"] database1;
+
+  bash -> proc1;
+  libc -> proc1;
+  proc1 -> proc2;
+
+  python -> proc2;
+  matplotlib -> proc2;
+  database0 -> proc2;
+  proc2 -> database1;
+  proc2 -> graph_png;
+}

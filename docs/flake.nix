@@ -166,6 +166,16 @@
                       ${pkgs.pdftk}/bin/pdftk ${latexStem}.pdf ${latexStem}-plain.pdf cat output ${latexStem}-full.pdf
                       mkdir $out/
                       cp *.{svg,pdf,bbl,tex,docx} $out/
+                      set -x
+                      archive=acmrep24-11
+                      mkdir $archive
+                      mkdir $archive/pdf $archive/Source
+                      cp main.pdf $archive/pdf/main.pdf
+                      cp *.{pdf,svg,bbl,bib,tex} $archive/Source/
+                      cp --recursive generated $archive/Source
+                      # Remove specific files that TAPS doesn't like
+                      rm $archive/Source/{main*.pdf,README.pdf,acm-template.tex,main.tex}
+                      env --chdir $archive ${pkgs.zip}/bin/zip -r $out/$archive.zip ./
                       if [ $latexmk_status -ne 0 ]; then
                         cp $tmp/${latexStem}.log $out
                         echo "Aborting: Latexmk failed"
