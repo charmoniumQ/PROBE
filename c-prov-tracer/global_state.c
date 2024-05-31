@@ -16,7 +16,7 @@ static void init_is_prov_root() {
     if (is_root != NULL && is_root[0] == '0') {
         __is_prov_root = 0;
     } else {
-        setenv(is_prov_root_env_var, "0", true);
+        EXPECT(== 0, setenv(is_prov_root_env_var, "0", true));
         __is_prov_root = 1;
     }
 }
@@ -71,8 +71,8 @@ static void init_exec_epoch() {
     char new_exec_epoch_str[unsigned_int_string_size];
     CHECK_SNPRINTF(new_tracee_pid_str, unsigned_int_string_size, "%u", new_tracee_pid);
     CHECK_SNPRINTF(new_exec_epoch_str, unsigned_int_string_size, "%u", __exec_epoch + 1);
-    setenv(tracee_pid_env_var, new_tracee_pid_str, true);
-    setenv(exec_epoch_plus_one_env_var, new_exec_epoch_str, true);
+    EXPECT(== 0, setenv(tracee_pid_env_var, new_tracee_pid_str, true));
+    EXPECT(== 0, setenv(exec_epoch_plus_one_env_var, new_exec_epoch_str, true));
 }
 static unsigned int get_exec_epoch() {
     assert(__exec_epoch != UINT_MAX);
@@ -92,7 +92,7 @@ static void init_process_birth_time() {
         int process_birth_time_str_length = signed_long_string_size + unsigned_long_string_size + 1;
         char process_birth_time_str[process_birth_time_str_length];
         CHECK_SNPRINTF(process_birth_time_str, process_birth_time_str_length, "%ld.%ld", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
-        setenv(process_birth_time_env_var, process_birth_time_str, true);
+        EXPECT(== 0, setenv(process_birth_time_env_var, process_birth_time_str, true));
     } else {
         const char* process_birth_time_str = getenv(process_birth_time_env_var);
         char* rest_of_str = NULL;
@@ -114,7 +114,7 @@ static struct timespec get_process_birth_time() {
 static _Atomic unsigned int __thread_counter = 0;
 static __thread unsigned int __thread_id = UINT_MAX;
 static void init_sams_thread_id() {
-    assert(__thread_id == UINT_MAX);
+    EXPECT(== UINT_MAX, __thread_id);
     __thread_id = __thread_counter++;
 }
 static unsigned int get_sams_thread_id() {
@@ -138,16 +138,6 @@ static bool prov_log_verbose() {
     return __prov_log_verbose;
 }
 
-static size_t __page_size = 0;
-static void init_page_size() {
-    assert(__page_size == 0);
-    __page_size = sysconf(_SC_PAGESIZE);
-}
-static size_t get_page_size() {
-    assert(__page_size != 0);
-    return __page_size;
-}
-
 /* TODO: Hack exec-family of functions to propagate these environment variables. */
 
 static void init_process_global_state() {
@@ -156,7 +146,6 @@ static void init_process_global_state() {
     init_process_id();
     init_exec_epoch();
     init_process_birth_time();
-    init_page_size();
 }
 
 static void init_thread_global_state() {

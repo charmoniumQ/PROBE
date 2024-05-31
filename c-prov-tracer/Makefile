@@ -7,20 +7,22 @@ ENV ?= /usr/bin/env
 TEST_SHELL_COMMAND ?= 'head -c 1 flake.nix && cd ..'
 #TEST_SHELL_COMMAND ?= 'head -c 1 flake.nix && cd .. && head -c 1 tasks.org && echo && python -c "print(5)"'
 
+ANALYZE_PROV_COMMAND = tree .prov
+
 simple: simple.c
 	gcc -g -Wall -Wextra simple.c -o simple
 
 run-simple: libprov.so simple
-	rm -rf .prov && env LD_PRELOAD=./libprov.so PROV_LOG_VERBOSE=1 ./simple flake.nix && cat .prov/*
+	rm -rf .prov && env LD_PRELOAD=./libprov.so PROV_LOG_VERBOSE=1 ./simple flake.nix && $(ANALYZE_PROV_COMMAND)
 
 run-head: libprov.so
-	rm -rf .prov && env LD_PRELOAD=./libprov.so PROV_LOG_VERBOSE=1 head flake.nix && cat .prov/*
+	rm -rf .prov && env LD_PRELOAD=./libprov.so PROV_LOG_VERBOSE=1 head flake.nix && $(ANALYZE_PROV_COMMAND)
 
 run-shell: libprov.so
-	rm -rf .prov && $(ENV) PROV_LOG_VERBOSE=1 LD_PRELOAD=./libprov.so sh -c $(TEST_SHELL_COMMAND) && cat .prov/*
+	rm -rf .prov && $(ENV) PROV_LOG_VERBOSE=1 LD_PRELOAD=./libprov.so sh -c $(TEST_SHELL_COMMAND) && $(ANALYZE_PROV_COMMAND)
 
 ltrace-shell: libprov.so
-	rm -rf .prov && ltrace -f -s 1024 --output /dev/stderr $(ENV) sh -c $(TEST_SHELL_COMMAND) && cat .prov/*
+	rm -rf .prov && ltrace -f -s 1024 --output /dev/stderr $(ENV) sh -c $(TEST_SHELL_COMMAND) && $(ANALYZE_PROV_COMMAND)
 
 test-suite: libprov.so test_suite.py
 	python3 -m pytest test_suite.py --maxfail=1 --capture=tee-sys --verbose

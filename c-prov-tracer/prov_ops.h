@@ -28,9 +28,9 @@ struct Path {
 };
 
 static struct Path null_path = {-1, NULL, -1, -1, -1, false, false};
-static struct Path create_path(int dirfd, BORROWED const char* path);
 static int path_to_string(struct Path path, char* buffer, int buffer_length);
-static void free_path(struct Path path);
+/* We don't need to free paths since I switched to the Arena allocator */
+/* static void free_path(struct Path path); */
 
 struct InitProcessOp {
     pid_t process_id;
@@ -157,4 +157,5 @@ struct Op {
     struct timespec time;
 };
 
-static void free_op(struct Op op);
+/* We don't need this since we switched to an Arena allocator */
+/* static void free_op(struct Op op); */

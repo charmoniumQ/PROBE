@@ -12,10 +12,11 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
-#ifndef USE_WRAPPED_LIBC
-#define wrapped_mkdirat mkdirat
-#define wrapped_openat openat
-#define wrapped_close close
+#ifndef USE_UNWRAPPED_LIBC
+#define unwrapped_mkdirat mkdirat
+#define unwrapped_openat openat
+#define unwrapped_close close
+#define unwrapped_ftruncate ftruncate
 #endif
 
 #define __ARENA_UNLIKELY(x)     __builtin_expect(!!(x), 0)
@@ -28,15 +29,23 @@
  *
  * E.g., valid usage would be:
  *
+ *     struct ArenaDir arena;
+ *     arena_create(&arena_dir, AT_FDCWD, "log", 4096);
+ *
  *     char* arena_path0 = arena_strndup(arena, path0, PATH_MAX + 1);
- *     char* arena_path1 = arena_strndup(arena, path0, PATH_MAX + 1);
+ *     char* arena_path1 = arena_strndup(arena, path1, PATH_MAX + 1);
  *     struct LogMoveRecord* record = arena_calloc(arena, 1, sizeof(struct LogMoveRecord));
  *     record->path0 = arena_path0;
  *     record->path1 = arena_path1;
  *
  *     // Remove unnecessary mmap segments to reduce virt mem utilization
  *     // arena_path0, arena_path1, and record will no longer be dereferenceable.
+ *     // However, new allocations can still be made.
  *     arena_uninstantiate_all_but_last(arena);
+ *
+ *     // We don't have to worry about running out of memory in the arena;
+ *     // The arena_dir will allocate a new file with enough size to accomodate the allocation.
+ *     arena_calloc(arena, 4097, sizeof(char));
  *
  * */
 
@@ -80,14 +89,14 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     /* Create a new mmap */
     char fname_buffer [__ARENA_FNAME_LENGTH];
     snprintf(fname_buffer, __ARENA_FNAME_LENGTH, __ARENA_FNAME, arena_dir->next_instantiation);
-    int fd = wrapped_openat(arena_dir->dirfd, fname_buffer, O_RDWR | O_CREAT, 0666);
+    int fd = unwrapped_openat(arena_dir->dirfd, fname_buffer, O_RDWR | O_CREAT, 0666);
     if (fd < 0) {
 #ifdef ARENA_PERROR
         perror("__arena_reinstantiate: openat");
 #endif
         return -1;
     }
-    int ret = ftruncate(fd, capacity);
+    int ret = unwrapped_ftruncate(fd, capacity);
     if (ret != 0) {
 #ifdef ARENA_PERROR
         perror("__arena_reinstantiate: openat");
@@ -97,13 +106,13 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     void* base_address = mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     /* mmap here corresponds to munmap in either arena_destroy or arena_uninstantiate_all_but_last */
     if (base_address == MAP_FAILED) {
-        wrapped_close(fd);
+        unwrapped_close(fd);
 #ifdef ARENA_PERROR
         perror("__arena_reinstantiate: mmap");
 #endif
         return -1;
     }
-    wrapped_close(fd);
+    unwrapped_close(fd);
 
     /* Add it to the arena_list */
     arena_dir->tail->next_list_elem++;
@@ -155,7 +164,7 @@ static void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t 
     return ret;
 }
 
-static void* arena_strndup(struct ArenaDir* arena, char* string, size_t max_size) {
+__attribute__((unused)) static void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size) {
     size_t length = strnlen(string, max_size);
     char* dst = arena_calloc(arena, length + 1, sizeof(char));
     if (dst) {
@@ -173,13 +182,13 @@ static int arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name
     if (__ARENA_UNLIKELY(__ARENA_PAGE_SIZE == 0)) {
         __ARENA_PAGE_SIZE = sysconf(_SC_PAGESIZE);
     }
-    if (wrapped_mkdirat(parent_dirfd, name, 0777) != 0) {
+    if (unwrapped_mkdirat(parent_dirfd, name, 0777) != 0) {
 #ifdef ARENA_PERROR
         perror("arena_create: mkdirat");
 #endif
         return -1;
     }
-    int dirfd = wrapped_openat(parent_dirfd, name, O_RDONLY | O_DIRECTORY | O_PATH);
+    int dirfd = unwrapped_openat(parent_dirfd, name, O_RDONLY | O_DIRECTORY | O_PATH);
     if (dirfd < 0) {
 #ifdef ARENA_PERROR
         perror("arena_create: openat");
@@ -205,7 +214,7 @@ static int arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name
     return 0;
 }
 
-static void arena_destroy(struct ArenaDir* arena_dir) {
+__attribute__((unused)) static void arena_destroy(struct ArenaDir* arena_dir) {
     struct ArenaListElem* current = arena_dir->tail;
     while (current) {
         for (size_t i = 0; i < current->next_list_elem; ++i) {
@@ -218,10 +227,10 @@ static void arena_destroy(struct ArenaDir* arena_dir) {
         current = current->prev;
         free(old_current);
     }
-    wrapped_close(arena_dir->dirfd);
+    unwrapped_close(arena_dir->dirfd);
 }
 
-static void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
+__attribute__((unused)) static void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
     struct ArenaListElem* current = arena_dir->tail;
     bool is_tail = true;
     while (current) {

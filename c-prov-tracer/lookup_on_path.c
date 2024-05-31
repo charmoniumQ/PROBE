@@ -10,7 +10,7 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
             {0},
         };
         prov_log_try(op);
-        int access_ret = wrapped_access(bin_path, X_OK);
+        int access_ret = unwrapped_faccessat(AT_FDCWD, bin_path, X_OK, 0);
         if (access_ret == 0) {
             prov_log_record(op);
             return true;

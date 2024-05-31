@@ -40,6 +40,8 @@
     } \
 })
 
+/* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
+
 #define ASSERTF(cond, ...) ({ \
     if (unlikely(!(cond))) { \
         __LOG("    error: "); \

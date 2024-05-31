@@ -3,7 +3,7 @@
  * It is a place-holder for C code and is processed by gen_libprov.py and put into libprov_middle.c.
  * It re-uses C's grammar, so I get syntax highlighting and I can parse it into fragments of C syntax easily.
  * Rationale: In this part of the project, there are many repetitions of code automatically generated.
- * For example, for each function $foo, we define a wrapper function $foo that calls the original function wrapped_$foo with the same arguments.
+ * For example, for each function $foo, we define a wrapper function $foo that calls the original function unwrapped_$foo with the same arguments.
  * Just read libprov_middle.c.
  * I can more easily refactor how it works if I don't have to edit each individual instance.
  * gen_libprov.py reads the function signatures, and inside the function bodies, it looks for some specific variable declarations of the form: Type var_name = var_val;
@@ -510,6 +510,9 @@ int rename (const char *oldname, const char *newname) { }
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-Directories.html */
 int mkdir (const char *filename, mode_t mode) { }
 
+/* Docs: https://www.man7.org/linux/man-pages/man2/mkdirat.2.html  */
+int mkdirat(int dirfd, const char *pathname, mode_t mode) { }
+
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html */
 int stat (const char *filename, struct stat *buf) { }
 int stat64 (const char *filename, struct stat64 *buf) { }
@@ -555,7 +558,7 @@ int access (const char *filename, int how) {
     });
 }
 
-/* Docs: https://linux.die.net/man/2/faccessat */
+/* Docs: https://www.man7.org/linux/man-pages/man3/faccessat.3p.html */
 int faccessat(int dirfd, const char *pathname, int mode, int flags) {
     void* pre_call = ({
         struct Op op = {
@@ -746,7 +749,7 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        char bin_path[PATH_MAX + 1];
+        char* bin_path = arena_calloc(&thread_local_arena, PATH_MAX + 1, sizeof(char));
         lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -777,7 +780,7 @@ int execvp (const char *filename, char *const argv[]) {
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
-        char bin_path[PATH_MAX + 1];
+        char* bin_path = arena_calloc(&thread_local_arena, PATH_MAX + 1, sizeof(char));
         lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -809,7 +812,7 @@ int execlp (const char *filename, const char *arg0, ...) {
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
-        char bin_path[PATH_MAX + 1];
+        char* bin_path = arena_calloc(&thread_local_arena, PATH_MAX + 1, sizeof(char));
         lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,

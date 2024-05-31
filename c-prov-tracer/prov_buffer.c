@@ -5,7 +5,7 @@ static void prov_log_enable () { __prov_log_disable = false; }
 static bool prov_log_is_enabled () { return !__prov_log_disable; }
 static void prov_log_set_enabled (bool value) { __prov_log_disable = value; }
 
-static __thread struct Arena thread_local_arena;
+static __thread struct ArenaDir thread_local_arena;
 
 static void prov_log_save() {
     /*
@@ -43,34 +43,53 @@ static void prov_log_record(struct Op op) {
         EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));
     }
 
+    /* TODO: we currently log ops by constructing them on the stack and copying them into the arena.
+     * Ideally, we would construct them in the arena (no copy necessary).
+     * */
+    struct Op* dest = arena_calloc(&thread_local_arena, 1, sizeof(struct Op));
+    memcpy(dest, &op, sizeof(struct Op));
+
     /* TODO: Special handling of ops that affect process state */
     if (op.op_code == clone_op_code) {
         DEBUG("clone: process %d, thread %d", get_process_id(), get_sams_thread_id());
     }
-    /* if (op.op_code == OpenRead || op.op_code == OpenReadWrite || op.op_code == OpenOverWrite || op.op_code == OpenWritePart || op.op_code == OpenDir) { */
-    /*     assert(op.dirfd); */
-    /*     assert(op.path); */
-    /*     assert(op.fd); */
-    /*     assert(!op.inode_triple.null); */
-    /*     fd_table_associate(op.fd, op.dirfd, op.path, op.inode_triple); */
-    /* } else if (op.op_code == Close) { */
-    /*     fd_table_close(op.fd); */
-    /* } else if (op.op_code == Chdir) { */
-    /*     if (op.path) { */
-    /*         assert(op.fd == null_fd); */
-    /*         fd_table_close(AT_FDCWD); */
-    /*         fd_table_associate(AT_FDCWD, AT_FDCWD, op.path, op.inode_triple); */
-    /*     } else { */
-    /*         assert(op.fd > 0); */
-    /*         fd_table_close(AT_FDCWD); */
-    /*         fd_table_dup(op.fd, AT_FDCWD); */
-    /*     } */
-    /* } */
+/*
+    if (op.op_code == OpenRead || op.op_code == OpenReadWrite || op.op_code == OpenOverWrite || op.op_code == OpenWritePart || op.op_code == OpenDir) {
+        assert(op.dirfd);
+        assert(op.path);
+        assert(op.fd);
+        assert(!op.inode_triple.null);
+        fd_table_associate(op.fd, op.dirfd, op.path, op.inode_triple);
+    } else if (op.op_code == Close) {
+        fd_table_close(op.fd);
+    } else if (op.op_code == Chdir) {
+        if (op.path) {
+            assert(op.fd == null_fd);
+            fd_table_close(AT_FDCWD);
+            fd_table_associate(AT_FDCWD, AT_FDCWD, op.path, op.inode_triple);
+        } else {
+            assert(op.fd > 0);
+            fd_table_close(AT_FDCWD);
+            fd_table_dup(op.fd, AT_FDCWD);
+        }
+    }
+*/
+
+    arena_uninstantiate_all_but_last(&thread_local_arena);
 }
 
-static int __prov_log_dirfd = -1;
+static int mkdir_and_descend(int dirfd, long child, char* buffer) {
+    CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
+    EXPECT(== 0, unwrapped_mkdirat(dirfd, buffer, 0777));
+    int ret = EXPECT(!= -1, unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY));
+    EXPECT(== 0, unwrapped_close(dirfd));
+    return ret;
+}
+
+static int __epoch_dirfd = -1;
 static void init_process_prov_log() {
-    assert(__prov_log_dirfd == -1);
+    /* TODO: Lock this, just in case we race somehow */
+    assert(__epoch_dirfd == -1);
     static char* const dir_env_var = ENV_VAR_PREFIX "DIR";
     char* relative_dir = getenv(dir_env_var);
     if (relative_dir == NULL) {
@@ -78,50 +97,88 @@ static void init_process_prov_log() {
         relative_dir = ".prov";
     }
     struct stat stat_buf;
-    int stat_ret = wrapped_fstatat(AT_FDCWD, relative_dir, &stat_buf, 0);
+    int stat_ret = unwrapped_fstatat(AT_FDCWD, relative_dir, &stat_buf, 0);
     if (stat_ret != 0) {
-        EXPECT(== 0, wrapped_mkdir(relative_dir, 0755));
+        EXPECT(== 0, unwrapped_mkdirat(AT_FDCWD, relative_dir, 0755));
     } else {
         ASSERTF((stat_buf.st_mode & S_IFMT) == S_IFDIR, "%s already exists but is not a directory\n", relative_dir);
     }
-    __prov_log_dirfd = EXPECT(!= -1, wrapped_openat(AT_FDCWD, relative_dir, O_RDONLY | O_DIRECTORY));
+    int cwd = EXPECT(!= -1, unwrapped_openat(AT_FDCWD, relative_dir, O_RDONLY | O_DIRECTORY));
+
+    struct timespec process_birth_time = get_process_birth_time();
+    char dir_name [signed_long_string_size + 1];
+    cwd = mkdir_and_descend(cwd, process_birth_time.tv_sec, dir_name);
+    cwd = mkdir_and_descend(cwd, process_birth_time.tv_nsec, dir_name);
+    cwd = mkdir_and_descend(cwd, get_process_id(), dir_name);
+    __epoch_dirfd = mkdir_and_descend(cwd, get_exec_epoch(), dir_name);
+
+    /* TODO: pass process_dirfd directly to subsequent exec epochs (since the default is ~O_CLOEXEC) rather than the realpath */
     char absolute_dir [PATH_MAX + 1] = {0};
-    EXPECT_NONNULL(wrapped_realpath(relative_dir, absolute_dir));
+    EXPECT_NONNULL(unwrapped_realpath(relative_dir, absolute_dir));
     /* Setenv, so child processes will be using the same prov log dir, even if they change directories. */
-    setenv(dir_env_var, absolute_dir, true);
+    EXPECT(== 0, setenv(dir_env_var, absolute_dir, true));
+
     DEBUG("init_process_prov_log: %s", absolute_dir);
 }
 
 static const size_t prov_log_arena_size = 256 * 1024;
 static void init_thread_prov_log() {
-    pid_t sams_thread_id = get_sams_thread_id();
-    char log_name [PATH_MAX + 1] = {0};
-    struct timespec process_birth_time = get_process_birth_time();
-    /* TODO: use fixed-string formatting instead of snprintf
-     * Fixed-string might be faster and less error-prone.
-     * Also, putting in leading zeros will help the sort.
-     * */
-    CHECK_SNPRINTF(
-        log_name,
-        PATH_MAX,
-        "%d-%d-%ld-%ld-%d.prov",
-        get_process_id(), get_exec_epoch(), process_birth_time.tv_sec, process_birth_time.tv_nsec, get_sams_thread_id()
-    );
-    /* Note that the mode is not actually set to 0777.
-     * > The effective mode is modified by the process's umask in the usual way: ... mode & ~umask
-     * https://www.man7.org/linux/man-pages/man2/openat.2.html
-     * */
-    int fd = EXPECT(!= -1, wrapped_openat(__prov_log_dirfd, log_name, O_WRONLY | O_CREAT, 0777));
-    thread_local_arena = arena_create(fd, prov_log_arena_size);
-    DEBUG("init_thread_prov_log: %s", log_name);
+    char dir_name [signed_long_string_size + 1];
+    CHECK_SNPRINTF(dir_name, signed_long_string_size, "%d", get_sams_thread_id());
+    EXPECT(== 0, arena_create(&thread_local_arena, __epoch_dirfd, dir_name, prov_log_arena_size));
+
+    DEBUG("init_thread_prov_log: %d", get_sams_thread_id());
 }
 
 static void prov_log_term_process() { }
 
 static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
     if (likely(prov_log_is_enabled())) {
-        return create_path(dirfd, path);
+        struct Path ret = {
+            dirfd - AT_FDCWD,
+            (path != NULL ? EXPECT_NONNULL(arena_strndup(&thread_local_arena, path, PATH_MAX)) : NULL),
+            -1,
+            -1,
+            -1,
+            false,
+            true,
+        };
+
+        /*
+         * If dirfd == 0, then the user is asserting it is not needed.
+         * Path must be absolute. */
+        assert(dirfd != 0 || (path != NULL && path[0] == '/'));
+
+        /*
+         * if path == NULL, then the target is the dir specified by dirfd.
+         * */
+        struct stat stat_buf;
+        int stat_ret;
+        /* TODO: convert to statx */
+        if (path == NULL) {
+            stat_ret = unwrapped_fstat(dirfd, &stat_buf);
+        } else {
+            stat_ret = unwrapped_fstatat(dirfd, path, &stat_buf, 0);
+        }
+        if (stat_ret == 0) {
+            ret.device_major = major(stat_buf.st_dev);
+            ret.device_minor = minor(stat_buf.st_dev);
+            ret.inode = stat_buf.st_ino;
+            ret.stat_valid = true;
+        }
+        return ret;
     } else {
         return null_path;
     }
+}
+
+struct InitProcessOp init_current_process() {
+    extern char *__progname;
+    struct InitProcessOp ret = {
+        .process_id = get_process_id(),
+        .process_birth_time = get_process_birth_time(),
+        .exec_epoch = get_exec_epoch(),
+        .program_name = arena_strndup(&thread_local_arena, __progname, PATH_MAX),
+    };
+    return ret;
 }

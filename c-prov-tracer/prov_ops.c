@@ -1,48 +1,5 @@
-static struct Path create_path(int dirfd, BORROWED const char* path) {
-    struct Path ret = {
-        dirfd - AT_FDCWD,
-        (path != NULL ? EXPECT_NONNULL(strndup(path, PATH_MAX)) : NULL),
-        -1,
-        -1,
-        -1,
-        false,
-        true,
-    };
-
-    /*
-     * If dirfd == 0, then the user is asserting it is not needed.
-     * Path must be absolute. */
-    assert(dirfd != 0 || (path != NULL && path[0] == '/'));
-
-    /*
-     * if path == NULL, then the target is the dir specified by dirfd.
-     * */
-    struct stat stat_buf;
-    int stat_ret;
-    /* TODO: convert to statx */
-    if (path == NULL) {
-        stat_ret = wrapped_fstat(dirfd, &stat_buf);
-    } else {
-        stat_ret = wrapped_fstatat(dirfd, path, &stat_buf, 0);
-    }
-    if (stat_ret == 0) {
-        ret.device_major = major(stat_buf.st_dev);
-        ret.device_minor = minor(stat_buf.st_dev);
-        ret.inode = stat_buf.st_ino;
-        ret.stat_valid = true;
-    }
-    return ret;
-}
-
-struct InitProcessOp init_current_process() {
-    struct InitProcessOp ret = {
-        .process_id = get_process_id(),
-        .process_birth_time = get_process_birth_time(),
-        .exec_epoch = get_exec_epoch(),
-        .program_name = strndup("__progname doesn't work for some reason", PATH_MAX),
-    };
-    return ret;
-}
+/* Definition moved to prov_buffer.c because we need to access thread_local_arena */
+/* struct InitProcessOp init_current_process() { ... } */
 
 static int path_to_string(struct Path path, char* buffer, int buffer_length) {
     /* CHECK_SNPRINTF(
@@ -60,10 +17,6 @@ static int path_to_string(struct Path path, char* buffer, int buffer_length) {
         "%d %s",
         path.dirfd_minus_at_fdcwd + AT_FDCWD,
         path.path);
-}
-
-static void free_path(struct Path path) {
-    FREE((char*) path.path);
 }
 
 static struct InitThreadOp init_current_thread() {
@@ -99,6 +52,7 @@ static int fopen_to_flags(BORROWED const char* fopentype) {
     }
 }
 
+/*
 static void free_op(struct Op op) {
     switch (op.op_code) {
         case open_op_code: free_path(op.data.open.path); break;
@@ -115,6 +69,7 @@ static void free_op(struct Op op) {
         default:
     }
 }
+*/
 
 static struct Path op_to_path(struct Op op) {
     switch (op.op_code) {
@@ -173,6 +128,9 @@ static void op_to_human_readable(char* dest, int size, struct Op op) {
     }
 }
 
+/* This is not needed since we switched to Arena allocation */
+/*
 static void write_op_binary(int fd, struct Op op) {
     EXPECT( > 0, write(fd, (void*) &op, sizeof(op)));
 }
+*/

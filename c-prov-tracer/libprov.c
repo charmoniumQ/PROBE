@@ -57,7 +57,7 @@ static bool prov_log_verbose();
 
 #include "prov_ops.c"
 
-#define USE_WRAPPED_LIBC
+#define USE_UNWRAPPED_LIBC
 #include "arena/arena.c"
 
 #include "prov_buffer.c"
@@ -69,33 +69,33 @@ static bool prov_log_verbose();
 /*
  * It seems that sometimes including <sys/stat.h> defines the stat-family of functions as wrappers around __xstat-family of functions.
  * On these systems, stat-family of functions are not found at dynamic-link-or-load-time (not symbols in libc.so.6), since they are defined statically.
- * Since libprov makes use of wrapped_ prefixed function pointers to the stat-family, we must have fallbacks in this case.
+ * Since libprov makes use of unwrapped_ prefixed function pointers to the stat-family, we must have fallbacks in this case.
  * See https://refspecs.linuxfoundation.org/LSB_1.1.0/gLSB/baselib-xstat-1.html
  * https://refspecs.linuxbase.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/baselib---fxstatat-1.html
  * */
-static int (*wrapped___fxstat) (int __ver, int __filedesc, struct stat *__stat_buf);
+static int (*unwrapped___fxstat) (int __ver, int __filedesc, struct stat *__stat_buf);
 static int fallback_fstat (int __fd, struct stat *__statbuf) {
-    return (*wrapped___fxstat)(1, __fd, __statbuf);
+    return (*unwrapped___fxstat)(1, __fd, __statbuf);
 }
-static int (*wrapped___fxstatat)(int ver, int dirfd, const char * path, struct stat * stat_buf, int flags);
+static int (*unwrapped___fxstatat)(int ver, int dirfd, const char * path, struct stat * stat_buf, int flags);
 static int fallback_fstatat (int __fd, const char *__filename, struct stat *__statbuf, int __flag) {
-    return (*wrapped___fxstatat)(1, __fd, __filename, __statbuf, __flag);
+    return (*unwrapped___fxstatat)(1, __fd, __filename, __statbuf, __flag);
 }
 
 static void check_function_pointers() {
-    /* We use these wrapped_ function pointers in our code.
-     * The rest of the wrapped_ function pointers are only used if the application (tracee) calls the corresponding libc (without wrapped_ prefix) function.
+    /* We use these unwrapped_ function pointers in our code.
+     * The rest of the unwrapped_ function pointers are only used if the application (tracee) calls the corresponding libc (without unwrapped_ prefix) function.
      * */
-    assert(wrapped_access); /* TODO: replace with faccessat */
-    assert(wrapped_mkdir); /* TODO: replace with mkdirat */
-    assert(wrapped_openat);
-    if (!wrapped_fstat) {
-      wrapped___fxstat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstat"));
-      wrapped_fstat = &fallback_fstat;
+    assert(unwrapped_faccessat);
+    assert(unwrapped_mkdirat);
+    assert(unwrapped_openat);
+    if (!unwrapped_fstat) {
+      unwrapped___fxstat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstat"));
+      unwrapped_fstat = &fallback_fstat;
     }
-    if (!wrapped_fstatat) {
-      wrapped___fxstatat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstatat"));
-      wrapped_fstatat = &fallback_fstatat;
+    if (!unwrapped_fstatat) {
+      unwrapped___fxstatat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstatat"));
+      unwrapped_fstatat = &fallback_fstatat;
     }
 }
 
