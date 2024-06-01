@@ -5,9 +5,9 @@ CFLAGS=-Wno-cast-function-type -Wno-array-parameter -g -std=c11 -ldl -Wall -Wext
 ENV ?= /usr/bin/env
 
 #TEST_SHELL_COMMAND ?= 'head -c 1 flake.nix && cd ..'
-TEST_SHELL_COMMAND ?= 'head -c 1 flake.nix && cd .. && head -c 1 tasks.org && echo && python -c "print(5)"'
+TEST_SHELL_COMMAND ?= 'head -c 1 flake.nix && cd .. && head -c 1 tasks.org && echo'
 
-ANALYZE_PROV_COMMAND = tree .prov
+ANALYZE_PROV_COMMAND = python parse_prov_log_dir.py
 
 simple: simple.c
 	gcc -g -Wall -Wextra simple.c -o simple
@@ -20,6 +20,9 @@ run-head: libprov.so
 
 run-shell: libprov.so
 	rm -rf .prov && $(ENV) PROV_LOG_VERBOSE=1 LD_PRELOAD=$(PWD)/libprov.so sh -c $(TEST_SHELL_COMMAND) && $(ANALYZE_PROV_COMMAND)
+
+run-python: libprov.so
+	rm -rf .prov && $(ENV) PROV_LOG_VERBOSE=1 LD_PRELOAD=$(PWD)/libprov.so python -c 'print(5)' && $(ANALYZE_PROV_COMMAND)
 
 ltrace-shell: libprov.so
 	rm -rf .prov && ltrace -f -s 1024 --output /dev/stderr $(ENV) sh -c $(TEST_SHELL_COMMAND) && $(ANALYZE_PROV_COMMAND)

@@ -95,6 +95,7 @@ static void init_process_prov_log() {
     assert(__epoch_dirfd == -1);
     static char* const dir_env_var = ENV_VAR_PREFIX "DIR";
     char* relative_dir = getenv(dir_env_var);
+    DEBUG("getenv %s = %s", dir_env_var, relative_dir);
     if (relative_dir == NULL) {
         assert(is_prov_root());
         relative_dir = ".prov";
@@ -106,7 +107,6 @@ static void init_process_prov_log() {
     } else {
         ASSERTF((stat_buf.st_mode & S_IFMT) == S_IFDIR, "%s already exists but is not a directory\n", relative_dir);
     }
-    DEBUG("cd %s", relative_dir);
     int cwd = EXPECT(!= -1, unwrapped_openat(AT_FDCWD, relative_dir, O_RDONLY | O_DIRECTORY));
 
     struct timespec process_birth_time = get_process_birth_time();
@@ -114,7 +114,7 @@ static void init_process_prov_log() {
     /* Could have multiple launches per second and nanosecond even (clock granularity is rarely 1 ns even though the API is) */
     cwd = mkdir_and_descend(cwd, process_birth_time.tv_sec, dir_name, true);
     cwd = mkdir_and_descend(cwd, process_birth_time.tv_nsec, dir_name, true);
-    cwd = mkdir_and_descend(cwd, get_process_id(), dir_name, false);
+    cwd = mkdir_and_descend(cwd, get_process_id(), dir_name, true);
     __epoch_dirfd = mkdir_and_descend(cwd, get_exec_epoch(), dir_name, false);
 
     /* TODO: pass process_dirfd directly to subsequent exec epochs (since the default is ~O_CLOEXEC) rather than the realpath */
@@ -122,6 +122,7 @@ static void init_process_prov_log() {
     EXPECT_NONNULL(unwrapped_realpath(relative_dir, absolute_dir));
     /* Setenv, so child processes will be using the same prov log dir, even if they change directories. */
     EXPECT(== 0, setenv(dir_env_var, absolute_dir, true));
+    DEBUG("setenv %s = %s", dir_env_var, absolute_dir);
 
     DEBUG("init_process_prov_log: %s", absolute_dir);
 }

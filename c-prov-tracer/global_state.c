@@ -13,10 +13,12 @@ static void init_is_prov_root() {
     assert(__is_prov_root == -1);
     const char* is_prov_root_env_var = PRIVATE_ENV_VAR_PREFIX "IS_ROOT";
     const char* is_root = getenv(is_prov_root_env_var);
+    DEBUG("getenv %s = %s", is_prov_root_env_var, is_root);
     if (is_root != NULL && is_root[0] == '0') {
         __is_prov_root = 0;
     } else {
         EXPECT(== 0, setenv(is_prov_root_env_var, "0", true));
+        DEBUG("setenv %s = 0", is_prov_root_env_var);
         __is_prov_root = 1;
     }
 }
@@ -39,7 +41,9 @@ static void init_exec_epoch() {
     /* We will store EXEC_EPOCH_PLUS_ONE because 0 is a sentinel value for strtol. */
     const char* exec_epoch_plus_one_env_var = PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH_PLUS_ONE";
     const char* tracee_pid_str = getenv(tracee_pid_env_var);
+    DEBUG("getenv %s = %s", tracee_pid_env_var, tracee_pid_str);
     const char* exec_epoch_plus_one_str = getenv(exec_epoch_plus_one_env_var);
+    DEBUG("getenv %s = %s", exec_epoch_plus_one_env_var, exec_epoch_plus_one_str);
     pid_t tracee_pid = -1;
     ASSERTF(
         (exec_epoch_plus_one_str == NULL) == (tracee_pid_str == NULL),
@@ -60,19 +64,17 @@ static void init_exec_epoch() {
     __exec_epoch = 0;
     if (new_tracee_pid == tracee_pid) {
         __exec_epoch = (size_t) EXPECT(> 0, strtol(exec_epoch_plus_one_str, NULL, 10)) - 1;
-        /*
-         * We are one exec deeper than the last guy.
-         */
-        __exec_epoch++;
     } else {
         /* the default value of new_exec_epoch is correct here. */
     }
     char new_tracee_pid_str[unsigned_int_string_size];
     char new_exec_epoch_str[unsigned_int_string_size];
     CHECK_SNPRINTF(new_tracee_pid_str, unsigned_int_string_size, "%u", new_tracee_pid);
-    CHECK_SNPRINTF(new_exec_epoch_str, unsigned_int_string_size, "%u", __exec_epoch + 1);
+    CHECK_SNPRINTF(new_exec_epoch_str, unsigned_int_string_size, "%u", __exec_epoch + 2);
     EXPECT(== 0, setenv(tracee_pid_env_var, new_tracee_pid_str, true));
+    DEBUG("setenv %s = %s", tracee_pid_env_var, new_tracee_pid_str);
     EXPECT(== 0, setenv(exec_epoch_plus_one_env_var, new_exec_epoch_str, true));
+    DEBUG("setenv %s = %s", exec_epoch_plus_one_env_var, new_exec_epoch_str);
 }
 static unsigned int get_exec_epoch() {
     assert(__exec_epoch != UINT_MAX);
@@ -93,18 +95,19 @@ static void init_process_birth_time() {
         char process_birth_time_str[process_birth_time_str_length];
         CHECK_SNPRINTF(process_birth_time_str, process_birth_time_str_length, "%ld.%ld", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
         EXPECT(== 0, setenv(process_birth_time_env_var, process_birth_time_str, true));
+        DEBUG("setenv %s = %s", process_birth_time_env_var, process_birth_time_str);
     } else {
         const char* process_birth_time_str = getenv(process_birth_time_env_var);
+        DEBUG("getenv: %s = %s", process_birth_time_env_var, process_birth_time_str);
         char* rest_of_str = NULL;
         __process_birth_time.tv_sec = strtol(process_birth_time_str, &rest_of_str, 10);
         assert(rest_of_str[0] == '.');
         rest_of_str++;
-        __process_birth_time.tv_sec = strtol(rest_of_str, NULL, 10);
+        __process_birth_time.tv_nsec = strtol(rest_of_str, NULL, 10);
     }
 }
 static struct timespec get_process_birth_time() {
-    DEBUG("%ld.%ld\n", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
-    assert(__process_birth_time.tv_sec != -1 && __process_birth_time.tv_nsec != 0);
+    DEBUG("process_birth_time = %ld.%ld\n", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
     return __process_birth_time;
 }
 
@@ -133,6 +136,7 @@ static void init_prov_log_verbose() {
     } else {
         __prov_log_verbose = 0;
     }
+    DEBUG("getenv %s = %s", verbose_env_var, verbose_env_val);
 }
 static bool prov_log_verbose() {
     assert(__prov_log_verbose == 0 || __prov_log_verbose == 1);
