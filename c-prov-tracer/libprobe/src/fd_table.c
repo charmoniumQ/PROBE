@@ -102,9 +102,7 @@ static void __fd_table_ensure_capacity(int mapped_fd) {
  * But the lifetime of our copy of it is bound by the lifetime of fd_table
  * */
 static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, struct InodeTriple inode_triple) {
-    if (prov_log_verbose()) {
-        fprintf(stderr, "fd_table: %d = openat(%d, \"%s\")\n", fd, dirfd, path);
-    }
+    DEBUG("fd_table: %d = openat(%d, \"%s\")", fd, dirfd, path);
     fd = __map_fd(fd);
     dirfd = __map_fd(dirfd);
     EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
@@ -131,9 +129,7 @@ static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, str
 }
 
 static void fd_table_close(int fd) {
-    if (prov_log_verbose()) {
-        fprintf(stderr, "fd_table: close(%d /* = openat(%d, \"%s\") */)\n", fd, __fd_table[__map_fd(fd)].dirfd, __fd_table[__map_fd(fd)].path);
-    }
+    DEBUG("fd_table: close(%d /* = openat(%d, \"%s\") */)", fd, __fd_table[__map_fd(fd)].dirfd, __fd_table[__map_fd(fd)].path);
     fd = __map_fd(fd);
     EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
     assert(0 <= fd && fd < __fd_table_capacity && __fd_table[fd].path);
@@ -159,9 +155,7 @@ static bool fd_table_is_used(int fd) {
 }
 
 void fd_table_dup(int oldfd, int newfd) {
-    if (prov_log_verbose()) {
-        fprintf(stderr, "fd_table: dup2(%d, %d)\n", oldfd, newfd);
-    }
+    DEBUG("fd_table: dup2(%d, %d)", oldfd, newfd);
     oldfd = __map_fd(oldfd);
     newfd = __map_fd(newfd);
     EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));

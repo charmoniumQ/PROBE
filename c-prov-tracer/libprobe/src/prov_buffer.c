@@ -15,6 +15,8 @@ static void prov_log_save() {
      * */
 }
 
+static void prov_log_record(struct Op op);
+
 /*
  * Call this to indicate that the process is about to do some op.
  * The values of the op that are not known before executing the call
@@ -28,17 +30,22 @@ static void prov_log_try(struct Op op) {
     if (op.op_code == clone_op_code && op.data.clone.flags & CLONE_VFORK) {
             DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
     }
+    DEBUG("%d, %d", op.op_code, exec_op_code);
+    if (op.op_code == exec_op_code) {
+        DEBUG("Hello");
+        prov_log_record(op);
+    }
 }
 
 /*
  * Call this to indicate that the process did something (successful or not).
  */
 static void prov_log_record(struct Op op) {
-    if (prov_log_verbose()) {
+#ifdef DEBUG_LOG
         char str[PATH_MAX * 2];
         op_to_human_readable(str, PATH_MAX * 2, op);
         DEBUG("op: %s", str);
-    }
+#endif
 
     if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
         EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));

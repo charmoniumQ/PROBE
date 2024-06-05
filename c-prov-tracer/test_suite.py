@@ -295,3 +295,6 @@ def test_chdir() -> None:
 
 def test_shell2() -> None:
     run_command_with_prov(("bash", "-c", "python -c 'print(4)'; head --bytes=5 flake.nix"))
+
+# TODO: test command not found
+# TODO: test empty path

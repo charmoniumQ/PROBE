@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from __future__ import annotations
 import dataclasses
 import pathlib
@@ -106,3 +107,13 @@ def parse_arena_dir(arena_dir: pathlib.Path) -> typing.Sequence[MemorySegment]:
         stop = c_arena.base_address + c_arena.used
         memory_segments.append(MemorySegment(buffr[ctypes.sizeof(CArena) : c_arena.used], start, stop))
     return memory_segments
+
+
+if __name__ == "__main__":
+    import sys
+    arena_dir = pathlib.Path(sys.argv[1])
+    print(f"Parsing {arena_dir!s}")
+    if not arena_dir.exists():
+        print(f"{arena_dir!s} doesn't exist")
+        sys.exit(1)
+    print(parse_arena_dir(arena_dir))

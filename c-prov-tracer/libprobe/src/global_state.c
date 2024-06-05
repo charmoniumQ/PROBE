@@ -3,8 +3,14 @@ static void init_process_id() {
     assert(__process_id == UINT_MAX);
     __process_id = getpid();
 }
-static pid_t get_process_id() {
+static unsigned int get_process_id() {
     assert(__process_id != UINT_MAX);
+    return __process_id;
+}
+static int get_process_id_safe() {
+    if (__process_id == UINT_MAX) {
+        return -1;
+    }
     return __process_id;
 }
 
@@ -80,6 +86,12 @@ static unsigned int get_exec_epoch() {
     assert(__exec_epoch != UINT_MAX);
     return __exec_epoch;
 }
+static int get_exec_epoch_safe() {
+    if (__exec_epoch == UINT_MAX) {
+       return -1;
+    }
+    return __exec_epoch;
+}
 
 /*
  * Linux can technically reuse PIDs.
@@ -99,6 +111,7 @@ static void init_process_birth_time() {
     } else {
         const char* process_birth_time_str = getenv(process_birth_time_env_var);
         DEBUG("getenv: %s = %s", process_birth_time_env_var, process_birth_time_str);
+        assert(process_birth_time_str);
         char* rest_of_str = NULL;
         __process_birth_time.tv_sec = strtol(process_birth_time_str, &rest_of_str, 10);
         assert(rest_of_str[0] == '.');
@@ -107,7 +120,6 @@ static void init_process_birth_time() {
     }
 }
 static struct timespec get_process_birth_time() {
-    DEBUG("process_birth_time = %ld.%ld\n", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
     return __process_birth_time;
 }
 
@@ -125,28 +137,16 @@ static unsigned int get_sams_thread_id() {
     assert(__thread_id != UINT_MAX);
     return __thread_id;
 }
-
-static int __prov_log_verbose = -1;
-static void init_prov_log_verbose() {
-    assert(__prov_log_verbose == -1);
-    static char* const verbose_env_var = ENV_VAR_PREFIX "VERBOSE";
-    char* verbose_env_val = getenv(verbose_env_var);
-    if (verbose_env_val && verbose_env_val[0] != '\0') {
-        __prov_log_verbose = 1;
-    } else {
-        __prov_log_verbose = 0;
+static int get_sams_thread_id_safe() {
+    if (__thread_id == UINT_MAX) {
+        return -1;
     }
-    DEBUG("getenv %s = %s", verbose_env_var, verbose_env_val);
-}
-static bool prov_log_verbose() {
-    assert(__prov_log_verbose == 0 || __prov_log_verbose == 1);
-    return __prov_log_verbose;
+    return __thread_id;
 }
 
 /* TODO: Hack exec-family of functions to propagate these environment variables. */
 
 static void init_process_global_state() {
-    init_prov_log_verbose();
     init_is_prov_root();
     init_process_id();
     init_exec_epoch();

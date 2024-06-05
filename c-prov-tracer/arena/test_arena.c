@@ -19,15 +19,18 @@ int main() {
     struct ArenaDir arena_dir;
     int ret = arena_create(&arena_dir, AT_FDCWD, "arena_data", 4096);
     assert(ret == 0);
-    /* This will overflow the initial file */
-    for (size_t i = 0; i < 400; ++i) {
+    /* This will copy strings into the arena.
+     * Eventually, it will overflow the first arena, causing a second to be allocated.
+     * */
+    for (size_t i = 0; i < 4000; ++i) {
         char* foo = arena_calloc(&arena_dir, 12, sizeof(char));
         assert(foo);
         strncpy(foo, "hello world", 12);
         arena_uninstantiate_all_but_last(&arena_dir);
+        arena_uninstantiate_all_but_last(&arena_dir);
     }
     /* This is greater than the old capacity of the arena */
-    char* foo = arena_calloc(&arena_dir, 8192, sizeof(char));
+    char* foo = arena_calloc(&arena_dir, 81920, sizeof(char));
     assert(foo);
     strncpy(foo, "this is a reaaally long string", 40);
     /* This next line is totally optional */

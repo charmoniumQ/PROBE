@@ -750,14 +750,14 @@ int execle (const char *filename, const char *arg0, ...) {
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
         char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
-        lookup_on_path(filename, bin_path);
+        bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
-                .path = create_path_lazy(0, bin_path),
+                .path = found ? create_path_lazy(0, bin_path) : null_path,
                 .ferrno = 0,
             }},
             {0},
@@ -781,14 +781,14 @@ int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
         char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
-        lookup_on_path(filename, bin_path);
+        bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
-                .path = create_path_lazy(0, bin_path),
+                .path = found ? create_path_lazy(0, bin_path) : null_path,
                 .ferrno = 0,
             }},
             {0},
@@ -813,14 +813,14 @@ int execlp (const char *filename, const char *arg0, ...) {
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
         char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
-        lookup_on_path(filename, bin_path);
+        bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
-                .path = create_path_lazy(0, bin_path),
+                .path = found ? create_path_lazy(0, bin_path) : null_path,
                 .ferrno = 0,
             }},
             {0},

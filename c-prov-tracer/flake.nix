@@ -3,25 +3,28 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = nixpkgs.legacyPackages.${system}; in
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        python312-debug = pkgs.python312.overrideAttrs (self: super: {
+          configureFlags = super.configureFlags ++ ["--with-pydebug"];
+        });
+      in
       {
         devShells = {
           default = pkgs.mkShell {
             buildInputs = [
-              (pkgs.python312.withPackages (pypkgs: [
+              (python312-debug.withPackages (pypkgs: [
+                pypkgs.typer
                 pypkgs.pycparser
                 pypkgs.pytest
                 pypkgs.mypy
                 pypkgs.ipython
               ]))
-              pkgs.tree
-              pkgs.strace
-              pkgs.ltrace
               pkgs.gcc
               pkgs.gdb
               pkgs.coreutils
               pkgs.bash
-              pkgs.valgrind
+              pkgs.shellcheck
             ];
           };
         };

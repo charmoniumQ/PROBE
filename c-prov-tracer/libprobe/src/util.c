@@ -17,6 +17,11 @@
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#ifndef NDEBUG
+#define DEBUG_LOG 1
+#else
+#endif
+
 #define FREE(p) ({free(p); })
 /* #define FREE(p) ({ \ */
 /*     DEBUG("free: %s: %p", #p, p); \ */
@@ -31,17 +36,19 @@
     __LOG(__FILE__ ":%d:%s(): ", __LINE__, __func__); \
 })
 
+#ifdef DEBUG_LOG
 #define DEBUG(...) ({ \
-    if (prov_log_verbose()) { \
-        __LOG("    debug:%d ", getpid()); \
-        __LOG_SOURCE(); \
-        __LOG(__VA_ARGS__); \
-        __LOG("\n"); \
-    } \
+    __LOG("libprobe:debug:%d:%d:%d ", get_process_id_safe(), get_exec_epoch_safe(), get_sams_thread_id_safe()); \
+    __LOG_SOURCE(); \
+    __LOG(__VA_ARGS__); \
+    __LOG("\n"); \
 })
+#else
+#define DEBUG(...)
+#endif
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
-
+#ifndef NDEBUG
 #define ASSERTF(cond, ...) ({ \
     if (unlikely(!(cond))) { \
         __LOG("    error: "); \
@@ -52,6 +59,9 @@
         abort(); \
     } \
 })
+#else
+#define ASSERTF(...)
+#endif
 
 #define NOT_IMPLEMENTED(...) ({ \
     __LOG("    error: "); \
@@ -63,19 +73,27 @@
 })
 
 /* TODO: rewrite this as (const_val, binary_op, expr) */
+#ifndef NDEBUG
 #define EXPECT(cond, expr) ({ \
     errno = 0; \
     ssize_t ret = (expr); \
     ASSERTF((ret cond), "Expected %s %s, but %s == %ld: %s (%d)", #expr, #cond, #expr, ret, strerror(errno), errno); \
     ret; \
 })
+#else
+#define EXPECT(cond, expr) expr
+#endif
 
+#ifndef NDEBUG
 #define EXPECT_NONNULL(expr) ({ \
     errno = 0; \
     void* ret = (expr); \
     ASSERTF(ret, "Expected non-null pointer from %s: %s (%d)", #expr, strerror(errno), errno); \
     ret; \
 })
+#else
+#define EXPECT_NONNULL(expr) expr
+#endif
 
 #define CHECK_SNPRINTF(s, n, ...) ({ \
     int ret = snprintf(s, n, __VA_ARGS__); \
@@ -88,11 +106,9 @@ static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWE
     if (left_size == -1) {
         left_size = strlen(left);
     }
-    assert(left[left_size] == '\0');
     if (right_size == -1) {
         right_size = strlen(right);
     }
-    assert(right[right_size] == '\0');
     if (!path_buf) {
         path_buf = malloc(left_size + right_size + 2);
     }

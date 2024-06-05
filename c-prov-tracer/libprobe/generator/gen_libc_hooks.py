@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from __future__ import annotations
 import dataclasses
 import re
@@ -169,7 +171,7 @@ class ParsedFunc:
         )
 
 
-filename = pathlib.Path("libc_hooks_source.c")
+filename = pathlib.Path("generator/libc_hooks_source.c")
 ast = pycparser.parse_file(filename, use_cpp=True)
 orig_funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
@@ -342,14 +344,14 @@ static_args_wrapper_func_declarations = [
     ).definition()
     for _, func in funcs.items()
 ]
-pathlib.Path("libc_hooks.h").write_text(
+pathlib.Path("generated/libc_hooks.h").write_text(
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             *func_pointer_declarations,
         ])
     )
 )
-pathlib.Path("libc_hooks.c").write_text(
+pathlib.Path("generated/libc_hooks.c").write_text(
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             init_function_pointers,

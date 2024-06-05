@@ -39,37 +39,39 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 
 static void maybe_init_thread();
 static void term_process();
-static bool prov_log_verbose();
+static int get_process_id_safe();
+static int get_exec_epoch_safe();
+static int get_sams_thread_id_safe();
 
-#define ENV_VAR_PREFIX "PROV_LOG_"
+#define ENV_VAR_PREFIX "PROBE_"
 
-#define PRIVATE_ENV_VAR_PREFIX "__PROV_LOG_"
+#define PRIVATE_ENV_VAR_PREFIX "__PROBE_"
 
-#include "libc_hooks.h"
+#include "../generated/libc_hooks.h"
 
 #include "util.c"
 
 /* #include "fd_table.c" */
 
-#include "prov_ops.h"
+#include "../include/prov_ops.h"
 
 #include "global_state.c"
 
 #include "prov_ops.c"
 
 #define USE_UNWRAPPED_LIBC
-#include "arena/arena.c"
+#include "../../arena/arena.c"
 
 #include "prov_buffer.c"
 
 #include "lookup_on_path.c"
 
-#include "libc_hooks.c"
+#include "../generated/libc_hooks.c"
 
 /*
  * It seems that sometimes including <sys/stat.h> defines the stat-family of functions as wrappers around __xstat-family of functions.
  * On these systems, stat-family of functions are not found at dynamic-link-or-load-time (not symbols in libc.so.6), since they are defined statically.
- * Since libprov makes use of unwrapped_ prefixed function pointers to the stat-family, we must have fallbacks in this case.
+ * Since libprobe makes use of unwrapped_ prefixed function pointers to the stat-family, we must have fallbacks in this case.
  * See https://refspecs.linuxfoundation.org/LSB_1.1.0/gLSB/baselib-xstat-1.html
  * https://refspecs.linuxbase.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/baselib---fxstatat-1.html
  * */
@@ -102,16 +104,19 @@ static void check_function_pointers() {
 static bool __process_inited = false;
 static __thread bool __thread_inited = false;
 static void maybe_init_thread() {
+    const char* process_birth_time_env_var = PRIVATE_ENV_VAR_PREFIX "PROCESS_BIRTH_TIME";
+    const char* process_birth_time_str = getenv(process_birth_time_env_var);
     if (unlikely(!__thread_inited)) {
         bool was_process_inited = __process_inited;
         prov_log_disable();
         {
             if (unlikely(!__process_inited)) {
+                DEBUG("Initializing process");
+                DEBUG("getenv: %s = %s", process_birth_time_env_var, process_birth_time_str);
                 prov_log_disable();
                 init_function_pointers();
                 check_function_pointers();
                 init_process_global_state();
-                DEBUG("Initializing process %d", get_process_id());
                 init_process_prov_log();
                 atexit(term_process);
                 __process_inited = true;
