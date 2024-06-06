@@ -240,7 +240,10 @@ def parse_struct_or_union(
 ) -> None:
     assert isinstance(struct_decl, (pycparser.c_ast.Struct, pycparser.c_ast.Union))
     is_struct = isinstance(struct_decl, pycparser.c_ast.Struct)
-    field_names = [decl.name for decl in struct_decl.decls]
+    field_names = [
+        decl.name if decl.name is not None else f"__anon_decl_{decl_no}"
+        for decl_no, decl in enumerate(struct_decl.decls)
+    ]
     field_c_types = list[CType]()
     field_py_types = list[PyType]()
     c_type_error: Exception | None = None

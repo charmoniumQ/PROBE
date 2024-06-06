@@ -23,9 +23,9 @@ app = typer.Typer()
 @app.command()
 def record(
         cmd: list[str],
-        gdb: A[bool, typer.Option(help="Run in GDB")] = False,
-        debug: A[bool, typer.Option(help="Run verbose & debug build of libprobe")] = False,
-        make: A[bool, typer.Option(help="Run make prior to executing")] = False,
+        gdb: A[bool, typer.Option(False, help="Run in GDB")] = False,
+        debug: A[bool, typer.Option(False, help="Run verbose & debug build of libprobe")] = False,
+        make: A[bool, typer.Option(False, help="Run make prior to executing")] = False,
         output: pathlib.Path = pathlib.Path("probe_log"),
 ):
     """
