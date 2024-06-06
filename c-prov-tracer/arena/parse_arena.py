@@ -49,6 +49,9 @@ class MemorySegment:
             # other.start <= self.end < other.end, # redundant case
         ))
 
+    def __repr__(self) -> str:
+        return f"Memory(..., {self.start:08x}, {self.stop:08x})"
+
 
 @dataclasses.dataclass(frozen=True)
 class MemorySegments:

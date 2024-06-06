@@ -394,6 +394,8 @@ def c_type_to_c_source(c_type: CType, top_level: bool = True) -> str:
 class MemoryMapping(typing.Protocol):
     def __getitem__(self, idx: slice) -> bytes: ...
 
+    def __contains__(self, idx: int) -> bool: ...
+
 
 def convert_c_obj_to_py_obj(
         c_obj: CType,
@@ -415,6 +417,10 @@ def convert_c_obj_to_py_obj(
         inner_c_type = c_obj.inner_c_type
         size = ctypes.sizeof(inner_c_type)
         pointer_int = _expect_type(int, c_obj.value)
+        if pointer_int == 0:
+            return None  # type: ignore
+        if pointer_int not in memory:
+            raise ValueError(f"Pointer {pointer_int:08x} is outside of memory {memory!s}")
         lst: inner_py_type = []  # type: ignore
         idx = 0
         while True:
@@ -428,7 +434,7 @@ def convert_c_obj_to_py_obj(
                     memory,
                     depth + 1,
                 )
-                lst.append(inner_py_obj)
+                lst.append(inner_py_obj)  # type: ignore
                 pointer_int += size
             else:
                 break
@@ -470,7 +476,7 @@ def convert_c_obj_to_py_obj(
             return py_type(c_obj.value)  # type: ignore
         elif py_type is str:
             assert isinstance(c_obj, ctypes.c_char)
-            return c_obj.value.decode()
+            return c_obj.value.decode()  # type: ignore
         else:
             ret = c_obj.value
             return _expect_type(py_type, ret)  # type: ignore

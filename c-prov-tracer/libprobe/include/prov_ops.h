@@ -47,24 +47,6 @@ struct InitThreadOp {
     pid_t sams_thread_id; /* Not the same as TID in Linux */
 };
 
-enum OpCode {
-    FIRST_OP_CODE,
-    init_process_op_code,
-    init_thread_op_code,
-    open_op_code,
-    close_op_code,
-    chdir_op_code,
-    exec_op_code,
-    clone_op_code,
-    exit_op_code,
-    access_op_code,
-    stat_op_code,
-    chown_op_code,
-    chmod_op_code,
-    read_link_op_code,
-    LAST_OP_CODE,
-};
-
 struct OpenOp {
     struct Path path;
     int flags;
@@ -117,6 +99,13 @@ struct StatOp {
     int ferrno;
 };
 
+struct ReaddirOp {
+    struct Path dir;
+    char* child;
+    bool all_children;
+    int ferrno;
+};
+
 struct ChownOp {
     struct Path path;
     uid_t uid;
@@ -136,6 +125,25 @@ struct ReadLinkOp {
     int ferrno;
 };
 
+enum OpCode {
+    FIRST_OP_CODE,
+    init_process_op_code,
+    init_thread_op_code,
+    open_op_code,
+    close_op_code,
+    chdir_op_code,
+    exec_op_code,
+    clone_op_code,
+    exit_op_code,
+    access_op_code,
+    stat_op_code,
+    readdir_op_code,
+    chown_op_code,
+    chmod_op_code,
+    read_link_op_code,
+    LAST_OP_CODE,
+};
+
 struct Op {
     enum OpCode op_code;
     union {
@@ -149,6 +157,7 @@ struct Op {
         struct ExitOp exit;
         struct AccessOp access;
         struct StatOp stat;
+        struct ReaddirOp readdir;
         struct ChownOp chown;
         struct ChmodOp chmod;
         struct ReadLinkOp read_link;

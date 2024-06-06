@@ -80,24 +80,16 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
         case exit_op_code: return "exit";
         case access_op_code: return "access";
         case stat_op_code: return "stat";
+        case readdir_op_code: return "readdir";
         case chown_op_code: return "chown";
         case chmod_op_code: return "chmod";
         case read_link_op_code: return "read_link";
         default:
-            ASSERTF(op_code <= FIRST_OP_CODE || op_code >= LAST_OP_CODE, "Not a valid op_code: %d", op_code);
+            ASSERTF(FIRST_OP_CODE < op_code && op_code < LAST_OP_CODE, "Not a valid op_code: %d", op_code);
             NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
 static int path_to_string(struct Path path, char* buffer, int buffer_length) {
-    /* CHECK_SNPRINTF(
-        buffer,
-        PATH_MAX * 2,
-        "%d %s -> (%ld, %ld, %ld)",
-        path.dirfd_minus_at_fdcwd + AT_FDCWD,
-        path.path,
-        path.device_major,
-        path.device_minor,
-        path.inode); */
     return CHECK_SNPRINTF(
         buffer,
         buffer_length,

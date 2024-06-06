@@ -50,6 +50,7 @@ def parse_segments(op_segments: arena.MemorySegments, data_segments: arena.Memor
                 OpCode.exit_op_code: ("exit", None),
                 OpCode.access_op_code: ("access", None),
                 OpCode.stat_op_code: ("stat", None),
+                OpCode.readdir_op_code: ("readdir", None),
                 OpCode.chown_op_code: ("chown", None),
                 OpCode.chmod_op_code: ("chmod", None),
                 OpCode.read_link_op_code: ("read_link", None),

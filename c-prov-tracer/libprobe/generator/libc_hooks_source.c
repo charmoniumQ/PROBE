@@ -439,10 +439,130 @@ DIR * fdopendir (int fd) {
 
 /* TODO: dirent manipulation */
 /* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html */
-struct dirent * readdir (DIR *dirstream) { }
-int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) { }
-struct dirent64 * readdir64 (DIR *dirstream) { }
-int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) { }
+struct dirent * readdir (DIR *dirstream) {
+    void* pre_call = ({
+        int fd = dirfd(dirstream);
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(fd, NULL),
+                .child = NULL,
+                .all_children = false,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret == NULL) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
+                 * */
+                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
+    void* pre_call = ({
+        int fd = dirfd(dirstream);
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(fd, NULL),
+                .child = NULL,
+                .all_children = false,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (*result == NULL) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
+                 * */
+                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+struct dirent64 * readdir64 (DIR *dirstream) {
+    void* pre_call = ({
+        int fd = dirfd(dirstream);
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(fd, NULL),
+                .child = NULL,
+                .all_children = false,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret == NULL) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
+                 * */
+                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) {
+    void* pre_call = ({
+        int fd = dirfd(dirstream);
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(fd, NULL),
+                .child = NULL,
+                .all_children = false,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (*result == NULL) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
+                 * */
+                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+            }
+            prov_log_record(op);
+        }
+    });
+}
 int closedir (DIR *dirstream) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
@@ -469,21 +589,209 @@ long int telldir (DIR *dirstream) { }
 void seekdir (DIR *dirstream, long int pos) { }
 
 /* https://www.gnu.org/software/libc/manual/html_node/Scanning-Directory-Content.html */
-int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const struct dirent *), int (*cmp) (const struct dirent **, const struct dirent **)) { }
-int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) { }
+int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const struct dirent *), int (*cmp) (const struct dirent **, const struct dirent **)) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(AT_FDCWD, dir),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(AT_FDCWD, dir),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
+/* Docs: https://www.man7.org/linux/man-pages/man3/scandir.3.html */
+int scandirat(int dirfd, const char *restrict dirp,
+            struct dirent ***restrict namelist,
+            int (*filter)(const struct dirent *),
+            int (*compar)(const struct dirent **, const struct dirent **)) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(dirfd, dirp),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* https://www.gnu.org/software/libc/manual/html_node/Low_002dlevel-Directory-Access.html */
-ssize_t getdents64 (int fd, void *buffer, size_t length) { }
+ssize_t getdents64 (int fd, void *buffer, size_t length) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(fd, NULL),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret == -1) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-with-Directory-Trees.html */
 /* Need: These operations walk a directory recursively */
-/*
-int ftw (const char *filename, __ftw_func_t func, int descriptors) { }
-int ftw64 (const char *filename, __ftw64_func_t func, int descriptors) { }
-int nftw (const char *filename, __nftw_func_t func, int descriptors, int flag) { }
-int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int flag) { }
-I can't include ftw.h on some systems because it defines fstatat as extern int on Sandia machines.
-*/
+int ftw (const char *filename, __ftw_func_t func, int descriptors) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(AT_FDCWD, filename),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int ftw64 (const char *filename, __ftw64_func_t func, int descriptors) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(AT_FDCWD, filename),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int nftw (const char *filename, __nftw_func_t func, int descriptors, int flag) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(AT_FDCWD, filename),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int flag) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(AT_FDCWD, filename),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+/* I can't include ftw.h on some systems because it defines fstatat as extern int on Sandia machines. */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html */
 int link (const char *oldname, const char *newname) { }

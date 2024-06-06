@@ -28,7 +28,12 @@ void init_function_pointers()
   unwrapped_seekdir = dlsym(RTLD_NEXT, "seekdir");
   unwrapped_scandir = dlsym(RTLD_NEXT, "scandir");
   unwrapped_scandir64 = dlsym(RTLD_NEXT, "scandir64");
+  unwrapped_scandirat = dlsym(RTLD_NEXT, "scandirat");
   unwrapped_getdents64 = dlsym(RTLD_NEXT, "getdents64");
+  unwrapped_ftw = dlsym(RTLD_NEXT, "ftw");
+  unwrapped_ftw64 = dlsym(RTLD_NEXT, "ftw64");
+  unwrapped_nftw = dlsym(RTLD_NEXT, "nftw");
+  unwrapped_nftw64 = dlsym(RTLD_NEXT, "nftw64");
   unwrapped_link = dlsym(RTLD_NEXT, "link");
   unwrapped_linkat = dlsym(RTLD_NEXT, "linkat");
   unwrapped_symlink = dlsym(RTLD_NEXT, "symlink");
@@ -416,28 +421,100 @@ DIR * fdopendir(int fd)
 struct dirent * readdir(DIR *dirstream)
 {
   maybe_init_thread();
+  int fd = dirfd(dirstream);
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, NULL), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
   struct dirent * ret = unwrapped_readdir(dirstream);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret == NULL)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    else
+    {
+      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
 int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
 {
   maybe_init_thread();
+  int fd = dirfd(dirstream);
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, NULL), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
   int ret = unwrapped_readdir_r(dirstream, entry, result);
+  if (likely(prov_log_is_enabled()))
+  {
+    if ((*result) == NULL)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    else
+    {
+      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
 struct dirent64 * readdir64(DIR *dirstream)
 {
   maybe_init_thread();
+  int fd = dirfd(dirstream);
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, NULL), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
   struct dirent64 * ret = unwrapped_readdir64(dirstream);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret == NULL)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    else
+    {
+      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
 int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result)
 {
   maybe_init_thread();
+  int fd = dirfd(dirstream);
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, NULL), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
   int ret = unwrapped_readdir64_r(dirstream, entry, result);
+  if (likely(prov_log_is_enabled()))
+  {
+    if ((*result) == NULL)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    else
+    {
+      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
@@ -481,21 +558,160 @@ void seekdir(DIR *dirstream, long int pos)
 int scandir(const char *dir, struct dirent ***namelist, int (*selector)(const struct dirent *), int (*cmp)(const struct dirent **, const struct dirent **))
 {
   maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
   int ret = unwrapped_scandir(dir, namelist, selector, cmp);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret != 0)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
 int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(const struct dirent64 *), int (*cmp)(const struct dirent64 **, const struct dirent64 **))
 {
   maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
   int ret = unwrapped_scandir64(dir, namelist, selector, cmp);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret != 0)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
+  return ret;
+}
+
+int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict namelist, int (*filter)(const struct dirent *), int (*compar)(const struct dirent **, const struct dirent **))
+{
+  maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(dirfd, dirp), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
+  int ret = unwrapped_scandirat(dirfd, dirp, namelist, filter, compar);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret != 0)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
 ssize_t getdents64(int fd, void *buffer, size_t length)
 {
   maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, NULL), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
   ssize_t ret = unwrapped_getdents64(fd, buffer, length);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret == (-1))
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
+  return ret;
+}
+
+int ftw(const char *filename, __ftw_func_t func, int descriptors)
+{
+  maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
+  int ret = unwrapped_ftw(filename, func, descriptors);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret != 0)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
+  return ret;
+}
+
+int ftw64(const char *filename, __ftw64_func_t func, int descriptors)
+{
+  maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
+  int ret = unwrapped_ftw64(filename, func, descriptors);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret != 0)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
+  return ret;
+}
+
+int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
+{
+  maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
+  int ret = unwrapped_nftw(filename, func, descriptors, flag);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret != 0)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
+  return ret;
+}
+
+int nftw64(const char *filename, __nftw64_func_t func, int descriptors, int flag)
+{
+  maybe_init_thread();
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename), .child = NULL, .all_children = true}}, {0}};
+  if (likely(prov_log_is_enabled()))
+  {
+    prov_log_try(op);
+  }
+  int ret = unwrapped_nftw64(filename, func, descriptors, flag);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret != 0)
+    {
+      op.data.readdir.ferrno = errno;
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 

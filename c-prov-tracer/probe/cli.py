@@ -1,3 +1,4 @@
+import io
 import os
 import tempfile
 import subprocess
@@ -76,7 +77,10 @@ def dump(probe_log: pathlib.Path):
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
-    probe_log_tar_obj = tarfile.open(probe_log)
+    if not probe_log.exists():
+        typer.secho(f"PROBE_LOG {probe_log} does not exist\nUse `PROBE record --output {probe_log} CMD...` to rectify", fg=typer.colors.RED)
+        raise typer.Abort()
+    probe_log_tar_obj = tarfile.open(probe_log, "r")
     all_ops = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     for thread_ops in all_ops:
         for op in thread_ops:

@@ -22,6 +22,7 @@
 #include <utime.h>
 #include <unistd.h>
 #include <signal.h>
+#include <ftw.h>
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)

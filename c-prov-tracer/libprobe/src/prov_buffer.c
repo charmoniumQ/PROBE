@@ -182,11 +182,13 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
         struct stat stat_buf;
         int stat_ret;
         /* TODO: convert to statx */
+        prov_log_disable();
         if (path == NULL) {
             stat_ret = unwrapped_fstat(dirfd, &stat_buf);
         } else {
             stat_ret = unwrapped_fstatat(dirfd, path, &stat_buf, 0);
         }
+        prov_log_enable();
         if (stat_ret == 0) {
             ret.device_major = major(stat_buf.st_dev);
             ret.device_minor = minor(stat_buf.st_dev);
