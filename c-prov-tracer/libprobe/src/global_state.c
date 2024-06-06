@@ -18,20 +18,20 @@ static int __is_prov_root = -1;
 static void init_is_prov_root() {
     assert(__is_prov_root == -1);
     const char* is_prov_root_env_var = PRIVATE_ENV_VAR_PREFIX "IS_ROOT";
-    const char* is_root = getenv(is_prov_root_env_var);
-    DEBUG("getenv %s = %s", is_prov_root_env_var, is_root);
+    const char* is_root = debug_getenv(is_prov_root_env_var);
     if (is_root != NULL && is_root[0] == '0') {
         __is_prov_root = 0;
     } else {
-        EXPECT(== 0, setenv(is_prov_root_env_var, "0", true));
-        DEBUG("setenv %s = 0", is_prov_root_env_var);
+        debug_setenv(is_prov_root_env_var, "0");
         __is_prov_root = 1;
     }
 }
+#ifndef NDEBUG
 static bool is_prov_root() {
     assert(__is_prov_root == 1 || __is_prov_root == 0);
     return __is_prov_root;
 }
+#endif
 
 /*
  * exec-family of functions _replace_ the process currently being run with a new process, by loading the specified program.
@@ -46,10 +46,8 @@ static void init_exec_epoch() {
     const char* tracee_pid_env_var = PRIVATE_ENV_VAR_PREFIX "TRACEE_PID";
     /* We will store EXEC_EPOCH_PLUS_ONE because 0 is a sentinel value for strtol. */
     const char* exec_epoch_plus_one_env_var = PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH_PLUS_ONE";
-    const char* tracee_pid_str = getenv(tracee_pid_env_var);
-    DEBUG("getenv %s = %s", tracee_pid_env_var, tracee_pid_str);
-    const char* exec_epoch_plus_one_str = getenv(exec_epoch_plus_one_env_var);
-    DEBUG("getenv %s = %s", exec_epoch_plus_one_env_var, exec_epoch_plus_one_str);
+    const char* tracee_pid_str = debug_getenv(tracee_pid_env_var);
+    const char* exec_epoch_plus_one_str = debug_getenv(exec_epoch_plus_one_env_var);
     pid_t tracee_pid = -1;
     ASSERTF(
         (exec_epoch_plus_one_str == NULL) == (tracee_pid_str == NULL),
@@ -72,15 +70,15 @@ static void init_exec_epoch() {
         __exec_epoch = (size_t) EXPECT(> 0, strtol(exec_epoch_plus_one_str, NULL, 10)) - 1;
     } else {
         /* the default value of new_exec_epoch is correct here. */
+        char new_tracee_pid_str[unsigned_int_string_size];
+        CHECK_SNPRINTF(new_tracee_pid_str, unsigned_int_string_size, "%u", new_tracee_pid);
+        debug_setenv(tracee_pid_env_var, new_tracee_pid_str);
     }
-    char new_tracee_pid_str[unsigned_int_string_size];
     char new_exec_epoch_str[unsigned_int_string_size];
-    CHECK_SNPRINTF(new_tracee_pid_str, unsigned_int_string_size, "%u", new_tracee_pid);
     CHECK_SNPRINTF(new_exec_epoch_str, unsigned_int_string_size, "%u", __exec_epoch + 2);
-    EXPECT(== 0, setenv(tracee_pid_env_var, new_tracee_pid_str, true));
-    DEBUG("setenv %s = %s", tracee_pid_env_var, new_tracee_pid_str);
-    EXPECT(== 0, setenv(exec_epoch_plus_one_env_var, new_exec_epoch_str, true));
-    DEBUG("setenv %s = %s", exec_epoch_plus_one_env_var, new_exec_epoch_str);
+                    debug_getenv(PRIVATE_ENV_VAR_PREFIX "PROCESS_BIRTH_TIME");
+    debug_setenv(exec_epoch_plus_one_env_var, new_exec_epoch_str);
+                    debug_getenv(PRIVATE_ENV_VAR_PREFIX "PROCESS_BIRTH_TIME");
 }
 static unsigned int get_exec_epoch() {
     assert(__exec_epoch != UINT_MAX);
@@ -106,11 +104,9 @@ static void init_process_birth_time() {
         int process_birth_time_str_length = signed_long_string_size + unsigned_long_string_size + 1;
         char process_birth_time_str[process_birth_time_str_length];
         CHECK_SNPRINTF(process_birth_time_str, process_birth_time_str_length, "%ld.%ld", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
-        EXPECT(== 0, setenv(process_birth_time_env_var, process_birth_time_str, true));
-        DEBUG("setenv %s = %s", process_birth_time_env_var, process_birth_time_str);
+        debug_setenv(process_birth_time_env_var, process_birth_time_str);
     } else {
-        const char* process_birth_time_str = getenv(process_birth_time_env_var);
-        DEBUG("getenv: %s = %s", process_birth_time_env_var, process_birth_time_str);
+        const char* process_birth_time_str = debug_getenv(process_birth_time_env_var);
         assert(process_birth_time_str);
         char* rest_of_str = NULL;
         __process_birth_time.tv_sec = strtol(process_birth_time_str, &rest_of_str, 10);
@@ -130,7 +126,7 @@ static struct timespec get_process_birth_time() {
 static _Atomic unsigned int __thread_counter = 0;
 static __thread unsigned int __thread_id = UINT_MAX;
 static void init_sams_thread_id() {
-    EXPECT(== UINT_MAX, __thread_id);
+    assert(__thread_id == UINT_MAX);
     __thread_id = __thread_counter++;
 }
 static unsigned int get_sams_thread_id() {

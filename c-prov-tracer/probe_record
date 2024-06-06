@@ -71,10 +71,6 @@ if [ -n "${debug}" -o -n "${gdb}" ]; then
     echo "Running '${@}' in libprobe"
 else
     libprobe="${libprobe_root}/libprobe.so"
-    echo "When libprobe opt is ready, that command would execute it."
-    echo "However, I need more time to make sure the error-handling code works correctly in opt."
-    echo "Please rerun with -d|--debug."
-    exit 1
 fi
 
 if [ ! -f "${libprobe}" ]; then
@@ -88,10 +84,21 @@ if [ -n "${gdb}" ]; then
     gdb --args env "LD_PRELOAD=${libprobe}" "${@}"
 else
     set +e
-    env LD_PRELOAD=$libprobe "${@}"
+    if [ -n "${debug}" ]; then
+        echo "Using PROBE_DIR=${PROBE_DIR}"
+    fi
+    LD_PRELOAD=$libprobe "${@}"
     status=$?
-    if [ -z "${debug}" ]; then
-        tar --compress --gzip --file "${output}" "${PROBE_DIR}"
+    # TODO: If I ever rewrite the launcher in Rust, replace tar/gzip with something that doesn't depend on coreutils
+    tar --create --gzip --file "${output}" --directory "${PROBE_DIR}" .
+    if [ -n "${debug}" ]; then
+        if command -v lsd > /dev/null; then
+            lsd --long --total-size --tree "${PROBE_DIR}"
+        else
+            ls --recursive "${PROBE_DIR}"
+        fi
+    else
+        rm --recursive --force "${PROBE_DIR}"
     fi
     exit $status
 fi

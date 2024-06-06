@@ -1,24 +1,6 @@
 /* Definition moved to prov_buffer.c because we need to access thread_local_arena */
 /* struct InitProcessOp init_current_process() { ... } */
 
-static int path_to_string(struct Path path, char* buffer, int buffer_length) {
-    /* CHECK_SNPRINTF(
-        buffer,
-        PATH_MAX * 2,
-        "%d %s -> (%ld, %ld, %ld)",
-        path.dirfd_minus_at_fdcwd + AT_FDCWD,
-        path.path,
-        path.device_major,
-        path.device_minor,
-        path.inode); */
-    return CHECK_SNPRINTF(
-        buffer,
-        buffer_length,
-        "%d %s",
-        path.dirfd_minus_at_fdcwd + AT_FDCWD,
-        path.path);
-}
-
 static struct InitThreadOp init_current_thread() {
     struct InitThreadOp ret = {
         .process_id = get_process_id(),
@@ -71,6 +53,7 @@ static void free_op(struct Op op) {
 }
 */
 
+#ifndef NDEBUG
 static struct Path op_to_path(struct Op op) {
     switch (op.op_code) {
         case open_op_code: return op.data.open.path;
@@ -85,7 +68,6 @@ static struct Path op_to_path(struct Op op) {
             return null_path;
     }
 }
-
 static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
         case init_process_op_code: return "init_process";
@@ -106,7 +88,23 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
             NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
-
+static int path_to_string(struct Path path, char* buffer, int buffer_length) {
+    /* CHECK_SNPRINTF(
+        buffer,
+        PATH_MAX * 2,
+        "%d %s -> (%ld, %ld, %ld)",
+        path.dirfd_minus_at_fdcwd + AT_FDCWD,
+        path.path,
+        path.device_major,
+        path.device_minor,
+        path.inode); */
+    return CHECK_SNPRINTF(
+        buffer,
+        buffer_length,
+        "%d %s",
+        path.dirfd_minus_at_fdcwd + AT_FDCWD,
+        path.path);
+}
 static void op_to_human_readable(char* dest, int size, struct Op op) {
     const char* op_str = op_code_to_string(op.op_code);
     strncpy(dest, op_str, size);
@@ -127,10 +125,4 @@ static void op_to_human_readable(char* dest, int size, struct Op op) {
         size -= fd_size;
     }
 }
-
-/* This is not needed since we switched to Arena allocation */
-/*
-static void write_op_binary(int fd, struct Op op) {
-    EXPECT( > 0, write(fd, (void*) &op, sizeof(op)));
-}
-*/
+#endif

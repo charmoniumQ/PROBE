@@ -1,10 +1,11 @@
-DBGCFLAGS ?= -Wno-cast-function-type -Wno-array-parameter -ldl -Wall -Wextra -pthread -Og -g
-OPTCFLAGS ?= -Wno-cast-function-type -Wno-array-parameter -ldl -Wall -Wextra -pthread -O3 -DNDEBUG
+SOURCE_VERSION ?= $(shell git rev-parse --short HEAD)
+DBGCFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wno-cast-function-type -Wno-array-parameter -ldl -Wall -Wextra -pthread -Og -g
+OPTCFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wno-cast-function-type -Wno-array-parameter -ldl -Wall -Wextra -pthread -O3 -DNDEBUG
 LIBCFLAGS ?= -fPIC -shared
 SOURCE_FILES := $(wildcard src/*.c) $(wildcard include/*.h)
 
 GENERATED_FILES := generated/libc_hooks.c generated/libc_hooks.h
-ALL_TARGETS := build/libprobe-dbg.so # build/libprobe.so
+ALL_TARGETS := build/libprobe-dbg.so build/libprobe.so
 
 all: $(ALL_TARGETS)
 .PHONY: all

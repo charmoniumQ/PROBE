@@ -39,6 +39,7 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 
 static void maybe_init_thread();
 static void term_process();
+static void prov_log_disable();
 static int get_process_id_safe();
 static int get_exec_epoch_safe();
 static int get_sams_thread_id_safe();
@@ -92,11 +93,17 @@ static void check_function_pointers() {
     assert(unwrapped_mkdirat);
     assert(unwrapped_openat);
     if (!unwrapped_fstat) {
-      unwrapped___fxstat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstat"));
+      unwrapped___fxstat = dlsym(RTLD_NEXT, "__fxstat");
+      if (!unwrapped___fxstat) {
+          ERROR("Could not find fstat or __fxstat in your libc");
+      }
       unwrapped_fstat = &fallback_fstat;
     }
     if (!unwrapped_fstatat) {
-      unwrapped___fxstatat = EXPECT_NONNULL(dlsym(RTLD_NEXT, "__fxstatat"));
+      unwrapped___fxstatat = dlsym(RTLD_NEXT, "__fxstatat");
+      if (!unwrapped___fxstatat) {
+          ERROR("Could not find fstatat or __fxstatat in your libc");
+      }
       unwrapped_fstatat = &fallback_fstatat;
     }
 }
@@ -104,15 +111,12 @@ static void check_function_pointers() {
 static bool __process_inited = false;
 static __thread bool __thread_inited = false;
 static void maybe_init_thread() {
-    const char* process_birth_time_env_var = PRIVATE_ENV_VAR_PREFIX "PROCESS_BIRTH_TIME";
-    const char* process_birth_time_str = getenv(process_birth_time_env_var);
     if (unlikely(!__thread_inited)) {
         bool was_process_inited = __process_inited;
         prov_log_disable();
         {
             if (unlikely(!__process_inited)) {
                 DEBUG("Initializing process");
-                DEBUG("getenv: %s = %s", process_birth_time_env_var, process_birth_time_str);
                 prov_log_disable();
                 init_function_pointers();
                 check_function_pointers();
@@ -150,8 +154,10 @@ static void maybe_init_thread() {
 }
 
 static void term_process() {
-    DEBUG("cleanup started %d %d", get_process_id(), get_sams_thread_id());
-    prov_log_disable();
-    prov_log_term_process();
-    DEBUG("cleanup done %d %d", get_process_id(), get_sams_thread_id());
+    if (prov_log_is_enabled()) {
+        DEBUG("cleanup started %d %d", get_process_id(), get_sams_thread_id());
+        prov_log_disable();
+        prov_log_term_process();
+        DEBUG("cleanup done %d %d", get_process_id(), get_sams_thread_id());
+    }
 }

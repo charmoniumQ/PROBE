@@ -2,21 +2,23 @@ digraph G {
 
   node [label="figure.png"] graph_png;
   node [label="/bin/python"] python;
+  node [label="script.sh"] script;
   node [label="matplotlib.py"] matplotlib;
-  node [label="PID=2"] proc2;
-  node [label="PID=1"] proc1;
+  node [label="PID=12" shape="box"] proc2;
+  node [label="PID=11" shape="box"] proc1;
   node [label="/bin/bash"] bash;
   node [label="libc.so.6"] libc;
   node [label="database@v0"] database0;
   node [label="database@v1"] database1;
 
-  bash -> proc1;
-  libc -> proc1;
-  proc1 -> proc2;
+  script -> proc1 [label="read by"];
+  bash -> proc1 [label="execed by"];
+  libc -> proc1 [label="loaded by];
+  proc1 -> proc2 [label="forks];
 
-  python -> proc2;
-  matplotlib -> proc2;
-  database0 -> proc2;
-  proc2 -> database1;
-  proc2 -> graph_png;
+  python -> proc2 [label="execed by"];
+  matplotlib -> proc2 [label="read by"];
+  database0 -> proc2 [label="read by"];
+  proc2 -> database1 [label="writes"];
+  proc2 -> graph_png [label="writes"];
 }

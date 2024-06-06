@@ -22,26 +22,26 @@
 #else
 #endif
 
-#define FREE(p) ({free(p); })
+#define FREE free
 /* #define FREE(p) ({ \ */
 /*     DEBUG("free: %s: %p", #p, p); \ */
 /*     free(p); \ */
 /* }) */
 
-#define __LOG(...) ({ \
-    fprintf(stderr, __VA_ARGS__); \
-})
+#ifndef SOURCE_VERSION
+#define SOURCE_VERSION ""
+#endif
 
-#define __LOG_SOURCE(msg) ({ \
-    __LOG(__FILE__ ":%d:%s(): ", __LINE__, __func__); \
-})
+#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d: ", get_process_id_safe(), get_exec_epoch_safe(), get_sams_thread_id_safe())
+
+#define __LOG_SOURCE() fprintf(stderr, SOURCE_VERSION ":" __FILE__ ":%d:%s(): ", __LINE__, __func__)
 
 #ifdef DEBUG_LOG
 #define DEBUG(...) ({ \
-    __LOG("libprobe:debug:%d:%d:%d ", get_process_id_safe(), get_exec_epoch_safe(), get_sams_thread_id_safe()); \
+    __LOG_PID(); \
     __LOG_SOURCE(); \
-    __LOG(__VA_ARGS__); \
-    __LOG("\n"); \
+    fprintf(stderr, __VA_ARGS__); \
+    fprintf(stderr, "\n"); \
 })
 #else
 #define DEBUG(...)
@@ -51,40 +51,22 @@
 #ifndef NDEBUG
 #define ASSERTF(cond, ...) ({ \
     if (unlikely(!(cond))) { \
-        __LOG("    error: "); \
+        __LOG_PID(); \
         __LOG_SOURCE(); \
-        __LOG("Assertion " #cond " failed: "); \
-        __LOG(__VA_ARGS__); \
-        __LOG("\n"); \
-        abort(); \
+        fprintf(stderr, "Assertion " #cond " failed: "); \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, "\n"); \
+	    prov_log_disable(); \
+        exit(1); \
     } \
 })
-#else
-#define ASSERTF(...)
-#endif
-
-#define NOT_IMPLEMENTED(...) ({ \
-    __LOG("    error: "); \
-    __LOG_SOURCE(); \
-    __LOG("Not implemented: "); \
-    __LOG(__VA_ARGS__); \
-    __LOG("\n"); \
-    abort(); \
-})
-
 /* TODO: rewrite this as (const_val, binary_op, expr) */
-#ifndef NDEBUG
 #define EXPECT(cond, expr) ({ \
     errno = 0; \
     ssize_t ret = (expr); \
     ASSERTF((ret cond), "Expected %s %s, but %s == %ld: %s (%d)", #expr, #cond, #expr, ret, strerror(errno), errno); \
     ret; \
 })
-#else
-#define EXPECT(cond, expr) expr
-#endif
-
-#ifndef NDEBUG
 #define EXPECT_NONNULL(expr) ({ \
     errno = 0; \
     void* ret = (expr); \
@@ -92,8 +74,29 @@
     ret; \
 })
 #else
+#define ASSERTF(...)
+#define EXPECT(cond, expr) expr
 #define EXPECT_NONNULL(expr) expr
 #endif
+
+#define NOT_IMPLEMENTED(...) ({ \
+    __LOG_PID(); \
+    __LOG_SOURCE(); \
+    fprintf(stderr, "Not implemented: "); \
+    fprintf(stderr, __VA_ARGS__); \
+    fprintf(stderr, "\n"); \
+    prov_log_disable(); \
+    exit(1); \
+})
+
+#define ERROR(...) ({ \
+    __LOG_PID(); \
+    __LOG_SOURCE(); \
+    fprintf(stderr, __VA_ARGS__); \
+    fprintf(stderr, "\n"); \
+    prov_log_disable(); \
+    exit(1); \
+})
 
 #define CHECK_SNPRINTF(s, n, ...) ({ \
     int ret = snprintf(s, n, __VA_ARGS__); \
@@ -136,3 +139,56 @@ const int unsigned_int_string_size = 12;
 const int unsigned_long_string_size = 22;
 /* len(str(2**63)) + 1 == 20 */
 const int signed_long_string_size = 22;
+
+extern char** environ;
+
+const char* getenv_copy(const char* name) {
+    if (__environ == NULL && name[0] == '\0') {
+        return NULL;
+    } else {
+        size_t len = strlen(name);
+        for (char **ep = environ; *ep != NULL; ++ep) {
+            if (name[0] == (*ep)[0] && strncmp (name, *ep, len) == 0 && (*ep)[len] == '=') {
+                return *ep + len + 1;
+            }
+        }
+        return NULL;
+    }
+}
+
+/*
+ * Somehow, calling glibc's getenv here doesn't work (???) for the case `bash -c 'bash -c echo'` with libprobe.
+ * In that case, the following code trips up:
+ *
+ *     debug_getenv(__PROBE_PROCESS_BIRTH_TIME); // prints getenv: __PROBE_PROESS_BIRTH_TIME = 1000.2000 or something
+ *     debug_setenv(__PROBE_PROCESS_TRACEE_PID); // prints setenv: __PROBE_PROCESS_TRACEE_PID = 2002 (formerly 2001) or something
+ *     dcebug_getenv(__PROBE_PROCESS_BIRTH_TIME); // prints getenv: __PROBE_PROESS_BIRTH_TIME = (null)
+ *
+ * I'm not sure how the intervening setenv of TRACEE PID is affecting the value of BIRTH TIME.
+ *
+ * Somehow, when I copied glibc's source code here, the bug is absent. Wtf?
+ * At least this works.
+ *
+ * See https://sourceware.org/git/?p=glibc.git;a=blob;f=stdlib/getenv.c;h=bea69e0f404344fa0e67184f8c186c5483d35e29;hb=HEAD
+ */
+#ifdef DEBUG_LOG
+#define debug_getenv(name) ({ \
+    const char* ret = getenv_copy(name); \
+    DEBUG("getenv '%s' = '%s'", name, ret); \
+    ret; \
+})
+#else
+#define debug_getenv getenv_copy
+#endif
+
+#ifdef DEBUG_LOG
+#define debug_setenv(name, value) { \
+    const char* old_val = getenv(name); \
+    EXPECT(== 0, setenv(name, value, true)); \
+    DEBUG("setenv '%s' = '%s' (formerly '%s')", name, value, old_val); \
+}
+#else
+static void debug_setenv(const char* name, const char* value) {
+    setenv(name, value, true);
+}
+#endif

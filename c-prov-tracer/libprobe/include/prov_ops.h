@@ -28,7 +28,6 @@ struct Path {
 };
 
 static struct Path null_path = {-1, NULL, -1, -1, -1, false, false};
-static int path_to_string(struct Path path, char* buffer, int buffer_length);
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 

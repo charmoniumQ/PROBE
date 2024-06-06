@@ -5,6 +5,16 @@ static void prov_log_enable () { __prov_log_disable = false; }
 static bool prov_log_is_enabled () { return !__prov_log_disable; }
 static void prov_log_set_enabled (bool value) { __prov_log_disable = value; }
 
+OWNED const char* dirfd_path(int dirfd) {
+    bool was_prov_log_enabled = prov_log_is_enabled();
+    prov_log_disable();
+    char proc_path[PATH_MAX];
+    CHECK_SNPRINTF(proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
+    const char* ret = unwrapped_realpath(proc_path, NULL);
+    prov_log_set_enabled(was_prov_log_enabled);
+    return ret;
+}
+
 static __thread struct ArenaDir op_arena;
 static __thread struct ArenaDir data_arena;
 
@@ -30,9 +40,7 @@ static void prov_log_try(struct Op op) {
     if (op.op_code == clone_op_code && op.data.clone.flags & CLONE_VFORK) {
             DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
     }
-    DEBUG("%d, %d", op.op_code, exec_op_code);
     if (op.op_code == exec_op_code) {
-        DEBUG("Hello");
         prov_log_record(op);
     }
 }
@@ -90,7 +98,9 @@ static void prov_log_record(struct Op op) {
 static int mkdir_and_descend(int dirfd, long child, char* buffer, bool exists_ok) {
     CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
     int mkdir_ret = unwrapped_mkdirat(dirfd, buffer, 0777);
-    assert(mkdir_ret == 0 || (exists_ok && errno == EEXIST));
+    if (mkdir_ret != 0 && (!exists_ok || errno != EEXIST)) {
+        ERROR("%s/%ld exists\n", dirfd_path(dirfd), child);
+    }
     int sub_dirfd = EXPECT(!= -1, unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY));
     EXPECT(== 0, unwrapped_close(dirfd));
     return sub_dirfd;
@@ -101,8 +111,7 @@ static void init_process_prov_log() {
     /* TODO: Lock this, just in case we race somehow */
     assert(__epoch_dirfd == -1);
     static char* const dir_env_var = ENV_VAR_PREFIX "DIR";
-    char* relative_dir = getenv(dir_env_var);
-    DEBUG("getenv %s = %s", dir_env_var, relative_dir);
+    const char* relative_dir = debug_getenv(dir_env_var);
     if (relative_dir == NULL) {
         assert(is_prov_root());
         relative_dir = ".prov";
@@ -110,9 +119,13 @@ static void init_process_prov_log() {
     struct stat stat_buf;
     int stat_ret = unwrapped_fstatat(AT_FDCWD, relative_dir, &stat_buf, 0);
     if (stat_ret != 0) {
-        EXPECT(== 0, unwrapped_mkdirat(AT_FDCWD, relative_dir, 0755));
+        if (0 != unwrapped_mkdirat(AT_FDCWD, relative_dir, 0755)) {
+            ERROR("Could not mkdir %s", relative_dir);
+        }
     } else {
-        ASSERTF((stat_buf.st_mode & S_IFMT) == S_IFDIR, "%s already exists but is not a directory\n", relative_dir);
+        if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
+            ERROR("%s already exists but is not a directory\n", relative_dir);
+        };
     }
     int cwd = EXPECT(!= -1, unwrapped_openat(AT_FDCWD, relative_dir, O_RDONLY | O_DIRECTORY));
 
@@ -128,8 +141,7 @@ static void init_process_prov_log() {
     char absolute_dir [PATH_MAX + 1] = {0};
     EXPECT_NONNULL(unwrapped_realpath(relative_dir, absolute_dir));
     /* Setenv, so child processes will be using the same prov log dir, even if they change directories. */
-    EXPECT(== 0, setenv(dir_env_var, absolute_dir, true));
-    DEBUG("setenv %s = %s", dir_env_var, absolute_dir);
+    debug_setenv(dir_env_var, absolute_dir);
 
     DEBUG("init_process_prov_log: %s", absolute_dir);
 }
