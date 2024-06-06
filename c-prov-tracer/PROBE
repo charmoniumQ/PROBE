@@ -1,31 +1,3 @@
 #!/usr/bin/env sh
 
-message="
-PROBE has two main functionalities: record and analyze.
-PROBE analyze has many more dependencies, so it can be distributed separately from record.
-A host with this script may have one or both of these installed.
-"
-
-if [ "$#" -lt 2 ]; then
-    echo "Usage: PROBE <record|...> ..."
-elif [ "$1" = "record" ]; then
-    if [ -f ./probe_record ]; then
-        shift
-        exec ./probe_record "${@}"
-    else
-        echo "You don't have probe_record installed." > /dev/stderr
-        echo $message > /dev/stderr
-        exit 1
-    fi
-else
-    if [ -f ./probe_analyze/cli.py ]; then
-        shift
-        exec env PYTHONPATH=$PWD:$PWD/arena:$PYTHONPATH python -m probe_analyze.cli "${@}"
-    else
-        echo "You don't have probe_analyze installed." > /dev/stderr
-        echo $message > /dev/stderr
-        exit 1
-    fi
-    echo "PROBE doesn't understand the command $1" > /dev/stderr
-    exit 1
-fi
+exec env PYTHONPATH=$PWD:$PWD/arena:$PYTHONPATH python -m probe.cli "${@}"

@@ -103,8 +103,8 @@ def parse_probe_log_dir(probe_log_dir: pathlib.Path) -> typing.Sequence[typing.S
 
 def parse_probe_log_tar(probe_log_tar: tarfile.TarFile) -> typing.Sequence[typing.Sequence[Op]]:
     member_paths = sorted([
-        pathlib.Path(member.name)
-        for member in probe_log_tar
+        pathlib.Path(name)
+        for name in probe_log_tar.getnames()
     ])
     all_ops = list[list[Op]]()
     for member in member_paths:
