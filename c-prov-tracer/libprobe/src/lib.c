@@ -135,8 +135,8 @@ static void maybe_init_thread() {
 
         if (!was_process_inited) {
             struct Op op = {
-                init_process_op_code,
-                {.init_process = init_current_process()},
+                init_exec_epoch_op_code,
+                {.init_exec_epoch = init_current_exec_epoch()},
                 {0},
             };
             prov_log_try(op);

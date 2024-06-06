@@ -201,9 +201,9 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
     }
 }
 
-struct InitProcessOp init_current_process() {
+struct InitExecEpochOp init_current_exec_epoch() {
     extern char *__progname;
-    struct InitProcessOp ret = {
+    struct InitExecEpochOp ret = {
         .process_id = get_process_id(),
         .process_birth_time = get_process_birth_time(),
         .exec_epoch = get_exec_epoch(),

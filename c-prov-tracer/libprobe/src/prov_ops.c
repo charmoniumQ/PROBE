@@ -70,7 +70,7 @@ static struct Path op_to_path(struct Op op) {
 }
 static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
-        case init_process_op_code: return "init_process";
+        case init_exec_epoch_op_code: return "init_exec_epoch";
         case init_thread_op_code: return "init_thread";
         case open_op_code: return "open";
         case close_op_code: return "close";
