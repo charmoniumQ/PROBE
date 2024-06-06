@@ -44,6 +44,8 @@ static void prov_log_disable();
 static int get_process_id_safe();
 static int get_exec_epoch_safe();
 static int get_sams_thread_id_safe();
+static bool __process_inited = false;
+static __thread bool __thread_inited = false;
 
 #define ENV_VAR_PREFIX "PROBE_"
 
@@ -109,8 +111,6 @@ static void check_function_pointers() {
     }
 }
 
-static bool __process_inited = false;
-static __thread bool __thread_inited = false;
 static void maybe_init_thread() {
     if (unlikely(!__thread_inited)) {
         bool was_process_inited = __process_inited;

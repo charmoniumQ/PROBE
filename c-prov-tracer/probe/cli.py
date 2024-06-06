@@ -73,6 +73,20 @@ def record(
 
 
 @app.command()
+def process_graph(probe_log: pathlib.Path):
+    """
+    Write a process graph from PROBE_LOG in DOT/graphviz format.
+    """
+    if not probe_log.exists():
+        typer.secho(f"PROBE_LOG {probe_log} does not exist\nUse `PROBE record --output {probe_log} CMD...` to rectify", fg=typer.colors.RED)
+        raise typer.Abort()
+    probe_log_tar_obj = tarfile.open(probe_log, "r")
+    processes = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+
+    probe_log_tar_obj.close()
+
+
+@app.command()
 def dump(probe_log: pathlib.Path):
     """
     Write the data from PROBE_LOG in a human-readable manner.

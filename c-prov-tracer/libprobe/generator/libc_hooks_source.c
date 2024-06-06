@@ -1181,10 +1181,9 @@ pid_t fork (void) {
                 op.data.clone.ferrno = errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child */
-                /* We could initialize the prov log here, but then there would be two entrypoints to initializing the prov log:
-                 * 1) after first prov operation, 2) after fork().
-                 * I think it's more robust to only have one. */
+                __process_inited = false;
+                __thread_inited = false;
+                maybe_init_thread();
             } else {
                 /* Success; parent */
                 op.data.clone.child_process_id = ret;
@@ -1226,6 +1225,9 @@ pid_t _Fork (void) {
                 prov_log_record(op);
             } else if (ret == 0) {
                 /* Success; child */
+                __process_inited = false;
+                __thread_inited = false;
+                maybe_init_thread();
             } else {
                 /* Success; parent */
                 op.data.clone.child_process_id = ret;
@@ -1263,6 +1265,7 @@ pid_t vfork (void) {
              * I really hope returning from this function is fine even though it is technically undefined behavior...
              **/
             prov_log_disable();
+            NOT_IMPLEMENTED("vfork");
         } else {
             prov_log_save();
             prov_log_disable();
@@ -1326,6 +1329,7 @@ int clone(
             prov_log_save();
             if (flags & CLONE_VFORK) {
                 prov_log_disable();
+                NOT_IMPLEMENTED("vfork");
             }
         } else {
             prov_log_save();
@@ -1343,6 +1347,11 @@ int clone(
             }
         } else if (ret == 0) {
             /* Success; child. */
+            /* We definitely have a new thread */
+            __thread_inited = false;
+            /* We might even have a new process */
+            __process_inited = !(flags & CLONE_THREAD);
+            maybe_init_thread();
         } else {
             /* Success; parent */
             if (flags & CLONE_VFORK) {

@@ -66,9 +66,7 @@ static void prov_log_record(struct Op op) {
     memcpy(dest, &op, sizeof(struct Op));
 
     /* TODO: Special handling of ops that affect process state */
-    if (op.op_code == clone_op_code) {
-        DEBUG("clone: process %d, thread %d", get_process_id(), get_sams_thread_id());
-    }
+
 /*
     if (op.op_code == OpenRead || op.op_code == OpenReadWrite || op.op_code == OpenOverWrite || op.op_code == OpenWritePart || op.op_code == OpenDir) {
         assert(op.dirfd);
@@ -109,7 +107,7 @@ static int mkdir_and_descend(int dirfd, long child, char* buffer, bool exists_ok
 static int __epoch_dirfd = -1;
 static void init_process_prov_log() {
     /* TODO: Lock this, just in case we race somehow */
-    assert(__epoch_dirfd == -1);
+    /* assert(__epoch_dirfd == -1); Not true after a fork */
     static char* const dir_env_var = ENV_VAR_PREFIX "DIR";
     const char* relative_dir = debug_getenv(dir_env_var);
     if (relative_dir == NULL) {

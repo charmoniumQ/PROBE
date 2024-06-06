@@ -1274,6 +1274,9 @@ pid_t fork()
     else
       if (ret == 0)
     {
+      __process_inited = false;
+      __thread_inited = false;
+      maybe_init_thread();
     }
     else
     {
@@ -1309,6 +1312,9 @@ pid_t _Fork()
     else
       if (ret == 0)
     {
+      __process_inited = false;
+      __thread_inited = false;
+      maybe_init_thread();
     }
     else
     {
@@ -1330,6 +1336,7 @@ pid_t vfork()
     prov_log_try(op);
     prov_log_save();
     prov_log_disable();
+    NOT_IMPLEMENTED("vfork");
   }
   else
   {
@@ -1377,6 +1384,7 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
     if (flags & CLONE_VFORK)
     {
       prov_log_disable();
+      NOT_IMPLEMENTED("vfork");
     }
   }
   else
@@ -1400,6 +1408,9 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
   else
     if (ret == 0)
   {
+    __thread_inited = false;
+    __process_inited = !(flags & CLONE_THREAD);
+    maybe_init_thread();
   }
   else
   {

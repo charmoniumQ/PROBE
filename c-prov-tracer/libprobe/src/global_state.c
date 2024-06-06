@@ -1,6 +1,6 @@
 static unsigned int __process_id = UINT_MAX;
 static void init_process_id() {
-    assert(__process_id == UINT_MAX);
+    /* assert(__process_id == UINT_MAX); Not true after a fork() */
     __process_id = getpid();
 }
 static unsigned int get_process_id() {
@@ -16,7 +16,7 @@ static int get_process_id_safe() {
 
 static int __is_prov_root = -1;
 static void init_is_prov_root() {
-    assert(__is_prov_root == -1);
+    /* assert(__is_prov_root == -1); Not true after a fork() */
     const char* is_prov_root_env_var = PRIVATE_ENV_VAR_PREFIX "IS_ROOT";
     const char* is_root = debug_getenv(is_prov_root_env_var);
     if (is_root != NULL && is_root[0] == '0') {
@@ -42,7 +42,7 @@ static bool is_prov_root() {
  */
 static unsigned int __exec_epoch = UINT_MAX;
 static void init_exec_epoch() {
-    assert(__exec_epoch == UINT_MAX);
+    /* assert(__exec_epoch == UINT_MAX); Not true after a fork() */
     const char* tracee_pid_env_var = PRIVATE_ENV_VAR_PREFIX "TRACEE_PID";
     /* We will store EXEC_EPOCH_PLUS_ONE because 0 is a sentinel value for strtol. */
     const char* exec_epoch_plus_one_env_var = PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH_PLUS_ONE";
@@ -99,7 +99,7 @@ static struct timespec __process_birth_time = {-1, 0};
 static void init_process_birth_time() {
     const char* process_birth_time_env_var = PRIVATE_ENV_VAR_PREFIX "PROCESS_BIRTH_TIME";
     if (get_exec_epoch() == 0) {
-        assert(__process_birth_time.tv_sec == -1 && __process_birth_time.tv_nsec == 0);
+        /* assert(__process_birth_time.tv_sec == -1 && __process_birth_time.tv_nsec == 0); Not true after a fork */
         EXPECT(== 0, clock_gettime(CLOCK_REALTIME, &__process_birth_time));
         int process_birth_time_str_length = signed_long_string_size + unsigned_long_string_size + 1;
         char process_birth_time_str[process_birth_time_str_length];
@@ -126,7 +126,7 @@ static struct timespec get_process_birth_time() {
 static _Atomic unsigned int __thread_counter = 0;
 static __thread unsigned int __thread_id = UINT_MAX;
 static void init_sams_thread_id() {
-    assert(__thread_id == UINT_MAX);
+    /* assert(__thread_id == UINT_MAX); Not true after a fork*/
     __thread_id = __thread_counter++;
 }
 static unsigned int get_sams_thread_id() {
