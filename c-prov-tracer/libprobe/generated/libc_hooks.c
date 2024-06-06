@@ -1431,28 +1431,123 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
 pid_t waitpid(pid_t pid, int *status_ptr, int options)
 {
   maybe_init_thread();
+  struct Op op = {wait_op_code, {.wait = {.pid = pid, .options = options, .status = 0, .ret = 0, .ferrno = 0}}, {0}};
+  prov_log_try(op);
   pid_t ret = unwrapped_waitpid(pid, status_ptr, options);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret == (-1))
+    {
+      op.data.wait.ferrno = errno;
+    }
+    else
+    {
+      op.data.wait.ret = ret;
+      op.data.wait.status = *status_ptr;
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
 pid_t wait(int *status_ptr)
 {
   maybe_init_thread();
+  struct Op op = {wait_op_code, {.wait = {.pid = -1, .options = 0, .status = 0, .ret = 0, .ferrno = 0}}, {0}};
+  prov_log_try(op);
   pid_t ret = unwrapped_wait(status_ptr);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret == (-1))
+    {
+      op.data.wait.ferrno = errno;
+    }
+    else
+    {
+      op.data.wait.ret = ret;
+      op.data.wait.status = *status_ptr;
+    }
+    prov_log_record(op);
+  }
   return ret;
 }
 
 pid_t wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
 {
   maybe_init_thread();
+  struct Op wait_op = {wait_op_code, {.wait = {.pid = pid, .options = options, .status = 0, .ret = 0, .ferrno = 0}}, {0}};
+  prov_log_try(wait_op);
+  struct GetRUsageOp data = {.waitpid_arg = pid, .getrusage_arg = 0, .usage = {{0}}, .ferrno = 0};
+  struct Op getrusage_op = {getrusage_op_code, {.getrusage = data}, {0}};
+  if (usage)
+  {
+    prov_log_try(getrusage_op);
+  }
   pid_t ret = unwrapped_wait4(pid, status_ptr, options, usage);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret == (-1))
+    {
+      wait_op.data.wait.ferrno = errno;
+      if (usage)
+      {
+        getrusage_op.data.getrusage.ferrno = errno;
+      }
+    }
+    else
+    {
+      wait_op.data.wait.ret = ret;
+      wait_op.data.wait.status = *status_ptr;
+      if (usage)
+      {
+        memcpy(&getrusage_op.data.getrusage.usage, usage, sizeof(struct rusage));
+      }
+    }
+    prov_log_record(wait_op);
+    if (usage)
+    {
+      prov_log_record(getrusage_op);
+    }
+  }
   return ret;
 }
 
 pid_t wait3(int *status_ptr, int options, struct rusage *usage)
 {
   maybe_init_thread();
+  struct Op wait_op = {wait_op_code, {.wait = {.pid = -1, .options = options, .status = 0, .ret = 0, .ferrno = 0}}, {0}};
+  prov_log_try(wait_op);
+  struct Op getrusage_op = {getrusage_op_code, {.getrusage = {.waitpid_arg = -1, .getrusage_arg = 0, .usage = {{0}}, .ferrno = 0}}, {0}};
+  if (usage)
+  {
+    prov_log_try(getrusage_op);
+  }
   pid_t ret = unwrapped_wait3(status_ptr, options, usage);
+  if (likely(prov_log_is_enabled()))
+  {
+    if (ret == (-1))
+    {
+      wait_op.data.wait.ferrno = errno;
+      if (usage)
+      {
+        getrusage_op.data.getrusage.ferrno = errno;
+      }
+    }
+    else
+    {
+      wait_op.data.wait.ret = ret;
+      wait_op.data.wait.status = *status_ptr;
+      if (usage)
+      {
+        memcpy(&getrusage_op.data.getrusage.usage, usage, sizeof(struct rusage));
+      }
+    }
+    prov_log_record(wait_op);
+    if (usage)
+    {
+      prov_log_record(getrusage_op);
+    }
+  }
   return ret;
 }
 

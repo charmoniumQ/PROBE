@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #endif
 
 struct Path {
@@ -53,6 +54,7 @@ struct OpenOp {
     mode_t mode;
     int32_t fd;
     int ferrno;
+    /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
 };
 
 struct CloseOp {
@@ -106,6 +108,21 @@ struct ReaddirOp {
     int ferrno;
 };
 
+struct WaitOp {
+    pid_t pid;
+    int options;
+    int status;
+    int ret;
+    int ferrno;
+};
+
+struct GetRUsageOp {
+    pid_t waitpid_arg;
+    int getrusage_arg;
+    struct rusage usage;
+    int ferrno;
+};
+
 struct ChownOp {
     struct Path path;
     uid_t uid;
@@ -138,6 +155,8 @@ enum OpCode {
     access_op_code,
     stat_op_code,
     readdir_op_code,
+    wait_op_code,
+    getrusage_op_code,
     chown_op_code,
     chmod_op_code,
     read_link_op_code,
@@ -158,6 +177,8 @@ struct Op {
         struct AccessOp access;
         struct StatOp stat;
         struct ReaddirOp readdir;
+        struct WaitOp wait;
+        struct GetRUsageOp getrusage;
         struct ChownOp chown;
         struct ChmodOp chmod;
         struct ReadLinkOp read_link;

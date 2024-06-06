@@ -81,6 +81,7 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
         case access_op_code: return "access";
         case stat_op_code: return "stat";
         case readdir_op_code: return "readdir";
+        case wait_op_code: return "wait";
         case chown_op_code: return "chown";
         case chmod_op_code: return "chmod";
         case read_link_op_code: return "read_link";

@@ -289,7 +289,13 @@ def parse_enum(
     current_value = 0
     for item in enum_decl.values.enumerators:
         if item.value:
-            current_value = item.value
+            v = item.value
+            if isinstance(v, pycparser.c_ast.Constant) and v.type == "int":
+                current_value = int(v.value)
+            elif isinstance(v, pycparser.c_ast.ID):
+                t = dict(py_enum_fields).get(v.name)
+                assert t is not None
+                current_value = t
         py_enum_fields.append((item.name, current_value))
         current_value += 1
     py_types[("enum", name)] = typing.cast(

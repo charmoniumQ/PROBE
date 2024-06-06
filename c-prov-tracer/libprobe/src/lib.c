@@ -19,6 +19,7 @@
 #include <sys/sysmacros.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <utime.h>
 #include <unistd.h>
 #include <signal.h>
