@@ -1,6 +1,2 @@
 .prov
-libprov.so
-libc_hooks.c
-libc_hooks.h
-simple
 __pycache__/
