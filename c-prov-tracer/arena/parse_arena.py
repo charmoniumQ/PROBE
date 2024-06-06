@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import annotations
+import tarfile
 import dataclasses
 import pathlib
 import ctypes
@@ -97,15 +98,35 @@ class CArena(ctypes.Structure):
     ]
 
 
+def parse_arena_buffer(buffr: bytes) -> MemorySegment:
+    c_arena = CArena.from_buffer_copy(buffr)
+    start = c_arena.base_address + ctypes.sizeof(CArena)
+    stop = c_arena.base_address + c_arena.used
+    return MemorySegment(buffr[ctypes.sizeof(CArena) : c_arena.used], start, stop)
+
+
 def parse_arena_dir(arena_dir: pathlib.Path) -> typing.Sequence[MemorySegment]:
     memory_segments = list[MemorySegment]()
     for path in sorted(arena_dir.iterdir()):
         assert path.name.endswith(".dat")
         buffr = path.read_bytes()
-        c_arena = CArena.from_buffer_copy(buffr)
-        start = c_arena.base_address + ctypes.sizeof(CArena)
-        stop = c_arena.base_address + c_arena.used
-        memory_segments.append(MemorySegment(buffr[ctypes.sizeof(CArena) : c_arena.used], start, stop))
+        memory_segments.append(parse_arena_buffer(buffr))
+    return memory_segments
+
+
+def parse_arena_dir_tar(
+        arena_dir_tar: tarfile.TarFile,
+        prefix: pathlib.Path = pathlib.Path(),
+) -> typing.Sequence[MemorySegment]:
+    memory_segments = list[MemorySegment]()
+    for member in sorted(arena_dir_tar, key=lambda member: member.name):
+        member_path = pathlib.Path(member.name)
+        if member_path.is_relative_to(prefix) and member_path.relative_to(prefix) != pathlib.Path("."):
+            assert member.name.endswith(".dat")
+            extracted = arena_dir_tar.extractfile(member)
+            assert extracted is not None
+            buffr = extracted.read()
+            memory_segments.append(parse_arena_buffer(buffr))
     return memory_segments
 
 
@@ -116,4 +137,10 @@ if __name__ == "__main__":
     if not arena_dir.exists():
         print(f"{arena_dir!s} doesn't exist")
         sys.exit(1)
-    print(parse_arena_dir(arena_dir))
+    if ".tar" in arena_dir.name:
+        arena_dir_tar = tarfile.open(arena_dir)
+        print("As a tarfile")
+        print(parse_arena_dir_tar(arena_dir_tar, pathlib.Path(sys.argv[2])))
+        arena_dir_tar.close()
+    else:
+        print(parse_arena_dir(arena_dir))

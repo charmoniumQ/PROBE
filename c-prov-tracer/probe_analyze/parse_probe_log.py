@@ -1,18 +1,20 @@
 import os
+import tarfile
 import enum
 import typing
 import ctypes
 import pathlib
-import struct_parser
 import pycparser # type: ignore
-import arena.parse_arena
+import arena.parse_arena as arena
+from . import struct_parser
 
 
 c_types = dict(struct_parser.default_c_types)
 py_types = dict(struct_parser.default_py_types)
 
 
-filename = pathlib.Path("prov_ops.h")
+filename = pathlib.Path(__file__).parent.parent / "libprobe/include/prov_ops.h"
+assert filename.exists()
 ast = pycparser.parse_file(filename, use_cpp=True, cpp_args="-DPYCPARSER")
 struct_parser.parse_all_types(ast.ext, c_types, py_types)
 
@@ -23,7 +25,7 @@ struct_parser.parse_all_types(ast.ext, c_types, py_types)
 
 
 COp = c_types[("struct", "Op")]
-Op = py_types[("struct", "Op")]
+Op: typing.TypeAlias = py_types[("struct", "Op")]
 OpCode: enum.EnumType = py_types[("enum", "OpCode")]  # type: ignore
 
 
@@ -32,11 +34,9 @@ def align(ptr: int, alignment: int) -> int:
     return (ptr + alignment - 1) & (~(alignment - 1))
 
 
-def parse_thread_dir(ops_dir: pathlib.Path, data_dir: pathlib.Path) -> typing.Sequence[Op]:
-    op_memory_segments = arena.parse_arena.parse_arena_dir(ops_dir)
-    data_memory_segments = arena.parse_arena.parse_arena_dir(data_dir)
-    memory_segments = sorted([*op_memory_segments, *data_memory_segments], key=lambda mem_seg: mem_seg.start)
-    memory = arena.parse_arena.MemorySegments(memory_segments)
+def parse_segments(op_segments: arena.MemorySegments, data_segments: arena.MemorySegments) -> typing.Sequence[Op]:
+    memory_segments = sorted([*op_segments, *data_segments], key=lambda mem_seg: mem_seg.start)
+    memory = arena.MemorySegments(memory_segments)
     def info(fields: typing.Mapping[str, typing.Any], field_name: str) -> typing.Any:
         if field_name == "data":
             op_code_to_union_variant = {
@@ -58,7 +58,7 @@ def parse_thread_dir(ops_dir: pathlib.Path, data_dir: pathlib.Path) -> typing.Se
         else:
             return None
     ops: list[Op] = []
-    for memory_segment in op_memory_segments:
+    for memory_segment in op_segments:
         assert (memory_segment.stop - memory_segment.start) % ctypes.sizeof(COp) == 0
         for op_start in range(memory_segment.start, memory_segment.stop, ctypes.sizeof(COp)):
             elem_buffr = memory_segment[op_start : op_start + ctypes.sizeof(COp)]
@@ -70,22 +70,46 @@ def parse_thread_dir(ops_dir: pathlib.Path, data_dir: pathlib.Path) -> typing.Se
     return ops
 
 
-def parse_prov_log_dir(prov_log_dir: pathlib.Path) -> typing.Sequence[typing.Sequence[Op]]:
+def parse_thread_dir(ops_dir: pathlib.Path, data_dir: pathlib.Path) -> tuple[arena.MemorySegment, arena.MemorySegment]:
+    return (
+        arena.parse_arena_dir(ops_dir),
+        arena.parse_arena_dir(data_dir),
+    )
+
+
+def parse_thread_dir_tar(
+        tar: tarfile.TarFile,
+        ops_dir_prefix: pathlib.Path,
+        data_dir_prefix: pathlib.Path,
+) -> tuple[arena.MemorySegment, arena.MemorySegment]:
+    return (
+        arena.parse_arena_dir_tar(tar, ops_dir_prefix),
+        arena.parse_arena_dir_tar(tar, data_dir_prefix),
+    )
+
+
+def parse_probe_log_dir(probe_log_dir: pathlib.Path) -> typing.Sequence[typing.Sequence[Op]]:
     all_ops = list[list[Op]]()
-    for f0 in prov_log_dir.iterdir():
+    for f0 in probe_log_dir.iterdir():
         for f1 in f0.iterdir():
             for f2 in f1.iterdir():
                 for f3 in f2.iterdir():
                     for f4 in f3.iterdir():
                         assert (f4 / "data").exists()
                         assert (f4 / "ops").exists()
-                        all_ops.append(parse_thread_dir(f4 / "ops", f4 / "data"))
+                        all_ops.append(parse_segments(*parse_thread_dir(f4 / "ops", f4 / "data")))
     return all_ops
 
-if __name__ == "__main__":
-    prov_log_dir = pathlib.Path(os.environ.get("PROV_LOG_DIR", ".prov"))
-    all_ops = parse_prov_log_dir(prov_log_dir)
-    for thread_ops in all_ops:
-        for op in thread_ops:
-            print(op.data)
-        print()
+
+def parse_probe_log_tar(probe_log_tar: tarfile.TarFile) -> typing.Sequence[typing.Sequence[Op]]:
+    member_paths = sorted([
+        pathlib.Path(member.name)
+        for member in probe_log_tar
+    ])
+    all_ops = list[list[Op]]()
+    for member in member_paths:
+        if len(member.parts) == 5:
+            assert member / "ops" in member_paths
+            assert member / "data" in member_paths
+            all_ops.append(parse_segments(*parse_thread_dir_tar(probe_log_tar, member / "ops", member / "data")))
+    return all_ops

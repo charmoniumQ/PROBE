@@ -7,7 +7,7 @@ A host with this script may have one or both of these installed.
 "
 
 if [ "$#" -lt 2 ]; then
-    echo "Usage: PROBE <record|analyze> ..."
+    echo "Usage: PROBE <record|...> ..."
 elif [ "$1" = "record" ]; then
     if [ -f ./probe_record ]; then
         shift
@@ -17,16 +17,15 @@ elif [ "$1" = "record" ]; then
         echo $message > /dev/stderr
         exit 1
     fi
-elif [ "$1" = "analyze" ]; then
+else
     if [ -f ./probe_analyze/cli.py ]; then
         shift
-        exec ./probe_analyze/cli.py "${@}"
+        exec env PYTHONPATH=$PWD:$PWD/arena:$PYTHONPATH python -m probe_analyze.cli "${@}"
     else
         echo "You don't have probe_analyze installed." > /dev/stderr
         echo $message > /dev/stderr
         exit 1
     fi
-else
     echo "PROBE doesn't understand the command $1" > /dev/stderr
     exit 1
 fi
