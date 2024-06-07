@@ -131,3 +131,7 @@ https://www.man7.org/linux/man-pages/man3/exec.3.html
   - Link to GitHub repo and issues
 - Make sure we are not already tracing prov, or maybe prov tracing should be "stackable"?
 - Handle env-vars consistently; always test empty or non-existant vs non-empty (some places in C might check if == 1).
+
+# TODO: Does pthread call libc?
+
+# TODO: Think about getpid and gettid

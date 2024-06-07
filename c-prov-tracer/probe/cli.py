@@ -17,6 +17,13 @@ project_root = pathlib.Path(__file__).resolve().parent.parent
 A = typing_extensions.Annotated
 
 
+Op = parse_probe_log.Op
+CloneOp = parse_probe_log.CloneOp
+ExecOp = parse_probe_log.ExecOp
+WaitOp = parse_probe_log.WaitOp
+CLONE_THREAD = parse_probe_log.CLONE_THREAD
+
+
 app = typer.Typer()
 
 
@@ -81,9 +88,107 @@ def process_graph(probe_log: pathlib.Path):
         typer.secho(f"PROBE_LOG {probe_log} does not exist\nUse `PROBE record --output {probe_log} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
     probe_log_tar_obj = tarfile.open(probe_log, "r")
-    processes = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
-
+    processes_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
+
+    Node: typing.TypeAlias = tuple[int, int, int, Op | str]
+    nodes = list[Node]()
+    program_order_edges = list[tuple[Node, Node]]()
+    fork_join_edges = list[tuple[Node, Node]]()
+
+    proc_to_ops = dict[tuple[int, int, int], list[Node]]()
+    last_exec_epoch = dict[int, int]()
+    for (pid, _time), process in processes_prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
+
+            # Reduce each thread to the ops we actually care about
+            for tid, thread in exec_epoch.threads.items():
+                context = (pid, exec_epoch_no, tid)
+
+                # Filter just the ops we are interested in
+                ops = [
+                    (*context, op.data)
+                    for op in thread.ops
+                    if isinstance(op.data, CloneOp | ExecOp | WaitOp)
+                ]
+
+                # The main thread needs to have at least one element
+                # So we can hook the parent process to it
+                # Usually this is an exec
+                # But there may be cases where it does not have one
+                if thread.sams_thread_id == 0:
+                    if not ops:
+                        ops = [(*context, "entry")]
+                    ops.append((*context, "exit"))
+
+                nodes.extend(ops)
+                program_order_edges.extend(zip(ops[:-1], ops[1:]))
+
+                # Store these so we can hook up forks/joins between threads
+                proc_to_ops[context] = ops
+
+    def first(pid: int, exid: int, tid: int) -> Op:
+        if not proc_to_ops.get((pid, exid, tid)):
+            entry_node = (pid, exid, tid, "entry")
+            proc_to_ops[(pid, exid, tid)] = entry_node
+            nodes.append(entry_node)
+            return entry_node
+        else:
+            return proc_to_ops[(pid, exid, tid)][0]
+
+    def last(pid: int, exid: int, tid: int) -> Node:
+        if not proc_to_ops.get((pid, exid, tid)):
+            exit_node = (pid, exid, tid, "exit")
+            proc_to_ops[(pid, exid, tid)] = exit_node
+            nodes.append(exit_node)
+            return exit_node
+        else:
+            return (pid, exid, tid, proc_to_ops[(pid, exid, tid)][-1])
+
+    # Hook up forks/joins
+    for node in nodes:
+        pid, exid, tid, op = node
+        if isinstance(op, CloneOp):
+            if op.flags & CLONE_THREAD:
+                # New process always links to exec epoch 0 and thread 0
+                target = (op.child_process_id, 0, 0)
+            else:
+                # Spawning a thread links to the current PID and exec epoch
+                target = (pid, exid, op.child_thread_id)
+            fork_join_edges.append((node, first(*target)))
+        elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
+            # Always wait for thread 0 of the last exec epoch
+            target = (op.ret, last_exec_epoch.get(op.ret, 0), 0)
+            fork_join_edges.append((last(*target), node))
+        elif isinstance(op, ExecOp):
+            # Exec brings same pid, incremented exid, and main thread
+            target = pid, exid + 1, 0
+            fork_join_edges.append((node, first(*target)))
+
+    # Make the main thread exit at the same time as each thread
+    for (pid, _time), process in processes_prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                if tid != 0:
+                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
+
+    print("\n".join([
+        "strict digraph {",
+        *[
+            f"  {pid}_{exid}_{tid}_{id(op)} [label=\"{str(op)}\"];"
+            for pid, exid, tid, op in nodes
+        ],
+        *[
+            f"  {pid0}_{exid0}_{tid0}_{id(op0)} -> {pid1}_{exid1}_{tid1}_{id(op1)} [color=\"green\"];"
+            for (pid0, exid0, tid0, op0), (pid1, exid1, tid1, op1) in program_order_edges
+        ],
+        *[
+            f"  {pid0}_{exid0}_{tid0}_{id(op0)} -> {pid1}_{exid1}_{tid1}_{id(op1)} [color=\"red\"];"
+            for (pid0, exid0, tid0, op0), (pid1, exid1, tid1, op1) in fork_join_edges
+        ],
+        "}",
+    ]))
 
 
 @app.command()
@@ -95,12 +200,13 @@ def dump(probe_log: pathlib.Path):
         typer.secho(f"PROBE_LOG {probe_log} does not exist\nUse `PROBE record --output {probe_log} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
     probe_log_tar_obj = tarfile.open(probe_log, "r")
-    for process in parse_probe_log.parse_probe_log_tar(probe_log_tar_obj).processes.values():
+    processes_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+    probe_log_tar_obj.close()
+    for process in processes_prov_log.processes.values():
         for exec_epoch in process.exec_epochs.values():
             for thread in exec_epoch.threads.values():
                 for op in thread.ops:
                     print(op.data)
                 print()
-    probe_log_tar_obj.close()
 
 app()

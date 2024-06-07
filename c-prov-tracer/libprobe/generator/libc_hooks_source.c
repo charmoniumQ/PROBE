@@ -26,6 +26,10 @@ typedef void* off64_t;
 typedef void* dev_t;
 typedef void* uid_t;
 typedef void* gid_t;
+typedef void* idtype_t;
+typedef void* idtype;
+typedef void* id_t;
+typedef void* siginfo_t;
 typedef int bool;
 struct stat;
 struct stat64;
@@ -1521,6 +1525,11 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
             }
         }
    });
+}
+
+/* Docs: https://www.man7.org/linux/man-pages/man2/wait.2.html */
+int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
+    /* TODO */
 }
 
 /* void exit (int status) { */

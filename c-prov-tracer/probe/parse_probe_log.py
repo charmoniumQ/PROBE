@@ -25,11 +25,17 @@ struct_parser.parse_all_types(ast.ext, c_types, py_types)
 #     if key[0] in {"struct", "union", "enum"}:
 #         print(struct_parser.c_type_to_c_source(c_types[key]))
 
+# echo '#define _GNU_SOURCE\n#include <sched.h>\nCLONE_THREAD' | cpp | tail --lines=1
+CLONE_THREAD = 0x00010000
+
 
 COp = c_types[("struct", "Op")]
 Op: typing.TypeAlias = py_types[("struct", "Op")]
 InitExecEpochOp: typing.TypeAlias = py_types[("struct", "InitExecEpochOp")]
 InitThreadOp: typing.TypeAlias = py_types[("struct", "InitThreadOp")]
+CloneOp: typing.TypeAlias = py_types[("struct", "CloneOp")]
+ExecOp: typing.TypeAlias = py_types[("struct", "ExecOp")]
+WaitOp: typing.TypeAlias = py_types[("struct", "WaitOp")]
 OpCode: enum.EnumType = py_types[("enum", "OpCode")]
 
 

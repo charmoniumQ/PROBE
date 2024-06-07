@@ -96,6 +96,7 @@ void init_function_pointers()
   unwrapped_wait = dlsym(RTLD_NEXT, "wait");
   unwrapped_wait4 = dlsym(RTLD_NEXT, "wait4");
   unwrapped_wait3 = dlsym(RTLD_NEXT, "wait3");
+  unwrapped_waitid = dlsym(RTLD_NEXT, "waitid");
   unwrapped_fopen64 = dlsym(RTLD_NEXT, "fopen64");
   unwrapped_freopen64 = dlsym(RTLD_NEXT, "freopen64");
   unwrapped_openat64 = dlsym(RTLD_NEXT, "openat64");
@@ -1548,6 +1549,13 @@ pid_t wait3(int *status_ptr, int options, struct rusage *usage)
       prov_log_record(getrusage_op);
     }
   }
+  return ret;
+}
+
+int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+{
+  maybe_init_thread();
+  int ret = unwrapped_waitid(idtype, id, infop, options);
   return ret;
 }
 

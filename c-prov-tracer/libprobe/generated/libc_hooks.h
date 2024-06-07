@@ -94,6 +94,7 @@ static pid_t (*unwrapped_waitpid)(pid_t pid, int *status_ptr, int options);
 static pid_t (*unwrapped_wait)(int *status_ptr);
 static pid_t (*unwrapped_wait4)(pid_t pid, int *status_ptr, int options, struct rusage *usage);
 static pid_t (*unwrapped_wait3)(int *status_ptr, int options, struct rusage *usage);
+static int (*unwrapped_waitid)(idtype_t idtype, id_t id, siginfo_t *infop, int options);
 static FILE * (*unwrapped_fopen64)(const char *filename, const char *opentype);
 static FILE * (*unwrapped_freopen64)(const char *filename, const char *opentype, FILE *stream);
 static int (*unwrapped_openat64)(int dirfd, const char *filename, int flags, ...);
