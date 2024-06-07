@@ -24,6 +24,11 @@
               pkgs.gdb
               pkgs.coreutils
               pkgs.bash
+              pkgs.mrsh
+              pkgs.yash
+              pkgs.dash
+              pkgs.gash
+              pkgs.mksh
             ];
           };
         };

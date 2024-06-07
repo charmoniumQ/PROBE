@@ -135,3 +135,6 @@ https://www.man7.org/linux/man-pages/man3/exec.3.html
 # TODO: Does pthread call libc?
 
 # TODO: Think about getpid and gettid
+
+# TODO: Turn off ASLR
+Use `setarch -R` or personalities

@@ -40,11 +40,11 @@
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
 static void maybe_init_thread();
-static void term_process();
+static void reinit_process();
 static void prov_log_disable();
-static int get_process_id_safe();
-static int get_exec_epoch_safe();
-static int get_sams_thread_id_safe();
+static unsigned int get_process_id_safe();
+static unsigned int get_exec_epoch_safe();
+static unsigned int get_sams_thread_id_safe();
 static bool __process_inited = false;
 static __thread bool __thread_inited = false;
 
@@ -112,6 +112,12 @@ static void check_function_pointers() {
     }
 }
 
+
+static void term_process() {
+    DEBUG("term process");
+    prov_log_term_process();
+}
+
 static void maybe_init_thread() {
     if (unlikely(!__thread_inited)) {
         bool was_process_inited = __process_inited;
@@ -119,7 +125,7 @@ static void maybe_init_thread() {
         {
             if (unlikely(!__process_inited)) {
                 DEBUG("Initializing process");
-                prov_log_disable();
+                printenv();
                 init_function_pointers();
                 check_function_pointers();
                 init_process_global_state();
@@ -127,8 +133,8 @@ static void maybe_init_thread() {
                 atexit(term_process);
                 __process_inited = true;
             }
+            DEBUG("Initializing thread");
             init_thread_global_state();
-            DEBUG("Initializing thread %d of process %d", get_sams_thread_id(), get_process_id());
             init_thread_prov_log();
         }
         prov_log_enable();
@@ -155,11 +161,30 @@ static void maybe_init_thread() {
     }
 }
 
-static void term_process() {
-    if (prov_log_is_enabled()) {
-        DEBUG("cleanup started %d %d", get_process_id(), get_sams_thread_id());
-        prov_log_disable();
-        prov_log_term_process();
-        DEBUG("cleanup done %d %d", get_process_id(), get_sams_thread_id());
-    }
+static void reinit_process() {
+    prov_log_disable();
+    DEBUG("Re-initializing process");
+    /* Function pointers are still fine,
+     * since fork() doesn't unload shared libraries. */
+    reinit_process_global_state();
+    reinit_process_prov_log();
+    atexit(term_process);
+    DEBUG("Re-initializing thread");
+    reinit_thread_global_state();
+    reinit_thread_prov_log();
+    struct Op init_exec_op = {
+        init_exec_epoch_op_code,
+        {.init_exec_epoch = init_current_exec_epoch()},
+        {0},
+    };
+    prov_log_try(init_exec_op);
+    prov_log_record(init_exec_op);
+    struct Op init_thread_op = {
+        init_thread_op_code,
+        {.init_thread = init_current_thread()},
+        {0},
+    };
+    prov_log_try(init_thread_op);
+    prov_log_record(init_thread_op);
+    prov_log_enable();
 }

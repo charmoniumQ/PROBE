@@ -244,7 +244,37 @@ __attribute__((unused)) static void arena_destroy(struct ArenaDir* arena_dir) {
         current = current->prev;
         free(old_current);
     }
+    arena_dir->__tail = NULL;
+
     unwrapped_close(arena_dir->__dirfd);
+    arena_dir->__dirfd = 0;
+
+    arena_dir->__next_instantiation = 0;
+}
+
+/*
+ * After a fork, we have a copy of the memory, so the arena_dir will be valid and initialized.
+ * If CLONE_FILES was not set, we can just call arena_destroy.
+ * However, if CLONE_FILES is set, arena_destroy will interfere with the arena in the parent.
+ * Therefore, we should NOT close those file descriptors.
+ * But we should free the virtual memory mappings.
+ * */
+__attribute__((unused)) static void arena_drop_after_fork(struct ArenaDir* arena_dir) {
+    struct __ArenaListElem* current = arena_dir->__tail;
+    while (current) {
+        for (size_t i = 0; i < current->next_list_elem; ++i) {
+            if (current->arena_list[i] != NULL) {
+                munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                current->arena_list[i] = NULL;
+            }
+        }
+        struct __ArenaListElem* old_current = current;
+        current = current->prev;
+        free(old_current);
+    }
+    arena_dir->__tail = NULL;
+    arena_dir->__dirfd = 0;
+    arena_dir->__next_instantiation = 0;
 }
 
 __attribute__((unused)) static void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
@@ -264,6 +294,13 @@ __attribute__((unused)) static void arena_uninstantiate_all_but_last(struct Aren
         is_tail = false;
         current = current->prev;
     }
+}
+
+__attribute__((unused)) static bool arena_is_initialized(struct ArenaDir* arena_dir) {
+    assert(
+        (arena_dir->__tail == NULL) == (arena_dir->__next_instantiation == 0)
+    );
+    return arena_dir->__tail != NULL;
 }
 
 #endif // ARENA

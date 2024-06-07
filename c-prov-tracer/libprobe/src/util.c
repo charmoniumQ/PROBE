@@ -140,20 +140,75 @@ const int unsigned_long_string_size = 22;
 /* len(str(2**63)) + 1 == 20 */
 const int signed_long_string_size = 22;
 
-extern char** environ;
-
 const char* getenv_copy(const char* name) {
-    if (__environ == NULL && name[0] == '\0') {
-        return NULL;
-    } else {
-        size_t len = strlen(name);
-        for (char **ep = environ; *ep != NULL; ++ep) {
-            if (name[0] == (*ep)[0] && strncmp (name, *ep, len) == 0 && (*ep)[len] == '=') {
-                return *ep + len + 1;
-            }
+    /* Validate input */
+    assert(name != NULL);
+    assert(strchr(name, '=') == NULL);
+    assert(name[0] != '\0');
+    assert(environ);
+    size_t name_len = strlen(name);
+    for (char **ep = environ; *ep != NULL; ++ep) {
+        if (unlikely(strncmp(name, *ep, name_len) == 0) && likely((*ep)[name_len] == '=')) {
+            return *ep + name_len + 1;
         }
-        return NULL;
     }
+    return NULL;
+}
+
+int setenv_copy(const char* name, const char* value, bool overwrite) {
+    /* Validate input */
+    assert(name != NULL);
+    assert(strchr(name, '=') == NULL);
+    assert(name[0] != '\0');
+    assert(value != NULL);
+    assert(environ);
+    size_t name_len = strlen(name);
+    size_t value_len = strlen(value);
+    char** old_entry = NULL;
+    size_t env_count = 0;
+    for (char **ep = environ; *ep != NULL; ++ep) {
+        env_count++;
+        if (unlikely(strncmp(name, *ep, name_len) == 0) && likely((*ep)[name_len] == '=')) {
+            old_entry = ep;
+        }
+    }
+    if (old_entry != NULL && overwrite) {
+        char* old_value = *old_entry + name_len + 1;
+        if (value_len <= strnlen(old_value, value_len + 1)) {
+            // New value shorter than or equal to old value
+            // Reusing old entry
+            memcpy(old_value, value, value_len + 1);
+        } else {
+            // New value exceeds old value, but we can at least reuse the env vars "slot" in environ
+            //free(*old_entry); // TODO: look into if we need to free old_entry
+            *old_entry = malloc(name_len + value_len + 2);
+            assert(old_entry);
+            memcpy(*old_entry, name, name_len);
+            (*old_entry)[name_len] = '=';
+            memcpy(*old_entry + name_len + 1, value, value_len + 1);
+        }
+    } else {
+        // Adding 2; one for the new env var; one for the trailing sentinel NULL
+        char** new_environ = malloc((env_count + 2) * sizeof(char *));
+        assert(new_environ);
+
+        // Copy the existing environment variables to the new array
+        memcpy(new_environ, environ, env_count * sizeof(char *));
+
+        // Add the new env var
+        new_environ[env_count] = malloc(name_len + value_len + 2);
+        memcpy(new_environ[env_count], name, name_len);
+        new_environ[env_count][name_len] = '=';
+        memcpy(new_environ[env_count] + name_len + 1, value, value_len + 1);
+
+        // Add the NULL
+        new_environ[env_count + 1] = NULL;
+
+        // TODO: Look into if we need to free the old environ
+        environ = new_environ;
+    }
+
+    return 0;
 }
 
 /*
@@ -166,10 +221,11 @@ const char* getenv_copy(const char* name) {
  *
  * I'm not sure how the intervening setenv of TRACEE PID is affecting the value of BIRTH TIME.
  *
- * Somehow, when I copied glibc's source code here, the bug is absent. Wtf?
+ * Somehow, when I re-implemented getenv/setenv here, the bug is absent. Wtf?
  * At least this works.
  *
- * See https://sourceware.org/git/?p=glibc.git;a=blob;f=stdlib/getenv.c;h=bea69e0f404344fa0e67184f8c186c5483d35e29;hb=HEAD
+ * I think it has something to do with libc's assumptions about library loading
+ *
  */
 #ifdef DEBUG_LOG
 #define debug_getenv(name) ({ \
@@ -182,13 +238,14 @@ const char* getenv_copy(const char* name) {
 #endif
 
 #ifdef DEBUG_LOG
-#define debug_setenv(name, value) { \
-    const char* old_val = getenv(name); \
-    EXPECT(== 0, setenv(name, value, true)); \
-    DEBUG("setenv '%s' = '%s' (formerly '%s')", name, value, old_val); \
+#define debug_setenv(name, value, overwrite) { \
+    char* old_val = (char*) getenv_copy(name); \
+    /* we can cast away the const since we do strup later*/  \
+    old_val = old_val ? strdup(old_val) : NULL; \
+    EXPECT( == 0, setenv_copy(name, value, overwrite)); \
+    DEBUG("setenv '%s' = '%s' (formerly '%s'); overwrite? %d", name, value, old_val, overwrite); \
+    if (old_val) { free((char*)old_val); } \
 }
 #else
-static void debug_setenv(const char* name, const char* value) {
-    setenv(name, value, true);
-}
+#define debug_setenv setenv_copy
 #endif

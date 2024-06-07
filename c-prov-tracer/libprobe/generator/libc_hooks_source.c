@@ -468,7 +468,7 @@ struct dirent * readdir (DIR *dirstream) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
             }
             prov_log_record(op);
         }
@@ -499,7 +499,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
             }
             prov_log_record(op);
         }
@@ -530,7 +530,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
             }
             prov_log_record(op);
         }
@@ -561,7 +561,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
             }
             prov_log_record(op);
         }
@@ -916,7 +916,7 @@ int mkstemp (char *template) { }
 char * mkdtemp (char *template) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html */
-/* Need: We need this because exec kills all global variables, o we need to dump our tables before continuing */
+/* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
         struct Op op = {
@@ -985,6 +985,7 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
+        env = update_env_with_probe_vars(env);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -999,8 +1000,10 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         } else {
             prov_log_save();
         }
+        DEBUG("in Execve");
     });
     void* post_call = ({
+        free((char**) env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = errno;
@@ -1009,7 +1012,8 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
     });
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
-        void* pre_call = ({
+    void* pre_call = ({
+        env = update_env_with_probe_vars(env);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -1026,6 +1030,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         }
     });
     void* post_call = ({
+        free((char**) env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = errno;
@@ -1050,7 +1055,21 @@ int execle (const char *filename, const char *arg0, ...) {
             prov_log_save();
         }
     });
+    /* TODO: Use this call instead of the default generated one */
+    void* call = ({
+        size_t nargs = COUNT_NONNULL_VARARGS(arg0);
+        char* arg_vec = malloc((nargs + 1) * sizeof(char**));
+        char** arg_src = arg0;
+        char** arg_dst = arg_vec;
+        for (; *arg_src; ++arg_src, ++arg_vec) {
+            *arg_dst = *arg_src;
+        }
+        env = update_env_with_probe_vars(env);
+        execve(filename, arg_vec, env);
+    });
     void* post_call = ({
+        /* TODO: free env from call */
+        /* free(env); */
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = errno;
@@ -1124,6 +1143,7 @@ int execlp (const char *filename, const char *arg0, ...) {
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
+        envp = update_env_with_probe_vars(envp);
         char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
@@ -1145,6 +1165,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         }
     });
     void* post_call = ({
+        free((char**) envp); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = errno;
@@ -1185,9 +1206,7 @@ pid_t fork (void) {
                 op.data.clone.ferrno = errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                __process_inited = false;
-                __thread_inited = false;
-                maybe_init_thread();
+                reinit_process();
             } else {
                 /* Success; parent */
                 op.data.clone.child_process_id = ret;
@@ -1229,9 +1248,7 @@ pid_t _Fork (void) {
                 prov_log_record(op);
             } else if (ret == 0) {
                 /* Success; child */
-                __process_inited = false;
-                __thread_inited = false;
-                maybe_init_thread();
+                reinit_process();
             } else {
                 /* Success; parent */
                 op.data.clone.child_process_id = ret;
@@ -1258,7 +1275,6 @@ pid_t vfork (void) {
             }},
             {0},
         };
-        bool was_prov_log_enabled = prov_log_is_enabled();
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
@@ -1269,7 +1285,7 @@ pid_t vfork (void) {
              * I really hope returning from this function is fine even though it is technically undefined behavior...
              **/
             prov_log_disable();
-            NOT_IMPLEMENTED("vfork");
+            NOT_IMPLEMENTED("vfork; see note in clone(...) regarding CLONE_FORK");
         } else {
             prov_log_save();
             prov_log_disable();
@@ -1278,7 +1294,6 @@ pid_t vfork (void) {
     void* post_call = ({
         if (ret == -1) {
             /* Failure */
-            prov_log_set_enabled(was_prov_log_enabled);
             if (likely(prov_log_is_enabled())) {
                 op.data.clone.ferrno = errno;
                 prov_log_record(op);
@@ -1287,7 +1302,6 @@ pid_t vfork (void) {
             /* Success; child. Can't do anything here. */
         } else {
             /* Success; parent */
-            prov_log_set_enabled(was_prov_log_enabled);
             if (likely(prov_log_is_enabled())) {
                 op.data.clone.child_process_id = ret;
                 op.data.clone.child_thread_id = ret; /* Since fork makes processes, child TID = child PID */
@@ -1327,13 +1341,13 @@ int clone(
             }},
             {0},
         };
-        bool was_prov_log_enabled = prov_log_is_enabled();
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
             if (flags & CLONE_VFORK) {
-                prov_log_disable();
-                NOT_IMPLEMENTED("vfork");
+                NOT_IMPLEMENTED("vfork is difficult to intercept since vfork requires that the child do basically nothing other than exec, and intercepting involves doing stuff.");
+            } else if ((flags & CLONE_THREAD) != (flags & CLONE_VM)) {
+                NOT_IMPLEMENTED("I conflate cloning a new thread (resulting in a process with the same PID, new TID) with sharing the memory space. If CLONE_SIGHAND is set, then Linux asserts CLONE_THREAD == CLONE_VM; If it is not set and CLONE_THREAD != CLONE_VM, by a real application, I will consider disentangling the assumptions (required to support this combination).");
             }
         } else {
             prov_log_save();
@@ -1342,25 +1356,19 @@ int clone(
     void* post_call = ({
         if (ret == -1) {
             /* Failure */
-            if (flags & CLONE_VFORK) {
-                prov_log_set_enabled(was_prov_log_enabled);
-            }
             if (likely(prov_log_is_enabled())) {
                 op.data.clone.ferrno = errno;
                 prov_log_record(op);
             }
         } else if (ret == 0) {
             /* Success; child. */
-            /* We definitely have a new thread */
-            __thread_inited = false;
-            /* We might even have a new process */
-            __process_inited = !(flags & CLONE_THREAD);
-            maybe_init_thread();
+            if (flags & CLONE_THREAD) {
+                maybe_init_thread();
+            } else {
+                reinit_process();
+            }
         } else {
             /* Success; parent */
-            if (flags & CLONE_VFORK) {
-                prov_log_set_enabled(was_prov_log_enabled);
-            }
             if (likely(prov_log_is_enabled())) {
                 op.data.clone.child_process_id = (flags & CLONE_THREAD) ? getpid() : ret;
                 op.data.clone.child_thread_id = ret;

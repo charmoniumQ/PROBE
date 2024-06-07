@@ -437,7 +437,7 @@ struct dirent * readdir(DIR *dirstream)
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
     }
     prov_log_record(op);
   }
@@ -462,7 +462,7 @@ int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
     }
     prov_log_record(op);
   }
@@ -487,7 +487,7 @@ struct dirent64 * readdir64(DIR *dirstream)
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, PATH_MAX);
+      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
     }
     prov_log_record(op);
   }
@@ -512,7 +512,7 @@ int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, PATH_MAX);
+      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
     }
     prov_log_record(op);
   }
@@ -1108,6 +1108,7 @@ int execl(const char *filename, const char *arg0, ...)
 int execve(const char *filename, char * const argv[], char * const env[])
 {
   maybe_init_thread();
+  env = update_env_with_probe_vars(env);
   struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename), .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))
   {
@@ -1118,7 +1119,9 @@ int execve(const char *filename, char * const argv[], char * const env[])
   {
     prov_log_save();
   }
+  DEBUG("in Execve");
   int ret = unwrapped_execve(filename, argv, env);
+  free((char **) env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1131,6 +1134,7 @@ int execve(const char *filename, char * const argv[], char * const env[])
 int fexecve(int fd, char * const argv[], char * const env[])
 {
   maybe_init_thread();
+  env = update_env_with_probe_vars(env);
   struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, NULL), .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))
   {
@@ -1142,6 +1146,7 @@ int fexecve(int fd, char * const argv[], char * const env[])
     prov_log_save();
   }
   int ret = unwrapped_fexecve(fd, argv, env);
+  free((char **) env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1229,6 +1234,7 @@ int execlp(const char *filename, const char *arg0, ...)
 int execvpe(const char *filename, char * const argv[], char * const envp[])
 {
   maybe_init_thread();
+  envp = update_env_with_probe_vars(envp);
   char *bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
   struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path)) : (null_path), .ferrno = 0}}, {0}};
@@ -1242,6 +1248,7 @@ int execvpe(const char *filename, char * const argv[], char * const envp[])
     prov_log_save();
   }
   int ret = unwrapped_execvpe(filename, argv, envp);
+  free((char **) envp);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1275,9 +1282,7 @@ pid_t fork()
     else
       if (ret == 0)
     {
-      __process_inited = false;
-      __thread_inited = false;
-      maybe_init_thread();
+      reinit_process();
     }
     else
     {
@@ -1313,9 +1318,7 @@ pid_t _Fork()
     else
       if (ret == 0)
     {
-      __process_inited = false;
-      __thread_inited = false;
-      maybe_init_thread();
+      reinit_process();
     }
     else
     {
@@ -1331,13 +1334,12 @@ pid_t vfork()
 {
   maybe_init_thread();
   struct Op op = {clone_op_code, {.clone = {.flags = CLONE_VFORK, .run_pthread_atfork_handlers = false, .child_process_id = -1, .child_thread_id = -1, .ferrno = 0}}, {0}};
-  bool was_prov_log_enabled = prov_log_is_enabled();
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
     prov_log_save();
     prov_log_disable();
-    NOT_IMPLEMENTED("vfork");
+    NOT_IMPLEMENTED("vfork; see note in clone(...) regarding CLONE_FORK");
   }
   else
   {
@@ -1347,7 +1349,6 @@ pid_t vfork()
   pid_t ret = unwrapped_vfork();
   if (ret == (-1))
   {
-    prov_log_set_enabled(was_prov_log_enabled);
     if (likely(prov_log_is_enabled()))
     {
       op.data.clone.ferrno = errno;
@@ -1360,7 +1361,6 @@ pid_t vfork()
   }
   else
   {
-    prov_log_set_enabled(was_prov_log_enabled);
     if (likely(prov_log_is_enabled()))
     {
       op.data.clone.child_process_id = ret;
@@ -1377,15 +1377,18 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
   (void) fn;
   (void) stack;
   struct Op op = {clone_op_code, {.clone = {.flags = flags, .run_pthread_atfork_handlers = false, .child_process_id = -1, .child_thread_id = -1, .ferrno = 0}}, {0}};
-  bool was_prov_log_enabled = prov_log_is_enabled();
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
     prov_log_save();
     if (flags & CLONE_VFORK)
     {
-      prov_log_disable();
-      NOT_IMPLEMENTED("vfork");
+      NOT_IMPLEMENTED("vfork is difficult to intercept since vfork requires that the child do basically nothing other than exec, and intercepting involves doing stuff.");
+    }
+    else
+      if ((flags & CLONE_THREAD) != (flags & CLONE_VM))
+    {
+      NOT_IMPLEMENTED("I conflate cloning a new thread (resulting in a process with the same PID, new TID) with sharing the memory space. If CLONE_SIGHAND is set, then Linux asserts CLONE_THREAD == CLONE_VM; If it is not set and CLONE_THREAD != CLONE_VM, by a real application, I will consider disentangling the assumptions (required to support this combination).");
     }
   }
   else
@@ -1396,10 +1399,6 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_clone, __builtin_apply_args(), varargs_size));
   if (ret == (-1))
   {
-    if (flags & CLONE_VFORK)
-    {
-      prov_log_set_enabled(was_prov_log_enabled);
-    }
     if (likely(prov_log_is_enabled()))
     {
       op.data.clone.ferrno = errno;
@@ -1409,16 +1408,17 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
   else
     if (ret == 0)
   {
-    __thread_inited = false;
-    __process_inited = !(flags & CLONE_THREAD);
-    maybe_init_thread();
+    if (flags & CLONE_THREAD)
+    {
+      maybe_init_thread();
+    }
+    else
+    {
+      reinit_process();
+    }
   }
   else
   {
-    if (flags & CLONE_VFORK)
-    {
-      prov_log_set_enabled(was_prov_log_enabled);
-    }
     if (likely(prov_log_is_enabled()))
     {
       op.data.clone.child_process_id = (flags & CLONE_THREAD) ? (getpid()) : (ret);

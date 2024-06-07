@@ -30,9 +30,9 @@ app = typer.Typer()
 @app.command()
 def record(
         cmd: list[str],
-        gdb: A[bool, typer.Option(False, help="Run in GDB")] = False,
-        debug: A[bool, typer.Option(False, help="Run verbose & debug build of libprobe")] = False,
-        make: A[bool, typer.Option(False, help="Run make prior to executing")] = False,
+        gdb: bool = typer.Option(default=False, help="Run in GDB"),
+        debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
+        make: bool = typer.Option(default=False, help="Run make prior to executing"),
         output: pathlib.Path = pathlib.Path("probe_log"),
 ):
     """
@@ -72,22 +72,27 @@ def record(
         )
         probe_log_tar_obj.close()
         if debug:
+            print()
             print("PROBE log files:")
-            for path in probe_dir.iterdir():
-                print(path, os.stat(path).st_size)
+            for path in probe_dir.glob("**/*"):
+                if not path.is_dir():
+                    print(path, path.stat().st_size)
+            print()
         shutil.rmtree(probe_dir)
         raise typer.Exit(proc.returncode)
 
 
 @app.command()
-def process_graph(probe_log: pathlib.Path):
+def process_graph(
+        input: pathlib.Path = pathlib.Path("probe_log"),
+) -> None:
     """
     Write a process graph from PROBE_LOG in DOT/graphviz format.
     """
-    if not probe_log.exists():
-        typer.secho(f"PROBE_LOG {probe_log} does not exist\nUse `PROBE record --output {probe_log} CMD...` to rectify", fg=typer.colors.RED)
+    if not input.exists():
+        typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
-    probe_log_tar_obj = tarfile.open(probe_log, "r")
+    probe_log_tar_obj = tarfile.open(input, "r")
     processes_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
 
@@ -117,10 +122,10 @@ def process_graph(probe_log: pathlib.Path):
                 # So we can hook the parent process to it
                 # Usually this is an exec
                 # But there may be cases where it does not have one
-                if thread.sams_thread_id == 0:
-                    if not ops:
-                        ops = [(*context, "entry")]
-                    ops.append((*context, "exit"))
+                # if thread.sams_thread_id == 0:
+                #     if not ops:
+                #         ops = [(*context, "entry")]
+                #     ops.append((*context, "exit"))
 
                 nodes.extend(ops)
                 program_order_edges.extend(zip(ops[:-1], ops[1:]))
@@ -128,63 +133,67 @@ def process_graph(probe_log: pathlib.Path):
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
 
-    def first(pid: int, exid: int, tid: int) -> Op:
-        if not proc_to_ops.get((pid, exid, tid)):
-            entry_node = (pid, exid, tid, "entry")
-            proc_to_ops[(pid, exid, tid)] = entry_node
-            nodes.append(entry_node)
-            return entry_node
-        else:
-            return proc_to_ops[(pid, exid, tid)][0]
+    # def first(pid: int, exid: int, tid: int) -> Op:
+    #     if not proc_to_ops.get((pid, exid, tid)):
+    #         entry_node = (pid, exid, tid, "entry")
+    #         proc_to_ops[(pid, exid, tid)] = entry_node
+    #         nodes.append(entry_node)
+    #         return entry_node
+    #     else:
+    #         return (pid, exid, tid, proc_to_ops[(pid, exid, tid)][0])
 
-    def last(pid: int, exid: int, tid: int) -> Node:
-        if not proc_to_ops.get((pid, exid, tid)):
-            exit_node = (pid, exid, tid, "exit")
-            proc_to_ops[(pid, exid, tid)] = exit_node
-            nodes.append(exit_node)
-            return exit_node
-        else:
-            return (pid, exid, tid, proc_to_ops[(pid, exid, tid)][-1])
+    # def last(pid: int, exid: int, tid: int) -> Node:
+    #     if not proc_to_ops.get((pid, exid, tid)):
+    #         exit_node = (pid, exid, tid, "exit")
+    #         proc_to_ops[(pid, exid, tid)] = exit_node
+    #         nodes.append(exit_node)
+    #         return exit_node
+    #     else:
+    #         return (pid, exid, tid, proc_to_ops[(pid, exid, tid)][-1])
 
-    # Hook up forks/joins
-    for node in nodes:
-        pid, exid, tid, op = node
-        if isinstance(op, CloneOp):
-            if op.flags & CLONE_THREAD:
-                # New process always links to exec epoch 0 and thread 0
-                target = (op.child_process_id, 0, 0)
-            else:
-                # Spawning a thread links to the current PID and exec epoch
-                target = (pid, exid, op.child_thread_id)
-            fork_join_edges.append((node, first(*target)))
-        elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
-            # Always wait for thread 0 of the last exec epoch
-            target = (op.ret, last_exec_epoch.get(op.ret, 0), 0)
-            fork_join_edges.append((last(*target), node))
-        elif isinstance(op, ExecOp):
-            # Exec brings same pid, incremented exid, and main thread
-            target = pid, exid + 1, 0
-            fork_join_edges.append((node, first(*target)))
+    # # Hook up forks/joins
+    # for node in nodes:
+    #     pid, exid, tid, op = node
+    #     if isinstance(op, CloneOp):
+    #         if op.flags & CLONE_THREAD:
+    #             # New process always links to exec epoch 0 and thread 0
+    #             target = (op.child_process_id, 0, 0)
+    #         else:
+    #             # Spawning a thread links to the current PID and exec epoch
+    #             target = (pid, exid, op.child_thread_id)
+    #         fork_join_edges.append((node, first(*target)))
+    #     elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
+    #         # Always wait for thread 0 of the last exec epoch
+    #         target = (op.ret, last_exec_epoch.get(op.ret, 0), 0)
+    #         fork_join_edges.append((last(*target), node))
+    #     elif isinstance(op, ExecOp):
+    #         # Exec brings same pid, incremented exid, and main thread
+    #         target = pid, exid + 1, 0
+    #         fork_join_edges.append((node, first(*target)))
 
-    # Make the main thread exit at the same time as each thread
-    for (pid, _time), process in processes_prov_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            for tid, thread in exec_epoch.threads.items():
-                if tid != 0:
-                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
+    # # Make the main thread exit at the same time as each thread
+    # for (pid, _time), process in processes_prov_log.processes.items():
+    #     for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+    #         for tid, thread in exec_epoch.threads.items():
+    #             if tid != 0:
+    #                 fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
+
+    def node_to_string(node: Node) -> str:
+        label = node[3] if isinstance(node[3], str) else node[3].__class__.__name__
+        return f"{node[0]} {node[2]} {label}"
 
     print("\n".join([
         "strict digraph {",
         *[
-            f"  {pid}_{exid}_{tid}_{id(op)} [label=\"{str(op)}\"];"
+            f"  n_{pid}_{exid}_{tid}_{id(op)} [label=\"{node_to_string((pid, exid, tid, op))}\"];"
             for pid, exid, tid, op in nodes
         ],
         *[
-            f"  {pid0}_{exid0}_{tid0}_{id(op0)} -> {pid1}_{exid1}_{tid1}_{id(op1)} [color=\"green\"];"
+            f"  n_{pid0}_{exid0}_{tid0}_{id(op0)} -> n_{pid1}_{exid1}_{tid1}_{id(op1)} [color=\"green\"];"
             for (pid0, exid0, tid0, op0), (pid1, exid1, tid1, op1) in program_order_edges
         ],
         *[
-            f"  {pid0}_{exid0}_{tid0}_{id(op0)} -> {pid1}_{exid1}_{tid1}_{id(op1)} [color=\"red\"];"
+            f"  n_{pid0}_{exid0}_{tid0}_{id(op0)} -> n_{pid1}_{exid1}_{tid1}_{id(op1)} [color=\"red\"];"
             for (pid0, exid0, tid0, op0), (pid1, exid1, tid1, op1) in fork_join_edges
         ],
         "}",
@@ -192,14 +201,14 @@ def process_graph(probe_log: pathlib.Path):
 
 
 @app.command()
-def dump(probe_log: pathlib.Path):
+def dump(input: pathlib.Path):
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
-    if not probe_log.exists():
-        typer.secho(f"PROBE_LOG {probe_log} does not exist\nUse `PROBE record --output {probe_log} CMD...` to rectify", fg=typer.colors.RED)
+    if not input.exists():
+        typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
-    probe_log_tar_obj = tarfile.open(probe_log, "r")
+    probe_log_tar_obj = tarfile.open(input, "r")
     processes_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
     for process in processes_prov_log.processes.values():

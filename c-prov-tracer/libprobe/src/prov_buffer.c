@@ -1,3 +1,10 @@
+/*
+ * TODO: Do I really need prov_log_disable?
+ *
+ * Libc functions called from libprobe _won't_ get hooked, so long as we _always_ use the unwrapped functions.
+ * Maybe we should grep for that instead?
+ */
+
 static _Atomic bool __prov_log_disable = false;
 
 static void prov_log_disable() { __prov_log_disable = true; }
@@ -15,8 +22,8 @@ OWNED const char* dirfd_path(int dirfd) {
     return ret;
 }
 
-static __thread struct ArenaDir op_arena;
-static __thread struct ArenaDir data_arena;
+static __thread struct ArenaDir op_arena = { 0 };
+static __thread struct ArenaDir data_arena = { 0 };
 
 static void prov_log_save() {
     /*
@@ -104,15 +111,18 @@ static int mkdir_and_descend(int dirfd, long child, char* buffer, bool exists_ok
     return sub_dirfd;
 }
 
+/* TODO: Move this over to global state.
+ * Also use a different env var for the "public" PROBE_DIR and the private/absolute PROBE_DIR.
+ * If is prov root, we read the public PROBE_DIR, canonicalize it, and store it in private PROBE_DIR.
+ * */
 static int __epoch_dirfd = -1;
 static void init_process_prov_log() {
     /* TODO: Lock this, just in case we race somehow */
-    /* assert(__epoch_dirfd == -1); Not true after a fork */
-    static char* const dir_env_var = ENV_VAR_PREFIX "DIR";
+    assert(__epoch_dirfd == -1);
+    const char* dir_env_var = ENV_VAR_PREFIX "DIR";
     const char* relative_dir = debug_getenv(dir_env_var);
     if (relative_dir == NULL) {
-        assert(is_prov_root());
-        relative_dir = ".prov";
+        ERROR("Environment variable '%s' must be set", dir_env_var);
     }
     struct stat stat_buf;
     int stat_ret = unwrapped_fstatat(AT_FDCWD, relative_dir, &stat_buf, 0);
@@ -139,23 +149,42 @@ static void init_process_prov_log() {
     char absolute_dir [PATH_MAX + 1] = {0};
     EXPECT_NONNULL(unwrapped_realpath(relative_dir, absolute_dir));
     /* Setenv, so child processes will be using the same prov log dir, even if they change directories. */
-    debug_setenv(dir_env_var, absolute_dir);
+    if (strncmp(relative_dir, absolute_dir, PATH_MAX) != 0) {
+        debug_setenv(dir_env_var, absolute_dir, true);
+    }
 
     DEBUG("init_process_prov_log: %s", absolute_dir);
 }
 
-static const size_t prov_log_arena_size = 256 * 1024;
+static void reinit_process_prov_log() {
+    __epoch_dirfd = -1;
+    init_process_prov_log();
+}
+
+static const size_t prov_log_arena_size = 64 * 1024;
 static void init_thread_prov_log() {
+    assert(!arena_is_initialized(&op_arena));
+    assert(!arena_is_initialized(&data_arena));
     pid_t thread_id = get_sams_thread_id();
     char dir_name [signed_long_string_size + 1];
     int cwd = mkdir_and_descend(__epoch_dirfd, thread_id, dir_name, false);
     EXPECT(== 0, arena_create(&op_arena, cwd, "ops", prov_log_arena_size));
     EXPECT(== 0, arena_create(&data_arena, cwd, "data", prov_log_arena_size));
-
-    DEBUG("init_thread_prov_log: %d", thread_id);
+    DEBUG("init_thread_prov_log");
+}
+static void reinit_thread_prov_log() {
+    /*
+     * We don't know if CLONE_FILES was set.
+     * We will conservatively assume it is (NOT safe to call arena_destroy)
+     * But we assume we have a new memory space, we should clear the mem-mappings.
+     * */
+    arena_drop_after_fork(&op_arena);
+    arena_drop_after_fork(&data_arena);
+    init_thread_prov_log();
 }
 
-static void prov_log_term_process() { }
+static void prov_log_term_process() {
+}
 
 static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
     if (likely(prov_log_is_enabled())) {
