@@ -27,7 +27,11 @@ CLONE_THREAD = parse_probe_log.CLONE_THREAD
 app = typer.Typer()
 
 
-@app.command()
+@app.command(
+    context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
 def record(
         cmd: list[str],
         gdb: bool = typer.Option(default=False, help="Run in GDB"),
@@ -213,7 +217,9 @@ def process_graph(
 
 
 @app.command()
-def dump(input: pathlib.Path):
+def dump(
+        input: pathlib.Path = pathlib.Path("probe_log"),
+):
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
