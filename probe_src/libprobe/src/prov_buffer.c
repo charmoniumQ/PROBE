@@ -44,8 +44,12 @@ static void prov_log_record(struct Op op);
 static void prov_log_try(struct Op op) {
     (void) op;
 
+    if (op.op_code == clone_op_code) {
+        printenv();
+    }
+
     if (op.op_code == clone_op_code && op.data.clone.flags & CLONE_VFORK) {
-            DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
+        DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
     }
     if (op.op_code == exec_op_code) {
         prov_log_record(op);

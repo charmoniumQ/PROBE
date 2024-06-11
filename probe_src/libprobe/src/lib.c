@@ -164,6 +164,7 @@ static void maybe_init_thread() {
 static void reinit_process() {
     prov_log_disable();
     DEBUG("Re-initializing process");
+    printenv();
     /* Function pointers are still fine,
      * since fork() doesn't unload shared libraries. */
     reinit_process_global_state();

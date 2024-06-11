@@ -18,17 +18,15 @@
                 pypkgs.pycparser
                 pypkgs.pytest
                 pypkgs.mypy
+                pypkgs.pygraphviz
+                pypkgs.networkx
                 pypkgs.ipython
               ]))
               pkgs.gcc
               pkgs.gdb
               pkgs.coreutils
               pkgs.bash
-              pkgs.mrsh
-              pkgs.yash
-              pkgs.dash
-              pkgs.gash
-              pkgs.mksh
+              pkgs.xdot
             ];
           };
         };

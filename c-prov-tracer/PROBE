@@ -1,3 +1,0 @@
-#!/usr/bin/env sh
-
-exec env PYTHONPATH=$PWD:$PWD/arena:$PYTHONPATH python3 -m probe.cli "${@}"

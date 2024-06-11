@@ -209,7 +209,7 @@ static void reinit_thread_global_state() {
 
 static char* const* update_env_with_probe_vars(char* const* user_env) {
     /* Define env vars we care about */
-    const char* probe_vars[5] = {
+    const char* probe_vars[] = {
         PRIVATE_ENV_VAR_PREFIX "IS_ROOT",
         PRIVATE_ENV_VAR_PREFIX "TRACEE_PID",
         PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH_PLUS_ONE",
@@ -219,11 +219,11 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
     const size_t probe_var_count = sizeof(probe_vars) / sizeof(char*);
 
     /* Precompute some shiz */
-    size_t probe_var_lengths[5] = { 0 };
+    size_t probe_var_lengths[10] = { 0 };
     for (size_t probe_var_i = 0; probe_var_i < probe_var_count; ++probe_var_i) {
         probe_var_lengths[probe_var_i] = strlen(probe_vars[probe_var_i]);
     }
-    char* probe_entries[5] = { NULL };
+    char* probe_entries[10] = { NULL };
     for (size_t probe_var_i = 0; probe_var_i < probe_var_count; ++probe_var_i) {
         for (char** ep = environ; *ep; ++ep) {
             if (strncmp(*ep, probe_vars[probe_var_i], probe_var_lengths[probe_var_i]) == 0 && (*ep)[probe_var_lengths[probe_var_i]] == '=') {
@@ -273,13 +273,16 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
 
     /* Top it off with a NULL */
     new_env[new_env_size + probe_var_count] = NULL;
+
+    for (char* const* ep = new_env; *ep; ++ep) {
+        DEBUG("%s", *ep);
+    }
+
     return new_env;
 }
 
 static void printenv() {
-/*
     for (char** arg = environ; *arg; ++arg) {
         DEBUG("%s", *arg);
     }
-*/
 }
