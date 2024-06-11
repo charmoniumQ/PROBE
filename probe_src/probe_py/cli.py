@@ -8,6 +8,7 @@ import pathlib
 import typer
 import shutil
 from . import parse_probe_log
+from . import analysis
 from . import util
 
 
@@ -15,13 +16,6 @@ project_root = pathlib.Path(__file__).resolve().parent.parent
 
 
 A = typing_extensions.Annotated
-
-
-Op = parse_probe_log.Op
-CloneOp = parse_probe_log.CloneOp
-ExecOp = parse_probe_log.ExecOp
-WaitOp = parse_probe_log.WaitOp
-CLONE_THREAD = parse_probe_log.CLONE_THREAD
 
 
 app = typer.Typer()
@@ -97,123 +91,9 @@ def process_graph(
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
     probe_log_tar_obj = tarfile.open(input, "r")
-    processes_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
-
-    Node: typing.TypeAlias = tuple[int, int, int, Op | str]
-    nodes = list[Node]()
-    program_order_edges = list[tuple[Node, Node]]()
-    proc_to_ops = dict[tuple[int, int, int], list[Node]]()
-    last_exec_epoch = dict[int, int]()
-
-    for (pid, _time), process in processes_prov_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
-
-            # Reduce each thread to the ops we actually care about
-            for tid, thread in exec_epoch.threads.items():
-                context = (pid, exec_epoch_no, tid)
-
-                # Filter just the ops we are interested in
-                ops = [
-                    (*context, op.data)
-                    for op in thread.ops
-                    if isinstance(op.data, CloneOp | ExecOp | WaitOp)
-                ]
-
-                # The main thread needs to have at least one element
-                # So we can hook the parent process to it
-                # Usually this is an exec
-                # But there may be cases where it does not have one
-                # if thread.sams_thread_id == 0:
-                #     if not ops:
-                #         ops = [(*context, "entry")]
-                #     ops.append((*context, "exit"))
-
-                nodes.extend(ops)
-                program_order_edges.extend(zip(ops[:-1], ops[1:]))
-
-                # Store these so we can hook up forks/joins between threads
-                proc_to_ops[context] = ops
-
-    def first(pid: int, exid: int, tid: int) -> Op:
-        if not proc_to_ops.get((pid, exid, tid)):
-            entry_node = (pid, exid, tid, "<entry>")
-            proc_to_ops[(pid, exid, tid)] = [entry_node]
-            nodes.append(entry_node)
-            return entry_node
-        else:
-            return proc_to_ops[(pid, exid, tid)][0]
-
-    def last(pid: int, exid: int, tid: int) -> Node:
-        if not proc_to_ops.get((pid, exid, tid)):
-            exit_node = (pid, exid, tid, "<exit>")
-            proc_to_ops[(pid, exid, tid)] = [exit_node]
-            nodes.append(exit_node)
-            return exit_node
-        else:
-            return proc_to_ops[(pid, exid, tid)][-1]
-
-    fork_join_edges = list[tuple[Node, Node]]()
-    exec_edges = list[tuple[Node, Node]]()
-
-    # Hook up forks/joins
-    for node in list(nodes):
-        pid, exid, tid, op = node
-        if False:
-            pass
-        elif isinstance(op, CloneOp):
-            if op.flags & CLONE_THREAD:
-                # Spawning a thread links to the current PID and exec epoch
-                target = (pid, exid, op.child_thread_id)
-            else:
-                # New process always links to exec epoch 0 and thread 0
-                target = (op.child_process_id, 0, 0)
-            exec_edges.append((node, first(*target)))
-        elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
-            # Always wait for thread 0 of the last exec epoch
-            if op.ferrno == 0:
-                target = (op.ret, last_exec_epoch.get(op.ret, 0), 0)
-                fork_join_edges.append((last(*target), node))
-        elif isinstance(op, ExecOp):
-            # Exec brings same pid, incremented exid, and main thread
-            target = pid, exid + 1, 0
-            fork_join_edges.append((node, first(*target)))
-
-    # # Make the main thread exit at the same time as each thread
-    # for (pid, _time), process in processes_prov_log.processes.items():
-    #     for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-    #         for tid, thread in exec_epoch.threads.items():
-    #             if tid != 0:
-    #                 fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
-
-    def node_to_label(node: Node) -> str:
-        inner_label = node[3] if isinstance(node[3], str) else node[3].__class__.__name__
-        return f"{node[0]} {node[1]} {node[2]} {inner_label}"
-
-    def node_to_id(node: Node) -> str:
-        return f"\"node_{node[0]}_{node[1]}_{node[2]}_{id(node[3])}\""
-
-    print("\n".join([
-        "strict digraph {",
-        *[
-            f"  {node_to_id(node)} [label=\"{node_to_label(node)}\"];"
-            for node in nodes
-        ],
-        *[
-            f"  {node_to_id(node0)} -> {node_to_id(node1)} [color=\"green\"];"
-            for node0, node1 in program_order_edges
-        ],
-        *[
-            f"  {node_to_id(node0)} -> {node_to_id(node1)} [color=\"yellow\"];"
-            for node0, node1 in exec_edges
-        ],
-        *[
-            f"  {node_to_id(node0)} -> {node_to_id(node1)} [color=\"red\"];"
-            for node0, node1 in fork_join_edges
-        ],
-        "}",
-    ]))
+    print(analysis.construct_process_graph(process_tree_prov_log))
 
 
 @app.command()
