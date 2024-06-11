@@ -10,14 +10,15 @@ The provenance graph tells us where a particular file came from.
 
 1. Install Nix with flakes.
 
-  - If you don't already have Nix, use the [Determinate Systems installer](https://install.determinate.systems/).
+   - If you don't already have Nix, use the [Determinate Systems installer](https://install.determinate.systems/).
 
-  - If you already have Nix (but not NixOS), enable flakes by adding the following line to `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`:
+   - If you already have Nix (but not NixOS), enable flakes by adding the following line to `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`:
 
-    ```
-    experimental-features = nix-command flakes
-    ```
-  - If you already have Nix and are running NixOS, enable flakes with by adding `nix.settings.experimental-features = [ "nix-command" "flakes" ];` to your configuration.
+     ```
+     experimental-features = nix-command flakes
+     ```
+
+   - If you already have Nix and are running NixOS, enable flakes with by adding `nix.settings.experimental-features = [ "nix-command" "flakes" ];` to your configuration.
 
 2. Run `nix develop` to enter the development environment.
 
@@ -25,13 +26,13 @@ The provenance graph tells us where a particular file came from.
 
 4. Run PROBE with `./PROBE --make head ../flake.nix`
 
-  - Note that `--make` will cause libprobe to be re-compiled or compiled, so if you make changes to libprobe or you haven't compiled it before, use this flag.
+   - Note that `--make` will cause libprobe to be re-compiled or compiled, so if you make changes to libprobe or you haven't compiled it before, use this flag.
 
-  - This will output `probe_log` unless you pass `--output <desired_output_path>`.
+   - This will output `probe_log` unless you pass `--output <desired_output_path>`.
 
-  - Also note `--debug` which runs a build of libprobe that is more verbose, has runtime checks, and has debug symbols.
-  
-  - Also note `--gdb` which loads libprobe, your command, and drops you into a GDB shell.
+   - Also note `--debug` which runs a build of libprobe that is more verbose, has runtime checks, and has debug symbols.
+
+   - Also note `--gdb` which loads libprobe, your command, and drops you into a GDB shell.
 
 5. Try `./PROBE dump`, which will read `probe_log` unless you pass `--input <desired_input_path>`. This should show a series of provenance operations, e.g.,
   
