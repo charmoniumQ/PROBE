@@ -22,11 +22,13 @@ The provenance graph can help us re-execute the program, containerize the progra
 
    - If you already have Nix and are running NixOS, enable flakes with by adding `nix.settings.experimental-features = [ "nix-command" "flakes" ];` to your configuration.
 
-2. Run `nix develop` to enter the development environment.
+2. Acquire the source code: `git clone https://github.com/charmoniumQ/PROBE && cd PROBE`
 
-3. `cd probe_src`
+3. Run `nix develop` to enter the development environment.
 
-4. Run PROBE with `./PROBE --make head ../flake.nix`
+4. `cd probe_src`
+
+5. Run PROBE with `./PROBE --make head ../flake.nix`
 
    - Note that `--make` will cause libprobe to be re-compiled or compiled, so if you make changes to libprobe or you haven't compiled it before, use this flag.
 
@@ -36,7 +38,7 @@ The provenance graph can help us re-execute the program, containerize the progra
 
    - Also note `--gdb` which loads libprobe, your command, and drops you into a GDB shell.
 
-5. Try `./PROBE dump`, which will read `probe_log` unless you pass `--input <desired_input_path>`. This should show a series of provenance operations, e.g.,
+6. Try `./PROBE dump`, which will read `probe_log` unless you pass `--input <desired_input_path>`. This should show a series of provenance operations, e.g.,
   
    ```
    InitExecEpochOp(process_id=116448, exec_epoch=0, process_birth_time=timespec(tv_sec=1718127174, tv_nsec=333602925), program_name='head')
