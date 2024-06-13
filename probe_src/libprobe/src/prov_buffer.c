@@ -15,7 +15,7 @@ static void prov_log_set_enabled (bool value) { __prov_log_disable = value; }
 char __dirfd_proc_path[PATH_MAX];
 OWNED const char* dirfd_path(int dirfd) {
     bool was_prov_log_enabled = prov_log_is_enabled();
-    prov_log_disable();
+    prov_log_is_enabled();
     CHECK_SNPRINTF(__dirfd_proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
     char* resolved_buffer = malloc(PATH_MAX);
     const char* ret = unwrapped_realpath(__dirfd_proc_path, resolved_buffer);
@@ -48,6 +48,13 @@ static void prov_log_record(struct Op op);
 static void prov_log_try(struct Op op) {
     (void) op;
 
+#ifndef NDEBUG // REMOVE
+char str[PATH_MAX * 2];
+        op_to_human_readable(str, PATH_MAX * 2, op);
+        DEBUG("try op: %s", str);
+        printenv(); // REOMVE
+#endif // REMOVE
+
     if (op.op_code == clone_op_code) {
         printenv();
     }
@@ -67,7 +74,8 @@ static void prov_log_record(struct Op op) {
 #ifdef DEBUG_LOG
         char str[PATH_MAX * 2];
         op_to_human_readable(str, PATH_MAX * 2, op);
-        DEBUG("op: %s", str);
+        DEBUG("record op: %s", str);
+        printenv(); // REOMVE
 #endif
 
     if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
@@ -199,7 +207,7 @@ static void reinit_thread_prov_log() {
 static void prov_log_term_process() {
 }
 
-static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
+static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
     if (likely(prov_log_is_enabled())) {
         struct Path ret = {
             dirfd - AT_FDCWD,
@@ -207,6 +215,8 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
             -1,
             -1,
             -1,
+            {0},
+            {0},
             false,
             true,
         };
@@ -217,22 +227,27 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path) {
         assert(dirfd != 0 || (path != NULL && path[0] == '/'));
 
         /*
+         * If path is empty string, AT_EMPTY_PATH should probably be set.
+         * I can't think of a counterexample that isn't some kind of error.
+         *
+         * Then again, this could happen in the tracee's code too...
+         * TODO: Remove this once I debug myself.
+         * */
+        assert(path[0] != '\0' || flags & AT_EMPTY_PATH);
+
+        /*
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
-        struct stat stat_buf;
-        int stat_ret;
-        /* TODO: convert to statx */
         prov_log_disable();
-        if (path == NULL) {
-            stat_ret = unwrapped_fstat(dirfd, &stat_buf);
-        } else {
-            stat_ret = unwrapped_fstatat(dirfd, path, &stat_buf, 0);
-        }
+        struct statx statx_buf;
+        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME, &statx_buf);
         prov_log_enable();
         if (stat_ret == 0) {
-            ret.device_major = major(stat_buf.st_dev);
-            ret.device_minor = minor(stat_buf.st_dev);
-            ret.inode = stat_buf.st_ino;
+            ret.device_major = statx_buf.stx_dev_major;
+            ret.device_minor = statx_buf.stx_dev_minor;
+            ret.inode = statx_buf.stx_ino;
+            ret.mtime = statx_buf.stx_mtime;
+            ret.ctime = statx_buf.stx_ctime;
             ret.stat_valid = true;
         }
         return ret;

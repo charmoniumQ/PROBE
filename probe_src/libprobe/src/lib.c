@@ -39,7 +39,11 @@
  * */
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
-static void maybe_init_thread();
+#define maybe_init_thread() ({ \
+    DEBUG("calling maybe init thread"); \
+    __maybe_init_thread(); \
+})
+static void __maybe_init_thread();
 static void reinit_process();
 static void prov_log_disable();
 static unsigned int get_process_id_safe();
@@ -118,7 +122,9 @@ static void term_process() {
     prov_log_term_process();
 }
 
-static void maybe_init_thread() {
+static void __maybe_init_thread() {
+    DEBUG("Here");
+    printenv(); // REMOVE
     if (unlikely(!__thread_inited)) {
         bool was_process_inited = __process_inited;
         prov_log_disable();

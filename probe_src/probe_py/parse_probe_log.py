@@ -94,8 +94,7 @@ def parse_segments(op_segments: arena.MemorySegments, data_segments: arena.Memor
                 OpCode.readdir_op_code: ("readdir", None),
                 OpCode.wait_op_code: ("wait", None),
                 OpCode.getrusage_op_code: ("getrusage", None),
-                OpCode.chown_op_code: ("chown", None),
-                OpCode.chmod_op_code: ("chmod", None),
+                OpCode.update_metadata_op_code: ("update_metadata", None),
                 OpCode.read_link_op_code: ("read_link", None),
             }
             return op_code_to_union_variant[fields["op_code"]]

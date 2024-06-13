@@ -57,8 +57,11 @@ static int (*unwrapped_fstatat)(int dirfd, const char * restrict pathname, struc
 static int (*unwrapped_fstatat64)(int fd, const char * restrict file, struct stat64 * restrict buf, int flags);
 static int (*unwrapped_chown)(const char *filename, uid_t owner, gid_t group);
 static int (*unwrapped_fchown)(int filedes, uid_t owner, gid_t group);
+static int (*unwrapped_lchown)(const char *pathname, uid_t owner, gid_t group);
+static int (*unwrapped_fchownat)(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags);
 static int (*unwrapped_chmod)(const char *filename, mode_t mode);
 static int (*unwrapped_fchmod)(int filedes, mode_t mode);
+static int (*unwrapped_fchmodat)(int dirfd, const char *pathname, mode_t mode, int flags);
 static int (*unwrapped_access)(const char *filename, int how);
 static int (*unwrapped_faccessat)(int dirfd, const char *pathname, int mode, int flags);
 static int (*unwrapped_utime)(const char *filename, const struct utimbuf *times);

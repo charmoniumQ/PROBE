@@ -231,7 +231,12 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
                 break;
             }
         }
-        ASSERTF(probe_entries[probe_var_i], "No env var %s found", probe_vars[probe_var_i]);
+        if (!probe_entries[probe_var_i]) {
+#ifndef NDEBUG
+            printenv();
+#endif
+            ERROR("No env var %s found", probe_vars[probe_var_i]);
+        }
     }
 
     /* Compute user's size */
@@ -279,10 +284,4 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
     }
 
     return new_env;
-}
-
-static void printenv() {
-    for (char** arg = environ; *arg; ++arg) {
-        DEBUG("%s", *arg);
-    }
 }

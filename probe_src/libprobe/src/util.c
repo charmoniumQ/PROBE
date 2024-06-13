@@ -140,6 +140,19 @@ const int unsigned_long_string_size = 22;
 /* len(str(2**63)) + 1 == 20 */
 const int signed_long_string_size = 22;
 
+extern char** environ;
+
+#ifndef NDEBUG
+#define printenv() ({ \
+    for (char** arg = environ; *arg; ++arg) { \
+        DEBUG("printenv: %s", *arg); \
+    } \
+    NULL; \
+})
+#else
+#define printenv()
+#endif
+
 const char* getenv_copy(const char* name) {
     /* Validate input */
     assert(name != NULL);
@@ -152,6 +165,7 @@ const char* getenv_copy(const char* name) {
             return *ep + name_len + 1;
         }
     }
+    printenv(); // REMOVE
     return NULL;
 }
 
@@ -207,7 +221,7 @@ int setenv_copy(const char* name, const char* value, bool overwrite) {
         // TODO: Look into if we need to free the old environ
         environ = new_environ;
     }
-
+    printenv(); // REMOVE
     return 0;
 }
 
