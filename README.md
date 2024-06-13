@@ -28,7 +28,7 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 4. `cd probe_src`
 
-5. Run PROBE with `./PROBE --make head ../flake.nix`
+5. Run PROBE with `./PROBE record --make head ../flake.nix`
 
    - Note that `--make` will cause libprobe to be re-compiled or compiled, so if you make changes to libprobe or you haven't compiled it before, use this flag.
 
