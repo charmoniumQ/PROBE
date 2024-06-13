@@ -12,12 +12,16 @@ static void prov_log_enable () { __prov_log_disable = false; }
 static bool prov_log_is_enabled () { return !__prov_log_disable; }
 static void prov_log_set_enabled (bool value) { __prov_log_disable = value; }
 
+char __dirfd_proc_path[PATH_MAX];
 OWNED const char* dirfd_path(int dirfd) {
     bool was_prov_log_enabled = prov_log_is_enabled();
     prov_log_disable();
-    char proc_path[PATH_MAX];
-    CHECK_SNPRINTF(proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
-    const char* ret = unwrapped_realpath(proc_path, NULL);
+    CHECK_SNPRINTF(__dirfd_proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
+    char* resolved_buffer = malloc(PATH_MAX);
+    const char* ret = unwrapped_realpath(__dirfd_proc_path, resolved_buffer);
+    if (!ret) {
+        ERROR("realpath(\"%s\", %p) returned NULL", __dirfd_proc_path, resolved_buffer);
+    }
     prov_log_set_enabled(was_prov_log_enabled);
     return ret;
 }
@@ -104,14 +108,19 @@ static void prov_log_record(struct Op op) {
     arena_uninstantiate_all_but_last(&data_arena);
 }
 
-static int mkdir_and_descend(int dirfd, long child, char* buffer, bool exists_ok) {
+static int mkdir_and_descend(int dirfd, long child, char* buffer, bool exists_ok, bool close) {
     CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
     int mkdir_ret = unwrapped_mkdirat(dirfd, buffer, 0777);
     if (mkdir_ret != 0 && (!exists_ok || errno != EEXIST)) {
         ERROR("%s/%ld exists\n", dirfd_path(dirfd), child);
     }
-    int sub_dirfd = EXPECT(!= -1, unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY));
-    EXPECT(== 0, unwrapped_close(dirfd));
+    int sub_dirfd = unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY);
+    if (sub_dirfd == -1) {
+        ERROR("Cannot openat(%d, \"%s\" /* %ld */, ...)", dirfd, buffer, child);
+    }
+    if (close) {
+        EXPECT(== 0, unwrapped_close(dirfd));
+    }
     return sub_dirfd;
 }
 
@@ -144,10 +153,10 @@ static void init_process_prov_log() {
     struct timespec process_birth_time = get_process_birth_time();
     char dir_name [signed_long_string_size + 1];
     /* Could have multiple launches per second and nanosecond even (clock granularity is rarely 1 ns even though the API is) */
-    cwd = mkdir_and_descend(cwd, process_birth_time.tv_sec, dir_name, true);
-    cwd = mkdir_and_descend(cwd, process_birth_time.tv_nsec, dir_name, true);
-    cwd = mkdir_and_descend(cwd, get_process_id(), dir_name, true);
-    __epoch_dirfd = mkdir_and_descend(cwd, get_exec_epoch(), dir_name, false);
+    cwd = mkdir_and_descend(cwd, process_birth_time.tv_sec, dir_name, true, true);
+    cwd = mkdir_and_descend(cwd, process_birth_time.tv_nsec, dir_name, true, true);
+    cwd = mkdir_and_descend(cwd, get_process_id(), dir_name, true, true);
+    __epoch_dirfd = mkdir_and_descend(cwd, get_exec_epoch(), dir_name, false, true);
 
     /* TODO: pass process_dirfd directly to subsequent exec epochs (since the default is ~O_CLOEXEC) rather than the realpath */
     char absolute_dir [PATH_MAX + 1] = {0};
@@ -171,7 +180,7 @@ static void init_thread_prov_log() {
     assert(!arena_is_initialized(&data_arena));
     pid_t thread_id = get_sams_thread_id();
     char dir_name [signed_long_string_size + 1];
-    int cwd = mkdir_and_descend(__epoch_dirfd, thread_id, dir_name, false);
+    int cwd = mkdir_and_descend(__epoch_dirfd, thread_id, dir_name, false, false);
     EXPECT(== 0, arena_create(&op_arena, cwd, "ops", prov_log_arena_size));
     EXPECT(== 0, arena_create(&data_arena, cwd, "data", prov_log_arena_size));
     DEBUG("init_thread_prov_log");

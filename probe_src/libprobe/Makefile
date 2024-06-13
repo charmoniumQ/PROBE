@@ -11,15 +11,18 @@ all: $(ALL_TARGETS)
 .PHONY: all
 
 build/lib%.so: $(SOURCE_FILES) $(GENERATED_FILES)
+	mkdir --parents build/
 	gcc $(OPTCFLAGS) $(LIBCFLAGS) -o $@ src/lib.c
 
 build/lib%-dbg.so: $(SOURCE_FILES) $(GENERATED_FILES)
+	mkdir --parents build/
 	gcc $(DBGCFLAGS) $(LIBCFLAGS) -o $@ src/lib.c
 
 $(GENERATED_FILES): $(wildcard generator/*)
 	./generator/gen_libc_hooks.py
 
 clean:
+	mkdir --parents buid/ generated/
 	touch $(GENERATED_FILES) $(ALL_TARGETS)
 	rm --force $(GENERATED_FILES) $(ALL_TARGETS)
 .PHONY: clean
