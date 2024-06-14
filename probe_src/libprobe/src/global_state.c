@@ -16,40 +16,24 @@
  *
  */
 
-static const unsigned int __process_id_initial = UINT_MAX;
-static unsigned int __process_id = __process_id_initial;
-static void init_process_id() {
-    assert(__process_id == __process_id_initial);
-    __process_id = getpid();
-    DEBUG("process_id = %d", __process_id);
-}
-static unsigned int get_process_id() {
-    assert(__process_id != __process_id_initial);
-    return __process_id;
-}
-static unsigned int get_process_id_safe() {
-    return __process_id;
-}
-
-static const int __is_prov_root_initial = -1;
-static int __is_prov_root = __is_prov_root_initial;
-static void init_is_prov_root() {
-    assert(__is_prov_root == __is_prov_root_initial);
-    const char* is_prov_root_env_var = PRIVATE_ENV_VAR_PREFIX "IS_ROOT";
-    const char* is_root = debug_getenv(is_prov_root_env_var);
-    if (is_root != NULL && is_root[0] == '0') {
-        __is_prov_root = 0;
+static const int __is_proc_root_initial = -1;
+static int __is_proc_root = __is_proc_root_initial;
+static const char* is_proc_root_env_var = PRIVATE_ENV_VAR_PREFIX "IS_ROOT";
+static void init_is_proc_root() {
+    assert(__is_proc_root == __is_proc_root_initial);
+    const char* is_root = debug_getenv(is_proc_root_env_var);
+    if (is_root != NULL) {
+        assert(is_root[0] == '0' && is_root[1] == '\0');
+        __is_proc_root = 0;
     } else {
-        debug_setenv(is_prov_root_env_var, "0", true);
-        __is_prov_root = 1;
+        __is_proc_root = 1;
     }
+    DEBUG("Is proc root? %d", __is_proc_root);
 }
-#ifndef NDEBUG
-static bool is_prov_root() {
-    assert(__is_prov_root == 1 || __is_prov_root == 0);
-    return __is_prov_root;
+static bool is_proc_root() {
+    assert(__is_proc_root == 1 || __is_proc_root == 0);
+    return __is_proc_root;
 }
-#endif
 
 /*
  * exec-family of functions _rep\lace_ the process currently being run with a new process, by loading the specified program.
@@ -58,185 +42,205 @@ static bool is_prov_root() {
  * If this PID is the same as the one in the environment, this must be a new exec epoch of the same.
  * Otherwise, it must be a truly new process.
  */
-static const unsigned int __exec_epoch_initial = UINT_MAX;
-static unsigned int __exec_epoch = __exec_epoch_initial;
+static const int __exec_epoch_initial = -1;
+static int __exec_epoch = __exec_epoch_initial;
+static const char* exec_epoch_env_var = PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH";
+static const char* pid_env_var = PRIVATE_ENV_VAR_PREFIX "PID";
 static void init_exec_epoch() {
     assert(__exec_epoch == __exec_epoch_initial);
-    const char* tracee_pid_env_var = PRIVATE_ENV_VAR_PREFIX "TRACEE_PID";
-    /* We will store EXEC_EPOCH_PLUS_ONE because 0 is a sentinel value for strtol. */
-    const char* exec_epoch_plus_one_env_var = PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH_PLUS_ONE";
-    const char* tracee_pid_str = debug_getenv(tracee_pid_env_var);
-    const char* exec_epoch_plus_one_str = debug_getenv(exec_epoch_plus_one_env_var);
-    pid_t tracee_pid = -1;
-    ASSERTF(
-        (exec_epoch_plus_one_str == NULL) == (tracee_pid_str == NULL),
-        "I always set %s (%s) and %s (%s) at the same time, but somehow one is null and the other is not.",
-        tracee_pid_env_var,
-        tracee_pid_str,
-        exec_epoch_plus_one_env_var,
-        exec_epoch_plus_one_str
-    );
-    ASSERTF(
-        (exec_epoch_plus_one_str == NULL) == is_prov_root(),
-        "Only the prov root should experience a null %s in their environment.",
-        exec_epoch_plus_one_env_var);
-    if (exec_epoch_plus_one_str) {
-        tracee_pid = (pid_t) EXPECT(> 0, strtol(tracee_pid_str, NULL, 10));
-    }
-    pid_t new_tracee_pid = get_process_id();
-    __exec_epoch = 0;
-    if (new_tracee_pid == tracee_pid) {
-        __exec_epoch = (size_t) EXPECT(> 0, strtol(exec_epoch_plus_one_str, NULL, 10)) - 1;
+
+    if (!is_proc_root()) {
+        const char* last_epoch_pid_str = debug_getenv(pid_env_var);
+        if (!last_epoch_pid_str) {
+            ERROR("Internal environment variable \"%s\" not set", pid_env_var);
+        }
+
+        pid_t last_epoch_pid = EXPECT(> 0, strtol(last_epoch_pid_str, NULL, 10));
+
+        if (last_epoch_pid == getpid()) {
+            const char* exec_epoch_str = debug_getenv(exec_epoch_env_var);
+            if (!last_epoch_pid_str) {
+                ERROR("Internal environment variable \"%s\" not set", exec_epoch_env_var);
+            }
+
+            size_t last_exec_epoch = EXPECT(>= 0, strtol(exec_epoch_str, NULL, 10));
+            /* Since zero is a sentinel value for strtol,
+             * if it returns zero,
+             * there's a small chance that exec_epoch_str is an invalid int,
+             * We cerify manually */
+            assert(last_exec_epoch != 0 || exec_epoch_str[0] == '0');
+
+            __exec_epoch = last_exec_epoch + 1;
+        } else {
+            __exec_epoch = 0;
+        }
     } else {
-        /* the default value of new_exec_epoch is correct here. */
-        char new_tracee_pid_str[unsigned_int_string_size];
-        CHECK_SNPRINTF(new_tracee_pid_str, unsigned_int_string_size, "%u", new_tracee_pid);
-        debug_setenv(tracee_pid_env_var, new_tracee_pid_str, true);
+        __exec_epoch = 0;
     }
+
     DEBUG("exec_epoch = %d", __exec_epoch);
-    char new_exec_epoch_str[unsigned_int_string_size];
-    CHECK_SNPRINTF(new_exec_epoch_str, unsigned_int_string_size, "%u", __exec_epoch + 2);
-    debug_setenv(exec_epoch_plus_one_env_var, new_exec_epoch_str, true);
 }
-static unsigned int get_exec_epoch() {
+static int get_exec_epoch() {
     assert(__exec_epoch != __exec_epoch_initial);
     return __exec_epoch;
 }
-static unsigned int get_exec_epoch_safe() {
+static int get_exec_epoch_safe() {
     return __exec_epoch;
 }
 
-/*
- * Linux can technically reuse PIDs.
- * It usually doesn't happen that much, but I use the process birth_time-time as a "last-resort" in case it does.
- * */
-static const struct timespec __process_birth_time_initial = {-1, 0};
-static struct timespec __process_birth_time = __process_birth_time_initial;
-static bool init_process_birth_time() {
-    assert(
-        __process_birth_time.tv_sec == __process_birth_time_initial.tv_sec &&
-        __process_birth_time.tv_nsec == __process_birth_time_initial.tv_nsec
-    );
-    const char* process_birth_time_env_var = PRIVATE_ENV_VAR_PREFIX "PROCESS_BIRTH_TIME";
-    if (get_exec_epoch() == 0) {
-        EXPECT(== 0, clock_gettime(CLOCK_REALTIME, &__process_birth_time));
-        int process_birth_time_str_length = signed_long_string_size + unsigned_long_string_size + 1;
-        char process_birth_time_str[process_birth_time_str_length];
-        CHECK_SNPRINTF(process_birth_time_str, process_birth_time_str_length, "%ld.%ld", __process_birth_time.tv_sec, __process_birth_time.tv_nsec);
-        debug_setenv(process_birth_time_env_var, process_birth_time_str, true);
-        return true;
-    } else {
-        const char* process_birth_time_str = debug_getenv(process_birth_time_env_var);
-        assert(process_birth_time_str);
-        char* rest_of_str = NULL;
-        __process_birth_time.tv_sec = strtol(process_birth_time_str, &rest_of_str, 10);
-        assert(rest_of_str[0] == '.');
-        rest_of_str++;
-        __process_birth_time.tv_nsec = strtol(rest_of_str, NULL, 10);
-        return false;
+OWNED const char* dirfd_path(int dirfd) {
+    static char dirfd_proc_path[PATH_MAX];
+    CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
+    char* resolved_buffer = malloc(PATH_MAX);
+    const char* ret = unwrapped_realpath(dirfd_proc_path, resolved_buffer);
+    if (!ret) {
+        ERROR("realpath(\"%s\", %p) returned NULL", dirfd_proc_path, resolved_buffer);
     }
-}
-static struct timespec get_process_birth_time() {
-    assert(
-        __process_birth_time.tv_sec != __process_birth_time_initial.tv_sec ||
-        __process_birth_time.tv_nsec != __process_birth_time_initial.tv_nsec
-    );
-    return __process_birth_time;
-}
-/* I guess nobody needs a safe version of this. */
-
-/*
- * Linux can reuse a TID after one dies.
- * This is a big problem for us, so we just have our own TIDs based on an atomic thread counter.
- * */
-static _Atomic unsigned int __thread_counter = 0;
-static const unsigned int __thread_id_initial = UINT_MAX;
-static __thread unsigned int __thread_id = __thread_id_initial;
-static void init_sams_thread_id() {
-    assert(__thread_id == __thread_id_initial);
-    __thread_id = __thread_counter++;
-    DEBUG("thread_id = %d", __thread_id);
-}
-static unsigned int get_sams_thread_id() {
-    assert(__thread_id != __thread_id_initial && __thread_id <= __thread_counter);
-    return __thread_id;
-}
-static unsigned int get_sams_thread_id_safe() {
-    return __thread_id;
+    return ret;
 }
 
-/* TODO: Hack exec-family of functions to propagate these environment variables. */
+static int mkdir_and_descend(int dirfd, long child, bool exists, bool close) {
+    static char buffer[signed_long_string_size + 1];
+    CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
+    if (!exists) {
+        int mkdir_ret = unwrapped_mkdirat(dirfd, buffer, 0777);
+        if (mkdir_ret != 0) {
+            ERROR("Cannot mkdir %s/%ld", dirfd_path(dirfd), child);
+        }
+    }
+    int sub_dirfd = unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY);
+    if (sub_dirfd == -1) {
+        ERROR("Cannot openat %s/%ld", dirfd_path(dirfd), child);
+    }
+    if (close) {
+        EXPECT(== 0, unwrapped_close(dirfd));
+    }
+    return sub_dirfd;
+}
+
+static const int initial_epoch_dirfd = -1;
+static int __epoch_dirfd = initial_epoch_dirfd;
+static const char* probe_dir_env_var = PRIVATE_ENV_VAR_PREFIX "DIR";
+static char __probe_dir[PATH_MAX + 1];
+static void init_probe_dir() {
+    // Get initial probe dir
+    const char* probe_dir_env_val = debug_getenv(probe_dir_env_var);
+    if (!probe_dir_env_val) {
+        ERROR("Internal environment variable \"%s\" not set", probe_dir_env_var);
+    }
+    strncpy(__probe_dir, probe_dir_env_val, PATH_MAX);
+    if (__probe_dir[0] != '/') {
+        ERROR("PROBE dir \"%s\" is not absolute", __probe_dir);
+    }
+    if (!is_dir(__probe_dir)) {
+        ERROR("PROBE dir \"%s\" is not a directory", __probe_dir);
+    }
+
+    int probe_dirfd = unwrapped_openat(AT_FDCWD, __probe_dir, O_RDONLY | O_DIRECTORY);
+    if (probe_dirfd < 0) {
+        ERROR("Could not open \"%s\"", __probe_dir);
+    }
+
+    DEBUG("probe_dir = \"%s\"", __probe_dir);
+
+    DEBUG("Going to %s/%d/%d", __probe_dir, getpid(), get_exec_epoch());
+    int pid_dirfd = mkdir_and_descend(probe_dirfd, getpid(), get_exec_epoch() != 0, true);
+    __epoch_dirfd = mkdir_and_descend(pid_dirfd, get_exec_epoch(), gettid() != getpid(), true);
+}
+static int get_epoch_dirfd() {
+    assert(__epoch_dirfd != initial_epoch_dirfd);
+    return __epoch_dirfd;
+}
+
+static __thread struct ArenaDir __op_arena = { 0 };
+static __thread struct ArenaDir __data_arena = { 0 };
+static const size_t prov_log_arena_size = 64 * 1024;
+static void init_log_arena() {
+    assert(!arena_is_initialized(&__op_arena));
+    assert(!arena_is_initialized(&__data_arena));
+    DEBUG("Going to %s/%d/%d/%d", __probe_dir, getpid(), get_exec_epoch(), gettid());
+    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), gettid(), false, false);
+    EXPECT( == 0, arena_create(&__op_arena, thread_dirfd, "ops", prov_log_arena_size));
+    EXPECT( == 0, arena_create(&__data_arena, thread_dirfd, "data", prov_log_arena_size));
+}
+static struct ArenaDir* get_op_arena() {
+    assert(arena_is_initialized(&__op_arena));
+    return &__op_arena;
+}
+static struct ArenaDir* get_data_arena() {
+    assert(arena_is_initialized(&__data_arena));
+    return &__data_arena;
+}
+
+/**
+ * Aggregate functions;
+ * These functions call the init_* functions above */
 
 static void init_process_global_state() {
-    init_is_prov_root();
-    init_process_id();
+    init_is_proc_root();
     init_exec_epoch();
-    init_process_birth_time();
+    init_probe_dir();
 }
 
 static void init_thread_global_state() {
-    init_sams_thread_id();
+    init_log_arena();
 }
 
 /*
  * After a fork, the process will _appear_ to be initialized, but not be truly initialized.
- * E.g., process_id will be wrong.
+ * E.g., __exec_epoch will be wrong.
  * Therefore, we will reset all the things and call init again.
  */
 static void reinit_process_global_state() {
-    __is_prov_root = 0;
-
-    __process_id = __process_id_initial;
-    init_process_id();
-
-    __exec_epoch = __exec_epoch_initial;
-    init_exec_epoch();
-    assert(__exec_epoch == 0);
-    /* We know that __exec_epoch should be 0.
-     * But we still need to call init_exec_epoch because it sets environment variables for our children.
-     * */
-
-    __process_birth_time = __process_birth_time_initial;
-    __attribute__((unused)) bool did_update_birth_time = init_process_birth_time();
-    assert(did_update_birth_time);
-
-    __thread_counter = 0;
+    __is_proc_root = 0;
+    __exec_epoch = 0;
 }
 
 static void reinit_thread_global_state() {
-    __thread_id = 0;
+    /*
+     * We don't know if CLONE_FILES was set.
+     * We will conservatively assume it is (NOT safe to call arena_destroy)
+     * But we assume we have a new memory space, we should clear the mem-mappings.
+     * */
+    arena_drop_after_fork(&__op_arena);
+    arena_drop_after_fork(&__data_arena);
+    init_log_arena();
 }
 
 static char* const* update_env_with_probe_vars(char* const* user_env) {
     /* Define env vars we care about */
     const char* probe_vars[] = {
-        PRIVATE_ENV_VAR_PREFIX "IS_ROOT",
-        PRIVATE_ENV_VAR_PREFIX "TRACEE_PID",
-        PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH_PLUS_ONE",
-        PRIVATE_ENV_VAR_PREFIX "PROCESS_BIRTH_TIME",
-        ENV_VAR_PREFIX "DIR",
+        is_proc_root_env_var,
+        exec_epoch_env_var,
+        pid_env_var,
+        probe_dir_env_var,
+    };
+    char exec_epoch_str[unsigned_int_string_size];
+    CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());
+    char pid_str[unsigned_int_string_size];
+    CHECK_SNPRINTF(pid_str, unsigned_int_string_size, "%d", getpid());
+    const char* probe_vals[] = {
+        "0",
+        exec_epoch_str,
+        pid_str,
+        __probe_dir,
     };
     const size_t probe_var_count = sizeof(probe_vars) / sizeof(char*);
 
     /* Precompute some shiz */
     size_t probe_var_lengths[10] = { 0 };
-    for (size_t probe_var_i = 0; probe_var_i < probe_var_count; ++probe_var_i) {
-        probe_var_lengths[probe_var_i] = strlen(probe_vars[probe_var_i]);
+    for (size_t i = 0; i < probe_var_count; ++i) {
+        probe_var_lengths[i] = strlen(probe_vars[i]);
     }
     char* probe_entries[10] = { NULL };
-    for (size_t probe_var_i = 0; probe_var_i < probe_var_count; ++probe_var_i) {
-        for (char** ep = environ; *ep; ++ep) {
-            if (strncmp(*ep, probe_vars[probe_var_i], probe_var_lengths[probe_var_i]) == 0 && (*ep)[probe_var_lengths[probe_var_i]] == '=') {
-                probe_entries[probe_var_i] = *ep;
-                break;
-            }
-        }
-        if (!probe_entries[probe_var_i]) {
-#ifndef NDEBUG
-            printenv();
-#endif
-            ERROR("No env var %s found", probe_vars[probe_var_i]);
-        }
+    for (size_t i = 0; i < probe_var_count; ++i) {
+        size_t probe_val_length = strlen(probe_vals[i]);
+        probe_entries[i] = malloc(probe_var_lengths[i] + 1 + probe_val_length + 1);
+        memcpy(probe_entries[i], probe_vars[i], probe_var_lengths[i]);
+        probe_entries[i][probe_var_lengths[i]] = '=';
+        memcpy(probe_entries[i] + probe_var_lengths[i] + 1, probe_vals[i], probe_val_length);
+        probe_entries[i][probe_var_lengths[i] + 1 + probe_val_length] = '\0';
+        DEBUG("Exporting %s", probe_entries[i]);
     }
 
     /* Compute user's size */
@@ -257,8 +261,8 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
     size_t new_env_size = 0;
     for (char* const* ep = user_env; *ep; ++ep) {
         bool is_probe_var = false;
-        for (size_t probe_var_i = 0; probe_var_i < probe_var_count; ++probe_var_i) {
-            if (strncmp(*ep, probe_vars[probe_var_i], probe_var_lengths[probe_var_i]) == 0 && (*ep)[probe_var_lengths[probe_var_i]] == '=') {
+        for (size_t i = 0; i < probe_var_count; ++i) {
+            if (memcmp(*ep, probe_vars[i], probe_var_lengths[i]) == 0 && (*ep)[probe_var_lengths[i]] == '=') {
                 is_probe_var = true;
                 break;
             }
@@ -272,16 +276,12 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
     /*
      * Now add our _desired_ versions of the probe vars we care about.
      */
-    for (size_t probe_var_i = 0; probe_var_i < probe_var_count; ++probe_var_i) {
-        new_env[new_env_size + probe_var_i] = probe_entries[probe_var_i];
+    for (size_t i = 0; i < probe_var_count; ++i) {
+        new_env[new_env_size + i] = probe_entries[i];
     }
 
     /* Top it off with a NULL */
     new_env[new_env_size + probe_var_count] = NULL;
-
-    for (char* const* ep = new_env; *ep; ++ep) {
-        DEBUG("%s", *ep);
-    }
 
     return new_env;
 }

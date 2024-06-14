@@ -1,9 +1,9 @@
 import typing
 import networkx
-from .parse_probe_log import ProcessTreeProvLog, Op, CloneOp, ExecOp, WaitOp, CLONE_THREAD
+from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, CLONE_THREAD
 
 
-def construct_process_graph(process_tree_prov_log: ProcessTreeProvLog) -> str:
+def construct_process_graph(process_tree_prov_log: ProvLog) -> str:
     """
     Construct a happens-before graph from process_tree_prov_log
 
@@ -15,7 +15,7 @@ def construct_process_graph(process_tree_prov_log: ProcessTreeProvLog) -> str:
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
 
-    for (pid, _time), process in process_tree_prov_log.processes.items():
+    for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
 
@@ -67,13 +67,14 @@ def construct_process_graph(process_tree_prov_log: ProcessTreeProvLog) -> str:
                 # Spawning a thread links to the current PID and exec epoch
                 target = (pid, exid, op.child_thread_id)
             else:
-                # New process always links to exec epoch 0 and thread 0
-                target = (op.child_process_id, 0, 0)
+                # New process always links to exec epoch 0 and main thread
+                # THe TID of the main thread is the same as the PID
+                target = (op.child_process_id, 0, op.child_process_id)
             exec_edges.append((node, first(*target)))
         elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
-            # Always wait for thread 0 of the last exec epoch
+            # Always wait for main thread of the last exec epoch
             if op.ferrno == 0:
-                target = (op.ret, last_exec_epoch.get(op.ret, 0), 0)
+                target = (op.ret, last_exec_epoch.get(op.ret, 0), op.ret)
                 fork_join_edges.append((last(*target), node))
         elif isinstance(op, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
@@ -81,11 +82,11 @@ def construct_process_graph(process_tree_prov_log: ProcessTreeProvLog) -> str:
             fork_join_edges.append((node, first(*target)))
 
     # # Make the main thread exit at the same time as each thread
-    for (pid, _time), process in process_tree_prov_log.processes.items():
+    for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             for tid, thread in exec_epoch.threads.items():
                 if tid != 0:
-                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
+                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, pid)))
 
     def node_to_label(node: Node) -> str:
         inner_label = node[3] if isinstance(node[3], str) else node[3].__class__.__name__

@@ -53,14 +53,14 @@ def record(
     probe_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
     if gdb:
         subprocess.run(
-            ["gdb", "--args", "env", f"PROBE_DIR={probe_dir}", f"LD_PRELOAD={ld_preload}", *cmd],
+            ["gdb", "--args", "env", f"__PROBE_DIR={probe_dir}", f"LD_PRELOAD={ld_preload}", *cmd],
         )
     else:
         if debug:
             typer.secho(f"Running {cmd} with libprobe into {probe_dir}", fg=typer.colors.GREEN)
         proc = subprocess.run(
             cmd,
-            env={**os.environ, "LD_PRELOAD": ld_preload, "PROBE_DIR": str(probe_dir)},
+            env={**os.environ, "LD_PRELOAD": ld_preload, "__PROBE_DIR": str(probe_dir)},
         )
         probe_log_tar_obj = tarfile.open(name=str(output), mode="x:gz")
         probe_log_tar_obj.add(probe_dir, arcname="")

@@ -33,20 +33,19 @@ static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, false, fal
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 
+struct InitProcessOp {
+    pid_t pid;
+};
+
 struct InitExecEpochOp {
-    pid_t process_id;
-    unsigned int exec_epoch;
-    struct timespec process_birth_time;
+    unsigned int epoch;
     OWNED char* program_name;
 };
 
 struct InitExecEpochOp init_current_exec_epoch();
 
 struct InitThreadOp {
-    pid_t process_id;
-    struct timespec process_birth_time;
-    unsigned int exec_epoch;
-    pid_t sams_thread_id; /* Not the same as TID in Linux */
+    pid_t tid;
 };
 
 struct OpenOp {
@@ -158,6 +157,7 @@ struct ReadLinkOp {
 
 enum OpCode {
     FIRST_OP_CODE,
+    init_process_op_code,
     init_exec_epoch_op_code,
     init_thread_op_code,
     open_op_code,
@@ -179,6 +179,7 @@ enum OpCode {
 struct Op {
     enum OpCode op_code;
     union {
+        struct InitProcessOp init_process_epoch;
         struct InitExecEpochOp init_exec_epoch;
         struct InitThreadOp init_thread;
         struct OpenOp open;

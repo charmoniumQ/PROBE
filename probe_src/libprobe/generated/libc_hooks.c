@@ -440,7 +440,7 @@ struct dirent * readdir(DIR *dirstream)
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
+      op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
     }
     prov_log_record(op);
   }
@@ -465,7 +465,7 @@ int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
+      op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
     }
     prov_log_record(op);
   }
@@ -490,7 +490,7 @@ struct dirent64 * readdir64(DIR *dirstream)
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
+      op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
     }
     prov_log_record(op);
   }
@@ -515,7 +515,7 @@ int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result
     }
     else
     {
-      op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
+      op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
     }
     prov_log_record(op);
   }
@@ -1543,7 +1543,7 @@ int execle(const char *filename, const char *arg0, ...)
 int execvp(const char *filename, char * const argv[])
 {
   maybe_init_thread();
-  char *bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+  char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
   struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))
@@ -1568,7 +1568,7 @@ int execvp(const char *filename, char * const argv[])
 int execlp(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
-  char *bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+  char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
   struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))
@@ -1595,7 +1595,7 @@ int execvpe(const char *filename, char * const argv[], char * const envp[])
 {
   maybe_init_thread();
   envp = update_env_with_probe_vars(envp);
-  char *bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+  char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
   struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))

@@ -474,7 +474,7 @@ struct dirent * readdir (DIR *dirstream) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
             }
             prov_log_record(op);
         }
@@ -505,7 +505,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
             }
             prov_log_record(op);
         }
@@ -536,7 +536,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
             }
             prov_log_record(op);
         }
@@ -567,7 +567,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
             }
             prov_log_record(op);
         }
@@ -1664,7 +1664,7 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -1695,7 +1695,7 @@ int execvp (const char *filename, char *const argv[]) {
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
-        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -1728,7 +1728,7 @@ int execlp (const char *filename, const char *arg0, ...) {
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
         envp = update_env_with_probe_vars(envp);
-        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,

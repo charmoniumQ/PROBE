@@ -408,6 +408,9 @@ class MemoryMapping(typing.Protocol):
     def __contains__(self, idx: int) -> bool: ...
 
 
+verbose = False
+
+
 def convert_c_obj_to_py_obj(
         c_obj: CType,
         py_type: PyType,
@@ -415,7 +418,8 @@ def convert_c_obj_to_py_obj(
         memory: MemoryMapping,
         depth: int = 0,
 ) -> PyType:
-    print(depth * "  ", c_obj, py_type, info)
+    if verbose:
+        print(depth * "  ", c_obj, py_type, info)
     if False:
         pass
     elif c_obj.__class__.__name__ == "PointerStruct":
@@ -471,7 +475,8 @@ def convert_c_obj_to_py_obj(
             raise TypeError(f"If {type(c_obj)} is a struct, then {py_type} should be a dataclass")
         fields = dict[str, typing.Any]()
         for py_field in dataclasses.fields(py_type):
-            print(depth * "  ", py_field.name)
+            if verbose:
+                print(depth * "  ", py_field.name)
             fields[py_field.name] = convert_c_obj_to_py_obj(
                 getattr(c_obj, py_field.name),
                 py_field.type,
