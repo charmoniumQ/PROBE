@@ -205,3 +205,11 @@ bool is_dir(const char* dir) {
         return (statx_buf.stx_mode & S_IFMT) == S_IFDIR;
     }
 }
+
+OWNED const char* dirfd_path(int dirfd) {
+    static char dirfd_proc_path[PATH_MAX];
+    CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
+    char* resolved_buffer = malloc(PATH_MAX);
+    const char* ret = unwrapped_realpath(dirfd_proc_path, resolved_buffer);
+    return ret;
+}

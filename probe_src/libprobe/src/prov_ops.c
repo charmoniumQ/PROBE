@@ -112,7 +112,7 @@ static void free_op(struct Op op) {
 */
 
 #ifndef NDEBUG
-static struct Path* op_to_path(struct Op* op) {
+static const struct Path* op_to_path(struct Op* op) {
     switch (op->op_code) {
         case open_op_code: return &op->data.open.path;
         case chdir_op_code: return &op->data.chdir.path;
@@ -122,7 +122,7 @@ static struct Path* op_to_path(struct Op* op) {
         case update_metadata_op_code: return &op->data.update_metadata.path;
         case read_link_op_code: return &op->data.read_link.path;
         default:
-            return NULL;
+            return &null_path;
     }
 }
 static BORROWED const char* op_code_to_string(enum OpCode op_code) {
@@ -147,7 +147,7 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
             NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
-static int path_to_string(struct Path* path, char* buffer, int buffer_length) {
+static int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
     return CHECK_SNPRINTF(
         buffer,
         buffer_length,
@@ -168,8 +168,8 @@ static void op_to_human_readable(char* dest, int size, struct Op* op) {
     dest++;
     size--;
 
-    struct Path* path = op_to_path(op);
-    if (path) {
+    const struct Path* path = op_to_path(op);
+    if (path->dirfd_valid) {
         int path_size = path_to_string(path, dest, size);
         dest += path_size;
         size -= path_size;

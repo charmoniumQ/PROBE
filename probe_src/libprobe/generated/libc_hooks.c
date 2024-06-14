@@ -1421,6 +1421,7 @@ char * mkdtemp(char *template)
 int execv(const char *filename, char * const argv[])
 {
   maybe_init_thread();
+  putenv_probe_vars();
   struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))
   {
@@ -1444,6 +1445,7 @@ int execv(const char *filename, char * const argv[])
 int execl(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
+  putenv_probe_vars();
   struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))
   {
@@ -1529,6 +1531,7 @@ int execle(const char *filename, const char *arg0, ...)
   {
     prov_log_save();
   }
+  ERROR("Not implemented; I need to figure out how to update the environment.");
   size_t varargs_size = (sizeof(char *)) + ((COUNT_NONNULL_VARARGS(arg0) + 1) * (sizeof(char *)));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_execle, __builtin_apply_args(), varargs_size));
   if (likely(prov_log_is_enabled()))
@@ -1543,6 +1546,7 @@ int execle(const char *filename, const char *arg0, ...)
 int execvp(const char *filename, char * const argv[])
 {
   maybe_init_thread();
+  putenv_probe_vars();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
   struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};
@@ -1568,6 +1572,7 @@ int execvp(const char *filename, char * const argv[])
 int execlp(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
+  putenv_probe_vars();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
   struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};

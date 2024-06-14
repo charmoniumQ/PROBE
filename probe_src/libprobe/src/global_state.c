@@ -88,17 +88,6 @@ static int get_exec_epoch_safe() {
     return __exec_epoch;
 }
 
-OWNED const char* dirfd_path(int dirfd) {
-    static char dirfd_proc_path[PATH_MAX];
-    CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
-    char* resolved_buffer = malloc(PATH_MAX);
-    const char* ret = unwrapped_realpath(dirfd_proc_path, resolved_buffer);
-    if (!ret) {
-        ERROR("realpath(\"%s\", %p) returned NULL", dirfd_proc_path, resolved_buffer);
-    }
-    return ret;
-}
-
 static int mkdir_and_descend(int dirfd, long child, bool exists, bool close) {
     static char buffer[signed_long_string_size + 1];
     CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
@@ -284,4 +273,29 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
     new_env[new_env_size + probe_var_count] = NULL;
 
     return new_env;
+}
+
+static void putenv_probe_vars() {
+    /* Define env vars we care about */
+    const char* probe_vars[] = {
+        is_proc_root_env_var,
+        exec_epoch_env_var,
+        pid_env_var,
+        probe_dir_env_var,
+    };
+    char exec_epoch_str[unsigned_int_string_size];
+    CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());
+    char pid_str[unsigned_int_string_size];
+    CHECK_SNPRINTF(pid_str, unsigned_int_string_size, "%d", getpid());
+    const char* probe_vals[] = {
+        "0",
+        exec_epoch_str,
+        pid_str,
+        __probe_dir,
+    };
+    const size_t probe_var_count = sizeof(probe_vars) / sizeof(char*);
+
+    for (size_t i = 0; i < probe_var_count; ++i) {
+        setenv(probe_vars[i], probe_vals[i], 1 /* overwrite*/);
+    }
 }

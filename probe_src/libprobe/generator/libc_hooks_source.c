@@ -1503,6 +1503,7 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
+        putenv_probe_vars();
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -1543,6 +1544,7 @@ int execv (const char *filename, char *const argv[]) {
 }
 int execl (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
+        putenv_probe_vars();
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -1638,6 +1640,7 @@ int execle (const char *filename, const char *arg0, ...) {
         } else {
             prov_log_save();
         }
+        ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     /* TODO: Use this call instead of the default generated one */
     void* call = ({
@@ -1664,6 +1667,7 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
+        putenv_probe_vars();
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
@@ -1695,6 +1699,7 @@ int execvp (const char *filename, char *const argv[]) {
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
+        putenv_probe_vars();
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
