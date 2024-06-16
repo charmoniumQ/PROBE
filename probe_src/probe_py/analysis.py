@@ -214,7 +214,6 @@ def construct_networkx_graph(process_tree_prov_log: ProcessTreeProvLog):
     process_graph = nx.DiGraph()
     
     for node in nodes:
-        print(node)
         # op = [pid, _time, exec_id, tid, op_index]
         process_graph.add_node(node[4], op = [node[0], node[6], node[1],node[2],node[5]])
     
