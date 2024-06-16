@@ -49,7 +49,7 @@ FILE * fopen (const char *filename, const char *opentype) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename),
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
                 .flags = fopen_to_flags(opentype),
                 .mode = 0,
                 .fd = -1,
@@ -79,7 +79,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         struct Op open_op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename),
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
                 .flags = fopen_to_flags(opentype),
                 .mode = 0,
                 .fd = -1,
@@ -152,7 +152,7 @@ int fcloseall(void) {
     });
 }
 
-/* Docs: https://linux.die.net/man/2/openat */
+/* Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html */
 int openat(int dirfd, const char *filename, int flags, ...) {
     size_t varargs_size = sizeof(dirfd) + sizeof(filename) + sizeof(flags) + (has_mode_arg ? sizeof(mode_t) : 0);
     /* Re varag_size, See variadic note on open
@@ -163,7 +163,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(dirfd, filename),
+                .path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
                 .flags = flags,
                 .mode = 0,
                 .fd = -1,
@@ -206,7 +206,7 @@ int open (const char *filename, int flags, ...) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename),
+                .path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
                 .flags = flags,
                 .mode = 0,
                 .fd = -1,
@@ -242,7 +242,7 @@ int creat (const char *filename, mode_t mode) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename),
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
                 .flags = O_WRONLY | O_CREAT | O_TRUNC,
                 .mode = mode,
                 .fd = -1,
@@ -354,7 +354,10 @@ int chdir (const char *filename) {
     void* pre_call = ({
         struct Op op = {
             chdir_op_code,
-            {.chdir = {create_path_lazy(AT_FDCWD, filename), 0}},
+            {.chdir = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .ferrno = 0
+            }},
             {0},
         };
         if (likely(prov_log_is_enabled())) {
@@ -372,7 +375,10 @@ int fchdir (int filedes) {
     void* pre_call = ({
         struct Op op = {
             chdir_op_code,
-            {.chdir = {create_path_lazy(filedes, NULL), 0}},
+            {.chdir = {
+                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
+                .ferrno = 0
+            }},
             {0},
         };
         if (likely(prov_log_is_enabled())) {
@@ -393,7 +399,7 @@ DIR * opendir (const char *dirname) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(AT_FDCWD, dirname),
+                .path = create_path_lazy(AT_FDCWD, dirname, 0),
                 /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
                 .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
                 .mode = 0,
@@ -419,7 +425,7 @@ DIR * fdopendir (int fd) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(fd, NULL),
+                .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
                 .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
                 .mode = 0,
@@ -449,7 +455,7 @@ struct dirent * readdir (DIR *dirstream) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, NULL),
+                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -468,7 +474,7 @@ struct dirent * readdir (DIR *dirstream) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
             }
             prov_log_record(op);
         }
@@ -480,7 +486,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, NULL),
+                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -499,7 +505,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
             }
             prov_log_record(op);
         }
@@ -511,7 +517,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, NULL),
+                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -530,7 +536,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, ret->d_name, sizeof(ret->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
             }
             prov_log_record(op);
         }
@@ -542,7 +548,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, NULL),
+                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -561,7 +567,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
-                op.data.readdir.child = arena_strndup(&data_arena, entry->d_name, sizeof(entry->d_name));
+                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
             }
             prov_log_record(op);
         }
@@ -598,7 +604,7 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, dir),
+                .dir = create_path_lazy(AT_FDCWD, dir, 0),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -622,7 +628,7 @@ int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (co
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, dir),
+                .dir = create_path_lazy(AT_FDCWD, dir, 0),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -651,7 +657,7 @@ int scandirat(int dirfd, const char *restrict dirp,
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(dirfd, dirp),
+                .dir = create_path_lazy(dirfd, dirp, 0),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -677,7 +683,7 @@ ssize_t getdents64 (int fd, void *buffer, size_t length) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, NULL),
+                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -704,7 +710,7 @@ int ftw (const char *filename, __ftw_func_t func, int descriptors) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, filename),
+                .dir = create_path_lazy(AT_FDCWD, filename, 0),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -728,7 +734,7 @@ int ftw64 (const char *filename, __ftw64_func_t func, int descriptors) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, filename),
+                .dir = create_path_lazy(AT_FDCWD, filename, 0),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -752,7 +758,7 @@ int nftw (const char *filename, __nftw_func_t func, int descriptors, int flag) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, filename),
+                .dir = create_path_lazy(AT_FDCWD, filename, 0),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -776,7 +782,7 @@ int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int fla
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, filename),
+                .dir = create_path_lazy(AT_FDCWD, filename, 0),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -826,36 +832,481 @@ int mkdir (const char *filename, mode_t mode) { }
 int mkdirat(int dirfd, const char *pathname, mode_t mode) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html */
-int stat (const char *filename, struct stat *buf) { }
-int stat64 (const char *filename, struct stat64 *buf) { }
-int fstat (int filedes, struct stat *buf) { }
-int fstat64 (int filedes, struct stat64 * restrict buf) { }
-int lstat (const char *filename, struct stat *buf) { }
-int lstat64 (const char *filename, struct stat64 *buf) { }
+int stat (const char *filename, struct stat *buf) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = 0,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int stat64 (const char *filename, struct stat64 *buf) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = 0,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat64_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int fstat (int filedes, struct stat *buf) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
+                .flags = 0,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int fstat64 (int filedes, struct stat64 * restrict buf) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
+                .flags = 0,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat64_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int lstat (const char *filename, struct stat *buf) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW),
+                .flags = AT_SYMLINK_NOFOLLOW,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int lstat64 (const char *filename, struct stat64 *buf) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW),
+                .flags = AT_SYMLINK_NOFOLLOW,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat64_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/statx.2.html */
-int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf) { }
+int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(dirfd, pathname, flags),
+                .flags = flags,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                op.data.stat.statx_buf = *statxbuf;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://linux.die.net/man/2/fstatat */
-int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags) {}
+int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(dirfd, pathname, flags),
+                .flags = flags,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
-int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf, int flags) { }
+int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            stat_op_code,
+            {.stat = {
+                .path = create_path_lazy(fd, file, flags),
+                .flags = flags,
+                .statx_buf = {0},
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            } else {
+                stat64_to_statx(&op.data.stat.statx_buf, buf);
+            }
+            prov_log_record(op);
+        }
+    });
+}
 /* fn newfstatat = fstatat; */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
-int chown (const char *filename, uid_t owner, gid_t group) { }
-int fchown (int filedes, uid_t owner, gid_t group) { }
+int chown (const char *filename, uid_t owner, gid_t group) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = 0,
+                .kind = MetadataOwnership,
+                .value = {
+                    .ownership = {
+                        .uid = owner,
+                        .gid = group,
+                    },
+                },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int fchown (int filedes, uid_t owner, gid_t group) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
+                .flags = AT_EMPTY_PATH,
+                .kind = MetadataOwnership,
+                .value = {
+                    .ownership = {
+                        .uid = owner,
+                        .gid = group,
+                    },
+                },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
+// https://www.man7.org/linux/man-pages/man2/lchown.2.html
+int lchown(const char *pathname, uid_t owner, gid_t group) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(AT_FDCWD, pathname, AT_SYMLINK_NOFOLLOW),
+                .flags = AT_SYMLINK_NOFOLLOW,
+                .kind = MetadataOwnership,
+                .value = {
+                    .ownership = {
+                        .uid = owner,
+                        .gid = group,
+                    },
+                },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(dirfd, pathname, flags),
+                .flags = flags,
+                .kind = MetadataOwnership,
+                .value = {
+                    .ownership = {
+                        .uid = owner,
+                        .gid = group,
+                    },
+                },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Setting-Permissions.html  */
-int chmod (const char *filename, mode_t mode) { }
-int fchmod (int filedes, mode_t mode) { }
+int chmod (const char *filename, mode_t mode) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = 0,
+                .kind = MetadataMode,
+                .value = {
+                    .mode = mode,
+                },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int fchmod (int filedes, mode_t mode) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
+                .flags = AT_EMPTY_PATH,
+                .kind = MetadataMode,
+                .value = {
+                    .mode = mode,
+                },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
+/* Docs: https://www.man7.org/linux/man-pages/man2/chmod.2.html */
+int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(dirfd, pathname, flags),
+                .flags = flags,
+                .kind = MetadataMode,
+                .value = {
+                    .mode = mode,
+                },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Testing-File-Access.html */
 int access (const char *filename, int how) {
     void* pre_call = ({
         struct Op op = {
             access_op_code,
-            {.access = {create_path_lazy(AT_FDCWD, filename), how, 0, 0}},
+            {.access = {
+                create_path_lazy(AT_FDCWD, filename, 0), how, 0, 0}
+            },
             {0},
         };
         if (likely(prov_log_is_enabled())) {
@@ -875,7 +1326,12 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
     void* pre_call = ({
         struct Op op = {
             access_op_code,
-            {.access = {create_path_lazy(dirfd, pathname), mode, flags, 0}},
+            {.access = {
+                .path = create_path_lazy(dirfd, pathname, 0 /* Wrong kind of flags */),
+                .mode = mode,
+                .flags = flags,
+                .ferrno = 0,
+            }},
             {0},
         };
         if (likely(prov_log_is_enabled())) {
@@ -891,10 +1347,138 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Times.html */
-int utime (const char *filename, const struct utimbuf *times) { }
-int utimes (const char *filename, const struct timeval tvp[2]) { }
-int lutimes (const char *filename, const struct timeval tvp[2]) { }
-int futimes (int fd, const struct timeval tvp[2]) { }
+int utime (const char *filename, const struct utimbuf *times) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = 0,
+                .kind = MetadataTimes,
+                .value = { 0 },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (times) {
+            op.data.update_metadata.value.times.is_null = false;
+            op.data.update_metadata.value.times.atime.tv_sec = times->actime;
+            op.data.update_metadata.value.times.mtime.tv_sec = times->modtime;
+        } else {
+            op.data.update_metadata.value.times.is_null = true;
+        }
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int utimes (const char *filename, const struct timeval tvp[2]) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = 0,
+                .kind = MetadataTimes,
+                .value = { 0 },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (tvp) {
+            op.data.update_metadata.value.times.is_null = false;
+            op.data.update_metadata.value.times.atime = tvp[0];
+            op.data.update_metadata.value.times.mtime = tvp[1];
+        } else {
+            op.data.update_metadata.value.times.is_null = true;
+        }
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int lutimes (const char *filename, const struct timeval tvp[2]) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW),
+                .flags = AT_SYMLINK_NOFOLLOW,
+                .kind = MetadataTimes,
+                .value = { 0 },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (tvp) {
+            op.data.update_metadata.value.times.is_null = false;
+            op.data.update_metadata.value.times.atime = tvp[0];
+            op.data.update_metadata.value.times.mtime = tvp[1];
+        } else {
+            op.data.update_metadata.value.times.is_null = true;
+        }
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int futimes (int fd, const struct timeval tvp[2]) {
+    void* pre_call = ({
+        struct Op op = {
+            update_metadata_op_code,
+            {.update_metadata = {
+                .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .flags = AT_EMPTY_PATH,
+                .kind = MetadataTimes,
+                .value = { 0 },
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        if (tvp) {
+            op.data.update_metadata.value.times.is_null = false;
+            op.data.update_metadata.value.times.atime = tvp[0];
+            op.data.update_metadata.value.times.mtime = tvp[1];
+        } else {
+            op.data.update_metadata.value.times.is_null = true;
+        }
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Size.html */
 int truncate (const char *filename, off_t length) { }
@@ -919,10 +1503,11 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
+        putenv_probe_vars();
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(0, filename),
+                .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
             }},
             {0},
@@ -959,10 +1544,11 @@ int execv (const char *filename, char *const argv[]) {
 }
 int execl (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
+        putenv_probe_vars();
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(0, filename),
+                .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
             }},
             {0},
@@ -989,7 +1575,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(0, filename),
+                .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
             }},
             {0},
@@ -1017,7 +1603,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(fd, NULL),
+                .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .ferrno = 0,
             }},
             {0},
@@ -1043,7 +1629,7 @@ int execle (const char *filename, const char *arg0, ...) {
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(0, filename),
+                .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
             }},
             {0},
@@ -1054,6 +1640,7 @@ int execle (const char *filename, const char *arg0, ...) {
         } else {
             prov_log_save();
         }
+        ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     /* TODO: Use this call instead of the default generated one */
     void* call = ({
@@ -1080,7 +1667,8 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+        putenv_probe_vars();
+        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -1088,7 +1676,7 @@ int execvp (const char *filename, char *const argv[]) {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
-                .path = found ? create_path_lazy(0, bin_path) : null_path,
+                .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
             }},
             {0},
@@ -1111,7 +1699,8 @@ int execvp (const char *filename, char *const argv[]) {
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
-        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+        putenv_probe_vars();
+        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -1119,7 +1708,7 @@ int execlp (const char *filename, const char *arg0, ...) {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
-                .path = found ? create_path_lazy(0, bin_path) : null_path,
+                .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
             }},
             {0},
@@ -1144,7 +1733,7 @@ int execlp (const char *filename, const char *arg0, ...) {
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
         envp = update_env_with_probe_vars(envp);
-        char* bin_path = arena_calloc(&data_arena, PATH_MAX + 1, sizeof(char));
+        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         struct Op op = {
             exec_op_code,
@@ -1152,7 +1741,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
-                .path = found ? create_path_lazy(0, bin_path) : null_path,
+                .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
             }},
             {0},

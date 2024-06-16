@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <utime.h>
 #endif
 
 struct Path {
@@ -22,30 +23,29 @@ struct Path {
     dev_t device_major;
     dev_t device_minor;
     ino_t inode;
-    /* TODO: throw in mtime too. */
-    /* struct statx_timestamp modification_time; */
+    struct statx_timestamp mtime;
+    struct statx_timestamp ctime;
     bool stat_valid;
     bool dirfd_valid;
 };
 
-static struct Path null_path = {-1, NULL, -1, -1, -1, false, false};
+static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, false, false};
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 
+struct InitProcessOp {
+    pid_t pid;
+};
+
 struct InitExecEpochOp {
-    pid_t process_id;
-    unsigned int exec_epoch;
-    struct timespec process_birth_time;
+    unsigned int epoch;
     OWNED char* program_name;
 };
 
 struct InitExecEpochOp init_current_exec_epoch();
 
 struct InitThreadOp {
-    pid_t process_id;
-    struct timespec process_birth_time;
-    unsigned int exec_epoch;
-    pid_t sams_thread_id; /* Not the same as TID in Linux */
+    pid_t tid;
 };
 
 struct OpenOp {
@@ -96,7 +96,6 @@ struct AccessOp {
 struct StatOp {
     struct Path path;
     int flags;
-    int mask;
     struct statx statx_buf;
     int ferrno;
 };
@@ -123,16 +122,30 @@ struct GetRUsageOp {
     int ferrno;
 };
 
-struct ChownOp {
-    struct Path path;
-    uid_t uid;
-    gid_t gid;
-    int ferrno;
+enum MetadataKind {
+    MetadataMode,
+    MetadataOwnership,
+    MetadataTimes,
 };
 
-struct ChmodOp {
-    struct Path path;
+union MetadataValue {
     mode_t mode;
+    struct {
+        uid_t uid;
+        gid_t gid;
+    } ownership;
+    struct {
+        bool is_null;
+        struct timeval atime;
+        struct timeval mtime;
+    } times;
+};
+
+struct UpdateMetadataOp {
+    struct Path path;
+    int flags;
+    enum MetadataKind kind;
+    union MetadataValue value;
     int ferrno;
 };
 
@@ -144,6 +157,7 @@ struct ReadLinkOp {
 
 enum OpCode {
     FIRST_OP_CODE,
+    init_process_op_code,
     init_exec_epoch_op_code,
     init_thread_op_code,
     open_op_code,
@@ -157,8 +171,7 @@ enum OpCode {
     readdir_op_code,
     wait_op_code,
     getrusage_op_code,
-    chown_op_code,
-    chmod_op_code,
+    update_metadata_op_code,
     read_link_op_code,
     LAST_OP_CODE,
 };
@@ -166,6 +179,7 @@ enum OpCode {
 struct Op {
     enum OpCode op_code;
     union {
+        struct InitProcessOp init_process_epoch;
         struct InitExecEpochOp init_exec_epoch;
         struct InitThreadOp init_thread;
         struct OpenOp open;
@@ -179,8 +193,7 @@ struct Op {
         struct ReaddirOp readdir;
         struct WaitOp wait;
         struct GetRUsageOp getrusage;
-        struct ChownOp chown;
-        struct ChmodOp chmod;
+        struct UpdateMetadataOp update_metadata;
         struct ReadLinkOp read_link;
     } data;
     struct timespec time;

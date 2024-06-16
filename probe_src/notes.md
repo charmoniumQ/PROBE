@@ -1,3 +1,46 @@
+# TODO: outputs 
+
+- Op (referenced by 4-tuple (PID, TID, EE, OpNo))
+  - OpNo
+  - OpCode
+  - Data
+- ThreadInfo
+  - List of ops
+  - Read set
+  - Write set
+  - Rusage (TODO: get this)
+- ExecEpochInfo
+  - Map of TID to thread
+  - Executable (TODO: special case for the root process's 0th exec epoch)
+- ProcessInfo
+  - Birth time
+  - List (Map with Int keys) of ExecEpochs
+  - PID
+  - status (TODO: get this, special case for root)
+  - Rusage (TODO: get this, special case for root)
+- TreeInfo
+  - Map of PID -> Process
+  - Root Process PID
+- Forks
+- Joins
+- Execs
+- File I/O mapping: ProvOp interval -> (File, Kind (enum(RW, R, PW, OW, RM, PWM)))
+- File (referenced by MinDev, MajDev, Inode)
+  - Known paths
+  - Metadata
+
+## Higher level stuff
+
+- Happens-before graph of prov ops (union of program order, forks, joins, execs)
+- Dataflow graph (program order, certain kinds of forks, execs, File I/O)
+
+# Minor TODOs
+
+- Replace sams_thread_id with TID
+- waittid
+- Get rusage of TID
+- prctl  PR_SET_CHILD_SUBREAPER
+
 # TODO: handle processes sharing FD table
 
 - `clone()`:

@@ -1,5 +1,6 @@
 static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     const char* path_segment_start = getenv("PATH");
+    DEBUG("looking up \"%s\" on $PATH=\"%.50s...\"", bin_name, path_segment_start);
     size_t bin_name_length = strlen(bin_name);
     while (path_segment_start[0] == ':') {
         /* TODO: Test case where PATH starts with : */
@@ -13,7 +14,7 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
             path_join(bin_path, path_segment_length, path_segment_start, bin_name_length, bin_name);
             struct Op op = {
                 access_op_code,
-                {.access = {create_path_lazy(AT_FDCWD, bin_path), 0, 0, 0}},
+                {.access = {create_path_lazy(AT_FDCWD, bin_path, 0), 0, 0, 0}},
                 {0},
             };
             /* TODO: Test case where PATH element is relative */

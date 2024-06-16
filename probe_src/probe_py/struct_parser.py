@@ -1,5 +1,6 @@
 from __future__ import annotations
 import ctypes
+import types
 import _ctypes
 import dataclasses
 import enum
@@ -197,7 +198,7 @@ def ast_to_cpy_type(
         if isinstance(inner_py_type, Exception):
             array_py_type = inner_py_type
         else:
-            array_py_type = tuple[*([inner_py_type] * repetitions)] # type: ignore
+            array_py_type = tuple[(inner_py_type,)]
         return array_c_type, array_py_type
     elif isinstance(typ, pycparser.c_ast.Enum):
         if typ.values is None:
@@ -264,7 +265,8 @@ def parse_struct_or_union(
     py_types[(keyword, name)] = dataclasses.make_dataclass(
         name,
         zip(field_names, field_py_types),
-        bases=(PyStructBase if is_struct else PyUnionBase,)
+        bases=(PyStructBase if is_struct else PyUnionBase,),
+        frozen=True,
     ) # type: ignore
 
     if c_type_error is None:
@@ -406,6 +408,9 @@ class MemoryMapping(typing.Protocol):
     def __contains__(self, idx: int) -> bool: ...
 
 
+verbose = False
+
+
 def convert_c_obj_to_py_obj(
         c_obj: CType,
         py_type: PyType,
@@ -413,11 +418,11 @@ def convert_c_obj_to_py_obj(
         memory: MemoryMapping,
         depth: int = 0,
 ) -> PyType:
-    global indent
+    if verbose:
+        print(depth * "  ", c_obj, py_type, info)
     if False:
         pass
     elif c_obj.__class__.__name__ == "PointerStruct":
-        # Unfortunately, `list[int] is not list`
         assert py_type.__name__ == "list" or py_type is str, (type(c_obj), py_type)
         if py_type.__name__ == "list":
             inner_py_type = py_type.__args__[0]  # type: ignore
@@ -451,11 +456,27 @@ def convert_c_obj_to_py_obj(
             return "".join(lst) # type: ignore
         else:
             return lst
+    elif isinstance(c_obj, ctypes.Array):
+        assert isinstance(py_type, types.GenericAlias) and py_type.__origin__ is tuple and (py_type.__args__)
+        inner_py_type = py_type.__args__[0]
+        all(inner_py_type == arg for arg in py_type.__args__)
+        return list(
+            convert_c_obj_to_py_obj(
+                inner_c_obj,
+                inner_py_type,
+                info,
+                memory,
+                depth + 1,
+            )
+            for inner_c_obj in c_obj
+        )
     elif isinstance(c_obj, ctypes.Structure):
         if not dataclasses.is_dataclass(py_type):
             raise TypeError(f"If {type(c_obj)} is a struct, then {py_type} should be a dataclass")
         fields = dict[str, typing.Any]()
         for py_field in dataclasses.fields(py_type):
+            if verbose:
+                print(depth * "  ", py_field.name)
             fields[py_field.name] = convert_c_obj_to_py_obj(
                 getattr(c_obj, py_field.name),
                 py_field.type,

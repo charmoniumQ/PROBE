@@ -41,37 +41,24 @@ OpCode: enum.EnumType = py_types[("enum", "OpCode")]
 
 @dataclasses.dataclass
 class ThreadProvLog:
-    sams_thread_id: int
+    tid: int
     ops: typing.Sequence[Op]  # type: ignore
-
-    @property
-    def init_op(self) -> InitThreadOp:
-        init_op = self.ops[1 if isinstance(self.ops[0].data, InitExecEpochOp) else 0].data
-        assert isinstance(init_op, InitThreadOp)
-        return init_op
 
 
 @dataclasses.dataclass
 class ExecEpochProvLog:
-    exec_epoch: int
+    epoch: int
     threads: typing.Mapping[int, ThreadProvLog]
-
-    @property
-    def init_op(self) -> InitThreadOp:
-        init_op = self.threads[0][0]
-        assert isinstance(init_op, InitExecEpochOp)
-        return init_op
 
 
 @dataclasses.dataclass
 class ProcessProvLog:
     pid: int
-    birth_time: int
     exec_epochs: typing.Mapping[int, ExecEpochProvLog]
 
 
 @dataclasses.dataclass
-class ProcessTreeProvLog:
+class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
 
 
@@ -94,8 +81,7 @@ def parse_segments(op_segments: arena.MemorySegments, data_segments: arena.Memor
                 OpCode.readdir_op_code: ("readdir", None),
                 OpCode.wait_op_code: ("wait", None),
                 OpCode.getrusage_op_code: ("getrusage", None),
-                OpCode.chown_op_code: ("chown", None),
-                OpCode.chmod_op_code: ("chmod", None),
+                OpCode.update_metadata_op_code: ("update_metadata", None),
                 OpCode.read_link_op_code: ("read_link", None),
             }
             return op_code_to_union_variant[fields["op_code"]]
@@ -111,66 +97,41 @@ def parse_segments(op_segments: arena.MemorySegments, data_segments: arena.Memor
             py_op = struct_parser.convert_c_obj_to_py_obj(c_op, Op, info, memory)
             assert isinstance(py_op, Op)
             ops.append(py_op)
-    thread_op_idx = 1 if isinstance(ops[0].data, InitExecEpochOp) else 0
-    assert isinstance(ops[thread_op_idx].data, InitThreadOp)
-    return ThreadProvLog(ops[thread_op_idx].data.sams_thread_id, ops)
+    tid = next(
+        op.data.tid
+        for op in ops
+        if isinstance(op.data, InitThreadOp)
+    )
+    return ThreadProvLog(tid, ops)
 
 
-def parse_probe_log_dir(probe_log_dir: pathlib.Path) -> ProcessTreeProvLog:
-    processes = dict[int, ProcessProvLog]()
-    for f0 in probe_log_dir.iterdir():
-        for f1 in f0.iterdir():
-            for f2 in f1.iterdir():
-                exec_epochs = dict[int, ExecEpochProvLog]()
-                for f3 in f2.iterdir():
-                    threads = dict[int, ThreadProvLog]()
-                    for f4 in f3.iterdir():
-                        assert (f4 / "data").exists()
-                        assert (f4 / "ops").exists()
-                        data_segments = arena.parse_arena_dir(f4 / "data")
-                        op_segments = arena.parse_arena_dir(f4 / "ops")
-                        thread_prov = parse_segments(op_segments, data_segments)
-                        threads[thread_prov.init_op.sams_thread_id] = thread_prov
-                    if threads:
-                        epoch = threads.values()[0].init_op.exec_epoch
-                        exec_epochs[epoch] = ExecEpochProvLog(epoch, threads)
-                if exec_epochs:
-                    processes[exec_epoch.init_op.pid] = ProcessProvLog(
-                        exec_epoch.init_op.pid,
-                        exec_epoch.init_op.pid.birth_time.tv_sec * 10**9 + exec_epoch.init_op.pid.birth_time.tv_nsec,
-                        exec_epochs,
-                    )
-    return ProcessTreeProvLog(processes)
-
-
-def parse_probe_log_tar(probe_log_tar: tarfile.TarFile) -> ProcessTreeProvLog:
+def parse_probe_log_tar(probe_log_tar: tarfile.TarFile) -> ProvLog:
     member_paths = sorted([
         pathlib.Path(name)
         for name in probe_log_tar.getnames()
     ])
-    threads = collections.defaultdict[(int, float), dict[int, dict[int, ThreadProvLog]]](
+    threads = collections.defaultdict[int, dict[int, dict[int, ThreadProvLog]]](
         lambda: collections.defaultdict[int, dict[int, ThreadProvLog]](
             collections.defaultdict[dict[int, ThreadProvLog]]
         )
     )
     for member in member_paths:
-        if len(member.parts) == 5:
+        if len(member.parts) == 3:
             assert member / "ops" in member_paths
             assert member / "data" in member_paths
             op_segments = arena.parse_arena_dir_tar(probe_log_tar, member / "ops")
             data_segments = arena.parse_arena_dir_tar(probe_log_tar, member / "data")
+            pid, epoch, tid = map(int, member.parts)
             thread = parse_segments(op_segments, data_segments)
-            op = thread.init_op
-            process_id = (op.process_id, op.process_birth_time.tv_sec * 10**9 + op.process_birth_time.tv_nsec)
-            threads[process_id][op.exec_epoch][op.sams_thread_id] = thread
-    return ProcessTreeProvLog({
-        process_id: ProcessProvLog(
-            process_id[0],
-            process_id[1],
+            assert tid == thread.tid
+            threads[pid][epoch][tid] = thread
+    return ProvLog({
+        pid: ProcessProvLog(
+            pid,
             {
-                exec_epoch_id: ExecEpochProvLog(exec_epoch_id, threads)
-                for exec_epoch_id, threads in exec_epochs.items()
+                epoch: ExecEpochProvLog(epoch, threads)
+                for epoch, threads in epochs.items()
             },
         )
-        for process_id, exec_epochs in threads.items()
+        for pid, epochs in threads.items()
     })

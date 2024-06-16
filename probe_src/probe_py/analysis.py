@@ -81,7 +81,7 @@ def construct_process_graph(process_tree_prov_log: ProcessTreeProvLog):
             # is clone happens link the node to the first node of the next process/thread
             exec_edges.append((node, first(*target)))
         elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
-            # Always wait for thread 0 of the last exec epoch
+            # Always wait for main thread of the last exec epoch
             if op.ferrno == 0:
                 target = (op.ret, -1, last_exec_epoch.get(op.ret, 0), 0)
                 fork_join_edges.append((last(*target), node))
@@ -89,7 +89,7 @@ def construct_process_graph(process_tree_prov_log: ProcessTreeProvLog):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, _time, exid + 1, 0
             fork_join_edges.append((node, first(*target)))
-
+            
     # Make the main thread exit at the same time as each thread
     for (pid, _time), process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
