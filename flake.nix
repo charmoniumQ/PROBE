@@ -21,6 +21,7 @@
                 pypkgs.pygraphviz
                 pypkgs.networkx
                 pypkgs.ipython
+                pypkgs.pydot                
               ]))
               pkgs.gcc
               pkgs.gdb
