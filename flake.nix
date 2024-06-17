@@ -1,17 +1,20 @@
 {
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+  }:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
         pkgs = nixpkgs.legacyPackages.${system};
         python312-debug = pkgs.python312.overrideAttrs (self: super: {
           configureFlags = super.configureFlags ++ ["--with-pydebug"];
         });
-      in
-      {
+      in {
         packages = {
-          python-dbg = (python312-debug.withPackages (pypkgs: [
+          python-dbg = python312-debug.withPackages (pypkgs: [
             pypkgs.typer
             pypkgs.pycparser
             pypkgs.pytest
@@ -19,7 +22,7 @@
             pypkgs.pygraphviz
             pypkgs.networkx
             pypkgs.ipython
-          ]));
+          ]);
         };
         devShells = {
           default = pkgs.mkShell {
@@ -38,6 +41,7 @@
               pkgs.coreutils
               pkgs.bash
               pkgs.xdot
+              pkgs.alejandra
             ];
           };
         };
