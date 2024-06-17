@@ -1,6 +1,7 @@
 
 # cache directories
 **/.mypy_cache
+**/.direnv
 **/.cache
 
 # build directories
