@@ -1,1 +1,15 @@
+
+# cache directories
 **/.mypy_cache
+**/.direnv
+**/.cache
+
+# build directories
+**/target
+**/result
+
+# system debris
+**/.DS_Store
+**/.directory
+**/.Trash*
+**/desktop.ini
