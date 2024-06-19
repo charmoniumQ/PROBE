@@ -88,18 +88,27 @@ static int get_exec_epoch_safe() {
     return __exec_epoch;
 }
 
-static int mkdir_and_descend(int dirfd, long child, bool exists, bool close) {
-    static char buffer[signed_long_string_size + 1];
+static int mkdir_and_descend(int dirfd, long child, bool mkdir, bool close) {
+    char buffer[signed_long_string_size + 1];
     CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
-    if (!exists) {
+    if (mkdir) {
         int mkdir_ret = unwrapped_mkdirat(dirfd, buffer, 0777);
         if (mkdir_ret != 0) {
-            ERROR("Cannot mkdir %s/%ld", dirfd_path(dirfd), child);
+            int saved_errno = errno;
+#ifndef NDEBUG
+            listdir(dirfd_path(dirfd), 2);
+#endif
+            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(dirfd), child, strerror(saved_errno));
         }
     }
     int sub_dirfd = unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY);
     if (sub_dirfd == -1) {
-        ERROR("Cannot openat %s/%ld", dirfd_path(dirfd), child);
+        int saved_errno = errno;
+#ifndef NDEBUG
+        listdir(dirfd_path(dirfd), 2);
+#endif
+        DEBUG("dirfd=%d buffer=\"%s\"", dirfd, buffer);
+        ERROR("Cannot openat %s/%ld (did we do mkdir? %d): %s", dirfd_path(dirfd), child, mkdir, strerror(saved_errno));
     }
     if (close) {
         EXPECT(== 0, unwrapped_close(dirfd));
@@ -112,19 +121,21 @@ static int __epoch_dirfd = initial_epoch_dirfd;
 static const char* probe_dir_env_var = PRIVATE_ENV_VAR_PREFIX "DIR";
 static char __probe_dir[PATH_MAX + 1];
 static void init_probe_dir() {
-    // Get initial probe dir
-    const char* probe_dir_env_val = debug_getenv(probe_dir_env_var);
-    if (!probe_dir_env_val) {
-        ERROR("Internal environment variable \"%s\" not set", probe_dir_env_var);
+    assert(__epoch_dirfd == initial_epoch_dirfd);
+    if (__probe_dir[0] == '\0') {
+        // Get initial probe dir
+        const char* probe_dir_env_val = debug_getenv(probe_dir_env_var);
+        if (!probe_dir_env_val) {
+            ERROR("Internal environment variable \"%s\" not set", probe_dir_env_var);
+        }
+        strncpy(__probe_dir, probe_dir_env_val, PATH_MAX);
+        if (__probe_dir[0] != '/') {
+            ERROR("PROBE dir \"%s\" is not absolute", __probe_dir);
+        }
+        if (!is_dir(__probe_dir)) {
+            ERROR("PROBE dir \"%s\" is not a directory", __probe_dir);
+        }
     }
-    strncpy(__probe_dir, probe_dir_env_val, PATH_MAX);
-    if (__probe_dir[0] != '/') {
-        ERROR("PROBE dir \"%s\" is not absolute", __probe_dir);
-    }
-    if (!is_dir(__probe_dir)) {
-        ERROR("PROBE dir \"%s\" is not a directory", __probe_dir);
-    }
-
     int probe_dirfd = unwrapped_openat(AT_FDCWD, __probe_dir, O_RDONLY | O_DIRECTORY);
     if (probe_dirfd < 0) {
         ERROR("Could not open \"%s\"", __probe_dir);
@@ -132,12 +143,13 @@ static void init_probe_dir() {
 
     DEBUG("probe_dir = \"%s\"", __probe_dir);
 
-    DEBUG("Going to %s/%d/%d", __probe_dir, getpid(), get_exec_epoch());
-    int pid_dirfd = mkdir_and_descend(probe_dirfd, getpid(), get_exec_epoch() != 0, true);
-    __epoch_dirfd = mkdir_and_descend(pid_dirfd, get_exec_epoch(), gettid() != getpid(), true);
+    int pid_dirfd = mkdir_and_descend(probe_dirfd, getpid(), get_exec_epoch() == 0, true);
+    __epoch_dirfd = mkdir_and_descend(pid_dirfd, get_exec_epoch(), my_gettid() == getpid(), true);
+    DEBUG("__epoch_dirfd=%d (%s/%d/%d)", __epoch_dirfd, __probe_dir, getpid(), get_exec_epoch());
 }
 static int get_epoch_dirfd() {
     assert(__epoch_dirfd != initial_epoch_dirfd);
+    assert(fd_is_valid(__epoch_dirfd));
     return __epoch_dirfd;
 }
 
@@ -147,8 +159,8 @@ static const size_t prov_log_arena_size = 64 * 1024;
 static void init_log_arena() {
     assert(!arena_is_initialized(&__op_arena));
     assert(!arena_is_initialized(&__data_arena));
-    DEBUG("Going to %s/%d/%d/%d", __probe_dir, getpid(), get_exec_epoch(), gettid());
-    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), gettid(), false, false);
+    DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", __probe_dir, getpid(), get_exec_epoch(), my_gettid(), true);
+    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), gettid(), true, false);
     EXPECT( == 0, arena_create(&__op_arena, thread_dirfd, "ops", prov_log_arena_size));
     EXPECT( == 0, arena_create(&__data_arena, thread_dirfd, "data", prov_log_arena_size));
 }
@@ -183,6 +195,8 @@ static void init_thread_global_state() {
 static void reinit_process_global_state() {
     __is_proc_root = 0;
     __exec_epoch = 0;
+    __epoch_dirfd = initial_epoch_dirfd;
+    init_probe_dir();
 }
 
 static void reinit_thread_global_state() {
@@ -203,6 +217,7 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
         exec_epoch_env_var,
         pid_env_var,
         probe_dir_env_var,
+        /* TODO: include LD_PRELOAD */
     };
     char exec_epoch_str[unsigned_int_string_size];
     CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());
@@ -276,6 +291,10 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
 }
 
 static void putenv_probe_vars() {
+    /* TODO: We shouldn't doo this.
+     * Because it makes observable changes to the parent process.
+     * Instead, we should turn execv into execve and use update_env_with_probe_vars(copy(environ)). */
+
     /* Define env vars we care about */
     const char* probe_vars[] = {
         is_proc_root_env_var,

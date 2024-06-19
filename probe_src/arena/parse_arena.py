@@ -17,7 +17,7 @@ class MemorySegment:
         self._check()
 
     def _check(self) -> None:
-        assert self.stop > self.start
+        assert self.stop >= self.start
         assert len(self.buffr) == self.stop - self.start
 
     @property

@@ -32,7 +32,11 @@
 #define SOURCE_VERSION ""
 #endif
 
-#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d: ", getpid(), get_exec_epoch_safe(), gettid())
+static pid_t my_gettid(){
+    return syscall(SYS_gettid);
+}
+
+#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d: ", getpid(), get_exec_epoch_safe(), my_gettid())
 
 #define __LOG_SOURCE() fprintf(stderr, SOURCE_VERSION ":" __FILE__ ":%d:%s(): ", __LINE__, __func__)
 
@@ -153,7 +157,7 @@ extern char** environ;
 #define printenv() ((void)0)
 #endif
 
-const char* getenv_copy(const char* name) {
+static const char* getenv_copy(const char* name) {
     /* Validate input */
     assert(name != NULL);
     assert(strchr(name, '=') == NULL);
@@ -196,7 +200,7 @@ const char* getenv_copy(const char* name) {
 #define debug_getenv getenv_copy
 #endif
 
-bool is_dir(const char* dir) {
+static bool is_dir(const char* dir) {
     struct statx statx_buf;
     int statx_ret = unwrapped_statx(AT_FDCWD, dir, 0, STATX_TYPE, &statx_buf);
     if (statx_ret != 0) {
@@ -206,10 +210,40 @@ bool is_dir(const char* dir) {
     }
 }
 
-OWNED const char* dirfd_path(int dirfd) {
+static OWNED const char* dirfd_path(int dirfd) {
     static char dirfd_proc_path[PATH_MAX];
-    CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fds/%d", dirfd);
+    CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fd/%d", dirfd);
     char* resolved_buffer = malloc(PATH_MAX);
     const char* ret = unwrapped_realpath(dirfd_proc_path, resolved_buffer);
     return ret;
 }
+
+#ifndef NDEBUG
+static int fd_is_valid(int fd) {
+    return unwrapped_fcntl(fd, F_GETFD) != -1 || errno != EBADF;
+}
+
+static void listdir(const char* name, int indent) {
+    // https://stackoverflow.com/a/8438663
+    DIR *dir;
+    struct dirent *entry;
+
+    if (!(dir = unwrapped_opendir(name)))
+        return;
+
+    while ((entry = unwrapped_readdir(dir)) != NULL) {
+        if (entry->d_type == DT_DIR) {
+            char path[1024];
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                continue;
+            snprintf(path, sizeof(path), "%s/%s", name, entry->d_name);
+            DEBUG("%*s%s/", indent, "", entry->d_name);
+            listdir(path, indent + 2);
+        } else {
+            DEBUG("%*s%s", indent, "", entry->d_name);
+        }
+    }
+    unwrapped_closedir(dir);
+}
+
+#endif
