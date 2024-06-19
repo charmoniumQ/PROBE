@@ -8,7 +8,7 @@ program_order_edges = list[tuple[Node, Node]]()
 fork_join_edges = list[tuple[Node, Node]]()
 exec_edges = list[tuple[Node, Node]]()
 
-def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.digraph:
+def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     nodes = list[Node]()
     # program_order_edges = list[tuple[Node, Node]]()
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
@@ -99,7 +99,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.digraph:
     add_edges(process_graph, fork_join_edges)
     return process_graph
 
-def digraph_to_pydot_string(process_graph: nx.digraph) -> str:
+def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
     def add_color_to_edges(graph, edges, color):
         for node0, node1 in edges:
             node_0 = (node0[0], node0[1], node0[2], node0[4])
