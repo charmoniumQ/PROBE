@@ -66,7 +66,7 @@ struct InitExecEpochOp init_current_exec_epoch() {
 
 static struct InitThreadOp init_current_thread() {
     struct InitThreadOp ret = {
-        .tid = gettid(),
+        .tid = my_gettid(),
     };
     return ret;
 }

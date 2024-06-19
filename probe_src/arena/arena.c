@@ -23,7 +23,7 @@
 #define ARENA_PERROR
 #endif
 
-#ifndef USE_UNWRAPPED_LIBC
+#ifndef ARENA_USE_UNWRAPPED_LIBC
 #define unwrapped_mkdirat mkdirat
 #define unwrapped_openat openat
 #define unwrapped_close close
@@ -82,7 +82,7 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     int ret = unwrapped_ftruncate(fd, capacity);
     if (ret != 0) {
 #ifdef ARENA_PERROR
-        perror("__arena_reinstantiate: openat");
+        perror("__arena_reinstantiate: ftruncate");
 #endif
         return -1;
     }
@@ -216,6 +216,9 @@ static int arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name
     /* O_PATH means the resulting fd cannot be read/written to. It can be used as the dirfd to *at() syscall functions. */
     struct __ArenaListElem* tail = malloc(sizeof(struct __ArenaListElem));
     if (!tail) {
+#ifdef ARENA_PERROR
+        perror("arena_create: malloc");
+#endif
         return -1;
     }
     /* malloc here corresponds to free in arena_destroy */

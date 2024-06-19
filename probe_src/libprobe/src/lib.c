@@ -60,7 +60,8 @@ static __thread bool __thread_inited = false;
 
 #include "../include/prov_ops.h"
 
-#define USE_UNWRAPPED_LIBC
+#define ARENA_USE_UNWRAPPED_LIBC
+#define ARENA_PERROR
 #include "../../arena/arena.c"
 
 #include "global_state.c"
@@ -83,8 +84,11 @@ static void check_function_pointers() {
     assert(unwrapped_statx);
 }
 
+static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
+
 static void maybe_init_thread() {
     if (unlikely(!__thread_inited)) {
+        EXPECT(== 0, pthread_mutex_unlock(&init_lock));
         bool was_process_inited = __process_inited;
         prov_log_disable();
         {
@@ -98,6 +102,7 @@ static void maybe_init_thread() {
             DEBUG("Initializing thread");
             init_thread_global_state();
         }
+        EXPECT(== 0, pthread_mutex_lock(&init_lock));
         prov_log_enable();
         __thread_inited = true;
 
