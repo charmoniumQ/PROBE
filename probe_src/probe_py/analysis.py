@@ -79,7 +79,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 fork_join_edges.append((last(*target), node))
         elif isinstance(op, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
-            target = pid, exid + 1, 0
+            target = pid, exid + 1, pid
             fork_join_edges.append((node, first(*target)))
             
     # Make the main thread exit at the same time as each thread
