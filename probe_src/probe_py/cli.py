@@ -93,9 +93,8 @@ def process_graph(
     probe_log_tar_obj = tarfile.open(input, "r")
     process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
+    print(analysis.construct_process_graph(process_tree_prov_log))
     
-    analysis.construct_process_graph(process_tree_prov_log)
-    print("Created a Networkx process graph. Result in file ./processgraph")
 
 
 @app.command()
