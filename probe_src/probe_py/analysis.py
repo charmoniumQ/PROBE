@@ -1,14 +1,19 @@
 import typing
 import networkx as nx
 from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, CLONE_THREAD
+from enum import IntEnum
 
-# [pid, exec_epoch_no, tid, op_index]
-Node: typing.TypeAlias = tuple[int, int, int, int]
-program_order_edges = list[tuple[Node, Node]]()
-fork_join_edges = list[tuple[Node, Node]]()
-exec_edges = list[tuple[Node, Node]]()
+class EdgeLabels(IntEnum):
+    PROGRAM_ORDER = 1
+    FORK_JOIN = 2
+    EXEC = 3
 
 def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
+    # [pid, exec_epoch_no, tid, op_index]
+    Node: typing.TypeAlias = tuple[int, int, int, int]
+    program_order_edges = list[tuple[Node, Node]]()
+    fork_join_edges = list[tuple[Node, Node]]()
+    exec_edges = list[tuple[Node, Node]]()
     nodes = list[Node]()
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
@@ -21,10 +26,8 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
             for tid, thread in exec_epoch.threads.items():
                 context = (pid, exec_epoch_no, tid)
                 ops = list[Node]()
-                
                 # Filter just the ops we are interested in
                 op_index = 0
-                
                 for op in thread.ops:
                     if isinstance(op.data, CloneOp | ExecOp | WaitOp):
                         ops.append((*context, op_index))
@@ -90,23 +93,26 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for node in nodes:
         process_graph.add_node(node)
 
-    def add_edges(graph, edges):
+    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels):
         for node0, node1 in edges:
-            graph.add_edge(node0, node1)
+            process_graph.add_edge(node0, node1, label=label)
     
-    add_edges(process_graph, program_order_edges)
-    add_edges(process_graph, exec_edges)
-    add_edges(process_graph, fork_join_edges)
+    add_edges(program_order_edges, EdgeLabels.PROGRAM_ORDER)
+    add_edges(exec_edges, EdgeLabels.EXEC)
+    add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
     return process_graph
 
 def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
-    def add_color_to_edges(graph, edges, color):
-        for node0, node1 in edges:
-            graph[node0][node1]['color'] = color
-    
-    add_color_to_edges(process_graph, program_order_edges, 'green')
-    add_color_to_edges(process_graph, exec_edges, 'yellow')
-    add_color_to_edges(process_graph, fork_join_edges, 'red')
+
+    label_color_map = {
+    EdgeLabels.EXEC: 'yellow',
+    EdgeLabels.FORK_JOIN: 'red',
+    EdgeLabels.PROGRAM_ORDER: 'green',
+    }
+
+    for node0, node1, attrs in process_graph.edges(data=True):
+        label:EdgeLabels = attrs['label']
+        process_graph[node0][node1]['color'] = label_color_map[label]
     pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
     dot_string = pydot_graph.to_string()
     return dot_string
