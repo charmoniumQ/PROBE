@@ -1,44 +1,48 @@
 import typing
-import networkx
+import networkx as nx
 from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, CLONE_THREAD
+from enum import IntEnum
 
+class EdgeLabels(IntEnum):
+    PROGRAM_ORDER = 1
+    FORK_JOIN = 2
+    EXEC = 3
 
-def construct_process_graph(process_tree_prov_log: ProvLog) -> str:
-    """
-    Construct a happens-before graph from process_tree_prov_log
-
-    The graph shows the order that prov ops happen.
-    """
-    Node: typing.TypeAlias = tuple[int, int, int, Op | str]
-    nodes = list[Node]()
+def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
+    # [pid, exec_epoch_no, tid, op_index]
+    Node: typing.TypeAlias = tuple[int, int, int, int]
     program_order_edges = list[tuple[Node, Node]]()
+    fork_join_edges = list[tuple[Node, Node]]()
+    exec_edges = list[tuple[Node, Node]]()
+    nodes = list[Node]()
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
-
     for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            # to find the last executing epoch of the process
             last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
 
             # Reduce each thread to the ops we actually care about
             for tid, thread in exec_epoch.threads.items():
                 context = (pid, exec_epoch_no, tid)
-
+                ops = list[Node]()
                 # Filter just the ops we are interested in
-                ops = [
-                    (*context, op.data)
-                    for op in thread.ops
-                    if isinstance(op.data, CloneOp | ExecOp | WaitOp)
-                ]
+                op_index = 0
+                for op in thread.ops:
+                    if isinstance(op.data, CloneOp | ExecOp | WaitOp):
+                        ops.append((*context, op_index))
+                    op_index+=1
 
                 nodes.extend(ops)
                 program_order_edges.extend(zip(ops[:-1], ops[1:]))
-
+                
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
 
-    def first(pid: int, exid: int, tid: int) -> Op:
+    def first(pid: int, exid: int, tid: int) -> Node:
         if not proc_to_ops.get((pid, exid, tid)):
-            entry_node = (pid, exid, tid, "<entry>")
+            entry_node = (pid, exid, tid, -1)
+            # as Op object is not available, op_index will be -1
             proc_to_ops[(pid, exid, tid)] = [entry_node]
             nodes.append(entry_node)
             return entry_node
@@ -47,22 +51,19 @@ def construct_process_graph(process_tree_prov_log: ProvLog) -> str:
 
     def last(pid: int, exid: int, tid: int) -> Node:
         if not proc_to_ops.get((pid, exid, tid)):
-            exit_node = (pid, exid, tid, "<exit>")
+            # as Op object is not availaible, op_index will be -1
+            exit_node = (pid, exid, tid, -1)
             proc_to_ops[(pid, exid, tid)] = [exit_node]
             nodes.append(exit_node)
             return exit_node
         else:
             return proc_to_ops[(pid, exid, tid)][-1]
 
-    fork_join_edges = list[tuple[Node, Node]]()
-    exec_edges = list[tuple[Node, Node]]()
-
     # Hook up forks/joins
     for node in list(nodes):
-        pid, exid, tid, op = node
-        if False:
-            pass
-        elif isinstance(op, CloneOp):
+        pid, exid, tid, op_index = node
+        op = process_tree_prov_log.processes[pid].exec_epochs[exid].threads[tid].ops[op_index].data
+        if isinstance(op, CloneOp):
             if op.flags & CLONE_THREAD:
                 # Spawning a thread links to the current PID and exec epoch
                 target = (pid, exid, op.child_thread_id)
@@ -78,40 +79,51 @@ def construct_process_graph(process_tree_prov_log: ProvLog) -> str:
                 fork_join_edges.append((last(*target), node))
         elif isinstance(op, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
-            target = pid, exid + 1, 0
+            target = pid, exid + 1, pid
             fork_join_edges.append((node, first(*target)))
-
-    # # Make the main thread exit at the same time as each thread
+            
+    # Make the main thread exit at the same time as each thread
     for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             for tid, thread in exec_epoch.threads.items():
                 if tid != 0:
-                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, pid)))
+                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
 
-    def node_to_label(node: Node) -> str:
-        inner_label = node[3] if isinstance(node[3], str) else node[3].__class__.__name__
-        return f"{node[0]} {node[1]} {node[2]} {inner_label}"
+    process_graph = nx.DiGraph()
+    for node in nodes:
+        process_graph.add_node(node)
 
-    def node_to_id(node: Node) -> str:
-        return f"\"node_{node[0]}_{node[1]}_{node[2]}_{id(node[3])}\""
+    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels):
+        for node0, node1 in edges:
+            process_graph.add_edge(node0, node1, label=label)
+    
+    add_edges(program_order_edges, EdgeLabels.PROGRAM_ORDER)
+    add_edges(exec_edges, EdgeLabels.EXEC)
+    add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
+    return process_graph
 
-    return "\n".join([
-        "strict digraph {",
-        *[
-            f"  {node_to_id(node)} [label=\"{node_to_label(node)}\"];"
-            for node in nodes
-        ],
-        *[
-            f"  {node_to_id(node0)} -> {node_to_id(node1)} [color=\"green\"];"
-            for node0, node1 in program_order_edges
-        ],
-        *[
-            f"  {node_to_id(node0)} -> {node_to_id(node1)} [color=\"yellow\"];"
-            for node0, node1 in exec_edges
-        ],
-        *[
-            f"  {node_to_id(node0)} -> {node_to_id(node1)} [color=\"red\"];"
-            for node0, node1 in fork_join_edges
-        ],
-        "}",
-    ])
+def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
+
+    label_color_map = {
+    EdgeLabels.EXEC: 'yellow',
+    EdgeLabels.FORK_JOIN: 'red',
+    EdgeLabels.PROGRAM_ORDER: 'green',
+    }
+
+    for node0, node1, attrs in process_graph.edges(data=True):
+        label:EdgeLabels = attrs['label']
+        process_graph[node0][node1]['color'] = label_color_map[label]
+    pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
+    dot_string = pydot_graph.to_string()
+    return dot_string
+
+
+def construct_process_graph(process_tree_prov_log: ProvLog) -> str:
+    """
+    Construct a happens-before graph from process_tree_prov_log
+
+    The graph shows the order that prov ops happen.
+    """
+
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    return digraph_to_pydot_string(process_graph)
