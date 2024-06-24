@@ -62,6 +62,8 @@ enum Command {
 
 fn main() -> Result<()> {
     color_eyre::install()?;
+    env_logger::Builder::from_env(env_logger::Env::new().filter_or("__PROBE_LOG", "warn")).init();
+    log::info!("Logger Facility Initialized");
 
     match Cli::parse().command {
         Command::Record {
@@ -94,6 +96,7 @@ fn main() -> Result<()> {
             .wrap_err("unable to canonicalize lib path")?;
 
             if debug || gdb {
+                log::debug!("Using debug version of libprobe");
                 ld_preload.push("libprobe-dbg.so");
             } else {
                 ld_preload.push("libprobe.so");
@@ -143,7 +146,7 @@ fn main() -> Result<()> {
                     log::error!("Failed to create output file: {}", e);
 
                     let path = format!(
-                        "probe_log_{}_{}",
+                        "./probe_log_{}_{}",
                         std::process::id(),
                         std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
@@ -151,8 +154,8 @@ fn main() -> Result<()> {
                             .as_secs()
                     );
 
-                    let tmp =
-                        File::create_new(&path).wrap_err("Failed to create backup output file");
+                    let tmp = File::create_new(&path)
+                        .wrap_err(format!("Failed to create backup output file '{}'", path));
 
                     log::error!("backup output file '{}' will be used instead", &path);
 
@@ -191,8 +194,7 @@ fn main() -> Result<()> {
             }
 
             Ok::<(), Report>(())
-        }
-        .wrap_err("Record command failed"),
+        },
         Command::Dump { input } => {
             let file = flate2::read::GzDecoder::new(File::open(&input).wrap_err(format!(
                 "Failed to open input file '{}'",
@@ -214,7 +216,8 @@ fn main() -> Result<()> {
                         .ok_or_else(|| eyre!("Tarball entry path not valid UTF-8"))?
                         .to_owned();
 
-                    if path == "_metadata" {
+
+                    if path == "0_metadata" {
                         return Ok(());
                     }
 
@@ -268,7 +271,6 @@ fn main() -> Result<()> {
 
                     Ok(())
                 })
-        }
-        .wrap_err("Dump command failed"),
+        },
     }
 }
