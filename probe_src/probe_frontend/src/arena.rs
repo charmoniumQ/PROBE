@@ -68,7 +68,7 @@ impl<'a> OpsArena<'a> {
 
         let count = (header.used - size_of::<ArenaHeader>()) / size_of::<ffi::Op>();
 
-        log::debug!("[unsafe] converting Vec<u8> to &[ffi::Op]");
+        log::debug!("[unsafe] converting Vec<u8> to &[ffi::Op] of size {}", count);
         let ops = unsafe {
             let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const ffi::Op;
             std::slice::from_raw_parts(ptr, count)
