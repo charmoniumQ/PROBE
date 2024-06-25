@@ -324,7 +324,7 @@ impl OpInternal {
         value: &ffi::Op__bindgen_ty_1,
         ctx: &ArenaContext,
     ) -> Result<Self> {
-        log::debug!("[unsafe] decoding Op tagged union");
+        log::debug!("[unsafe] decoding Op tagged union [ OpCode={} ]", kind);
         Ok(match kind {
             ffi::OpCode_init_process_op_code => {
                 Self::InitProcess(unsafe { value.init_process_epoch })

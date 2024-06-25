@@ -1,5 +1,5 @@
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -46,8 +46,6 @@ mod arena;
 
 /// System metadata recorded into probe logs.
 mod metadata;
-
-
 
 /// Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.
 #[derive(clap::Parser, Debug, Clone)]
@@ -120,9 +118,13 @@ fn main() -> Result<()> {
                     },
                 };
             }
+            let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(
+                File::create_new(output).wrap_err("Failed to create output file")?,
+                Compression::default(),
+            ));
 
             // the path to the libprobe.so directory is searched for as follows:
-            // - --lib-path argument if set 
+            // - --lib-path argument if set
             // - __PROBE_LIB env var if set
             // - /usr/share/probe
             // - error
@@ -149,72 +151,43 @@ fn main() -> Result<()> {
             } else {
                 ld_preload.push("libprobe.so");
             }
-            
-            // append any exiting LD_PRELOAD overrides
+
+            // append any existing LD_PRELOAD overrides
             if let Some(x) = std::env::var_os("LD_PRELOAD") {
                 ld_preload.push(":");
                 ld_preload.push(&x);
             }
 
-            let dir = tempfile::tempdir().wrap_err("Failed to create arena directory")?;
+            let arena_dir = tempfile::tempdir().wrap_err("Failed to create arena directory")?;
 
-            let mut popen = if gdb {
+            let mut child = if gdb {
                 let mut dir_env = OsString::from("__PROBE_DIR=");
-                dir_env.push(dir.path());
+                dir_env.push(arena_dir.path());
                 let mut preload_env = OsString::from("LD_PRELOAD=");
                 preload_env.push(ld_preload);
 
-                subprocess::Exec::cmd("gdb")
-                    .args(&[
-                        OsStr::new("--args"),
-                        OsStr::new("env"),
-                        &dir_env,
-                        &preload_env,
-                    ])
+                std::process::Command::new("gdb")
+                    .arg("--args")
+                    .arg("env")
+                    .arg(dir_env)
+                    .arg(preload_env)
                     .args(&cmd)
+                    .env_remove("__PROBE_LIB")
+                    .env_remove("__PROBE_LOG")
+                    .spawn()
+                    .wrap_err("Failed to launch gdb")?
             } else {
-                subprocess::Exec::cmd(&cmd[0])
+                std::process::Command::new(&cmd[0])
                     .args(&cmd[1..])
+                    .env_remove("__PROBE_LIB")
+                    .env_remove("__PROBE_LOG")
+                    .env("__PROBE_DIR", arena_dir.path())
                     .env("LD_PRELOAD", ld_preload)
-                    .env("__PROBE_DIR", dir.path())
-            }
-            .popen()
-            .wrap_err("Failed to launch process")?;
-
-            let metadata = metadata::Metadata::new(
-                popen
-                    .pid()
-                    .expect("just popened process should always have PID") as i32,
-            );
-
-            popen.wait().wrap_err("Error awaiting child process")?;
-
-            let file = match File::create_new(output) {
-                Ok(x) => x,
-                Err(e) => {
-                    log::error!("Failed to create output file: {}", e);
-
-                    let path = format!(
-                        "./probe_log_{}_{}",
-                        std::process::id(),
-                        std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .wrap_err("current system time before unix epoch")?
-                            .as_secs()
-                    );
-
-                    let tmp = File::create_new(&path)
-                        .wrap_err(format!("Failed to create backup output file '{}'", path));
-
-                    log::error!("backup output file '{}' will be used instead", &path);
-
-                    tmp
-                }
-                .wrap_err("Failed to create output dir")?,
+                    .spawn()
+                    .wrap_err("Failed to launch child process")?
             };
 
-            let mut tar =
-                tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
+            let metadata = metadata::Metadata::new(child.id() as i32);
 
             let outdir = tempfile::tempdir()?;
 
@@ -227,7 +200,27 @@ fn main() -> Result<()> {
                 )
                 .wrap_err("Error writing metadata")?;
 
-            arena::parse_arena_dir(dir.path(), &outdir)
+            match Path::read_dir(arena_dir.path()) {
+                Ok(x) => {
+                    if !(x
+                        .into_iter()
+                        .try_fold(false, |_, x| x.map(|x| x.path().exists()))?)
+                    {
+                        log::warn!(
+                            "No arean files detected, something is \
+                                    wrong, you should probably abort!"
+                        );
+                    }
+                }
+                Err(e) => {
+                    return Err(e).wrap_err(
+                        "Unable to read arena directory during post-startup sanity check",
+                    )
+                }
+            }
+
+            child.wait().wrap_err("Failed to await child process")?;
+            arena::parse_arena_dir(arena_dir.path(), &outdir)
                 .wrap_err("Unable to decode arena directory")?;
 
             tar.append_dir_all(".", &outdir)
@@ -238,12 +231,12 @@ fn main() -> Result<()> {
                 log::warn!("Failed to close output directory: {}", e);
             }
 
-            if let Err(e) = dir.close() {
+            if let Err(e) = arena_dir.close() {
                 log::warn!("Failed to close arena directory: {}", e);
             }
 
             Ok::<(), Report>(())
-        },
+        }
         Command::Dump { input } => {
             let file = flate2::read::GzDecoder::new(File::open(&input).wrap_err(format!(
                 "Failed to open input file '{}'",
@@ -264,7 +257,6 @@ fn main() -> Result<()> {
                         .to_str()
                         .ok_or_else(|| eyre!("Tarball entry path not valid UTF-8"))?
                         .to_owned();
-
 
                     if path == "_metadata" {
                         return Ok(());
@@ -320,6 +312,6 @@ fn main() -> Result<()> {
 
                     Ok(())
                 })
-        },
+        }
     }
 }
