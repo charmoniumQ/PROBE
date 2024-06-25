@@ -818,6 +818,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+<<<<<<< HEAD
  "thiserror",
 ]
 
@@ -829,6 +830,10 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+=======
+ "tar",
+ "tempfile",
+>>>>>>> 70649ba (Major refactor)
 ]
 
 [[package]]
