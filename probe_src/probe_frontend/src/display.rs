@@ -23,7 +23,7 @@ impl Display for ops::timeval {
 
 impl Display for ops::statx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ mask={}, blksize={}, attributes={}, nlink={}, uid={}, gid={}, \
             mode={:#06o} ino={}, size={}, blocks={}, attributes_mask={}, \
             atime={}, btime={}, ctime={}, mtime={}, rdev_major={}, \
@@ -51,13 +51,13 @@ impl Display for ops::statx {
             self.stx_mnt_id,
             self.stx_dio_mem_align,
             self.stx_dio_offset_align,
-        ))
+        )
     }
 }
 
 impl Display for ops::rusage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ utime={}, stime={}, maxrss={}, ixrss={}, idrss={}, isrss={}, \
             minflt={}, majflt={}, nswap={}, inblock={}, oublock={}, msgsnd={}, \
             msgrcv={}, nsignals={}, nvcsw={}, nivcsw={} ]",
@@ -77,13 +77,13 @@ impl Display for ops::rusage {
             self.ru_nsignals,
             self.ru_nvcsw,
             self.ru_nivcsw,
-        ))
+        )
     }
 }
 
 impl Display for ops::Path {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ dirfd_minus_at_fdcwd={}, path='{}', device_major={}, \
             device_minor={}, inode={}, mtime={}, ctime={}, stat_valid={}, \
             dirfd_valid={} ]",
@@ -96,13 +96,13 @@ impl Display for ops::Path {
             self.ctime,
             self.stat_valid,
             self.dirfd_valid,
-        ))
+        )
     }
 }
 
 impl Display for ops::CloneOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ flags={}, run_pthread_atfork_handlers={}, child_process_id={}, \
             child_thread_id={}, ferrno={} ]",
             self.flags,
@@ -110,168 +110,168 @@ impl Display for ops::CloneOp {
             self.child_process_id,
             self.child_thread_id,
             self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::CloseOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ low_fd={}, high_fd={}, ferrno={} ]",
             self.low_fd, self.high_fd, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::ExitOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ satus={}, run_atexit_handlers={} ]",
             self.status, self.run_atexit_handlers,
-        ))
+        )
     }
 }
 
 impl Display for ops::GetRUsageOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ waitpid_arg={}, getrusage_arg={}, usage={}, ferrno={} ]",
             self.waitpid_arg, self.getrusage_arg, self.usage, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::InitProcessOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("[ pid={} ]", self.pid))
+        write!(f,"[ pid={} ]", self.pid)
     }
 }
 
 impl Display for ops::InitThreadOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("[ tid={} ]", self.tid))
+        write!(f,"[ tid={} ]", self.tid)
     }
 }
 
 impl Display for ops::WaitOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ pid={}, options={}, status={}, ret={}, ferrno={} ]",
             self.pid, self.options, self.status, self.ret, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::InitExecEpochOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ epoch={}, program_name={} ]",
             self.epoch,
             self.program_name.to_string_lossy(),
-        ))
+        )
     }
 }
 
 impl Display for ops::OpenOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ path={}, flags={}, mode={:#06o} fd={}, ferrno={} ]",
             self.path, self.flags, self.mode, self.fd, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::ChdirOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ path={}, ferrno={} ]",
             self.path, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::ExecOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ path={}, ferrno={} ]",
             self.path, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::AccessOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ path={}, mode={:#06o}, flags={}, ferrno={} ]",
             self.path, self.mode, self.flags, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::StatOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ path={}, flags={}, statx_buf={}, ferrno={} ]",
             self.path, self.flags, self.statx_buf, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::ReaddirOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ dir={}, child='{}', all_children={}, ferrno={} ]",
             self.dir,
             self.child.to_string_lossy(),
             self.all_children,
             self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::Metadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ops::Metadata::Mode(mode) => f.write_fmt(format_args!("Mode[ mode={:#06o} ]", mode)),
+            ops::Metadata::Mode(mode) => write!(f,"Mode[ mode={:#06o} ]", mode),
             ops::Metadata::Ownership { uid, gid } => {
-                f.write_fmt(format_args!("Ownership[ uid={}, gid={} ]", uid, gid))
+                write!(f,"Ownership[ uid={}, gid={} ]", uid, gid)
             }
             ops::Metadata::Times {
                 is_null,
                 atime,
                 mtime,
-            } => f.write_fmt(format_args!(
+            } => write!(f,
                 "Times[ is_null={}, atime={}, mtime={} ]",
                 is_null, atime, mtime
-            )),
+            ),
         }
     }
 }
 
 impl Display for ops::UpdateMetadataOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ path={}, flags={}, metadata={}, ferrno={} ]",
             self.path, self.flags, self.metadata, self.ferrno,
-        ))
+        )
     }
 }
 
 impl Display for ops::ReadLinkOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(f,
             "[ path={}, resolved='{}', ferrno={} ]",
             self.path,
             self.resolved.to_string_lossy(),
             self.ferrno
-        ))
+        )
     }
 }
 
 impl Display for ops::OpInternal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn wfmt(f: &mut std::fmt::Formatter<'_>, x: &str, y: impl Display) -> std::fmt::Result {
-            f.write_fmt(format_args!("{}{}", x, y))
+            write!(f,"{}{}", x, y)
         }
 
         match self {
