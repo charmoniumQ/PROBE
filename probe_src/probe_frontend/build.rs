@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use bindgen::callbacks::ParseCallbacks;
 
 #[derive(Debug)]
-struct LibprobeCallback;
+struct SerdeDeriveCallback;
 
 fn derive_list(name: &str) -> bool {
     static DERIVE_LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
@@ -32,7 +32,7 @@ fn derive_list(name: &str) -> bool {
         .contains(name)
 }
 
-impl ParseCallbacks for LibprobeCallback {
+impl ParseCallbacks for SerdeDeriveCallback {
     fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
         if derive_list(info.name) {
             vec!["Serialize".to_owned(), "Deserialize".to_owned()]
@@ -64,12 +64,12 @@ fn main() {
             #include <sys/stat.h>
             #include <sys/types.h>
             #include <utime.h>
-            
-            // defining this manually instead of using <sys/resource.h> is a
-            // hack, but it greatly reduces the generated code complexity since
-            // in glibc all the long ints are unions over two types that both 
-            // alias to long int, this is done for kernel-userland compatibility
-            // reasons that don't matter here.
+
+            // HACK: defining this manually instead of using <sys/resource.h> is
+            // a huge hack, but it greatly reduces the generated code complexity
+            // since in glibc all the long ints are unions over two types that
+            // both alias to long int, this is done for kernel-userland
+            // compatibilityreasons that don't matter here.
             struct rusage {
                 struct timeval ru_utime;
                 struct timeval ru_stime;
@@ -104,7 +104,7 @@ fn main() {
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        .parse_callbacks(Box::new(LibprobeCallback {}))
+        .parse_callbacks(Box::new(SerdeDeriveCallback {}))
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.

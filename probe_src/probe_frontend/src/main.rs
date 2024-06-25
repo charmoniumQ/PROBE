@@ -9,12 +9,47 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Context, Report, Result};
 use flate2::Compression;
 
-mod arena;
-mod display;
+/// Raw ffi bindings for the raw C-structs emitted by libprobe, generated automatically with
+/// rust-bindgen.
+///
+/// If you're trying to make sense of this it's going to be much easier if you have `prov_ops.h`
+/// open as well.
 mod ffi;
-mod metadata;
+
+/// Rust versions of Arena structs from [`ffi`].
+///
+/// While simple Ops containing only Integral values can be used directly from [`ffi`], more
+/// complicated structs with paths or other strings need to be manually converted to more rusty
+/// versions so they can be serialized. This module re-exports the trivial Ops and defines new ones
+/// (as well as methods for converting) for the non-trivial structs.
 mod ops;
 
+/// [`std::fmt::Display`] trait implementations for [`ops::Op`] and all the Op variants and other
+/// structs.
+///
+/// This is used by the `dump` command to print out the Ops in as close as possible to a
+/// human-readable format, I hate to say this but for specific questions its probably better to
+/// just look at the source code.
+mod display;
+
+/// Parsing of arena directories created by libprobe into a cross-platform
+/// serialized format.
+///
+/// # Serialization format
+///
+/// The serialization format output is very similar to the raw libprobe arena format. It's a
+/// filesystem hierarchy of `<PID>/<EXEC_EPOCH>/<TID>` but instead of `<TID>` being a directory containing
+/// `ops` and `data` directories with the raw C-struct arenas, `<TID>` is a
+/// [jsonlines](https://jsonlines.org/) file, where each line is a json representation of an
+/// [`ops::Op`].
+mod arena;
+
+/// System metadata recorded into probe logs.
+mod metadata;
+
+
+
+/// Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.
 #[derive(clap::Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -60,6 +95,7 @@ enum Command {
     },
 }
 
+// TODO: break out each sub-command as a separate function
 fn main() -> Result<()> {
     color_eyre::install()?;
     env_logger::Builder::from_env(env_logger::Env::new().filter_or("__PROBE_LOG", "warn")).init();
@@ -74,10 +110,22 @@ fn main() -> Result<()> {
             debug,
             cmd,
         } => {
-            if PathBuf::from(output.clone()).exists() && overwrite {
-                fs::remove_file(&output).wrap_err("Error deleting old output file")?;
+            // if -f is set, we should clear-out the old probe_log
+            if overwrite {
+                match fs::remove_file(&output) {
+                    Ok(_) => (),
+                    Err(e) => match e.kind() {
+                        std::io::ErrorKind::NotFound => (),
+                        _ => return Err(e).wrap_err("Error deleting old output file"),
+                    },
+                };
             }
 
+            // the path to the libprobe.so directory is searched for as follows:
+            // - --lib-path argument if set 
+            // - __PROBE_LIB env var if set
+            // - /usr/share/probe
+            // - error
             let mut ld_preload = fs::canonicalize(match lib_path {
                 Some(x) => x,
                 None => match std::env::var_os("__PROBE_LIB") {
@@ -101,7 +149,8 @@ fn main() -> Result<()> {
             } else {
                 ld_preload.push("libprobe.so");
             }
-
+            
+            // append any exiting LD_PRELOAD overrides
             if let Some(x) = std::env::var_os("LD_PRELOAD") {
                 ld_preload.push(":");
                 ld_preload.push(&x);
@@ -217,7 +266,7 @@ fn main() -> Result<()> {
                         .to_owned();
 
 
-                    if path == "0_metadata" {
+                    if path == "_metadata" {
                         return Ok(());
                     }
 

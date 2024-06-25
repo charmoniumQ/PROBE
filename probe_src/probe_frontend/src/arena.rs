@@ -1,8 +1,5 @@
-#![deny(unsafe_op_in_unsafe_fn)]
-
 use color_eyre::eyre::{eyre, ContextCompat, Report, Result, WrapErr};
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     ffi::{OsStr, OsString},
@@ -14,9 +11,10 @@ use std::{
 
 use crate::{
     ffi,
-    ops::{self, DecodeFfi},
+    ops::{self, FfiFrom},
 };
 
+/// Arena allocator metadata placed at the beginning of allocator files by libprobe.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArenaHeader {
@@ -26,11 +24,14 @@ pub struct ArenaHeader {
     used: libc::uintptr_t,
 }
 
+/// This struct represents a single `ops/*.dat` arena allocator file emitted by libprobe.
 pub struct OpsArena<'a> {
     // raw is needed even though it's unused since ops is a reference to it;
     // the compiler doesn't know this since it's constructed using unsafe code.
     #[allow(dead_code)]
+    /// raw byte buffer of Ops arena allocator.
     raw: Vec<u8>,
+    /// slice over Ops of the raw buffer.
     ops: &'a [ffi::Op],
 }
 
@@ -67,6 +68,7 @@ impl<'a> OpsArena<'a> {
 
         let count = (header.used - size_of::<ArenaHeader>()) / size_of::<ffi::Op>();
 
+        log::debug!("[unsafe] converting Vec<u8> to &[ffi::Op]");
         let ops = unsafe {
             let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const ffi::Op;
             std::slice::from_raw_parts(ptr, count)
@@ -78,12 +80,13 @@ impl<'a> OpsArena<'a> {
     pub fn decode(self, ctx: &ArenaContext) -> Result<Vec<ops::Op>> {
         self.ops
             .iter()
-            .map(|x| ops::Op::decode(x, ctx))
+            .map(|x| ops::Op::ffi_from(x, ctx))
             .collect::<Result<Vec<_>>>()
             .wrap_err("Failed to decode arena ops")
     }
 }
 
+/// This struct represents a single `data/*.dat` arena allocator file emitted by libprobe.
 pub struct DataArena {
     header: ArenaHeader,
     raw: Vec<u8>,
@@ -126,6 +129,7 @@ impl DataArena {
     }
 }
 
+/// this struct represents a `<TID>/data` directory from libprobe.
 pub struct ArenaContext(pub Vec<DataArena>);
 
 impl ArenaContext {
@@ -139,14 +143,15 @@ impl ArenaContext {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ArenaTree(HashMap<usize, HashMap<usize, HashMap<usize, ops::Op>>>);
-
+/// Parse the front of a raw byte buffer into a libprobe arena header
+///
 /// # Safety:
-/// invoking this function on any byte buffer that is not a valid libprobe
-/// arena is undefined behavior.
+/// Invoking this function on any byte buffer smaller than [`std::mem::size_of<ArenaHeader>()`]
+/// bytes is undefined behavior (best case a segfault). Invoking this method on a byte buffer
+/// that's not a valid libprobe arena will produce garbage values that should not be used.
 unsafe fn get_header_unchecked(bytes: &[u8]) -> ArenaHeader {
     let ptr = bytes as *const [u8] as *const ArenaHeader;
+    log::debug!("[unsafe] converting byte buffer into ArenaHeader");
     unsafe {
         ArenaHeader {
             instantiation: (*ptr).instantiation,
@@ -157,6 +162,9 @@ unsafe fn get_header_unchecked(bytes: &[u8]) -> ArenaHeader {
     }
 }
 
+/// Gets the filename from a path and returns it parsed as an integer.
+///
+/// errors if the path has no filename or the filename can't be parsed as an integer.
 fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
     let filename = dir
         .as_ref()
@@ -173,6 +181,21 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         ))
 }
 
+/// Recursively parse a TID libprobe arena allocator directory from `in_dir` and write it in
+/// serialized format to `out_dir`.
+///
+/// This function parses a TID directory in 6 steps:
+///
+/// 1. Output file is created.
+/// 2. Paths of sub-directory are parsed into a [`HashMap`].
+/// 3. `data` directory is is read and parsed into [`DataArena`]s which are then parsed into an
+///    [`ArenaContext`].
+/// 4. `ops` directory is read and parsed into [`OpsArena`]s.
+/// 5. [`OpsArena`]s are parsed into which are then parsed into [`ops::Op`]s using the
+///    [`ArenaContext`].
+/// 6. [`ops::Op`]s are serialized into json and written line-by-line into the output directory.
+///
+/// (steps 5 & 6 are done with iterators to reduce unnecessary memory allocations)
 fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<()> {
     fn try_files_from_arena_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<PathBuf>> {
         match fs::read_dir(&dir) {
@@ -186,6 +209,7 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
         }
     }
 
+    // STEP 1
     let tid = filename_numeric(&in_dir)?;
     let mut outfile = {
         let mut path = out_dir.as_ref().to_owned();
@@ -193,6 +217,7 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
         File::create_new(path).wrap_err("Failed to create TID output file")?
     };
 
+    // STEP 2
     let paths = fs::read_dir(&in_dir)
         .wrap_err(format!(
             "Error reading directory '{}'",
@@ -207,26 +232,31 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
         })
         .collect::<HashMap<OsString, DirEntry>>();
 
-    let data = try_files_from_arena_dir(
-        paths
-            .get(OsStr::new("data"))
-            .wrap_err("Missing data directory from TID directory")?
-            .path(),
-    )?
-    .into_iter()
-    .map(|x| {
-        DataArena::from_bytes(std::fs::read(x).wrap_err("Failed to read file from data directory")?)
-    })
-    .collect::<Result<Vec<_>, _>>()?;
+    // STEP 3
+    let ctx = ArenaContext(
+        try_files_from_arena_dir(
+            paths
+                .get(OsStr::new("data"))
+                .wrap_err("Missing data directory from TID directory")?
+                .path(),
+        )?
+        .into_iter()
+        .map(|x| {
+            DataArena::from_bytes(
+                std::fs::read(x).wrap_err("Failed to read file from data directory")?,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?,
+    );
 
-    let ctx = ArenaContext(data);
-
+    // STEP 4
     try_files_from_arena_dir(
         paths
             .get(OsStr::new("ops"))
             .wrap_err("Missing ops directory from TID directory")?
             .path(),
     )?
+    // STEP 5
     .into_iter()
     .map(|x| {
         std::fs::read(x)
@@ -238,6 +268,7 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
                     .wrap_err("Error decoding OpsArena")
             })
     })
+    // STEP 6
     .try_for_each(|x| {
         for op in x? {
             outfile
@@ -258,6 +289,10 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
     Ok(())
 }
 
+/// Recursively parse a ExecEpoch libprobe arena allocator directory from `in_dir` and write it in
+/// serialized format to `out_dir`.
+///
+/// This function calls [`parse_tid()`] on each sub-directory in `in_dir`.
 fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<()> {
     let epoch = filename_numeric(&in_dir)?;
 
@@ -283,6 +318,10 @@ fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -
     Ok(())
 }
 
+/// Recursively parse a PID libprobe arena allocator directory from `in_dir` and write it in
+/// serialized format to `out_dir`.
+///
+/// This function calls [`parse_exec_epoch()`] on each sub-directory in `in_dir`.
 fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<()> {
     let pid = filename_numeric(&in_dir)?;
 
@@ -308,6 +347,10 @@ fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
     Ok(())
 }
 
+/// Recursively parse a top-level libprobe arena allocator directory from `in_dir` and write it in
+/// serialized format to `out_dir`.
+///
+/// This function calls [`parse_pid()`] on each sub-directory in `in_dir` **in parallel**.
 pub fn parse_arena_dir<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     in_dir: P1,
     out_dir: P2,
