@@ -11,6 +11,9 @@ edition = "2021"
 name = "probe"
 path = "src/main.rs"
 
+[lints.rust]
+unsafe_op_in_unsafe_fn = "forbid"
+
 [dependencies]
 chrono = "0.4.38"
 clap = { version = "4.5.7", features = ["derive"] }

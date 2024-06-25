@@ -16,27 +16,38 @@ use std::{
 
 use crate::{arena::ArenaContext, ffi};
 
-pub(crate) trait DecodeFfi<T> {
-    fn decode(value: &T, ctx: &ArenaContext) -> Result<Self>
+/// Specialized version of [`std::convert::From`] for working with libprobe arena structs.
+///
+/// Since [`ffi`] structs from arena allocator files have intrinsically invalid pointers (because
+/// they came from a different virtual memory space). This trait and It's sibling [`FfiInto`]
+/// exist to act as [`From`] and [`Into`] with an added parameter of a [`ArenaContext`] that can be
+/// used to decode pointers.
+pub(crate) trait FfiFrom<T> {
+    fn ffi_from(value: &T, ctx: &ArenaContext) -> Result<Self>
     where
         Self: Sized;
 }
 
-pub(crate) trait ConvertFfi<T> {
-    fn convert(&self, ctx: &ArenaContext) -> Result<T>;
+/// Specialized version of [`std::convert::Into`] for working with libprobe arena structs.
+///
+/// Much like [`std::convert::Into`] this trait is implemented automatically with a blanket
+/// implementation as the reciprocal of [`FfiFrom`].
+pub(crate) trait FfiInto<T> {
+    fn ffi_into(&self, ctx: &ArenaContext) -> Result<T>;
 }
 
-impl<T, U> ConvertFfi<U> for T
+impl<T, U> FfiInto<U> for T
 where
-    U: DecodeFfi<T>,
+    U: FfiFrom<T>,
 {
     #[inline]
-    fn convert(&self, ctx: &ArenaContext) -> Result<U> {
-        U::decode(self, ctx)
+    fn ffi_into(&self, ctx: &ArenaContext) -> Result<U> {
+        U::ffi_from(self, ctx)
     }
 }
 
 fn try_to_osstring(str: *const i8, ctx: &ArenaContext) -> Result<OsString> {
+    log::debug!("[unsafe] Parsing arena pointer: {:#x}", str as usize);
     Ok(if str.is_null() {
         OsString::new()
     } else {
@@ -63,8 +74,8 @@ pub struct Path {
     pub dirfd_valid: bool,
 }
 
-impl DecodeFfi<ffi::Path> for Path {
-    fn decode(value: &ffi::Path, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::Path> for Path {
+    fn ffi_from(value: &ffi::Path, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             dirfd_minus_at_fdcwd: value.dirfd_minus_at_fdcwd,
             path: try_to_osstring(value.path, ctx)
@@ -86,8 +97,8 @@ pub struct InitExecEpochOp {
     pub program_name: OsString,
 }
 
-impl DecodeFfi<ffi::InitExecEpochOp> for InitExecEpochOp {
-    fn decode(value: &ffi::InitExecEpochOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::InitExecEpochOp> for InitExecEpochOp {
+    fn ffi_from(value: &ffi::InitExecEpochOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             epoch: value.epoch,
             program_name: try_to_osstring(value.program_name, ctx)
@@ -105,10 +116,10 @@ pub struct OpenOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::OpenOp> for OpenOp {
-    fn decode(value: &ffi::OpenOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::OpenOp> for OpenOp {
+    fn ffi_from(value: &ffi::OpenOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            path: value.path.convert(ctx)?,
+            path: value.path.ffi_into(ctx)?,
             flags: value.flags,
             mode: value.mode,
             fd: value.fd,
@@ -123,10 +134,10 @@ pub struct ChdirOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::ChdirOp> for ChdirOp {
-    fn decode(value: &ffi::ChdirOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::ChdirOp> for ChdirOp {
+    fn ffi_from(value: &ffi::ChdirOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            path: value.path.convert(ctx)?,
+            path: value.path.ffi_into(ctx)?,
             ferrno: value.ferrno,
         })
     }
@@ -138,10 +149,10 @@ pub struct ExecOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::ExecOp> for ExecOp {
-    fn decode(value: &ffi::ExecOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::ExecOp> for ExecOp {
+    fn ffi_from(value: &ffi::ExecOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            path: value.path.convert(ctx)?,
+            path: value.path.ffi_into(ctx)?,
             ferrno: value.ferrno,
         })
     }
@@ -155,10 +166,10 @@ pub struct AccessOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::AccessOp> for AccessOp {
-    fn decode(value: &ffi::AccessOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::AccessOp> for AccessOp {
+    fn ffi_from(value: &ffi::AccessOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            path: value.path.convert(ctx)?,
+            path: value.path.ffi_into(ctx)?,
             mode: value.mode,
             flags: value.flags,
             ferrno: value.ferrno,
@@ -174,10 +185,10 @@ pub struct StatOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::StatOp> for StatOp {
-    fn decode(value: &ffi::StatOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::StatOp> for StatOp {
+    fn ffi_from(value: &ffi::StatOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            path: value.path.convert(ctx)?,
+            path: value.path.ffi_into(ctx)?,
             flags: value.flags,
             statx_buf: value.statx_buf,
             ferrno: value.ferrno,
@@ -193,10 +204,10 @@ pub struct ReaddirOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::ReaddirOp> for ReaddirOp {
-    fn decode(value: &ffi::ReaddirOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::ReaddirOp> for ReaddirOp {
+    fn ffi_from(value: &ffi::ReaddirOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            dir: value.dir.convert(ctx)?,
+            dir: value.dir.ffi_into(ctx)?,
             child: try_to_osstring(value.child, ctx)
                 .wrap_err("Unable to decode child char* into string")?,
             all_children: value.all_children,
@@ -228,16 +239,17 @@ impl Metadata {
         kind: ffi::MetadataKind,
         value: ffi::MetadataValue,
     ) -> Result<Self> {
+        log::debug!("[unsafe] decoding Metadata tagged union");
         Ok(match kind {
-            ffi::MetadataKind_MetadataMode => Metadata::Mode(value.mode),
+            ffi::MetadataKind_MetadataMode => Metadata::Mode(unsafe { value.mode }),
             ffi::MetadataKind_MetadataOwnership => Metadata::Ownership {
-                uid: value.ownership.uid,
-                gid: value.ownership.gid,
+                uid: unsafe { value.ownership }.uid,
+                gid: unsafe { value.ownership }.gid,
             },
             ffi::MetadataKind_MetadataTimes => Metadata::Times {
-                is_null: value.times.is_null,
-                atime: value.times.atime,
-                mtime: value.times.mtime,
+                is_null: unsafe { value.times }.is_null,
+                atime: unsafe { value.times }.atime,
+                mtime: unsafe { value.times }.mtime,
             },
             _ => return Err(eyre!("Invalid MetadataKind Variant")),
         })
@@ -252,10 +264,10 @@ pub struct UpdateMetadataOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::UpdateMetadataOp> for UpdateMetadataOp {
-    fn decode(value: &ffi::UpdateMetadataOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::UpdateMetadataOp> for UpdateMetadataOp {
+    fn ffi_from(value: &ffi::UpdateMetadataOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            path: value.path.convert(ctx)?,
+            path: value.path.ffi_into(ctx)?,
             flags: value.flags,
             metadata: unsafe { Metadata::from_kind_and_value(value.kind, value.value) }
                 .wrap_err("Unable to decode Metadata tagged union")?,
@@ -271,10 +283,10 @@ pub struct ReadLinkOp {
     pub ferrno: c_int,
 }
 
-impl DecodeFfi<ffi::ReadLinkOp> for ReadLinkOp {
-    fn decode(value: &ffi::ReadLinkOp, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::ReadLinkOp> for ReadLinkOp {
+    fn ffi_from(value: &ffi::ReadLinkOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
-            path: value.path.convert(ctx)?,
+            path: value.path.ffi_into(ctx)?,
             resolved: try_to_osstring(value.resolved, ctx)
                 .wrap_err("Unable to decode symlink resolve char* to string")?,
             ferrno: value.ferrno,
@@ -312,66 +324,60 @@ impl OpInternal {
         value: &ffi::Op__bindgen_ty_1,
         ctx: &ArenaContext,
     ) -> Result<Self> {
+        log::debug!("[unsafe] decoding Op tagged union");
         Ok(match kind {
-            ffi::OpCode_init_process_op_code => Self::InitProcess(value.init_process_epoch),
+            ffi::OpCode_init_process_op_code => {
+                Self::InitProcess(unsafe { value.init_process_epoch })
+            }
             ffi::OpCode_init_exec_epoch_op_code => Self::InitExecEpoch(
-                value
-                    .init_exec_epoch
-                    .convert(ctx)
+                unsafe { value.init_exec_epoch }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode InitExecEpochOp")?,
             ),
-            ffi::OpCode_init_thread_op_code => Self::InitThread(value.init_thread),
+            ffi::OpCode_init_thread_op_code => Self::InitThread(unsafe { value.init_thread }),
             ffi::OpCode_open_op_code => Self::Open(
-                value
-                    .open
-                    .convert(ctx)
+                unsafe { value.open }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode OpenOp")?,
             ),
-            ffi::OpCode_close_op_code => Self::Close(value.close),
+            ffi::OpCode_close_op_code => Self::Close(unsafe { value.close }),
             ffi::OpCode_chdir_op_code => Self::Chdir(
-                value
-                    .chdir
-                    .convert(ctx)
+                unsafe { value.chdir }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode ChdirOp")?,
             ),
             ffi::OpCode_exec_op_code => Self::Exec(
-                value
-                    .exec
-                    .convert(ctx)
+                unsafe { value.exec }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode ExecOp")?,
             ),
-            ffi::OpCode_clone_op_code => Self::Clone(value.clone),
-            ffi::OpCode_exit_op_code => Self::Exit(value.exit),
+            ffi::OpCode_clone_op_code => Self::Clone(unsafe { value.clone }),
+            ffi::OpCode_exit_op_code => Self::Exit(unsafe { value.exit }),
             ffi::OpCode_access_op_code => Self::Access(
-                value
-                    .access
-                    .convert(ctx)
+                unsafe { value.access }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode AccessOp")?,
             ),
             ffi::OpCode_stat_op_code => Self::Stat(
-                value
-                    .stat
-                    .convert(ctx)
+                unsafe { value.stat }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode StatOp")?,
             ),
             ffi::OpCode_readdir_op_code => Self::Readdir(
-                value
-                    .readdir
-                    .convert(ctx)
+                unsafe { value.readdir }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode ReaddirOp")?,
             ),
-            ffi::OpCode_wait_op_code => Self::Wait(value.wait),
-            ffi::OpCode_getrusage_op_code => Self::GetRUsage(value.getrusage),
+            ffi::OpCode_wait_op_code => Self::Wait(unsafe { value.wait }),
+            ffi::OpCode_getrusage_op_code => Self::GetRUsage(unsafe { value.getrusage }),
             ffi::OpCode_update_metadata_op_code => Self::UpdateMetadata(
-                value
-                    .update_metadata
-                    .convert(ctx)
+                unsafe { value.update_metadata }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode UpdateMetadataOp")?,
             ),
             ffi::OpCode_read_link_op_code => Self::ReadLink(
-                value
-                    .read_link
-                    .convert(ctx)
+                unsafe { value.read_link }
+                    .ffi_into(ctx)
                     .wrap_err("Unable to decode ReadlinkOp")?,
             ),
             _ => {
@@ -393,8 +399,8 @@ pub struct Op {
     pub time: timespec,
 }
 
-impl DecodeFfi<ffi::Op> for Op {
-    fn decode(value: &ffi::Op, ctx: &ArenaContext) -> Result<Self> {
+impl FfiFrom<ffi::Op> for Op {
+    fn ffi_from(value: &ffi::Op, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             data: unsafe { OpInternal::from_kind_and_value(value.op_code, &value.data, ctx) }
                 .wrap_err("Unable to decode Op tagged union")?,
