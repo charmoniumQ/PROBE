@@ -68,7 +68,10 @@ impl<'a> OpsArena<'a> {
 
         let count = (header.used - size_of::<ArenaHeader>()) / size_of::<ffi::Op>();
 
-        log::debug!("[unsafe] converting Vec<u8> to &[ffi::Op] of size {}", count);
+        log::debug!(
+            "[unsafe] converting Vec<u8> to &[ffi::Op] of size {}",
+            count
+        );
         let ops = unsafe {
             let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const ffi::Op;
             std::slice::from_raw_parts(ptr, count)
@@ -119,12 +122,16 @@ impl DataArena {
         Ok(Self { header, raw: bytes })
     }
 
-    pub fn try_deref(&self, ptr: usize) -> Option<*const u8> {
-        match ptr >= self.header.base_address
-            && ptr <= (self.header.base_address + self.header.used)
-        {
+    pub fn try_get_slice<'a>(&'a self, ptr: usize) -> Option<&'a [u8]> {
+        let end = self.header.base_address + self.header.used;
+        match ptr >= self.header.base_address && ptr <= end {
             false => None,
-            true => Some(unsafe { self.raw.as_ptr().add(ptr - self.header.base_address) }),
+            true => Some(unsafe {
+                let new_ptr = self.raw.as_ptr().add(ptr - self.header.base_address);
+                let len = end - ptr;
+
+                core::slice::from_raw_parts(new_ptr, len)
+            }),
         }
     }
 }
@@ -133,9 +140,9 @@ impl DataArena {
 pub struct ArenaContext(pub Vec<DataArena>);
 
 impl ArenaContext {
-    pub fn try_deref(&self, ptr: usize) -> Option<*const u8> {
+    pub fn try_get_slice(&self, ptr: usize) -> Option<&[u8]> {
         for vec in self.0.iter() {
-            if let Some(x) = vec.try_deref(ptr) {
+            if let Some(x) = vec.try_get_slice(ptr) {
                 return Some(x);
             }
         }

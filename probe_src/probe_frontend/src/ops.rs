@@ -3,16 +3,11 @@ pub use crate::ffi::{
     dev_t, gid_t, ino_t, mode_t, rusage, statx, statx_timestamp, timespec, timeval, uid_t, CloneOp,
     CloseOp, ExitOp, GetRUsageOp, InitProcessOp, InitThreadOp, WaitOp,
 };
-use color_eyre::eyre::{eyre, Context};
 pub use std::ffi::{c_int, c_uint};
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{
-    ffi::{OsStr, OsString},
-    os::unix::ffi::OsStrExt,
-    slice,
-};
+use std::ffi::{CStr, CString};
 
 use crate::{arena::ArenaContext, ffi};
 
@@ -46,25 +41,30 @@ where
     }
 }
 
-fn try_to_osstring(str: *const i8, ctx: &ArenaContext) -> Result<OsString> {
-    log::debug!("[unsafe] Parsing arena pointer: {:#x}", str as usize);
-    Ok(if str.is_null() {
-        OsString::new()
+/// Try to convert an invalid pointer from and ffi libprobe struct into a string type.
+///
+/// The strings emitted by libprobe are from C code, so they're pointers to an arbitrary sequence
+/// of non-null bytes terminated by a null byte. This means we can't use the [`String`] type since
+/// rust requires that all [`String`]s are valid UTF-8.
+///
+/// Instead we use [`CString`] which is provided by the standard library for ffi code like this.
+fn try_to_cstring(str: *const i8, ctx: &ArenaContext) -> Result<CString> {
+    if str.is_null() {
+        CString::new("").wrap_err("Failed to create empty CString")
     } else {
-        match ctx.try_deref(str as usize) {
-            Some(x) => {
-                OsStr::from_bytes(unsafe { slice::from_raw_parts(x, libc::strlen(x as *const i8)) })
-                    .to_os_string()
-            }
+        match ctx.try_get_slice(str as usize) {
+            Some(x) => Ok(CStr::from_bytes_until_nul(x)
+                .wrap_err("Failed to create CString")?
+                .to_owned()),
             None => return Err(eyre!("Unable to lookup pointer {0:#x}", (str as usize))),
         }
-    })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Path {
     pub dirfd_minus_at_fdcwd: i32,
-    pub path: OsString,
+    pub path: CString,
     pub device_major: dev_t,
     pub device_minor: dev_t,
     pub inode: ino_t,
@@ -78,7 +78,7 @@ impl FfiFrom<ffi::Path> for Path {
     fn ffi_from(value: &ffi::Path, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             dirfd_minus_at_fdcwd: value.dirfd_minus_at_fdcwd,
-            path: try_to_osstring(value.path, ctx)
+            path: try_to_cstring(value.path, ctx)
                 .wrap_err("Unable to decode char* into path string")?,
             device_major: value.device_major,
             device_minor: value.device_minor,
@@ -94,14 +94,14 @@ impl FfiFrom<ffi::Path> for Path {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitExecEpochOp {
     pub epoch: c_uint,
-    pub program_name: OsString,
+    pub program_name: CString,
 }
 
 impl FfiFrom<ffi::InitExecEpochOp> for InitExecEpochOp {
     fn ffi_from(value: &ffi::InitExecEpochOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             epoch: value.epoch,
-            program_name: try_to_osstring(value.program_name, ctx)
+            program_name: try_to_cstring(value.program_name, ctx)
                 .wrap_err("Unable to decode program name char* into string")?,
         })
     }
@@ -199,7 +199,7 @@ impl FfiFrom<ffi::StatOp> for StatOp {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReaddirOp {
     pub dir: Path,
-    pub child: OsString,
+    pub child: CString,
     pub all_children: bool,
     pub ferrno: c_int,
 }
@@ -208,7 +208,7 @@ impl FfiFrom<ffi::ReaddirOp> for ReaddirOp {
     fn ffi_from(value: &ffi::ReaddirOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             dir: value.dir.ffi_into(ctx)?,
-            child: try_to_osstring(value.child, ctx)
+            child: try_to_cstring(value.child, ctx)
                 .wrap_err("Unable to decode child char* into string")?,
             all_children: value.all_children,
             ferrno: value.ferrno,
@@ -279,7 +279,7 @@ impl FfiFrom<ffi::UpdateMetadataOp> for UpdateMetadataOp {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadLinkOp {
     pub path: Path,
-    pub resolved: OsString,
+    pub resolved: CString,
     pub ferrno: c_int,
 }
 
@@ -287,7 +287,7 @@ impl FfiFrom<ffi::ReadLinkOp> for ReadLinkOp {
     fn ffi_from(value: &ffi::ReadLinkOp, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             path: value.path.ffi_into(ctx)?,
-            resolved: try_to_osstring(value.resolved, ctx)
+            resolved: try_to_cstring(value.resolved, ctx)
                 .wrap_err("Unable to decode symlink resolve char* to string")?,
             ferrno: value.ferrno,
         })
