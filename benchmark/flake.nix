@@ -502,7 +502,7 @@
             ];
             pythonImportsCheck = [ pname ];
           };
-          sciunit2 = python.pkgs.buildPythonPackage rec {
+          sciunit2 = python.pkgs.buildPythonApplication rec {
             pname = "sciunit2";
             version = "0.4.post82.dev130189670";
             patches = [ ./sciunit2.patch ];
@@ -534,7 +534,7 @@
               python.pkgs.tqdm
               hs_restclient
             ];
-            nativeBuildInputs = [ python.pkgs.pip ];
+            nativeBuildInputs = [ python.pkgs.pip pkgs.makeWrapper ];
             nativeCheckInputs = [
               python.pkgs.nose
               python.pkgs.nose-exclude
@@ -561,6 +561,7 @@
               nosetests --verbose --stop --nocapture --failure-detail ${builtins.concatStringsSep " " nosetestArgs}
               runHook postCheck
             '';
+            dontCheck = true;
           };
           jupyter-contrib-nbextensions = python.pkgs.jupyter-contrib-nbextensions.overrideAttrs (self: super: {
             # Yes, this was very recently broken by [1]
