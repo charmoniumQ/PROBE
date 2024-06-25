@@ -1,6 +1,7 @@
 SOURCE_VERSION ?= $(shell git rev-parse --short HEAD)
-DBGCFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wno-cast-function-type -Wno-array-parameter -ffreestanding -Wl,--as-needed -ldl -Wall -Wextra -pthread -Og -g
-OPTCFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wno-cast-function-type -Wno-array-parameter -ffreestanding -Wl,--as-needed -Wall -Wextra -pthread -O3 -DNDEBUG
+CFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wno-cast-function-type -Wno-array-parameter -ffreestanding -Wl,--as-needed -Wall -Wextra -pthread
+DBGCFLAGS ?= $(CFLAGS) -Og -g
+OPTCFLAGS ?= $(CFLAGS) -O3 -DNDEBUG
 LIBCFLAGS ?= -fPIC -nostdlib -shared
 SOURCE_FILES := $(wildcard src/*.c) $(wildcard include/*.h)
 
