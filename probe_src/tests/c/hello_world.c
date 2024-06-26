@@ -35,4 +35,3 @@ int main() {
     printf("Main: program exiting.\n");
     pthread_exit(NULL);
 }
-

@@ -123,4 +123,3 @@ int main() {
 
     pthread_exit(NULL);
 }
-
