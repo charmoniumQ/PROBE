@@ -25,19 +25,7 @@
         };
       in {
         packages = {
-          python-dbg = python312-debug.withPackages (pypkgs: [
-            pypkgs.typer
-            pypkgs.pycparser
-            pypkgs.pytest
-            pypkgs.mypy
-            pypkgs.pygraphviz
-            pypkgs.networkx
-            pypkgs.ipython
-            pypkgs.pydot
-          ]);
-
           python-dbg = python312-debug;
-
         };
         devShells = {
           default = pkgs.mkShell {
