@@ -160,7 +160,7 @@ static void init_log_arena() {
     assert(!arena_is_initialized(&__op_arena));
     assert(!arena_is_initialized(&__data_arena));
     DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", __probe_dir, getpid(), get_exec_epoch(), my_gettid(), true);
-    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), gettid(), true, false);
+    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), my_gettid(), true, false);
     EXPECT( == 0, arena_create(&__op_arena, thread_dirfd, "ops", prov_log_arena_size));
     EXPECT( == 0, arena_create(&__data_arena, thread_dirfd, "data", prov_log_arena_size));
 }

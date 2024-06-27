@@ -572,14 +572,17 @@ class Sciunit(ProvCollector):
 
     nix_packages = [".#sciunit2", ".#coreutils"]
 
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
         check_returncode(subprocess.run(
             ["sciunit", "create", "-f", "test"],
             check=False,
             env={
+                **env,
                 "SCIUNIT_HOME": str(log.resolve()),
             },
         ), {})
+
+    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         cwd = Path().resolve()
         return (
             "env", f"--chdir={log.resolve()}", f"SCIUNIT_HOME={log.resolve()}",
