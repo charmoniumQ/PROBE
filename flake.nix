@@ -22,6 +22,7 @@
             pypkgs.pygraphviz
             pypkgs.networkx
             pypkgs.ipython
+            pypkgs.pydot
           ]);
         };
         devShells = {
