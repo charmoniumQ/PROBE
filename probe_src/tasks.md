@@ -66,7 +66,7 @@
   - [ ] Consider combining across multiple runs of PROBE
   - [ ] Consider combining across multiple hosts
 - [ ] Ensuring libprobe works
-  - [ ] Debug why libprobe doesn't work with Python. Sam is working on this.
+  - [x] Debug why libprobe doesn't work with Python. Sam fixed this.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
 - [ ] Generate a replay package.

@@ -66,6 +66,8 @@ def define_var(var_type: pycparser.c_ast.Node, var_name: str, value: pycparser.c
 
 void = pycparser.c_ast.IdentifierType(names=['void'])
 
+c_ast_int = pycparser.c_ast.IdentifierType(names=['int'])
+
 
 def ptr_type(type: pycparser.c_ast.Node) -> pycparser.c_ast.PtrDecl:
     return pycparser.c_ast.PtrDecl(
@@ -322,19 +324,24 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[pycparser.c_ast.Node]
             ),
         )
 
+    save_errno = define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno"))
+    restore_errno = pycparser.c_ast.Assignment(
+        op='=',
+        lvalue=pycparser.c_ast.ID(name="errno"),
+        rvalue=pycparser.c_ast.ID(name="saved_errno"),
+    )
+
+    if post_call_stmts:
+        post_call_stmts.insert(0, save_errno)
+        post_call_stmts.append(restore_errno)
+
     if is_void(func.return_type):
-        return (
-            *pre_call_stmts,
-            func_call,
-            *post_call_stmts,
-        )
+        post_call_stmts.insert(0, func_call)
     else:
-        return (
-            *pre_call_stmts,
-            define_var(func.return_type, "ret", func_call),
-            *post_call_stmts,
-            pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret"))
-        )
+        post_call_stmts.insert(0, define_var(func.return_type, "ret", func_call))
+        post_call_stmts.append(pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret")))
+
+    return pre_call_stmts + post_call_stmts
 
 
 static_args_wrapper_func_declarations = [

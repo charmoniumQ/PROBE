@@ -64,7 +64,7 @@ FILE * fopen (const char *filename, const char *opentype) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == NULL) {
-                op.data.open.ferrno = errno;
+                op.data.open.ferrno = saved_errno;
             } else {
                 op.data.open.fd = fileno(ret);
             }
@@ -100,8 +100,8 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == NULL) {
-                open_op.data.open.ferrno = errno;
-                close_op.data.close.ferrno = errno;
+                open_op.data.open.ferrno = saved_errno;
+                close_op.data.close.ferrno = saved_errno;
             } else {
                 open_op.data.open.fd = fileno(ret);
             }
@@ -469,7 +469,7 @@ struct dirent * readdir (DIR *dirstream) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == NULL) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
@@ -500,7 +500,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (*result == NULL) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
@@ -531,7 +531,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == NULL) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
@@ -562,7 +562,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (*result == NULL) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
@@ -617,7 +617,7 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -641,7 +641,7 @@ int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (co
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -670,7 +670,7 @@ int scandirat(int dirfd, const char *restrict dirp,
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -696,7 +696,7 @@ ssize_t getdents64 (int fd, void *buffer, size_t length) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == -1) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -723,7 +723,7 @@ int ftw (const char *filename, __ftw_func_t func, int descriptors) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -747,7 +747,7 @@ int ftw64 (const char *filename, __ftw64_func_t func, int descriptors) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -771,7 +771,7 @@ int nftw (const char *filename, __nftw_func_t func, int descriptors, int flag) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -795,7 +795,7 @@ int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int fla
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -851,7 +851,7 @@ int stat (const char *filename, struct stat *buf) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -878,7 +878,7 @@ int stat64 (const char *filename, struct stat64 *buf) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat64_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -905,7 +905,7 @@ int fstat (int filedes, struct stat *buf) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -932,7 +932,7 @@ int fstat64 (int filedes, struct stat64 * restrict buf) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat64_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -959,7 +959,7 @@ int lstat (const char *filename, struct stat *buf) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -986,7 +986,7 @@ int lstat64 (const char *filename, struct stat64 *buf) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat64_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -1015,7 +1015,7 @@ int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 op.data.stat.statx_buf = *statxbuf;
             }
@@ -1044,7 +1044,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -1072,7 +1072,7 @@ int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf,
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             } else {
                 stat64_to_statx(&op.data.stat.statx_buf, buf);
             }
@@ -1108,7 +1108,7 @@ int chown (const char *filename, uid_t owner, gid_t group) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1139,7 +1139,7 @@ int fchown (int filedes, uid_t owner, gid_t group) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1172,7 +1172,7 @@ int lchown(const char *pathname, uid_t owner, gid_t group) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1203,7 +1203,7 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1234,7 +1234,7 @@ int chmod (const char *filename, mode_t mode) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1262,7 +1262,7 @@ int fchmod (int filedes, mode_t mode) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1292,7 +1292,7 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1374,7 +1374,7 @@ int utime (const char *filename, const struct utimbuf *times) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1407,7 +1407,7 @@ int utimes (const char *filename, const struct timeval tvp[2]) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1440,7 +1440,7 @@ int lutimes (const char *filename, const struct timeval tvp[2]) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1473,7 +1473,7 @@ int futimes (int fd, const struct timeval tvp[2]) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret != 0) {
-                op.data.readdir.ferrno = errno;
+                op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
         }
@@ -1537,7 +1537,7 @@ int execv (const char *filename, char *const argv[]) {
          * */
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1563,7 +1563,7 @@ int execl (const char *filename, const char *arg0, ...) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1592,7 +1592,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         free((char**) env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1619,7 +1619,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         free((char**) env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1659,7 +1659,7 @@ int execle (const char *filename, const char *arg0, ...) {
         /* free(env); */
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1691,7 +1691,7 @@ int execvp (const char *filename, char *const argv[]) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1723,7 +1723,7 @@ int execlp (const char *filename, const char *arg0, ...) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1757,7 +1757,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         free((char**) envp); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
-            op.data.exec.ferrno = errno;
+            op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
     });
@@ -1792,7 +1792,7 @@ pid_t fork (void) {
         if (likely(prov_log_is_enabled())) {
             if (ret == -1) {
                 /* Failure */
-                op.data.clone.ferrno = errno;
+                op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
                 reinit_process();
@@ -1833,7 +1833,7 @@ pid_t _Fork (void) {
         if (likely(prov_log_is_enabled())) {
             if (ret == -1) {
                 /* Failure */
-                op.data.clone.ferrno = errno;
+                op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
                 /* Success; child */
@@ -1884,7 +1884,7 @@ pid_t vfork (void) {
         if (ret == -1) {
             /* Failure */
             if (likely(prov_log_is_enabled())) {
-                op.data.clone.ferrno = errno;
+                op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             }
         } else if (ret == 0) {
@@ -1946,7 +1946,7 @@ int clone(
         if (ret == -1) {
             /* Failure */
             if (likely(prov_log_is_enabled())) {
-                op.data.clone.ferrno = errno;
+                op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             }
         } else if (ret == 0) {
@@ -1986,7 +1986,7 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == -1) {
-                op.data.wait.ferrno = errno;
+                op.data.wait.ferrno = saved_errno;
             } else {
                 op.data.wait.ret = ret;
                 op.data.wait.status = *status_ptr;
@@ -2013,7 +2013,7 @@ pid_t wait (int *status_ptr) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == -1) {
-                op.data.wait.ferrno = errno;
+                op.data.wait.ferrno = saved_errno;
             } else {
                 op.data.wait.ret = ret;
                 op.data.wait.status = *status_ptr;
@@ -2054,9 +2054,9 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == -1) {
-                wait_op.data.wait.ferrno = errno;
+                wait_op.data.wait.ferrno = saved_errno;
                 if (usage) {
-                    getrusage_op.data.getrusage.ferrno = errno;
+                    getrusage_op.data.getrusage.ferrno = saved_errno;
                 }
             } else {
                 wait_op.data.wait.ret = ret;
@@ -2105,9 +2105,9 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == -1) {
-                wait_op.data.wait.ferrno = errno;
+                wait_op.data.wait.ferrno = saved_errno;
                 if (usage) {
-                    getrusage_op.data.getrusage.ferrno = errno;
+                    getrusage_op.data.getrusage.ferrno = saved_errno;
                 }
             } else {
                 wait_op.data.wait.ret = ret;

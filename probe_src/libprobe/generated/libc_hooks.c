@@ -116,11 +116,12 @@ FILE * fopen(const char *filename, const char *opentype)
     prov_log_try(op);
   }
   FILE * ret = unwrapped_fopen(filename, opentype);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == NULL)
     {
-      op.data.open.ferrno = errno;
+      op.data.open.ferrno = saved_errno;
     }
     else
     {
@@ -128,6 +129,7 @@ FILE * fopen(const char *filename, const char *opentype)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -143,12 +145,13 @@ FILE * freopen(const char *filename, const char *opentype, FILE *stream)
     prov_log_try(close_op);
   }
   FILE * ret = unwrapped_freopen(filename, opentype, stream);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == NULL)
     {
-      open_op.data.open.ferrno = errno;
-      close_op.data.close.ferrno = errno;
+      open_op.data.open.ferrno = saved_errno;
+      close_op.data.close.ferrno = saved_errno;
     }
     else
     {
@@ -157,6 +160,7 @@ FILE * freopen(const char *filename, const char *opentype, FILE *stream)
     prov_log_record(open_op);
     prov_log_record(close_op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -170,11 +174,13 @@ int fclose(FILE *stream)
     prov_log_try(op);
   }
   int ret = unwrapped_fclose(stream);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.close.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -187,11 +193,13 @@ int fcloseall()
     prov_log_try(op);
   }
   int ret = unwrapped_fcloseall();
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.close.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -213,12 +221,14 @@ int openat(int dirfd, const char *filename, int flags, ...)
   }
   size_t varargs_size = (((sizeof(dirfd)) + (sizeof(filename))) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_openat, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == (-1)) ? (errno) : (0);
     op.data.open.fd = ret;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -240,12 +250,14 @@ int open(const char *filename, int flags, ...)
   }
   size_t varargs_size = ((sizeof(filename)) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_open, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == (-1)) ? (errno) : (0);
     op.data.open.fd = ret;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -258,12 +270,14 @@ int creat(const char *filename, mode_t mode)
     prov_log_try(op);
   }
   int ret = unwrapped_creat(filename, mode);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == (-1)) ? (errno) : (0);
     op.data.open.fd = ret;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -276,11 +290,13 @@ int close(int filedes)
     prov_log_try(op);
   }
   int ret = unwrapped_close(filedes);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.close.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -297,11 +313,13 @@ int close_range(unsigned int lowfd, unsigned int maxfd, int flags)
     prov_log_try(op);
   }
   int ret = unwrapped_close_range(lowfd, maxfd, flags);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.close.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -314,10 +332,12 @@ void closefrom(int lowfd)
     prov_log_try(op);
   }
   unwrapped_closefrom(lowfd);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     prov_log_record(op);
   }
+  errno = saved_errno;
 }
 
 int dup(int old)
@@ -361,11 +381,13 @@ int chdir(const char *filename)
     prov_log_try(op);
   }
   int ret = unwrapped_chdir(filename);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.chdir.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -378,11 +400,13 @@ int fchdir(int filedes)
     prov_log_try(op);
   }
   int ret = unwrapped_fchdir(filedes);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.chdir.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -395,12 +419,14 @@ DIR * opendir(const char *dirname)
     prov_log_try(op);
   }
   DIR * ret = unwrapped_opendir(dirname);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == NULL) ? (errno) : (0);
     op.data.open.fd = dirfd(ret);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -413,12 +439,14 @@ DIR * fdopendir(int fd)
     prov_log_try(op);
   }
   DIR * ret = unwrapped_fdopendir(fd);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == NULL) ? (errno) : (0);
     op.data.open.fd = dirfd(ret);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -432,11 +460,12 @@ struct dirent * readdir(DIR *dirstream)
     prov_log_try(op);
   }
   struct dirent * ret = unwrapped_readdir(dirstream);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == NULL)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -444,6 +473,7 @@ struct dirent * readdir(DIR *dirstream)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -457,11 +487,12 @@ int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
     prov_log_try(op);
   }
   int ret = unwrapped_readdir_r(dirstream, entry, result);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if ((*result) == NULL)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -469,6 +500,7 @@ int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -482,11 +514,12 @@ struct dirent64 * readdir64(DIR *dirstream)
     prov_log_try(op);
   }
   struct dirent64 * ret = unwrapped_readdir64(dirstream);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == NULL)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -494,6 +527,7 @@ struct dirent64 * readdir64(DIR *dirstream)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -507,11 +541,12 @@ int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result
     prov_log_try(op);
   }
   int ret = unwrapped_readdir64_r(dirstream, entry, result);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if ((*result) == NULL)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -519,6 +554,7 @@ int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -532,11 +568,13 @@ int closedir(DIR *dirstream)
     prov_log_try(op);
   }
   int ret = unwrapped_closedir(dirstream);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.close.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -568,14 +606,16 @@ int scandir(const char *dir, struct dirent ***namelist, int (*selector)(const st
     prov_log_try(op);
   }
   int ret = unwrapped_scandir(dir, namelist, selector, cmp);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -588,14 +628,16 @@ int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(cons
     prov_log_try(op);
   }
   int ret = unwrapped_scandir64(dir, namelist, selector, cmp);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -608,14 +650,16 @@ int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict 
     prov_log_try(op);
   }
   int ret = unwrapped_scandirat(dirfd, dirp, namelist, filter, compar);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -628,14 +672,16 @@ ssize_t getdents64(int fd, void *buffer, size_t length)
     prov_log_try(op);
   }
   ssize_t ret = unwrapped_getdents64(fd, buffer, length);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == (-1))
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -648,14 +694,16 @@ int ftw(const char *filename, __ftw_func_t func, int descriptors)
     prov_log_try(op);
   }
   int ret = unwrapped_ftw(filename, func, descriptors);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -668,14 +716,16 @@ int ftw64(const char *filename, __ftw64_func_t func, int descriptors)
     prov_log_try(op);
   }
   int ret = unwrapped_ftw64(filename, func, descriptors);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -688,14 +738,16 @@ int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
     prov_log_try(op);
   }
   int ret = unwrapped_nftw(filename, func, descriptors, flag);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -708,14 +760,16 @@ int nftw64(const char *filename, __nftw64_func_t func, int descriptors, int flag
     prov_log_try(op);
   }
   int ret = unwrapped_nftw64(filename, func, descriptors, flag);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -826,11 +880,12 @@ int stat(const char *filename, struct stat *buf)
     prov_log_try(op);
   }
   int ret = unwrapped_stat(filename, buf);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -838,6 +893,7 @@ int stat(const char *filename, struct stat *buf)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -850,11 +906,12 @@ int stat64(const char *filename, struct stat64 *buf)
     prov_log_try(op);
   }
   int ret = unwrapped_stat64(filename, buf);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -862,6 +919,7 @@ int stat64(const char *filename, struct stat64 *buf)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -874,11 +932,12 @@ int fstat(int filedes, struct stat *buf)
     prov_log_try(op);
   }
   int ret = unwrapped_fstat(filedes, buf);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -886,6 +945,7 @@ int fstat(int filedes, struct stat *buf)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -898,11 +958,12 @@ int fstat64(int filedes, struct stat64 * restrict buf)
     prov_log_try(op);
   }
   int ret = unwrapped_fstat64(filedes, buf);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -910,6 +971,7 @@ int fstat64(int filedes, struct stat64 * restrict buf)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -922,11 +984,12 @@ int lstat(const char *filename, struct stat *buf)
     prov_log_try(op);
   }
   int ret = unwrapped_lstat(filename, buf);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -934,6 +997,7 @@ int lstat(const char *filename, struct stat *buf)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -946,11 +1010,12 @@ int lstat64(const char *filename, struct stat64 *buf)
     prov_log_try(op);
   }
   int ret = unwrapped_lstat64(filename, buf);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -958,6 +1023,7 @@ int lstat64(const char *filename, struct stat64 *buf)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -970,11 +1036,12 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
     prov_log_try(op);
   }
   int ret = unwrapped_statx(dirfd, pathname, flags, mask, statxbuf);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -982,6 +1049,7 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -994,11 +1062,12 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
     prov_log_try(op);
   }
   int ret = unwrapped_fstatat(dirfd, pathname, buf, flags);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -1006,6 +1075,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1018,11 +1088,12 @@ int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, 
     prov_log_try(op);
   }
   int ret = unwrapped_fstatat64(fd, file, buf, flags);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     else
     {
@@ -1030,6 +1101,7 @@ int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, 
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1042,14 +1114,16 @@ int chown(const char *filename, uid_t owner, gid_t group)
     prov_log_try(op);
   }
   int ret = unwrapped_chown(filename, owner, group);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1062,14 +1136,16 @@ int fchown(int filedes, uid_t owner, gid_t group)
     prov_log_try(op);
   }
   int ret = unwrapped_fchown(filedes, owner, group);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1082,14 +1158,16 @@ int lchown(const char *pathname, uid_t owner, gid_t group)
     prov_log_try(op);
   }
   int ret = unwrapped_lchown(pathname, owner, group);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1102,14 +1180,16 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
     prov_log_try(op);
   }
   int ret = unwrapped_fchownat(dirfd, pathname, owner, group, flags);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1122,14 +1202,16 @@ int chmod(const char *filename, mode_t mode)
     prov_log_try(op);
   }
   int ret = unwrapped_chmod(filename, mode);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1142,14 +1224,16 @@ int fchmod(int filedes, mode_t mode)
     prov_log_try(op);
   }
   int ret = unwrapped_fchmod(filedes, mode);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1162,14 +1246,16 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
     prov_log_try(op);
   }
   int ret = unwrapped_fchmodat(dirfd, pathname, mode, flags);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1182,11 +1268,13 @@ int access(const char *filename, int how)
     prov_log_try(op);
   }
   int ret = unwrapped_access(filename, how);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.access.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1199,11 +1287,13 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags)
     prov_log_try(op);
   }
   int ret = unwrapped_faccessat(dirfd, pathname, mode, flags);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.access.ferrno = (ret == 0) ? (0) : (errno);
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1226,14 +1316,16 @@ int utime(const char *filename, const struct utimbuf *times)
     prov_log_try(op);
   }
   int ret = unwrapped_utime(filename, times);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1256,14 +1348,16 @@ int utimes(const char *filename, const struct timeval tvp[2])
     prov_log_try(op);
   }
   int ret = unwrapped_utimes(filename, tvp);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1286,14 +1380,16 @@ int lutimes(const char *filename, const struct timeval tvp[2])
     prov_log_try(op);
   }
   int ret = unwrapped_lutimes(filename, tvp);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1316,14 +1412,16 @@ int futimes(int fd, const struct timeval tvp[2])
     prov_log_try(op);
   }
   int ret = unwrapped_futimes(fd, tvp);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = errno;
+      op.data.readdir.ferrno = saved_errno;
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1433,12 +1531,14 @@ int execv(const char *filename, char * const argv[])
     prov_log_save();
   }
   int ret = unwrapped_execv(filename, argv);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1458,12 +1558,14 @@ int execl(const char *filename, const char *arg0, ...)
   }
   size_t varargs_size = (sizeof(char *)) + ((COUNT_NONNULL_VARARGS(arg0) + 1) * (sizeof(char *)));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_execl, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1483,13 +1585,15 @@ int execve(const char *filename, char * const argv[], char * const env[])
   }
   DEBUG("in Execve");
   int ret = unwrapped_execve(filename, argv, env);
+  int saved_errno = errno;
   free((char **) env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1508,13 +1612,15 @@ int fexecve(int fd, char * const argv[], char * const env[])
     prov_log_save();
   }
   int ret = unwrapped_fexecve(fd, argv, env);
+  int saved_errno = errno;
   free((char **) env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1534,12 +1640,14 @@ int execle(const char *filename, const char *arg0, ...)
   ERROR("Not implemented; I need to figure out how to update the environment.");
   size_t varargs_size = (sizeof(char *)) + ((COUNT_NONNULL_VARARGS(arg0) + 1) * (sizeof(char *)));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_execle, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1560,12 +1668,14 @@ int execvp(const char *filename, char * const argv[])
     prov_log_save();
   }
   int ret = unwrapped_execvp(filename, argv);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1587,12 +1697,14 @@ int execlp(const char *filename, const char *arg0, ...)
   }
   size_t varargs_size = (sizeof(char *)) + ((COUNT_NONNULL_VARARGS(arg0) + 1) * (sizeof(char *)));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_execlp, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1613,13 +1725,15 @@ int execvpe(const char *filename, char * const argv[], char * const envp[])
     prov_log_save();
   }
   int ret = unwrapped_execvpe(filename, argv, envp);
+  int saved_errno = errno;
   free((char **) envp);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
-    op.data.exec.ferrno = errno;
+    op.data.exec.ferrno = saved_errno;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1637,11 +1751,12 @@ pid_t fork()
     prov_log_save();
   }
   pid_t ret = unwrapped_fork();
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == (-1))
     {
-      op.data.clone.ferrno = errno;
+      op.data.clone.ferrno = saved_errno;
       prov_log_record(op);
     }
     else
@@ -1656,6 +1771,7 @@ pid_t fork()
       prov_log_record(op);
     }
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1673,11 +1789,12 @@ pid_t _Fork()
     prov_log_save();
   }
   pid_t ret = unwrapped__Fork();
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == (-1))
     {
-      op.data.clone.ferrno = errno;
+      op.data.clone.ferrno = saved_errno;
       prov_log_record(op);
     }
     else
@@ -1692,6 +1809,7 @@ pid_t _Fork()
       prov_log_record(op);
     }
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1712,11 +1830,12 @@ pid_t vfork()
     prov_log_disable();
   }
   pid_t ret = unwrapped_vfork();
+  int saved_errno = errno;
   if (ret == (-1))
   {
     if (likely(prov_log_is_enabled()))
     {
-      op.data.clone.ferrno = errno;
+      op.data.clone.ferrno = saved_errno;
       prov_log_record(op);
     }
   }
@@ -1733,6 +1852,7 @@ pid_t vfork()
       prov_log_record(op);
     }
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1762,11 +1882,12 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
   }
   size_t varargs_size = ((((((sizeof(void *)) + (sizeof(void *))) + (sizeof(int))) + ((COUNT_NONNULL_VARARGS(arg) + 1) * (sizeof(void *)))) + (sizeof(pid_t *))) + (sizeof(void *))) + (sizeof(pid_t *));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_clone, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (ret == (-1))
   {
     if (likely(prov_log_is_enabled()))
     {
-      op.data.clone.ferrno = errno;
+      op.data.clone.ferrno = saved_errno;
       prov_log_record(op);
     }
   }
@@ -1791,6 +1912,7 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
       prov_log_record(op);
     }
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1800,11 +1922,12 @@ pid_t waitpid(pid_t pid, int *status_ptr, int options)
   struct Op op = {wait_op_code, {.wait = {.pid = pid, .options = options, .status = 0, .ret = 0, .ferrno = 0}}, {0}};
   prov_log_try(op);
   pid_t ret = unwrapped_waitpid(pid, status_ptr, options);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == (-1))
     {
-      op.data.wait.ferrno = errno;
+      op.data.wait.ferrno = saved_errno;
     }
     else
     {
@@ -1813,6 +1936,7 @@ pid_t waitpid(pid_t pid, int *status_ptr, int options)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1822,11 +1946,12 @@ pid_t wait(int *status_ptr)
   struct Op op = {wait_op_code, {.wait = {.pid = -1, .options = 0, .status = 0, .ret = 0, .ferrno = 0}}, {0}};
   prov_log_try(op);
   pid_t ret = unwrapped_wait(status_ptr);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == (-1))
     {
-      op.data.wait.ferrno = errno;
+      op.data.wait.ferrno = saved_errno;
     }
     else
     {
@@ -1835,6 +1960,7 @@ pid_t wait(int *status_ptr)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1850,14 +1976,15 @@ pid_t wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
     prov_log_try(getrusage_op);
   }
   pid_t ret = unwrapped_wait4(pid, status_ptr, options, usage);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == (-1))
     {
-      wait_op.data.wait.ferrno = errno;
+      wait_op.data.wait.ferrno = saved_errno;
       if (usage)
       {
-        getrusage_op.data.getrusage.ferrno = errno;
+        getrusage_op.data.getrusage.ferrno = saved_errno;
       }
     }
     else
@@ -1875,6 +2002,7 @@ pid_t wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
       prov_log_record(getrusage_op);
     }
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1889,14 +2017,15 @@ pid_t wait3(int *status_ptr, int options, struct rusage *usage)
     prov_log_try(getrusage_op);
   }
   pid_t ret = unwrapped_wait3(status_ptr, options, usage);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == (-1))
     {
-      wait_op.data.wait.ferrno = errno;
+      wait_op.data.wait.ferrno = saved_errno;
       if (usage)
       {
-        getrusage_op.data.getrusage.ferrno = errno;
+        getrusage_op.data.getrusage.ferrno = saved_errno;
       }
     }
     else
@@ -1914,6 +2043,7 @@ pid_t wait3(int *status_ptr, int options, struct rusage *usage)
       prov_log_record(getrusage_op);
     }
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1933,11 +2063,12 @@ FILE * fopen64(const char *filename, const char *opentype)
     prov_log_try(op);
   }
   FILE * ret = unwrapped_fopen64(filename, opentype);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == NULL)
     {
-      op.data.open.ferrno = errno;
+      op.data.open.ferrno = saved_errno;
     }
     else
     {
@@ -1945,6 +2076,7 @@ FILE * fopen64(const char *filename, const char *opentype)
     }
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1960,12 +2092,13 @@ FILE * freopen64(const char *filename, const char *opentype, FILE *stream)
     prov_log_try(close_op);
   }
   FILE * ret = unwrapped_freopen64(filename, opentype, stream);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     if (ret == NULL)
     {
-      open_op.data.open.ferrno = errno;
-      close_op.data.close.ferrno = errno;
+      open_op.data.open.ferrno = saved_errno;
+      close_op.data.close.ferrno = saved_errno;
     }
     else
     {
@@ -1974,6 +2107,7 @@ FILE * freopen64(const char *filename, const char *opentype, FILE *stream)
     prov_log_record(open_op);
     prov_log_record(close_op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -1995,12 +2129,14 @@ int openat64(int dirfd, const char *filename, int flags, ...)
   }
   size_t varargs_size = (((sizeof(dirfd)) + (sizeof(filename))) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_openat64, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == (-1)) ? (errno) : (0);
     op.data.open.fd = ret;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -2022,12 +2158,14 @@ int open64(const char *filename, int flags, ...)
   }
   size_t varargs_size = ((sizeof(filename)) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
   int ret = *((int *) __builtin_apply((void (*)()) unwrapped_open64, __builtin_apply_args(), varargs_size));
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == (-1)) ? (errno) : (0);
     op.data.open.fd = ret;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 
@@ -2040,12 +2178,14 @@ int create64(const char *filename, mode_t mode)
     prov_log_try(op);
   }
   int ret = unwrapped_create64(filename, mode);
+  int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
     op.data.open.ferrno = (ret == (-1)) ? (errno) : (0);
     op.data.open.fd = ret;
     prov_log_record(op);
   }
+  errno = saved_errno;
   return ret;
 }
 

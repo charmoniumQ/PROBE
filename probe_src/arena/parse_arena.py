@@ -61,11 +61,12 @@ class MemorySegments:
         self._check()
 
     def _check(self) -> None:
-        assert not any(
-            segment_a.overlaps(segment_b)
-            for a, segment_a in enumerate(self.segments)
-            for segment_b in self.segments[a + 1:]
-        )
+        # Memory segments *are* allowed to overlap,
+        # Since we can de-allocate arenas,
+        # we can potentially reuse those addresses.
+        # for a, segment_a in enumerate(self.segments):
+        #     for segment_b in self.segments[a + 1:]:
+        #         assert not segment_a.overlaps(segment_b), (segment_a, "overlaps", segment_b)
         assert sorted(self.segments, key=lambda segment: segment.start) == self.segments
 
     @typing.override
@@ -129,7 +130,8 @@ def parse_arena_dir_tar(
             extracted = arena_dir_tar.extractfile(member)
             assert extracted is not None
             buffr = extracted.read()
-            memory_segments.append(parse_arena_buffer(buffr))
+            memory_segment = parse_arena_buffer(buffr)
+            memory_segments.append(memory_segment)
     return memory_segments
 
 

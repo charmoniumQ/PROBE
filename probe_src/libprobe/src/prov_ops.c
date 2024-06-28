@@ -13,11 +13,6 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
         };
 
         /*
-         * If dirfd == 0, then the user is asserting it is not needed.
-         * Path must be absolute. */
-        assert(dirfd != 0 || (path != NULL && path[0] == '/'));
-
-        /*
          * If path is empty string, AT_EMPTY_PATH should probably be set.
          * I can't think of a counterexample that isn't some kind of error.
          *
