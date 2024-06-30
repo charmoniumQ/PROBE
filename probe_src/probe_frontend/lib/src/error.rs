@@ -93,9 +93,7 @@ pub enum ProbeError {
     /// in [context](Self::Context).
 =======
     #[error("{context}:\nNeeded Option was None")]
-    MissingOption {
-        context: &'static str,
-    },
+    MissingOption { context: &'static str },
 
     #[error("{0}")]
     ArenaError(crate::transcribe::ArenaError),
@@ -162,36 +160,52 @@ pub(crate) trait ConvertErr {
 impl ConvertErr for std::io::Error {
     fn convert(self, context: &'static str) -> ProbeError {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
         ProbeError::ContextIO {
             context,
             error: self,
         }
+<<<<<<< HEAD
 =======
         ProbeError::ContextIO { context, error: self }
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
     }
 }
 
 impl ConvertErr for ProbeError {
     fn convert(self, context: &'static str) -> ProbeError {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
         ProbeError::Context {
             context,
             error: Box::new(self),
         }
+<<<<<<< HEAD
 =======
         ProbeError::Context { context, error: Box::new(self) }
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
     }
 }
 
 impl ConvertErr for serde_json::Error {
     fn convert(self, context: &'static str) -> ProbeError {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
         ProbeError::JsonError {
             context,
             error: self,
         }
+<<<<<<< HEAD
     }
 }
 =======
@@ -200,3 +214,7 @@ impl ConvertErr for serde_json::Error {
 }
 
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+    }
+}
+>>>>>>> b5a2591 (fix cargo fmt/clippy)

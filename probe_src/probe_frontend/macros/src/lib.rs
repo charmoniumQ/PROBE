@@ -208,8 +208,12 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                                 .map_err(|e| {
                                     ProbeError::FFiConversionError {
                                         msg: "Error calling ffi_into() on\
+<<<<<<< HEAD
                                             #field_idents creating #new_name", 
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+                                            #field_idents creating #new_name",
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
                                         inner: Box::new(e),
                                     }
                                 })?,

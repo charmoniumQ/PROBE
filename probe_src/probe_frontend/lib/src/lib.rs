@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 /// transcribe probe record directories created by libprobe to log directories
 
 /// Op definitions from `prov_ops.h`
@@ -7,6 +8,8 @@
 /// rust-bindgen (these start with `C_`), as well as the converted version which can be serialized
 =======
 
+=======
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
 /// Op definitions
 >>>>>>> a83cce7 (version 0.2.0)
 ///
@@ -41,6 +44,7 @@ pub mod transcribe;
 
 // currently unused, get system metadata
 <<<<<<< HEAD
+<<<<<<< HEAD
 // mod metadata;
 
 /// Library error type and definitions.
@@ -52,3 +56,9 @@ mod metadata;
 pub mod error;
 
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+// mod metadata;
+
+/// Library error type and definitions.
+pub mod error;
+>>>>>>> b5a2591 (fix cargo fmt/clippy)

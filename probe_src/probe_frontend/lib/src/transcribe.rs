@@ -306,6 +306,7 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         .parse::<usize>()
         .map_err(|e| {
 <<<<<<< HEAD
+<<<<<<< HEAD
             log::error!(
                 "Parsing filename '{}' to integer",
                 file_stem.to_string_lossy()
@@ -313,6 +314,12 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
 =======
             log::error!("Parsing filename '{}' to integer", filename.to_string_lossy());
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            log::error!(
+                "Parsing filename '{}' to integer",
+                filename.to_string_lossy()
+            );
+>>>>>>> b5a2591 (fix cargo fmt/clippy)
             ProbeError::from(e)
         })
         .wrap_err("Failed to parse filename to integer")
