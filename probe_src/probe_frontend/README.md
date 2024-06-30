@@ -19,9 +19,7 @@ record in a format that is cross-platform and much easier to use. (see the
 section on serialization format for details)
 =======
 This is a directory (`probe_record` by default) that contains raw arena
-allocator `*.dat` files created by libprobe aranged in a `<PID>/<EXEC_EPOCH>/<TID>`
-(see the top-level repo glossary for an explanation of an Exec epoch) hierarchy,
-these files contain
+allocator `*.dat` files created by libprobe, these files contain
 [mmap(2)](https://www.man7.org/linux/man-pages/man2/mmap.2.html)-ed c structures
 and are not guaranteed to valid if moved to a computer with a different
 architecture, kernel version, or c compiler (or if any of those things change on
