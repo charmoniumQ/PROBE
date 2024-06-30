@@ -1,7 +1,10 @@
 [package]
 name = "probe_cli"
 version.workspace = true
+<<<<<<< HEAD
 license.workspace = true
+=======
+>>>>>>> a83cce7 (version 0.2.0)
 authors.workspace = true
 publish.workspace = true
 edition.workspace = true
@@ -12,10 +15,16 @@ path = "src/main.rs"
 
 [dependencies]
 chrono = "0.4.38"
+<<<<<<< HEAD
 clap = { version = "4.5.7", features = ["cargo"] }
 color-eyre = "0.6.3"
 env_logger = "0.11.3"
 exec = "0.3.1"
+=======
+clap = { version = "4.5.7", features = ["derive"] }
+color-eyre = "0.6.3"
+env_logger = "0.11.3"
+>>>>>>> a83cce7 (version 0.2.0)
 flate2 = "1.0.30"
 libc = "0.2.155"
 log = "0.4.21"

@@ -8,16 +8,21 @@ members = [
 
 [workspace.package]
 version = "0.2.0"
+<<<<<<< HEAD
 license = "MIT"
 # authors *MUST* be defined in the form "name <email>" for parsing reasons
 authors = [
     "Jenna Fligor <jenna@fligor.net>",
     "Samuel Grayson <sam@samgrayson.me>"
 ]
+=======
+authors = ["Jenna Fligor <jenna@fligor.net>"]
+>>>>>>> a83cce7 (version 0.2.0)
 publish = false
 edition = "2021"
 
 [workspace.lints.rust]
+<<<<<<< HEAD
 unsafe_op_in_unsafe_fn = "forbid"
 
 [workspace.metadata.crane]
@@ -47,3 +52,9 @@ tempfile = "3.10.1"
 [build-dependencies]
 bindgen = "0.69.4"
 >>>>>>> 8ab9725 (Added logging facility)
+=======
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.metadata.crane]
+name = "probe"
+>>>>>>> a83cce7 (version 0.2.0)

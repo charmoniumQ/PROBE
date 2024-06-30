@@ -344,6 +344,7 @@ name = "either"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
+<<<<<<< HEAD
 
 [[package]]
 name = "env_filter"
@@ -378,6 +379,8 @@ dependencies = [
  "libc",
  "winapi",
 ]
+=======
+>>>>>>> a83cce7 (version 0.2.0)
 
 [[package]]
 name = "env_filter"
@@ -819,6 +822,9 @@ dependencies = [
  "serde",
  "serde_json",
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> a83cce7 (version 0.2.0)
  "thiserror",
 ]
 
@@ -826,6 +832,7 @@ dependencies = [
 name = "probe_macros"
 version = "0.2.0"
 dependencies = [
+<<<<<<< HEAD
  "parking_lot",
  "proc-macro2",
  "quote",
@@ -834,6 +841,11 @@ dependencies = [
  "tar",
  "tempfile",
 >>>>>>> 70649ba (Major refactor)
+=======
+ "proc-macro2",
+ "quote",
+ "syn",
+>>>>>>> a83cce7 (version 0.2.0)
 ]
 
 [[package]]
@@ -970,7 +982,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70dc5ec042f7a43c4a73241207cecc9873a06d45debb38b329f8541d85c2730f"
 dependencies = [
  "bitflags 2.6.0",
+<<<<<<< HEAD
  "errno 0.3.9",
+=======
+ "errno",
+>>>>>>> a83cce7 (version 0.2.0)
  "libc",
  "linux-raw-sys",
  "windows-sys",

@@ -1,7 +1,10 @@
 [package]
 name = "probe_macros"
 version.workspace = true
+<<<<<<< HEAD
 license.workspace = true
+=======
+>>>>>>> a83cce7 (version 0.2.0)
 authors.workspace = true
 publish.workspace = true
 edition.workspace = true
@@ -11,7 +14,11 @@ name = "probe_macros"
 proc-macro = true
 
 [dependencies]
+<<<<<<< HEAD
 parking_lot = "0.12.3"
+=======
+# darling = "0.20.9"
+>>>>>>> a83cce7 (version 0.2.0)
 proc-macro2 = "1.0.86"
 quote = "1.0.36"
 syn = "2.0.68"

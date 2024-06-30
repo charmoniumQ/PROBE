@@ -103,6 +103,7 @@ exceptions = [
 # published to private registries.
 # To see how to mark a crate as unpublished (to the official registry),
 # visit https://doc.rust-lang.org/cargo/reference/manifest.html#the-publish-field.
+<<<<<<< HEAD
 #ignore = false
 # One or more private registries that you might publish crates to, if a crate
 # is only published to private registries, and ignore is true, the crate will
@@ -110,6 +111,15 @@ exceptions = [
 #registries = [
 #    #"https://sekretz.com/registry
 #]
+=======
+ignore = true
+# One or more private registries that you might publish crates to, if a crate
+# is only published to private registries, and ignore is true, the crate will
+# not have its license(s) checked
+registries = [
+    #"https://sekretz.com/registry
+]
+>>>>>>> a83cce7 (version 0.2.0)
 
 # This section is considered when running `cargo deny check bans`.
 # More documentation about the 'bans' section can be found here:
@@ -202,8 +212,16 @@ allow-git = []
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for
+<<<<<<< HEAD
 github = []
 # 1 or more gitlab.com organizations to allow git sources for
 gitlab = []
 # 1 or more bitbucket.org organizations to allow git sources for
 bitbucket = []
+=======
+github = [""]
+# 1 or more gitlab.com organizations to allow git sources for
+gitlab = [""]
+# 1 or more bitbucket.org organizations to allow git sources for
+bitbucket = [""]
+>>>>>>> a83cce7 (version 0.2.0)

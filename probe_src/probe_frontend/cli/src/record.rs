@@ -1,12 +1,17 @@
 use std::{
     ffi::OsString,
+<<<<<<< HEAD
     fs::{self, File},
     os::unix::process::ExitStatusExt,
+=======
+    fs,
+>>>>>>> a83cce7 (version 0.2.0)
     path::{Path, PathBuf},
     thread,
 };
 
 use color_eyre::eyre::{eyre, Result, WrapErr};
+<<<<<<< HEAD
 use flate2::Compression;
 
 use crate::{transcribe, util::Dir};
@@ -96,6 +101,11 @@ pub fn record_transcribe(
 
 /// Builder for running processes under provenance.
 // TODO: extract this into the library part of this project
+=======
+
+use crate::util::Dir;
+
+>>>>>>> a83cce7 (version 0.2.0)
 #[derive(Debug)]
 pub struct Recorder {
     gdb: bool,
@@ -122,9 +132,13 @@ impl Recorder {
             libprobe.push("libprobe.so");
         }
 
+<<<<<<< HEAD
         // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
         // a PathBuf to a OsString because PathBuf::push() automatically adds path separators which
         // is incorrect here.
+=======
+        // append any existing LD_PRELOAD overrides
+>>>>>>> a83cce7 (version 0.2.0)
         let mut ld_preload = OsString::from(libprobe);
         if let Some(x) = std::env::var_os("LD_PRELOAD") {
             ld_preload.push(":");
@@ -132,6 +146,7 @@ impl Recorder {
         }
 
         let mut child = if self.gdb {
+<<<<<<< HEAD
             let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");
             dir_env.push(self.output.path());
             let mut preload_env = OsString::from("--init-eval-command=set environment LD_PRELOAD=");
@@ -146,6 +161,18 @@ impl Recorder {
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__gdb-exec-shim")
+=======
+            let mut dir_env = OsString::from("__PROBE_DIR=");
+            dir_env.push(self.output.path());
+            let mut preload_env = OsString::from("LD_PRELOAD=");
+            preload_env.push(ld_preload);
+
+            std::process::Command::new("gdb")
+                .arg("--args")
+                .arg("env")
+                .arg(dir_env)
+                .arg(preload_env)
+>>>>>>> a83cce7 (version 0.2.0)
                 .args(&self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
@@ -162,6 +189,7 @@ impl Recorder {
                 .wrap_err("Failed to launch child process")?
         };
 
+<<<<<<< HEAD
         if !self.gdb {
             // without this the child process typically won't have written it's first op by the
             // time we do our sanity check, since we're about to wait on child anyway, this isn't a
@@ -217,6 +245,31 @@ impl Recorder {
     /// record.
     ///
     /// `cmd[0]` will be used as the command while `cmd[1..]` will be used as the arguments.
+=======
+        thread::sleep(std::time::Duration::from_millis(50));
+
+        match Path::read_dir(self.output.path()) {
+            Ok(x) => {
+                let any_files = x
+                    .into_iter()
+                    .try_fold(false, |_, x| x.map(|x| x.path().exists()))?;
+                if !any_files {
+                    log::warn!(
+                        "No arean files detected, something is wrong, you should probably abort!"
+                    );
+                }
+            }
+            Err(e) => {
+                return Err(e)
+                    .wrap_err("Unable to read record directory during post-startup sanity check")
+            }
+        }
+
+        child.wait().wrap_err("Failed to await child process")?;
+
+        Ok(self.output)
+    }
+>>>>>>> a83cce7 (version 0.2.0)
     pub fn new(cmd: Vec<OsString>, output: Dir) -> Self {
         Self {
             gdb: false,
@@ -227,13 +280,19 @@ impl Recorder {
         }
     }
 
+<<<<<<< HEAD
     /// Set if the process should be run under gdb, implies debug.
+=======
+>>>>>>> a83cce7 (version 0.2.0)
     pub fn gdb(mut self, gdb: bool) -> Self {
         self.gdb = gdb;
         self
     }
 
+<<<<<<< HEAD
     /// Set if the debug version of libprobe should be used.
+=======
+>>>>>>> a83cce7 (version 0.2.0)
     pub fn debug(mut self, debug: bool) -> Self {
         self.debug = debug;
         self

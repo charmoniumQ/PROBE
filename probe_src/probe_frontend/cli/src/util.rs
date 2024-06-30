@@ -6,6 +6,7 @@ use std::{
 use color_eyre::eyre::{Context, Result};
 use rand::Rng;
 
+<<<<<<< HEAD
 /// Represents a newly created directory and optionally acts as a RAII guard that (attempts to)
 /// delete the directory and anything in it when dropped.
 #[derive(Debug)]
@@ -16,19 +17,28 @@ pub struct Dir {
     /// drop flag, if this is `true` when [`Dir`] is dropped then the drop hook will call
     /// [`fs::remove_dir_all()`] on `path`, if this fails it will log a warning but take no other
     /// action.
+=======
+#[derive(Debug)]
+pub struct Dir {
+    path: PathBuf,
+>>>>>>> a83cce7 (version 0.2.0)
     pub drop: bool,
 }
 
 impl Dir {
+<<<<<<< HEAD
     /// Attempts to create a new directory at `path`.
     ///
     /// By default directories created this way **are not** deleted when [`Dir`] is dropped.
+=======
+>>>>>>> a83cce7 (version 0.2.0)
     #[inline]
     pub fn new(path: PathBuf) -> Result<Self> {
         fs::create_dir(&path).wrap_err("Failed to create named directory")?;
         Ok(Self { path, drop: false })
     }
 
+<<<<<<< HEAD
     /// Attempts to create a new tempoerary directory
     ///
     /// The directory is created in the path retunred by [`std::env::temp_dir()`] and is named
@@ -52,6 +62,9 @@ impl Dir {
                 .collect()
         }
 
+=======
+    pub fn temp(drop: bool) -> Result<Self> {
+>>>>>>> a83cce7 (version 0.2.0)
         let mut path = std::env::temp_dir();
         path.push(format!("probe-{}", rand_alphanumeric(8)));
 
@@ -90,6 +103,7 @@ impl Drop for Dir {
     }
 }
 
+<<<<<<< HEAD
 pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
     Some(match sig {
         libc::SIGHUP => "SIGHUP",
@@ -132,4 +146,19 @@ pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
 fn sig_eq() {
     assert_eq!(libc::SIGABRT, libc::SIGIOT);
     assert_eq!(libc::SIGIO, libc::SIGPOLL);
+=======
+fn rand_alphanumeric(len: usize) -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                            abcdefghijklmnopqrstuvwxyz\
+                            0123456789";
+
+    let mut rng = rand::thread_rng();
+
+    (0..len)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
+>>>>>>> a83cce7 (version 0.2.0)
 }

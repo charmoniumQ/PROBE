@@ -9,10 +9,21 @@ use color_eyre::eyre::{eyre, Result, WrapErr};
 use probe_frontend::ops;
 use serde::{Deserialize, Serialize};
 
+<<<<<<< HEAD
 /// Print the ops from a probe log out for humans.
 ///
 /// This hides some of the data and so is not suitable for machine consumption use
 /// [`to_stdout_json()`] instead.
+=======
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DumpOp {
+    pid: usize,
+    exec_epoch: usize,
+    tid: usize,
+    op: ops::Op,
+}
+
+>>>>>>> a83cce7 (version 0.2.0)
 pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();
@@ -23,6 +34,7 @@ pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     })
 }
 
+<<<<<<< HEAD
 /// Prints the ops from a probe log out for machine consumption.
 ///
 /// The ops are emitted one on each line, in the form:
@@ -32,6 +44,8 @@ pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
 /// ```
 ///
 /// (without whitespace)
+=======
+>>>>>>> a83cce7 (version 0.2.0)
 pub fn to_stdout_json<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();
@@ -122,6 +136,7 @@ fn dump_internal<P: AsRef<Path>, F: Fn((usize, usize, usize), Vec<ops::Op>) -> R
         })
 }
 
+<<<<<<< HEAD
 /// Helper struct constructed from pid/epoch/tid hierarchy information and an op. Used for
 /// serialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,28 +150,43 @@ struct DumpOp {
 // OPTIMIZE: Display won't work (foreign trait rule) but some kind of streaming would greatly
 // reduce unnecessary heap allocations and mem-copies; if we don't care about UTF-8 guarantees we
 // might be able to do some kind of byte iterator approach and evaluate it all lazily
+=======
+>>>>>>> a83cce7 (version 0.2.0)
 trait Dump {
     fn dump(&self) -> String;
 }
 
+<<<<<<< HEAD
 impl Dump for ops::StatxTimestamp {
     fn dump(&self) -> String {
         match DateTime::from_timestamp(self.sec, self.nsec) {
+=======
+impl Dump for ops::statx_timestamp {
+    fn dump(&self) -> String {
+        match DateTime::from_timestamp(self.tv_sec, self.tv_nsec) {
+>>>>>>> a83cce7 (version 0.2.0)
             Some(x) => x.to_rfc3339_opts(SecondsFormat::Secs, true),
             None => "[INVALID TIMESTAMP]".to_owned(),
         }
     }
 }
 
+<<<<<<< HEAD
 impl Dump for ops::Timeval {
     fn dump(&self) -> String {
         match DateTime::from_timestamp(self.sec, self.usec as u32 * 1000) {
+=======
+impl Dump for ops::timeval {
+    fn dump(&self) -> String {
+        match DateTime::from_timestamp(self.tv_sec, self.tv_usec as u32 * 1000) {
+>>>>>>> a83cce7 (version 0.2.0)
             Some(x) => x.to_rfc3339_opts(SecondsFormat::Secs, true),
             None => "[INVALID TIMESTAMP]".to_owned(),
         }
     }
 }
 
+<<<<<<< HEAD
 impl Dump for ops::Statx {
     fn dump(&self) -> String {
         format!(
@@ -167,10 +197,23 @@ impl Dump for ops::Statx {
             self.ino,
             self.size,
             self.mtime.dump(),
+=======
+impl Dump for ops::statx {
+    fn dump(&self) -> String {
+        format!(
+            "[ uid={}, gid={}, mode={:#06o} ino={}, size={}, mtime={} ]",
+            self.stx_uid,
+            self.stx_gid,
+            self.stx_mode,
+            self.stx_ino,
+            self.stx_size,
+            self.stx_mtime.dump(),
+>>>>>>> a83cce7 (version 0.2.0)
         )
     }
 }
 
+<<<<<<< HEAD
 impl Dump for ops::Rusage {
     fn dump(&self) -> String {
         format!(
@@ -178,6 +221,15 @@ impl Dump for ops::Rusage {
             self.utime.dump(),
             self.stime.dump(),
             self.maxrss,
+=======
+impl Dump for ops::rusage {
+    fn dump(&self) -> String {
+        format!(
+            "[ utime={}, stime={}, maxrss={} ]",
+            self.ru_utime.dump(),
+            self.ru_stime.dump(),
+            self.ru_maxrss,
+>>>>>>> a83cce7 (version 0.2.0)
         )
     }
 }
@@ -197,8 +249,13 @@ impl Dump for ops::Path {
 impl Dump for ops::CloneOp {
     fn dump(&self) -> String {
         format!(
+<<<<<<< HEAD
             "[ task_type={}, task_id={}, errno={} ]",
             self.task_type, self.task_id, self.ferrno,
+=======
+            "[ child_process_id={}, child_thread_id={}, errno={} ]",
+            self.child_process_id, self.child_thread_id, self.ferrno,
+>>>>>>> a83cce7 (version 0.2.0)
         )
     }
 }
@@ -248,8 +305,13 @@ impl Dump for ops::InitThreadOp {
 impl Dump for ops::WaitOp {
     fn dump(&self) -> String {
         format!(
+<<<<<<< HEAD
             "[ task_type={}, task_id={}, options={}, status={}, errno={} ]",
             self.task_type, self.task_id, self.options, self.status, self.ferrno,
+=======
+            "[ pid={}, options={}, status={}, ret={}, errno={} ]",
+            self.pid, self.options, self.status, self.ret, self.ferrno,
+>>>>>>> a83cce7 (version 0.2.0)
         )
     }
 }
@@ -328,15 +390,23 @@ impl Dump for ops::ReaddirOp {
 impl Dump for ops::Metadata {
     fn dump(&self) -> String {
         match self {
+<<<<<<< HEAD
             ops::Metadata::Mode { mode, .. } => format!("Mode[ mode={:#06o} ]", mode),
             ops::Metadata::Ownership { uid, gid, .. } => {
+=======
+            ops::Metadata::Mode { mode } => format!("Mode[ mode={:#06o} ]", mode),
+            ops::Metadata::Ownership { uid, gid } => {
+>>>>>>> a83cce7 (version 0.2.0)
                 format!("Ownership[ uid={}, gid={} ]", uid, gid)
             }
             ops::Metadata::Times {
                 is_null,
                 atime,
                 mtime,
+<<<<<<< HEAD
                 ..
+=======
+>>>>>>> a83cce7 (version 0.2.0)
             } => format!(
                 "Times[ is_null={}, atime={}, mtime={} ]",
                 is_null,

@@ -1,15 +1,24 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
+<<<<<<< HEAD
 
 use crate::error::{ProbeError, Result};
 use crate::transcribe::ArenaContext;
 use probe_macros::{MakeRustOp, PygenDataclass};
+=======
+#![allow(unsafe_op_in_unsafe_fn)] // <- PyO3 breaks without this
+
+use crate::error::{ProbeError, Result};
+use crate::transcribe::ArenaContext;
+use probe_macros::{MakePyDataclass, MakeRustOp};
+>>>>>>> a83cce7 (version 0.2.0)
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
 
 /// Specialized version of [`std::convert::From`] for working with libprobe arena structs.
 ///
+<<<<<<< HEAD
 /// Since `C_*` structs from arena allocator files have intrinsically invalid pointers (because
 /// they came from a different virtual memory space). This trait and It's sibling [`FfiInto`]
 /// exist to act as [`From`] and [`Into`] with an added parameter of a [`ArenaContext`] that can be
@@ -22,11 +31,44 @@ use std::ffi::CString;
 ///   pointers in the [`ArenaContext`],
 /// - Any type implementing [`Copy`], this base case just returns itself.
 pub trait FfiFrom<T> {
+=======
+/// Since [`ffi`] structs from arena allocator files have intrinsically invalid pointers (because
+/// they came from a different virtual memory space). This trait and It's sibling [`FfiInto`]
+/// exist to act as [`From`] and [`Into`] with an added parameter of a [`ArenaContext`] that can be
+/// used to decode pointers.
+pub(crate) trait FfiFrom<T> {
+>>>>>>> a83cce7 (version 0.2.0)
     fn ffi_from(value: &T, ctx: &ArenaContext) -> Result<Self>
     where
         Self: Sized;
 }
 
+<<<<<<< HEAD
+=======
+/// Specialized version of [`std::convert::Into`] for working with libprobe arena structs.
+///
+/// Much like [`std::convert::Into`] this trait is implemented automatically with a blanket
+/// implementation as the reciprocal of [`FfiFrom`].
+pub(crate) trait FfiInto<T> {
+    fn ffi_into(&self, ctx: &ArenaContext) -> Result<T>;
+}
+
+impl<T, U> FfiInto<U> for T
+where
+    U: FfiFrom<T>,
+{
+    #[inline]
+    fn ffi_into(&self, ctx: &ArenaContext) -> Result<U> {
+        U::ffi_from(self, ctx)
+    }
+}
+
+// these are the three base implementations of FFiFrom; each generated Op implements FFiFrom by
+// calling ffi_into(ctx) on each of it's fields, each fields *must* be either:
+// - Another generated struct
+// - A Copy-able value
+// - An i8 pointer, which maps to the C *char and are converted to CStrings
+>>>>>>> a83cce7 (version 0.2.0)
 impl<T: Copy> FfiFrom<T> for T {
     #[inline]
     fn ffi_from(value: &T, _: &ArenaContext) -> Result<Self> {
@@ -46,6 +88,7 @@ impl FfiFrom<*mut i8> for CString {
     }
 }
 
+<<<<<<< HEAD
 /// Specialized version of [`std::convert::Into`] for working with libprobe arena structs.
 ///
 /// Much like [`std::convert::Into`] this trait is implemented automatically with a blanket
@@ -66,6 +109,8 @@ where
     }
 }
 
+=======
+>>>>>>> a83cce7 (version 0.2.0)
 fn try_cstring(str: *const i8, ctx: &ArenaContext) -> Result<CString> {
     if str.is_null() {
         std::ffi::CString::new("").map_err(|_| ProbeError::MissingNull)
@@ -86,6 +131,7 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 // implemented, this is somewhat confusing since they extensively use types and trait
 // implementations that are auto-generated.
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub enum Metadata {
     #[serde(untagged)]
@@ -140,11 +186,32 @@ impl Metadata {
 
 impl FfiFrom<C_UpdateMetadataOp> for Metadata {
     fn ffi_from(value: &C_UpdateMetadataOp, ctx: &ArenaContext) -> Result<Self> {
+=======
+#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+pub enum Metadata {
+    Mode {
+        mode: mode_t,
+    },
+    Ownership {
+        uid: uid_t,
+        gid: gid_t,
+    },
+    Times {
+        is_null: bool,
+        atime: timeval,
+        mtime: timeval,
+    },
+}
+
+impl FfiFrom<Bindgen_UpdateMetadataOp> for Metadata {
+    fn ffi_from(value: &Bindgen_UpdateMetadataOp, ctx: &ArenaContext) -> Result<Self> {
+>>>>>>> a83cce7 (version 0.2.0)
         let kind = value.kind;
         let value = value.value;
 
         log::debug!("[unsafe] decoding Metadata tagged union");
         Ok(match kind {
+<<<<<<< HEAD
             C_MetadataKind_MetadataMode => Metadata::Mode {
                 mode: unsafe { value.mode },
 
@@ -162,18 +229,36 @@ impl FfiFrom<C_UpdateMetadataOp> for Metadata {
                 mtime: unsafe { value.times }.mtime.ffi_into(ctx)?,
 
                 _type: (),
+=======
+            Bindgen_MetadataKind_MetadataMode => Metadata::Mode {
+                mode: unsafe { value.mode },
+            },
+            Bindgen_MetadataKind_MetadataOwnership => Metadata::Ownership {
+                uid: unsafe { value.ownership }.uid,
+                gid: unsafe { value.ownership }.gid,
+            },
+            Bindgen_MetadataKind_MetadataTimes => Metadata::Times {
+                is_null: unsafe { value.times }.is_null,
+                atime: unsafe { value.times }.atime.ffi_into(ctx)?,
+                mtime: unsafe { value.times }.mtime.ffi_into(ctx)?,
+>>>>>>> a83cce7 (version 0.2.0)
             },
             _ => return Err(ProbeError::InvalidVariant(kind)),
         })
     }
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
+=======
+#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+>>>>>>> a83cce7 (version 0.2.0)
 pub struct UpdateMetadataOp {
     pub path: Path,
     pub flags: ::std::os::raw::c_int,
     pub metadata: Metadata,
     pub ferrno: ::std::os::raw::c_int,
+<<<<<<< HEAD
 
     #[serde(serialize_with = "UpdateMetadataOp::serialize_type")]
     #[serde(skip_deserializing)]
@@ -191,6 +276,12 @@ impl UpdateMetadataOp {
 
 impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
     fn ffi_from(value: &C_UpdateMetadataOp, ctx: &ArenaContext) -> Result<Self> {
+=======
+}
+
+impl FfiFrom<Bindgen_UpdateMetadataOp> for UpdateMetadataOp {
+    fn ffi_from(value: &Bindgen_UpdateMetadataOp, ctx: &ArenaContext) -> Result<Self> {
+>>>>>>> a83cce7 (version 0.2.0)
         Ok(Self {
             path: value.path.ffi_into(ctx)?,
             flags: value.flags,
@@ -201,12 +292,16 @@ impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
                     inner: Box::new(e),
                 })?,
             ferrno: value.ferrno,
+<<<<<<< HEAD
 
             _type: (),
+=======
+>>>>>>> a83cce7 (version 0.2.0)
         })
     }
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub enum OpInternal {
     #[serde(untagged)]
@@ -245,11 +340,36 @@ pub enum OpInternal {
 
 impl FfiFrom<C_Op> for OpInternal {
     fn ffi_from(value: &C_Op, ctx: &ArenaContext) -> Result<Self> {
+=======
+#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+pub enum OpInternal {
+    InitProcessOp(InitProcessOp),
+    InitExecEpochOp(InitExecEpochOp),
+    InitThreadOp(InitThreadOp),
+    OpenOp(OpenOp),
+    CloseOp(CloseOp),
+    ChdirOp(ChdirOp),
+    ExecOp(ExecOp),
+    CloneOp(CloneOp),
+    ExitOp(ExitOp),
+    AccessOp(AccessOp),
+    StatOp(StatOp),
+    ReaddirOp(ReaddirOp),
+    WaitOp(WaitOp),
+    GetRUsageOp(GetRUsageOp),
+    UpdateMetadataOp(UpdateMetadataOp),
+    ReadLinkOp(ReadLinkOp),
+}
+
+impl FfiFrom<Bindgen_Op> for OpInternal {
+    fn ffi_from(value: &Bindgen_Op, ctx: &ArenaContext) -> Result<Self> {
+>>>>>>> a83cce7 (version 0.2.0)
         let kind = value.op_code;
         let value = value.data;
 
         log::debug!("[unsafe] decoding Op tagged union [ OpCode={} ]", kind);
         Ok(match kind {
+<<<<<<< HEAD
             C_OpCode_init_process_op_code => {
                 Self::InitProcessOp(unsafe { value.init_process }.ffi_into(ctx)?)
             }
@@ -276,6 +396,36 @@ impl FfiFrom<C_Op> for OpInternal {
                 Self::UpdateMetadataOp(unsafe { value.update_metadata }.ffi_into(ctx)?)
             }
             C_OpCode_read_link_op_code => {
+=======
+            Bindgen_OpCode_init_process_op_code => {
+                Self::InitProcessOp(unsafe { value.init_process_epoch }.ffi_into(ctx)?)
+            }
+            Bindgen_OpCode_init_exec_epoch_op_code => {
+                Self::InitExecEpochOp(unsafe { value.init_exec_epoch }.ffi_into(ctx)?)
+            }
+            Bindgen_OpCode_init_thread_op_code => {
+                Self::InitThreadOp(unsafe { value.init_thread }.ffi_into(ctx)?)
+            }
+            Bindgen_OpCode_open_op_code => Self::OpenOp(unsafe { value.open }.ffi_into(ctx)?),
+            Bindgen_OpCode_close_op_code => Self::CloseOp(unsafe { value.close }.ffi_into(ctx)?),
+            Bindgen_OpCode_chdir_op_code => Self::ChdirOp(unsafe { value.chdir }.ffi_into(ctx)?),
+            Bindgen_OpCode_exec_op_code => Self::ExecOp(unsafe { value.exec }.ffi_into(ctx)?),
+            Bindgen_OpCode_clone_op_code => Self::CloneOp(unsafe { value.clone }.ffi_into(ctx)?),
+            Bindgen_OpCode_exit_op_code => Self::ExitOp(unsafe { value.exit }.ffi_into(ctx)?),
+            Bindgen_OpCode_access_op_code => Self::AccessOp(unsafe { value.access }.ffi_into(ctx)?),
+            Bindgen_OpCode_stat_op_code => Self::StatOp(unsafe { value.stat }.ffi_into(ctx)?),
+            Bindgen_OpCode_readdir_op_code => {
+                Self::ReaddirOp(unsafe { value.readdir }.ffi_into(ctx)?)
+            }
+            Bindgen_OpCode_wait_op_code => Self::WaitOp(unsafe { value.wait }.ffi_into(ctx)?),
+            Bindgen_OpCode_getrusage_op_code => {
+                Self::GetRUsageOp(unsafe { value.getrusage }.ffi_into(ctx)?)
+            }
+            Bindgen_OpCode_update_metadata_op_code => {
+                Self::UpdateMetadataOp(unsafe { value.update_metadata }.ffi_into(ctx)?)
+            }
+            Bindgen_OpCode_read_link_op_code => {
+>>>>>>> a83cce7 (version 0.2.0)
                 Self::ReadLinkOp(unsafe { value.read_link }.ffi_into(ctx)?)
             }
             _ => return Err(ProbeError::InvalidVariant(kind)),
@@ -283,6 +433,7 @@ impl FfiFrom<C_Op> for OpInternal {
     }
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub struct Op {
     pub data: OpInternal,
@@ -353,3 +504,19 @@ mod tests {
     //     );
     // }
 }
+=======
+#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+pub struct Op {
+    pub data: OpInternal,
+    pub time: timespec,
+}
+
+impl FfiFrom<Bindgen_Op> for Op {
+    fn ffi_from(value: &Bindgen_Op, ctx: &ArenaContext) -> Result<Self> {
+        Ok(Self {
+            data: value.ffi_into(ctx)?,
+            time: value.time.ffi_into(ctx)?,
+        })
+    }
+}
+>>>>>>> a83cce7 (version 0.2.0)
