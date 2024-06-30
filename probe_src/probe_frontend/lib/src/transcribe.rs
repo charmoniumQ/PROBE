@@ -1,4 +1,3 @@
-use color_eyre::eyre::{eyre, ContextCompat, Report, Result, WrapErr};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::{
     collections::HashMap,
@@ -11,17 +10,20 @@ use std::{
 };
 
 use crate::{
-    ffi,
+    error::{option_err, ConvertErr, ProbeError, Result, WrapErr},
     ops::{self, FfiFrom},
 };
 
-/// Recursively parse a top-level libprobe arena allocator directory from `in_dir` and write it in
-/// serialized format to `out_dir`.
+type RawOp = ops::Bindgen_Op;
+
+// pub mod ops;
+
+/// Recursively parse a Top-level arena allocator directory and write it in serialized.
 ///
 /// This function calls [`parse_pid()`] on each sub-directory in `in_dir` **in parallel**.
 ///
 /// on success, returns the number of Ops processed in the top-level directory
-pub fn parse_arena_dir<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
+pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     in_dir: P1,
     out_dir: P2,
 ) -> Result<usize> {
@@ -34,11 +36,11 @@ pub fn parse_arena_dir<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     let start = SystemTime::now();
 
     let count = fs::read_dir(in_dir)
-        .wrap_err("Error opening Arena directory")?
+        .wrap_err("Error opening record directory")?
         .par_bridge()
         .map(|x| {
             parse_pid(
-                x.wrap_err("Error reading DirEntry from Arena directory")?
+                x.wrap_err("Error reading DirEntry from record directory")?
                     .path(),
                 &out_dir,
             )
@@ -54,13 +56,12 @@ pub fn parse_arena_dir<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     Ok(count)
 }
 
-/// Recursively parse a PID libprobe arena allocator directory from `in_dir` and write it in
-/// serialized format to `out_dir`.
+/// Recursively parse a PID arena allocator directory and write it in serialized.
 ///
 /// This function calls [`parse_exec_epoch()`] on each sub-directory in `in_dir`.
 ///
 /// On success, returns the number of Ops processed in the PID directory.
-fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<usize> {
+pub fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<usize> {
     let pid = filename_numeric(&in_dir)?;
 
     let dir = {
@@ -85,13 +86,15 @@ fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
         .try_fold(0usize, |acc, x| x.map(|x| acc + x))
 }
 
-/// Recursively parse a ExecEpoch libprobe arena allocator directory from `in_dir` and write it in
-/// serialized format to `out_dir`.
+/// Recursively parse a Epoch arena allocator directory and write it in serialized.
 ///
 /// This function calls [`parse_tid()`] on each sub-directory in `in_dir`.
 ///
 /// On success, returns the number of Ops processed in the ExecEpoch directory.
-fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<usize> {
+pub fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(
+    in_dir: P1,
+    out_dir: P2,
+) -> Result<usize> {
     let epoch = filename_numeric(&in_dir)?;
 
     let dir = {
@@ -116,8 +119,7 @@ fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -
         .try_fold(0usize, |acc, x| x.map(|x| acc + x))
 }
 
-/// Recursively parse a TID libprobe arena allocator directory from `in_dir` and write it in
-/// serialized format to `out_dir`.
+/// Recursively parse a TID arena allocator directory and write it in serialized.
 ///
 /// This function parses a TID directory in 6 steps:
 ///
@@ -133,17 +135,17 @@ fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -
 /// (steps 5 & 6 are done lazily with iterators to reduce unnecessary memory allocations)
 ///
 /// On success, returns the number of Ops processed in the TID directory.
-fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<usize> {
-    fn try_files_from_arena_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<PathBuf>> {
+pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<usize> {
+    fn try_files_from_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<PathBuf>> {
         match fs::read_dir(&dir) {
             Ok(entry_iter) => entry_iter
                 .map(|entry_result| {
                     entry_result
                         .map(|entry| entry.path())
-                        .wrap_err("Error reading DirEntry from arena directory")
+                        .wrap_err("Error reading DirEntry from record TID subdirectory")
                 })
-                .collect::<Result<Vec<_>, _>>(),
-            Err(e) => Err(Report::from(e).wrap_err("Error opening arena directory")),
+                .collect::<Result<Vec<_>>>(),
+            Err(e) => Err(e.convert("Error opening record TID directory")),
         }
     }
 
@@ -157,10 +159,7 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
 
     // STEP 2
     let paths = fs::read_dir(&in_dir)
-        .wrap_err(format!(
-            "Error reading directory '{}'",
-            in_dir.as_ref().to_string_lossy()
-        ))?
+        .wrap_err("Error reading record TID directory")?
         .filter_map(|entry_result| match entry_result {
             Ok(entry) => Some((entry.file_name(), entry)),
             Err(e) => {
@@ -172,10 +171,10 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
 
     // STEP 3
     let ctx = ArenaContext(
-        try_files_from_arena_dir(
+        try_files_from_dir(
             paths
                 .get(OsStr::new("data"))
-                .wrap_err("Missing data directory from TID directory")?
+                .ok_or_else(|| option_err("Missing data directory from TID directory"))?
                 .path(),
         )?
         .into_iter()
@@ -184,15 +183,15 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
                 std::fs::read(data_dat_file).wrap_err("Failed to read file from data directory")?,
             )
         })
-        .collect::<Result<Vec<_>, _>>()?,
+        .collect::<Result<Vec<_>>>()?,
     );
 
     // STEP 4
     let mut count: usize = 0;
-    try_files_from_arena_dir(
+    try_files_from_dir(
         paths
             .get(OsStr::new("ops"))
-            .wrap_err("Missing ops directory from TID directory")?
+            .ok_or_else(|| option_err("Missing ops directory from TID directory"))?
             .path(),
     )?
     // STEP 5
@@ -223,7 +222,7 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
             count += 1;
         }
 
-        Ok::<(), Report>(())
+        Ok::<(), ProbeError>(())
     })?;
 
     Ok(count)
@@ -233,19 +232,23 @@ fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Resul
 ///
 /// errors if the path has no filename or the filename can't be parsed as an integer.
 fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
-    let filename = dir
-        .as_ref()
-        .file_name()
-        .ok_or_else(|| eyre!("'{}' has no filename", dir.as_ref().to_string_lossy()))?;
+    let filename = dir.as_ref().file_name().ok_or_else(|| {
+        log::error!("'{}' has no filename", dir.as_ref().to_string_lossy());
+        option_err("path has no filename")
+    })?;
 
     filename
         .to_str()
-        .ok_or_else(|| eyre!("filename '{}' not valid UTF-8", filename.to_string_lossy()))?
+        .ok_or_else(|| {
+            log::error!("'{}' not valid UTF-8", filename.to_string_lossy());
+            option_err("filename not valid UTF-8")
+        })?
         .parse::<usize>()
-        .wrap_err(format!(
-            "unable to convert filename '{}' to integer",
-            filename.to_string_lossy()
-        ))
+        .map_err(|e| {
+            log::error!("Parsing filename '{}' to integer", filename.to_string_lossy());
+            ProbeError::from(e)
+        })
+        .wrap_err("Failed to parse filename to integer")
 }
 
 /// this struct represents a `<TID>/data` directory from libprobe.
@@ -270,20 +273,13 @@ pub struct DataArena {
 
 impl DataArena {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
-        if bytes.len() < size_of::<ArenaHeader>() {
-            return Err(eyre!(
-                "Arena buffer too small, got {}, minimum size {}",
-                bytes.len(),
-                size_of::<ArenaHeader>()
-            ));
-        }
         let header = ArenaHeader::from_bytes(&bytes)
             .wrap_err("Failed to create ArenaHeader for DataArena")?;
 
         Ok(Self { header, raw: bytes })
     }
 
-    pub fn try_get_slice<'a>(&'a self, ptr: usize) -> Option<&'a [u8]> {
+    pub fn try_get_slice(&self, ptr: usize) -> Option<&[u8]> {
         let end = self.header.base_address + self.header.used;
         match ptr >= self.header.base_address && ptr <= end {
             false => None,
@@ -305,7 +301,7 @@ pub struct OpsArena<'a> {
     /// raw byte buffer of Ops arena allocator.
     raw: Vec<u8>,
     /// slice over Ops of the raw buffer.
-    ops: &'a [ffi::Op],
+    ops: &'a [RawOp],
 }
 
 impl<'a> OpsArena<'a> {
@@ -313,20 +309,15 @@ impl<'a> OpsArena<'a> {
         let header = ArenaHeader::from_bytes(&bytes)
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;
 
-        if ((header.used - size_of::<ArenaHeader>()) % size_of::<ffi::Op>()) != 0 {
-            return Err(eyre!(
-                "Arena alignment error: used arena size minus header isn't a multiple of op size"
-            ));
+        if ((header.used - size_of::<ArenaHeader>()) % size_of::<RawOp>()) != 0 {
+            return Err(ArenaError::Misaligned.into());
         }
 
-        let count = (header.used - size_of::<ArenaHeader>()) / size_of::<ffi::Op>();
+        let count = (header.used - size_of::<ArenaHeader>()) / size_of::<RawOp>();
 
-        log::debug!(
-            "[unsafe] converting Vec<u8> to &[ffi::Op] of size {}",
-            count
-        );
+        log::debug!("[unsafe] converting Vec<u8> to &[RawOp] of size {}", count);
         let ops = unsafe {
-            let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const ffi::Op;
+            let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const RawOp;
             std::slice::from_raw_parts(ptr, count)
         };
 
@@ -358,11 +349,11 @@ impl ArenaHeader {
         let ptr = bytes as *const [u8] as *const Self;
 
         if bytes.len() < size_of::<Self>() {
-            return Err(eyre!(
-                "Arena buffer too small, got {}, minimum size {}",
-                bytes.len(),
-                size_of::<Self>()
-            ));
+            return Err(ArenaError::BufferTooSmall {
+                got: bytes.len(),
+                needed: size_of::<Self>(),
+            }
+            .into());
         }
 
         log::debug!("[unsafe] converting byte buffer into ArenaHeader");
@@ -383,20 +374,35 @@ impl ArenaHeader {
         );
 
         if header.capacity != bytes.len() {
-            return Err(eyre!(
-                "Invalid arena capacity, expected {}, got {}",
-                header.capacity,
-                bytes.len(),
-            ));
+            return Err(ArenaError::InvalidCapacity {
+                expected: header.capacity,
+                actual: bytes.len(),
+            }
+            .into());
         }
         if header.used > header.capacity {
-            return Err(eyre!(
-                "Arena size {} is greater than capacity {}",
-                header.used,
-                header.capacity,
-            ));
+            return Err(ArenaError::InvalidSize {
+                size: header.used,
+                capacity: header.capacity,
+            }
+            .into());
         }
 
         Ok(header)
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ArenaError {
+    #[error("Arena buffer too small, got {got}, minimum size {needed}")]
+    BufferTooSmall { got: usize, needed: usize },
+
+    #[error("Invalid arena capacity, expected {expected}, got {actual}")]
+    InvalidCapacity { expected: usize, actual: usize },
+
+    #[error("Arena size {size} is greater than capacity {capacity}")]
+    InvalidSize { size: usize, capacity: usize },
+
+    #[error("Arena alignment error: used arena size minus header isn't a multiple of op size")]
+    Misaligned,
 }
