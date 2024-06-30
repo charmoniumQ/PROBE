@@ -83,7 +83,8 @@
           pname = "probe-macros";
           cargoExtraArgs = "-p probe_macros";
           installPhase = ''
-            cp -r python/ $out
+            mkdir -p $out
+            cp -r python $out/python
           '';
         });
     in {
@@ -132,6 +133,11 @@
             partitions = 1;
             partitionType = "count";
           });
+
+        pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
+          cp ${probe-macros}/python/generated/ops.py $out
+          ${pkgs.python312}/bin/python $out
+        '';
       };
 
       packages = {
