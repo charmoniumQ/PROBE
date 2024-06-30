@@ -59,7 +59,7 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                                 .map_err(|e| {
                                     ProbeError::FFiConversionError {
                                         msg: "Error calling ffi_into() on\
-                                            #field_idents creating #new_name", 
+                                            #field_idents creating #new_name",
                                         inner: Box::new(e),
                                     }
                                 })?,

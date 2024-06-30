@@ -245,7 +245,10 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         })?
         .parse::<usize>()
         .map_err(|e| {
-            log::error!("Parsing filename '{}' to integer", filename.to_string_lossy());
+            log::error!(
+                "Parsing filename '{}' to integer",
+                filename.to_string_lossy()
+            );
             ProbeError::from(e)
         })
         .wrap_err("Failed to parse filename to integer")
