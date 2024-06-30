@@ -1,20 +1,19 @@
-use std::{
-    ffi::OsString,
-    fs::{self, File},
-};
+use std::{ffi::OsString, fs::File};
 
 use clap::Parser;
 use color_eyre::eyre::{Context, Result};
 use flate2::Compression;
-use util::Dir;
 
+/// Output the ops from a probe log file to stdout.
 mod dump;
+
+/// Run commands under provenance and generate probe record directory.
 mod record;
 
-/// Wrapper over [`probe_frontend::transcribe`] which provides high-level commands
+/// Wrapper over [`probe_frontend::transcribe`].
 mod transcribe;
 
-/// Utility code for creating temporary directories
+/// Utility code for creating temporary directories.
 mod util;
 
 /// Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.
@@ -96,9 +95,9 @@ fn main() -> Result<()> {
             debug,
             cmd,
         } => if no_transcribe {
-            record_no_transcribe(output, overwrite, gdb, debug, cmd)
+            record::record_no_transcribe(output, overwrite, gdb, debug, cmd)
         } else {
-            record_transcribe(output, overwrite, gdb, debug, cmd)
+            record::record_transcribe(output, overwrite, gdb, debug, cmd)
         }
         .wrap_err("Record command failed"),
 
@@ -123,83 +122,4 @@ fn main() -> Result<()> {
         }
         .wrap_err("Dump command failed"),
     }
-}
-
-fn record_no_transcribe(
-    output: Option<OsString>,
-    overwrite: bool,
-    gdb: bool,
-    debug: bool,
-    cmd: Vec<OsString>,
-) -> Result<()> {
-    let output = match output {
-        Some(x) => fs::canonicalize(x).wrap_err("Failed to canonicalize record directory path")?,
-        None => {
-            let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
-            output.push("probe_record");
-            output
-        }
-    };
-
-    if overwrite {
-        if let Err(e) = fs::remove_dir_all(&output) {
-            match e.kind() {
-                std::io::ErrorKind::NotFound => (),
-                _ => return Err(e).wrap_err("Failed to remove exisitng record directory"),
-            }
-        }
-    }
-
-    let record_dir = Dir::new(output).wrap_err("Failed to create record directory")?;
-
-    record::Recorder::new(cmd, record_dir)
-        .gdb(gdb)
-        .debug(debug)
-        .record()?;
-
-    Ok(())
-}
-
-fn record_transcribe(
-    output: Option<OsString>,
-    overwrite: bool,
-    gdb: bool,
-    debug: bool,
-    cmd: Vec<OsString>,
-) -> Result<()> {
-    let output = match output {
-        Some(x) => x,
-        None => OsString::from("probe_log"),
-    };
-
-    let file = if overwrite {
-        File::create(&output)
-    } else {
-        File::create_new(&output)
-    }
-    .wrap_err("Failed to create output file")?;
-
-    let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
-
-    let mut record_dir = record::Recorder::new(
-        cmd,
-        util::Dir::temp(true).wrap_err("Failed to create record directory")?,
-    )
-    .gdb(gdb)
-    .debug(debug)
-    .record()?;
-
-    match transcribe::transcribe(&record_dir, &mut tar) {
-        Ok(_) => (),
-        Err(e) => {
-            log::error!(
-                "Error transcribing record directory, saving directory '{}'",
-                record_dir.as_ref().to_string_lossy()
-            );
-            record_dir.drop = false;
-            return Err(e).wrap_err("Failed to transcirbe record directory");
-        }
-    };
-
-    Ok(())
 }

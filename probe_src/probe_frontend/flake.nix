@@ -17,11 +17,10 @@
     };
   };
 
-  # FIXME: currently all the different crates get their dependencies grouped
-  # together, this means you can't build even the pure-rust crates without
-  # python, I'd like to figure out how to avoid this; a rust-bindgen crate
-  # and a PyO3 crate is really pushing what crane was designed to do (but the
-  # other options are worse).
+  # TODO: cleanup derivations and make more usable:
+  # - version of probe cli with bundled libprobe and wrapper script
+  # - python code as actual module
+  # (this may require merging this flake with the top-level one)
   outputs = {
     self,
     nixpkgs,
@@ -127,15 +126,15 @@
         # Run tests with cargo-nextest
         # this is why `doCheck = false` on other crate derivations, to not run
         # the tests twice.
-        workspace-nextest = craneLib.cargoNextest (commonArgs
+        probe-workspace-nextest = craneLib.cargoNextest (commonArgs
           // {
             inherit cargoArtifacts;
             partitions = 1;
             partitionType = "count";
           });
 
-        pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
-          cp ${probe-macros}/python/generated/ops.py $out
+        probe-pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
+          cp ${probe-macros}/python/ops.py $out
           ${pkgs.python312}/bin/python $out
         '';
       };
