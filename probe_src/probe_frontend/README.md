@@ -17,10 +17,9 @@ architecture, kernel version, or c compiler (or if any of those things change on
 the same computer).
 
 - **Probe log**  
-This is a directory **or** file (`probe_log` by default) that encodes the data
-from a probe record in a format that is cross-platform and much easier to use; a
-probe log file is just a gzip-ed tarball containing a probe log directory. (see
-the section on serialization format)
+This is a directory or file (`probe_log` by default) that encodes the data
+from a probe record in a format that is cross-platform and much easier to use.
+(see the section on serialization format for details).
 
 - **Transcription**  
 This is the process of converting a probe record to a probe log.
@@ -74,8 +73,8 @@ probe record -- bash -c '<SHELL_CODE>'`
 
 ### Probe record directory
 
-The exact format of the probe record directory is defined by libprobe and not
-part of this tool's spec, however a best-effort explanation is still given.
+The format of the probe record directory is defined by libprobe and not part of
+this tool's spec, however a best-effort explanation is still given.
 
 - Each probe record directory is composed of a top-level directory containing
 one or more PID directories.
@@ -97,9 +96,9 @@ who's provenance is recorded inside it, it contains two subdirectories named
 called "data arenas", while those in the `ops` directory are called "op arenas".
 
 - Each op arena is a binary file containing an arena header followed by zero or
-more raw op c-structs, followed by zero or more null bytes.
+more op c structs, followed by zero or more null bytes.
 
-- Each data arena is a binary file containing and arena header followed by zero
+- Each data arena is a binary file containing an arena header followed by zero
 or more bytes of arbitrary data, followed by zero or more null bytes.
 
 ### Probe log directory
