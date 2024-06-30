@@ -1,4 +1,3 @@
-
 /// Op definitions
 ///
 /// While simple Ops containing only Integral values can be used/serialized directory from
@@ -25,8 +24,7 @@ pub mod ops;
 pub mod transcribe;
 
 // currently unused, get system metadata
-mod metadata;
+// mod metadata;
 
 /// Library error type and definitions.
 pub mod error;
-

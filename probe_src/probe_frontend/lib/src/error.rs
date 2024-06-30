@@ -42,9 +42,7 @@ pub enum ProbeError {
     },
 
     #[error("{context}:\nNeeded Option was None")]
-    MissingOption {
-        context: &'static str,
-    },
+    MissingOption { context: &'static str },
 
     #[error("{0}")]
     ArenaError(crate::transcribe::ArenaError),
@@ -89,19 +87,27 @@ pub(crate) trait ConvertErr {
 
 impl ConvertErr for std::io::Error {
     fn convert(self, context: &'static str) -> ProbeError {
-        ProbeError::ContextIO { context, error: self }
+        ProbeError::ContextIO {
+            context,
+            error: self,
+        }
     }
 }
 
 impl ConvertErr for ProbeError {
     fn convert(self, context: &'static str) -> ProbeError {
-        ProbeError::Context { context, error: Box::new(self) }
+        ProbeError::Context {
+            context,
+            error: Box::new(self),
+        }
     }
 }
 
 impl ConvertErr for serde_json::Error {
     fn convert(self, context: &'static str) -> ProbeError {
-        ProbeError::JsonError { context, error: self }
+        ProbeError::JsonError {
+            context,
+            error: self,
+        }
     }
 }
-
