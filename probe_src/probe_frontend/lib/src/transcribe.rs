@@ -11,14 +11,12 @@ use std::{
 
 use crate::{
     error::{option_err, ConvertErr, ProbeError, Result, WrapErr},
-    ops::{self, FfiFrom},
+    ops::{self, C_Op, FfiFrom},
 };
-
-type RawOp = ops::Bindgen_Op;
 
 // pub mod ops;
 
-/// Recursively parse a Top-level arena allocator directory and write it in serialized.
+/// Recursively parse a whole probe record directory and write it to a probe log directory.
 ///
 /// This function calls [`parse_pid()`] on each sub-directory in `in_dir` **in parallel**.
 ///
@@ -56,7 +54,7 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     Ok(count)
 }
 
-/// Recursively parse a PID arena allocator directory and write it in serialized.
+/// Recursively parse a probe record PID directory and write it as a probe log PID directory.
 ///
 /// This function calls [`parse_exec_epoch()`] on each sub-directory in `in_dir`.
 ///
@@ -86,7 +84,8 @@ pub fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         .try_fold(0usize, |acc, x| x.map(|x| acc + x))
 }
 
-/// Recursively parse a Epoch arena allocator directory and write it in serialized.
+/// Recursively parse a probe record exec epoch directory and write it as a probe log exec epoch
+/// directory.
 ///
 /// This function calls [`parse_tid()`] on each sub-directory in `in_dir`.
 ///
@@ -119,7 +118,7 @@ pub fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(
         .try_fold(0usize, |acc, x| x.map(|x| acc + x))
 }
 
-/// Recursively parse a TID arena allocator directory and write it in serialized.
+/// Recursively parse a probe record TID directory and write it as a probe log TID directory.
 ///
 /// This function parses a TID directory in 6 steps:
 ///
@@ -230,7 +229,9 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
 
 /// Gets the filename from a path and returns it parsed as an integer.
 ///
-/// errors if the path has no filename or the filename can't be parsed as an integer.
+/// Errors if the path has no filename, the filename isn't valid UTF-8, or the filename can't be
+/// parsed as an integer.
+// TODO: cleanup errors, better context
 fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
     let filename = dir.as_ref().file_name().ok_or_else(|| {
         log::error!("'{}' has no filename", dir.as_ref().to_string_lossy());
@@ -254,7 +255,7 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         .wrap_err("Failed to parse filename to integer")
 }
 
-/// this struct represents a `<TID>/data` directory from libprobe.
+/// this struct represents a `<TID>/data` probe record directory.
 pub struct ArenaContext(pub Vec<DataArena>);
 
 impl ArenaContext {
@@ -268,7 +269,7 @@ impl ArenaContext {
     }
 }
 
-/// This struct represents a single `data/*.dat` arena allocator file emitted by libprobe.
+/// This struct represents a single `data/*.dat` file from a probe record directory.
 pub struct DataArena {
     header: ArenaHeader,
     raw: Vec<u8>,
@@ -296,7 +297,7 @@ impl DataArena {
     }
 }
 
-/// This struct represents a single `ops/*.dat` arena allocator file emitted by libprobe.
+/// This struct represents a single `ops/*.dat` file from a probe record directory.
 pub struct OpsArena<'a> {
     // raw is needed even though it's unused since ops is a reference to it;
     // the compiler doesn't know this since it's constructed using unsafe code.
@@ -304,7 +305,7 @@ pub struct OpsArena<'a> {
     /// raw byte buffer of Ops arena allocator.
     raw: Vec<u8>,
     /// slice over Ops of the raw buffer.
-    ops: &'a [RawOp],
+    ops: &'a [C_Op],
 }
 
 impl<'a> OpsArena<'a> {
@@ -312,15 +313,15 @@ impl<'a> OpsArena<'a> {
         let header = ArenaHeader::from_bytes(&bytes)
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;
 
-        if ((header.used - size_of::<ArenaHeader>()) % size_of::<RawOp>()) != 0 {
+        if ((header.used - size_of::<ArenaHeader>()) % size_of::<C_Op>()) != 0 {
             return Err(ArenaError::Misaligned.into());
         }
 
-        let count = (header.used - size_of::<ArenaHeader>()) / size_of::<RawOp>();
+        let count = (header.used - size_of::<ArenaHeader>()) / size_of::<C_Op>();
 
         log::debug!("[unsafe] converting Vec<u8> to &[RawOp] of size {}", count);
         let ops = unsafe {
-            let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const RawOp;
+            let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const C_Op;
             std::slice::from_raw_parts(ptr, count)
         };
 
@@ -336,10 +337,11 @@ impl<'a> OpsArena<'a> {
     }
 }
 
-/// Arena allocator metadata placed at the beginning of allocator files by libprobe.
+/// Arena allocator metadata placed at the beginning of arena files by libprobe.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArenaHeader {
+    // TODO: check instantiation (requires filename)
     instantiation: libc::size_t,
     base_address: libc::uintptr_t,
     capacity: libc::uintptr_t,
@@ -397,15 +399,21 @@ impl ArenaHeader {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArenaError {
+    /// Returned if an [`ArenaHeader`] was construction was attempted with a byte buffer smaller
+    /// than an [`ArenaHeader`].
     #[error("Arena buffer too small, got {got}, minimum size {needed}")]
     BufferTooSmall { got: usize, needed: usize },
 
+    /// Returned if the [`ArenaHeader`]'s capacity value doesn't match the size of the byte buffer.
     #[error("Invalid arena capacity, expected {expected}, got {actual}")]
     InvalidCapacity { expected: usize, actual: usize },
 
+    /// Returned if the [`ArenaHeader`]'s size value is larger than the capacity value. This
     #[error("Arena size {size} is greater than capacity {capacity}")]
     InvalidSize { size: usize, capacity: usize },
 
+    /// Returned if an [`OpsArena`]'s size isn't isn't `HEADER_SIZE + (N * OP_SIZE)` when `N` is
+    /// some integer.
     #[error("Arena alignment error: used arena size minus header isn't a multiple of op size")]
     Misaligned,
 }

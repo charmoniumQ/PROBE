@@ -8,7 +8,7 @@ use bindgen::callbacks::ParseCallbacks;
 #[derive(Debug)]
 struct LibprobeCallback;
 
-/// These C-structs get prefixed with "Bindgen_" because a rust version of the struct will be
+/// These C-structs get prefixed with "C_" because a rust version of the struct will be
 /// either generated or manually implemented.
 fn should_prefix(name: &str) -> bool {
     static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
@@ -64,7 +64,7 @@ fn no_derive(name: &str) -> bool {
 impl ParseCallbacks for LibprobeCallback {
     fn item_name(&self, _original_item_name: &str) -> Option<String> {
         if should_prefix(_original_item_name) {
-            Some(format!("Bindgen_{}", _original_item_name))
+            Some(format!("C_{}", _original_item_name))
         } else {
             None
         }
@@ -75,7 +75,7 @@ impl ParseCallbacks for LibprobeCallback {
 
         match info.kind {
             bindgen::callbacks::TypeKind::Struct => {
-                let orig_name = info.name.strip_prefix("Bindgen_");
+                let orig_name = info.name.strip_prefix("C_");
                 if orig_name.is_some() && !no_derive(orig_name.unwrap()) {
                     ret.push("MakeRustOp".to_owned());
                 }

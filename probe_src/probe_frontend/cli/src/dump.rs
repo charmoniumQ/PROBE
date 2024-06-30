@@ -9,14 +9,10 @@ use color_eyre::eyre::{eyre, Result, WrapErr};
 use probe_frontend::ops;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DumpOp {
-    pid: usize,
-    exec_epoch: usize,
-    tid: usize,
-    op: ops::Op,
-}
-
+/// Print the ops from a probe log out for humans.
+///
+/// This hides some of the data and so is not suitable for machine consumption use
+/// [`to_stdout_json()`] instead.
 pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();
@@ -27,6 +23,15 @@ pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     })
 }
 
+/// Prints the ops from a probe log out for machine consumption.
+///
+/// The ops are emitted one on each line, in the form:
+///
+/// ```
+/// { "pid": X, "exec_epoch": Y, "tid": Z, "op": {...} }
+/// ```
+///
+/// (without whitespace)
 pub fn to_stdout_json<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();
@@ -117,6 +122,19 @@ fn dump_internal<P: AsRef<Path>, F: Fn((usize, usize, usize), Vec<ops::Op>) -> R
         })
 }
 
+/// Helper struct constructed from pid/epoch/tid hierarchy information and an op. Used for
+/// serialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DumpOp {
+    pid: usize,
+    exec_epoch: usize,
+    tid: usize,
+    op: ops::Op,
+}
+
+// TODO: Display won't work (foreign trait rule) but some kind of streaming would be better; if we
+// don't care about UTF-8 guarantees we might be able to do some kind of byte iterator approach and
+// evaluate it all lazily
 trait Dump {
     fn dump(&self) -> String;
 }
