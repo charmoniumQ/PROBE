@@ -1,16 +1,21 @@
 use std::{
     ffi::OsString,
 <<<<<<< HEAD
+<<<<<<< HEAD
     fs::{self, File},
     os::unix::process::ExitStatusExt,
 =======
     fs,
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+    fs::{self, File},
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
     path::{Path, PathBuf},
     thread,
 };
 
 use color_eyre::eyre::{eyre, Result, WrapErr};
+<<<<<<< HEAD
 <<<<<<< HEAD
 use flate2::Compression;
 
@@ -102,10 +107,101 @@ pub fn record_transcribe(
 /// Builder for running processes under provenance.
 // TODO: extract this into the library part of this project
 =======
+=======
+use flate2::Compression;
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 
-use crate::util::Dir;
+use crate::{transcribe, util::Dir};
 
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+// TODO: modularize and improve ergonomics (maybe expand builder pattern?)
+
+/// create a probe record directory from subset of a [`Command::Record`](crate::Command::Record)
+pub fn record_no_transcribe(
+    output: Option<OsString>,
+    overwrite: bool,
+    gdb: bool,
+    debug: bool,
+    cmd: Vec<OsString>,
+) -> Result<()> {
+    let output = match output {
+        Some(x) => fs::canonicalize(x).wrap_err("Failed to canonicalize record directory path")?,
+        None => {
+            let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
+            output.push("probe_record");
+            output
+        }
+    };
+
+    if overwrite {
+        if let Err(e) = fs::remove_dir_all(&output) {
+            match e.kind() {
+                std::io::ErrorKind::NotFound => (),
+                _ => return Err(e).wrap_err("Failed to remove exisitng record directory"),
+            }
+        }
+    }
+
+    let record_dir = Dir::new(output).wrap_err("Failed to create record directory")?;
+
+    Recorder::new(cmd, record_dir)
+        .gdb(gdb)
+        .debug(debug)
+        .record()?;
+
+    Ok(())
+}
+
+/// create a probe log file from subset of a [`Command::Record`](crate::Command::Record)
+pub fn record_transcribe(
+    output: Option<OsString>,
+    overwrite: bool,
+    gdb: bool,
+    debug: bool,
+    cmd: Vec<OsString>,
+) -> Result<()> {
+    let output = match output {
+        Some(x) => x,
+        None => OsString::from("probe_log"),
+    };
+
+    let file = if overwrite {
+        File::create(&output)
+    } else {
+        File::create_new(&output)
+    }
+    .wrap_err("Failed to create output file")?;
+
+    let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
+
+    let mut record_dir = Recorder::new(
+        cmd,
+        Dir::temp(true).wrap_err("Failed to create record directory")?,
+    )
+    .gdb(gdb)
+    .debug(debug)
+    .record()?;
+
+    match transcribe::transcribe(&record_dir, &mut tar) {
+        Ok(_) => (),
+        Err(e) => {
+            log::error!(
+                "Error transcribing record directory, saving directory '{}'",
+                record_dir.as_ref().to_string_lossy()
+            );
+            record_dir.drop = false;
+            return Err(e).wrap_err("Failed to transcirbe record directory");
+        }
+    };
+
+    Ok(())
+}
+
+/// Builder for running processes under provenance.
+// TODO: extract this into the library part of this project
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 #[derive(Debug)]
 pub struct Recorder {
     gdb: bool,
@@ -133,12 +229,18 @@ impl Recorder {
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
         // a PathBuf to a OsString because PathBuf::push() automatically adds path separators which
         // is incorrect here.
 =======
         // append any existing LD_PRELOAD overrides
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+        // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
+        // a PathBuf to a OsString because PathBuf::push() automatically adds path separators which
+        // is incorrect here.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
         let mut ld_preload = OsString::from(libprobe);
         if let Some(x) = std::env::var_os("LD_PRELOAD") {
             ld_preload.push(":");
@@ -189,6 +291,7 @@ impl Recorder {
                 .wrap_err("Failed to launch child process")?
         };
 
+<<<<<<< HEAD
 <<<<<<< HEAD
         if !self.gdb {
             // without this the child process typically won't have written it's first op by the
@@ -246,6 +349,10 @@ impl Recorder {
     ///
     /// `cmd[0]` will be used as the command while `cmd[1..]` will be used as the arguments.
 =======
+=======
+        // without this the child process typically won't have written it's first op by the time we
+        // do our sanity check, since we're about to wait on child anyway, this isn't a big deal.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
         thread::sleep(std::time::Duration::from_millis(50));
 
         match Path::read_dir(self.output.path()) {
@@ -255,7 +362,8 @@ impl Recorder {
                     .try_fold(false, |_, x| x.map(|x| x.path().exists()))?;
                 if !any_files {
                     log::warn!(
-                        "No arean files detected, something is wrong, you should probably abort!"
+                        "No arean files detected after 50ms, \
+                        something is wrong, you should probably abort!"
                     );
                 }
             }
@@ -269,7 +377,15 @@ impl Recorder {
 
         Ok(self.output)
     }
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+
+    /// Create new [`Recorder`] from a command and the directory where it should write the probe
+    /// record.
+    ///
+    /// `cmd[0]` will be used as the command while `cmd[1..]` will be used as the arguments.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
     pub fn new(cmd: Vec<OsString>, output: Dir) -> Self {
         Self {
             gdb: false,
@@ -281,18 +397,26 @@ impl Recorder {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /// Set if the process should be run under gdb, implies debug.
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+    /// Set if the process should be run under gdb, implies debug.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
     pub fn gdb(mut self, gdb: bool) -> Self {
         self.gdb = gdb;
         self
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /// Set if the debug version of libprobe should be used.
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+    /// Set if the debug version of libprobe should be used.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
     pub fn debug(mut self, debug: bool) -> Self {
         self.debug = debug;
         self

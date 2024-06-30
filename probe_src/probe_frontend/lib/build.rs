@@ -26,8 +26,12 @@ struct LibprobeCallback;
 #[derive(Debug)]
 struct LibprobeCallback;
 
+<<<<<<< HEAD
 /// These C-structs get prefixed with "Bindgen_" because a rust version of the struct will be
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+/// These C-structs get prefixed with "C_" because a rust version of the struct will be
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 /// either generated or manually implemented.
 fn should_prefix(name: &str) -> bool {
     static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
@@ -84,10 +88,14 @@ impl ParseCallbacks for LibprobeCallback {
     fn item_name(&self, _original_item_name: &str) -> Option<String> {
         if should_prefix(_original_item_name) {
 <<<<<<< HEAD
+<<<<<<< HEAD
             Some(format!("C_{}", _original_item_name))
 =======
             Some(format!("Bindgen_{}", _original_item_name))
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            Some(format!("C_{}", _original_item_name))
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
         } else {
             None
         }
@@ -99,10 +107,14 @@ impl ParseCallbacks for LibprobeCallback {
         match info.kind {
             bindgen::callbacks::TypeKind::Struct => {
 <<<<<<< HEAD
+<<<<<<< HEAD
                 let orig_name = info.name.strip_prefix("C_");
 =======
                 let orig_name = info.name.strip_prefix("Bindgen_");
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+                let orig_name = info.name.strip_prefix("C_");
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
                 if orig_name.is_some() && !no_derive(orig_name.unwrap()) {
                     ret.push("MakeRustOp".to_owned());
                 }

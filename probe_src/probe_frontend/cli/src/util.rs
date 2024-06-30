@@ -7,6 +7,7 @@ use color_eyre::eyre::{Context, Result};
 use rand::Rng;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 /// Represents a newly created directory and optionally acts as a RAII guard that (attempts to)
 /// delete the directory and anything in it when dropped.
 #[derive(Debug)]
@@ -18,20 +19,38 @@ pub struct Dir {
     /// [`fs::remove_dir_all()`] on `path`, if this fails it will log a warning but take no other
     /// action.
 =======
+=======
+/// Represents a newly created directory and optionally acts as a RAII guard that (attempts to)
+/// delete the directory and anything in it when dropped.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 #[derive(Debug)]
 pub struct Dir {
+    /// path to created directory
     path: PathBuf,
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+
+    /// drop flag, if this is `true` when [`Dir`] is dropped then the drop hook will call
+    /// [`fs::remove_dir_all()`] on `path`, if this fails it will log a warning but take no other
+    /// action.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
     pub drop: bool,
 }
 
 impl Dir {
+<<<<<<< HEAD
 <<<<<<< HEAD
     /// Attempts to create a new directory at `path`.
     ///
     /// By default directories created this way **are not** deleted when [`Dir`] is dropped.
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+    /// Attempts to create a new directory at `path`.
+    ///
+    /// By default directories created this way **are not** deleted when [`Dir`] is dropped.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
     #[inline]
     pub fn new(path: PathBuf) -> Result<Self> {
         fs::create_dir(&path).wrap_err("Failed to create named directory")?;
@@ -39,6 +58,9 @@ impl Dir {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
     /// Attempts to create a new tempoerary directory
     ///
     /// The directory is created in the path retunred by [`std::env::temp_dir()`] and is named
@@ -62,9 +84,12 @@ impl Dir {
                 .collect()
         }
 
+<<<<<<< HEAD
 =======
     pub fn temp(drop: bool) -> Result<Self> {
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
         let mut path = std::env::temp_dir();
         path.push(format!("probe-{}", rand_alphanumeric(8)));
 
@@ -102,6 +127,7 @@ impl Drop for Dir {
         }
     }
 }
+<<<<<<< HEAD
 
 <<<<<<< HEAD
 pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
@@ -162,3 +188,5 @@ fn rand_alphanumeric(len: usize) -> String {
         .collect()
 >>>>>>> a83cce7 (version 0.2.0)
 }
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)

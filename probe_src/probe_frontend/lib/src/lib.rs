@@ -1,23 +1,30 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 /// transcribe probe record directories created by libprobe to log directories
 
 /// Op definitions from `prov_ops.h`
 ///
 /// This module contains ffi bindings for the raw C-structs emitted by libprobe, generated automatically with
 /// rust-bindgen (these start with `C_`), as well as the converted version which can be serialized
+<<<<<<< HEAD
 =======
 
 =======
 >>>>>>> b5a2591 (fix cargo fmt/clippy)
 /// Op definitions
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 ///
 /// While simple Ops containing only Integral values can be used/serialized directory from
 /// libprobe, more complicated structs containing pointers (usually in the form of strings) need to
 /// be manually converted to versions so they can be serialized. This module re-exports the trivial
 /// structs and defines new ones (as well as methods for converting) for the non-trivial structs.
 ///
+<<<<<<< HEAD
 <<<<<<< HEAD
 pub mod ops;
 
@@ -32,6 +39,11 @@ pub mod ops;
 
 /// Transcribe raw Bindgen Ops from libprobe to usable, serializable data.
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+pub mod ops;
+
+/// Convert part of all of a probe record directory to a probe log directory.
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 ///
 /// # Serialization format
 ///

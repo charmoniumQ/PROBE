@@ -10,10 +10,14 @@ use probe_frontend::ops;
 use serde::{Deserialize, Serialize};
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 /// Print the ops from a probe log out for humans.
 ///
 /// This hides some of the data and so is not suitable for machine consumption use
 /// [`to_stdout_json()`] instead.
+<<<<<<< HEAD
 =======
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DumpOp {
@@ -24,6 +28,8 @@ struct DumpOp {
 }
 
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();
@@ -35,6 +41,9 @@ pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 /// Prints the ops from a probe log out for machine consumption.
 ///
 /// The ops are emitted one on each line, in the form:
@@ -44,8 +53,11 @@ pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
 /// ```
 ///
 /// (without whitespace)
+<<<<<<< HEAD
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 pub fn to_stdout_json<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();
@@ -137,6 +149,9 @@ fn dump_internal<P: AsRef<Path>, F: Fn((usize, usize, usize), Vec<ops::Op>) -> R
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 /// Helper struct constructed from pid/epoch/tid hierarchy information and an op. Used for
 /// serialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,11 +162,17 @@ struct DumpOp {
     op: ops::Op,
 }
 
+<<<<<<< HEAD
 // OPTIMIZE: Display won't work (foreign trait rule) but some kind of streaming would greatly
 // reduce unnecessary heap allocations and mem-copies; if we don't care about UTF-8 guarantees we
 // might be able to do some kind of byte iterator approach and evaluate it all lazily
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+// TODO: Display won't work (foreign trait rule) but some kind of streaming would be better; if we
+// don't care about UTF-8 guarantees we might be able to do some kind of byte iterator approach and
+// evaluate it all lazily
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 trait Dump {
     fn dump(&self) -> String;
 }

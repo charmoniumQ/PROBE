@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 use std::{ffi::OsString, fs::File};
 
 use clap::{arg, command, value_parser, Command};
@@ -22,19 +23,24 @@ use std::{
     ffi::OsString,
     fs::{self, File},
 };
+=======
+use std::{ffi::OsString, fs::File};
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 
 use clap::Parser;
 use color_eyre::eyre::{Context, Result};
 use flate2::Compression;
-use util::Dir;
 
+/// Output the ops from a probe log file to stdout.
 mod dump;
+
+/// Run commands under provenance and generate probe record directory.
 mod record;
 
-/// Wrapper over [`probe_frontend::transcribe`] which provides high-level commands
+/// Wrapper over [`probe_frontend::transcribe`].
 mod transcribe;
 
-/// Utility code for creating temporary directories
+/// Utility code for creating temporary directories.
 mod util;
 
 /// Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.
@@ -244,9 +250,9 @@ fn main() -> Result<()> {
             debug,
             cmd,
         } => if no_transcribe {
-            record_no_transcribe(output, overwrite, gdb, debug, cmd)
+            record::record_no_transcribe(output, overwrite, gdb, debug, cmd)
         } else {
-            record_transcribe(output, overwrite, gdb, debug, cmd)
+            record::record_transcribe(output, overwrite, gdb, debug, cmd)
         }
         .wrap_err("Record command failed"),
 
@@ -272,6 +278,7 @@ fn main() -> Result<()> {
         .wrap_err("Dump command failed"),
     }
 }
+<<<<<<< HEAD
 
 fn record_no_transcribe(
     output: Option<OsString>,
@@ -352,3 +359,5 @@ fn record_transcribe(
     Ok(())
 }
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)

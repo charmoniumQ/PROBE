@@ -38,7 +38,11 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Type};
 
 mod pygen;
 
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+// TODO: return compiler error instead of panicking on error
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 #[proc_macro_derive(MakeRustOp)]
 pub fn make_rust_op(input: TokenStream) -> TokenStream {
     let original_struct = parse_macro_input!(input as DeriveInput);
@@ -176,8 +180,8 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
             let new_name = Ident::new(
                 ident
                     .to_string()
-                    .strip_prefix("Bindgen_")
-                    .expect("struct name doesn't start with 'Bindgen_'"),
+                    .strip_prefix("C_")
+                    .expect("struct name doesn't start with 'C_'"),
                 Span::call_site(),
             );
 
@@ -414,19 +418,17 @@ fn convert_bindgen_type(ty: &syn::Type) -> syn::Type {
             Type::Array(new)
         }
         syn::Type::Path(inner) => {
-            if let Some(name) = type_basename(inner).to_string().strip_prefix("Bindgen_") {
+            if let Some(name) = type_basename(inner).to_string().strip_prefix("C_") {
                 let name = Ident::new(name, Span::mixed_site());
                 parse_quote!(#name)
             } else {
                 Type::Path(inner.clone())
             }
         }
-        // FIXME: return a proper error instead of just panicking
         _ => unimplemented!("unsupported bindgen type conversion"),
     }
 }
 
-// FIXME: return a proper error instead of just panicking
 pub(crate) fn type_basename(ty: &syn::TypePath) -> &syn::Ident {
     if ty.qself.is_some() {
         unimplemented!("qualified self-typs not supported");
@@ -435,6 +437,7 @@ pub(crate) fn type_basename(ty: &syn::TypePath) -> &syn::Ident {
     &ty.path.segments.last().expect("type has no segments").ident
 }
 
+// TODO: return compiler error instead of panicking on error
 #[proc_macro_derive(MakePyDataclass)]
 pub fn make_py_dataclass(input: TokenStream) -> TokenStream {
     let source = parse_macro_input!(input as DeriveInput);

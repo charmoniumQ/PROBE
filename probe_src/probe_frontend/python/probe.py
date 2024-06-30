@@ -2,7 +2,7 @@
 import typing
 import json
 import subprocess
-import generated.ops as ops
+from . import ops
 
 OpTable = typing.Mapping[int, typing.Mapping[int, typing.Mapping[int, typing.List[ops.Op]]]]
 

@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 use parking_lot::RwLock;
 use quote::quote_spanned;
 use std::fmt::Display;
@@ -16,11 +17,18 @@ fn pygen_file() -> &'static RwLock<PygenFile> {
 
 pub fn pygen_dataclass_internal(input: syn::DeriveInput) -> MacroResult<()> {
 =======
+=======
+use std::collections::HashSet;
+>>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 use std::sync::{OnceLock, RwLock};
 use syn::{Data, Fields};
+
+// hashset of previously generated dataclass, this is used during type conversion to ensure that
+// every type in a dataclass is an already generated (or is a primitive type).
+static GENERATED_TYPES: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
 /// statically defined python code that gets added to the begining of the outputed file
 const PYGEN_PREAMBLE: &str = "
@@ -93,7 +101,7 @@ pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
                 })
                 .collect::<Vec<(_, _)>>();
 
-            write_pygen(basic_dataclass(ident.to_string(), &pairs));
+            write_dataclass(basic_dataclass(ident.to_string(), &pairs));
         }
         Data::Enum(data_enum) => {
             // let mut dataclass = format!("@dataclass(init=False)\nclass {}:\n", ident);
@@ -454,7 +462,7 @@ impl Enum {
 
             init.set_args(args);
             dataclass.set_init(Some(init));
-            write_pygen(dataclass);
+            write_dataclass(dataclass);
         }
         Data::Union(_data_union) => unimplemented!(),
     };
@@ -497,6 +505,8 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
         syn::Type::Path(inner) => {
             let name = crate::type_basename(inner).to_string();
             match name.as_str() {
+                // that's a lot of ways to say "int", python ints are bigints so we don't have to
+                // care about size
                 "__dev_t" | "__gid_t" | "__ino_t" | "__mode_t" | "__s32" | "__s64"
                 | "__suseconds_t" | "__syscall_slong_t" | "__syseconds_t" | "__time_t"
                 | "__u16" | "__u32" | "__u64" | "__uid_t" | "c_int" | "c_long" | "c_uint"
@@ -504,24 +514,44 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
                     "int".to_owned()
                 }
 
+                // CStrings are serialized as an array of bytes, so it makes sense to load them
+                // into python as bytes
                 "CString" => "bytes".to_owned(),
 
-                _ => name,
+                // bool types are basically the same everywhere
+                "bool" => name,
+
+                // other types are checked to see if it's a dataclass we've already written, if it
+                // is we can simply pass it through unchanged, otherwise we don't know how to
+                // convert this type and we panic.
+                //
+                // FIXME: this approach works fine for generation when running `cargo build` but
+                // rust-analyzer indicates that the proc-macro paniced; they're probably being
+                // processed in a compartmentalized manner in rust-analyzer.
+                _ => {
+                    let types = GENERATED_TYPES
+                        .get_or_init(|| RwLock::new(HashSet::new()))
+                        .read()
+                        .expect("python generated types rwlock poisioned");
+
+                    if !types.contains(&name) {
+                        panic!("Can't convert type '{}' to a python type", name);
+                    }
+
+                    name
+                }
             }
         }
         _ => unimplemented!("unsupported type type"),
     }
 }
 
-fn write_pygen(item: impl Display) {
+fn write_dataclass(item: Dataclass) {
     static DATACLASSES: OnceLock<RwLock<File>> = OnceLock::new();
     let mut writer = DATACLASSES
         .get_or_init(|| {
-            let mut file = File::create(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../python/generated/ops.py"
-            ))
-            .expect("unable to create ops.py");
+            let mut file = File::create(concat!(env!("CARGO_MANIFEST_DIR"), "/../python/ops.py"))
+                .expect("unable to create ops.py");
             file.write_all(PYGEN_PREAMBLE.as_bytes())
                 .expect("failed to write preamble");
             RwLock::new(file)
@@ -529,11 +559,17 @@ fn write_pygen(item: impl Display) {
         .write()
         .expect("python dataclasses rwlock poisioned");
     writeln!(writer, "{}", item).expect("failed to write pygen");
+
+    GENERATED_TYPES
+        .get_or_init(|| RwLock::new(HashSet::new()))
+        .write()
+        .expect("python generated types rwlock poisioned")
+        .insert(item.name);
 }
 
 struct Dataclass {
     indent: usize,
-    name: String,
+    pub name: String,
     inclasses: Vec<Dataclass>,
     items: Vec<DataclassItem>,
     init: Option<DataclassInit>,
