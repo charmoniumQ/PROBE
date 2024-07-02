@@ -168,7 +168,7 @@ impl Recorder {
                     .try_fold(false, |_, x| x.map(|x| x.path().exists()))?;
                 if !any_files {
                     log::warn!(
-                        "No arean files detected after 50ms, \
+                        "No arena files detected after 50ms, \
                         something is wrong, you should probably abort!"
                     );
                 }
