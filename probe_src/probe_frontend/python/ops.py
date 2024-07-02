@@ -116,7 +116,7 @@ class rusage:
         self.ru_nivcsw = int(ru_nivcsw)
 
 @dataclass(init=False)
-class Path:
+class path:
     dirfd_minus_at_fdcwd: int
     path: bytes
     device_major: int
@@ -138,13 +138,13 @@ class Path:
         self.dirfd_valid = bool(dirfd_valid)
 
 @dataclass(init=False)
-class InitProcessOp:
+class init_process_op:
     pid: int
     def __init__(self, pid: int):
         self.pid = int(pid)
 
 @dataclass(init=False)
-class InitExecEpochOp:
+class init_exec_epoch_op:
     epoch: int
     program_name: bytes
     def __init__(self, epoch: int, program_name: bytes):
@@ -152,27 +152,27 @@ class InitExecEpochOp:
         self.program_name = bytes(program_name)
 
 @dataclass(init=False)
-class InitThreadOp:
+class init_thread_op:
     tid: int
     def __init__(self, tid: int):
         self.tid = int(tid)
 
 @dataclass(init=False)
-class OpenOp:
-    path: Path
+class open_op:
+    path: path
     flags: int
     mode: int
     fd: int
     ferrno: int
-    def __init__(self, path: Path, flags: int, mode: int, fd: int, ferrno: int):
-        self.path = Path(**path)
+    def __init__(self, path: path, flags: int, mode: int, fd: int, ferrno: int):
+        self.path = path(**path)
         self.flags = int(flags)
         self.mode = int(mode)
         self.fd = int(fd)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class CloseOp:
+class close_op:
     low_fd: int
     high_fd: int
     ferrno: int
@@ -182,23 +182,23 @@ class CloseOp:
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class ChdirOp:
-    path: Path
+class chdir_op:
+    path: path
     ferrno: int
-    def __init__(self, path: Path, ferrno: int):
-        self.path = Path(**path)
+    def __init__(self, path: path, ferrno: int):
+        self.path = path(**path)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class ExecOp:
-    path: Path
+class exec_op:
+    path: path
     ferrno: int
-    def __init__(self, path: Path, ferrno: int):
-        self.path = Path(**path)
+    def __init__(self, path: path, ferrno: int):
+        self.path = path(**path)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class CloneOp:
+class clone_op:
     flags: int
     run_pthread_atfork_handlers: bool
     child_process_id: int
@@ -212,7 +212,7 @@ class CloneOp:
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class ExitOp:
+class exit_op:
     status: int
     run_atexit_handlers: bool
     def __init__(self, status: int, run_atexit_handlers: bool):
@@ -220,43 +220,43 @@ class ExitOp:
         self.run_atexit_handlers = bool(run_atexit_handlers)
 
 @dataclass(init=False)
-class AccessOp:
-    path: Path
+class access_op:
+    path: path
     mode: int
     flags: int
     ferrno: int
-    def __init__(self, path: Path, mode: int, flags: int, ferrno: int):
-        self.path = Path(**path)
+    def __init__(self, path: path, mode: int, flags: int, ferrno: int):
+        self.path = path(**path)
         self.mode = int(mode)
         self.flags = int(flags)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class StatOp:
-    path: Path
+class stat_op:
+    path: path
     flags: int
     statx_buf: statx
     ferrno: int
-    def __init__(self, path: Path, flags: int, statx_buf: statx, ferrno: int):
-        self.path = Path(**path)
+    def __init__(self, path: path, flags: int, statx_buf: statx, ferrno: int):
+        self.path = path(**path)
         self.flags = int(flags)
         self.statx_buf = statx(**statx_buf)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class ReaddirOp:
-    dir: Path
+class readdir_op:
+    dir: path
     child: bytes
     all_children: bool
     ferrno: int
-    def __init__(self, dir: Path, child: bytes, all_children: bool, ferrno: int):
-        self.dir = Path(**dir)
+    def __init__(self, dir: path, child: bytes, all_children: bool, ferrno: int):
+        self.dir = path(**dir)
         self.child = bytes(child)
         self.all_children = bool(all_children)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class WaitOp:
+class wait_op:
     pid: int
     options: int
     status: int
@@ -270,7 +270,7 @@ class WaitOp:
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class GetRUsageOp:
+class get_rusage_op:
     waitpid_arg: int
     getrusage_arg: int
     usage: rusage
@@ -282,25 +282,25 @@ class GetRUsageOp:
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class ReadLinkOp:
-    path: Path
+class read_link_op:
+    path: path
     resolved: bytes
     ferrno: int
-    def __init__(self, path: Path, resolved: bytes, ferrno: int):
-        self.path = Path(**path)
+    def __init__(self, path: path, resolved: bytes, ferrno: int):
+        self.path = path(**path)
         self.resolved = bytes(resolved)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class Metadata:
+class metadata:
     @dataclass(init=False)
-    class Mode:
+    class mode:
         mode: int
         def __init__(self, mode: int):
             self.mode = int(mode)
 
     @dataclass(init=False)
-    class Ownership:
+    class ownership:
         uid: int
         gid: int
         def __init__(self, uid: int, gid: int):
@@ -308,7 +308,7 @@ class Metadata:
             self.gid = int(gid)
 
     @dataclass(init=False)
-    class Times:
+    class times:
         is_null: bool
         atime: timeval
         mtime: timeval
@@ -317,7 +317,7 @@ class Metadata:
             self.atime = timeval(**atime)
             self.mtime = timeval(**mtime)
 
-    value: typing.Union[Mode, Ownership, Times]
+    value: typing.Union[mode, ownership, times]
     def __init__(self, **kwargs: typing.Mapping[str, typing.Any]):
         if len(kwargs) != 1:
             raise ValueError("Malformed Enum constructor args")
@@ -328,20 +328,20 @@ class Metadata:
             self.value = mod.__dict__[key](**kwargs[key])
 
 @dataclass(init=False)
-class UpdateMetadataOp:
-    path: Path
+class update_metadata_op:
+    path: path
     flags: int
-    metadata: Metadata
+    metadata: metadata
     ferrno: int
-    def __init__(self, path: Path, flags: int, metadata: Metadata, ferrno: int):
-        self.path = Path(**path)
+    def __init__(self, path: path, flags: int, metadata: metadata, ferrno: int):
+        self.path = path(**path)
         self.flags = int(flags)
-        self.metadata = Metadata(**metadata)
+        self.metadata = metadata(**metadata)
         self.ferrno = int(ferrno)
 
 @dataclass(init=False)
-class OpInternal:
-    value: typing.Union[InitProcessOp, InitExecEpochOp, InitThreadOp, OpenOp, CloseOp, ChdirOp, ExecOp, CloneOp, ExitOp, AccessOp, StatOp, ReaddirOp, WaitOp, GetRUsageOp, UpdateMetadataOp, ReadLinkOp]
+class op_internal:
+    value: typing.Union[init_process_op, init_exec_epoch_op, init_thread_op, open_op, close_op, chdir_op, exec_op, clone_op, exit_op, access_op, stat_op, readdir_op, wait_op, get_rusage_op, update_metadata_op, read_link_op]
     def __init__(self, **kwargs: typing.Mapping[str, typing.Any]):
         if len(kwargs) != 1:
             raise ValueError("Malformed Enum constructor args")
@@ -352,10 +352,10 @@ class OpInternal:
             self.value = mod.__dict__[key](**kwargs[key])
 
 @dataclass(init=False)
-class Op:
-    data: OpInternal
+class op:
+    data: op_internal
     time: timespec
-    def __init__(self, data: OpInternal, time: timespec):
-        self.data = OpInternal(**data)
+    def __init__(self, data: op_internal, time: timespec):
+        self.data = op_internal(**data)
         self.time = timespec(**time)
 
