@@ -23,6 +23,7 @@ mod = sys.modules[__name__]
 
 pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
     let syn::DeriveInput { data, ident, .. } = input.clone();
+    let ident = pascal_to_snake_case(&ident.to_string());
 
     match data {
         Data::Struct(data_struct) => {
@@ -34,17 +35,19 @@ pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
             let pairs = fields
                 .named
                 .iter()
-                .map(|x| {
-                    let ident = x.ident.as_ref().unwrap();
-                    (ident.to_string(), convert_to_pytype(&x.ty))
+                .map(|field| {
+                    (
+                        field.ident.as_ref().unwrap().to_string(),
+                        convert_to_pytype(&field.ty),
+                    )
                 })
                 .collect::<Vec<(_, _)>>();
 
-            write_dataclass(basic_dataclass(ident.to_string(), &pairs));
+            write_dataclass(basic_dataclass(ident, &pairs));
         }
         Data::Enum(data_enum) => {
             // let mut dataclass = format!("@dataclass(init=False)\nclass {}:\n", ident);
-            let mut dataclass = Dataclass::new(ident.to_string());
+            let mut dataclass = Dataclass::new(ident);
             let mut init = DataclassInit::new();
             let mut args = InitArgs::new();
 
@@ -54,14 +57,16 @@ pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
             for variant in data_enum.variants {
                 match variant.fields {
                     syn::Fields::Named(inner) => {
-                        let name = variant.ident.to_string();
+                        let name = pascal_to_snake_case(&variant.ident.to_string());
 
                         let pairs = inner
                             .named
                             .iter()
-                            .map(|x| {
-                                let name = x.ident.as_ref().unwrap();
-                                (name.to_string(), convert_to_pytype(&x.ty))
+                            .map(|field| {
+                                (
+                                    pascal_to_snake_case(&field.ident.as_ref().unwrap().to_string()),
+                                    convert_to_pytype(&field.ty),
+                                )
                             })
                             .collect::<Vec<_>>();
 
@@ -181,21 +186,44 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
                 // rust-analyzer indicates that the proc-macro paniced; they're probably being
                 // processed in a compartmentalized manner in rust-analyzer.
                 _ => {
+                    let snake_case = pascal_to_snake_case(&name);
+
                     let types = GENERATED_TYPES
                         .get_or_init(|| RwLock::new(HashSet::new()))
                         .read()
                         .expect("python generated types rwlock poisioned");
 
-                    if !types.contains(&name) {
-                        panic!("Can't convert type '{}' to a python type", name);
+                    if types.contains(&snake_case) {
+                        snake_case
+                    } else {
+                        panic!("Can't convert type '{}' to a python type", snake_case);
                     }
-
-                    name
                 }
             }
         }
         _ => unimplemented!("unsupported type type"),
     }
+}
+
+fn pascal_to_snake_case(ident: &str) -> String {
+    // this primitive lookback is needed so that names with repeated capitals like SocketTCP get
+    // turned into socket_tcp and not socket_t_c_p
+    let mut prior_upper = true;
+    ident
+        .chars()
+        .fold(String::new(), |mut acc, ch| {
+            if ch.is_uppercase() {
+                if !prior_upper {
+                    acc.push('_')
+                }
+                ch.to_lowercase().for_each(|lower_ch| acc.push(lower_ch));
+                prior_upper = true;
+            } else {
+                acc.push(ch);
+                prior_upper = false;
+            }
+            acc
+        })
 }
 
 fn write_dataclass(item: Dataclass) {

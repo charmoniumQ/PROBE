@@ -206,8 +206,8 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
             })
     })
     // STEP 6
-    .try_for_each(|x| {
-        for op in x? {
+    .try_for_each(|arena_file_ops| {
+        for op in arena_file_ops? {
             outfile
                 .write_all(
                     serde_json::to_string(&op)
