@@ -109,6 +109,7 @@ def test_bash_in_bash():
                 assert ret_pid in check_wait
                 check_wait.remove(ret_pid)
             
+            
 
     # number of clone operations is number of commands-1
     assert current_child_process == len(paths)-1
@@ -117,5 +118,15 @@ def test_bash_in_bash():
     assert len(process_file_map.items()) == len(paths)
     assert len(check_child_processes) == 0 
         
+def test_command_not_found():
+    result = runner.invoke(app,["record", "cmd"])
+    assert result.exit_code == 0
+    assert "Error: Command not found." in result.output
+
+def test_empty_path():
+    result = runner.invoke(app,["record"])
+    assert result.exit_code == 2
+    assert "Error: Missing argument 'CMD...'." in result.output
+
 def get_op_from_provlog(process_tree_prov_log,pid,exec_epoch_id,tid,op_idx):
     return process_tree_prov_log.processes[pid].exec_epochs[exec_epoch_id].threads[tid].ops[op_idx].data
