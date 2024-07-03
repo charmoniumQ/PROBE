@@ -88,18 +88,54 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
 pub enum Metadata {
+    #[serde(untagged)]
     Mode {
         mode: mode_t,
+
+        #[serde(serialize_with = "Metadata::serialize_variant_mode")]
+        #[serde(skip_deserializing)]
+        _type: (),
     },
+    #[serde(untagged)]
     Ownership {
         uid: uid_t,
         gid: gid_t,
+
+        #[serde(serialize_with = "Metadata::serialize_variant_ownership")]
+        #[serde(skip_deserializing)]
+        _type: (),
     },
+    #[serde(untagged)]
     Times {
         is_null: bool,
         atime: timeval,
         mtime: timeval,
+
+        #[serde(serialize_with = "Metadata::serialize_variant_times")]
+        #[serde(skip_deserializing)]
+        _type: (),
     },
+}
+
+impl Metadata {
+    fn serialize_variant_mode<S: serde::Serializer>(
+        _: &(),
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str("Mode")
+    }
+    fn serialize_variant_ownership<S: serde::Serializer>(
+        _: &(),
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str("Ownership")
+    }
+    fn serialize_variant_times<S: serde::Serializer>(
+        _: &(),
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str("Times")
+    }
 }
 
 impl FfiFrom<C_UpdateMetadataOp> for Metadata {
@@ -111,15 +147,21 @@ impl FfiFrom<C_UpdateMetadataOp> for Metadata {
         Ok(match kind {
             C_MetadataKind_MetadataMode => Metadata::Mode {
                 mode: unsafe { value.mode },
+
+                _type: (),
             },
             C_MetadataKind_MetadataOwnership => Metadata::Ownership {
                 uid: unsafe { value.ownership }.uid,
                 gid: unsafe { value.ownership }.gid,
+
+                _type: (),
             },
             C_MetadataKind_MetadataTimes => Metadata::Times {
                 is_null: unsafe { value.times }.is_null,
                 atime: unsafe { value.times }.atime.ffi_into(ctx)?,
                 mtime: unsafe { value.times }.mtime.ffi_into(ctx)?,
+
+                _type: (),
             },
             _ => return Err(ProbeError::InvalidVariant(kind)),
         })
@@ -132,6 +174,19 @@ pub struct UpdateMetadataOp {
     pub flags: ::std::os::raw::c_int,
     pub metadata: Metadata,
     pub ferrno: ::std::os::raw::c_int,
+
+    #[serde(serialize_with = "UpdateMetadataOp::serialize_type")]
+    #[serde(skip_deserializing)]
+    pub _type: (),
+}
+
+impl UpdateMetadataOp {
+    fn serialize_type<S: serde::Serializer>(
+        _: &(),
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str("UpdateMetadataOp")
+    }
 }
 
 impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
@@ -146,27 +201,45 @@ impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
                     inner: Box::new(e),
                 })?,
             ferrno: value.ferrno,
+
+            _type: (),
         })
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
 pub enum OpInternal {
+    #[serde(untagged)]
     InitProcessOp(InitProcessOp),
+    #[serde(untagged)]
     InitExecEpochOp(InitExecEpochOp),
+    #[serde(untagged)]
     InitThreadOp(InitThreadOp),
+    #[serde(untagged)]
     OpenOp(OpenOp),
+    #[serde(untagged)]
     CloseOp(CloseOp),
+    #[serde(untagged)]
     ChdirOp(ChdirOp),
+    #[serde(untagged)]
     ExecOp(ExecOp),
+    #[serde(untagged)]
     CloneOp(CloneOp),
+    #[serde(untagged)]
     ExitOp(ExitOp),
+    #[serde(untagged)]
     AccessOp(AccessOp),
+    #[serde(untagged)]
     StatOp(StatOp),
+    #[serde(untagged)]
     ReaddirOp(ReaddirOp),
+    #[serde(untagged)]
     WaitOp(WaitOp),
+    #[serde(untagged)]
     GetRUsageOp(GetRUsageOp),
+    #[serde(untagged)]
     UpdateMetadataOp(UpdateMetadataOp),
+    #[serde(untagged)]
     ReadLinkOp(ReadLinkOp),
 }
 
@@ -214,6 +287,19 @@ impl FfiFrom<C_Op> for OpInternal {
 pub struct Op {
     pub data: OpInternal,
     pub time: timespec,
+
+    #[serde(serialize_with = "Op::serialize_type")]
+    #[serde(skip_deserializing)]
+    pub _type: (),
+}
+
+impl Op {
+    fn serialize_type<S: serde::Serializer>(
+        _: &(),
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str("Op")
+    }
 }
 
 impl FfiFrom<C_Op> for Op {
@@ -221,6 +307,13 @@ impl FfiFrom<C_Op> for Op {
         Ok(Self {
             data: value.ffi_into(ctx)?,
             time: value.time.ffi_into(ctx)?,
+
+            _type: (),
         })
     }
 }
+
+// WARNING: this macro invokation must come after all structs that implement MakePyDataclass
+// (including classes that implement MakeRustOp, who's daughter classes implement MakePyDataclass)
+// for python codegen to work properly
+probe_macros::write_pygen_file_from_env!("PYGEN_OUTFILE");
