@@ -47,9 +47,10 @@
     - [ ] Run tests in a really old Ubuntu Docker container.
   - [ ] Write a CI script that uses Nix to install dependencies and run the Justfiles.
 - [ ] Write microbenchmarking
-  - [ ] Run performance test-cases in two steps: one with just libprobe record and one with just transcription.
+  - [ ] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
   - [ ] Write interesting performance tests, using `benchmark/workloads.py` as inspiration.
-  - [ ] Run the benchmarks with Hyperfine, in Containerexec, in a Justfile, storing the result as a CSV.
+  - [ ] Run the benchmarks with Hyperfine, in Containerexec, in a Python script, storing the result as a CSV.
+    - Python script that runs `hyperfine ./PROBE record --no-transcribe` and `hyperfine ./PROBE transcribe` for several tests.
 - [ ] Output conversions
   - [ ] From the NetworkX digraph, export:
     - [ ] A dataflow graph, showing only files, processes, and the flow of information between them. The following rules define when there is an edge:
@@ -69,6 +70,8 @@
   - [ ] Consider combining across multiple hosts
 - [ ] Ensuring libprobe works
   - [x] Debug why libprobe doesn't work with Python. Sam fixed this.
+  - [ ] Debug pthreads not making graph.
+  - [ ] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
 - [ ] Generate a replay package.

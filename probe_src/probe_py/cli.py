@@ -62,6 +62,14 @@ def record(
             cmd,
             env={**os.environ, "LD_PRELOAD": ld_preload, "__PROBE_DIR": str(probe_dir)},
         )
+
+        # Before this point is "executing with libprobe"
+        # After this point is "transcription"
+        # TODO: break this up into three CLI entrypoints
+        # 1. PROBE record should do both
+        # 2. PROBE record --no-transcribe should just do the execution
+        # 3. PROBE transcribe <output> should just do the transcription
+
         probe_log_tar_obj = tarfile.open(name=str(output), mode="x:gz")
         probe_log_tar_obj.add(probe_dir, arcname="")
         probe_log_tar_obj.addfile(

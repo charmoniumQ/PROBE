@@ -48,6 +48,7 @@
               pkgs.bash
               pkgs.xdot
               pkgs.alejandra
+              pkgs.hyperfine
             ];
           };
         };
