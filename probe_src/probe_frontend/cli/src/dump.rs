@@ -328,14 +328,15 @@ impl Dump for ops::ReaddirOp {
 impl Dump for ops::Metadata {
     fn dump(&self) -> String {
         match self {
-            ops::Metadata::Mode { mode } => format!("Mode[ mode={:#06o} ]", mode),
-            ops::Metadata::Ownership { uid, gid } => {
+            ops::Metadata::Mode { mode, .. } => format!("Mode[ mode={:#06o} ]", mode),
+            ops::Metadata::Ownership { uid, gid, .. } => {
                 format!("Ownership[ uid={}, gid={} ]", uid, gid)
             }
             ops::Metadata::Times {
                 is_null,
                 atime,
                 mtime,
+                ..
             } => format!(
                 "Times[ is_null={}, atime={}, mtime={} ]",
                 is_null,

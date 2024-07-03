@@ -10,6 +10,7 @@ name = "probe_macros"
 proc-macro = true
 
 [dependencies]
+parking_lot = "0.12.3"
 # darling = "0.20.9"
 proc-macro2 = "1.0.86"
 quote = "1.0.36"
