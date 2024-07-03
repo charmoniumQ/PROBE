@@ -15,8 +15,12 @@ proc-macro = true
 
 [dependencies]
 <<<<<<< HEAD
+<<<<<<< HEAD
 parking_lot = "0.12.3"
 =======
+=======
+parking_lot = "0.12.3"
+>>>>>>> 0beca52 (improved pygen code)
 # darling = "0.20.9"
 >>>>>>> a83cce7 (version 0.2.0)
 proc-macro2 = "1.0.86"

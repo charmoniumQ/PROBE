@@ -185,18 +185,49 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                 Span::call_site(),
             );
 
+            let msgs = field_idents
+                .iter()
+                .map(|field_ident| {
+                    format!(
+                        "Error calling ffi_into() on {} while creating {}",
+                        field_ident, new_name
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            let serialize_type_path = format!("{}::serialize_type", new_name);
+            let type_name = new_name.to_string();
+
             // This is rather bad macro hygiene, but this macro is only intend for probe_frontend's
             // op struct generation, so we're playing a little fast-n'-loose with scoping.
             quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
                 pub struct #new_name {
                     #(pub #field_idents: #field_types,)*
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+
+                    /// this is a placeholder field that get's serialized as the type name
+                    #[serde(serialize_with = #serialize_type_path)]
+                    #[serde(skip_deserializing)]
+                    pub _type: (),
+                }
+
+                impl #new_name {
+                    fn serialize_type<S: serde::Serializer>(
+                        _: &(),
+                        serializer: S
+                    ) -> std::result::Result<S::Ok, S::Error> {
+                        serializer.serialize_str(#type_name)
+                    }
+>>>>>>> 0beca52 (improved pygen code)
                 }
 
                 impl FfiFrom<#ident> for #new_name {
                     fn ffi_from(value: &#ident, ctx: &ArenaContext) -> Result<Self> {
                         Ok(Self {
+<<<<<<< HEAD
 <<<<<<< HEAD
                             _type: (),
                             #(
@@ -206,11 +237,15 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                                     ProbeError::FFiConversionError {
                                         msg: #msgs,
 =======
+=======
+                            _type: (),
+>>>>>>> 0beca52 (improved pygen code)
                             #(
                             #field_idents: value.#field_idents
                                 .ffi_into(ctx)
                                 .map_err(|e| {
                                     ProbeError::FFiConversionError {
+<<<<<<< HEAD
                                         msg: "Error calling ffi_into() on\
 <<<<<<< HEAD
                                             #field_idents creating #new_name", 
@@ -218,6 +253,9 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
 =======
                                             #field_idents creating #new_name",
 >>>>>>> b5a2591 (fix cargo fmt/clippy)
+=======
+                                        msg: #msgs,
+>>>>>>> 0beca52 (improved pygen code)
                                         inner: Box::new(e),
                                     }
                                 })?,
@@ -425,7 +463,7 @@ fn convert_bindgen_type(ty: &syn::Type) -> syn::Type {
                 Type::Path(inner.clone())
             }
         }
-        _ => unimplemented!("unsupported bindgen type conversion"),
+        _ => unreachable!("unsupported bindgen type conversion"),
     }
 }
 
@@ -445,4 +483,16 @@ pub fn make_py_dataclass(input: TokenStream) -> TokenStream {
     // return empty token stream, we're not actually writing rust here
     TokenStream::new()
 }
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+
+// TODO: return compiler error instead of panicking on error
+#[proc_macro]
+pub fn write_pygen_file_from_env(item: TokenStream) -> TokenStream {
+    let path = parse_macro_input!(item as syn::LitStr);
+    pygen::write_pygen_internal(path);
+    // return empty token stream, we're not actually writing rust here
+    TokenStream::new()
+}
+>>>>>>> 0beca52 (improved pygen code)

@@ -833,6 +833,9 @@ name = "probe_macros"
 version = "0.2.0"
 dependencies = [
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 0beca52 (improved pygen code)
  "parking_lot",
  "proc-macro2",
  "quote",

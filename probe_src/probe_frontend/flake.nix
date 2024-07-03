@@ -46,6 +46,11 @@
         nativeBuildInputs = [
           pkgs.rustPlatform.bindgenHook
         ];
+
+        # pygen needs to know where to write the python file
+        postUnpack = ''
+          export PYGEN_OUTFILE="$(realpath ./python)"
+        '';
       };
 
       # Build *just* the cargo dependencies (of the entire workspace),
@@ -71,6 +76,10 @@
         // {
           pname = "probe-frontend";
           cargoExtraArgs = "-p probe_frontend";
+          installPhase = ''
+            mkdir -p $out/python
+            cp -r ./python $out/
+          '';
         });
       probe-cli = craneLib.buildPackage (individualCrateArgs
         // {
@@ -81,10 +90,6 @@
         // {
           pname = "probe-macros";
           cargoExtraArgs = "-p probe_macros";
-          installPhase = ''
-            mkdir -p $out
-            cp -r python $out/python
-          '';
         });
     in {
       checks = {
@@ -134,7 +139,7 @@
           });
 
         probe-pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
-          cp ${probe-macros}/python/ops.py $out
+          cp ${probe-frontend}/python/ops.py $out
           ${pkgs.python312}/bin/python $out
         '';
       };
@@ -148,7 +153,8 @@
         checks = self.checks.${system};
 
         shellHook = ''
-          export __PROBE_LIB=$(realpath ../libprobe/build)
+          export __PROBE_LIB="$(realpath ../libprobe/build)"
+          export PYGEN_OUTFILE="$(realpath ./python/ops.py)"
         '';
 
         packages = [

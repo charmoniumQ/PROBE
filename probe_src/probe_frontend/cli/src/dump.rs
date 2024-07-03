@@ -412,12 +412,17 @@ impl Dump for ops::Metadata {
     fn dump(&self) -> String {
         match self {
 <<<<<<< HEAD
+<<<<<<< HEAD
             ops::Metadata::Mode { mode, .. } => format!("Mode[ mode={:#06o} ]", mode),
             ops::Metadata::Ownership { uid, gid, .. } => {
 =======
             ops::Metadata::Mode { mode } => format!("Mode[ mode={:#06o} ]", mode),
             ops::Metadata::Ownership { uid, gid } => {
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            ops::Metadata::Mode { mode, .. } => format!("Mode[ mode={:#06o} ]", mode),
+            ops::Metadata::Ownership { uid, gid, .. } => {
+>>>>>>> 0beca52 (improved pygen code)
                 format!("Ownership[ uid={}, gid={} ]", uid, gid)
             }
             ops::Metadata::Times {
@@ -425,9 +430,13 @@ impl Dump for ops::Metadata {
                 atime,
                 mtime,
 <<<<<<< HEAD
+<<<<<<< HEAD
                 ..
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+                ..
+>>>>>>> 0beca52 (improved pygen code)
             } => format!(
                 "Times[ is_null={}, atime={}, mtime={} ]",
                 is_null,
