@@ -5,62 +5,62 @@ from dataclasses import dataclass
 
 @dataclass(init=True, frozen=True)
 class Timespec:
-    tv_sec: int
-    tv_nsec: int
+    sec: int
+    nsec: int
 
 @dataclass(init=True, frozen=True)
 class StatxTimestamp:
-    tv_sec: int
-    tv_nsec: int
+    sec: int
+    nsec: int
 
 @dataclass(init=True, frozen=True)
 class Statx:
-    stx_mask: int
-    stx_blksize: int
-    stx_attributes: int
-    stx_nlink: int
-    stx_uid: int
-    stx_gid: int
-    stx_mode: int
-    stx_ino: int
-    stx_size: int
-    stx_blocks: int
-    stx_attributes_mask: int
-    stx_atime: StatxTimestamp
-    stx_btime: StatxTimestamp
-    stx_ctime: StatxTimestamp
-    stx_mtime: StatxTimestamp
-    stx_rdev_major: int
-    stx_rdev_minor: int
-    stx_dev_major: int
-    stx_dev_minor: int
-    stx_mnt_id: int
-    stx_dio_mem_align: int
-    stx_dio_offset_align: int
+    mask: int
+    blksize: int
+    attributes: int
+    nlink: int
+    uid: int
+    gid: int
+    mode: int
+    ino: int
+    size: int
+    blocks: int
+    attributes_mask: int
+    atime: StatxTimestamp
+    btime: StatxTimestamp
+    ctime: StatxTimestamp
+    mtime: StatxTimestamp
+    rdev_major: int
+    rdev_minor: int
+    dev_major: int
+    dev_minor: int
+    mnt_id: int
+    dio_mem_align: int
+    dio_offset_align: int
 
 @dataclass(init=True, frozen=True)
 class Timeval:
-    tv_sec: int
-    tv_usec: int
+    sec: int
+    usec: int
 
 @dataclass(init=True, frozen=True)
 class Rusage:
-    ru_utime: Timeval
-    ru_stime: Timeval
-    ru_maxrss: int
-    ru_ixrss: int
-    ru_idrss: int
-    ru_isrss: int
-    ru_minflt: int
-    ru_majflt: int
-    ru_nswap: int
-    ru_inblock: int
-    ru_oublock: int
-    ru_msgsnd: int
-    ru_msgrcv: int
-    ru_nsignals: int
-    ru_nvcsw: int
-    ru_nivcsw: int
+    utime: Timeval
+    stime: Timeval
+    maxrss: int
+    ixrss: int
+    idrss: int
+    isrss: int
+    minflt: int
+    majflt: int
+    nswap: int
+    inblock: int
+    oublock: int
+    msgsnd: int
+    msgrcv: int
+    nsignals: int
+    nvcsw: int
+    nivcsw: int
 
 @dataclass(init=True, frozen=True)
 class Path:

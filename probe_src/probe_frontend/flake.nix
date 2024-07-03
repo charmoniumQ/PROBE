@@ -162,6 +162,8 @@
           pkgs.cargo-expand
           pkgs.cargo-flamegraph
           pkgs.cargo-watch
+          pkgs.gdb
+          pkgs.python312
           pkgs.rust-analyzer
         ];
       };

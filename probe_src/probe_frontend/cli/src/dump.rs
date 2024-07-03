@@ -139,45 +139,45 @@ trait Dump {
     fn dump(&self) -> String;
 }
 
-impl Dump for ops::statx_timestamp {
+impl Dump for ops::StatxTimestamp {
     fn dump(&self) -> String {
-        match DateTime::from_timestamp(self.tv_sec, self.tv_nsec) {
+        match DateTime::from_timestamp(self.sec, self.nsec) {
             Some(x) => x.to_rfc3339_opts(SecondsFormat::Secs, true),
             None => "[INVALID TIMESTAMP]".to_owned(),
         }
     }
 }
 
-impl Dump for ops::timeval {
+impl Dump for ops::Timeval {
     fn dump(&self) -> String {
-        match DateTime::from_timestamp(self.tv_sec, self.tv_usec as u32 * 1000) {
+        match DateTime::from_timestamp(self.sec, self.usec as u32 * 1000) {
             Some(x) => x.to_rfc3339_opts(SecondsFormat::Secs, true),
             None => "[INVALID TIMESTAMP]".to_owned(),
         }
     }
 }
 
-impl Dump for ops::statx {
+impl Dump for ops::Statx {
     fn dump(&self) -> String {
         format!(
             "[ uid={}, gid={}, mode={:#06o} ino={}, size={}, mtime={} ]",
-            self.stx_uid,
-            self.stx_gid,
-            self.stx_mode,
-            self.stx_ino,
-            self.stx_size,
-            self.stx_mtime.dump(),
+            self.uid,
+            self.gid,
+            self.mode,
+            self.ino,
+            self.size,
+            self.mtime.dump(),
         )
     }
 }
 
-impl Dump for ops::rusage {
+impl Dump for ops::Rusage {
     fn dump(&self) -> String {
         format!(
             "[ utime={}, stime={}, maxrss={} ]",
-            self.ru_utime.dump(),
-            self.ru_stime.dump(),
-            self.ru_maxrss,
+            self.utime.dump(),
+            self.stime.dump(),
+            self.maxrss,
         )
     }
 }

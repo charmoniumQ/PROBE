@@ -108,8 +108,8 @@ pub enum Metadata {
     #[serde(untagged)]
     Times {
         is_null: bool,
-        atime: timeval,
-        mtime: timeval,
+        atime: Timeval,
+        mtime: Timeval,
 
         #[serde(serialize_with = "Metadata::serialize_variant_times")]
         #[serde(skip_deserializing)]
@@ -286,7 +286,7 @@ impl FfiFrom<C_Op> for OpInternal {
 #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
 pub struct Op {
     pub data: OpInternal,
-    pub time: timespec,
+    pub time: Timespec,
 
     #[serde(serialize_with = "Op::serialize_type")]
     #[serde(skip_deserializing)]

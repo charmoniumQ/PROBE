@@ -12,7 +12,6 @@ fn pygen_file() -> &'static RwLock<PygenFile> {
 
 pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
     let syn::DeriveInput { data, ident, .. } = input.clone();
-    let ident = snake_case_to_pascal(&ident.to_string());
 
     match data {
         Data::Struct(data_struct) => {
@@ -39,11 +38,11 @@ pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
                 })
                 .collect::<Vec<(_, _)>>();
 
-            let dataclass = basic_dataclass(ident, &pairs);
+            let dataclass = basic_dataclass(ident.to_string(), &pairs);
             pygen_file().write().add_class(dataclass);
         }
         Data::Enum(data_enum) => {
-            let mut enu = Enum::new(ident);
+            let mut enu = Enum::new(ident.to_string());
 
             // this is the types that the produced union is over
             let mut variants = vec![];
@@ -126,27 +125,11 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
                 // bool types are basically the same everywhere
                 "bool" => name,
 
-                _ => snake_case_to_pascal(&name),
+                _ => name,
             }
         }
         _ => unimplemented!("unsupported type type"),
     }
-}
-
-pub(crate) fn snake_case_to_pascal(input: &str) -> String {
-    input
-        .chars()
-        .fold((true, String::new()), |(prior_underscore, mut acc), ch| {
-            if ch == '_' {
-                return (true, acc);
-            } else if prior_underscore {
-                ch.to_uppercase().for_each(|x| acc.push(x))
-            } else {
-                acc.push(ch)
-            }
-            (false, acc)
-        })
-        .1
 }
 
 pub(crate) fn write_pygen_internal(path: syn::LitStr) {
