@@ -178,6 +178,7 @@ trait Dump {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 impl Dump for ops::StatxTimestamp {
     fn dump(&self) -> String {
         match DateTime::from_timestamp(self.sec, self.nsec) {
@@ -186,12 +187,18 @@ impl Dump for ops::statx_timestamp {
     fn dump(&self) -> String {
         match DateTime::from_timestamp(self.tv_sec, self.tv_nsec) {
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+impl Dump for ops::StatxTimestamp {
+    fn dump(&self) -> String {
+        match DateTime::from_timestamp(self.sec, self.nsec) {
+>>>>>>> 122952f (improved rust struct generation)
             Some(x) => x.to_rfc3339_opts(SecondsFormat::Secs, true),
             None => "[INVALID TIMESTAMP]".to_owned(),
         }
     }
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 impl Dump for ops::Timeval {
     fn dump(&self) -> String {
@@ -201,12 +208,18 @@ impl Dump for ops::timeval {
     fn dump(&self) -> String {
         match DateTime::from_timestamp(self.tv_sec, self.tv_usec as u32 * 1000) {
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+impl Dump for ops::Timeval {
+    fn dump(&self) -> String {
+        match DateTime::from_timestamp(self.sec, self.usec as u32 * 1000) {
+>>>>>>> 122952f (improved rust struct generation)
             Some(x) => x.to_rfc3339_opts(SecondsFormat::Secs, true),
             None => "[INVALID TIMESTAMP]".to_owned(),
         }
     }
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 impl Dump for ops::Statx {
     fn dump(&self) -> String {
@@ -230,10 +243,23 @@ impl Dump for ops::statx {
             self.stx_size,
             self.stx_mtime.dump(),
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+impl Dump for ops::Statx {
+    fn dump(&self) -> String {
+        format!(
+            "[ uid={}, gid={}, mode={:#06o} ino={}, size={}, mtime={} ]",
+            self.uid,
+            self.gid,
+            self.mode,
+            self.ino,
+            self.size,
+            self.mtime.dump(),
+>>>>>>> 122952f (improved rust struct generation)
         )
     }
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 impl Dump for ops::Rusage {
     fn dump(&self) -> String {
@@ -251,6 +277,15 @@ impl Dump for ops::rusage {
             self.ru_stime.dump(),
             self.ru_maxrss,
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+impl Dump for ops::Rusage {
+    fn dump(&self) -> String {
+        format!(
+            "[ utime={}, stime={}, maxrss={} ]",
+            self.utime.dump(),
+            self.stime.dump(),
+            self.maxrss,
+>>>>>>> 122952f (improved rust struct generation)
         )
     }
 }
