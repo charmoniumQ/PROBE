@@ -2,7 +2,6 @@
 import typing
 import json
 import tarfile
-import subprocess
 from . import ops
 
 OpTable = typing.Mapping[int, typing.Mapping[int, typing.Mapping[int, typing.List[ops.Op]]]]
@@ -49,19 +48,10 @@ def op_hook(json_map: typing.Dict[str, typing.Any]):
     ty: str = json_map["_type"]
     json_map.pop("_type")
 
-    return ops.__dict__[snake_case_to_pascal(ty)](**json_map)
+    constructor = ops.__dict__[ty]
 
-def snake_case_to_pascal(input: str) -> str:
-    ret: str = ""
-    prior_underscore: bool = True
-    for ch in input:
-        if ch == '_':
-            prior_underscore = True
-            continue
-        if prior_underscore:
-            ret += ch.upper()
-        else:
-            ret += ch
-        prior_underscore = False
+    for ident, ty in constructor.__annotations__.items():
+        if ty == "bytes" and ident in json_map:
+            json_map[ident] = bytes(json_map[ident])
 
-    return ret
+    return constructor(**json_map)

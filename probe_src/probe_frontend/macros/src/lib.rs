@@ -33,13 +33,33 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
 
             let field_idents = pairs.iter().map(|x| x.0).collect::<Vec<_>>();
 
+            let field_idents_stripped = field_idents
+                .iter()
+                .map(|old| {
+                    let span = old.span();
+                    let str = old.to_string();
+                    let mut slice = str.as_str();
+
+                    for prefix in ["ru_", "tv_", "stx_"] {
+                        if let Some(stripped) = str.strip_prefix(prefix) {
+                            slice = stripped;
+                            break;
+                        }
+                    }
+
+                    Ident::new(slice, span)
+                })
+                .collect::<Vec<_>>();
+
             let field_types = pairs.into_iter().map(|x| x.1).collect::<Vec<_>>();
 
             let new_name = Ident::new(
-                ident
-                    .to_string()
-                    .strip_prefix("C_")
-                    .expect("struct name doesn't start with 'C_'"),
+                &snake_case_to_pascal(
+                    ident
+                        .to_string()
+                        .strip_prefix("C_")
+                        .expect("struct name doesn't start with 'C_'"),
+                ),
                 Span::call_site(),
             );
 
@@ -61,7 +81,7 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
             quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
                 pub struct #new_name {
-                    #(pub #field_idents: #field_types,)*
+                    #(pub #field_idents_stripped: #field_types,)*
 
                     /// this is a placeholder field that get's serialized as the type name
                     #[serde(serialize_with = #serialize_type_path)]
@@ -83,7 +103,7 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                         Ok(Self {
                             _type: (),
                             #(
-                            #field_idents: value.#field_idents
+                            #field_idents_stripped: value.#field_idents
                                 .ffi_into(ctx)
                                 .map_err(|e| {
                                     ProbeError::FFiConversionError {
@@ -112,7 +132,8 @@ fn convert_bindgen_type(ty: &syn::Type) -> syn::Type {
         }
         syn::Type::Path(inner) => {
             if let Some(name) = type_basename(inner).to_string().strip_prefix("C_") {
-                let name = Ident::new(name, Span::mixed_site());
+                let name = snake_case_to_pascal(name);
+                let name = Ident::new(&name, Span::mixed_site());
                 parse_quote!(#name)
             } else {
                 Type::Path(inner.clone())
@@ -128,6 +149,22 @@ pub(crate) fn type_basename(ty: &syn::TypePath) -> &syn::Ident {
     }
 
     &ty.path.segments.last().expect("type has no segments").ident
+}
+
+pub(crate) fn snake_case_to_pascal(input: &str) -> String {
+    input
+        .chars()
+        .fold((true, String::new()), |(prior_underscore, mut acc), ch| {
+            if ch == '_' {
+                return (true, acc);
+            } else if prior_underscore {
+                ch.to_uppercase().for_each(|x| acc.push(x))
+            } else {
+                acc.push(ch)
+            }
+            (false, acc)
+        })
+        .1
 }
 
 // TODO: return compiler error instead of panicking on error
