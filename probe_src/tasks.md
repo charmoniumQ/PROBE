@@ -52,8 +52,10 @@
   - [ ] Run the benchmarks with Hyperfine, in Containerexec, in a Justfile, storing the result as a CSV.
 - [ ] Output conversions
   - [ ] From the NetworkX digraph, export:
-    - [ ] A dataflow graph, showing only files and the flow of information between them.
-      - Note that a file may have different versions, which should appear as different nodes.
+    - [ ] A dataflow graph, showing only files, processes, and the flow of information between them. The following rules define when there is an edge:
+      1. Data flows from a file to a process if on any thread there is an OpenOp with the flags set to `O_RDWR` or `O_RDONLY`.
+      2. Data flows from a process to a process if one process CloneOp's the other.
+      3. Data flows from a process to a file if on any thread there is a OpenOp with the flags set to `O_RDWR` or `O_WRONLY`.
     - [ ] [Process Run Crate](https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/)
     - [ ] [Common Workflow Language](https://www.commonwl.org/)
       - [ ] Write a test that runs the resulting CWL.
