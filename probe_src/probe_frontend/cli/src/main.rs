@@ -4,6 +4,7 @@ use std::{ffi::OsString, fs::File};
 
 use clap::{arg, command, value_parser, Command};
 use color_eyre::eyre::{eyre, Context, Result};
+<<<<<<< HEAD
 use flate2::Compression;
 
 /// Output the ops from a probe log file to stdout.
@@ -29,6 +30,8 @@ use std::{ffi::OsString, fs::File};
 
 use clap::Parser;
 use color_eyre::eyre::{Context, Result};
+=======
+>>>>>>> ae4dc7d (improved arg parsing)
 use flate2::Compression;
 
 /// Output the ops from a probe log file to stdout.
@@ -43,6 +46,7 @@ mod transcribe;
 /// Utility code for creating temporary directories.
 mod util;
 
+<<<<<<< HEAD
 /// Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.
 #[derive(clap::Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -109,15 +113,22 @@ enum Command {
 }
 
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> ae4dc7d (improved arg parsing)
 fn main() -> Result<()> {
     color_eyre::install()?;
     env_logger::Builder::from_env(env_logger::Env::new().filter_or("__PROBE_LOG", "warn")).init();
     log::debug!("Logger initialized");
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     let matches = command!()
         .about("Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.")
         .propagate_version(true)
+=======
+    let matches = command!()
+        .about("Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.")
+>>>>>>> ae4dc7d (improved arg parsing)
         .subcommands([
             Command::new("record")
                 .args([
@@ -167,6 +178,7 @@ fn main() -> Result<()> {
                         .default_value("probe_log")
                         .value_parser(value_parser!(OsString)),
                 ])
+<<<<<<< HEAD
                 .about("Write the data from probe log data in a human-readable manner"),
             Command::new("__gdb-exec-shim").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
@@ -255,27 +267,61 @@ fn main() -> Result<()> {
             record::record_transcribe(output, overwrite, gdb, debug, cmd)
         }
         .wrap_err("Record command failed"),
+=======
+                .about("Write the data from probe log data in a human-readable manne"),
+        ])
+        .get_matches();
+>>>>>>> ae4dc7d (improved arg parsing)
 
-        Command::Transcribe {
-            overwrite,
-            output,
-            input,
-        } => if overwrite {
-            File::create(&output)
-        } else {
-            File::create_new(&output)
-        }
-        .wrap_err("Failed to create output file")
-        .map(|file| tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default())))
-        .and_then(|mut tar| transcribe::transcribe(input, &mut tar))
-        .wrap_err("Transcribe command failed"),
+    match matches.subcommand() {
+        Some(("record", sub)) => {
+            let output = sub.get_one::<OsString>("output").cloned();
+            let overwrite = sub.get_flag("overwrite");
+            let no_transcribe = sub.get_flag("no-transcribe");
+            let gdb = sub.get_flag("gdb");
+            let debug = sub.get_flag("debug");
+            let cmd = sub
+                .get_many::<OsString>("CMD")
+                .unwrap()
+                .cloned()
+                .collect::<Vec<_>>();
 
-        Command::Dump { json, input } => if json {
-            dump::to_stdout_json(input)
-        } else {
-            dump::to_stdout(input)
+            if no_transcribe {
+                record::record_no_transcribe(output, overwrite, gdb, debug, cmd)
+            } else {
+                record::record_transcribe(output, overwrite, gdb, debug, cmd)
+            }
+            .wrap_err("Record command failed")
         }
-        .wrap_err("Dump command failed"),
+        Some(("transcribe", sub)) => {
+            let overwrite = sub.get_flag("overwrite");
+            let output = sub.get_one::<OsString>("output").unwrap().clone();
+            let input = sub.get_one::<OsString>("input").unwrap().clone();
+
+            if overwrite {
+                File::create(&output)
+            } else {
+                File::create_new(&output)
+            }
+            .wrap_err("Failed to create output file")
+            .map(|file| {
+                tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()))
+            })
+            .and_then(|mut tar| transcribe::transcribe(input, &mut tar))
+            .wrap_err("Transcribe command failed")
+        }
+        Some(("dump", sub)) => {
+            let json = sub.get_flag("json");
+            let input = sub.get_one::<OsString>("input").unwrap().clone();
+
+            if json {
+                dump::to_stdout_json(input)
+            } else {
+                dump::to_stdout(input)
+            }
+            .wrap_err("Dump command failed")
+        }
+        _ => Err(eyre!("unexpected subcommand")),
     }
 }
 <<<<<<< HEAD

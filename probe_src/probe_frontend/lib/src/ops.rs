@@ -682,6 +682,7 @@ impl FfiFrom<C_Op> for Op {
 =======
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // WARNING: this macro invokation must come after all structs that implement MakePyDataclass
 // (including classes that implement MakeRustOp, who's daughter classes implement MakePyDataclass)
 // for python codegen to work properly
@@ -689,6 +690,13 @@ probe_macros::write_pygen_file_from_env!("PYGEN_OUTFILE");
 >>>>>>> 0beca52 (improved pygen code)
 =======
 probe_macros::pygen_add_preamble!("AT_FDCWD: int = -100");
+=======
+probe_macros::pygen_add_preamble!(
+    "# https://github.com/torvalds/linux/blob/\
+    73e931504f8e0d42978bfcda37b323dbbd1afc08/include/uapi/linux/fcntl.h#L98",
+    "AT_FDCWD: int = -100"
+);
+>>>>>>> ae4dc7d (improved arg parsing)
 #[test]
 fn at_fdcwd_sanity_check() {
     assert_eq!(libc::AT_FDCWD, -100);
