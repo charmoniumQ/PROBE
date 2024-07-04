@@ -3,15 +3,19 @@ from __future__ import annotations
 import typing
 from dataclasses import dataclass
 
+AT_FDCWD: int = -100
+
 @dataclass(init=True, frozen=True)
 class Timespec:
     sec: int
     nsec: int
 
+
 @dataclass(init=True, frozen=True)
 class StatxTimestamp:
     sec: int
     nsec: int
+
 
 @dataclass(init=True, frozen=True)
 class Statx:
@@ -38,10 +42,12 @@ class Statx:
     dio_mem_align: int
     dio_offset_align: int
 
+
 @dataclass(init=True, frozen=True)
 class Timeval:
     sec: int
     usec: int
+
 
 @dataclass(init=True, frozen=True)
 class Rusage:
@@ -62,6 +68,7 @@ class Rusage:
     nvcsw: int
     nivcsw: int
 
+
 @dataclass(init=True, frozen=True)
 class Path:
     dirfd_minus_at_fdcwd: int
@@ -74,18 +81,26 @@ class Path:
     stat_valid: bool
     dirfd_valid: bool
 
+    @property
+    def dirfd() -> int:
+        return self.dirfd_minus_at_fdcwd + AT_FDCWD
+
+
 @dataclass(init=True, frozen=True)
 class InitProcessOp:
     pid: int
+
 
 @dataclass(init=True, frozen=True)
 class InitExecEpochOp:
     epoch: int
     program_name: bytes
 
+
 @dataclass(init=True, frozen=True)
 class InitThreadOp:
     tid: int
+
 
 @dataclass(init=True, frozen=True)
 class OpenOp:
@@ -95,21 +110,25 @@ class OpenOp:
     fd: int
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class CloseOp:
     low_fd: int
     high_fd: int
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class ChdirOp:
     path: Path
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class ExecOp:
     path: Path
     ferrno: int
+
 
 @dataclass(init=True, frozen=True)
 class CloneOp:
@@ -119,10 +138,12 @@ class CloneOp:
     child_thread_id: int
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class ExitOp:
     status: int
     run_atexit_handlers: bool
+
 
 @dataclass(init=True, frozen=True)
 class AccessOp:
@@ -131,6 +152,7 @@ class AccessOp:
     flags: int
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class StatOp:
     path: Path
@@ -138,12 +160,14 @@ class StatOp:
     statx_buf: Statx
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class ReaddirOp:
     dir: Path
     child: bytes
     all_children: bool
     ferrno: int
+
 
 @dataclass(init=True, frozen=True)
 class WaitOp:
@@ -153,6 +177,7 @@ class WaitOp:
     ret: int
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class GetRUsageOp:
     waitpid_arg: int
@@ -160,11 +185,13 @@ class GetRUsageOp:
     usage: Rusage
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class ReadLinkOp:
     path: Path
     resolved: bytes
     ferrno: int
+
 
 @dataclass(init=True, frozen=True)
 class UpdateMetadataOp:
@@ -173,25 +200,30 @@ class UpdateMetadataOp:
     metadata: Metadata
     ferrno: int
 
+
 @dataclass(init=True, frozen=True)
 class Op:
     data: OpInternal
     time: Timespec
 
+
 @dataclass(init=True, frozen=True)
 class Mode:
     mode: int
+
 
 @dataclass(init=True, frozen=True)
 class Ownership:
     uid: int
     gid: int
 
+
 @dataclass(init=True, frozen=True)
 class Times:
     is_null: bool
     atime: Timeval
     mtime: Timeval
+
 
 Metadata: typing.TypeAlias = Mode | Ownership | Times
 OpInternal: typing.TypeAlias = InitProcessOp | InitExecEpochOp | InitThreadOp | OpenOp | CloseOp | ChdirOp | ExecOp | CloneOp | ExitOp | AccessOp | StatOp | ReaddirOp | WaitOp | GetRUsageOp | UpdateMetadataOp | ReadLinkOp
