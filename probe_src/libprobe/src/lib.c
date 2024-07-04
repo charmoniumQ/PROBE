@@ -32,6 +32,8 @@
  * To GCC these macros are defined as type names.
  * */
 #define __type_mode_t mode_t
+#define __type_charp char*
+#define __type_charpp char**
 
 /*
  * Likewise, ther is some bug with pycparser unable to parse inline funciton pointers.

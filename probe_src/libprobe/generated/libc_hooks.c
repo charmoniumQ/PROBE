@@ -1638,9 +1638,21 @@ int execle(const char *filename, const char *arg0, ...)
     prov_log_save();
   }
   ERROR("Not implemented; I need to figure out how to update the environment.");
-  size_t varargs_size = (sizeof(char *)) + ((COUNT_NONNULL_VARARGS(arg0) + 1) * (sizeof(char *)));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_execle, __builtin_apply_args(), varargs_size));
+  size_t argc = COUNT_NONNULL_VARARGS(arg0);
+  char **arg_vec = malloc(argc * (sizeof(char *)));
+  va_list ap;
+  va_start(ap, arg0);
+  for (size_t i = 0; i < (argc - 1); ++i)
+  {
+    arg_vec[i] = va_arg(ap, __type_charp);
+  }
+
+  char **env = va_arg(ap, __type_charpp);
+  va_end(ap);
+  char * const *updated_env = update_env_with_probe_vars(env);
+  int ret = unwrapped_execve(filename, arg_vec, updated_env);
   int saved_errno = errno;
+  free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1816,36 +1828,31 @@ pid_t _Fork()
 pid_t vfork()
 {
   maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = CLONE_VFORK, .run_pthread_atfork_handlers = false, .child_process_id = -1, .child_thread_id = -1, .ferrno = 0}}, {0}};
+  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .child_process_id = -1, .child_thread_id = -1, .ferrno = 0}}, {0}};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
     prov_log_save();
-    prov_log_disable();
-    NOT_IMPLEMENTED("vfork; see note in clone(...) regarding CLONE_FORK");
   }
   else
   {
     prov_log_save();
-    prov_log_disable();
   }
-  pid_t ret = unwrapped_vfork();
+  int ret = unwrapped_fork();
   int saved_errno = errno;
-  if (ret == (-1))
+  if (likely(prov_log_is_enabled()))
   {
-    if (likely(prov_log_is_enabled()))
+    if (ret == (-1))
     {
       op.data.clone.ferrno = saved_errno;
       prov_log_record(op);
     }
-  }
-  else
-    if (ret == 0)
-  {
-  }
-  else
-  {
-    if (likely(prov_log_is_enabled()))
+    else
+      if (ret == 0)
+    {
+      reinit_process();
+    }
+    else
     {
       op.data.clone.child_process_id = ret;
       op.data.clone.child_thread_id = ret;

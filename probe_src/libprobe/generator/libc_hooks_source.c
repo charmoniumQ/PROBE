@@ -1642,21 +1642,21 @@ int execle (const char *filename, const char *arg0, ...) {
         }
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
-    /* TODO: Use this call instead of the default generated one */
     void* call = ({
-        size_t nargs = COUNT_NONNULL_VARARGS(arg0);
-        char* arg_vec = malloc((nargs + 1) * sizeof(char**));
-        char** arg_src = arg0;
-        char** arg_dst = arg_vec;
-        for (; *arg_src; ++arg_src, ++arg_vec) {
-            *arg_dst = *arg_src;
+        size_t argc = COUNT_NONNULL_VARARGS(arg0);
+        char** arg_vec = malloc(argc * sizeof(char*));
+        va_list ap;
+		va_start(ap, arg0);
+        for (size_t i = 0; i < argc - 1; ++i) {
+            arg_vec[i] = va_arg(ap, __type_charp);
         }
-        env = update_env_with_probe_vars(env);
-        execve(filename, arg_vec, env);
+        char** env = va_arg(ap, __type_charpp);
+        va_end(ap);
+        char * const* updated_env = update_env_with_probe_vars(env);
+        int ret = unwrapped_execve(filename, arg_vec, updated_env);
     });
     void* post_call = ({
-        /* TODO: free env from call */
-        /* free(env); */
+        free((char**)updated_env);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1849,15 +1849,45 @@ pid_t _Fork (void) {
     });
 }
 pid_t vfork (void) {
+    /* NOTE: I think vfork, as defined, is un-interposable.
+     * THe Linux manual clearly states:
+     *
+     * > the behavior is undefined if the process created by vfork()...
+     * > returns from the function in which vfork() was called...
+     * > before successfully calling _exit(2) or one of the exec(3) family of functions.
+     *
+     * Suppose client code reads:
+     *
+     *     if (vfork()) {
+     *         exec(...)
+     *     }
+     *
+     * With interposition, we would encounter the following stack states:
+     *
+     *     client_code
+     *     client_code > wrapped_vfork
+     *     client_code > wrapped_vfork > real_vfork
+     *     client_code > wrapped_vfork
+     *     client_code
+     *     client_code > wrapped_exec
+     *     client_code > wrapped_exec > real_vfork
+     *     client_code > wrapped_exec
+     *
+     * Without interposition, client_code calls real_vfork then real_exec.
+     * But with interposition, client_code calls wrapped_vfork calls real_vfork.
+     * Then wrapped_vfork must return before client code calls wrapped_exec which calls real_exec.
+     * However, returning from wrapped_vfork, as I understand the Linux documentation, induces undefined behavior.
+     *
+     * Therefore, I will interpose vfork by translating it into a regular fork, which bears no such limitation.
+     * No program will notice, since the functional guarantees of vfork are a strict subset of the functional guarantees of fork (vfork without the limitations).
+     * There may be a slight performance degradation, but it should be slight.
+     * */
     void* pre_call = ({
         struct Op op = {
             clone_op_code,
             {.clone = {
-                /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
-                 * I could be wrong.
-                 * */
-                .flags = CLONE_VFORK,
-                .run_pthread_atfork_handlers = false,
+                .flags = 0,
+                .run_pthread_atfork_handlers = true,
                 .child_process_id = -1,
                 .child_thread_id = -1,
                 .ferrno = 0,
@@ -1867,37 +1897,30 @@ pid_t vfork (void) {
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
-            /* It seems we can't do anything here...
-             * > the behavior is undefined if the process created by vfork() either modifies any data other than a variable of type pid_t used to store the return value from vfork(), or returns from the function in which vfork() was called, or calls any other function before successfully calling _exit(2) or one of the exec(3) family of functions.
-             * httpss://man7.org/linux/man-pages/man2/vfork.2.html
-             * At least the client has to call execve, so we will get a fresh prov buffer when they do that.
-             * I really hope returning from this function is fine even though it is technically undefined behavior...
-             **/
-            prov_log_disable();
-            NOT_IMPLEMENTED("vfork; see note in clone(...) regarding CLONE_FORK");
         } else {
             prov_log_save();
-            prov_log_disable();
         }
     });
+    void* call = ({
+        int ret = unwrapped_fork();
+    });
     void* post_call = ({
-        if (ret == -1) {
-            /* Failure */
-            if (likely(prov_log_is_enabled())) {
+        if (likely(prov_log_is_enabled())) {
+            if (ret == -1) {
+                /* Failure */
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
-            }
-        } else if (ret == 0) {
-            /* Success; child. Can't do anything here. */
-        } else {
-            /* Success; parent */
-            if (likely(prov_log_is_enabled())) {
+            } else if (ret == 0) {
+                reinit_process();
+            } else {
+                /* Success; parent */
                 op.data.clone.child_process_id = ret;
-                op.data.clone.child_thread_id = ret; /* Since fork makes processes, child TID = child PID */
+                /* Since fork makes processes, child TID = child PID */
+                op.data.clone.child_thread_id = ret;
                 prov_log_record(op);
             }
         }
-   });
+    });
 }
 
 /* Docs: https://man7.org/linux/man-pages/man2/clone.2.html */
