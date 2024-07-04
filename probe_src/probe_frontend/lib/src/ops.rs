@@ -313,7 +313,11 @@ impl FfiFrom<C_Op> for Op {
     }
 }
 
-probe_macros::pygen_add_preamble!("AT_FDCWD: int = -100");
+probe_macros::pygen_add_preamble!(
+    "# https://github.com/torvalds/linux/blob/\
+    73e931504f8e0d42978bfcda37b323dbbd1afc08/include/uapi/linux/fcntl.h#L98",
+    "AT_FDCWD: int = -100"
+);
 #[test]
 fn at_fdcwd_sanity_check() {
     assert_eq!(libc::AT_FDCWD, -100);

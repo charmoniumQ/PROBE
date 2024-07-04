@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing
 from dataclasses import dataclass
 
+# https://github.com/torvalds/linux/blob/73e931504f8e0d42978bfcda37b323dbbd1afc08/include/uapi/linux/fcntl.h#L98
 AT_FDCWD: int = -100
 
 @dataclass(init=True, frozen=True)
