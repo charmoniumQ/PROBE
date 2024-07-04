@@ -153,9 +153,13 @@ pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
                                 if let syn::Type::Tuple(syn::TypeTuple { elems, .. }) = &field.ty {
 =======
                             .filter_map(|field| {
+                                // skip any field who's type is the unit type
                                 if let syn::Type::Tuple(syn::TypeTuple { elems, .. }) = &field.ty {
+<<<<<<< HEAD
                                     // this is the unit type, so we just skip it
 >>>>>>> 0beca52 (improved pygen code)
+=======
+>>>>>>> 1f07ce9 (cleanup and documentation)
                                     if elems.is_empty() {
                                         return None;
                                     }
@@ -203,7 +207,6 @@ pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
                             })
                             .collect::<Vec<_>>();
 
-                        // dataclass.add_inclass(basic_dataclass(name.clone(), &pairs));
                         enu.add_variant_owned_class(basic_dataclass(name.clone(), &pairs));
 >>>>>>> 0beca52 (improved pygen code)
                         variants.push(name);
@@ -506,9 +509,12 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
                 "__dev_t" | "__gid_t" | "__ino_t" | "__mode_t" | "__s32" | "__s64"
                 | "__suseconds_t" | "__syscall_slong_t" | "__syseconds_t" | "__time_t"
                 | "__u16" | "__u32" | "__u64" | "__uid_t" | "c_int" | "c_long" | "c_uint"
-                | "dev_t" | "gid_t" | "i32" | "ino_t" | "mode_t" | "pid_t" | "uid_t" => {
-                    "int".to_owned()
-                }
+                | "dev_t" | "gid_t" | "i128" | "i16" | "i32" | "i64" | "i8" | "ino_t" | "isize"
+                | "mode_t" | "pid_t" | "u128" | "u16" | "u32" | "u64" | "u8" | "uid_t"
+                | "usize" => "int".to_owned(),
+
+                // float, python uses doubles for everything
+                "f32" | "f64" => "float".to_owned(),
 
                 // CStrings are serialized as an array of bytes, so it makes sense to load them
                 // into python as bytes

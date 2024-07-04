@@ -16,6 +16,7 @@ use crate::{
     ops::{self, C_Op, FfiFrom},
 };
 
+<<<<<<< HEAD
 /// Recursively parse a whole probe record directory and write it to a probe log directory.
 =======
     ops::{self, FfiFrom},
@@ -30,6 +31,8 @@ use crate::{
 /// Recursively parse a Top-level arena allocator directory and write it in serialized.
 >>>>>>> a83cce7 (version 0.2.0)
 =======
+=======
+>>>>>>> 1f07ce9 (cleanup and documentation)
 /// Recursively parse a whole probe record directory and write it to a probe log directory.
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 ///

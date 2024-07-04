@@ -17,12 +17,15 @@ proc-macro = true
 <<<<<<< HEAD
 <<<<<<< HEAD
 parking_lot = "0.12.3"
+<<<<<<< HEAD
 =======
 =======
 parking_lot = "0.12.3"
 >>>>>>> 0beca52 (improved pygen code)
 # darling = "0.20.9"
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> 1f07ce9 (cleanup and documentation)
 proc-macro2 = "1.0.86"
 quote = "1.0.36"
 syn = "2.0.68"

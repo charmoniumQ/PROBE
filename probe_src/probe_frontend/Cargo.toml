@@ -23,6 +23,7 @@ edition = "2021"
 
 [workspace.lints.rust]
 <<<<<<< HEAD
+<<<<<<< HEAD
 unsafe_op_in_unsafe_fn = "forbid"
 
 [workspace.metadata.crane]
@@ -54,6 +55,9 @@ bindgen = "0.69.4"
 >>>>>>> 8ab9725 (Added logging facility)
 =======
 unsafe_op_in_unsafe_fn = "deny"
+=======
+unsafe_op_in_unsafe_fn = "forbid"
+>>>>>>> 1f07ce9 (cleanup and documentation)
 
 [workspace.metadata.crane]
 name = "probe"
