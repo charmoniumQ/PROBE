@@ -13,7 +13,7 @@ publish = false
 edition = "2021"
 
 [workspace.lints.rust]
-unsafe_op_in_unsafe_fn = "deny"
+unsafe_op_in_unsafe_fn = "forbid"
 
 [workspace.metadata.crane]
 name = "probe"

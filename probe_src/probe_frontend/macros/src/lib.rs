@@ -7,6 +7,26 @@ use syn::{parse_quote, LitStr, Token};
 
 mod pygen;
 
+/// Generate a native rust struct from a rust-bindgen struct.
+///
+/// In order to successfully generate a new struct, the struct it's invoked on must have the
+/// following characteristics:
+///
+/// - be a named struct (tuple and unit structs not supported).
+/// - Name starts with `C_`.
+/// - contain only types that implement `FfiFrom` (defined in probe_frontend, see ops module for
+/// details).
+///
+/// In will generate a struct with the following characteristics:
+///
+/// - same name, but without the `C_` prefix, and converted from snake_case to PascalCase.
+/// - any field in the original struct starting with `__` is ignored.
+/// - any field in the original struct starting with `ru_`, `tv_`, or `stx_` will have that prefix
+/// removed.
+/// - derives serde's `Serialize`, `Deserialize` traits.
+/// - contains a unit field `_type` that serializes to the struct's name.
+/// - implements `FfiFrom` by calling it recursively on each field.
+/// - derives [`PygenDataclass`].
 // TODO: return compiler error instead of panicking on error
 #[proc_macro_derive(MakeRustOp)]
 pub fn make_rust_op(input: TokenStream) -> TokenStream {
@@ -167,7 +187,15 @@ fn snake_case_to_pascal(input: &str) -> String {
         })
         .1
 }
-
+/// Generate a python dataclass from a rust struct.
+///
+/// In order to successfully generate a dataclass, the struct it's invoked on must have the
+/// following characteristics:
+///
+/// - be a named struct (tuple and unit structs not supported).
+/// - OR be an enum with either named variants or tuple enums containing only one item.
+/// - contain only primitives, [`CString`](std::ffi::CString)s, or other generated dataclasses.
+/// - field with the unit type are also allowed, but they're ignored.
 // TODO: return compiler error instead of panicking on error
 #[proc_macro_derive(PygenDataclass)]
 pub fn pygen_dataclass(input: TokenStream) -> TokenStream {
@@ -177,6 +205,7 @@ pub fn pygen_dataclass(input: TokenStream) -> TokenStream {
     TokenStream::new()
 }
 
+/// write the generated python to a path contained in a environment variable.
 // TODO: return compiler error instead of panicking on error
 #[proc_macro]
 pub fn pygen_write_to_env(input: TokenStream) -> TokenStream {
@@ -252,6 +281,9 @@ impl Parse for AddPreambleArgs {
         lines.push(input.parse::<LitStr>()?.value());
         while !input.is_empty() {
             input.parse::<Token![,]>()?;
+            if input.is_empty() {
+                break;
+            }
             lines.push(input.parse::<LitStr>()?.value());
         }
 
