@@ -64,7 +64,7 @@
         // {
           inherit cargoArtifacts;
           inherit (craneLib.crateNameFromCargoToml {inherit src;}) version;
-          # NB: we disable tests since we'll run them all via cargo-nextest
+          # disable tests since we'll run them all via cargo-nextest
           doCheck = false;
         };
 
@@ -129,8 +129,8 @@
         };
 
         # Run tests with cargo-nextest
-        # this is why `doCheck = false` on other crate derivations, to not run
-        # the tests twice.
+        # this is why `doCheck = false` on the crate derivations, so as to not
+        # run the tests twice.
         probe-workspace-nextest = craneLib.cargoNextest (commonArgs
           // {
             inherit cargoArtifacts;
@@ -163,7 +163,6 @@
           pkgs.cargo-flamegraph
           pkgs.cargo-watch
           pkgs.gdb
-          pkgs.python312
           pkgs.rust-analyzer
         ];
       };

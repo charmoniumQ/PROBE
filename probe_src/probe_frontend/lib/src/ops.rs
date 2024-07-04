@@ -4,7 +4,7 @@
 
 use crate::error::{ProbeError, Result};
 use crate::transcribe::ArenaContext;
-use probe_macros::{MakePyDataclass, MakeRustOp};
+use probe_macros::{MakeRustOp, PygenDataclass};
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
 
@@ -86,7 +86,7 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 // implemented, this is somewhat confusing since they extensively use types and trait
 // implementations that are auto-generated.
 
-#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+#[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub enum Metadata {
     #[serde(untagged)]
     Mode {
@@ -168,7 +168,7 @@ impl FfiFrom<C_UpdateMetadataOp> for Metadata {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+#[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub struct UpdateMetadataOp {
     pub path: Path,
     pub flags: ::std::os::raw::c_int,
@@ -207,7 +207,7 @@ impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+#[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub enum OpInternal {
     #[serde(untagged)]
     InitProcessOp(InitProcessOp),
@@ -283,7 +283,7 @@ impl FfiFrom<C_Op> for OpInternal {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+#[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub struct Op {
     pub data: OpInternal,
     pub time: Timespec,
@@ -313,7 +313,16 @@ impl FfiFrom<C_Op> for Op {
     }
 }
 
-// WARNING: this macro invokation must come after all structs that implement MakePyDataclass
-// (including classes that implement MakeRustOp, who's daughter classes implement MakePyDataclass)
-// for python codegen to work properly
-probe_macros::write_pygen_file_from_env!("PYGEN_OUTFILE");
+probe_macros::pygen_add_preamble!("AT_FDCWD: int = -100");
+#[test]
+fn at_fdcwd_sanity_check() {
+    assert_eq!(libc::AT_FDCWD, -100);
+}
+
+probe_macros::pygen_add_prop!(Path impl dirfd -> int:
+    "return self.dirfd_minus_at_fdcwd + AT_FDCWD"
+);
+
+// WARNING: this macro invocation must come after all other pygen calls for those calls to be
+// included in the written file
+probe_macros::pygen_write_to_env!("PYGEN_OUTFILE");

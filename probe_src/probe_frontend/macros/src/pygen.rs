@@ -10,7 +10,7 @@ fn pygen_file() -> &'static RwLock<PygenFile> {
     INNER.get_or_init(|| RwLock::new(PygenFile::new()))
 }
 
-pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
+pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
     let syn::DeriveInput { data, ident, .. } = input.clone();
 
     match data {
@@ -39,7 +39,7 @@ pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
                 .collect::<Vec<(_, _)>>();
 
             let dataclass = basic_dataclass(ident.to_string(), &pairs);
-            pygen_file().write().add_class(dataclass);
+            pygen_file().write().classes.push(dataclass);
         }
         Data::Enum(data_enum) => {
             let mut enu = Enum::new(ident.to_string());
@@ -85,7 +85,7 @@ pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
                 }
             }
 
-            pygen_file().write().add_enum(enu);
+            pygen_file().write().enums.push(enu);
         }
         Data::Union(_data_union) => unimplemented!(),
     };
@@ -132,7 +132,7 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
     }
 }
 
-pub(crate) fn write_pygen_internal(path: syn::LitStr) {
+pub(crate) fn pygen_write_internal(path: syn::LitStr) {
     let path = path.value();
     let path = std::env::var_os(&path)
         .unwrap_or_else(|| panic!("Environment variable '{}' not defined", path));
@@ -159,11 +159,29 @@ pub(crate) fn write_pygen_internal(path: syn::LitStr) {
     writeln!(file, "{}", pygen_file().read()).expect("Failed to write pygen file");
 }
 
+pub(crate) fn pygen_add_prop_internal(args: crate::AddPropArgs) {
+    let class = args.class.to_string();
+    let mut prop = DataclassProp::new(args.name.to_string(), args.ret.to_string());
+    args.body.into_iter().for_each(|x| prop.body.push(x));
+
+    for dataclass in pygen_file().write().classes.iter_mut() {
+        if dataclass.name != class {
+            continue;
+        }
+
+        dataclass.add_prop(prop.clone());
+    }
+}
+
+pub(crate) fn pygen_add_preamble(args: crate::AddPreambleArgs) {
+    pygen_file().write().append_preamble(args.0)
+}
+
 #[derive(Debug, Clone)]
 struct PygenFile {
     preamble: Vec<String>,
-    classes: Vec<Dataclass>,
-    enums: Vec<Enum>,
+    pub classes: Vec<Dataclass>,
+    pub enums: Vec<Enum>,
 }
 
 #[derive(Debug, Clone)]
@@ -181,6 +199,7 @@ struct Dataclass {
     pub name: String,
     inclasses: Vec<Dataclass>,
     items: Vec<DataclassItem>,
+    properties: Vec<DataclassProp>,
 }
 
 #[derive(Debug, Clone)]
@@ -188,6 +207,14 @@ struct DataclassItem {
     indent: usize,
     name: String,
     ty: String,
+}
+
+#[derive(Debug, Clone)]
+struct DataclassProp {
+    indent: usize,
+    name: String,
+    ret: String,
+    pub body: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -198,14 +225,6 @@ impl PygenFile {
             classes: vec![],
             enums: vec![],
         }
-    }
-
-    pub fn add_class(&mut self, class: Dataclass) {
-        self.classes.push(class);
-    }
-
-    pub fn add_enum(&mut self, enu: Enum) {
-        self.enums.push(enu);
     }
 
     pub fn prepend_preamble(&mut self, mut lines: Vec<String>) {
@@ -264,6 +283,7 @@ impl Dataclass {
             name,
             inclasses: vec![],
             items: vec![],
+            properties: vec![],
         }
     }
 
@@ -275,6 +295,11 @@ impl Dataclass {
     pub fn add_item(&mut self, mut item: DataclassItem) {
         item.set_indent(self.indent + 4);
         self.items.push(item)
+    }
+
+    pub fn add_prop(&mut self, mut prop: DataclassProp) {
+        prop.set_indent(self.indent + 4);
+        self.properties.push(prop)
     }
 
     pub fn set_indent(&mut self, indent: usize) {
@@ -303,6 +328,21 @@ impl DataclassItem {
     }
 }
 
+impl DataclassProp {
+    pub fn new(name: String, ret: String) -> Self {
+        Self {
+            indent: 0,
+            name,
+            ret,
+            body: vec![],
+        }
+    }
+
+    pub fn set_indent(&mut self, indent: usize) {
+        self.indent = indent;
+    }
+}
+
 // Display trait implementations for actual codegen
 
 impl Display for PygenFile {
@@ -312,6 +352,7 @@ impl Display for PygenFile {
         for line in self.preamble.iter() {
             writeln!(f, "{line}")?;
         }
+        writeln!(f)?;
 
         for class in self.classes.iter() {
             writeln!(f, "{class}")?;
@@ -370,21 +411,23 @@ impl Display for Dataclass {
         let name = self.name.as_str();
         let indent_str = " ".repeat(self.indent);
 
-        // write class signature
         writeln!(
             f,
             "{indent_str}@dataclass(init=True, frozen=True)\n\
             {indent_str}class {name}:"
         )?;
 
-        // write inner class definitions
         for inclass in &self.inclasses {
             writeln!(f, "{inclass}",)?;
         }
 
-        // write dataclass fields
         for item in &self.items {
             writeln!(f, "{item}")?;
+        }
+        writeln!(f)?;
+
+        for prop in &self.properties {
+            writeln!(f, "{prop}")?;
         }
 
         Ok(())
@@ -396,5 +439,24 @@ impl Display for DataclassItem {
         let &Self { name, ty, .. } = &self;
         let indent_str = " ".repeat(self.indent);
         write!(f, "{indent_str}{name}: {ty}")
+    }
+}
+
+impl Display for DataclassProp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let &Self { name, ret, .. } = &self;
+        let indent_str = " ".repeat(self.indent);
+
+        writeln!(
+            f,
+            "{indent_str}@property\n\
+            {indent_str}def {name}() -> {ret}:",
+        )?;
+
+        for line in &self.body {
+            writeln!(f, "{indent_str}    {line}")?;
+        }
+
+        Ok(())
     }
 }
