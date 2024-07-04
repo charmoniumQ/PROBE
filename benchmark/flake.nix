@@ -764,6 +764,7 @@
           lftp = pkgs.lftp;
           wget = pkgs.wget;
           libseccomp = pkgs.libseccomp.lib;
+          time = pkgs.time;
           env-image = pkgs.dockerTools.buildImage {
             name = "prov-tracer-benchmark-env";
             copyToRoot = [ env ];
