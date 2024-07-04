@@ -14,8 +14,6 @@ use crate::{
     ops::{self, C_Op, FfiFrom},
 };
 
-// pub mod ops;
-
 /// Recursively parse a whole probe record directory and write it to a probe log directory.
 ///
 /// This function calls [`parse_pid()`] on each sub-directory in `in_dir` **in parallel**.
