@@ -510,11 +510,11 @@
           };
           sciunit2 = python.pkgs.buildPythonApplication rec {
             pname = "sciunit2";
-            version = "0.4.post82.dev130189670";
+            version = "0.4.post115.dev43584757";
             patches = [ ./sciunit2.patch ];
             src = pkgs.fetchPypi {
               inherit pname version;
-              sha256 = "a1ab36634ab7a1abe46f478b90643eb128ace56f85bda007dfe95525392fc876";
+              sha256 = "8c084c7269bec3ef6e524da8c82dabcb980487b78d5a0575d1370871a7760b47";
             };
             postUnpack = ''
               # sciunit2 source tarball from PyPI contains non-portable binaries

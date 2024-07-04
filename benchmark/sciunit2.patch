@@ -24,11 +24,6 @@
 @@ -12,1 +12,1 @@
 -backports.tempfile
 +#backports.tempfile
---- a/test-requirements.txt
-+++ b/test-requirements.txt
-@@ -4,1 +4,1 @@
--nose-capturestderr
-+#nose-capturestderr
 --- a/sciunit2/version_control.py
 +++ b/sciunit2/version_control.py
 @@ -12,1 +12,1 @@
