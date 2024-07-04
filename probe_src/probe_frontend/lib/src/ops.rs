@@ -14,8 +14,12 @@ use probe_macros::{MakeRustOp, PygenDataclass};
 
 use crate::error::{ProbeError, Result};
 use crate::transcribe::ArenaContext;
+<<<<<<< HEAD
 use probe_macros::{MakePyDataclass, MakeRustOp};
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+use probe_macros::{MakeRustOp, PygenDataclass};
+>>>>>>> e1414d9 (pygen custom `@property`s)
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
 
@@ -159,6 +163,9 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 // implementations that are auto-generated.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e1414d9 (pygen custom `@property`s)
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub enum Metadata {
     #[serde(untagged)]
@@ -334,10 +341,14 @@ impl FfiFrom<C_UpdateMetadataOp> for Metadata {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 =======
 #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+#[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
+>>>>>>> e1414d9 (pygen custom `@property`s)
 pub struct UpdateMetadataOp {
     pub path: Path,
     pub flags: ::std::os::raw::c_int,
@@ -400,6 +411,9 @@ impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e1414d9 (pygen custom `@property`s)
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub enum OpInternal {
     #[serde(untagged)]
@@ -559,6 +573,7 @@ impl FfiFrom<C_Op> for OpInternal {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub struct Op {
     pub data: OpInternal,
@@ -631,6 +646,9 @@ mod tests {
 }
 =======
 #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+=======
+#[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
+>>>>>>> e1414d9 (pygen custom `@property`s)
 pub struct Op {
     pub data: OpInternal,
     pub time: Timespec,
@@ -663,8 +681,24 @@ impl FfiFrom<C_Op> for Op {
 >>>>>>> a83cce7 (version 0.2.0)
 =======
 
+<<<<<<< HEAD
 // WARNING: this macro invokation must come after all structs that implement MakePyDataclass
 // (including classes that implement MakeRustOp, who's daughter classes implement MakePyDataclass)
 // for python codegen to work properly
 probe_macros::write_pygen_file_from_env!("PYGEN_OUTFILE");
 >>>>>>> 0beca52 (improved pygen code)
+=======
+probe_macros::pygen_add_preamble!("AT_FDCWD: int = -100");
+#[test]
+fn at_fdcwd_sanity_check() {
+    assert_eq!(libc::AT_FDCWD, -100);
+}
+
+probe_macros::pygen_add_prop!(Path impl dirfd -> int:
+    "return self.dirfd_minus_at_fdcwd + AT_FDCWD"
+);
+
+// WARNING: this macro invocation must come after all other pygen calls for those calls to be
+// included in the written file
+probe_macros::pygen_write_to_env!("PYGEN_OUTFILE");
+>>>>>>> e1414d9 (pygen custom `@property`s)

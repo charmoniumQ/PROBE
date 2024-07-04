@@ -35,8 +35,12 @@ fn pygen_file() -> &'static RwLock<PygenFile> {
     INNER.get_or_init(|| RwLock::new(PygenFile::new()))
 }
 
+<<<<<<< HEAD
 pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
+>>>>>>> e1414d9 (pygen custom `@property`s)
     let syn::DeriveInput { data, ident, .. } = input.clone();
 
     match data {
@@ -113,7 +117,7 @@ pub fn make_py_dataclass_internal(input: syn::DeriveInput) {
                 .collect::<Vec<(_, _)>>();
 
             let dataclass = basic_dataclass(ident.to_string(), &pairs);
-            pygen_file().write().add_class(dataclass);
+            pygen_file().write().classes.push(dataclass);
         }
         Data::Enum(data_enum) => {
 <<<<<<< HEAD
@@ -473,7 +477,7 @@ impl Enum {
                 }
             }
 
-            pygen_file().write().add_enum(enu);
+            pygen_file().write().enums.push(enu);
         }
         Data::Union(_data_union) => unimplemented!(),
     };
@@ -520,7 +524,7 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
     }
 }
 
-pub(crate) fn write_pygen_internal(path: syn::LitStr) {
+pub(crate) fn pygen_write_internal(path: syn::LitStr) {
     let path = path.value();
     let path = std::env::var_os(&path)
         .unwrap_or_else(|| panic!("Environment variable '{}' not defined", path));
@@ -547,11 +551,29 @@ pub(crate) fn write_pygen_internal(path: syn::LitStr) {
     writeln!(file, "{}", pygen_file().read()).expect("Failed to write pygen file");
 }
 
+pub(crate) fn pygen_add_prop_internal(args: crate::AddPropArgs) {
+    let class = args.class.to_string();
+    let mut prop = DataclassProp::new(args.name.to_string(), args.ret.to_string());
+    args.body.into_iter().for_each(|x| prop.body.push(x));
+
+    for dataclass in pygen_file().write().classes.iter_mut() {
+        if dataclass.name != class {
+            continue;
+        }
+
+        dataclass.add_prop(prop.clone());
+    }
+}
+
+pub(crate) fn pygen_add_preamble(args: crate::AddPreambleArgs) {
+    pygen_file().write().append_preamble(args.0)
+}
+
 #[derive(Debug, Clone)]
 struct PygenFile {
     preamble: Vec<String>,
-    classes: Vec<Dataclass>,
-    enums: Vec<Enum>,
+    pub classes: Vec<Dataclass>,
+    pub enums: Vec<Enum>,
 }
 
 #[derive(Debug, Clone)]
@@ -569,6 +591,7 @@ struct Dataclass {
     pub name: String,
     inclasses: Vec<Dataclass>,
     items: Vec<DataclassItem>,
+    properties: Vec<DataclassProp>,
 }
 
 <<<<<<< HEAD
@@ -581,6 +604,14 @@ struct DataclassItem {
     ty: String,
 }
 
+#[derive(Debug, Clone)]
+struct DataclassProp {
+    indent: usize,
+    name: String,
+    ret: String,
+    pub body: Vec<String>,
+}
+
 #[allow(dead_code)]
 impl PygenFile {
     pub fn new() -> Self {
@@ -589,14 +620,6 @@ impl PygenFile {
             classes: vec![],
             enums: vec![],
         }
-    }
-
-    pub fn add_class(&mut self, class: Dataclass) {
-        self.classes.push(class);
-    }
-
-    pub fn add_enum(&mut self, enu: Enum) {
-        self.enums.push(enu);
     }
 
     pub fn prepend_preamble(&mut self, mut lines: Vec<String>) {
@@ -658,12 +681,16 @@ impl Dataclass {
             items: vec![],
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
             properties: vec![],
 =======
             init: None,
 >>>>>>> a83cce7 (version 0.2.0)
 =======
 >>>>>>> 0beca52 (improved pygen code)
+=======
+            properties: vec![],
+>>>>>>> e1414d9 (pygen custom `@property`s)
         }
     }
 
@@ -679,6 +706,9 @@ impl Dataclass {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e1414d9 (pygen custom `@property`s)
     pub fn add_prop(&mut self, mut prop: DataclassProp) {
         prop.set_indent(self.indent + 4);
         self.properties.push(prop)
@@ -732,6 +762,21 @@ impl DataclassItem {
     }
 }
 
+impl DataclassProp {
+    pub fn new(name: String, ret: String) -> Self {
+        Self {
+            indent: 0,
+            name,
+            ret,
+            body: vec![],
+        }
+    }
+
+    pub fn set_indent(&mut self, indent: usize) {
+        self.indent = indent;
+    }
+}
+
 // Display trait implementations for actual codegen
 
 impl Display for PygenFile {
@@ -742,6 +787,7 @@ impl Display for PygenFile {
             writeln!(f, "{line}")?;
 >>>>>>> 0beca52 (improved pygen code)
         }
+        writeln!(f)?;
 
         for class in self.classes.iter() {
             writeln!(f, "{class}")?;
@@ -800,21 +846,23 @@ impl Display for Dataclass {
         let name = self.name.as_str();
         let indent_str = " ".repeat(self.indent);
 
-        // write class signature
         writeln!(
             f,
             "{indent_str}@dataclass(init=True, frozen=True)\n\
             {indent_str}class {name}:"
         )?;
 
-        // write inner class definitions
         for inclass in &self.inclasses {
             writeln!(f, "{inclass}",)?;
         }
 
-        // write dataclass fields
         for item in &self.items {
             writeln!(f, "{item}")?;
+        }
+        writeln!(f)?;
+
+        for prop in &self.properties {
+            writeln!(f, "{prop}")?;
         }
 
         Ok(())
@@ -966,8 +1014,12 @@ impl Display for DataclassItem {
     }
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 <<<<<<< HEAD
+=======
+
+>>>>>>> e1414d9 (pygen custom `@property`s)
 impl Display for DataclassProp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let &Self { name, ret, .. } = &self;
@@ -976,6 +1028,7 @@ impl Display for DataclassProp {
         writeln!(
             f,
             "{indent_str}@property\n\
+<<<<<<< HEAD
             {indent_str}def {name}(self) -> {ret}:",
         )?;
 =======
@@ -1015,6 +1068,10 @@ impl Display for DataclassInit {
 
         writeln!(f, "{indent_str}def __init__(self{args}):")?;
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            {indent_str}def {name}() -> {ret}:",
+        )?;
+>>>>>>> e1414d9 (pygen custom `@property`s)
 
         for line in &self.body {
             writeln!(f, "{indent_str}    {line}")?;
@@ -1023,6 +1080,7 @@ impl Display for DataclassInit {
         Ok(())
     }
 }
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
 
@@ -1052,3 +1110,5 @@ impl Display for InitArgs {
 >>>>>>> a83cce7 (version 0.2.0)
 =======
 >>>>>>> 0beca52 (improved pygen code)
+=======
+>>>>>>> e1414d9 (pygen custom `@property`s)

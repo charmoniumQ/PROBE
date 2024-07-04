@@ -33,8 +33,9 @@ type MacroResult<T> = Result<T, TokenStream>;
 /// - derives [`PygenDataclass`].
 =======
 use quote::quote;
-use syn::parse_quote;
+use syn::parse::Parse;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Type};
+use syn::{parse_quote, LitStr, Token};
 
 mod pygen;
 
@@ -221,7 +222,7 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
             // This is rather bad macro hygiene, but this macro is only intend for probe_frontend's
             // op struct generation, so we're playing a little fast-n'-loose with scoping.
             quote! {
-                #[derive(Debug, Clone, Serialize, Deserialize, MakePyDataclass)]
+                #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
                 pub struct #new_name {
 <<<<<<< HEAD
                     #(pub #field_idents: #field_types,)*
@@ -495,7 +496,7 @@ fn convert_bindgen_type(ty: &syn::Type) -> syn::Type {
     }
 }
 
-pub(crate) fn type_basename(ty: &syn::TypePath) -> &syn::Ident {
+fn type_basename(ty: &syn::TypePath) -> &syn::Ident {
     if ty.qself.is_some() {
         unimplemented!("qualified self-typs not supported");
     }
@@ -503,7 +504,7 @@ pub(crate) fn type_basename(ty: &syn::TypePath) -> &syn::Ident {
     &ty.path.segments.last().expect("type has no segments").ident
 }
 
-pub(crate) fn snake_case_to_pascal(input: &str) -> String {
+fn snake_case_to_pascal(input: &str) -> String {
     input
         .chars()
         .fold((true, String::new()), |(prior_underscore, mut acc), ch| {
@@ -520,10 +521,10 @@ pub(crate) fn snake_case_to_pascal(input: &str) -> String {
 }
 
 // TODO: return compiler error instead of panicking on error
-#[proc_macro_derive(MakePyDataclass)]
-pub fn make_py_dataclass(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(PygenDataclass)]
+pub fn pygen_dataclass(input: TokenStream) -> TokenStream {
     let source = parse_macro_input!(input as DeriveInput);
-    pygen::make_py_dataclass_internal(source);
+    pygen::pygen_dataclass_internal(source);
     // return empty token stream, we're not actually writing rust here
     TokenStream::new()
 }
@@ -533,10 +534,74 @@ pub fn make_py_dataclass(input: TokenStream) -> TokenStream {
 
 // TODO: return compiler error instead of panicking on error
 #[proc_macro]
-pub fn write_pygen_file_from_env(item: TokenStream) -> TokenStream {
-    let path = parse_macro_input!(item as syn::LitStr);
-    pygen::write_pygen_internal(path);
-    // return empty token stream, we're not actually writing rust here
+pub fn pygen_write_to_env(input: TokenStream) -> TokenStream {
+    let path = parse_macro_input!(input as syn::LitStr);
+    pygen::pygen_write_internal(path);
     TokenStream::new()
 }
+<<<<<<< HEAD
 >>>>>>> 0beca52 (improved pygen code)
+=======
+
+// TODO: return compiler error instead of panicking on error
+#[proc_macro]
+pub fn pygen_add_prop(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as AddPropArgs);
+    pygen::pygen_add_prop_internal(args);
+    TokenStream::new()
+}
+
+pub(crate) struct AddPropArgs {
+    class: Ident,
+    name: Ident,
+    ret: Ident,
+    body: Vec<String>,
+}
+
+impl Parse for AddPropArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let class = input.parse()?;
+        input.parse::<Token![impl]>()?;
+        let name = input.parse()?;
+        input.parse::<Token![->]>()?;
+        let ret = input.parse()?;
+        input.parse::<Token![:]>()?;
+
+        let mut body = vec![];
+        body.push(input.parse::<LitStr>()?.value());
+        while !input.is_empty() {
+            input.parse::<Token![,]>()?;
+            body.push(input.parse::<LitStr>()?.value());
+        }
+
+        Ok(Self {
+            class,
+            name,
+            ret,
+            body,
+        })
+    }
+}
+
+#[proc_macro]
+pub fn pygen_add_preamble(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as AddPreambleArgs);
+    pygen::pygen_add_preamble(args);
+    TokenStream::new()
+}
+
+pub(crate) struct AddPreambleArgs(pub Vec<String>);
+
+impl Parse for AddPreambleArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut lines = vec![];
+        lines.push(input.parse::<LitStr>()?.value());
+        while !input.is_empty() {
+            input.parse::<Token![,]>()?;
+            lines.push(input.parse::<LitStr>()?.value());
+        }
+
+        Ok(Self(lines))
+    }
+}
+>>>>>>> e1414d9 (pygen custom `@property`s)
