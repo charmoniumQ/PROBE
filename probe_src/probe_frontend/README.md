@@ -9,17 +9,13 @@ The documentation in this project assumes the reader understands a couple pieces
 of terminology specific to this tool.
 
 - **Probe record** (or probe recording)  
-This is a directory (`probe_record` by default) that contains raw arena
-allocator `*.dat` files created by libprobe, these files contain
-[mmap(2)](https://www.man7.org/linux/man-pages/man2/mmap.2.html)-ed c structures
-and are not guaranteed to valid if moved to a computer with a different
-architecture, kernel version, or c compiler (or if any of those things change on
-the same computer).
+This is an itermediate representation when creating a probe log. (see the section
+on serialization formats for more details)
 
 - **Probe log**  
-This is a directory or file (`probe_log` by default) that encodes the data
-from a probe record in a format that is cross-platform and much easier to use.
-(see the section on serialization format for details).
+This is a file (`probe_log` by default) that encodes the data from a probe
+record in a format that is cross-platform and much easier to use. (see the
+section on serialization format for details)
 
 - **Transcription**  
 This is the process of converting a probe record to a probe log.
@@ -50,7 +46,12 @@ The transcription process can take a while after the program exits, if you don't
 want to automatically transcribe the record, you can pass the `-n` flag, this
 will change the default output path from `probe_log` to `probe_record`, and will
 output a probe record directory that can be transcribed to a probe log later
-with the `probe transcribe` command.
+with the `probe transcribe` command, however the probe record format is not
+stable,  users are strongly encouraged to have `probe record` automatically
+transcribe the record directory immediately after the process exits. If you do
+seperate the trancription step from recording, then transcription **must** be
+done on the same machine with the exact same version of the cli (and other
+constraints, see the section on serialization format for more details).
 
 ### Subshells
 
@@ -64,10 +65,11 @@ If you need these you can either write a shell script and
 invoke `probe record` on that, or else run:
 
 ```bash
-probe record -- bash -c '<SHELL_CODE>'`
+probe record bash -c '<SHELL_CODE>'`
 ```
 
-(note the `--` so that `probe` doesn't try to parse `-c` as a flag).
+(any flag after the first positional argument is ignored and treated like a
+command argument).
 
 ## Serialization formats
 
@@ -100,6 +102,13 @@ more op c structs, followed by zero or more null bytes.
 
 - Each data arena is a binary file containing an arena header followed by zero
 or more bytes of arbitrary data, followed by zero or more null bytes.
+
+**note:** these files contain
+[mmap(2)](https://www.man7.org/linux/man-pages/man2/mmap.2.html)-ed c structures
+and are not guaranteed to valid if moved to a computer with a different
+architecture, kernel version, or c compiler (or if any of those things change on
+the same computer), and may not be properly decoded by versions of the cli with
+even patch version differences.
 
 ### Probe log directory
 

@@ -185,6 +185,15 @@ pub fn pygen_write_to_env(input: TokenStream) -> TokenStream {
     TokenStream::new()
 }
 
+/// add a property to a python dataclass with the following syntax:
+///
+/// ```
+/// pygen_add_prop!(ClassName impl prop_name -> return_type:
+///     "line1",
+///     "return line2"
+///     ...
+/// );
+/// ```
 // TODO: return compiler error instead of panicking on error
 #[proc_macro]
 pub fn pygen_add_prop(input: TokenStream) -> TokenStream {
@@ -225,6 +234,9 @@ impl Parse for AddPropArgs {
     }
 }
 
+/// Add one or more lines to the generated python file, after the imports, but before any generated
+/// class or enum.
+// TODO: return compiler error instead of panicking on error
 #[proc_macro]
 pub fn pygen_add_preamble(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as AddPreambleArgs);
