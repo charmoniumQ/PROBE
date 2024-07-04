@@ -4,7 +4,7 @@
 #include <unistd.h> 
 #include <time.h>   
 
-#define NUM_THREADS 5
+#define NUM_THREADS 3
 #define NUM_COUNTERS 3
 
 typedef struct {
@@ -37,7 +37,7 @@ void* increment_counters(void* args) {
     }
 
 char filename[20];
-sprintf(filename, "%ld.txt", tid);  // Filename without directory prefix
+sprintf(filename, "/tmp/%ld.txt", tid);  // Filename without directory prefix
 FILE* file = fopen(filename, "w");
 if (file != NULL) {
     fprintf(file, "Thread #%ld was here\n", tid);

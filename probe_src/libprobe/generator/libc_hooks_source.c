@@ -40,6 +40,10 @@ typedef void* va_list;
 struct utimbuf;
 struct dirent;
 int __type_mode_t;
+typedef void* thrd_t;
+typedef void* thrd_start_t;
+typedef void* pthread_t;
+typedef void* pthread_attr_t;
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
@@ -183,7 +187,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            op.data.open.ferrno = ret == -1 ? errno : 0;
+            op.data.open.ferrno = unlikely(ret == -1) ? errno : 0;
             op.data.open.fd = ret;
             prov_log_record(op);
         }
@@ -226,7 +230,7 @@ int open (const char *filename, int flags, ...) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            op.data.open.ferrno = ret == -1 ? errno : 0;
+            op.data.open.ferrno = unlikely(ret == -1) ? errno : 0;
             op.data.open.fd = ret;
             prov_log_record(op);
         }
@@ -256,7 +260,7 @@ int creat (const char *filename, mode_t mode) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            op.data.open.ferrno = ret == -1 ? errno : 0;
+            op.data.open.ferrno = unlikely(ret == -1) ? errno : 0;
             op.data.open.fd = ret;
             prov_log_record(op);
         }
@@ -695,7 +699,7 @@ ssize_t getdents64 (int fd, void *buffer, size_t length) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 op.data.readdir.ferrno = saved_errno;
             }
             prov_log_record(op);
@@ -1775,8 +1779,8 @@ pid_t fork (void) {
                  * */
                 .flags = 0,
                 .run_pthread_atfork_handlers = true,
-                .child_process_id = -1,
-                .child_thread_id = -1,
+                .task_type = TASK_PID,
+                .task_id = -1,
                 .ferrno = 0,
             }},
             {0},
@@ -1790,7 +1794,7 @@ pid_t fork (void) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 /* Failure */
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
@@ -1798,9 +1802,7 @@ pid_t fork (void) {
                 reinit_process();
             } else {
                 /* Success; parent */
-                op.data.clone.child_process_id = ret;
-                /* Since fork makes processes, child TID = child PID */
-                op.data.clone.child_thread_id = ret;
+                op.data.clone.task_id = ret;
                 prov_log_record(op);
             }
         }
@@ -1816,8 +1818,8 @@ pid_t _Fork (void) {
                  * */
                 .flags = 0,
                 .run_pthread_atfork_handlers = false,
-                .child_process_id = -1,
-                .child_thread_id = -1,
+                .task_type = TASK_PID,
+                .task_id = 0,
                 .ferrno = 0,
             }},
             {0},
@@ -1831,7 +1833,7 @@ pid_t _Fork (void) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 /* Failure */
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
@@ -1840,9 +1842,7 @@ pid_t _Fork (void) {
                 reinit_process();
             } else {
                 /* Success; parent */
-                op.data.clone.child_process_id = ret;
-                /* Since fork makes processes, child TID = child PID */
-                op.data.clone.child_thread_id = ret;
+                op.data.clone.task_id = ret;
                 prov_log_record(op);
             }
         }
@@ -1888,8 +1888,8 @@ pid_t vfork (void) {
             {.clone = {
                 .flags = 0,
                 .run_pthread_atfork_handlers = true,
-                .child_process_id = -1,
-                .child_thread_id = -1,
+                .task_type = TASK_PID,
+                .task_id = 0,
                 .ferrno = 0,
             }},
             {0},
@@ -1906,7 +1906,7 @@ pid_t vfork (void) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 /* Failure */
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
@@ -1914,9 +1914,7 @@ pid_t vfork (void) {
                 reinit_process();
             } else {
                 /* Success; parent */
-                op.data.clone.child_process_id = ret;
-                /* Since fork makes processes, child TID = child PID */
-                op.data.clone.child_thread_id = ret;
+                op.data.clone.task_id = ret;
                 prov_log_record(op);
             }
         }
@@ -1936,9 +1934,12 @@ int clone(
 ) {
     size_t varargs_size = sizeof(void*) + sizeof(void*) + sizeof(int) + (COUNT_NONNULL_VARARGS(arg) + 1) * sizeof(void*) + sizeof(pid_t*) + sizeof(void*) + sizeof(pid_t*);
     void* pre_call = ({
-        /* Mark these variables as used to suppress "unused variable" compiler warning" */
         (void) fn;
         (void) stack;
+        (void) arg;
+        // Disable vfork()
+        // See vfork() for reasons.
+        flags = flags &~CLONE_VFORK;
         struct Op op = {
             clone_op_code,
             {.clone = {
@@ -1947,8 +1948,8 @@ int clone(
                  * */
                 .flags = flags,
                 .run_pthread_atfork_handlers = false,
-                .child_process_id = -1,
-                .child_thread_id = -1,
+                .task_type = (flags & CLONE_THREAD) ? TASK_TID : TASK_PID,
+                .task_id = 0,
                 .ferrno = 0,
             }},
             {0},
@@ -1956,9 +1957,7 @@ int clone(
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
-            if (flags & CLONE_VFORK) {
-                NOT_IMPLEMENTED("vfork is difficult to intercept since vfork requires that the child do basically nothing other than exec, and intercepting involves doing stuff.");
-            } else if ((flags & CLONE_THREAD) != (flags & CLONE_VM)) {
+            if ((flags & CLONE_THREAD) != (flags & CLONE_VM)) {
                 NOT_IMPLEMENTED("I conflate cloning a new thread (resulting in a process with the same PID, new TID) with sharing the memory space. If CLONE_SIGHAND is set, then Linux asserts CLONE_THREAD == CLONE_VM; If it is not set and CLONE_THREAD != CLONE_VM, by a real application, I will consider disentangling the assumptions (required to support this combination).");
             }
         } else {
@@ -1966,7 +1965,7 @@ int clone(
         }
     });
     void* post_call = ({
-        if (ret == -1) {
+        if (unlikely(ret == -1)) {
             /* Failure */
             if (likely(prov_log_is_enabled())) {
                 op.data.clone.ferrno = saved_errno;
@@ -1982,8 +1981,7 @@ int clone(
         } else {
             /* Success; parent */
             if (likely(prov_log_is_enabled())) {
-                op.data.clone.child_process_id = (flags & CLONE_THREAD) ? getpid() : ret;
-                op.data.clone.child_thread_id = ret;
+                op.data.clone.task_id = ret;
                 prov_log_record(op);
             }
         }
@@ -1996,10 +1994,10 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
         struct Op op = {
             wait_op_code,
             {.wait = {
-                .pid = pid,
+                .task_type = TASK_TID,
+                .task_id = 0,
                 .options = options,
                 .status = 0,
-                .ret = 0,
                 .ferrno = 0,
             }},
             {0},
@@ -2008,10 +2006,10 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 op.data.wait.ferrno = saved_errno;
             } else {
-                op.data.wait.ret = ret;
+                op.data.wait.task_id = ret;
                 op.data.wait.status = *status_ptr;
             }
             prov_log_record(op);
@@ -2023,10 +2021,10 @@ pid_t wait (int *status_ptr) {
         struct Op op = {
             wait_op_code,
             {.wait = {
-                .pid = -1,
+                .task_type = TASK_PID,
+                .task_id = -1,
                 .options = 0,
                 .status = 0,
-                .ret = 0,
                 .ferrno = 0,
             }},
             {0},
@@ -2035,10 +2033,10 @@ pid_t wait (int *status_ptr) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 op.data.wait.ferrno = saved_errno;
             } else {
-                op.data.wait.ret = ret;
+                op.data.wait.task_id = ret;
                 op.data.wait.status = *status_ptr;
             }
             prov_log_record(op);
@@ -2050,24 +2048,23 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
         struct Op wait_op = {
             wait_op_code,
             {.wait = {
-                .pid = pid,
+                .task_type = TASK_TID,
+                .task_id = 0,
                 .options = options,
                 .status = 0,
-                .ret = 0,
                 .ferrno = 0,
             }},
             {0},
         };
         prov_log_try(wait_op);
-        struct GetRUsageOp data = {
+        struct Op getrusage_op = {
+            getrusage_op_code,
+            {.getrusage = {
                 .waitpid_arg = pid,
                 .getrusage_arg = 0,
                 .usage = {{0}},
                 .ferrno = 0,
-            };
-        struct Op getrusage_op = {
-            getrusage_op_code,
-            {.getrusage = data},
+            }},
             {0},
         };
         if (usage) {
@@ -2076,13 +2073,13 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 wait_op.data.wait.ferrno = saved_errno;
                 if (usage) {
                     getrusage_op.data.getrusage.ferrno = saved_errno;
                 }
             } else {
-                wait_op.data.wait.ret = ret;
+                wait_op.data.wait.task_id = ret;
                 wait_op.data.wait.status = *status_ptr;
                 if (usage) {
                     memcpy(&getrusage_op.data.getrusage.usage, usage, sizeof(struct rusage));
@@ -2102,10 +2099,10 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
         struct Op wait_op = {
             wait_op_code,
             {.wait = {
-                .pid = -1,
+                .task_type = TASK_PID,
+                .task_id = 0,
                 .options = options,
                 .status = 0,
-                .ret = 0,
                 .ferrno = 0,
             }},
             {0},
@@ -2127,13 +2124,13 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
-            if (ret == -1) {
+            if (unlikely(ret == -1)) {
                 wait_op.data.wait.ferrno = saved_errno;
                 if (usage) {
                     getrusage_op.data.getrusage.ferrno = saved_errno;
                 }
             } else {
-                wait_op.data.wait.ret = ret;
+                wait_op.data.wait.task_id = ret;
                 wait_op.data.wait.status = *status_ptr;
                 if (usage) {
                     memcpy(&getrusage_op.data.getrusage.usage, usage, sizeof(struct rusage));
@@ -2149,7 +2146,159 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/wait.2.html */
 int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
-    /* TODO */
+    void* pre_call = ({
+        struct Op wait_op = {
+            wait_op_code,
+            {.wait = {
+                .task_type = TASK_TID,
+                .task_id = 0,
+                .options = options,
+                .status = 0,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+        prov_log_try(wait_op);
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                wait_op.data.wait.ferrno = saved_errno;
+            } else {
+                wait_op.data.wait.task_id = infop->si_pid;
+                wait_op.data.wait.status = infop->si_status;
+            }
+            prov_log_record(wait_op);
+        }
+   });
+}
+
+/* https://www.gnu.org/software/libc/manual/html_node/ISO-C-Thread-Management.html */
+int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
+    void* pre_call = ({
+        struct Op op = {
+            clone_op_code,
+            {.clone = {
+                .flags = CLONE_FILES | CLONE_FS | CLONE_IO | CLONE_PARENT | CLONE_SIGHAND | CLONE_THREAD | CLONE_VM,
+                .task_type = TASK_ISO_C_THREAD,
+                .task_id = 0,
+                .run_pthread_atfork_handlers = false,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+    });
+    void* post_call = ({
+        if (unlikely(ret != thrd_success)) {
+            /* Failure */
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.ferrno = saved_errno;
+                prov_log_record(op);
+            }
+        } else {
+            /* Success; parent */
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.task_id = ret;
+                prov_log_record(op);
+            }
+        }
+   });
+}
+
+int thrd_join (thrd_t thr, int *res) {
+    void* pre_call = ({
+        struct Op op = {
+            wait_op_code,
+            {.wait = {
+                .task_type = TASK_ISO_C_THREAD,
+                .task_id = thr,
+                .options = 0,
+                .status = 0,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+    });
+    void* post_call = ({
+        if (unlikely(ret != thrd_success)) {
+            /* Failure */
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.ferrno = saved_errno;
+                prov_log_record(op);
+            }
+        } else {
+            /* Success; parent */
+            op.data.wait.status = *res;
+            if (likely(prov_log_is_enabled())) {
+                prov_log_record(op);
+            }
+        }
+   });
+}
+
+/* Docs: https://www.man7.org/linux/man-pages/man3/pthread_create.3.html */
+int pthread_create(pthread_t *restrict thread,
+                 const pthread_attr_t *restrict attr,
+                 void *(*start_routine)(void *),
+                 void *restrict arg) {
+    void* pre_call = ({
+        struct Op op = {
+            clone_op_code,
+            {.clone = {
+                .flags = CLONE_FILES | CLONE_FS | CLONE_IO | CLONE_PARENT | CLONE_SIGHAND | CLONE_THREAD | CLONE_VM,
+                .task_type = TASK_PTHREAD,
+                .task_id = 0,
+                .run_pthread_atfork_handlers = false,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+    });
+    void* post_call = ({
+        if (unlikely(ret != 0)) {
+            /* Failure */
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.ferrno = saved_errno;
+                prov_log_record(op);
+            }
+        } else {
+            /* Success; parent */
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.task_id = *thread;
+                prov_log_record(op);
+            }
+        }
+   });
+}
+
+int pthread_join(pthread_t thread, void **retval) {
+    void* pre_call = ({
+        struct Op op = {
+            wait_op_code,
+            {.wait = {
+                .task_type = TASK_PTHREAD,
+                .task_id = thread,
+                .options = 0,
+                .status = 0,
+                .ferrno = 0,
+            }},
+            {0},
+        };
+    });
+    void* post_call = ({
+        if (unlikely(ret != 0)) {
+            /* Failure */
+            if (likely(prov_log_is_enabled())) {
+                op.data.clone.ferrno = saved_errno;
+                prov_log_record(op);
+            }
+        } else {
+            /* Success; parent */
+            if (likely(prov_log_is_enabled())) {
+                prov_log_record(op);
+            }
+        }
+   });
 }
 
 /* void exit (int status) { */

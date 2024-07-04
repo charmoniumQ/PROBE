@@ -73,11 +73,18 @@ struct ExecOp {
     int ferrno;
 };
 
+enum TaskType {
+    TASK_PID,
+    TASK_TID,
+    TASK_ISO_C_THREAD,
+    TASK_PTHREAD,
+};
+
 struct CloneOp {
     int flags;
     bool run_pthread_atfork_handlers;
-    pid_t child_process_id;
-    pid_t child_thread_id;
+    enum TaskType task_type;
+    unsigned long int task_id;
     int ferrno;
 };
 
@@ -108,10 +115,10 @@ struct ReaddirOp {
 };
 
 struct WaitOp {
-    pid_t pid;
+    enum TaskType task_type;
+    unsigned long int task_id;
     int options;
     int status;
-    int ret;
     int ferrno;
 };
 
