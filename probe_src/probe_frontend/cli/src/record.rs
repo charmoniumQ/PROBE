@@ -24,6 +24,7 @@ use crate::{transcribe, util::Dir};
 // TODO: modularize and improve ergonomics (maybe expand builder pattern?)
 
 /// create a probe record directory from command arguments
+<<<<<<< HEAD
 pub fn record_no_transcribe(
     output: Option<OsString>,
     overwrite: bool,
@@ -119,6 +120,8 @@ use crate::{transcribe, util::Dir};
 // TODO: modularize and improve ergonomics (maybe expand builder pattern?)
 
 /// create a probe record directory from subset of a [`Command::Record`](crate::Command::Record)
+=======
+>>>>>>> 4ffb9fe (improved readme)
 pub fn record_no_transcribe(
     output: Option<OsString>,
     overwrite: bool,
@@ -154,7 +157,7 @@ pub fn record_no_transcribe(
     Ok(())
 }
 
-/// create a probe log file from subset of a [`Command::Record`](crate::Command::Record)
+/// create a probe log file from command arguments
 pub fn record_transcribe(
     output: Option<OsString>,
     overwrite: bool,

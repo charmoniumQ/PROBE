@@ -10,6 +10,7 @@ of terminology specific to this tool.
 
 - **Probe record** (or probe recording)  
 <<<<<<< HEAD
+<<<<<<< HEAD
 This is an itermediate representation when creating a probe log. (see the section
 on serialization formats for more details)
 
@@ -37,6 +38,15 @@ This is a directory or file (`probe_log` by default) that encodes the data
 from a probe record in a format that is cross-platform and much easier to use.
 (see the section on serialization format for details).
 >>>>>>> 79c1385 (typos)
+=======
+This is an itermediate representation when creating a probe log. (see the section
+on serialization formats for more details)
+
+- **Probe log**  
+This is a file (`probe_log` by default) that encodes the data from a probe
+record in a format that is cross-platform and much easier to use. (see the
+section on serialization format for details)
+>>>>>>> 4ffb9fe (improved readme)
 
 - **Transcription**  
 This is the process of converting a probe record to a probe log.
@@ -68,15 +78,21 @@ want to automatically transcribe the record, you can pass the `-n` flag, this
 will change the default output path from `probe_log` to `probe_record`, and will
 output a probe record directory that can be transcribed to a probe log later
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 4ffb9fe (improved readme)
 with the `probe transcribe` command, however the probe record format is not
 stable,  users are strongly encouraged to have `probe record` automatically
 transcribe the record directory immediately after the process exits. If you do
 seperate the trancription step from recording, then transcription **must** be
 done on the same machine with the exact same version of the cli (and other
 constraints, see the section on serialization format for more details).
+<<<<<<< HEAD
 =======
 with the `probe transcribe` command.
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
+=======
+>>>>>>> 4ffb9fe (improved readme)
 
 ### Subshells
 
@@ -91,6 +107,7 @@ invoke `probe record` on that, or else run:
 
 ```bash
 <<<<<<< HEAD
+<<<<<<< HEAD
 probe record bash -c '<SHELL_CODE>'
 ```
 
@@ -102,6 +119,13 @@ probe record -- bash -c '<SHELL_CODE>'`
 
 (note the `--` so that `probe` doesn't try to parse `-c` as a flag).
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
+=======
+probe record bash -c '<SHELL_CODE>'`
+```
+
+(any flag after the first positional argument is ignored and treated like a
+command argument).
+>>>>>>> 4ffb9fe (improved readme)
 
 ## Serialization formats
 
@@ -154,6 +178,7 @@ architecture, kernel version, or c compiler (or if any of those things change on
 the same computer), and may not be properly decoded by versions of the cli with
 even patch version differences.
 
+<<<<<<< HEAD
 =======
 more raw op c-structs, followed by zero or more null bytes.
 =======
@@ -164,6 +189,8 @@ more op c structs, followed by zero or more null bytes.
 or more bytes of arbitrary data, followed by zero or more null bytes.
 
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
+=======
+>>>>>>> 4ffb9fe (improved readme)
 ### Probe log directory
 
 This format **is** part of this tool's spec, and this tool is the source of
