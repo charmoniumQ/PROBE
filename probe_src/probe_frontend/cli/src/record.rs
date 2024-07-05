@@ -1,6 +1,7 @@
 use std::{
     ffi::OsString,
     fs::{self, File},
+    os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
     thread,
 };
@@ -179,7 +180,25 @@ impl Recorder {
             }
         }
 
-        child.wait().wrap_err("Failed to await child process")?;
+        let exit = child.wait().wrap_err("Failed to await child process")?;
+        if !exit.success() {
+            match exit.code() {
+                Some(code) => log::warn!("Recorded process exited with code {code}"),
+                None => match exit.signal() {
+                    Some(sig) => match crate::util::sig_to_name(sig) {
+                        Some(name) => log::warn!("Recorded process exited with signal {name}"),
+                        None => {
+                            if sig < libc::SIGRTMAX() {
+                                log::warn!("Recorded process exited with realtime signal {sig}");
+                            } else {
+                                log::warn!("Recorded process exited with unknown signal {sig}");
+                            }
+                        }
+                    },
+                    None => log::warn!("Recorded process exited with unknown error"),
+                },
+            }
+        }
 
         Ok(self.output)
     }
