@@ -158,25 +158,29 @@ impl Recorder {
                 .wrap_err("Failed to launch child process")?
         };
 
-        // without this the child process typically won't have written it's first op by the time we
-        // do our sanity check, since we're about to wait on child anyway, this isn't a big deal.
-        thread::sleep(std::time::Duration::from_millis(50));
+        if !self.gdb {
+            // without this the child process typically won't have written it's first op by the
+            // time we do our sanity check, since we're about to wait on child anyway, this isn't a
+            // big deal.
+            thread::sleep(std::time::Duration::from_millis(50));
 
-        match Path::read_dir(self.output.path()) {
-            Ok(x) => {
-                let any_files = x
-                    .into_iter()
-                    .try_fold(false, |_, x| x.map(|x| x.path().exists()))?;
-                if !any_files {
-                    log::warn!(
-                        "No arena files detected after 50ms, \
-                        something is wrong, you should probably abort!"
-                    );
+            match Path::read_dir(self.output.path()) {
+                Ok(x) => {
+                    let any_files = x
+                        .into_iter()
+                        .try_fold(false, |_, x| x.map(|x| x.path().exists()))?;
+                    if !any_files {
+                        log::warn!(
+                            "No arena files detected after 50ms, \
+                            something is wrong, you should probably abort!"
+                        );
+                    }
                 }
-            }
-            Err(e) => {
-                return Err(e)
-                    .wrap_err("Unable to read record directory during post-startup sanity check")
+                Err(e) => {
+                    return Err(e).wrap_err(
+                        "Unable to read record directory during post-startup sanity check",
+                    )
+                }
             }
         }
 
