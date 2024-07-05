@@ -299,11 +299,15 @@ impl Recorder {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 437db63 (disable overzelous warning when running under gdb)
         if !self.gdb {
             // without this the child process typically won't have written it's first op by the
             // time we do our sanity check, since we're about to wait on child anyway, this isn't a
             // big deal.
             thread::sleep(std::time::Duration::from_millis(50));
+<<<<<<< HEAD
 
             match Path::read_dir(self.output.path()) {
                 Ok(x) => {
@@ -360,22 +364,26 @@ impl Recorder {
         // do our sanity check, since we're about to wait on child anyway, this isn't a big deal.
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
         thread::sleep(std::time::Duration::from_millis(50));
+=======
+>>>>>>> 437db63 (disable overzelous warning when running under gdb)
 
-        match Path::read_dir(self.output.path()) {
-            Ok(x) => {
-                let any_files = x
-                    .into_iter()
-                    .try_fold(false, |_, x| x.map(|x| x.path().exists()))?;
-                if !any_files {
-                    log::warn!(
-                        "No arena files detected after 50ms, \
-                        something is wrong, you should probably abort!"
-                    );
+            match Path::read_dir(self.output.path()) {
+                Ok(x) => {
+                    let any_files = x
+                        .into_iter()
+                        .try_fold(false, |_, x| x.map(|x| x.path().exists()))?;
+                    if !any_files {
+                        log::warn!(
+                            "No arena files detected after 50ms, \
+                            something is wrong, you should probably abort!"
+                        );
+                    }
                 }
-            }
-            Err(e) => {
-                return Err(e)
-                    .wrap_err("Unable to read record directory during post-startup sanity check")
+                Err(e) => {
+                    return Err(e).wrap_err(
+                        "Unable to read record directory during post-startup sanity check",
+                    )
+                }
             }
         }
 
