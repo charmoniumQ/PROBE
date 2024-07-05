@@ -128,8 +128,12 @@ impl Drop for Dir {
     }
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 <<<<<<< HEAD
+=======
+
+>>>>>>> c988419 (`probe record` warn on non-zero exit code)
 pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
     Some(match sig {
         libc::SIGHUP => "SIGHUP",
@@ -172,6 +176,7 @@ pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
 fn sig_eq() {
     assert_eq!(libc::SIGABRT, libc::SIGIOT);
     assert_eq!(libc::SIGIO, libc::SIGPOLL);
+<<<<<<< HEAD
 =======
 fn rand_alphanumeric(len: usize) -> String {
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
@@ -190,3 +195,6 @@ fn rand_alphanumeric(len: usize) -> String {
 }
 =======
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
+=======
+}
+>>>>>>> c988419 (`probe record` warn on non-zero exit code)
