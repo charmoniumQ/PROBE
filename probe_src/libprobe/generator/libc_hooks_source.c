@@ -419,7 +419,7 @@ DIR * opendir (const char *dirname) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             op.data.open.ferrno = ret == NULL ? errno : 0;
-            op.data.open.fd = dirfd(ret);
+            op.data.open.fd = try_dirfd(ret);
             prov_log_record(op);
         }
     });
@@ -445,7 +445,7 @@ DIR * fdopendir (int fd) {
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             op.data.open.ferrno = ret == NULL ? errno : 0;
-            op.data.open.fd = dirfd(ret);
+            op.data.open.fd = try_dirfd(ret);
             prov_log_record(op);
         }
     });
@@ -455,7 +455,7 @@ DIR * fdopendir (int fd) {
 /* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html */
 struct dirent * readdir (DIR *dirstream) {
     void* pre_call = ({
-        int fd = dirfd(dirstream);
+        int fd = try_dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -486,7 +486,7 @@ struct dirent * readdir (DIR *dirstream) {
 }
 int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
     void* pre_call = ({
-        int fd = dirfd(dirstream);
+        int fd = try_dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -517,7 +517,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
 }
 struct dirent64 * readdir64 (DIR *dirstream) {
     void* pre_call = ({
-        int fd = dirfd(dirstream);
+        int fd = try_dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -548,7 +548,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
 }
 int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) {
     void* pre_call = ({
-        int fd = dirfd(dirstream);
+        int fd = try_dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -579,7 +579,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
 }
 int closedir (DIR *dirstream) {
     void* pre_call = ({
-        int fd = dirfd(dirstream);
+        int fd = try_dirfd(dirstream);
         struct Op op = {
             close_op_code,
             {.close = {fd, fd, 0}},
