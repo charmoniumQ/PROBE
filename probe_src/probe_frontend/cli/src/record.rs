@@ -132,16 +132,20 @@ impl Recorder {
         }
 
         let mut child = if self.gdb {
-            let mut dir_env = OsString::from("__PROBE_DIR=");
+            let mut dir_env = OsString::from("--init-eval-command=set environmnet __PROBE_DIR=");
             dir_env.push(self.output.path());
-            let mut preload_env = OsString::from("LD_PRELOAD=");
+            let mut preload_env = OsString::from("--init-eval-command=set environmnet LD_PRELOAD=");
             preload_env.push(ld_preload);
 
+            let self_bin =
+                std::env::current_exe().wrap_err("Failed to get path to current executable")?;
+
             std::process::Command::new("gdb")
-                .arg("--args")
-                .arg("env")
                 .arg(dir_env)
                 .arg(preload_env)
+                .arg("--args")
+                .arg(self_bin)
+                .arg("__gdb-exec-shim")
                 .args(&self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
