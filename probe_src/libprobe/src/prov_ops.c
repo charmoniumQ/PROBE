@@ -15,11 +15,12 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
         /*
          * If path is empty string, AT_EMPTY_PATH should probably be set.
          * I can't think of a counterexample that isn't some kind of error.
+         * However, some functions permit passing NULL.
          *
          * Then again, this could happen in the tracee's code too...
          * TODO: Remove this once I debug myself.
          * */
-        assert(path[0] != '\0' || flags & AT_EMPTY_PATH);
+        assert(path == NULL || path[0] != '\0' || flags & AT_EMPTY_PATH);
 
         /*
          * if path == NULL, then the target is the dir specified by dirfd.
