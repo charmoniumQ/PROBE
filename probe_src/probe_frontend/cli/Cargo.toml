@@ -21,6 +21,7 @@ clap = { version = "4.5.7", features = ["cargo"] }
 color-eyre = "0.6.3"
 env_logger = "0.11.3"
 exec = "0.3.1"
+<<<<<<< HEAD
 =======
 clap = { version = "4.5.7", features = ["derive"] }
 =======
@@ -29,6 +30,8 @@ clap = { version = "4.5.7", features = ["cargo"] }
 color-eyre = "0.6.3"
 env_logger = "0.11.3"
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> e160e6a (switched gdb to internal binary shim)
 flate2 = "1.0.30"
 libc = "0.2.155"
 log = "0.4.21"

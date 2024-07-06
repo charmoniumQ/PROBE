@@ -269,6 +269,12 @@ fn main() -> Result<()> {
         .wrap_err("Record command failed"),
 =======
                 .about("Write the data from probe log data in a human-readable manne"),
+            Command::new("__gdb-exec-shim").hide(true).arg(
+                arg!(<CMD> ... "Command to run")
+                    .required(true)
+                    .trailing_var_arg(true)
+                    .value_parser(value_parser!(OsString)),
+            ),
         ])
         .get_matches();
 >>>>>>> ae4dc7d (improved arg parsing)
@@ -320,6 +326,17 @@ fn main() -> Result<()> {
                 dump::to_stdout(input)
             }
             .wrap_err("Dump command failed")
+        }
+        Some(("__gdb-exec-shim", sub)) => {
+            let cmd = sub
+                .get_many::<OsString>("CMD")
+                .unwrap()
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let e = exec::Command::new(&cmd[0]).args(&cmd[1..]).exec();
+
+            Err(e).wrap_err("Shim failed to exec")
         }
         _ => Err(eyre!("unexpected subcommand")),
     }
