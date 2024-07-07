@@ -163,6 +163,7 @@ struct DumpOp {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // OPTIMIZE: Display won't work (foreign trait rule) but some kind of streaming would greatly
 // reduce unnecessary heap allocations and mem-copies; if we don't care about UTF-8 guarantees we
 // might be able to do some kind of byte iterator approach and evaluate it all lazily
@@ -173,6 +174,11 @@ struct DumpOp {
 // don't care about UTF-8 guarantees we might be able to do some kind of byte iterator approach and
 // evaluate it all lazily
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
+=======
+// OPTIMIZE: Display won't work (foreign trait rule) but some kind of streaming would greatly
+// reduce unnecessary heap allocations and mem-copies; if we don't care about UTF-8 guarantees we
+// might be able to do some kind of byte iterator approach and evaluate it all lazily
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
 trait Dump {
     fn dump(&self) -> String;
 }

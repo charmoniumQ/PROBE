@@ -40,9 +40,13 @@ use crate::{
 ///
 /// on success, returns the number of Ops processed in the top-level directory
 <<<<<<< HEAD
+<<<<<<< HEAD
 //  OPTIMIZE: consider improved parallelism heuristic.
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+//  OPTIMIZE: consider improved parallelism heuristic.
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
 pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     in_dir: P1,
     out_dir: P2,

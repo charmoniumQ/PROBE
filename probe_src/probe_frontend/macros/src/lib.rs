@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 <<<<<<< HEAD
+<<<<<<< HEAD
 use quote::{quote, quote_spanned};
 use syn::parse::Parse;
 use syn::spanned::Spanned;
@@ -33,7 +34,11 @@ type MacroResult<T> = Result<T, TokenStream>;
 /// - derives [`PygenDataclass`].
 =======
 use quote::quote;
+=======
+use quote::{quote, quote_spanned};
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
 use syn::parse::Parse;
+use syn::spanned::Spanned;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Type};
 use syn::{parse_quote, LitStr, Token};
 
@@ -41,9 +46,14 @@ mod pygen;
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
 =======
 =======
+=======
+type MacroResult<T> = Result<T, TokenStream>;
+
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
 /// Generate a native rust struct from a rust-bindgen struct.
 ///
 /// In order to successfully generate a new struct, the struct it's invoked on must have the
@@ -64,9 +74,12 @@ mod pygen;
 /// - contains a unit field `_type` that serializes to the struct's name.
 /// - implements `FfiFrom` by calling it recursively on each field.
 /// - derives [`PygenDataclass`].
+<<<<<<< HEAD
 >>>>>>> 1f07ce9 (cleanup and documentation)
 // TODO: return compiler error instead of panicking on error
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
+=======
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
 #[proc_macro_derive(MakeRustOp)]
 pub fn make_rust_op(input: TokenStream) -> TokenStream {
     let original_struct = parse_macro_input!(input as DeriveInput);
@@ -77,6 +90,9 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
             let fields = match data_struct.fields {
                 Fields::Named(x) => x,
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
                 _ => {
                     return quote_spanned! {
                         original_struct.span() =>
@@ -100,11 +116,18 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                             .into()))
                         }
                     };
+<<<<<<< HEAD
                     let ident_str = ident.to_string();
                     for prefix in ["__spare", "__reserved"] {
                         if ident_str.starts_with(prefix) {
                             return None;
                         }
+=======
+                    // filter out any identifier starting with __ since every example i've seen in
+                    // glibc of "__ident" is padding or reserved space.
+                    if ident.to_string().starts_with("__") {
+                        return None;
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
                     }
 
                     let pair = convert_bindgen_type(&field.ty).map(|ty| (ident, ty));
@@ -318,11 +341,15 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
             .into()
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
         _ => quote_spanned! {
             original_struct.span() =>
             compile_error!("MakeRustOp only supports structs");
         }
         .into(),
+<<<<<<< HEAD
     }
 }
 
@@ -495,36 +522,53 @@ impl Parse for AddPreambleArgs {
 }
 =======
         _ => unimplemented!("MakeRustOp only supports structs"),
+=======
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
     }
 }
 
-fn convert_bindgen_type(ty: &syn::Type) -> syn::Type {
+fn convert_bindgen_type(ty: &syn::Type) -> MacroResult<syn::Type> {
     match ty {
-        syn::Type::Ptr(_inner) => parse_quote!(::std::ffi::CString),
+        syn::Type::Ptr(_inner) => Ok(parse_quote!(::std::ffi::CString)),
         syn::Type::Array(inner) => {
             let mut new = inner.clone();
-            new.elem = Box::new(convert_bindgen_type(&new.elem));
-            Type::Array(new)
+            new.elem = Box::new(convert_bindgen_type(&new.elem)?);
+            Ok(Type::Array(new))
         }
         syn::Type::Path(inner) => {
-            if let Some(name) = type_basename(inner).to_string().strip_prefix("C_") {
+            if let Some(name) = type_basename(inner)?.to_string().strip_prefix("C_") {
                 let name = snake_case_to_pascal(name);
                 let name = Ident::new(&name, Span::mixed_site());
-                parse_quote!(#name)
+                Ok(parse_quote!(#name))
             } else {
-                Type::Path(inner.clone())
+                Ok(Type::Path(inner.clone()))
             }
         }
-        _ => unreachable!("unsupported bindgen type conversion"),
+        _ => Err(quote_spanned! {
+            ty.span() =>
+            compile_error!("Unable to convert bindgen type");
+        }
+        .into()),
     }
 }
 
-fn type_basename(ty: &syn::TypePath) -> &syn::Ident {
-    if ty.qself.is_some() {
-        unimplemented!("qualified self-typs not supported");
+fn type_basename(ty: &syn::TypePath) -> MacroResult<&syn::Ident> {
+    if let Some(qself) = &ty.qself {
+        return Err(quote_spanned! {
+            qself.span() =>
+            compile_error!("Qualified self types not supported");
+        }
+        .into());
     }
 
-    &ty.path.segments.last().expect("type has no segments").ident
+    match ty.path.segments.last() {
+        Some(x) => Ok(&x.ident),
+        None => Err(quote_spanned! {
+            ty.path.segments.span() =>
+            compile_error!("Type path has no segments");
+        }
+        .into()),
+    }
 }
 
 fn snake_case_to_pascal(input: &str) -> String {
@@ -542,6 +586,7 @@ fn snake_case_to_pascal(input: &str) -> String {
         })
         .1
 }
+
 /// Generate a python dataclass from a rust struct.
 ///
 /// In order to successfully generate a dataclass, the struct it's invoked on must have the
@@ -551,25 +596,26 @@ fn snake_case_to_pascal(input: &str) -> String {
 /// - OR be an enum with either named variants or tuple enums containing only one item.
 /// - contain only primitives, [`CString`](std::ffi::CString)s, or other generated dataclasses.
 /// - field with the unit type are also allowed, but they're ignored.
-// TODO: return compiler error instead of panicking on error
 #[proc_macro_derive(PygenDataclass)]
 pub fn pygen_dataclass(input: TokenStream) -> TokenStream {
     let source = parse_macro_input!(input as DeriveInput);
-    pygen::pygen_dataclass_internal(source);
-    // return empty token stream, we're not actually writing rust here
-    TokenStream::new()
+    match pygen::pygen_dataclass_internal(source) {
+        Ok(_) => TokenStream::new(),
+        Err(e) => e,
+    }
 }
 <<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
 =======
 
 /// write the generated python to a path contained in a environment variable.
-// TODO: return compiler error instead of panicking on error
 #[proc_macro]
 pub fn pygen_write_to_env(input: TokenStream) -> TokenStream {
     let path = parse_macro_input!(input as syn::LitStr);
-    pygen::pygen_write_internal(path);
-    TokenStream::new()
+    match pygen::pygen_write_internal(path) {
+        Ok(_) => TokenStream::new(),
+        Err(e) => e,
+    }
 }
 <<<<<<< HEAD
 >>>>>>> 0beca52 (improved pygen code)
@@ -584,12 +630,13 @@ pub fn pygen_write_to_env(input: TokenStream) -> TokenStream {
 ///     ...
 /// );
 /// ```
-// TODO: return compiler error instead of panicking on error
 #[proc_macro]
 pub fn pygen_add_prop(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as AddPropArgs);
-    pygen::pygen_add_prop_internal(args);
-    TokenStream::new()
+    match pygen::pygen_add_prop_internal(args) {
+        Ok(_) => TokenStream::new(),
+        Err(e) => e,
+    }
 }
 
 pub(crate) struct AddPropArgs {
@@ -612,6 +659,9 @@ impl Parse for AddPropArgs {
         body.push(input.parse::<LitStr>()?.value());
         while !input.is_empty() {
             input.parse::<Token![,]>()?;
+            if input.is_empty() {
+                break;
+            }
             body.push(input.parse::<LitStr>()?.value());
         }
 
@@ -626,7 +676,6 @@ impl Parse for AddPropArgs {
 
 /// Add one or more lines to the generated python file, after the imports, but before any generated
 /// class or enum.
-// TODO: return compiler error instead of panicking on error
 #[proc_macro]
 pub fn pygen_add_preamble(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as AddPreambleArgs);

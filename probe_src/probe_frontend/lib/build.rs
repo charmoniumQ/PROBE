@@ -160,10 +160,14 @@ fn main() {
             // since in glibc all the long ints are unions over two types that
             // both alias to long int, this is done for kernel-userland
 <<<<<<< HEAD
+<<<<<<< HEAD
             // compatibility reasons that don't matter here.
 =======
             // compatibilityreasons that don't matter here.
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            // compatibility reasons that don't matter here.
+>>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
             struct rusage {
                 struct timeval ru_utime;
                 struct timeval ru_stime;
