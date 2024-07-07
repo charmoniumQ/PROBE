@@ -115,7 +115,7 @@ fn main() {
             // a huge hack, but it greatly reduces the generated code complexity
             // since in glibc all the long ints are unions over two types that
             // both alias to long int, this is done for kernel-userland
-            // compatibilityreasons that don't matter here.
+            // compatibility reasons that don't matter here.
             struct rusage {
                 struct timeval ru_utime;
                 struct timeval ru_stime;

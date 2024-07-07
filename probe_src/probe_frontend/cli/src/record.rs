@@ -188,6 +188,8 @@ impl Recorder {
             }
         }
 
+        // OPTIMIZE: consider background serialization of ops as threads/processes exit instead of
+        // waiting until the end; large increase to complexity but potentially huge gains.
         let exit = child.wait().wrap_err("Failed to await child process")?;
         if !exit.success() {
             match exit.code() {
