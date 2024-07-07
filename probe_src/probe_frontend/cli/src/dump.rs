@@ -132,9 +132,9 @@ struct DumpOp {
     op: ops::Op,
 }
 
-// TODO: Display won't work (foreign trait rule) but some kind of streaming would be better; if we
-// don't care about UTF-8 guarantees we might be able to do some kind of byte iterator approach and
-// evaluate it all lazily
+// OPTIMIZE: Display won't work (foreign trait rule) but some kind of streaming would greatly
+// reduce unnecessary heap allocations and mem-copies; if we don't care about UTF-8 guarantees we
+// might be able to do some kind of byte iterator approach and evaluate it all lazily
 trait Dump {
     fn dump(&self) -> String;
 }

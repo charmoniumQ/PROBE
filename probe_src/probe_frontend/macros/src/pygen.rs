@@ -1,23 +1,32 @@
 use parking_lot::RwLock;
+use quote::quote_spanned;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 use std::sync::OnceLock;
-use syn::{Data, Fields};
+use syn::{spanned::Spanned, Data, Fields};
+
+use crate::MacroResult;
 
 fn pygen_file() -> &'static RwLock<PygenFile> {
     static INNER: OnceLock<RwLock<PygenFile>> = OnceLock::new();
     INNER.get_or_init(|| RwLock::new(PygenFile::new()))
 }
 
-pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
+pub fn pygen_dataclass_internal(input: syn::DeriveInput) -> MacroResult<()> {
     let syn::DeriveInput { data, ident, .. } = input.clone();
 
     match data {
         Data::Struct(data_struct) => {
             let fields = match data_struct.fields {
                 Fields::Named(x) => x,
-                _ => unimplemented!("unnamed and unit structs not implemented"),
+                _ => {
+                    return Err(quote_spanned! {
+                        input.span() =>
+                        compile_error!("Unnamed and unit structs not implemented")
+                    }
+                    .into())
+                }
             };
 
             let pairs = fields
@@ -31,12 +40,19 @@ pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
                         }
                     }
 
-                    Some((
-                        field.ident.as_ref().unwrap().to_string(),
-                        convert_to_pytype(&field.ty),
-                    ))
+                    let pair =
+                        convert_to_pytype(&field.ty).and_then(|ty| match field.ident.as_ref() {
+                            Some(ident) => Ok((ident.to_string(), ty)),
+                            None => Err(quote_spanned! {
+                                field.span() =>
+                                compile_error!("Field doesn't have identifier");
+                            }
+                            .into()),
+                        });
+
+                    Some(pair)
                 })
-                .collect::<Vec<(_, _)>>();
+                .collect::<MacroResult<Vec<(_, _)>>>()?;
 
             let dataclass = basic_dataclass(ident.to_string(), &pairs);
             pygen_file().write().classes.push(dataclass);
@@ -63,12 +79,21 @@ pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
                                     }
                                 }
 
-                                Some((
-                                    field.ident.as_ref().unwrap().to_string(),
-                                    convert_to_pytype(&field.ty),
-                                ))
+                                let pair = convert_to_pytype(&field.ty).and_then(|ty| match field
+                                    .ident
+                                    .as_ref()
+                                {
+                                    Some(ident) => Ok((ident.to_string(), ty)),
+                                    None => Err(quote_spanned! {
+                                        field.span() =>
+                                        compile_error!("Field doesn't have identifier");
+                                    }
+                                    .into()),
+                                });
+
+                                Some(pair)
                             })
-                            .collect::<Vec<_>>();
+                            .collect::<MacroResult<Vec<_>>>()?;
 
                         enu.add_variant_owned_class(basic_dataclass(name.clone(), &pairs));
                         variants.push(name);
@@ -76,18 +101,36 @@ pub fn pygen_dataclass_internal(input: syn::DeriveInput) {
                     syn::Fields::Unnamed(inner) => {
                         let fields = inner.unnamed.iter().collect::<Vec<_>>();
                         if fields.len() != 1 {
-                            unimplemented!("Tuple enums of length != 1 not supported")
+                            return Err(quote_spanned! {
+                                inner.span() =>
+                                compile_error!("Tuple enums of length != 1 not supported")
+                            }
+                            .into());
                         }
-                        enu.add_variant_ref(convert_to_pytype(&fields[0].ty));
+                        enu.add_variant_ref(convert_to_pytype(&fields[0].ty)?);
                     }
-                    syn::Fields::Unit => unimplemented!("Unit enum variants not supported"),
+                    syn::Fields::Unit => {
+                        return Err(quote_spanned! {
+                            variant.fields.span() =>
+                            compile_error!("Unit enum variants not supported")
+                        }
+                        .into())
+                    }
                 }
             }
 
             pygen_file().write().enums.push(enu);
         }
-        Data::Union(_data_union) => unimplemented!(),
+        Data::Union(_data_union) => {
+            return Err(quote_spanned! {
+                input.span() =>
+                compile_error!("Unions not supported")
+            }
+            .into())
+        }
     };
+
+    Ok(())
 }
 
 fn basic_dataclass(name: String, pairs: &[(String, String)]) -> Dataclass {
@@ -100,14 +143,12 @@ fn basic_dataclass(name: String, pairs: &[(String, String)]) -> Dataclass {
     dataclass
 }
 
-fn convert_to_pytype(ty: &syn::Type) -> String {
+fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
     match ty {
-        syn::Type::Array(inner) => {
-            format!("list[{}]", convert_to_pytype(inner.elem.as_ref()))
-        }
+        syn::Type::Array(inner) => Ok(format!("list[{}]", convert_to_pytype(inner.elem.as_ref())?)),
         syn::Type::Path(inner) => {
-            let name = crate::type_basename(inner).to_string();
-            match name.as_str() {
+            let name = crate::type_basename(inner)?.to_string();
+            Ok(match name.as_str() {
                 // that's a lot of ways to say "int", python ints are bigints so we don't have to
                 // care about size
                 "__dev_t" | "__gid_t" | "__ino_t" | "__mode_t" | "__s32" | "__s64"
@@ -128,24 +169,40 @@ fn convert_to_pytype(ty: &syn::Type) -> String {
                 "bool" => name,
 
                 _ => name,
-            }
+            })
         }
-        _ => unimplemented!("unsupported type type"),
+        _ => Err(quote_spanned! {
+            ty.span() =>
+            compile_error!("Unsupported type type");
+        }
+        .into()),
     }
 }
 
-pub(crate) fn pygen_write_internal(path: syn::LitStr) {
-    let path = path.value();
-    let path = std::env::var_os(&path)
-        .unwrap_or_else(|| panic!("Environment variable '{}' not defined", path));
+pub(crate) fn pygen_write_internal(path: syn::LitStr) -> MacroResult<()> {
+    let path_str = path.value();
+    let path_str = match std::env::var_os(path_str) {
+        Some(x) => x,
+        None => {
+            return Err(quote_spanned! {
+                path.span() =>
+                compile_error!("Environmnet variable not defined");
+            }
+            .into())
+        }
+    };
 
-    let mut file = File::create(&path).unwrap_or_else(|e| {
-        panic!(
-            "unable to create file '{}' when writing pygen file: {}",
-            path.to_string_lossy(),
-            e
-        )
-    });
+    let mut file = match File::create(path_str) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("pygen IO error: {}", e);
+            return Err(quote_spanned! {
+                path.span() =>
+                compile_error!("Failed to create pygen file");
+            }
+            .into());
+        }
+    };
 
     pygen_file().write().prepend_preamble(
         [
@@ -158,21 +215,43 @@ pub(crate) fn pygen_write_internal(path: syn::LitStr) {
         .collect(),
     );
 
-    writeln!(file, "{}", pygen_file().read()).expect("Failed to write pygen file");
+    if let Err(e) = writeln!(file, "{}", pygen_file().read()) {
+        eprintln!("pygen IO error: {}", e);
+        return Err(quote_spanned! {
+            path.span() =>
+            compile_error!("Failed to write pygen file");
+        }
+        .into());
+    }
+
+    Ok(())
 }
 
-pub(crate) fn pygen_add_prop_internal(args: crate::AddPropArgs) {
+pub(crate) fn pygen_add_prop_internal(args: crate::AddPropArgs) -> MacroResult<()> {
     let class = args.class.to_string();
     let mut prop = DataclassProp::new(args.name.to_string(), args.ret.to_string());
     args.body.into_iter().for_each(|x| prop.body.push(x));
 
-    for dataclass in pygen_file().write().classes.iter_mut() {
-        if dataclass.name != class {
-            continue;
-        }
+    let mut write_lock = pygen_file().write();
 
-        dataclass.add_prop(prop.clone());
-    }
+    let dataclass = match write_lock
+        .classes
+        .iter_mut()
+        .find(|dataclass| dataclass.name == class)
+    {
+        Some(x) => x,
+        None => {
+            return Err(quote_spanned! {
+                args.class.span() =>
+                compile_error!("No such dataclass found");
+            }
+            .into())
+        }
+    };
+
+    dataclass.add_prop(prop);
+
+    Ok(())
 }
 
 pub(crate) fn pygen_add_preamble(args: crate::AddPreambleArgs) {
@@ -377,6 +456,7 @@ impl Display for Enum {
             }
             let mut iter = types.iter();
 
+            // unwrap allowed because we checked that types isn't empty
             let first = iter.next().unwrap();
             write!(f, "{first}")?;
 

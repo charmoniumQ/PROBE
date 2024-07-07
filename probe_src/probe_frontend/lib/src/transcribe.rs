@@ -19,6 +19,7 @@ use crate::{
 /// This function calls [`parse_pid()`] on each sub-directory in `in_dir` **in parallel**.
 ///
 /// on success, returns the number of Ops processed in the top-level directory
+//  OPTIMIZE: consider improved parallelism heuristic.
 pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     in_dir: P1,
     out_dir: P2,
