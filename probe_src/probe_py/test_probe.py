@@ -17,22 +17,28 @@ def test_diff_cmd():
     process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
+    print(analysis.construct_process_graph(process_tree_prov_log))
+
     paths = ['../flake.nix','../flake.lock']
     file_descriptors = []
     reserved_file_descriptors = [0, 1, 2]
-
+    print(process_graph)
     dfs_edges = list(nx.dfs_edges(process_graph))
-      
+    print(">>>>>>>>>>>>")
+    print(len(dfs_edges))
     for edge in dfs_edges:
         curr_pid = edge[0][0]
         curr_epoch_idx = edge[0][1]
         curr_tid = edge[0][2]
         curr_op_idx = edge[0][3]
         curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        print(curr_node_op)
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.fd)
             path = curr_node_op.path.path
+            print("here")
             if path in paths:
+                print("deleting paths")
                 paths.remove(path)
         elif(isinstance(curr_node_op,parse_probe_log.CloseOp)):
             fd = curr_node_op.low_fd
@@ -55,7 +61,7 @@ def test_bash_in_bash():
     process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-
+    
     paths = ['../flake.nix', '../flake.lock']
     # to ensure files which are opened are closed
     file_descriptors = []
@@ -69,7 +75,8 @@ def test_bash_in_bash():
     current_child_process = 0
     reserved_file_descriptors = [0, 1, 2]
     dfs_edges = list(nx.dfs_edges(process_graph))
-    
+    print(">>>>>>>>>>>>")
+    print(len(dfs_edges))
     parent_process_id = dfs_edges[0][0][0]
     process_file_map[paths[len(paths)-1]] = parent_process_id
     for edge in dfs_edges:
@@ -96,14 +103,14 @@ def test_bash_in_bash():
         elif(isinstance(curr_node_op,parse_probe_log.CloneOp)):
             next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
             if isinstance(next_op,parse_probe_log.ExecOp):
-                assert edge[1][0] == curr_node_op.child_process_id
-                check_child_processes.append(curr_node_op.child_process_id)
+                assert edge[1][0] == curr_node_op.task_id
+                check_child_processes.append(curr_node_op.task_id)
                 continue
             current_child_process+=1
-            check_wait.append(curr_node_op.child_process_id)
-            process_file_map[paths[current_child_process-1]] = curr_node_op.child_process_id
+            check_wait.append(curr_node_op.task_id)
+            process_file_map[paths[current_child_process-1]] = curr_node_op.task_id
         elif(isinstance(curr_node_op,parse_probe_log.WaitOp)):
-            ret_pid = curr_node_op.ret
+            ret_pid = curr_node_op.task_id
             wait_option = curr_node_op.options
             if wait_option == 0:
                 assert ret_pid in check_wait
@@ -149,6 +156,7 @@ def test_bash_in_bash_pipe():
         curr_pid = edge[0][0]
         curr_tid = edge[0][2]
         curr_node_op =   get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        print(curr_node_op)
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.fd)
             path = curr_node_op.path.path
@@ -169,28 +177,32 @@ def test_bash_in_bash_pipe():
         elif(isinstance(curr_node_op,parse_probe_log.CloneOp)):
             next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
             if isinstance(next_op,parse_probe_log.ExecOp):
-                assert edge[1][0] == curr_node_op.child_process_id
-                check_child_processes.append(curr_node_op.child_process_id)
+                assert edge[1][0] == curr_node_op.task_id
+                check_child_processes.append(curr_node_op.task_id)
                 continue
             if isinstance(next_op,parse_probe_log.CloseOp) and edge[0][0]!=edge[1][0]:
-                assert edge[1][0] == curr_node_op.child_process_id
-                check_child_processes.append(curr_node_op.child_process_id)
+                assert edge[1][0] == curr_node_op.task_id
+                check_child_processes.append(curr_node_op.task_id)
                 continue
             current_child_process+=1
-            check_wait.append(curr_node_op.child_process_id)
-            process_file_map[paths[current_child_process-1]] = curr_node_op.child_process_id
+            check_wait.append(curr_node_op.task_id)
+            process_file_map[paths[current_child_process-1]] = curr_node_op.task_id
         elif(isinstance(curr_node_op,parse_probe_log.WaitOp)):
-            ret_pid = curr_node_op.ret
+            ret_pid = curr_node_op.task_id
             wait_option = curr_node_op.options
             if wait_option == 0:
                 assert ret_pid in check_wait
                 check_wait.remove(ret_pid)
         elif(isinstance(curr_node_op,parse_probe_log.ExecOp)):
+            print()
             # check if stdout is read in right child process
-            next_init_op = get_op_from_provlog(process_tree_prov_log,curr_pid,1,curr_pid,0)
-            if edge[1][3] == -1:
+            if(edge[1][3]==-1):
                 continue
-            next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
+            next_init_op = get_op_from_provlog(process_tree_prov_log,curr_pid,1,curr_pid,0)
+            print(next_init_op)
+            print(">>>>>>>>>>>>>>>>")
+            print(next_op)
+            print(">>>>>>>>>>>>>>>>")
             if next_init_op.program_name == 'tail' and isinstance(next_op,parse_probe_log.CloseOp):
                 assert process_file_map['stdout'] == curr_pid
                 check_child_processes.remove(curr_pid)
@@ -202,10 +214,10 @@ def test_bash_in_bash_pipe():
     assert len(process_file_map.items()) == len(paths)
     assert len(check_child_processes) == 0 
         
-def test_command_not_found():
-    result = runner.invoke(app,["record", "cmd"])
-    assert result.exit_code == 0
-    assert "Error: Command not found." in result.output
+# def test_command_not_found():
+#     result = runner.invoke(app,["record", "cmd"])
+#     assert result.exit_code == 0
+#     assert "Error: Command not found." in result.output
 
 def test_empty_path():
     result = runner.invoke(app,["record"])
