@@ -231,12 +231,18 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         .map(|data_dat_file| {
             DataArena::from_bytes(
 <<<<<<< HEAD
+<<<<<<< HEAD
                 std::fs::read(&data_dat_file)
                     .wrap_err("Failed to read file from data directory")?,
                 filename_numeric(&data_dat_file)?,
 =======
                 std::fs::read(data_dat_file).wrap_err("Failed to read file from data directory")?,
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+                std::fs::read(&data_dat_file)
+                    .wrap_err("Failed to read file from data directory")?,
+                filename_numeric(&data_dat_file)?,
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
             )
         })
         .collect::<Result<Vec<_>>>()?,
@@ -254,6 +260,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
     .into_iter()
     .map(|ops_dat_file| {
 <<<<<<< HEAD
+<<<<<<< HEAD
         std::fs::read(&ops_dat_file)
             .wrap_err("Failed to read file from ops directory")
             .and_then(|file_contents| {
@@ -264,6 +271,12 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
             .and_then(|file_contents| {
                 OpsArena::from_bytes(file_contents)
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+        std::fs::read(&ops_dat_file)
+            .wrap_err("Failed to read file from ops directory")
+            .and_then(|file_contents| {
+                OpsArena::from_bytes(file_contents, filename_numeric(&ops_dat_file)?)
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
                     .wrap_err("Error constructing OpsArena")?
                     .decode(&ctx)
                     .wrap_err("Error decoding OpsArena")
@@ -302,6 +315,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 /// Gets the [`file stem`](Path::file_stem()) from a path and returns it parsed as an integer.
 ///
 /// Errors if the path has no file stem (see [`Path::file_stem()`] for details), the file stem
@@ -319,21 +333,28 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
             log::error!("'{}' not valid UTF-8", file_stem.to_string_lossy());
 =======
 /// Gets the filename from a path and returns it parsed as an integer.
+=======
+/// Gets the [`file stem`](Path::file_stem()) from a path and returns it parsed as an integer.
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
 ///
-/// Errors if the path has no filename, the filename isn't valid UTF-8, or the filename can't be
-/// parsed as an integer.
+/// Errors if the path has no file stem (see [`Path::file_stem()`] for details), the file stem
+/// isn't valid UTF-8, or the filename can't be parsed as an integer.
 // TODO: cleanup errors, better context
 fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
-    let filename = dir.as_ref().file_name().ok_or_else(|| {
-        log::error!("'{}' has no filename", dir.as_ref().to_string_lossy());
-        option_err("path has no filename")
+    let file_stem = dir.as_ref().file_stem().ok_or_else(|| {
+        log::error!("'{}' has no file stem", dir.as_ref().to_string_lossy());
+        option_err("path has no file stem")
     })?;
 
-    filename
+    file_stem
         .to_str()
         .ok_or_else(|| {
+<<<<<<< HEAD
             log::error!("'{}' not valid UTF-8", filename.to_string_lossy());
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            log::error!("'{}' not valid UTF-8", file_stem.to_string_lossy());
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
             option_err("filename not valid UTF-8")
         })?
         .parse::<usize>()
@@ -350,7 +371,7 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
 =======
             log::error!(
                 "Parsing filename '{}' to integer",
-                filename.to_string_lossy()
+                file_stem.to_string_lossy()
             );
 >>>>>>> b5a2591 (fix cargo fmt/clippy)
             ProbeError::from(e)
@@ -396,12 +417,17 @@ pub struct DataArena {
 
 impl DataArena {
 <<<<<<< HEAD
+<<<<<<< HEAD
     pub fn from_bytes(bytes: Vec<u8>, instantiation: usize) -> Result<Self> {
         let header = ArenaHeader::from_bytes(&bytes, instantiation)
 =======
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
         let header = ArenaHeader::from_bytes(&bytes)
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+    pub fn from_bytes(bytes: Vec<u8>, instantiation: usize) -> Result<Self> {
+        let header = ArenaHeader::from_bytes(&bytes, instantiation)
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
             .wrap_err("Failed to create ArenaHeader for DataArena")?;
 
         Ok(Self { header, raw: bytes })
@@ -445,6 +471,7 @@ pub struct OpsArena<'a> {
 impl<'a> OpsArena<'a> {
     pub fn from_bytes(bytes: Vec<u8>, instantiation: usize) -> Result<Self> {
         let header = ArenaHeader::from_bytes(&bytes, instantiation)
+<<<<<<< HEAD
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;
 
         if ((header.used - size_of::<ArenaHeader>()) % size_of::<C_Op>()) != 0 {
@@ -466,6 +493,8 @@ impl<'a> OpsArena<'a> {
 impl<'a> OpsArena<'a> {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
         let header = ArenaHeader::from_bytes(&bytes)
+=======
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;
 
         if ((header.used - size_of::<ArenaHeader>()) % size_of::<C_Op>()) != 0 {
@@ -509,7 +538,6 @@ impl<'a> OpsArena<'a> {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArenaHeader {
-    // TODO: check instantiation (requires filename)
     instantiation: libc::size_t,
     base_address: libc::uintptr_t,
     capacity: libc::uintptr_t,
@@ -519,10 +547,14 @@ pub struct ArenaHeader {
 impl ArenaHeader {
     /// Parse the front of a raw byte buffer into a libprobe arena header
 <<<<<<< HEAD
+<<<<<<< HEAD
     fn from_bytes(bytes: &[u8], instantiation: usize) -> Result<Self> {
 =======
     fn from_bytes(bytes: &[u8]) -> Result<Self> {
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+    fn from_bytes(bytes: &[u8], instantiation: usize) -> Result<Self> {
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
         let ptr = bytes as *const [u8] as *const Self;
 
         if bytes.len() < size_of::<Self>() {
@@ -566,6 +598,9 @@ impl ArenaHeader {
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
         if header.instantiation != instantiation {
             return Err(ArenaError::InstantiationMismatch {
                 header: header.instantiation,
@@ -574,8 +609,11 @@ impl ArenaHeader {
             .into());
         }
 
+<<<<<<< HEAD
 =======
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
         Ok(header)
     }
 }
@@ -625,5 +663,12 @@ pub enum ArenaError {
     /// some integer.
     #[error("Arena alignment error: used arena size minus header isn't a multiple of op size")]
     Misaligned,
+<<<<<<< HEAD
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+
+    /// Returned if the instantiation in a [`ArenaHeader`] doesn't match the indicated one
+    #[error("Header contained Instantiation ID {header}, but {passed} was indicated")]
+    InstantiationMismatch { header: usize, passed: usize },
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
 }

@@ -696,11 +696,14 @@ probe_macros::pygen_add_preamble!(
     73e931504f8e0d42978bfcda37b323dbbd1afc08/include/uapi/linux/fcntl.h#L98",
     "AT_FDCWD: int = -100"
 );
+<<<<<<< HEAD
 >>>>>>> ae4dc7d (improved arg parsing)
 #[test]
 fn at_fdcwd_sanity_check() {
     assert_eq!(libc::AT_FDCWD, -100);
 }
+=======
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
 
 probe_macros::pygen_add_prop!(Path impl dirfd -> int:
     "return self.dirfd_minus_at_fdcwd + AT_FDCWD"
@@ -709,4 +712,29 @@ probe_macros::pygen_add_prop!(Path impl dirfd -> int:
 // WARNING: this macro invocation must come after all other pygen calls for those calls to be
 // included in the written file
 probe_macros::pygen_write_to_env!("PYGEN_OUTFILE");
+<<<<<<< HEAD
 >>>>>>> e1414d9 (pygen custom `@property`s)
+=======
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // we define this constant in the generated python code, so we should make sure we get it
+    // right.
+    #[test]
+    fn at_fdcwd_sanity_check() {
+        assert_eq!(libc::AT_FDCWD, -100);
+    }
+
+    // since we're defining a custom version of the rusage struct (indirectly through rust-bindgen)
+    // we should at least check that they're the same size.
+    #[test]
+    fn rusage_size() {
+        assert_eq!(
+            std::mem::size_of::<libc::rusage>(),
+            std::mem::size_of::<C_rusage>()
+        );
+    }
+}
+>>>>>>> 8f78b70 (added runtime check for arena instantiation)
