@@ -283,6 +283,7 @@ def run_one_experiment(
 
     with ch_time_block.ctx(f"run {workload_name} in {prov_collector}"):
         full_env = merge_env_vars(workload_env, collector_env)
+        print(cmd, full_env)
         stats = run_exec(
             cmd=cmd,
             env=full_env,

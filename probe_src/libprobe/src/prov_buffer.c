@@ -67,6 +67,12 @@ static void prov_log_record(struct Op op) {
     }
 */
 
+    /* Freeing up virtual memory space is good in theory,
+     * but it causes errors when decoding.
+     * Since freeing means that the virtual address can be reused by mmap.
+     * We can only safely free the op arena.
+     * If the system runs low on memory, I think Linux will page out the infrequently used mmapped regions,
+     * which is what we want. */
+    /* arena_uninstantiate_all_but_last(get_data_arena()); */
     arena_uninstantiate_all_but_last(get_op_arena());
-    arena_uninstantiate_all_but_last(get_data_arena());
 }

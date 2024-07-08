@@ -11,6 +11,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         python312-debug = pkgs.python312.overrideAttrs (oldAttrs: {
           configureFlags = oldAttrs.configureFlags ++ ["--with-pydebug"];
+          # patches = oldAttrs.patches ++ [ ./python.patch ];
         });
         export-and-rename = pkg: file-pairs: pkgs.stdenv.mkDerivation {
           pname = "${pkg.pname}-only-bin";
@@ -40,13 +41,14 @@
                 pypkgs.ipython
                 pypkgs.pydot                
               ]))
-              (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
+              # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
               pkgs.gcc
               pkgs.gdb
               pkgs.coreutils
               pkgs.bash
               pkgs.xdot
               pkgs.alejandra
+              pkgs.hyperfine
             ];
           };
         };
