@@ -121,13 +121,29 @@ https://www.man7.org/linux/man-pages/man3/exec.3.html
 
 # TODO: don't zero-initialize, use malloc instead of calloc, or free-then-null  in opt mode
 
-# TODO: have opt mode (-O3)
-
 # TODO: Write a wrapper script
 
-- Ensure private env vars are unset
-- Ensure prov path is readable and possibly empty
 - Have --help
   - Link to GitHub repo and issues
 - Make sure we are not already tracing prov, or maybe prov tracing should be "stackable"?
-- Handle env-vars consistently; always test empty or non-existant vs non-empty (some places in C might check if == 1).
+
+# TODO: Make process and thread synchronization
+
+- Note, that by *not* tracking synchronization, PROBE is not precise (might assume dataflow where none exists), but it is still sound (doesn't miss dataflow). Therefore, this is a low priority. It also mostly between threads, which seems unlikely to provide the order between an open-for-read and an open-for-write, in my intuition.
+- However, we could implement this as so:
+  - Within each thread, maintain a counter on the ops (called op_no, unique within a thread).
+  - For mutexes, there is a gloabl map from mutex address to a list of op_no and TID which acquired that mutex.
+  - Save the list at program exit
+  - Create edges between each pair of adjacent (TID, op_no) in the list.
+  - Intercept other synchronization calls and place them behind a mutex. Having a centralized history sounds heavy-handed, so I will prove its necessity by showing one program with two possible happens-before interleavings that both result in indistinguishable distributed histories.
+    - For semaphores, suppose we initialize a semaphore with N=0. Suppose we spawn 2 threads that both do [incr, read, decr], except the second thread writes instead of reads. The first thread may happen before the second thread or vice-versa. Both would result in the exact same dynamic trace, therefore we can't infer which happened from the dynamic trace.
+    - I think the same can be said for condition variables. For condition variables, we would need to allocate *our own* mutex, and unlock it when the client wants to signal, broadcast, or return from wait, and record the history of (TID, op_no) every time we lock it.
+  - Note, that we won't be able to capture synchronization implemented through atomic instructions, and that sounds like it would hit performance too hard anyway. In the mutex case, we are "piggy-backing" our synchronization off of the programs pre-existing synchronization; For condition variables and semaphores, we are trading out a "light" synchronization for a somewhat "heavier" synchronization. Likewise, readers/writers locks have to be "downgraded" to regular locks.
+  - https://www.man7.org/linux/man-pages/man3/sem_wait.3.html
+  - I think we need to track mmaps, so we can tell when two processes are referring to the same semaphore by different virtual addresses.
+  - https://www.man7.org/linux/man-pages/man7/sem_overview.7.html
+- https://www.man7.org/linux/man-pages/man3/pthread_cond_init.3.html
+- https://www.man7.org/linux/man-pages/man3/pthread_barrier_wait.3p.html
+- https://www.man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html
+- https://www.gnu.org/software/libc/manual/html_node/ISO-C-Mutexes.html
+- https://www.gnu.org/software/libc/manual/html_node/ISO-C-Condition-Variables.html

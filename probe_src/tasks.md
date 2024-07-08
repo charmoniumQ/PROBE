@@ -47,13 +47,16 @@
     - [ ] Run tests in a really old Ubuntu Docker container.
   - [ ] Write a CI script that uses Nix to install dependencies and run the Justfiles.
 - [ ] Write microbenchmarking
-  - [ ] Run performance test-cases in two steps: one with just libprobe record and one with just transcription.
+  - [ ] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
   - [ ] Write interesting performance tests, using `benchmark/workloads.py` as inspiration.
-  - [ ] Run the benchmarks with Hyperfine, in Containerexec, in a Justfile, storing the result as a CSV.
+  - [ ] Run the benchmarks with Hyperfine, in Containerexec, in a Python script, storing the result as a CSV.
+    - Python script that runs `hyperfine ./PROBE record --no-transcribe` and `hyperfine ./PROBE transcribe` for several tests.
 - [ ] Output conversions
   - [ ] From the NetworkX digraph, export:
-    - [ ] A dataflow graph, showing only files and the flow of information between them.
-      - Note that a file may have different versions, which should appear as different nodes.
+    - [ ] A dataflow graph, showing only files, processes, and the flow of information between them. The following rules define when there is an edge:
+      1. Data flows from a file to a process if on any thread there is an OpenOp with the flags set to `O_RDWR` or `O_RDONLY`.
+      2. Data flows from a process to a process if one process CloneOp's the other.
+      3. Data flows from a process to a file if on any thread there is a OpenOp with the flags set to `O_RDWR` or `O_WRONLY`.
     - [ ] [Process Run Crate](https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/)
     - [ ] [Common Workflow Language](https://www.commonwl.org/)
       - [ ] Write a test that runs the resulting CWL.
@@ -66,7 +69,9 @@
   - [ ] Consider combining across multiple runs of PROBE
   - [ ] Consider combining across multiple hosts
 - [ ] Ensuring libprobe works
-  - [ ] Debug why libprobe doesn't work with Python. Sam is working on this.
+  - [x] Debug why libprobe doesn't work with Python. Sam fixed this.
+  - [ ] Debug pthreads not making graph.
+  - [ ] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
 - [ ] Generate a replay package.

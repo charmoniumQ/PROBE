@@ -420,11 +420,17 @@
               rev = "chex";
               hash = "sha256-NsTljrFzEl43BCT1Oq6KL6UEBKIW4qI3jXZ814FGgEY=";
             };
+            cmakeFlags = [
+              "-DBUILD_TESTING=OFF"
+              "-DCMAKE_BUILD_TYPE=Release"
+            ];
             patches = [ ./provenance-to-use.patch ];
-            nativeBuildInputs = [ pkgs.cmake ];
+            nativeBuildInputs = [ pkgs.cmake pkgs.makeWrapper ];
+            buildInputs = [ pkgs.coreutils ];
             installPhase = ''
               install -d $out/bin
               install -t $out/bin ptu
+              wrapProgram $out/bin/ptu --prefix PATH : ${pkgs.lib.strings.makeBinPath [ pkgs.coreutils ]}
             '';
           };
           sciunit-dedup = pkgs.stdenv.mkDerivation rec {
@@ -516,6 +522,9 @@
               # Also see sciunit2.patch
               rm sciunit2-*/sciunit2/libexec/{ptu,scripter,vv}
             '';
+            postFixup = ''
+              wrapProgram $out/bin/sciunit --prefix PATH : ${(pkgs.lib.strings.makeBinPath [ pkgs.gnutar ])}
+            '';
             pythonImportsCheck = [ pname ];
             propagatedBuildInputs = [
               # https://github.com/depaul-dice/sciunit/blob/4c8011ddbf4f8ca7da6b987572d6de56d70661dc/CMakeLists.txt
@@ -533,6 +542,7 @@
               python.pkgs.setuptools
               python.pkgs.tqdm
               hs_restclient
+              pkgs.gnutar
             ];
             nativeBuildInputs = [ python.pkgs.pip pkgs.makeWrapper ];
             nativeCheckInputs = [
@@ -557,7 +567,7 @@
               ];
               nosetestArgs = builtins.map (test: "--exclude-test=${test}") excludedTests;
             in ''
-              runHook preCheck1
+              runHook preCheck
               nosetests --verbose --stop --nocapture --failure-detail ${builtins.concatStringsSep " " nosetestArgs}
               runHook postCheck
             '';
@@ -751,6 +761,9 @@
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
           };
+          lftp = pkgs.lftp;
+          wget = pkgs.wget;
+          libseccomp = pkgs.libseccomp.lib;
           env-image = pkgs.dockerTools.buildImage {
             name = "prov-tracer-benchmark-env";
             copyToRoot = [ env ];

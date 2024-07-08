@@ -24,6 +24,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ftw.h>
+#include <threads.h>
+#include <pthread.h>
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
@@ -32,6 +34,8 @@
  * To GCC these macros are defined as type names.
  * */
 #define __type_mode_t mode_t
+#define __type_charp char*
+#define __type_charpp char**
 
 /*
  * Likewise, ther is some bug with pycparser unable to parse inline funciton pointers.
@@ -88,7 +92,9 @@ static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void maybe_init_thread() {
     if (unlikely(!__thread_inited)) {
-        EXPECT(== 0, pthread_mutex_unlock(&init_lock));
+        DEBUG("Acquiring mutex");
+        EXPECT(== 0, pthread_mutex_lock(&init_lock));
+        DEBUG("Acquired mutex");
         bool was_process_inited = __process_inited;
         prov_log_disable();
         {
@@ -102,7 +108,7 @@ static void maybe_init_thread() {
             DEBUG("Initializing thread");
             init_thread_global_state();
         }
-        EXPECT(== 0, pthread_mutex_lock(&init_lock));
+        EXPECT(== 0, pthread_mutex_unlock(&init_lock));
         prov_log_enable();
         __thread_inited = true;
 

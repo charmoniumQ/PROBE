@@ -66,6 +66,8 @@ def define_var(var_type: pycparser.c_ast.Node, var_name: str, value: pycparser.c
 
 void = pycparser.c_ast.IdentifierType(names=['void'])
 
+c_ast_int = pycparser.c_ast.IdentifierType(names=['int'])
+
 
 def ptr_type(type: pycparser.c_ast.Node) -> pycparser.c_ast.PtrDecl:
     return pycparser.c_ast.PtrDecl(
@@ -240,7 +242,11 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
     return lambda *args, **kwarsg: raise_(exception)
 
 
-def find_decl(block: typing.Sequence[pycparser.c_ast.Node], name: str, comment: typing.Any) -> pycparser.c_ast.Decl | None:
+def find_decl(
+        block: typing.Sequence[pycparser.c_ast.Node],
+        name: str,
+        comment: typing.Any,
+) -> pycparser.c_ast.Decl | None:
     relevant_stmts = [
         stmt
         for stmt in block
@@ -282,59 +288,75 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[pycparser.c_ast.Node]
             post_call_action.init.block_items,
         )
 
-    if func.variadic:
-        varargs_size_decl = find_decl(func.stmts, "varargs_size", func.name)
-        pre_call_stmts.append(varargs_size_decl)
-        # Generates: __builtin_apply((void (*)())_o_open, __builtin_apply_args(), varargs_size)
-        uncasted_func_call = pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="__builtin_apply"),
-            args=pycparser.c_ast.ExprList(
-                exprs=[
-                    pycparser.c_ast.Cast(
-                        to_type=void_fn_ptr,
-                        expr=pycparser.c_ast.ID(name=func_prefix + func.name)
-                    ),
-                    pycparser.c_ast.FuncCall(name=pycparser.c_ast.ID(name="__builtin_apply_args"), args=None),
-                    pycparser.c_ast.ID(name="varargs_size"),
-                ],
-            ),
-        )
-        if is_void(func.return_type):
-            func_call = uncasted_func_call
-        else:
-            func_call = pycparser.c_ast.UnaryOp(
-                op="*",
-                expr=pycparser.c_ast.Cast(
-                    to_type=ptr_type(func.return_type),
-                    expr=uncasted_func_call,
+    call_stmts_block = find_decl(func.stmts, "call", func.name)
+    if call_stmts_block is None:
+        if func.variadic:
+            varargs_size_decl = find_decl(func.stmts, "varargs_size", func.name)
+            pre_call_stmts.append(varargs_size_decl)
+            # Generates: __builtin_apply((void (*)())_o_open, __builtin_apply_args(), varargs_size)
+            uncasted_func_call = pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(name="__builtin_apply"),
+                args=pycparser.c_ast.ExprList(
+                    exprs=[
+                        pycparser.c_ast.Cast(
+                            to_type=void_fn_ptr,
+                            expr=pycparser.c_ast.ID(name=func_prefix + func.name)
+                        ),
+                        pycparser.c_ast.FuncCall(name=pycparser.c_ast.ID(name="__builtin_apply_args"), args=None),
+                        pycparser.c_ast.ID(name="varargs_size"),
+                    ],
                 ),
             )
+            if is_void(func.return_type):
+                call_stmts = [uncasted_func_call]
+            else:
+                call_stmts = [define_var(
+                    func.return_type,
+                    "ret",
+                    pycparser.c_ast.UnaryOp(
+                        op="*",
+                        expr=pycparser.c_ast.Cast(
+                            to_type=ptr_type(func.return_type),
+                            expr=uncasted_func_call,
+                        ),
+                    ),
+                )]
+        else:
+            call_expr = pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(
+                    name=func_prefix + func.name,
+                ),
+                args=pycparser.c_ast.ExprList(
+                    exprs=[
+                        pycparser.c_ast.ID(name=param_name)
+                        for param_name, _ in func.params
+                    ],
+                ),
+            )
+            if is_void(func.return_type):
+                call_stmts = [call_expr]
+            else:
+                call_stmts = [define_var(func.return_type, "ret", call_expr)]
     else:
-        func_call = pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(
-                name=func_prefix + func.name,
-            ),
-            args=pycparser.c_ast.ExprList(
-                exprs=[
-                    pycparser.c_ast.ID(name=param_name)
-                    for param_name, _ in func.params
-                ],
-            ),
-        )
+        call_stmts = call_stmts_block.init.block_items
 
-    if is_void(func.return_type):
-        return (
-            *pre_call_stmts,
-            func_call,
-            *post_call_stmts,
-        )
-    else:
-        return (
-            *pre_call_stmts,
-            define_var(func.return_type, "ret", func_call),
-            *post_call_stmts,
+    save_errno = define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno"))
+    restore_errno = pycparser.c_ast.Assignment(
+        op='=',
+        lvalue=pycparser.c_ast.ID(name="errno"),
+        rvalue=pycparser.c_ast.ID(name="saved_errno"),
+    )
+
+    if post_call_stmts:
+        post_call_stmts.insert(0, save_errno)
+        post_call_stmts.append(restore_errno)
+
+    if not is_void(func.return_type):
+        post_call_stmts.append(
             pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret"))
         )
+
+    return pre_call_stmts + call_stmts + post_call_stmts
 
 
 static_args_wrapper_func_declarations = [
