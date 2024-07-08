@@ -6,6 +6,7 @@ from . import analysis
 import pathlib
 import typing
 import networkx as nx
+import subprocess
 
 runner = CliRunner()
 
@@ -17,28 +18,21 @@ def test_diff_cmd():
     process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    print(analysis.construct_process_graph(process_tree_prov_log))
 
     paths = ['../flake.nix','../flake.lock']
     file_descriptors = []
     reserved_file_descriptors = [0, 1, 2]
-    print(process_graph)
     dfs_edges = list(nx.dfs_edges(process_graph))
-    print(">>>>>>>>>>>>")
-    print(len(dfs_edges))
     for edge in dfs_edges:
         curr_pid = edge[0][0]
         curr_epoch_idx = edge[0][1]
         curr_tid = edge[0][2]
         curr_op_idx = edge[0][3]
         curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-        print(curr_node_op)
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.fd)
             path = curr_node_op.path.path
-            print("here")
             if path in paths:
-                print("deleting paths")
                 paths.remove(path)
         elif(isinstance(curr_node_op,parse_probe_log.CloseOp)):
             fd = curr_node_op.low_fd
@@ -75,8 +69,6 @@ def test_bash_in_bash():
     current_child_process = 0
     reserved_file_descriptors = [0, 1, 2]
     dfs_edges = list(nx.dfs_edges(process_graph))
-    print(">>>>>>>>>>>>")
-    print(len(dfs_edges))
     parent_process_id = dfs_edges[0][0][0]
     process_file_map[paths[len(paths)-1]] = parent_process_id
     for edge in dfs_edges:
@@ -155,8 +147,8 @@ def test_bash_in_bash_pipe():
         curr_epoch_idx = edge[0][1]
         curr_pid = edge[0][0]
         curr_tid = edge[0][2]
+        
         curr_node_op =   get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-        print(curr_node_op)
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.fd)
             path = curr_node_op.path.path
@@ -194,15 +186,10 @@ def test_bash_in_bash_pipe():
                 assert ret_pid in check_wait
                 check_wait.remove(ret_pid)
         elif(isinstance(curr_node_op,parse_probe_log.ExecOp)):
-            print()
             # check if stdout is read in right child process
             if(edge[1][3]==-1):
                 continue
             next_init_op = get_op_from_provlog(process_tree_prov_log,curr_pid,1,curr_pid,0)
-            print(next_init_op)
-            print(">>>>>>>>>>>>>>>>")
-            print(next_op)
-            print(">>>>>>>>>>>>>>>>")
             if next_init_op.program_name == 'tail' and isinstance(next_op,parse_probe_log.CloseOp):
                 assert process_file_map['stdout'] == curr_pid
                 check_child_processes.remove(curr_pid)
@@ -225,4 +212,42 @@ def test_empty_path():
     assert "Error: Missing argument 'CMD...'." in result.output
 
 def get_op_from_provlog(process_tree_prov_log,pid,exec_epoch_id,tid,op_idx):
+    if op_idx == -1:
+        return None
     return process_tree_prov_log.processes[pid].exec_epochs[exec_epoch_id].threads[tid].ops[op_idx].data
+
+def test_pthreads():
+    process = subprocess.Popen(["gcc", "tests/c/hello_world.c", "-o", "test"])
+    process.communicate()
+    result = runner.invoke(app,["record", "./test"])
+    assert result.exit_code == 0
+    input: pathlib.Path = pathlib.Path("probe_log")
+    assert input.exists()
+    probe_log_tar_obj = tarfile.open(input, "r")
+    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+    probe_log_tar_obj.close()
+    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
+    dfs_edges = list(nx.dfs_edges(process_graph))
+    pthreads_cloned = []
+    total_pthreads = 5
+    for edge in dfs_edges:
+        curr_op_idx = edge[0][3]
+        curr_epoch_idx = edge[0][1]
+        curr_pid = edge[0][0]
+        curr_tid = edge[0][2]
+        curr_node_op =  get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+       
+        if isinstance(curr_node_op,parse_probe_log.CloneOp):
+            if edge[1][3] == -1:
+                continue
+            pthreads_cloned.append(curr_node_op.task_id)
+            total_pthreads-=1
+        elif isinstance(curr_node_op,parse_probe_log.WaitOp):
+            assert curr_node_op.task_type == parse_probe_log.TaskType.TASK_PTHREAD
+            assert curr_node_op.task_id in pthreads_cloned
+            pthreads_cloned.remove(curr_node_op.task_id)
+
+    # ensure the CloneOp for every pthread
+    assert total_pthreads == 0
+    # ensure waitOP for every pthread
+    assert len(pthreads_cloned) == 0

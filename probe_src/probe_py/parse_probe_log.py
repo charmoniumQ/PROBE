@@ -39,6 +39,7 @@ WaitOp: typing.TypeAlias = py_types[("struct", "WaitOp")]
 OpenOp: typing.TypeAlias = py_types[("struct", "OpenOp")]
 CloseOp: typing.TypeAlias = py_types[("struct", "CloseOp")]
 OpCode: enum.EnumType = py_types[("enum", "OpCode")]
+TaskType: enum.EnumType = py_types[("enum", "TaskType")]
 
 
 @dataclasses.dataclass

@@ -66,7 +66,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
         if isinstance(op, CloneOp):
             if op.flags & CLONE_THREAD:
                 # Spawning a thread links to the current PID and exec epoch
-                target = (pid, exid, op.child_thread_id)
+                target = (pid, exid, op.task_id)
             else:
                 # New process always links to exec epoch 0 and main thread
                 # THe TID of the main thread is the same as the PID
