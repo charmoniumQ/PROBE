@@ -108,6 +108,7 @@ invoke `probe record` on that, or else run:
 ```bash
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 probe record bash -c '<SHELL_CODE>'
 ```
 
@@ -121,6 +122,9 @@ probe record -- bash -c '<SHELL_CODE>'`
 >>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 =======
 probe record bash -c '<SHELL_CODE>'`
+=======
+probe record bash -c '<SHELL_CODE>'
+>>>>>>> ba7de17 (fixed README.md)
 ```
 
 (any flag after the first positional argument is ignored and treated like a
