@@ -65,7 +65,7 @@ If you need these you can either write a shell script and
 invoke `probe record` on that, or else run:
 
 ```bash
-probe record bash -c '<SHELL_CODE>'`
+probe record bash -c '<SHELL_CODE>'
 ```
 
 (any flag after the first positional argument is ignored and treated like a
