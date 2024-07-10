@@ -1,6 +1,6 @@
 import typing
 import networkx as nx
-from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, CLONE_THREAD
+from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, CLONE_THREAD
 from enum import IntEnum
 
 class EdgeLabels(IntEnum):
@@ -29,7 +29,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 # Filter just the ops we are interested in
                 op_index = 0
                 for op in thread.ops:
-                    if isinstance(op.data, CloneOp | ExecOp | WaitOp):
+                    if isinstance(op.data, CloneOp | ExecOp | WaitOp | OpenOp | CloseOp):
                         ops.append((*context, op_index))
                     op_index+=1
 
@@ -102,8 +102,45 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
     return process_graph
 
-def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
+def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
+    dataflow_graph = nx.DiGraph()
+    O_ACCMODE = 0x3
+    class NodeType(IntEnum):
+        FILE = 0
+        PROCESS = 1
+    # print(process_tree_prov_log)
+    for pid, process in process_tree_prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                for op in thread.ops:
+                    op = op.data
+                    # [nodeType, name, mode]
+                    FileNode: typing.TypeAlias = tuple[int, str, int]
+                    # [nodeType, tid]
+                    ProcessNode: typing.TypeAlias = tuple[int, int]
+                    if isinstance(op, OpenOp):
+                        access_mode = op.flags & O_ACCMODE
+                        processNode = ProcessNode(((int)(NodeType.PROCESS), pid))
+                        fileNode = FileNode(((int)(NodeType.FILE), op.path.path, access_mode))
+                        if access_mode == 0 or access_mode == 2:
+                            access_mode_str = "O_RDONLY (read-only)" 
+                            dataflow_graph.add_edge(fileNode, processNode)
+                        elif access_mode == 1 or access_mode == 2:
+                            dataflow_graph.add_edge(processNode, fileNode)
+                            access_mode_str = "O_WRONLY (write-only)"
+                        else:
+                            raise Exception("unknown access mode")
 
+                    elif isinstance(op, CloneOp):
+                        processNode = ProcessNode(((int)(NodeType.PROCESS), pid))
+                        processNode = ProcessNode(((int)(NodeType.PROCESS), op.task_id))
+                        dataflow_graph.add_edge(processNode, processNode)
+    
+    pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
+    dot_string = pydot_graph.to_string()
+    print(dot_string)
+
+def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
     label_color_map = {
     EdgeLabels.EXEC: 'yellow',
     EdgeLabels.FORK_JOIN: 'red',
