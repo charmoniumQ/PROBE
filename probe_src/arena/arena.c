@@ -46,8 +46,8 @@ struct __Arena {
 struct __ArenaListElem;
 struct __ArenaListElem {
     struct __Arena* arena_list [ARENA_LIST_BLOCK_SIZE];
-    /* We store next list elem so that a value of 0 with an uninitialized arena_lsit represnts a valid ArenaListElem */
-    size_t next_list_elem;
+    /* We store next list elem so that a value of 0 with an uninitialized arena_list represnts a valid ArenaListElem */
+    size_t next_free_slot;
     struct __ArenaListElem* prev;
 };
 
@@ -62,7 +62,7 @@ static size_t __arena_align(size_t offset, size_t alignment) {
     return (offset + alignment - 1) & ~(alignment - 1);
 }
 
-#define CURRENT_ARENA arena_dir->__tail->arena_list[arena_dir->__tail->next_list_elem - 1]
+#define CURRENT_ARENA arena_dir->__tail->arena_list[arena_dir->__tail->next_free_slot - 1]
 
 #define __ARENA_FNAME_LENGTH 64
 #define __ARENA_FNAME "%ld.dat"
@@ -97,15 +97,21 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     }
     unwrapped_close(fd);
 
-    /* Add it to the arena_list */
-    arena_dir->__tail->next_list_elem++;
-    /* Maybe, we need to allocate a new linked-list node */
-    if (arena_dir->__tail->next_list_elem > ARENA_LIST_BLOCK_SIZE) {
+
+    if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
+        /* Out of free slots in this block.
+         * We need to allocate a new linked-list node
+         * */
         struct __ArenaListElem* old_tail = arena_dir->__tail;
         arena_dir->__tail = malloc(sizeof(struct __ArenaListElem));
         /* This malloc is undone by a free in arena_dir_destroy */
-        arena_dir->__tail->next_list_elem = 1;
+
+        /* We are about to use slot 0, so the next free slot would be 1 */
+        arena_dir->__tail->next_free_slot = 1;
         arena_dir->__tail->prev = old_tail;
+    } else {
+        /* Mark this slot as used */
+        arena_dir->__tail->next_free_slot++;
     }
 
     /* Either way, we just have to assign a new slot in the current linked-list node. */
@@ -222,7 +228,7 @@ static int arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name
         return -1;
     }
     /* malloc here corresponds to free in arena_destroy */
-    tail->next_list_elem = 0;
+    tail->next_free_slot = 0;
     tail->prev = NULL;
     arena_dir->__dirfd = dirfd;
     arena_dir->__tail = tail;
@@ -234,12 +240,18 @@ static int arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name
     return 0;
 }
 
-__attribute__((unused)) static void arena_destroy(struct ArenaDir* arena_dir) {
+__attribute__((unused)) static int arena_destroy(struct ArenaDir* arena_dir) {
     struct __ArenaListElem* current = arena_dir->__tail;
     while (current) {
-        for (size_t i = 0; i < current->next_list_elem; ++i) {
+        for (size_t i = 0; i < current->next_free_slot; ++i) {
             if (current->arena_list[i] != NULL) {
-                munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                int ret = munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                if (ret != 0) {
+#ifdef ARENA_PERROR
+                    perror("arena_create: arena_destroy");
+#endif
+                    return -1;
+                }
                 current->arena_list[i] = NULL;
             }
         }
@@ -253,6 +265,8 @@ __attribute__((unused)) static void arena_destroy(struct ArenaDir* arena_dir) {
     arena_dir->__dirfd = 0;
 
     arena_dir->__next_instantiation = 0;
+
+    return 0;
 }
 
 /*
@@ -262,12 +276,18 @@ __attribute__((unused)) static void arena_destroy(struct ArenaDir* arena_dir) {
  * Therefore, we should NOT close those file descriptors.
  * But we should free the virtual memory mappings.
  * */
-__attribute__((unused)) static void arena_drop_after_fork(struct ArenaDir* arena_dir) {
+__attribute__((unused)) static int arena_drop_after_fork(struct ArenaDir* arena_dir) {
     struct __ArenaListElem* current = arena_dir->__tail;
     while (current) {
-        for (size_t i = 0; i < current->next_list_elem; ++i) {
+        for (size_t i = 0; i < current->next_free_slot; ++i) {
             if (current->arena_list[i] != NULL) {
-                munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                int ret = munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                if (ret != 0) {
+#ifdef ARENA_PERROR
+                    perror("arena_create: arena_uninstantiate_all_but_last");
+#endif
+                    return -1;
+                }
                 current->arena_list[i] = NULL;
             }
         }
@@ -278,25 +298,34 @@ __attribute__((unused)) static void arena_drop_after_fork(struct ArenaDir* arena
     arena_dir->__tail = NULL;
     arena_dir->__dirfd = 0;
     arena_dir->__next_instantiation = 0;
+
+    return 0;
 }
 
-__attribute__((unused)) static void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
+__attribute__((unused)) static int arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
     struct __ArenaListElem* current = arena_dir->__tail;
     bool is_tail = true;
     while (current) {
-        for (size_t i = 0; i + ((size_t) is_tail) < current->next_list_elem; ++i) {
+        for (size_t i = 0; i + ((size_t) is_tail) < current->next_free_slot; ++i) {
             if (current->arena_list[i] != NULL) {
-                munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                int ret = munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                if (ret != 0) {
+#ifdef ARENA_PERROR
+                    perror("arena_create: arena_uninstantiate_all_but_last");
+#endif
+                    return -1;
+                }
                 current->arena_list[i] = NULL;
             }
         }
         if (!is_tail) {
             /* Setting to zero means it gets skipped next time we try to uninstantiate */
-            current->next_list_elem = 0;
+            current->next_free_slot = 0;
         }
         is_tail = false;
         current = current->prev;
     }
+    return 0;
 }
 
 __attribute__((unused)) static bool arena_is_initialized(struct ArenaDir* arena_dir) {

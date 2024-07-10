@@ -23,6 +23,7 @@
     - [ ] Verify that the first child process has ExecOp, OpenOp (path should be `a`), and CloseOp. Analogously check the second child process.
   - [ ] Verify that this doesn't crash `sh -c "sh -c 'cat a ; cat b' ; sh -c 'cat d ; cat e'"` (in the past it did)
   - [ ] Continue along these lines one or two more cases.
+- [ ] Link with libbacktrace on `--debug` runs.
 - [ ] Write remote script wrappers
   - [ ] Write an SSH wrapper. Asif and Shofiya are working on this.
     - [ ] There should be a shell script named `ssh` that calls `./PROBE ssh <args...>`.
@@ -70,8 +71,9 @@
   - [ ] Consider combining across multiple hosts
 - [ ] Ensuring libprobe works
   - [x] Debug why libprobe doesn't work with Python. Sam fixed this.
-  - [ ] Debug pthreads not making graph.
-  - [ ] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
+  - [x] Debug pthreads not making graph.
+  - [x] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
+  - [ ] Debug `gcc`.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
 - [ ] Generate a replay package.
