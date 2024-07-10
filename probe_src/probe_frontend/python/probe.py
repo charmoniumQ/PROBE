@@ -2,12 +2,32 @@
 import typing
 import json
 import tarfile
+from dataclasses import dataclass
 from . import ops
 
-OpTable = typing.Mapping[int, typing.Mapping[int, typing.Mapping[int, typing.List[ops.Op]]]]
+@dataclass(frozen=True)
+class ThreadProvLog:
+    tid: int
+    ops: typing.Sequence[ops.Op]
 
-def load_log(path: str) -> OpTable:
-    ret: dict[int, dict[int, dict[int, list[ops.Op]]]] = {}
+@dataclass(frozen=True)
+class ExecEpochProvLog:
+    epoch: int
+    threads: typing.Mapping[int, ThreadProvLog]
+
+
+@dataclass(frozen=True)
+class ProcessProvLog:
+    pid: int
+    exec_epochs: typing.Mapping[int, ExecEpochProvLog]
+
+
+@dataclass(frozen=True)
+class ProvLog:
+    processes: typing.Mapping[int, ProcessProvLog]
+
+def load_log(path: str) -> ProvLog:
+    op_map: typing.Dict[int, typing.Dict[int, typing.Dict[int, ThreadProvLog]]] = {}
 
     tar = tarfile.open(path, mode='r')
 
@@ -25,12 +45,10 @@ def load_log(path: str) -> OpTable:
         tid: int = int(parts[2])
 
         # ensure necessary dict objects have been created
-        if not pid in ret:
-            ret[pid] = {}
-        if not epoch in ret[pid]:
-            ret[pid][epoch] = {}
-        if not tid in ret[pid][epoch]:
-            ret[pid][epoch][tid] = []
+        if not pid in op_map:
+            op_map[pid] = {}
+        if not epoch in op_map[pid]:
+            op_map[pid][epoch] = {}
 
         # extract file contents as byte buffer
         file = tar.extractfile(item)
@@ -39,10 +57,19 @@ def load_log(path: str) -> OpTable:
 
         # read, split, comprehend, deserialize, extend
         jsonlines = file.read().strip().split(b"\n")
-        ops = [json.loads(x, object_hook=op_hook) for x in jsonlines]
-        ret[pid][epoch][tid].extend(ops)
+        ops = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
+        op_map[pid][epoch][tid] = ops
 
-    return ret 
+    return ProvLog({
+        pid: ProcessProvLog(
+            pid,
+            {
+                epoch: ExecEpochProvLog(epoch, threads)
+                for epoch, threads in epochs.items()
+            },
+        )
+        for pid, epochs in op_map.items()
+    })
 
 def op_hook(json_map: typing.Dict[str, typing.Any]):
     ty: str = json_map["_type"]
