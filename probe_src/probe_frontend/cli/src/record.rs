@@ -132,9 +132,9 @@ impl Recorder {
         }
 
         let mut child = if self.gdb {
-            let mut dir_env = OsString::from("--init-eval-command=set environmnet __PROBE_DIR=");
+            let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");
             dir_env.push(self.output.path());
-            let mut preload_env = OsString::from("--init-eval-command=set environmnet LD_PRELOAD=");
+            let mut preload_env = OsString::from("--init-eval-command=set environment LD_PRELOAD=");
             preload_env.push(ld_preload);
 
             let self_bin =
