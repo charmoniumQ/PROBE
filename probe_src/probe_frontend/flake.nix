@@ -15,6 +15,11 @@
       url = "github:rustsec/advisory-db";
       flake = false;
     };
+
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   # TODO: cleanup derivations and make more usable:
@@ -27,13 +32,28 @@
     crane,
     flake-utils,
     advisory-db,
+    rust-overlay,
     ...
-  }:
-    flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
-      # inherit (pkgs) lib;
+  }: let
+    systems = {
+      # "nix system" = "rust target";
+      "x86_64-linux" = "x86_64-unknown-linux-musl";
+      "i686-linux" = "i686-unknown-linux-musl";
+      "aarch64-linux" = "aarch64-unknown-linux-musl";
+      "armv7l-linux" = "armv7-unknown-linux-musleabi";
+    };
+  in
+    flake-utils.lib.eachSystem (builtins.attrNames systems) (system: let
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [(import rust-overlay)];
+      };
 
-      craneLib = crane.mkLib pkgs;
+      craneLib = (crane.mkLib pkgs).overrideToolchain (p:
+        p.rust-bin.stable.latest.default.override {
+          targets = [systems.${system}];
+        });
+
       src = ./.;
 
       # Common arguments can be set here to avoid repeating them later
@@ -49,8 +69,12 @@
 
         # pygen needs to know where to write the python file
         postUnpack = ''
-          export PYGEN_OUTFILE="$(realpath ./python)"
+          mkdir -p ./python
+          export PYGEN_OUTFILE="$(realpath ./python/ops.py)"
         '';
+
+        CARGO_BUILD_TARGET = "${systems.${system}}";
+        CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
       };
 
       # Build *just* the cargo dependencies (of the entire workspace),
@@ -62,7 +86,7 @@
       individualCrateArgs =
         commonArgs
         // {
-          inherit cargoArtifacts;
+          # inherit cargoArtifacts;
           inherit (craneLib.crateNameFromCargoToml {inherit src;}) version;
           # disable tests since we'll run them all via cargo-nextest
           doCheck = false;
