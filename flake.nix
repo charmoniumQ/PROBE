@@ -39,7 +39,7 @@
                 pypkgs.pygraphviz
                 pypkgs.networkx
                 pypkgs.ipython
-                pypkgs.pydot                
+                pypkgs.pydot
               ]))
               # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
               pkgs.gcc
