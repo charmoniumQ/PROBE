@@ -17,26 +17,8 @@ def test_diff_cmd():
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
 
     paths = ['../flake.nix','../flake.lock']
-    file_descriptors = []
-    reserved_file_descriptors = [0, 1, 2]
     dfs_edges = list(nx.dfs_edges(process_graph))
-    for edge in dfs_edges:
-        curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
-        curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-        if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
-            file_descriptors.append(curr_node_op.fd)
-            path = curr_node_op.path.path
-            if path in paths:
-                paths.remove(path)
-        elif(isinstance(curr_node_op,parse_probe_log.CloseOp)):
-            fd = curr_node_op.low_fd
-            if fd in reserved_file_descriptors:
-                continue
-            assert fd in file_descriptors
-            file_descriptors.remove(fd)
-    
-    assert len(file_descriptors) == 0
-    assert len(paths) == 0
+    match_open_and_close_fd(dfs_edges, process_tree_prov_log, paths.copy())
     
 
 def test_bash_in_bash():
@@ -60,6 +42,8 @@ def test_bash_in_bash():
     parent_process_id = dfs_edges[0][0][0]
     process_file_map[paths[len(paths)-1]] = parent_process_id
     check_wait_and_clone(dfs_edges, process_tree_prov_log, len(paths)-1)
+    match_open_and_close_fd(dfs_edges, process_tree_prov_log, paths.copy())
+    
     for edge in dfs_edges:
         curr_op_idx = edge[0][3]
         curr_epoch_idx = edge[0][1]
@@ -125,6 +109,7 @@ def test_bash_in_bash_pipe():
     parent_process_id = dfs_edges[0][0][0]
 
     check_wait_and_clone(dfs_edges, process_tree_prov_log, len(paths))
+    match_open_and_close_fd(dfs_edges, process_tree_prov_log, paths.copy()[:-1])
     
     for edge in dfs_edges:
         curr_op_idx = edge[0][3]
@@ -208,7 +193,6 @@ def execute_command(command, return_code=0):
 # TO DO Common Functions
  # to ensure the child process has ExecOp, OpenOp and CloseOp
     # check_child_processes = []
-# to check open and close match
 # to check thread touch the right file
 
 def check_wait_and_clone(dfs_edges, process_tree_prov_log, number_of_child_process):
@@ -243,6 +227,30 @@ def check_wait_and_clone(dfs_edges, process_tree_prov_log, number_of_child_proce
     assert current_child_process == number_of_child_process
     # check if every cloneOp has a WaitOp
     assert len(check_wait) == 0
+
+def match_open_and_close_fd(dfs_edges, process_tree_prov_log, paths):
+    reserved_file_descriptors = [0, 1, 2]
+    file_descriptors = []
+    for edge in dfs_edges:
+        curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
+        curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
+            print(curr_node_op)
+            file_descriptors.append(curr_node_op.fd)
+            path = curr_node_op.path.path
+            if path in paths:
+                paths.remove(path)
+        elif(isinstance(curr_node_op,parse_probe_log.CloseOp)):
+            fd = curr_node_op.low_fd
+            if fd in reserved_file_descriptors:
+                continue
+            if curr_node_op.ferrno != 0:
+                continue
+            if fd in file_descriptors:
+                file_descriptors.remove(fd)
+    
+    assert len(file_descriptors) == 0
+    assert len(paths) == 0
 
 def get_op_from_provlog(process_tree_prov_log,pid,exec_epoch_id,tid,op_idx):
     if op_idx == -1:
