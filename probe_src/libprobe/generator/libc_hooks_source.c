@@ -1991,6 +1991,10 @@ int clone(
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Process-Completion.html */
 pid_t waitpid (pid_t pid, int *status_ptr, int options) {
     void* pre_call = ({
+        int status;
+        if (status_ptr == NULL) {
+            status_ptr = &status;
+        }
         struct Op op = {
             wait_op_code,
             {.wait = {
@@ -2018,6 +2022,10 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
 }
 pid_t wait (int *status_ptr) {
     void* pre_call = ({
+        int status;
+        if (status_ptr == NULL) {
+            status_ptr = &status;
+        }
         struct Op op = {
             wait_op_code,
             {.wait = {

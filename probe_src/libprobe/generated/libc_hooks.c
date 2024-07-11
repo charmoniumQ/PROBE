@@ -1923,6 +1923,11 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
 pid_t waitpid(pid_t pid, int *status_ptr, int options)
 {
   maybe_init_thread();
+  int status;
+  if (status_ptr == NULL)
+  {
+    status_ptr = &status;
+  }
   struct Op op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}};
   prov_log_try(op);
   pid_t ret = unwrapped_waitpid(pid, status_ptr, options);
@@ -1947,6 +1952,11 @@ pid_t waitpid(pid_t pid, int *status_ptr, int options)
 pid_t wait(int *status_ptr)
 {
   maybe_init_thread();
+  int status;
+  if (status_ptr == NULL)
+  {
+    status_ptr = &status;
+  }
   struct Op op = {wait_op_code, {.wait = {.task_type = TASK_PID, .task_id = -1, .options = 0, .status = 0, .ferrno = 0}}, {0}};
   prov_log_try(op);
   pid_t ret = unwrapped_wait(status_ptr);
