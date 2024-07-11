@@ -38,7 +38,7 @@ def benchmark_command(command: str, warmup_iterations: int, benchmark_iterations
                 pass
 
         stdout, stderr = proc.communicate()
-        
+
         end_time_psutil = datetime.datetime.now()
 
         start_time_wait = datetime.datetime.now()
@@ -60,22 +60,29 @@ def benchmark_command(command: str, warmup_iterations: int, benchmark_iterations
     return results
 
 if __name__ == "__main__":
-    # command and other parameters 
-    command_to_run = "./PROBE record --make head ../flake.nix"
-    warmup_count = 5
-    benchmark_count = 10
-    
-    benchmark_results = benchmark_command(command_to_run, warmup_count, benchmark_count)
-    
-    for idx, result in enumerate(benchmark_results, start=1):
-        print(f"Result {idx}:")
-        print(f"Return Code: {result.returncode}")
-        print(f"CPU Times: {result.cpu_times}")
-        print(f"Memory Info: {result.memory_info}")
-        print(f"I/O Counters: {result.io_counters}")
-        print(f"Start Time: {result.start_time}")
-        print(f"End Time: {result.end_time}")
-        print(f"STDOUT:\n{result.stdout}")
-        print(f"STDERR:\n{result.stderr}")
-        print("-" * 50)
+    commands_to_run = [
+        "./PROBE record --no-transcribe head ../flake.nix",
+        "./PROBE record --no-transcribe ls -l",
+        "./PROBE record --no-transcribe echo 'Hello, World!'",
+        "./PROBE record --no-transcribe sleep 1",
+        "./PROBE record --make head ../flake.nix", 
+        "./PROBE dump"
+    ]
+    warmup_count = 1
+    benchmark_count = 2
 
+    for command_to_run in commands_to_run:
+        print(f"Running benchmark for command: {command_to_run}")
+        benchmark_results = benchmark_command(command_to_run, warmup_count, benchmark_count)
+
+        for idx, result in enumerate(benchmark_results, start=1):
+            print(f"Result {idx}:")
+            print(f"Return Code: {result.returncode}")
+            print(f"CPU Times: {result.cpu_times}")
+            print(f"Memory Info: {result.memory_info}")
+            print(f"I/O Counters: {result.io_counters}")
+            print(f"Start Time: {result.start_time}")
+            print(f"End Time: {result.end_time}")
+            print(f"STDOUT:\n{result.stdout}")
+            print(f"STDERR:\n{result.stderr}")
+            print("-" * 50)
