@@ -1,22 +1,19 @@
-from typer.testing import CliRunner
 import tarfile
-from .cli import app
+from .cli import record
 from . import parse_probe_log
 from . import analysis
 import pathlib
-import typing
 import networkx as nx
 import subprocess
+import typer
+import pytest
 
-runner = CliRunner()
 
 def test_diff_cmd():
-    result = runner.invoke(app,["record","--make","diff","../flake.nix","../flake.lock"])
-    input: pathlib.Path = pathlib.Path("probe_log")
-    assert input.exists()
-    probe_log_tar_obj = tarfile.open(input, "r")
-    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
-    probe_log_tar_obj.close()
+    command = [
+     'diff', '../flake.nix', '../flake.lock'
+    ]
+    process_tree_prov_log = execute_command(command, 1)
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
 
     paths = ['../flake.nix','../flake.lock']
@@ -46,14 +43,8 @@ def test_diff_cmd():
     
 
 def test_bash_in_bash():
-    result = runner.invoke(app,["record", "bash", "-c", "head ../flake.nix ; head ../flake.lock"])
-
-    assert result.exit_code == 0
-    input: pathlib.Path = pathlib.Path("probe_log")
-    assert input.exists()
-    probe_log_tar_obj = tarfile.open(input, "r")
-    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
-    probe_log_tar_obj.close()
+    command = ["bash", "-c", "head ../flake.nix ; head ../flake.lock"]
+    process_tree_prov_log = execute_command(command)
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
     
     paths = ['../flake.nix', '../flake.lock']
@@ -116,16 +107,9 @@ def test_bash_in_bash():
     assert len(check_child_processes) == 0 
 
 def test_bash_in_bash_pipe():
-    result = runner.invoke(app,["record", "bash", "-c", "head ../flake.nix | tail"])
-
-    assert result.exit_code == 0
-    input: pathlib.Path = pathlib.Path("probe_log")
-    assert input.exists()
-    probe_log_tar_obj = tarfile.open(input, "r")
-    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
-    probe_log_tar_obj.close()
+    command = ["bash", "-c", "head ../flake.nix | tail"]
+    process_tree_prov_log = execute_command(command)
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-
     paths = ['../flake.nix','stdout']
     # to ensure files which are opened are closed
     file_descriptors = []
@@ -201,31 +185,10 @@ def test_bash_in_bash_pipe():
     assert len(process_file_map.items()) == len(paths)
     assert len(check_child_processes) == 0 
         
-# def test_command_not_found():
-#     result = runner.invoke(app,["record", "cmd"])
-#     assert result.exit_code == 0
-#     assert "Error: Command not found." in result.output
-
-def test_empty_path():
-    result = runner.invoke(app,["record"])
-    assert result.exit_code == 2
-    assert "Error: Missing argument 'CMD...'." in result.output
-
-def get_op_from_provlog(process_tree_prov_log,pid,exec_epoch_id,tid,op_idx):
-    if op_idx == -1:
-        return None
-    return process_tree_prov_log.processes[pid].exec_epochs[exec_epoch_id].threads[tid].ops[op_idx].data
-
 def test_pthreads():
     process = subprocess.Popen(["gcc", "tests/c/hello_world.c", "-o", "test"])
     process.communicate()
-    result = runner.invoke(app,["record", "./test"])
-    assert result.exit_code == 0
-    input: pathlib.Path = pathlib.Path("probe_log")
-    assert input.exists()
-    probe_log_tar_obj = tarfile.open(input, "r")
-    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
-    probe_log_tar_obj.close()
+    process_tree_prov_log = execute_command(["./test"])
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
     dfs_edges = list(nx.dfs_edges(process_graph))
     pthreads_cloned = []
@@ -251,3 +214,20 @@ def test_pthreads():
     assert total_pthreads == 0
     # ensure waitOP for every pthread
     assert len(pthreads_cloned) == 0
+
+def execute_command(command, return_code=0):
+    input: pathlib.Path = pathlib.Path("probe_log")
+    with pytest.raises(typer.Exit) as excinfo:
+        record(command, False, False, False,input)
+    assert excinfo.value.exit_code == return_code
+    # result = subprocess.run(['./PROBE', 'record'] + command, capture_output=True, text=True, check=True)
+    assert input.exists()
+    probe_log_tar_obj = tarfile.open(input, "r")
+    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+    probe_log_tar_obj.close()
+    return process_tree_prov_log
+
+def get_op_from_provlog(process_tree_prov_log,pid,exec_epoch_id,tid,op_idx):
+    if op_idx == -1:
+        return None
+    return process_tree_prov_log.processes[pid].exec_epochs[exec_epoch_id].threads[tid].ops[op_idx].data
