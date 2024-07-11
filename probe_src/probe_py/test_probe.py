@@ -21,10 +21,7 @@ def test_diff_cmd():
     reserved_file_descriptors = [0, 1, 2]
     dfs_edges = list(nx.dfs_edges(process_graph))
     for edge in dfs_edges:
-        curr_pid = edge[0][0]
-        curr_epoch_idx = edge[0][1]
-        curr_tid = edge[0][2]
-        curr_op_idx = edge[0][3]
+        curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
         curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.fd)
@@ -216,7 +213,7 @@ def test_pthreads():
     assert len(pthreads_cloned) == 0
 
 def execute_command(command, return_code=0):
-    input: pathlib.Path = pathlib.Path("probe_log")
+    input = pathlib.Path("probe_log")
     with pytest.raises(typer.Exit) as excinfo:
         record(command, False, False, False,input)
     assert excinfo.value.exit_code == return_code
