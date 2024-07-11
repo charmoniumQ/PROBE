@@ -59,6 +59,7 @@ def test_bash_in_bash():
     dfs_edges = list(nx.dfs_edges(process_graph))
     parent_process_id = dfs_edges[0][0][0]
     process_file_map[paths[len(paths)-1]] = parent_process_id
+    check_wait_and_clone(dfs_edges, process_tree_prov_log, len(paths)-1)
     for edge in dfs_edges:
         curr_op_idx = edge[0][3]
         curr_epoch_idx = edge[0][1]
@@ -123,13 +124,15 @@ def test_bash_in_bash_pipe():
     
     parent_process_id = dfs_edges[0][0][0]
 
+    check_wait_and_clone(dfs_edges, process_tree_prov_log, len(paths))
+    
     for edge in dfs_edges:
         curr_op_idx = edge[0][3]
         curr_epoch_idx = edge[0][1]
         curr_pid = edge[0][0]
         curr_tid = edge[0][2]
         
-        curr_node_op =   get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.fd)
             path = curr_node_op.path.path
@@ -175,10 +178,7 @@ def test_bash_in_bash_pipe():
                 assert process_file_map['stdout'] == curr_pid
                 check_child_processes.remove(curr_pid)
 
-    # number of clone operations is number of commands-1
-    assert current_child_process == len(paths)
     assert len(file_descriptors) == 0
-    assert len(check_wait) == 0
     assert len(process_file_map.items()) == len(paths)
     assert len(check_child_processes) == 0 
         
@@ -190,28 +190,8 @@ def test_pthreads():
     dfs_edges = list(nx.dfs_edges(process_graph))
     pthreads_cloned = []
     total_pthreads = 5
-    for edge in dfs_edges:
-        curr_op_idx = edge[0][3]
-        curr_epoch_idx = edge[0][1]
-        curr_pid = edge[0][0]
-        curr_tid = edge[0][2]
-        curr_node_op =  get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-       
-        if isinstance(curr_node_op,parse_probe_log.CloneOp):
-            if edge[1][3] == -1:
-                continue
-            pthreads_cloned.append(curr_node_op.task_id)
-            total_pthreads-=1
-        elif isinstance(curr_node_op,parse_probe_log.WaitOp):
-            assert curr_node_op.task_type == parse_probe_log.TaskType.TASK_PTHREAD
-            assert curr_node_op.task_id in pthreads_cloned
-            pthreads_cloned.remove(curr_node_op.task_id)
-
-    # ensure the CloneOp for every pthread
-    assert total_pthreads == 0
-    # ensure waitOP for every pthread
-    assert len(pthreads_cloned) == 0
-
+    check_wait_and_clone(dfs_edges, process_tree_prov_log, total_pthreads)
+    
 def execute_command(command, return_code=0):
     input = pathlib.Path("probe_log")
     with pytest.raises(typer.Exit) as excinfo:
@@ -223,6 +203,46 @@ def execute_command(command, return_code=0):
     process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
     return process_tree_prov_log
+
+
+# TO DO Common Functions
+ # to ensure the child process has ExecOp, OpenOp and CloseOp
+    # check_child_processes = []
+# to check open and close match
+# to check thread touch the right file
+
+def check_wait_and_clone(dfs_edges, process_tree_prov_log, number_of_child_process):
+    check_wait = []
+    # to ensure right number of child processes are created
+    current_child_process = 0
+
+    for edge in dfs_edges:
+        curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
+        
+        curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        if(isinstance(curr_node_op,parse_probe_log.CloneOp)):
+            next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
+            if isinstance(next_op,parse_probe_log.ExecOp):
+                assert edge[1][0] == curr_node_op.task_id
+                continue
+            if isinstance(next_op,parse_probe_log.CloseOp) and edge[0][0]!=edge[1][0]:
+                assert edge[1][0] == curr_node_op.task_id
+                continue
+            if edge[1][3] == -1:
+                continue
+            current_child_process+=1
+            check_wait.append(curr_node_op.task_id)
+        elif(isinstance(curr_node_op,parse_probe_log.WaitOp)):
+            ret_pid = curr_node_op.task_id
+            wait_option = curr_node_op.options
+            if wait_option == 0:
+                assert ret_pid in check_wait
+                check_wait.remove(ret_pid)
+
+    # check number of cloneOps
+    assert current_child_process == number_of_child_process
+    # check if every cloneOp has a WaitOp
+    assert len(check_wait) == 0
 
 def get_op_from_provlog(process_tree_prov_log,pid,exec_epoch_id,tid,op_idx):
     if op_idx == -1:
