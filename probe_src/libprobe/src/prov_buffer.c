@@ -7,6 +7,30 @@ static void prov_log_save() {
 
 static void prov_log_record(struct Op op);
 
+bool op_is_read(struct Op op) {
+    return (op.op_code == open_op_code && (op.data.flags & O_RDONLY || op.data.flags & O_RDWR))
+        || op.op_code == exec_op_code
+        || op.op_code == readdir_op_code
+        || op.op_code == read_link_op_code;
+}
+
+bool op_is_write(struct Op op) {
+    return op.op_code == open_op_code && (op.data.flags & O_WRONLY || op.data.flags & O_RDWR);
+}
+
+bool op_is_overwrite(struct Op op) {
+    /* TODO: Double check flags here */
+    return op.op_code == open_op_code && (op.data.flags & O_TRUNC || op.data.flags & O_CREAT);
+}
+
+bool op_is_metadata_read(struct Op op) {
+    return op.op_code == access_op_code || op.op_code == stat_op_code;
+}
+
+bool op_is_write(struct Op op) {
+    return op.op_code == open_op_code && (op.data.flags & O_WRONLY || op.data.flags & O_RDWR);
+}
+
 /*
  * Call this to indicate that the process is about to do some op.
  * The values of the op that are not known before executing the call
@@ -20,6 +44,26 @@ static void prov_log_try(struct Op op) {
     }
     if (op.op_code == exec_op_code) {
         prov_log_record(op);
+    }
+
+    struct Path* path = op_to_path(op);
+    if (path->path) {
+        if (false) {
+        } else if (op_is_read(op)) {
+            put_if_not_exists(read_inodes, path);
+        } else if (op_is_write(op)) {
+            if (contains(read_inodes, path) && put_if_not_exists(copied_or_overwritten_inodes, path)) {
+                copy(inode);
+            } else if (op_is_overwrite(op)) {
+                put_if_not_exists(copied_or_overwritten_inodes, path);
+            }
+        } else if (op_is_metadata_read(op)) {
+            put_if_not_exists(metadata_read_inodes, path);
+        } else if (op_is_metadata_write(op)) {
+            if (contains(read_metadata_inodes, path) && put_if_not_exists(copied_or_overwritten_metadata_inodes, path)) {
+                copy_metadata(path);
+            }
+        }
     }
 }
 
