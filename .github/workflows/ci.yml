@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Nix
+      uses: cachix/install-nix-action@v14
+      with:
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+
+    - name: Run Nix development shell
+      run: nix develop --command just format-nix
+
+    - name: Format Python code with Black
+      run: nix develop --command just format-python
+
+    - name: Check Python code with Ruff
+      run: nix develop --command just check-ruff
+
+    - name: Check Python code with Mypy
+      run: nix develop --command just check-mypy
+
+    - name: Run tests
+      run: nix develop --command just test
+
+    - name: Run developer tests
+      if: github.event_name == 'push' && github.event.head_commit.message == 'run dev tests'
+      run: nix develop --command just test-dev
+
