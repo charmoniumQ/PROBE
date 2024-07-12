@@ -11,8 +11,8 @@ check-mypy:
     (cd probe_src && mypy --package probe_py --strict)
 
 test:
-    pytest probe_src/probe_py
+    python -m pytest probe_src/probe_py
 
 test-dev:
-    pytest probe_src/probe_py --failed-first --maxfail=1
+    python -m pytest probe_src/probe_py --failed-first --maxfail=1
 
