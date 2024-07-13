@@ -45,10 +45,8 @@
                 ]))
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
                 pkgs.gcc
-                pkgs.gdb
                 pkgs.coreutils
                 pkgs.bash
-                pkgs.xdot
                 pkgs.alejandra
                 pkgs.hyperfine
               ]
