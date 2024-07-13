@@ -115,8 +115,8 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             for tid, thread in exec_epoch.threads.items():
-                if tid != 0:
-                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
+                if tid != pid:
+                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, pid)))
 
     process_graph = nx.DiGraph()
     for node in nodes:
