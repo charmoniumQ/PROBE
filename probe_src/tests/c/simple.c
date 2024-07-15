@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -12,11 +11,10 @@ int main (int argc, char **argv) {
     }
     FILE* fptr = fopen(argv[1], "r");
     if (fptr == NULL) {
-        fprintf (stderr, "Could not open\n");
+        fprintf (stderr, "Could not open %s\n", argv[1]);
+        perror("open");
         exit(1);
     }
-    char* test = malloc(10);
-    free(test);
 
     #define BUFFER_SIZE 1024
     char buffer [BUFFER_SIZE];

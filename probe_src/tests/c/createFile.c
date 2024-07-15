@@ -106,7 +106,11 @@ int main() {
         FILE* file = fopen(filename, "r");
         if (file != NULL) {
             char buffer[50];
-            fgets(buffer, 50, file);
+            char* ret = fgets(buffer, 50, file);
+            if (ret == NULL) {
+                fprintf(stderr, "Could not read %s\n", filename);
+                perror("fgets");
+            }
             printf("File /tmp/%ld.txt content: %s", t, buffer);
             fclose(file);
         } else {
