@@ -87,6 +87,8 @@
   - [ ] Unify the Arenas.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
+  - [ ] Add more Ops (see branch add-new-ops)
+- [ ] Sort dirents (see branch sort-dirents)
 - [ ] Generate a replay package.
   - [ ] Should be activated by a flag: `./PROBE record --with-replay`
   - [ ] Should copy all read files into the probe log.
