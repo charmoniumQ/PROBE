@@ -8,6 +8,7 @@
 #define BORROWED
 #define OWNED
 #define _GNU_SOURCE
+#define __asm__(x)
 #define __signed__ signed
 #include <stdint.h>
 #include <stdbool.h>
@@ -15,6 +16,8 @@
 #include <sys/stat.h>
 #include <sys/resource.h>
 #include <utime.h>
+#include <threads.h>
+#include <pthread.h>
 #endif
 
 struct Path {
@@ -204,6 +207,8 @@ struct Op {
         struct ReadLinkOp read_link;
     } data;
     struct timespec time;
+    pthread_t pthread_id;
+    thrd_t iso_c_thread_id;
 };
 
 /* We don't need this since we switched to an Arena allocator */

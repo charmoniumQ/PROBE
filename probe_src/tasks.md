@@ -2,8 +2,11 @@
   - The Rust wrapper should replace the functionality of `record` in the `./probe_py/cli.py`. It should output a language-neutral structure that can be parsed quickly later on.
   - [x] The Rust wrapper should exec the program in an environment with libprobe in `LD_PRELOAD`.
   - [x] The Rust wrapper should transcribe the C structs into a language-neutral format.
+  - [x] Split "transcribing" from "running in PROBE". We should be able to do them in two steps.
   - [ ] Parse the language-neutral format into a `ProvLogTree` in Python, replacing `./probe_py/parse_probe_log.py`.
-  - [ ] Split "transcribing" from "running in PROBE". We should be able to do them in two steps.
+  - [ ] Make sure analysis code still runs.
+  - [ ] Get GDB working.
+  - [ ] Compile statically.
 - [ ] Write end-to-end-tests. End-to-end test should verify properties of the NetworkX graph returned by `provlog_to_digraph`.
   - [ ] Check generic properties (Shofiya is working on this)
     - [ ] The file descriptor used in CloseOp is one returned by a prior OpenOp (or a special file descriptor).
@@ -30,13 +33,17 @@
     - [ ] `./PROBE ssh <args...>` will determine which arguments are arguments to SSH and which are arguments to a command, if any. Note that `ssh` can be called with or without a command, e.g., `ssh user@remote command --args` or `ssh user@remote` (user types interactively). In the latter case, we should pretend the command was `$SHELL` in the remote environment, defaulting to bash.
     - [ ] `./PROBE ssh` will then determine the architecture and OS of the remote system. If the architecture and OS does not match the local, we should raise `NotImplementedError` explaining as much.
     - [ ] `./PROBE ssh` should install `libprobe.so` or `libprobe-dbg.so` (depending on a command-line flag), if absent, to the remote at `${XDG_DATA_HOME}`, defaulting to `$HOME/.local/share` if `XDG_DATA_HOME` is unset.
-    - [ ] `./PROBE ssh` should create an empty directory.
-    - [ ] `./PROBE ssh` should run `env LD_LIBRARY_PATH=path/to/libprobe.so PROBE_DIR=path/to/blank-dir command --args` (from earlier) on the remote.
+    - [ ] `./PROBE ssh` should create an empty directory on the remote.
+    - [ ] `./PROBE ssh` should run `env LD_LIBRARY_PATH=path/to/libprobe.so PROBE_DIR=path/to/blank-dir <command> <args...>` (from earlier) on the remote.
     - [ ] `./PROBE ssh` should tar, gzip, and download the PROBE log directory to the local host for further processing. Assumme for the moment that `tar` and `gzip` exist on the remote. When the Rust wrapper is complete, we can eliminate this dependency.
+    - Think about avoiding multiple SSH sessions, and think about assumptions on the remote host.
   - [ ] Write an [SCP wrapper](https://www.wikiwand.com/en/Secure_copy_protocol). The wrapper should be a shell named `scp` that calls `./PROBE scp <args...>`. `./PROBE scp <args...>` should determine whether we are going remote->local or local->remote. It should look for provenance of the inodes of the target files on the "source" node (could be local or remote) in `${XDG_DATA_HOME:$HOME/.local/share}`. It should copy the releveant provenance tree of just those inodes to the "destination node" (either local or remote). Then it should call the "real" `scp` with the appropriate arguments.
   - [ ] Write an [Rsync wrapper](https://rsync.samba.org/), which does the same thing as the SCP wrapper. Use `--dry-run` to determine which files will be accessed.
   - [ ] Research how `mpirun` works and write a wrapper for that.
   - [ ] Research how Condor works and write a wrapper for that.
+- [ ] Think about in situ transcription and analysis
+  - Think about assumptions in analysis
+  - Think about front-end and UI/UX
 - [ ] Set up CI
   - [ ] Write [Justfiles](https://github.com/casey/just). Each of the following should be a target:
     - [ ] Format Nix code with alejandra.
@@ -73,7 +80,11 @@
   - [x] Debug why libprobe doesn't work with Python. Sam fixed this.
   - [x] Debug pthreads not making graph.
   - [x] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
-  - [ ] Debug `gcc`.
+  - [x] Debug `gcc`.
+  - [x] Add thread ID and pthread ID to op.
+  - [ ] Compile Libprobe with static Musl instead of glibc.
+  - [ ] Put magic bytes in arena
+  - [ ] Unify the Arenas.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
 - [ ] Generate a replay package.

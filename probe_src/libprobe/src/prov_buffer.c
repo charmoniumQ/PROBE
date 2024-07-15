@@ -36,6 +36,12 @@ static void prov_log_record(struct Op op) {
     if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
         EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));
     }
+    if (op.pthread_id == 0) {
+        op.pthread_id = pthread_self();
+    }
+    if (op.iso_c_thread_id == 0) {
+        op.iso_c_thread_id = thrd_current();
+    }
 
     /* TODO: we currently log ops by constructing them on the stack and copying them into the arena.
      * Ideally, we would construct them in the arena (no copy necessary).
