@@ -38,6 +38,9 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
+                if len(ops) != 0:
+                    # to mark the end of the thread, edge from last op to (pid, -1, tid, -1)
+                    program_order_edges.append((proc_to_ops[(pid, exec_epoch_no, tid)][-1], (pid, -1, tid, -1)))
 
     def first(pid: int, exid: int, tid: int) -> Node:
         if not proc_to_ops.get((pid, exid, tid)):
