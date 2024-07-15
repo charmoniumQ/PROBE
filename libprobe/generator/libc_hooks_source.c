@@ -351,6 +351,7 @@ void closefrom (int lowfd) {
 int dup (int old) { }
 int dup2 (int old, int new) { }
 
+/* TODO: Search to see if there is are special values of new. */
 /* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
 int dup3 (int old, int new, int flags) { }
 
