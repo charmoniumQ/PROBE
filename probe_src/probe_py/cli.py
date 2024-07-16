@@ -125,4 +125,6 @@ def dump(
                     print(op.data)
                 print()
 
-app()
+if __name__ == "__main__":
+    app()
+
