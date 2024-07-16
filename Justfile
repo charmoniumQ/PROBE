@@ -16,3 +16,5 @@ test:
 test-dev:
     python -m pytest probe_src/probe_py --failed-first --maxfail=1
 
+flake-check:
+    nix flake check --all-systems
