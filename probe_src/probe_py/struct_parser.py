@@ -239,6 +239,7 @@ def parse_struct_or_union(
         struct_decl: pycparser.c_ast.Struct | pycparser.c_ast.Union,
         name: str,
 ) -> None:
+    assert name is not None
     assert isinstance(struct_decl, (pycparser.c_ast.Struct, pycparser.c_ast.Union))
     is_struct = isinstance(struct_decl, pycparser.c_ast.Struct)
     field_names = [
@@ -279,12 +280,17 @@ def parse_struct_or_union(
         c_types[(keyword, name)] = c_type_error
 
 
+ENUM_NO = 0
 def parse_enum(
         c_types: CTypeDict,
         py_types: PyTypeDict,
         enum_decl: pycparser.c_ast.Enum,
         name: str,
 ) -> None:
+    if name is None:
+        global ENUM_NO
+        name = f"__anon_enum_{ENUM_NO}"
+        ENUM_NO += 1
     assert isinstance(enum_decl, pycparser.c_ast.Enum)
     c_types[("enum", name)] = c_types[("unsigned",)]
     py_enum_fields = list[tuple[str, int]]()

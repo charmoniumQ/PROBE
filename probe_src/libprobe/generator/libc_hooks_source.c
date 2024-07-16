@@ -60,6 +60,8 @@ FILE * fopen (const char *filename, const char *opentype) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -90,11 +92,15 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         struct Op close_op = {
             close_op_code,
             {.close = {original_fd, original_fd, 0}},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(open_op);
@@ -125,6 +131,8 @@ int fclose (FILE *stream) {
             close_op_code,
             {.close = {fd, fd, 0}},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -143,6 +151,8 @@ int fcloseall(void) {
             close_op_code,
             {.close = {0, INT_MAX, 0}},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -174,6 +184,8 @@ int openat(int dirfd, const char *filename, int flags, ...) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
@@ -217,6 +229,8 @@ int open (const char *filename, int flags, ...) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             if (has_mode_arg) {
@@ -253,6 +267,8 @@ int creat (const char *filename, mode_t mode) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -273,6 +289,8 @@ int close (int filedes) {
             close_op_code,
             {.close = {filedes, filedes, 0}},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -294,6 +312,8 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
             close_op_code,
             {.close = {lowfd, maxfd, 0}},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -312,6 +332,8 @@ void closefrom (int lowfd) {
             close_op_code,
             {.close = {lowfd, INT_MAX, 0}},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -363,6 +385,8 @@ int chdir (const char *filename) {
                 .ferrno = 0
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -384,6 +408,8 @@ int fchdir (int filedes) {
                 .ferrno = 0
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -411,6 +437,8 @@ DIR * opendir (const char *dirname) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -437,6 +465,8 @@ DIR * fdopendir (int fd) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -465,6 +495,8 @@ struct dirent * readdir (DIR *dirstream) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -496,6 +528,8 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -527,6 +561,8 @@ struct dirent64 * readdir64 (DIR *dirstream) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -558,6 +594,8 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -584,6 +622,8 @@ int closedir (DIR *dirstream) {
             close_op_code,
             {.close = {fd, fd, 0}},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -613,6 +653,8 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -637,6 +679,8 @@ int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (co
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -666,6 +710,8 @@ int scandirat(int dirfd, const char *restrict dirp,
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -692,6 +738,8 @@ ssize_t getdents64 (int fd, void *buffer, size_t length) {
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -719,6 +767,8 @@ int ftw (const char *filename, __ftw_func_t func, int descriptors) {
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -743,6 +793,8 @@ int ftw64 (const char *filename, __ftw64_func_t func, int descriptors) {
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -767,6 +819,8 @@ int nftw (const char *filename, __nftw_func_t func, int descriptors, int flag) {
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -791,6 +845,8 @@ int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int fla
                 .all_children = true,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -847,6 +903,8 @@ int stat (const char *filename, struct stat *buf) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -874,6 +932,8 @@ int stat64 (const char *filename, struct stat64 *buf) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -901,6 +961,8 @@ int fstat (int filedes, struct stat *buf) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -928,6 +990,8 @@ int fstat64 (int filedes, struct stat64 * restrict buf) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -955,6 +1019,8 @@ int lstat (const char *filename, struct stat *buf) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -982,6 +1048,8 @@ int lstat64 (const char *filename, struct stat64 *buf) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1011,6 +1079,8 @@ int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1040,6 +1110,8 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1068,6 +1140,8 @@ int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf,
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1104,6 +1178,8 @@ int chown (const char *filename, uid_t owner, gid_t group) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1135,6 +1211,8 @@ int fchown (int filedes, uid_t owner, gid_t group) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1168,6 +1246,8 @@ int lchown(const char *pathname, uid_t owner, gid_t group) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1199,6 +1279,8 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1230,6 +1312,8 @@ int chmod (const char *filename, mode_t mode) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1258,6 +1342,8 @@ int fchmod (int filedes, mode_t mode) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1288,6 +1374,8 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1312,6 +1400,8 @@ int access (const char *filename, int how) {
                 create_path_lazy(AT_FDCWD, filename, 0), how, 0, 0}
             },
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1337,6 +1427,8 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1363,6 +1455,8 @@ int utime (const char *filename, const struct utimbuf *times) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (times) {
             op.data.update_metadata.value.times.is_null = false;
@@ -1396,6 +1490,8 @@ int utimes (const char *filename, const struct timeval tvp[2]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (tvp) {
             op.data.update_metadata.value.times.is_null = false;
@@ -1429,6 +1525,8 @@ int lutimes (const char *filename, const struct timeval tvp[2]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (tvp) {
             op.data.update_metadata.value.times.is_null = false;
@@ -1462,6 +1560,8 @@ int futimes (int fd, const struct timeval tvp[2]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (tvp) {
             op.data.update_metadata.value.times.is_null = false;
@@ -1515,6 +1615,8 @@ int execv (const char *filename, char *const argv[]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1556,6 +1658,8 @@ int execl (const char *filename, const char *arg0, ...) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1583,6 +1687,8 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1611,6 +1717,8 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1637,6 +1745,8 @@ int execle (const char *filename, const char *arg0, ...) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1684,6 +1794,8 @@ int execvp (const char *filename, char *const argv[]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1716,6 +1828,8 @@ int execlp (const char *filename, const char *arg0, ...) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1749,6 +1863,8 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1784,6 +1900,8 @@ pid_t fork (void) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1823,6 +1941,8 @@ pid_t _Fork (void) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1893,6 +2013,8 @@ pid_t vfork (void) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1953,6 +2075,8 @@ int clone(
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
@@ -1991,6 +2115,10 @@ int clone(
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Process-Completion.html */
 pid_t waitpid (pid_t pid, int *status_ptr, int options) {
     void* pre_call = ({
+        int status;
+        if (status_ptr == NULL) {
+            status_ptr = &status;
+        }
         struct Op op = {
             wait_op_code,
             {.wait = {
@@ -2001,6 +2129,8 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         prov_log_try(op);
     });
@@ -2018,6 +2148,10 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
 }
 pid_t wait (int *status_ptr) {
     void* pre_call = ({
+        int status;
+        if (status_ptr == NULL) {
+            status_ptr = &status;
+        }
         struct Op op = {
             wait_op_code,
             {.wait = {
@@ -2028,6 +2162,8 @@ pid_t wait (int *status_ptr) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         prov_log_try(op);
     });
@@ -2055,6 +2191,8 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         prov_log_try(wait_op);
         struct Op getrusage_op = {
@@ -2066,6 +2204,8 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (usage) {
             prov_log_try(getrusage_op);
@@ -2106,6 +2246,8 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         prov_log_try(wait_op);
         struct Op getrusage_op = {
@@ -2117,6 +2259,8 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         if (usage) {
             prov_log_try(getrusage_op);
@@ -2157,6 +2301,8 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
         prov_log_try(wait_op);
     });
@@ -2186,6 +2332,8 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
     });
     void* post_call = ({
@@ -2217,6 +2365,8 @@ int thrd_join (thrd_t thr, int *res) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
     });
     void* post_call = ({
@@ -2252,6 +2402,8 @@ int pthread_create(pthread_t *restrict thread,
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
     });
     void* post_call = ({
@@ -2283,6 +2435,8 @@ int pthread_join(pthread_t thread, void **retval) {
                 .ferrno = 0,
             }},
             {0},
+            0,
+            0,
         };
     });
     void* post_call = ({

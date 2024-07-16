@@ -1,6 +1,6 @@
 import typing
 import networkx as nx
-from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, CLONE_THREAD
+from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp ,CLONE_THREAD
 from enum import IntEnum
 
 class EdgeLabels(IntEnum):
@@ -38,6 +38,9 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
+                if len(ops) != 0:
+                    # to mark the end of the thread, edge from last op to (pid, -1, tid, -1)
+                    program_order_edges.append((proc_to_ops[(pid, exec_epoch_no, tid)][-1], (pid, -1, tid, -1)))
 
     def first(pid: int, exid: int, tid: int) -> Node:
         if not proc_to_ops.get((pid, exid, tid)):
@@ -66,16 +69,16 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
         if isinstance(op, CloneOp):
             if op.flags & CLONE_THREAD:
                 # Spawning a thread links to the current PID and exec epoch
-                target = (pid, exid, op.child_thread_id)
+                target = (pid, exid, op.task_id)
             else:
                 # New process always links to exec epoch 0 and main thread
                 # THe TID of the main thread is the same as the PID
-                target = (op.child_process_id, 0, op.child_process_id)
+                target = (op.task_id, 0, op.task_id)
             exec_edges.append((node, first(*target)))
-        elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
+        elif isinstance(op, WaitOp) and op.ferrno == 0 and op.task_id > 0:
             # Always wait for main thread of the last exec epoch
             if op.ferrno == 0:
-                target = (op.ret, last_exec_epoch.get(op.ret, 0), op.ret)
+                target = (op.task_id, last_exec_epoch.get(op.task_id, 0), op.task_id)
                 fork_join_edges.append((last(*target), node))
         elif isinstance(op, ExecOp):
             # Exec brings same pid, incremented exid, and main thread

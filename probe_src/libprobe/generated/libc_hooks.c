@@ -114,7 +114,7 @@ void init_function_pointers()
 FILE * fopen(const char *filename, const char *opentype)
 {
   maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -141,8 +141,8 @@ FILE * freopen(const char *filename, const char *opentype, FILE *stream)
 {
   maybe_init_thread();
   int original_fd = fileno(stream);
-  struct Op open_op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
-  struct Op close_op = {close_op_code, {.close = {original_fd, original_fd, 0}}, {0}};
+  struct Op open_op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
+  struct Op close_op = {close_op_code, {.close = {original_fd, original_fd, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(open_op);
@@ -172,7 +172,7 @@ int fclose(FILE *stream)
 {
   maybe_init_thread();
   int fd = fileno(stream);
-  struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}};
+  struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -191,7 +191,7 @@ int fclose(FILE *stream)
 int fcloseall()
 {
   maybe_init_thread();
-  struct Op op = {close_op_code, {.close = {0, INT_MAX, 0}}, {0}};
+  struct Op op = {close_op_code, {.close = {0, INT_MAX, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -211,7 +211,7 @@ int openat(int dirfd, const char *filename, int flags, ...)
 {
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     if (has_mode_arg)
@@ -240,7 +240,7 @@ int open(const char *filename, int flags, ...)
 {
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     if (has_mode_arg)
@@ -268,7 +268,7 @@ int open(const char *filename, int flags, ...)
 int creat(const char *filename, mode_t mode)
 {
   maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -288,7 +288,7 @@ int creat(const char *filename, mode_t mode)
 int close(int filedes)
 {
   maybe_init_thread();
-  struct Op op = {close_op_code, {.close = {filedes, filedes, 0}}, {0}};
+  struct Op op = {close_op_code, {.close = {filedes, filedes, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -311,7 +311,7 @@ int close_range(unsigned int lowfd, unsigned int maxfd, int flags)
   {
     NOT_IMPLEMENTED("I don't know how to handle close_rnage flags yet");
   }
-  struct Op op = {close_op_code, {.close = {lowfd, maxfd, 0}}, {0}};
+  struct Op op = {close_op_code, {.close = {lowfd, maxfd, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -330,7 +330,7 @@ int close_range(unsigned int lowfd, unsigned int maxfd, int flags)
 void closefrom(int lowfd)
 {
   maybe_init_thread();
-  struct Op op = {close_op_code, {.close = {lowfd, INT_MAX, 0}}, {0}};
+  struct Op op = {close_op_code, {.close = {lowfd, INT_MAX, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -379,7 +379,7 @@ int fcntl(int filedes, int command, ...)
 int chdir(const char *filename)
 {
   maybe_init_thread();
-  struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(AT_FDCWD, filename, 0), .ferrno = 0}}, {0}};
+  struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(AT_FDCWD, filename, 0), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -398,7 +398,7 @@ int chdir(const char *filename)
 int fchdir(int filedes)
 {
   maybe_init_thread();
-  struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .ferrno = 0}}, {0}};
+  struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -417,7 +417,7 @@ int fchdir(int filedes)
 DIR * opendir(const char *dirname)
 {
   maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, dirname, 0), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, dirname, 0), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -437,7 +437,7 @@ DIR * opendir(const char *dirname)
 DIR * fdopendir(int fd)
 {
   maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -458,7 +458,7 @@ struct dirent * readdir(DIR *dirstream)
 {
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -485,7 +485,7 @@ int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
 {
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -512,7 +512,7 @@ struct dirent64 * readdir64(DIR *dirstream)
 {
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -539,7 +539,7 @@ int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result
 {
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -566,7 +566,7 @@ int closedir(DIR *dirstream)
 {
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
-  struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}};
+  struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -604,7 +604,7 @@ void seekdir(DIR *dirstream, long int pos)
 int scandir(const char *dir, struct dirent ***namelist, int (*selector)(const struct dirent *), int (*cmp)(const struct dirent **, const struct dirent **))
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir, 0), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -626,7 +626,7 @@ int scandir(const char *dir, struct dirent ***namelist, int (*selector)(const st
 int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(const struct dirent64 *), int (*cmp)(const struct dirent64 **, const struct dirent64 **))
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir, 0), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -648,7 +648,7 @@ int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(cons
 int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict namelist, int (*filter)(const struct dirent *), int (*compar)(const struct dirent **, const struct dirent **))
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(dirfd, dirp, 0), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(dirfd, dirp, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -670,7 +670,7 @@ int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict 
 ssize_t getdents64(int fd, void *buffer, size_t length)
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -692,7 +692,7 @@ ssize_t getdents64(int fd, void *buffer, size_t length)
 int ftw(const char *filename, __ftw_func_t func, int descriptors)
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -714,7 +714,7 @@ int ftw(const char *filename, __ftw_func_t func, int descriptors)
 int ftw64(const char *filename, __ftw64_func_t func, int descriptors)
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -736,7 +736,7 @@ int ftw64(const char *filename, __ftw64_func_t func, int descriptors)
 int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -758,7 +758,7 @@ int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
 int nftw64(const char *filename, __nftw64_func_t func, int descriptors, int flag)
 {
   maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}};
+  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -878,7 +878,7 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode)
 int stat(const char *filename, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -904,7 +904,7 @@ int stat(const char *filename, struct stat *buf)
 int stat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -930,7 +930,7 @@ int stat64(const char *filename, struct stat64 *buf)
 int fstat(int filedes, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -956,7 +956,7 @@ int fstat(int filedes, struct stat *buf)
 int fstat64(int filedes, struct stat64 * restrict buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -982,7 +982,7 @@ int fstat64(int filedes, struct stat64 * restrict buf)
 int lstat(const char *filename, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1008,7 +1008,7 @@ int lstat(const char *filename, struct stat *buf)
 int lstat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1034,7 +1034,7 @@ int lstat64(const char *filename, struct stat64 *buf)
 int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mask, struct statx * restrict statxbuf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1060,7 +1060,7 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
 int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1086,7 +1086,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, int flags)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1112,7 +1112,7 @@ int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, 
 int chown(const char *filename, uid_t owner, gid_t group)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1134,7 +1134,7 @@ int chown(const char *filename, uid_t owner, gid_t group)
 int fchown(int filedes, uid_t owner, gid_t group)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1156,7 +1156,7 @@ int fchown(int filedes, uid_t owner, gid_t group)
 int lchown(const char *pathname, uid_t owner, gid_t group)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, pathname, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, pathname, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1178,7 +1178,7 @@ int lchown(const char *pathname, uid_t owner, gid_t group)
 int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1200,7 +1200,7 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
 int chmod(const char *filename, mode_t mode)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1222,7 +1222,7 @@ int chmod(const char *filename, mode_t mode)
 int fchmod(int filedes, mode_t mode)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1244,7 +1244,7 @@ int fchmod(int filedes, mode_t mode)
 int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1266,7 +1266,7 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
 int access(const char *filename, int how)
 {
   maybe_init_thread();
-  struct Op op = {access_op_code, {.access = {create_path_lazy(AT_FDCWD, filename, 0), how, 0, 0}}, {0}};
+  struct Op op = {access_op_code, {.access = {create_path_lazy(AT_FDCWD, filename, 0), how, 0, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1285,7 +1285,7 @@ int access(const char *filename, int how)
 int faccessat(int dirfd, const char *pathname, int mode, int flags)
 {
   maybe_init_thread();
-  struct Op op = {access_op_code, {.access = {.path = create_path_lazy(dirfd, pathname, 0), .mode = mode, .flags = flags, .ferrno = 0}}, {0}};
+  struct Op op = {access_op_code, {.access = {.path = create_path_lazy(dirfd, pathname, 0), .mode = mode, .flags = flags, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1304,7 +1304,7 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags)
 int utime(const char *filename, const struct utimbuf *times)
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (times)
   {
     op.data.update_metadata.value.times.is_null = false;
@@ -1336,7 +1336,7 @@ int utime(const char *filename, const struct utimbuf *times)
 int utimes(const char *filename, const struct timeval tvp[2])
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (tvp)
   {
     op.data.update_metadata.value.times.is_null = false;
@@ -1368,7 +1368,7 @@ int utimes(const char *filename, const struct timeval tvp[2])
 int lutimes(const char *filename, const struct timeval tvp[2])
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (tvp)
   {
     op.data.update_metadata.value.times.is_null = false;
@@ -1400,7 +1400,7 @@ int lutimes(const char *filename, const struct timeval tvp[2])
 int futimes(int fd, const struct timeval tvp[2])
 {
   maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}};
+  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (tvp)
   {
     op.data.update_metadata.value.times.is_null = false;
@@ -1524,7 +1524,7 @@ int execv(const char *filename, char * const argv[])
 {
   maybe_init_thread();
   putenv_probe_vars();
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1550,7 +1550,7 @@ int execl(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
   putenv_probe_vars();
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1577,7 +1577,7 @@ int execve(const char *filename, char * const argv[], char * const env[])
 {
   maybe_init_thread();
   env = update_env_with_probe_vars(env);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1605,7 +1605,7 @@ int fexecve(int fd, char * const argv[], char * const env[])
 {
   maybe_init_thread();
   env = update_env_with_probe_vars(env);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1631,7 +1631,7 @@ int fexecve(int fd, char * const argv[], char * const env[])
 int execle(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1673,7 +1673,7 @@ int execvp(const char *filename, char * const argv[])
   putenv_probe_vars();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1701,7 +1701,7 @@ int execlp(const char *filename, const char *arg0, ...)
   putenv_probe_vars();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1730,7 +1730,7 @@ int execvpe(const char *filename, char * const argv[], char * const envp[])
   envp = update_env_with_probe_vars(envp);
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}};
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1756,7 +1756,7 @@ int execvpe(const char *filename, char * const argv[], char * const envp[])
 pid_t fork()
 {
   maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = -1, .ferrno = 0}}, {0}};
+  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1793,7 +1793,7 @@ pid_t fork()
 pid_t _Fork()
 {
   maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = false, .task_type = TASK_PID, .task_id = 0, .ferrno = 0}}, {0}};
+  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = false, .task_type = TASK_PID, .task_id = 0, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1830,7 +1830,7 @@ pid_t _Fork()
 pid_t vfork()
 {
   maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = 0, .ferrno = 0}}, {0}};
+  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = 0, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1871,7 +1871,7 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
   (void) stack;
   (void) arg;
   flags = flags & (~CLONE_VFORK);
-  struct Op op = {clone_op_code, {.clone = {.flags = flags, .run_pthread_atfork_handlers = false, .task_type = (flags & CLONE_THREAD) ? (TASK_TID) : (TASK_PID), .task_id = 0, .ferrno = 0}}, {0}};
+  struct Op op = {clone_op_code, {.clone = {.flags = flags, .run_pthread_atfork_handlers = false, .task_type = (flags & CLONE_THREAD) ? (TASK_TID) : (TASK_PID), .task_id = 0, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1923,7 +1923,12 @@ int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
 pid_t waitpid(pid_t pid, int *status_ptr, int options)
 {
   maybe_init_thread();
-  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}};
+  int status;
+  if (status_ptr == NULL)
+  {
+    status_ptr = &status;
+  }
+  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(op);
   pid_t ret = unwrapped_waitpid(pid, status_ptr, options);
   int saved_errno = errno;
@@ -1947,7 +1952,12 @@ pid_t waitpid(pid_t pid, int *status_ptr, int options)
 pid_t wait(int *status_ptr)
 {
   maybe_init_thread();
-  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_PID, .task_id = -1, .options = 0, .status = 0, .ferrno = 0}}, {0}};
+  int status;
+  if (status_ptr == NULL)
+  {
+    status_ptr = &status;
+  }
+  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_PID, .task_id = -1, .options = 0, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(op);
   pid_t ret = unwrapped_wait(status_ptr);
   int saved_errno = errno;
@@ -1971,9 +1981,9 @@ pid_t wait(int *status_ptr)
 pid_t wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
 {
   maybe_init_thread();
-  struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}};
+  struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
-  struct Op getrusage_op = {getrusage_op_code, {.getrusage = {.waitpid_arg = pid, .getrusage_arg = 0, .usage = {{0}}, .ferrno = 0}}, {0}};
+  struct Op getrusage_op = {getrusage_op_code, {.getrusage = {.waitpid_arg = pid, .getrusage_arg = 0, .usage = {{0}}, .ferrno = 0}}, {0}, 0, 0};
   if (usage)
   {
     prov_log_try(getrusage_op);
@@ -2012,9 +2022,9 @@ pid_t wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
 pid_t wait3(int *status_ptr, int options, struct rusage *usage)
 {
   maybe_init_thread();
-  struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_PID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}};
+  struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_PID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
-  struct Op getrusage_op = {getrusage_op_code, {.getrusage = {.waitpid_arg = -1, .getrusage_arg = 0, .usage = {{0}}, .ferrno = 0}}, {0}};
+  struct Op getrusage_op = {getrusage_op_code, {.getrusage = {.waitpid_arg = -1, .getrusage_arg = 0, .usage = {{0}}, .ferrno = 0}}, {0}, 0, 0};
   if (usage)
   {
     prov_log_try(getrusage_op);
@@ -2053,7 +2063,7 @@ pid_t wait3(int *status_ptr, int options, struct rusage *usage)
 int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
   maybe_init_thread();
-  struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}};
+  struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
   int ret = unwrapped_waitid(idtype, id, infop, options);
   int saved_errno = errno;
@@ -2077,7 +2087,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 int thrd_create(thrd_t *thr, thrd_start_t func, void *arg)
 {
   maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = (((((CLONE_FILES | CLONE_FS) | CLONE_IO) | CLONE_PARENT) | CLONE_SIGHAND) | CLONE_THREAD) | CLONE_VM, .task_type = TASK_ISO_C_THREAD, .task_id = 0, .run_pthread_atfork_handlers = false, .ferrno = 0}}, {0}};
+  struct Op op = {clone_op_code, {.clone = {.flags = (((((CLONE_FILES | CLONE_FS) | CLONE_IO) | CLONE_PARENT) | CLONE_SIGHAND) | CLONE_THREAD) | CLONE_VM, .task_type = TASK_ISO_C_THREAD, .task_id = 0, .run_pthread_atfork_handlers = false, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_thrd_create(thr, func, arg);
   int saved_errno = errno;
   if (unlikely(ret != thrd_success))
@@ -2103,7 +2113,7 @@ int thrd_create(thrd_t *thr, thrd_start_t func, void *arg)
 int thrd_join(thrd_t thr, int *res)
 {
   maybe_init_thread();
-  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_ISO_C_THREAD, .task_id = thr, .options = 0, .status = 0, .ferrno = 0}}, {0}};
+  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_ISO_C_THREAD, .task_id = thr, .options = 0, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_thrd_join(thr, res);
   int saved_errno = errno;
   if (unlikely(ret != thrd_success))
@@ -2129,7 +2139,7 @@ int thrd_join(thrd_t thr, int *res)
 int pthread_create(pthread_t * restrict thread, const pthread_attr_t * restrict attr, void *(*start_routine)(void *), void * restrict arg)
 {
   maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = (((((CLONE_FILES | CLONE_FS) | CLONE_IO) | CLONE_PARENT) | CLONE_SIGHAND) | CLONE_THREAD) | CLONE_VM, .task_type = TASK_PTHREAD, .task_id = 0, .run_pthread_atfork_handlers = false, .ferrno = 0}}, {0}};
+  struct Op op = {clone_op_code, {.clone = {.flags = (((((CLONE_FILES | CLONE_FS) | CLONE_IO) | CLONE_PARENT) | CLONE_SIGHAND) | CLONE_THREAD) | CLONE_VM, .task_type = TASK_PTHREAD, .task_id = 0, .run_pthread_atfork_handlers = false, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_pthread_create(thread, attr, start_routine, arg);
   int saved_errno = errno;
   if (unlikely(ret != 0))
@@ -2155,7 +2165,7 @@ int pthread_create(pthread_t * restrict thread, const pthread_attr_t * restrict 
 int pthread_join(pthread_t thread, void **retval)
 {
   maybe_init_thread();
-  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_PTHREAD, .task_id = thread, .options = 0, .status = 0, .ferrno = 0}}, {0}};
+  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_PTHREAD, .task_id = thread, .options = 0, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_pthread_join(thread, retval);
   int saved_errno = errno;
   if (unlikely(ret != 0))
@@ -2180,7 +2190,7 @@ int pthread_join(pthread_t thread, void **retval)
 FILE * fopen64(const char *filename, const char *opentype)
 {
   maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -2207,8 +2217,8 @@ FILE * freopen64(const char *filename, const char *opentype, FILE *stream)
 {
   maybe_init_thread();
   int original_fd = fileno(stream);
-  struct Op open_op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
-  struct Op close_op = {close_op_code, {.close = {original_fd, original_fd, 0}}, {0}};
+  struct Op open_op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
+  struct Op close_op = {close_op_code, {.close = {original_fd, original_fd, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(open_op);
@@ -2238,7 +2248,7 @@ int openat64(int dirfd, const char *filename, int flags, ...)
 {
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     if (has_mode_arg)
@@ -2267,7 +2277,7 @@ int open64(const char *filename, int flags, ...)
 {
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     if (has_mode_arg)
@@ -2295,7 +2305,7 @@ int open64(const char *filename, int flags, ...)
 int create64(const char *filename, mode_t mode)
 {
   maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}};
+  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);

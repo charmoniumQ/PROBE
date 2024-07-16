@@ -117,6 +117,8 @@ static void maybe_init_thread() {
                 init_exec_epoch_op_code,
                 {.init_exec_epoch = init_current_exec_epoch()},
                 {0},
+                0,
+                0,
             };
             prov_log_try(op);
             prov_log_record(op);
@@ -126,6 +128,8 @@ static void maybe_init_thread() {
             init_thread_op_code,
             {.init_thread = init_current_thread()},
             {0},
+            0,
+            0,
         };
         prov_log_try(op);
         prov_log_record(op);
@@ -146,6 +150,8 @@ static void reinit_process() {
         init_exec_epoch_op_code,
         {.init_exec_epoch = init_current_exec_epoch()},
         {0},
+        0,
+        0,
     };
     prov_log_try(init_exec_op);
     prov_log_record(init_exec_op);
@@ -153,6 +159,8 @@ static void reinit_process() {
         init_thread_op_code,
         {.init_thread = init_current_thread()},
         {0},
+        0,
+        0,
     };
     prov_log_try(init_thread_op);
     prov_log_record(init_thread_op);
