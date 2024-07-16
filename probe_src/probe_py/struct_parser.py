@@ -6,7 +6,7 @@ import dataclasses
 import enum
 import textwrap
 import typing
-import pycparser # type: ignore
+import pycparser 
 
 
 _T = typing.TypeVar("_T")
@@ -34,7 +34,7 @@ default_c_types: CTypeMap = {
     ("unsigned", "__int64"): ctypes.c_ulonglong,
     ("size_t",): ctypes.c_size_t,
     ("ssize_t",): ctypes.c_ssize_t,
-    ("time_t",): ctypes.c_time_t, # type: ignore
+    ("time_t",): ctypes.c_time_t, 
     ("float",): ctypes.c_float,
     ("double",): ctypes.c_double,
     ("long", "double",): ctypes.c_longdouble,
@@ -72,7 +72,7 @@ default_py_types: PyTypeMap = {
     ("unsigned", "__int64"): int,
     ("size_t",): int,
     ("ssize_t",): int,
-    ("time_t",): int, # type: ignore
+    ("time_t",): int, 
     ("float",): float,
     ("double",): float,
     ("long", "double",): int,
@@ -177,14 +177,14 @@ def ast_to_cpy_type(
         if isinstance(inner_c_type, Exception):
             c_type = inner_c_type
         else:
-            c_type = int_representing_pointer(inner_c_type)  # type: ignore
+            c_type = int_representing_pointer(inner_c_type)  
         if isinstance(inner_py_type, Exception):
             c_type = inner_py_type
         else:
             if inner_c_type == ctypes.c_char:
                 py_type = str
             else:
-                py_type = list[inner_py_type] # type: ignore
+                py_type = list[inner_py_type] 
         return c_type, py_type
     elif isinstance(typ, pycparser.c_ast.ArrayDecl):
         repetitions = eval_compile_time_int(c_types, py_types, typ.dim, name)
@@ -194,7 +194,7 @@ def ast_to_cpy_type(
         if isinstance(inner_c_type, Exception):
             array_c_type = inner_c_type
         else:
-            array_c_type = inner_c_type * repetitions # type: ignore
+            array_c_type = inner_c_type * repetitions 
         if isinstance(inner_py_type, Exception):
             array_py_type = inner_py_type
         else:
@@ -268,7 +268,7 @@ def parse_struct_or_union(
         zip(field_names, field_py_types),
         bases=(PyStructBase if is_struct else PyUnionBase,),
         frozen=True,
-    ) # type: ignore
+    ) 
 
     if c_type_error is None:
         c_types[(keyword, name)] = type(
@@ -355,7 +355,7 @@ def c_type_to_c_source(c_type: CType, top_level: bool = True) -> str:
             return "\n".join([
                 keyword + " " + c_type.__name__ + " " + "{",
                 *[
-                    textwrap.indent(c_type_to_c_source(field[1], False), "  ") + " " + field[0] + ";"  # type: ignore
+                    textwrap.indent(c_type_to_c_source(field[1], False), "  ") + " " + field[0] + ";"  
                     for field in c_type._fields_
                 ],
                 "}",
@@ -365,9 +365,9 @@ def c_type_to_c_source(c_type: CType, top_level: bool = True) -> str:
     elif isinstance(c_type, CArrayType):
         return c_type_to_c_source(c_type._type_, False) + "[" + str(c_type._length_) + "]"
     elif isinstance(c_type, type(ctypes._Pointer)):
-        return c_type_to_c_source(c_type._type_, False) + "*" # type: ignore
+        return c_type_to_c_source(c_type._type_, False) + "*" 
     elif isinstance(c_type, type(ctypes._SimpleCData)):
-        name = c_type.__name__  # type: ignore
+        name = c_type.__name__  
         return {
             # Ints
             "c_byte": "byte",
@@ -431,35 +431,35 @@ def convert_c_obj_to_py_obj(
     elif c_obj.__class__.__name__ == "PointerStruct":
         assert py_type.__name__ == "list" or py_type is str, (type(c_obj), py_type)
         if py_type.__name__ == "list":
-            inner_py_type = py_type.__args__[0]  # type: ignore
+            inner_py_type = py_type.__args__[0]  
         else:
             inner_py_type = str
         inner_c_type = c_obj.inner_c_type
         size = ctypes.sizeof(inner_c_type)
         pointer_int = _expect_type(int, c_obj.value)
         if pointer_int == 0:
-            return None  # type: ignore
+            return None  
         if pointer_int not in memory:
             raise ValueError(f"Pointer {pointer_int:08x} is outside of memory {memory!s}")
-        lst: inner_py_type = []  # type: ignore
+        lst: inner_py_type = []  
         idx = 0
         while True:
             cont, sub_info = (memory[pointer_int : pointer_int + 1] != b'\0', None) if info is None else info[0](memory, pointer_int)
             if cont:
                 inner_c_obj = inner_c_type.from_buffer_copy(memory[pointer_int : pointer_int + size])
-                inner_py_obj = convert_c_obj_to_py_obj(  # type: ignore
+                inner_py_obj = convert_c_obj_to_py_obj(  
                     inner_c_obj,
                     inner_py_type,
                     sub_info,
                     memory,
                     depth + 1,
                 )
-                lst.append(inner_py_obj)  # type: ignore
+                lst.append(inner_py_obj)  
                 pointer_int += size
             else:
                 break
         if py_type is str:
-            return "".join(lst) # type: ignore
+            return "".join(lst) 
         else:
             return lst
     elif isinstance(c_obj, ctypes.Array):
@@ -490,7 +490,7 @@ def convert_c_obj_to_py_obj(
                 memory,
                 depth + 1,
             )
-        return py_type(**fields)  # type: ignore
+        return py_type(**fields)  
     elif isinstance(c_obj, ctypes.Union):
         if not dataclasses.is_dataclass(py_type):
             raise TypeError(f"If {type(c_obj)} is a union, then {py_type} should be a dataclass")
@@ -509,16 +509,16 @@ def convert_c_obj_to_py_obj(
     elif isinstance(c_obj, ctypes._SimpleCData):
         if isinstance(py_type, enum.EnumType):
             assert isinstance(c_obj.value, int)
-            return py_type(c_obj.value)  # type: ignore
+            return py_type(c_obj.value)  
         elif py_type is str:
             assert isinstance(c_obj, ctypes.c_char)
-            return c_obj.value.decode()  # type: ignore
+            return c_obj.value.decode() 
         else:
             ret = c_obj.value
-            return _expect_type(py_type, ret)  # type: ignore
+            return _expect_type(py_type, ret)  
     elif isinstance(c_obj, py_type):
-        return c_obj  # type: ignore
+        return c_obj  
     elif isinstance(c_obj, int) and isinstance(py_type, enum.EnumType):
-        return py_type(c_obj)  # type: ignore
+        return py_type(c_obj)  
     else:
         raise TypeError(f"{c_obj!r} of c_type {type(c_obj)!r} cannot be converted to py_type {py_type!r}")
