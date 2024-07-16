@@ -181,10 +181,10 @@ def check_pthread_graph(dfs_edges, process_tree_prov_log, total_pthreads, paths)
     for edge in dfs_edges:
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
         curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-        print(curr_node_op.data)
         if(isinstance(curr_node_op.data,parse_probe_log.CloneOp)):
             next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
             if edge[1][2] != curr_tid:
+               assert next_op!=None
                assert curr_node_op.data.task_id == next_op.pthread_id
                continue
             check_wait.append(curr_node_op.data.task_id)
@@ -200,19 +200,12 @@ def check_pthread_graph(dfs_edges, process_tree_prov_log, total_pthreads, paths)
         elif(isinstance(curr_node_op.data,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.data.fd)
             path = curr_node_op.data.path.path
-            # print(curr_node_op.data)
-            # print(edge)
-            # next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
-            # print(next_op.data)
-            # print(file_descriptors)
-            # print(">>>>>>>>>>>>>>>>>>>>>")
             if path in paths:
                 if len(process_file_map.keys())!=0 and parent_pthread_id!=curr_node_op.pthread_id:
                     # ensure the right cloned process has OpenOp for the path
                     assert process_file_map[path] == curr_node_op.pthread_id
         elif(isinstance(curr_node_op.data, parse_probe_log.CloseOp)):
             fd = curr_node_op.data.low_fd
-            print(curr_node_op.data)
             if fd in reserved_file_descriptors:
                 continue
             if curr_node_op.data.ferrno != 0:
@@ -220,9 +213,6 @@ def check_pthread_graph(dfs_edges, process_tree_prov_log, total_pthreads, paths)
             assert fd in file_descriptors
             if fd in file_descriptors:
                 file_descriptors.remove(fd)
-            
-            print(file_descriptors)
-            print("after close")
         
     # check number of cloneOps
     assert current_child_process == total_pthreads
@@ -231,6 +221,7 @@ def check_pthread_graph(dfs_edges, process_tree_prov_log, total_pthreads, paths)
     # for every file there is a pthread
     assert len(process_file_map.items()) == len(paths)
     assert len(file_descriptors) == 0
+    # add a check for when the pthread id is not found in the threads
 
 def get_op_from_provlog(process_tree_prov_log, pid, exec_epoch_id, tid,op_idx):
     if op_idx == -1 or exec_epoch_id == -1:
