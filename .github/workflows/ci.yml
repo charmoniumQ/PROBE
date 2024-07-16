@@ -36,7 +36,10 @@ jobs:
     - name: Run tests
       run: nix develop --command just test
 
+    - name: Run flake checks (optional)
+      run: nix develop --command just flake-check
+      continue-on-error: true
+
     - name: Run developer tests
       if: github.event_name == 'push' && github.event.head_commit.message == 'run dev tests'
       run: nix develop --command just test-dev
-
