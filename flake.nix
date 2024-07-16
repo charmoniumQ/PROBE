@@ -14,17 +14,19 @@
           configureFlags = oldAttrs.configureFlags ++ ["--with-pydebug"];
           # patches = oldAttrs.patches ++ [ ./python.patch ];
         });
-        export-and-rename = pkg: file-pairs: pkgs.stdenv.mkDerivation {
-          pname = "${pkg.pname}-only-bin";
-          dontUnpack = true;
-          version = pkg.version;
-          buildInputs = [ pkg ];
-          buildPhase = builtins.concatStringsSep
-            "\n"
-            (builtins.map
-              (pairs: "install -D ${pkg}/${builtins.elemAt pairs 0} $out/${builtins.elemAt pairs 1}")
-              file-pairs);
-        };
+        export-and-rename = pkg: file-pairs:
+          pkgs.stdenv.mkDerivation {
+            pname = "${pkg.pname}-only-bin";
+            dontUnpack = true;
+            version = pkg.version;
+            buildInputs = [pkg];
+            buildPhase =
+              builtins.concatStringsSep
+              "\n"
+              (builtins.map
+                (pairs: "install -D ${pkg}/${builtins.elemAt pairs 0} $out/${builtins.elemAt pairs 1}")
+                file-pairs);
+          };
       in {
         packages = {
           python-dbg = python312-debug;
@@ -49,6 +51,9 @@
                 pkgs.bash
                 pkgs.alejandra
                 pkgs.hyperfine
+                pkgs.just
+                pkgs.black
+                pkgs.ruff
               ]
               ++ (
                 # gdb broken on apple silicon

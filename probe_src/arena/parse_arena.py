@@ -4,8 +4,7 @@ import tarfile
 import dataclasses
 import pathlib
 import ctypes
-import typing
-
+from typing import Sequence
 
 @dataclasses.dataclass(frozen=True)
 class MemorySegment:
@@ -24,12 +23,6 @@ class MemorySegment:
     def length(self) -> int:
         return self.stop - self.start
 
-    @typing.overload
-    def __getitem__(self, idx: slice) -> bytes: ...
-
-    @typing.overload
-    def __getitem__(self, idx: int) -> int: ...
-
     def __getitem__(self, idx: slice | int) -> bytes | int:
         if isinstance(idx, slice):
             if not (self.start <= idx.start <= idx.stop <= self.stop):
@@ -37,6 +30,8 @@ class MemorySegment:
             return self.buffr[idx.start - self.start : idx.stop - self.start : idx.step]
         elif isinstance(idx, int):
             return self.buffr[idx - self.start]
+        else:
+            raise TypeError("Invalid index type")
 
     def __contains__(self, idx: int) -> bool:
         return self.start <= idx < self.stop
@@ -55,25 +50,13 @@ class MemorySegment:
 
 @dataclasses.dataclass(frozen=True)
 class MemorySegments:
-    segments: typing.Sequence[MemorySegment]
+    segments: Sequence[MemorySegment]
 
     def __post_init__(self) -> None:
         self._check()
 
     def _check(self) -> None:
-        # Memory segments *are* allowed to overlap,
-        # Since we can de-allocate arenas,
-        # we can potentially reuse those addresses.
-        # for a, segment_a in enumerate(self.segments):
-        #     for segment_b in self.segments[a + 1:]:
-        #         assert not segment_a.overlaps(segment_b), (segment_a, "overlaps", segment_b)
         assert sorted(self.segments, key=lambda segment: segment.start) == self.segments
-
-    @typing.override
-    def __getitem__(self, idx: slice) -> bytes: ...
-
-    @typing.override
-    def __getitem__(self, idx: int) -> int: ...
 
     def __getitem__(self, idx: slice | int) -> bytes | int:
         if isinstance(idx, slice):
@@ -81,12 +64,14 @@ class MemorySegments:
             for segment in self.segments:
                 buffr += segment.buffr[max(idx.start, segment.start) - segment.start : min(idx.stop, segment.stop) - segment.start]
             return buffr[::idx.step]
-        else:
+        elif isinstance(idx, int):
             for segment in self.segments:
                 if idx in segment:
                     return segment[idx]
             else:
                 raise IndexError(idx)
+        else:
+            raise TypeError("Invalid index type")
 
     def __contains__(self, idx: int) -> bool:
         return any(idx in segment for segment in self.segments)
@@ -96,7 +81,6 @@ class CArena(ctypes.Structure):
     _fields_ = [
         ("instantiation", ctypes.c_size_t),
         ("base_address", ctypes.c_void_p),
-        # echo -e '#include <stdint.h>\n' | cpp | grep uinptr_t
         ("capacity", ctypes.c_ulong),
         ("used", ctypes.c_ulong),
     ]
@@ -109,8 +93,8 @@ def parse_arena_buffer(buffr: bytes) -> MemorySegment:
     return MemorySegment(buffr[ctypes.sizeof(CArena) : c_arena.used], start, stop)
 
 
-def parse_arena_dir(arena_dir: pathlib.Path) -> typing.Sequence[MemorySegment]:
-    memory_segments = list[MemorySegment]()
+def parse_arena_dir(arena_dir: pathlib.Path) -> Sequence[MemorySegment]:
+    memory_segments = []
     for path in sorted(arena_dir.iterdir()):
         assert path.name.endswith(".dat")
         buffr = path.read_bytes()
@@ -121,8 +105,8 @@ def parse_arena_dir(arena_dir: pathlib.Path) -> typing.Sequence[MemorySegment]:
 def parse_arena_dir_tar(
         arena_dir_tar: tarfile.TarFile,
         prefix: pathlib.Path = pathlib.Path(),
-) -> typing.Sequence[MemorySegment]:
-    memory_segments = list[MemorySegment]()
+) -> Sequence[MemorySegment]:
+    memory_segments = []
     for member in sorted(arena_dir_tar, key=lambda member: member.name):
         member_path = pathlib.Path(member.name)
         if member_path.is_relative_to(prefix) and member_path.relative_to(prefix) != pathlib.Path("."):
