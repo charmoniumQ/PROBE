@@ -1,6 +1,6 @@
 import typing
 import networkx as nx
-from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp ,CLONE_THREAD
+from .parse_probe_log import ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp ,CLONE_THREAD
 from enum import IntEnum
 
 class EdgeLabels(IntEnum):

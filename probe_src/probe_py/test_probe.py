@@ -80,11 +80,11 @@ def check_for_clone_and_open(dfs_edges, process_tree_prov_log, number_of_child_p
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
         
         curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-        if curr_node_op!=None:
+        if curr_node_op is not None:
             curr_node_op = curr_node_op.data
         if(isinstance(curr_node_op,parse_probe_log.CloneOp)):
             next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
-            if next_op!=None:
+            if next_op is not None:
                 next_op = next_op.data
             if isinstance(next_op,parse_probe_log.ExecOp):
                 assert edge[1][0] == curr_node_op.task_id
@@ -129,7 +129,7 @@ def check_for_clone_and_open(dfs_edges, process_tree_prov_log, number_of_child_p
             if(edge[1][3]==-1):
                 continue
             next_init_op = get_op_from_provlog(process_tree_prov_log,curr_pid,1,curr_pid,0)
-            if next_init_op!=None:
+            if next_init_op is not None:
                 next_init_op = next_init_op.data
             if next_init_op.program_name == 'tail':
                 assert process_file_map['stdout'] == curr_pid
@@ -150,7 +150,7 @@ def match_open_and_close_fd(dfs_edges, process_tree_prov_log, paths):
     for edge in dfs_edges:
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
         curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-        if curr_node_op!=None:
+        if curr_node_op is not None:
             curr_node_op = curr_node_op.data
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
             file_descriptors.append(curr_node_op.fd)

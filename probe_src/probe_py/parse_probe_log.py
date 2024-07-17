@@ -1,6 +1,5 @@
 import collections
 import dataclasses
-import os
 import tarfile
 import enum
 import typing
@@ -9,6 +8,7 @@ import pathlib
 import pycparser # type: ignore
 import arena.parse_arena as arena
 from . import struct_parser
+import struct
 
 
 c_types = dict(struct_parser.default_c_types)
@@ -28,7 +28,6 @@ struct_parser.parse_all_types(ast.ext, c_types, py_types)
 # echo '#define _GNU_SOURCE\n#include <sched.h>\nCLONE_THREAD' | cpp | tail --lines=1
 CLONE_THREAD = 0x00010000
 
-
 COp = c_types[("struct", "Op")]
 Op: typing.TypeAlias = py_types[("struct", "Op")]
 InitExecEpochOp: typing.TypeAlias = py_types[("struct", "InitExecEpochOp")]
@@ -40,7 +39,6 @@ OpenOp: typing.TypeAlias = py_types[("struct", "OpenOp")]
 CloseOp: typing.TypeAlias = py_types[("struct", "CloseOp")]
 OpCode: enum.EnumType = py_types[("enum", "OpCode")]
 TaskType: enum.EnumType = py_types[("enum", "TaskType")]
-
 
 @dataclasses.dataclass
 class ThreadProvLog:
