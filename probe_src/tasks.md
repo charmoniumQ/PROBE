@@ -45,15 +45,18 @@
   - Think about assumptions in analysis
   - Think about front-end and UI/UX
 - [ ] Set up CI
-  - [ ] Write [Justfiles](https://github.com/casey/just). Each of the following should be a target:
-    - [ ] Format Nix code with alejandra.
-    - [ ] Format Python code with Black (please add to `flake.nix`).
-    - [ ] Check Python code with Ruff (please add to `flake.nix`).
-    - [ ] Check Python code with Mypy.
-    - [ ] Run tests on the current machine.
-    - [ ] Run tests in an Ubuntu Docker container.
-    - [ ] Run tests in a really old Ubuntu Docker container.
-  - [ ] Write a CI script that uses Nix to install dependencies and run the Justfiles.
+  - [x] Write [Justfiles](https://github.com/casey/just). Each of the following should be a target:
+    - [x] Format Nix code with alejandra.
+    - [x] Format Python code with Black (please add to `flake.nix`).
+    - [x] Check Python code with Ruff (please add to `flake.nix`).
+    - [x] Check Python code with Mypy.
+    - [x] Run tests on the current machine.
+  - [x] Write a CI script that uses Nix to install dependencies and run the Justfiles.
+  - [ ] Check (not format) code in Alejandra and Black.
+  - [ ] Reformat all Python code in Black.
+  - [ ] Figure out why tests don't work.
+  - [ ] Run tests in an Ubuntu Docker container.
+  - [ ] Run tests in a really old Ubuntu Docker container.
 - [ ] Write microbenchmarking
   - [ ] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
   - [ ] Write interesting performance tests, using `benchmark/workloads.py` as inspiration.
@@ -82,6 +85,7 @@
   - [x] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
   - [x] Debug `gcc`.
   - [x] Add thread ID and pthread ID to op.
+  - [ ] Add Dup ops and debug `bash -c 'head foo > bar'`
   - [ ] Compile Libprobe with static Musl instead of glibc.
   - [ ] Put magic bytes in arena
   - [ ] Unify the Arenas.

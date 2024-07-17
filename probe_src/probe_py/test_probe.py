@@ -1,13 +1,10 @@
 import typing
 import tarfile
-from .cli import record
 from . import analysis
 from . import parse_probe_log
 import pathlib
 import networkx as nx  # type: ignore
 import subprocess
-import typer
-import pytest
 
 
 Node = tuple[int, int, int, int]
