@@ -186,27 +186,29 @@ enum OpCode {
     LAST_OP_CODE,
 };
 
+union OpData {
+    struct InitProcessOp init_process_epoch;
+    struct InitExecEpochOp init_exec_epoch;
+    struct InitThreadOp init_thread;
+    struct OpenOp open;
+    struct CloseOp close;
+    struct ChdirOp chdir;
+    struct ExecOp exec;
+    struct CloneOp clone;
+    struct ExitOp exit;
+    struct AccessOp access;
+    struct StatOp stat;
+    struct ReaddirOp readdir;
+    struct WaitOp wait;
+    struct GetRUsageOp getrusage;
+    struct UpdateMetadataOp update_metadata;
+    struct ReadLinkOp read_link;
+};
+
 struct Op {
     enum OpCode op_code;
-    union {
-        struct InitProcessOp init_process_epoch;
-        struct InitExecEpochOp init_exec_epoch;
-        struct InitThreadOp init_thread;
-        struct OpenOp open;
-        struct CloseOp close;
-        struct ChdirOp chdir;
-        struct ExecOp exec;
-        struct CloneOp clone;
-        struct ExitOp exit;
-        struct AccessOp access;
-        struct StatOp stat;
-        struct ReaddirOp readdir;
-        struct WaitOp wait;
-        struct GetRUsageOp getrusage;
-        struct UpdateMetadataOp update_metadata;
-        struct ReadLinkOp read_link;
-    } data;
-    struct timespec time;
+    union OpData data;
+    struct timespec time_start;
     pthread_t pthread_id;
     thrd_t iso_c_thread_id;
 };

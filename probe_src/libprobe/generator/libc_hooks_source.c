@@ -47,32 +47,39 @@ typedef void* pthread_attr_t;
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
+#define buffer_new(buffer, type, name) type* name = buffer; buffer += sizeof(type);
+
+/*
+** Allocate op is a special case function for allocating an Op struct in the prov log buffer for operations that have exactly one path.
+*/
+#define allocate_op_and_string(op_name, op_code, op_data, new_string_name, string_name) \
+    size_t filename_lengthp1 = filename ? strlen(filename) + 1 : 0;     \
+    void* buffer = arena_malloc(get_op_arena(), filename_lengthp1 + sizeof(struct Op)); \
+    buffer_renew(block, struct Op, op_name);                            \
+    op_name->op_code = op_code;                                         \
+    op_name->data = op_data;                                            \
+    char* copied_filename = NULL;                                       \
+    if (filename) {                                                     \
+        new_string_name = buffer_memdup(&copied_filename, filename, filename_lengthp1);   \
+    }
+
+
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
     void* pre_call = ({
-        struct Op op = {
-            open_op_code,
-            {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename, 0),
-                .flags = fopen_to_flags(opentype),
-                .mode = 0,
-                .fd = -1,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
+        struct Op op* = NULL;
         if (likely(prov_log_is_enabled())) {
-            prov_log_try(op);
+            char* copied_filename = NULL;
+            buffer_allocate_op_and_string(op, open_op_code, copied_filename, filename);
+            allocate_op(op, open_op_code, {.open_op = open_op}, AT_FDCWD, filename, 0);
         }
     });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             if (ret == NULL) {
-                op.data.open.ferrno = saved_errno;
+                op->data.open.ferrno = saved_errno;
             } else {
-                op.data.open.fd = fileno(ret);
+                op->data.open.fd = fileno(ret);
             }
             prov_log_record(op);
         }
@@ -81,29 +88,19 @@ FILE * fopen (const char *filename, const char *opentype) {
 fn fopen64 = fopen;
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
-        int original_fd = fileno(stream);
-        struct Op open_op = {
-            open_op_code,
-            {.open = {
+        struct Op op* = NULL;
+        if (likely(prov_log_is_enabled())) {
+            int original_fd = fileno(stream);
+            struct OpenOp open_op_data = {
                 .path = create_path_lazy(AT_FDCWD, filename, 0),
                 .flags = fopen_to_flags(opentype),
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        struct Op close_op = {
-            close_op_code,
-            {.close = {original_fd, original_fd, 0}},
-            {0},
-            0,
-            0,
-        };
-        if (likely(prov_log_is_enabled())) {
-            prov_log_try(open_op);
+            };
+            allocate_op(open_op, open_op_code, {.open = open_op_data}, AT_FDWCD, filename, 0);
+            struct CloseOp close_op_data = {original_fd, original_fd, 0};
+            allocate_op(close_op, {.close = close_op_data}, AT_FDCWD, NULL, 0);
             prov_log_try(close_op);
         }
     });

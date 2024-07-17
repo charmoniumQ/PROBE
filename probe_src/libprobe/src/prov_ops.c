@@ -1,47 +1,42 @@
-static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
-    if (likely(prov_log_is_enabled())) {
-        struct Path ret = {
-            dirfd - AT_FDCWD,
-            (path != NULL ? EXPECT_NONNULL(arena_strndup(get_data_arena(), path, PATH_MAX)) : NULL),
-            -1,
-            -1,
-            -1,
-            {0},
-            {0},
-            false,
-            true,
-        };
+static create_path(BORROWED struct Path* path, int dirfd, BORROWED const char* path, int flags) {
+    struct Path ret = {
+        dirfd - AT_FDCWD,
+        (path != NULL ? EXPECT_NONNULL(arena_strndup(get_data_arena(), path, PATH_MAX)) : NULL),
+        -1,
+        -1,
+        -1,
+        {0},
+        {0},
+        false,
+        true,
+    };
 
-        /*
-         * If path is empty string, AT_EMPTY_PATH should probably be set.
-         * I can't think of a counterexample that isn't some kind of error.
-         * However, some functions permit passing NULL.
-         *
-         * Then again, this could happen in the tracee's code too...
-         * TODO: Remove this once I debug myself.
-         * */
-        assert(path == NULL || path[0] != '\0' || flags & AT_EMPTY_PATH);
+    /*
+     * If path is empty string, AT_EMPTY_PATH should probably be set.
+     * I can't think of a counterexample that isn't some kind of error.
+     * However, some functions permit passing NULL.
+     *
+     * Then again, this could happen in the tracee's code too...
+     * TODO: Remove this once I debug myself.
+     * */
+    assert(path == NULL || path[0] != '\0' || flags & AT_EMPTY_PATH);
 
-        /*
-         * if path == NULL, then the target is the dir specified by dirfd.
-         * */
-        prov_log_disable();
-        struct statx statx_buf;
-        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME, &statx_buf);
-        prov_log_enable();
-        if (stat_ret == 0) {
-            ret.device_major = statx_buf.stx_dev_major;
-            ret.device_minor = statx_buf.stx_dev_minor;
-            ret.inode = statx_buf.stx_ino;
-            ret.mtime = statx_buf.stx_mtime;
-            ret.ctime = statx_buf.stx_ctime;
-            ret.stat_valid = true;
-        }
-        return ret;
-    } else {
-        DEBUG("prov log not enabled");
-        return null_path;
+    /*
+     * if path == NULL, then the target is the dir specified by dirfd.
+     * */
+    prov_log_disable();
+    struct statx statx_buf;
+    int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME, &statx_buf);
+    prov_log_enable();
+    if (stat_ret == 0) {
+        ret.device_major = statx_buf.stx_dev_major;
+        ret.device_minor = statx_buf.stx_dev_minor;
+        ret.inode = statx_buf.stx_ino;
+        ret.mtime = statx_buf.stx_mtime;
+        ret.ctime = statx_buf.stx_ctime;
+        ret.stat_valid = true;
     }
+    return ret;
 }
 
 struct InitProcessOp init_current_process() {

@@ -36,7 +36,8 @@ struct __Arena {
     size_t instantiation;
     void *base_address;
     uintptr_t capacity;
-    uintptr_t used;
+    uintptr_t used_from_bottom;
+    uintptr_t used_from_top;
 };
 
 /* ArenaListElem is a linked-list of arrays of Arenas.
@@ -122,15 +123,17 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     CURRENT_ARENA->instantiation = arena_dir->__next_instantiation;
     CURRENT_ARENA->base_address = base_address;
     CURRENT_ARENA->capacity = capacity;
-    CURRENT_ARENA->used = sizeof(struct __Arena);
+    CURRENT_ARENA->used_from_bottom = sizeof(struct __Arena);
+    CURRENT_ARENA->used_from_top = 0;
 
 #ifdef ARENA_DEBUG
         fprintf(
             stderr,
-            "arena_calloc: instantiation of %p, using %ld for __Arena, rest starts at %p\n",
+            "arena_calloc: instantiation of %p, using %ld for __Arena, rest starts at %p, ends at %p\n",
             CURRENT_ARENA->base_address,
-            CURRENT_ARENA->used,
-            CURRENT_ARENA->base_address + CURRENT_ARENA->used
+            CURRENT_ARENA->used_from_bottom,
+            CURRENT_ARENA->base_address + CURRENT_ARENA->used_form_bottom,
+            CURRENT_ARENA->base_address + CURRENT_ARENA->capacity - CURRENT_ARENA->used_from_top
         );
 #endif
 
@@ -142,23 +145,24 @@ static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
 
 #define __ARENA_MAX(a, b) ((a) < (b) ? (b) : (a))
 
-static void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_size) {
-    size_t padding = __arena_align(CURRENT_ARENA->used, _Alignof(void*)) - CURRENT_ARENA->used;
-    if (CURRENT_ARENA->used + padding + type_count * type_size > CURRENT_ARENA->capacity) {
+enum ArenaLoc {ARENA_LOW, ARENA_HIGH};
+
+static void* arena_calloc(struct ArenaDir* arena_dir, enum ArenaLoc loc, size_t type_count, size_t type_size) {
+    size_t size = __arena_align(type_count * type_size);
+    if (CURRENT_ARENA->used + size > CURRENT_ARENA->capacity) {
 #ifdef ARENA_DEBUG
         fprintf(
             stderr,
-            "arena_calloc: Current arena (at %p, used %ld / %ld) is too small for allocation of %ld * %ld + %ld = %ld\n",
+            "arena_calloc: Current arena (at %p, used %ld / %ld) is too small for allocation of %ld * %ld (rounded up) = %ld\n",
             CURRENT_ARENA->base_address, CURRENT_ARENA->used, CURRENT_ARENA->capacity,
             type_count,
             type_size,
-            padding,
-            padding + type_count * type_size
+            padding + size
         );
 #endif
         /* Current arena is too small for this allocation;
          * Let's allocate a new one. */
-        int ret = __arena_reinstantiate(arena_dir, __ARENA_MAX(CURRENT_ARENA->capacity, type_count * type_size + sizeof(struct __Arena)));
+        int ret = __arena_reinstantiate(arena_dir, __ARENA_MAX(CURRENT_ARENA->capacity, size + sizeof(struct __Arena)));
         if (ret != 0) {
 #ifdef ARENA_PERROR
             fprintf(stderr, "arena_calloc: arena_reinstantiate failed\n");
@@ -166,24 +170,24 @@ static void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t 
             return NULL;
         }
         padding = 0;
-        assert(CURRENT_ARENA->used + padding + type_count * type_size <= CURRENT_ARENA->capacity);
+        assert(CURRENT_ARENA->used + size <= CURRENT_ARENA->capacity);
     }
 #ifdef ARENA_DEBUG
         fprintf(
             stderr,
-            "arena_calloc: allocation of %ld * %ld + %ld = %ld, %p -> %p <--> %p\n",
+            "arena_calloc: allocation of %ld * %ld (rounded up) = %ld, %p <--> %p\n",
             type_count,
             type_size,
-            padding,
-            padding + type_count * type_size,
+            size,
             CURRENT_ARENA->base_address + CURRENT_ARENA->used,
-            CURRENT_ARENA->base_address + CURRENT_ARENA->used + padding,
-            CURRENT_ARENA->base_address + CURRENT_ARENA->used + padding + type_count * type_size
+            CURRENT_ARENA->base_address + CURRENT_ARENA->used + size
         );
 #endif
-    void* ret = CURRENT_ARENA->base_address + CURRENT_ARENA->used + padding;
-    CURRENT_ARENA->used = CURRENT_ARENA->used + padding + type_count * type_size;
+    void* ret = CURRENT_ARENA->base_address + CURRENT_ARENA->used;
+    CURRENT_ARENA->used = CURRENT_ARENA->used + size;
+#ifdef ARENA_DEBUG
     ((char*)ret)[0] = '\0'; /* Test memory is valid */
+#endif
     return ret;
 }
 
