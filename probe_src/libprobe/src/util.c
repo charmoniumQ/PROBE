@@ -271,6 +271,7 @@ unsigned long my_strtoul(const char *restrict string, char **restrict string_end
         } else {
             return 0;
         }
+        ptr++;
     }
     if (string_end) {
         *string_end = (char*) ptr;
