@@ -163,14 +163,14 @@ def match_open_and_close_fd(
         paths: list[str],
 ) -> None:
     reserved_file_descriptors = [0, 1, 2]
-    file_descriptors = collections.Counter[int]()
+    file_descriptors = set[int]()
     for edge in dfs_edges:
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
         curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
         if curr_node_op is not None:
             curr_node_op = curr_node_op.data
         if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
-            file_descriptors[curr_node_op.fd] += 1
+            file_descriptors.add(curr_node_op.fd)
             path = curr_node_op.path.path
             if path in paths:
                 paths.remove(path)
@@ -180,10 +180,10 @@ def match_open_and_close_fd(
                 continue
             if curr_node_op.ferrno != 0:
                 continue
-            assert file_descriptors[fd] > 0
-            file_descriptors[fd] -= 1
+            assert fd in file_descriptors
+            file_descriptors.remove(fd)
 
-    assert sum(count for _, count in file_descriptors.most_common()) == 0
+    assert len(file_descriptors) == 0
     assert len(paths) == 0
 
 def check_pthread_graph(
@@ -196,7 +196,7 @@ def check_pthread_graph(
     check_wait = []
     process_file_map = {}
     current_child_process = 0
-    file_descriptors = collections.Counter[int]()
+    file_descriptors = set[int]()
     reserved_file_descriptors = [1, 2, 3]
     edge = dfs_edges[0]
     parent_pthread_id = get_op_from_provlog(process_tree_prov_log, edge[0][0], edge[0][1], edge[0][2], edge[0][3]).pthread_id
@@ -212,19 +212,19 @@ def check_pthread_graph(
             if len(paths)!=0:
                 process_file_map[paths[current_child_process]] = curr_node_op.data.task_id
             current_child_process+=1
-
-    assert len(set(bfs_nodes)) == len(bfs_nodes)
-    for node in bfs_nodes:
-        curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = node
-        curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
-        if curr_node_op is not None and (isinstance(curr_node_op.data,parse_probe_log.WaitOp)):
+        if isinstance(curr_node_op.data,parse_probe_log.WaitOp):
             ret_pid = curr_node_op.data.task_id
             wait_option = curr_node_op.data.options
             if wait_option == 0:
                 assert ret_pid in check_wait
                 check_wait.remove(ret_pid)
-        elif curr_node_op is not None and (isinstance(curr_node_op.data,parse_probe_log.OpenOp)):
-            file_descriptors[curr_node_op.data.fd] += 1
+
+    assert len(set(bfs_nodes)) == len(bfs_nodes)
+    for node in bfs_nodes:
+        curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = node
+        curr_node_op = get_op_from_provlog(process_tree_prov_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        if curr_node_op is not None and (isinstance(curr_node_op.data,parse_probe_log.OpenOp)):
+            file_descriptors.add(curr_node_op.data.fd)
             path = curr_node_op.data.path.path
             print("open", curr_tid, curr_node_op.pthread_id, curr_node_op.data.fd)
             if path in paths:
@@ -238,8 +238,8 @@ def check_pthread_graph(
                 continue
             if curr_node_op.data.ferrno != 0:
                 continue
-            assert file_descriptors[fd] > 0, fd
-            file_descriptors[fd] -= 1
+            assert fd in file_descriptors
+            file_descriptors.remove(fd)
 
     # check number of cloneOps
     assert current_child_process == total_pthreads
@@ -247,8 +247,7 @@ def check_pthread_graph(
     assert len(check_wait) == 0
     # for every file there is a pthread
     assert len(process_file_map.items()) == len(paths)
-    print(file_descriptors)
-    assert sum(count for _, count in file_descriptors.most_common()) == 0
+    assert len(file_descriptors) == 0
 
 def get_op_from_provlog(
         process_tree_prov_log: parse_probe_log.ProvLog,
