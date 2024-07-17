@@ -1,16 +1,13 @@
 from __future__ import annotations
 import ctypes
 import types
-import _ctypes
 import dataclasses
 import enum
 import textwrap
 import typing
-import pycparser 
-
+import pycparser  # type: ignore
 
 _T = typing.TypeVar("_T")
-
 
 # CType: typing.TypeAlias = type[ctypes._CData]
 CArrayType = type(ctypes.c_int * 1)
@@ -43,14 +40,11 @@ default_c_types: CTypeMap = {
     ("void*",): ctypes.c_void_p,
 }
 
-
 class PyStructBase:
     pass
 
-
 class PyUnionBase:
     pass
-
 
 PyType: typing.TypeAlias = type[object]
 PyTypeMap: typing.TypeAlias = typing.Mapping[tuple[str, ...], PyType | Exception]
@@ -82,13 +76,11 @@ default_py_types: PyTypeMap = {
 }
 assert default_py_types.keys() == default_c_types.keys()
 
-
 def _expect_type(typ: type[_T], val: typing.Any) -> _T:
     if isinstance(val, typ):
         return val
     else:
         raise TypeError(f"Expected value of type {typ}, but got {val} of type {type(val)}")
-
 
 def _normalize_name(name: tuple[str, ...]) -> tuple[str, ...]:
     # Move 'unsigned' to the beginning (if exists)
@@ -99,16 +91,15 @@ def _normalize_name(name: tuple[str, ...]) -> tuple[str, ...]:
         *(t for t in name if t not in {"signed", "int", "unsigned"}),
     )
 
-
 for type_name in default_c_types.keys():
     assert _normalize_name(type_name) == type_name
-
 
 def int_representing_pointer(inner_c_type: CType) -> CType:
     class PointerStruct(ctypes.Structure):
         _fields_ = [("value", ctypes.c_ulong)]
     PointerStruct.inner_c_type = inner_c_type
     return PointerStruct
+
 
 
 def _lookup_type(
@@ -257,7 +248,9 @@ def parse_struct_or_union(
         else:
             field_c_types.append(c_type)
         if isinstance(py_type, Exception):
-            py_type_error = py_type
+           py_type= py_type
+           #py_type_error commented just to resolve ruff error, since py_type_error isnt being used anywhere else
+           # py_type_error = py_type
         else:
             field_py_types.append(py_type)
 
@@ -442,7 +435,6 @@ def convert_c_obj_to_py_obj(
         if pointer_int not in memory:
             raise ValueError(f"Pointer {pointer_int:08x} is outside of memory {memory!s}")
         lst: inner_py_type = []  
-        idx = 0
         while True:
             cont, sub_info = (memory[pointer_int : pointer_int + 1] != b'\0', None) if info is None else info[0](memory, pointer_int)
             if cont:
