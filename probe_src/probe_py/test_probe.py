@@ -42,8 +42,8 @@ def test_bash_in_bash_pipe() -> None:
     paths = ['../flake.nix','stdout']
     dfs_edges = list(nx.dfs_edges(process_graph))
     check_for_clone_and_open(dfs_edges, process_tree_prov_log, len(paths), {}, paths)
-    
-        
+
+
 def test_pthreads() -> None:
     process = subprocess.Popen(["gcc", "tests/c/createFile.c", "-o", "test"])
     process.communicate()
@@ -56,10 +56,13 @@ def test_pthreads() -> None:
     
 def execute_command(command: list[str], return_code: int = 0) -> parse_probe_log.ProvLog:
     input = pathlib.Path("probe_log")
-    with pytest.raises(typer.Exit) as excinfo:
-        record(command, False, False, False,input)
-    assert excinfo.value.exit_code == return_code
-    # result = subprocess.run(['./PROBE', 'record'] + command, capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        ['./PROBE', 'record', "--debug"] + command,
+        # capture_output=True,
+        # text=True,
+        check=False,
+    )
+    assert result.returncode == return_code
     assert input.exists()
     probe_log_tar_obj = tarfile.open(input, "r")
     process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
