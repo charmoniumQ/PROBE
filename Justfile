@@ -15,7 +15,7 @@ check-ruff:
 check-mypy:
     MYPYPATH=probe_src mypy --strict --package arena
     MYPYPATH=probe_src mypy --strict --package probe_py
-    #mypy --strict probe_src/libprobe
+    mypy --strict probe_src/libprobe
 
 compile-fresh-libprobe:
     make --directory=probe_src/libprobe clean
