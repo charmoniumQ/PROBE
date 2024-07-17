@@ -1,5 +1,5 @@
 import typing
-import networkx as nx
+import networkx as nx  # type: ignore
 from .parse_probe_log import ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp ,CLONE_THREAD
 from enum import IntEnum
 
@@ -96,7 +96,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for node in nodes:
         process_graph.add_node(node)
 
-    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels):
+    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels) -> None:
         for node0, node1 in edges:
             process_graph.add_edge(node0, node1, label=label)
     
@@ -117,7 +117,7 @@ def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
         label:EdgeLabels = attrs['label']
         process_graph[node0][node1]['color'] = label_color_map[label]
     pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
-    dot_string = pydot_graph.to_string()
+    dot_string = typing.cast(str, pydot_graph.to_string())
     return dot_string
 
 

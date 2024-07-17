@@ -4,7 +4,7 @@ import tarfile
 import dataclasses
 import pathlib
 import ctypes
-from typing import Sequence
+from typing import Sequence, Iterator, overload
 
 @dataclasses.dataclass(frozen=True)
 class MemorySegment:
@@ -22,6 +22,12 @@ class MemorySegment:
     @property
     def length(self) -> int:
         return self.stop - self.start
+
+    @overload
+    def __getitem__(self, idx: slice) -> bytes: ...
+
+    @overload
+    def __getitem__(self, idx: int) -> int: ...
 
     def __getitem__(self, idx: slice | int) -> bytes | int:
         if isinstance(idx, slice):
@@ -58,6 +64,12 @@ class MemorySegments:
     def _check(self) -> None:
         assert sorted(self.segments, key=lambda segment: segment.start) == self.segments
 
+    @overload
+    def __getitem__(self, idx: slice) -> bytes: ...
+
+    @overload
+    def __getitem__(self, idx: int) -> int: ...
+
     def __getitem__(self, idx: slice | int) -> bytes | int:
         if isinstance(idx, slice):
             buffr = b''
@@ -76,6 +88,9 @@ class MemorySegments:
     def __contains__(self, idx: int) -> bool:
         return any(idx in segment for segment in self.segments)
 
+    def __iter__(self) -> Iterator[MemorySegment]:
+        return iter(self.segments)
+
 
 class CArena(ctypes.Structure):
     _fields_ = [
@@ -93,19 +108,19 @@ def parse_arena_buffer(buffr: bytes) -> MemorySegment:
     return MemorySegment(buffr[ctypes.sizeof(CArena) : c_arena.used], start, stop)
 
 
-def parse_arena_dir(arena_dir: pathlib.Path) -> Sequence[MemorySegment]:
+def parse_arena_dir(arena_dir: pathlib.Path) -> MemorySegments:
     memory_segments = []
     for path in sorted(arena_dir.iterdir()):
         assert path.name.endswith(".dat")
         buffr = path.read_bytes()
         memory_segments.append(parse_arena_buffer(buffr))
-    return memory_segments
+    return MemorySegments(memory_segments)
 
 
 def parse_arena_dir_tar(
         arena_dir_tar: tarfile.TarFile,
         prefix: pathlib.Path = pathlib.Path(),
-) -> Sequence[MemorySegment]:
+) -> MemorySegments:
     memory_segments = []
     for member in sorted(arena_dir_tar, key=lambda member: member.name):
         member_path = pathlib.Path(member.name)
@@ -116,7 +131,7 @@ def parse_arena_dir_tar(
             buffr = extracted.read()
             memory_segment = parse_arena_buffer(buffr)
             memory_segments.append(memory_segment)
-    return memory_segments
+    return MemorySegments(memory_segments)
 
 
 if __name__ == "__main__":

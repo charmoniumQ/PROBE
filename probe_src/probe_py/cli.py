@@ -32,7 +32,7 @@ def record(
         debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
         make: bool = typer.Option(default=False, help="Run make prior to executing"),
         output: pathlib.Path = pathlib.Path("probe_log"),
-):
+) -> None:
     """
     Execute CMD... and record its provenance into OUTPUT.
     """
@@ -108,7 +108,7 @@ def process_graph(
 @app.command()
 def dump(
         input: pathlib.Path = pathlib.Path("probe_log"),
-):
+) -> None:
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
