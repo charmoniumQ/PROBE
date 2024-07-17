@@ -33,7 +33,7 @@
         };
         devShells = {
           default = pkgs.mkShell {
-            buildInputs = 
+            buildInputs =
               [
                 (pkgs.python312.withPackages (pypkgs: [
                   pypkgs.typer
@@ -46,6 +46,8 @@
                   pypkgs.pydot
                 ]))
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
+                pkgs.which
+                pkgs.gnumake
                 pkgs.gcc
                 pkgs.coreutils
                 pkgs.bash

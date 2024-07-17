@@ -55,7 +55,7 @@ static void init_exec_epoch() {
             ERROR("Internal environment variable \"%s\" not set", pid_env_var);
         }
 
-        pid_t last_epoch_pid = EXPECT(> 0, strtol(last_epoch_pid_str, NULL, 10));
+        pid_t last_epoch_pid = EXPECT(> 0, my_strtoul(last_epoch_pid_str, NULL, 10));
 
         if (last_epoch_pid == getpid()) {
             const char* exec_epoch_str = debug_getenv(exec_epoch_env_var);
@@ -63,7 +63,7 @@ static void init_exec_epoch() {
                 ERROR("Internal environment variable \"%s\" not set", exec_epoch_env_var);
             }
 
-            size_t last_exec_epoch = EXPECT(>= 0, strtol(exec_epoch_str, NULL, 10));
+            size_t last_exec_epoch = EXPECT(>= 0, my_strtoul(exec_epoch_str, NULL, 10));
             /* Since zero is a sentinel value for strtol,
              * if it returns zero,
              * there's a small chance that exec_epoch_str is an invalid int,
