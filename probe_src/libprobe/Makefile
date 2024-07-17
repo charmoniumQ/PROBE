@@ -23,7 +23,7 @@ $(GENERATED_FILES): $(wildcard generator/*)
 	./generator/gen_libc_hooks.py
 
 clean:
-	mkdir --parents buid/ generated/
+	mkdir --parents build/ generated/
 	touch $(GENERATED_FILES) $(ALL_TARGETS)
 	rm --force $(GENERATED_FILES) $(ALL_TARGETS)
 .PHONY: clean

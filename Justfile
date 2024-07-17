@@ -17,23 +17,20 @@ check-mypy:
     MYPYPATH=probe_src mypy --strict --package probe_py
     mypy --strict probe_src/libprobe
 
-compile-fresh-libprobe:
-    make --directory=probe_src/libprobe clean
-    make --directory=probe_src/libprobe all
-
 compile-libprobe:
     make --directory=probe_src/libprobe all
 
-test: compile-fresh-libprobe
+test-ci: compile-libprobe
+    make --directory=probe_src/tests/c all
     #cd probe_src && python -m pytest .
 
 test-dev: compile-libprobe
-    make --directory=probe_src/libprobe all
+    make --directory=probe_src/tests/c all
     #cd probe_src && python -m pytest . --failed-first --maxfail=1
 
 check-flake:
     nix flake check --all-systems
 
-pre-commit: fix-format-nix fix-ruff check-mypy check-flake test-dev
+pre-commit: fix-format-nix fix-ruff check-mypy check-flake compile-libprobe test-dev
 
-on-push: check-format-nix check-ruff check-mypy check-flake test
+on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
