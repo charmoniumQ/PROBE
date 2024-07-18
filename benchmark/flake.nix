@@ -420,11 +420,17 @@
               rev = "chex";
               hash = "sha256-NsTljrFzEl43BCT1Oq6KL6UEBKIW4qI3jXZ814FGgEY=";
             };
+            cmakeFlags = [
+              "-DBUILD_TESTING=OFF"
+              "-DCMAKE_BUILD_TYPE=Release"
+            ];
             patches = [ ./provenance-to-use.patch ];
-            nativeBuildInputs = [ pkgs.cmake ];
+            nativeBuildInputs = [ pkgs.cmake pkgs.makeWrapper ];
+            buildInputs = [ pkgs.coreutils ];
             installPhase = ''
               install -d $out/bin
               install -t $out/bin ptu
+              wrapProgram $out/bin/ptu --prefix PATH : ${pkgs.lib.strings.makeBinPath [ pkgs.coreutils ]}
             '';
           };
           sciunit-dedup = pkgs.stdenv.mkDerivation rec {
@@ -502,7 +508,7 @@
             ];
             pythonImportsCheck = [ pname ];
           };
-          sciunit2 = python.pkgs.buildPythonPackage rec {
+          sciunit2 = python.pkgs.buildPythonApplication rec {
             pname = "sciunit2";
             version = "0.4.post82.dev130189670";
             patches = [ ./sciunit2.patch ];
@@ -515,6 +521,9 @@
               # We will delete these, which forces sciunit2 to find the Nix-build binaries
               # Also see sciunit2.patch
               rm sciunit2-*/sciunit2/libexec/{ptu,scripter,vv}
+            '';
+            postFixup = ''
+              wrapProgram $out/bin/sciunit --prefix PATH : ${(pkgs.lib.strings.makeBinPath [ pkgs.gnutar ])}
             '';
             pythonImportsCheck = [ pname ];
             propagatedBuildInputs = [
@@ -533,8 +542,9 @@
               python.pkgs.setuptools
               python.pkgs.tqdm
               hs_restclient
+              pkgs.gnutar
             ];
-            nativeBuildInputs = [ python.pkgs.pip ];
+            nativeBuildInputs = [ python.pkgs.pip pkgs.makeWrapper ];
             nativeCheckInputs = [
               python.pkgs.nose
               python.pkgs.nose-exclude
@@ -557,10 +567,11 @@
               ];
               nosetestArgs = builtins.map (test: "--exclude-test=${test}") excludedTests;
             in ''
-              runHook preCheck1
+              runHook preCheck
               nosetests --verbose --stop --nocapture --failure-detail ${builtins.concatStringsSep " " nosetestArgs}
               runHook postCheck
             '';
+            dontCheck = true;
           };
           jupyter-contrib-nbextensions = python.pkgs.jupyter-contrib-nbextensions.overrideAttrs (self: super: {
             # Yes, this was very recently broken by [1]
@@ -750,6 +761,9 @@
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
           };
+          lftp = pkgs.lftp;
+          wget = pkgs.wget;
+          libseccomp = pkgs.libseccomp.lib;
           env-image = pkgs.dockerTools.buildImage {
             name = "prov-tracer-benchmark-env";
             copyToRoot = [ env ];

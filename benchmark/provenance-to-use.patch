@@ -2,52 +2,68 @@ diff --git a/readelf-mini/dwarf.c b/readelf-mini/dwarf.c
 index 22cfdae..67a92b3 100644
 --- a/readelf-mini/dwarf.c
 +++ b/readelf-mini/dwarf.c
-@@ -64 +64 @@ int do_debug_loc;
+@@ -64,1 +64,3 @@ int do_debug_loc;
 -int do_wide;
-+int dwarf_do_wide; // this symbol conflicts with readelf-mini/readelf-mini.c do_wide
-@@ -2606 +2606 @@ display_debug_lines_decoded (struct dwarf_section *section,
++// this symbol conflicts with readelf-mini/readelf-mini.c do_wide
++// See https://github.com/depaul-dice/provenance-to-use/pull/4
++int dwarf_do_wide;
+@@ -2606,1 +2606,2 @@ display_debug_lines_decoded (struct dwarf_section *section,
 -              if (do_wide || strlen ((char *) directory_table[0]) < 76)
++              // See https://github.com/depaul-dice/provenance-to-use/pull/4
 +              if (dwarf_do_wide || strlen ((char *) directory_table[0]) < 76)
-@@ -2793 +2793 @@ display_debug_lines_decoded (struct dwarf_section *section,
+@@ -2793,1 +2793,2 @@ display_debug_lines_decoded (struct dwarf_section *section,
 -              if ((fileNameLength > MAX_FILENAME_LENGTH) && (!do_wide))
++              // See https://github.com/depaul-dice/provenance-to-use/pull/4
 +              if ((fileNameLength > MAX_FILENAME_LENGTH) && (!dwarf_do_wide))
-@@ -2807 +2807 @@ display_debug_lines_decoded (struct dwarf_section *section,
+@@ -2807,1 +2807,2 @@ display_debug_lines_decoded (struct dwarf_section *section,
 -              if (!do_wide || (fileNameLength <= MAX_FILENAME_LENGTH))
++              // See https://github.com/depaul-dice/provenance-to-use/pull/4
 +              if (!dwarf_do_wide || (fileNameLength <= MAX_FILENAME_LENGTH))
 diff --git a/strace-4.6/cde.c b/strace-4.6/cde.c
 index 99edd2d..66b8fb3 100644
 --- a/strace-4.6/cde.c
 +++ b/strace-4.6/cde.c
-@@ -1162,1 +1162,1 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
+@@ -1162,1 +1162,2 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
 -  if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
++  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(filename) && ((int) tcp->u_arg[0]) != AT_FDCWD) {
-@@ -2170 +2170 @@ void CDE_begin_file_unlinkat(struct tcb* tcp) {
+@@ -2170,1 +2170,2 @@ void CDE_begin_file_unlinkat(struct tcb* tcp) {
 -  if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
++  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(filename) && ((int) tcp->u_arg[0]) != AT_FDCWD) {
-@@ -2232 +2232 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
+@@ -2232,1 +2232,2 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
 -  if (!IS_ABSPATH(oldpath) && tcp->u_arg[0] != AT_FDCWD) {
++  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(oldpath) && ((int) tcp->u_arg[0]) != AT_FDCWD) {
-@@ -2238 +2238 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
+@@ -2238,1 +2238,2 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
 -  if (!IS_ABSPATH(newpath) && tcp->u_arg[2] != AT_FDCWD) {
++  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(newpath) && ((int) tcp->u_arg[2]) != AT_FDCWD) {
-@@ -2307 +2307 @@ void CDE_begin_file_symlinkat(struct tcb* tcp) {
+@@ -2307,1 +2307,2 @@ void CDE_begin_file_symlinkat(struct tcb* tcp) {
 -  if (!IS_ABSPATH(newpath) && tcp->u_arg[1] != AT_FDCWD) {
++  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(newpath) && ((int) tcp->u_arg[1]) != AT_FDCWD) {
-@@ -2379 +2379 @@ void CDE_begin_file_renameat(struct tcb* tcp) {
+@@ -2379,1 +2379,2 @@ void CDE_begin_file_renameat(struct tcb* tcp) {
 -  if (!IS_ABSPATH(oldpath) && tcp->u_arg[0] != AT_FDCWD) {
++  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(oldpath) && ((int) tcp->u_arg[0]) != AT_FDCWD) {
-@@ -2385 +2385 @@ void CDE_begin_file_renameat(struct tcb* tcp) {
+@@ -2385,1 +2385,2 @@ void CDE_begin_file_renameat(struct tcb* tcp) {
 -  if (!IS_ABSPATH(newpath) && tcp->u_arg[2] != AT_FDCWD) {
++  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(newpath) && ((int) tcp->u_arg[2]) != AT_FDCWD) {
 diff --git a/strace-4.6/defs.h b/strace-4.6/defs.h
 index 0af1842..6bd5484 100644
 --- a/strace-4.6/defs.h
 +++ b/strace-4.6/defs.h
-@@ -37 +37 @@
+@@ -37,1 +37,3 @@
 -char* CDE_ROOT_NAME;
-+extern char* CDE_ROOT_NAME; // declared here; defined in strace-4.6/cde.c
-@@ -39,2 +39,2 @@ char* CDE_ROOT_NAME;
++// See https://github.com/depaul-dice/provenance-to-use/pull/4
++// declared here; defined in strace-4.6/cde.c
++extern char* CDE_ROOT_NAME;
+@@ -39,2 +39,4 @@ char* CDE_ROOT_NAME;
 -char* CDE_PACKAGE_DIR;
 -char* CDE_ROOT_DIR;
-+extern char* CDE_PACKAGE_DIR; // declared here; defined in strace-4.6/cde.c
-+extern char* CDE_ROOT_DIR; // declared here; defined in strace-4.6/cde.c
++// See https://github.com/depaul-dice/provenance-to-use/pull/4
++// declared here; defined in strace-4.6/cde.c
++extern char* CDE_PACKAGE_DIR;
++extern char* CDE_ROOT_DIR;

@@ -1,0 +1,41 @@
+- Then, uniprocessor multitasking (aka timesharing)
+  - Define "concurrency"
+  - Example: MULTICS Introduction and overview of the multics system Corbato 1965
+  - Preemptive (non-cooperative) and non-premptive (cooperative)
+  - Cooperative
+    - Switch tasks at "voluntary" interrupt points
+    - I/O (disk, network, printer, user), acquire lock, sleep, voluntary points
+  - Pre-emptive
+    - Hardware timer triggers interrupt, set up by kernel
+    - Scheduler quantum and time slice
+    - Thrashing
+    - Kubernetes and cloud computing
+      - https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/
+  - Care about: throughput and latency
+    - Thrashing
+    - Processes and threads (aka lightweight processes)
+- Multiprocessor multitasking
+  - Define "parallelism"
+  - Usually, symmetric multiprocessor (SMP) combined with SMT
+  - Also see non-symmetric multiprocessor SMP
+    - Heterogeneous Multi-core Architectures Mitra 2015
+- User threads aka Green threads
+  - In contrast to Kernel threads (also called hardware threads)
+  - Queue of ready threads (or queue of work-items)
+    - 1 kernel thread goes pops off the queue, works on item, and possibly puts more items back on the queue.
+  - 1:1, M:1, or N:M
+  - Must be non-preemptive or interpreted language
+  - Not necessarily language level; some libraries and applications implement user-level threading. E.g., web server doesn't use 1 thread per request.
+    - https://web.archive.org/web/20130722134723/http://www.kegel.com/c10k.html
+    - https://aosabook.org/en/v2/nginx.html
+- PROBE
+  - PROBE tracks kernel threads; each kernel thread is a list of ops
+  - Libc provides ways of making user-level threads, but doesn't specify whether these are 1:1, M:1, or M:N
+  - We need to use fork/join to order relationships between threads.
+  - In 1:1 case, pthread -> TID uniquely, we just don't know which. We would need to record pthread_self at thread creation time.
+  - In M:1 case, pthread -> TID non-uniquely. We would need to record pthread_self at every op.
+  - In M:N case, pthread -> split across mulitple TIDs. We would need to record pthread_self at every op.
+- Action items
+  - Add edge from fork to every TIDs first occurrence of that pthread_id
+  - Add edge from every TIDs last occurrence of that pthread_id to join
+  - Create test program with one thread that opens a file for overwriting, writes the file, closes it, and one thread that waits for the first to complete, opens a file for reading, reads it, and closes it. We should know that the file does not influence the process.

@@ -1,6 +1,6 @@
 import typing
-import networkx as nx
-from .parse_probe_log import ProvLog, Op, CloneOp, ExecOp, WaitOp, CLONE_THREAD
+import networkx as nx  # type: ignore
+from .parse_probe_log import ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp ,CLONE_THREAD
 from enum import IntEnum
 
 class EdgeLabels(IntEnum):
@@ -29,7 +29,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 # Filter just the ops we are interested in
                 op_index = 0
                 for op in thread.ops:
-                    if isinstance(op.data, CloneOp | ExecOp | WaitOp):
+                    if isinstance(op.data, CloneOp | ExecOp | WaitOp | OpenOp | CloseOp):
                         ops.append((*context, op_index))
                     op_index+=1
 
@@ -38,6 +38,9 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
+                if len(ops) != 0:
+                    # to mark the end of the thread, edge from last op to (pid, -1, tid, -1)
+                    program_order_edges.append((proc_to_ops[(pid, exec_epoch_no, tid)][-1], (pid, -1, tid, -1)))
 
     def first(pid: int, exid: int, tid: int) -> Node:
         if not proc_to_ops.get((pid, exid, tid)):
@@ -66,16 +69,16 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
         if isinstance(op, CloneOp):
             if op.flags & CLONE_THREAD:
                 # Spawning a thread links to the current PID and exec epoch
-                target = (pid, exid, op.child_thread_id)
+                target = (pid, exid, op.task_id)
             else:
                 # New process always links to exec epoch 0 and main thread
                 # THe TID of the main thread is the same as the PID
-                target = (op.child_process_id, 0, op.child_process_id)
+                target = (op.task_id, 0, op.task_id)
             exec_edges.append((node, first(*target)))
-        elif isinstance(op, WaitOp) and op.ferrno == 0 and op.ret > 0:
+        elif isinstance(op, WaitOp) and op.ferrno == 0 and op.task_id > 0:
             # Always wait for main thread of the last exec epoch
             if op.ferrno == 0:
-                target = (op.ret, last_exec_epoch.get(op.ret, 0), op.ret)
+                target = (op.task_id, last_exec_epoch.get(op.task_id, 0), op.task_id)
                 fork_join_edges.append((last(*target), node))
         elif isinstance(op, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
@@ -93,7 +96,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for node in nodes:
         process_graph.add_node(node)
 
-    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels):
+    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels) -> None:
         for node0, node1 in edges:
             process_graph.add_edge(node0, node1, label=label)
     
@@ -114,7 +117,7 @@ def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
         label:EdgeLabels = attrs['label']
         process_graph[node0][node1]['color'] = label_color_map[label]
     pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
-    dot_string = pydot_graph.to_string()
+    dot_string = typing.cast(str, pydot_graph.to_string())
     return dot_string
 
 

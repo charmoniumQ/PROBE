@@ -8,6 +8,7 @@
 #define BORROWED
 #define OWNED
 #define _GNU_SOURCE
+#define __asm__(x)
 #define __signed__ signed
 #include <stdint.h>
 #include <stdbool.h>
@@ -15,6 +16,8 @@
 #include <sys/stat.h>
 #include <sys/resource.h>
 #include <utime.h>
+#include <threads.h>
+#include <pthread.h>
 #endif
 
 struct Path {
@@ -73,11 +76,18 @@ struct ExecOp {
     int ferrno;
 };
 
+enum TaskType {
+    TASK_PID,
+    TASK_TID,
+    TASK_ISO_C_THREAD,
+    TASK_PTHREAD,
+};
+
 struct CloneOp {
     int flags;
     bool run_pthread_atfork_handlers;
-    pid_t child_process_id;
-    pid_t child_thread_id;
+    enum TaskType task_type;
+    unsigned long int task_id;
     int ferrno;
 };
 
@@ -108,10 +118,10 @@ struct ReaddirOp {
 };
 
 struct WaitOp {
-    pid_t pid;
+    enum TaskType task_type;
+    unsigned long int task_id;
     int options;
     int status;
-    int ret;
     int ferrno;
 };
 
@@ -197,6 +207,8 @@ struct Op {
         struct ReadLinkOp read_link;
     } data;
     struct timespec time;
+    pthread_t pthread_id;
+    thrd_t iso_c_thread_id;
 };
 
 /* We don't need this since we switched to an Arena allocator */

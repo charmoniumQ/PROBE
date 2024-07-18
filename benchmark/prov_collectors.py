@@ -1,4 +1,5 @@
 import shutil
+import shlex
 import dataclasses
 import warnings
 import subprocess
@@ -571,21 +572,32 @@ class Sciunit(ProvCollector):
     name = "sciunit"
 
     nix_packages = [".#sciunit2", ".#coreutils"]
+    path = ""
 
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
+        self.path = env["PATH"]
         check_returncode(subprocess.run(
             ["sciunit", "create", "-f", "test"],
             check=False,
             env={
+                **env,
                 "SCIUNIT_HOME": str(log.resolve()),
             },
         ), {})
+
+    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
         cwd = Path().resolve()
         return (
-            "env", f"--chdir={log.resolve()}", f"SCIUNIT_HOME={log.resolve()}",
-            "sciunit", "exec",
-            "env", f"--chdir={cwd.resolve()}",
-            *cmd,
+            "sh",
+            "-c",
+            ";".join([
+                # sciunit puts its copy of Python on PATH before the one we need.
+                # So we will save the PATH and restore it
+                "export _PATH=$PATH",
+                f"cd {log.resolve()}",
+                f"export SCIUNIT_HOME={log.resolve()}",
+                f"sciunit exec env --chdir={cwd.resolve()} PATH=$_PATH {shlex.join(cmd)}"
+            ]),
         )
 
 

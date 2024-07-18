@@ -218,6 +218,17 @@ static OWNED const char* dirfd_path(int dirfd) {
     return ret;
 }
 
+/*
+ * dirfd(3) is not tolerant of NULL:
+ * header: https://github.com/bminor/glibc/blob/9fc639f654dc004736836613be703e6bed0c36a8/dirent/dirent.h#L226
+ * src: https://github.com/bminor/glibc/blob/9fc639f654dc004736836613be703e6bed0c36a8/sysdeps/unix/sysv/linux/dirfd.c#L27
+ *
+ * -1 is never a valid fd because it's the error value for syscalls that return fds, so we can do the same.
+ */
+static int try_dirfd(BORROWED DIR* dirp) {
+    return (dirp != NULL) ? (dirfd(dirp)) : (-1);
+}
+
 #ifndef NDEBUG
 static int fd_is_valid(int fd) {
     return unwrapped_fcntl(fd, F_GETFD) != -1 || errno != EBADF;
@@ -247,3 +258,23 @@ static void listdir(const char* name, int indent) {
 }
 
 #endif
+
+/* strtol in libc is not totally static;
+ * It is defined itself as a static function, but that static code calls some dynamically loaded function.
+ * This would be fine, except some older versions of glibc may not have the deynamic function. */
+unsigned long my_strtoul(const char *restrict string, char **restrict string_end, int base) {
+    unsigned long accumulator = 0;
+    const char* ptr = string;
+    while (*ptr != '\0') {
+        if ('0' <= *ptr && *ptr < ('0' + base)) {
+            accumulator = accumulator * base + (*ptr - '0');
+        } else {
+            return 0;
+        }
+        ptr++;
+    }
+    if (string_end) {
+        *string_end = (char*) ptr;
+    }
+    return accumulator;
+}

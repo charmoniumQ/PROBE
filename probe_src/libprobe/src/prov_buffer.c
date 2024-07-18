@@ -36,6 +36,12 @@ static void prov_log_record(struct Op op) {
     if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
         EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));
     }
+    if (op.pthread_id == 0) {
+        op.pthread_id = pthread_self();
+    }
+    if (op.iso_c_thread_id == 0) {
+        op.iso_c_thread_id = thrd_current();
+    }
 
     /* TODO: we currently log ops by constructing them on the stack and copying them into the arena.
      * Ideally, we would construct them in the arena (no copy necessary).
@@ -67,6 +73,12 @@ static void prov_log_record(struct Op op) {
     }
 */
 
+    /* Freeing up virtual memory space is good in theory,
+     * but it causes errors when decoding.
+     * Since freeing means that the virtual address can be reused by mmap.
+     * We can only safely free the op arena.
+     * If the system runs low on memory, I think Linux will page out the infrequently used mmapped regions,
+     * which is what we want. */
+    /* arena_uninstantiate_all_but_last(get_data_arena()); */
     arena_uninstantiate_all_but_last(get_op_arena());
-    arena_uninstantiate_all_but_last(get_data_arena());
 }

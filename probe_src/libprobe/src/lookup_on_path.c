@@ -16,6 +16,8 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
                 access_op_code,
                 {.access = {create_path_lazy(AT_FDCWD, bin_path, 0), 0, 0, 0}},
                 {0},
+                0,
+                0,
             };
             /* TODO: Test case where PATH element is relative */
             prov_log_try(op);

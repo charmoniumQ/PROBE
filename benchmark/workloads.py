@@ -393,7 +393,7 @@ class Apache(HttpBench):
     #     return ("apacheHttpd", "-k", "graceful-stop")
 
     def get_server_nix_packages(self) -> list[str]:
-        return [".#apacheHttpd", ".#bash", ".#coreutils", "#gnused", ".#which"]
+        return [".#apacheHttpd", ".#bash", ".#coreutils", ".#gnused", ".#which"]
 
     def run_server(self, workdir: Path) -> str:
         httpd_root = (workdir / "apache").resolve()
@@ -596,7 +596,7 @@ class Proftpd(Workload):
     network_access = True
 
 
-    nix_packages = [".#proftpd", ".#ftpbench", ".#http-python-env"]
+    nix_packages = [".#proftpd", ".#ftpbench", ".#http-python-env", ".#coreutils"]
 
 
     def __init__(self, ftp_port: int, n_requests: int) -> None:
@@ -656,13 +656,14 @@ class Proftpd(Workload):
 
 
 class FtpClient(Proftpd):
-    superkind = "FTP"
-    kind = "srv/client"
+    superkind = "Net"
+    kind = "FTP-srv/client"
     def __init__(self, name: str, ftp_client: tuple[CmdArg, ...], *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.kind = "ftp_client"
         self.name = name
         self.ftp_client = ftp_client
+        self.nix_packages += [".#lftp", ".#wget"]
 
     def get_load(self, tmpdir: Path) -> tuple[CmdArg, ...]:
         tmpdir.mkdir(exist_ok=True)
@@ -1188,17 +1189,15 @@ WORKLOADS: list[Workload] = [
     #     HTTP_N_REQUESTS // 100,
     #     HTTP_REQUEST_SIZE,
     # ),
-    # Proftpd(HTTP_PORT, 500), # unfortunately, this crashes in ltrace if this number is too big.
-    # ltrace will alsosc crash if this number is too big: FtpClient(..., number)
-    Proftpd(HTTP_PORT, 50),
-    # FtpClient(
-    #     "lftp",
-    #     ("lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),
-    #     HTTP_PORT,
-    #     10,
-    # ),
-    # FtpClient("ftp-curl", ("curl", "--silent", "--output", "$dst", "$url"), HTTP_PORT, 10),
-    # FtpClient("ftp-wget", ("wget", "--quiet", "--output-document", "$dst", "$url"), HTTP_PORT, 10),
+    Proftpd(HTTP_PORT, 500),
+    FtpClient(
+        "lftp",
+        ("lftp", "-p", "$port", "-u", "$username,$password", "$host:$port", "-e", "get -c $remote_file -o $dst"),
+        HTTP_PORT,
+        10,
+    ),
+    FtpClient("ftp-curl", ("curl", "--silent", "--output", "$dst", "$url"), HTTP_PORT, 10),
+    FtpClient("ftp-wget", ("wget", "--quiet", "--output-document", "$dst", "$url"), HTTP_PORT, 10),
     Postmark(100_000),
     Archive("", LINUX_TARBALL_URL, archive_reps),
     Archive("gzip", LINUX_TARBALL_URL, archive_reps),

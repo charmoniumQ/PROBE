@@ -32,7 +32,7 @@ def record(
         debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
         make: bool = typer.Option(default=False, help="Run make prior to executing"),
         output: pathlib.Path = pathlib.Path("probe_log"),
-):
+) -> None:
     """
     Execute CMD... and record its provenance into OUTPUT.
     """
@@ -62,6 +62,14 @@ def record(
             cmd,
             env={**os.environ, "LD_PRELOAD": ld_preload, "__PROBE_DIR": str(probe_dir)},
         )
+
+        # Before this point is "executing with libprobe"
+        # After this point is "transcription"
+        # TODO: break this up into three CLI entrypoints
+        # 1. PROBE record should do both
+        # 2. PROBE record --no-transcribe should just do the execution
+        # 3. PROBE transcribe <output> should just do the transcription
+
         probe_log_tar_obj = tarfile.open(name=str(output), mode="x:gz")
         probe_log_tar_obj.add(probe_dir, arcname="")
         probe_log_tar_obj.addfile(
@@ -100,7 +108,7 @@ def process_graph(
 @app.command()
 def dump(
         input: pathlib.Path = pathlib.Path("probe_log"),
-):
+) -> None:
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
@@ -117,4 +125,6 @@ def dump(
                     print(op.data)
                 print()
 
-app()
+if __name__ == "__main__":
+    app()
+
