@@ -312,12 +312,17 @@ impl Dump for ops::CloneOp {
     fn dump(&self) -> String {
         format!(
 <<<<<<< HEAD
+<<<<<<< HEAD
             "[ task_type={}, task_id={}, errno={} ]",
             self.task_type, self.task_id, self.ferrno,
 =======
             "[ child_process_id={}, child_thread_id={}, errno={} ]",
             self.child_process_id, self.child_thread_id, self.ferrno,
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            "[ task_type={}, task_id={}, errno={} ]",
+            self.task_type, self.task_id, self.ferrno,
+>>>>>>> ef28ff9 (Fix up merge with main)
         )
     }
 }
@@ -368,12 +373,17 @@ impl Dump for ops::WaitOp {
     fn dump(&self) -> String {
         format!(
 <<<<<<< HEAD
+<<<<<<< HEAD
             "[ task_type={}, task_id={}, options={}, status={}, errno={} ]",
             self.task_type, self.task_id, self.options, self.status, self.ferrno,
 =======
             "[ pid={}, options={}, status={}, ret={}, errno={} ]",
             self.pid, self.options, self.status, self.ret, self.ferrno,
 >>>>>>> a83cce7 (version 0.2.0)
+=======
+            "[ task_type={}, task_id={}, options={}, status={}, errno={} ]",
+            self.task_type, self.task_id, self.options, self.status, self.ferrno,
+>>>>>>> ef28ff9 (Fix up merge with main)
         )
     }
 }

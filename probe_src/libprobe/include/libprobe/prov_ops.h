@@ -10,15 +10,16 @@
 #define _GNU_SOURCE
 #define __asm__(x)
 #define __signed__ signed
+#include <sys/resource.h>
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/resource.h>
 #include <utime.h>
 #include <threads.h>
 #include <pthread.h>
-#endif
 
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
