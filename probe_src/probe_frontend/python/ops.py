@@ -2,6 +2,7 @@
 from __future__ import annotations
 import typing
 from dataclasses import dataclass
+import enum
 
 # https://github.com/torvalds/linux/blob/73e931504f8e0d42978bfcda37b323dbbd1afc08/include/uapi/linux/fcntl.h#L98
 AT_FDCWD: int = -100
@@ -131,12 +132,19 @@ class ExecOp:
     ferrno: int
 
 
+class TaskType(enum.IntEnum):
+    TASK_PID = 0
+    TASK_TID = 1
+    TASK_ISO_C_THREAD = 2
+    TASK_PTHREAD = 3
+
+
 @dataclass(init=True, frozen=True)
 class CloneOp:
     flags: int
     run_pthread_atfork_handlers: bool
-    child_process_id: int
-    child_thread_id: int
+    task_type: TaskType
+    task_id: int
     ferrno: int
 
 
@@ -172,10 +180,10 @@ class ReaddirOp:
 
 @dataclass(init=True, frozen=True)
 class WaitOp:
-    pid: int
+    task_type: TaskType
+    task_id: int
     options: int
     status: int
-    ret: int
     ferrno: int
 
 
