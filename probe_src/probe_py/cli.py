@@ -17,7 +17,7 @@ A = typing_extensions.Annotated
 
 app = typer.Typer()
 
-def transcribe(probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = False):
+def transcribe(probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = False) -> None:
     """
     Transcribe the recorded data from PROBE_DIR into OUTPUT.
     """
@@ -42,7 +42,7 @@ def transcribe_only(
         input_dir: pathlib.Path,
         output: pathlib.Path = pathlib.Path("probe_log"),
         debug: bool = typer.Option(default=False, help="Run in verbose mode"),
-):
+) -> None:
     """
     Transcribe the recorded data from INPUT_DIR into OUTPUT.
     """
@@ -60,7 +60,7 @@ def record(
         make: bool = typer.Option(default=False, help="Run make prior to executing"),
         output: pathlib.Path = pathlib.Path("probe_log"),
         no_transcribe: bool = typer.Option(default=False, help="Only execute without transcribing"),
-):
+) -> None:
     """
     Execute CMD... and optionally record its provenance into OUTPUT.
     """
