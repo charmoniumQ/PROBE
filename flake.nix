@@ -36,6 +36,7 @@
             buildInputs =
               [
                 (pkgs.python312.withPackages (pypkgs: [
+                  pypkgs.psutil
                   pypkgs.typer
                   pypkgs.pycparser
                   pypkgs.pytest
