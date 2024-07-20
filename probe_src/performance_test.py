@@ -39,9 +39,9 @@ def benchmark_command(command: str, warmup_iterations: int, benchmark_iterations
 
         stdout, stderr = proc.communicate()
 
-        end_time_psutil = datetime.datetime.now()
+        datetime.datetime.now()
 
-        start_time_wait = datetime.datetime.now()
+        datetime.datetime.now()
         returncode = proc.wait()
         end_time_wait = datetime.datetime.now()
 
