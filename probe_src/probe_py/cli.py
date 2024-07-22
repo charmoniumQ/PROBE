@@ -13,6 +13,9 @@ from . import parse_probe_log
 from . import analysis
 from . import util
 
+rich.traceback.install(show_locals=False)
+
+
 project_root = pathlib.Path(__file__).resolve().parent.parent
 
 A = typing_extensions.Annotated
@@ -116,10 +119,11 @@ def process_graph(
     console = rich.console.Console(file=sys.stderr)
     for warning in analysis.validate_provlog(prov_log):
         console.print(warning, style="red")
+    rich.traceback.install(show_locals=False)
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_hb_graph(prov_log, process_graph):
         console.print(warning, style="red")
-    print(analysis.digraph_to_pydot_string(process_graph))
+    print(analysis.digraph_to_pydot_string(prov_log, process_graph))
     
 
 @app.command()
@@ -135,11 +139,14 @@ def dump(
     probe_log_tar_obj = tarfile.open(input, "r")
     processes_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
-    for process in processes_prov_log.processes.values():
-        for exec_epoch in process.exec_epochs.values():
-            for thread in exec_epoch.threads.values():
-                for op in thread.ops:
-                    print(op.data)
+    for pid, process in processes_prov_log.processes.items():
+        print(pid)
+        for exid, exec_epoch in process.exec_epochs.items():
+            print(pid, exid)
+            for tid, thread in exec_epoch.threads.items():
+                print(pid, exid, tid)
+                for op_no, op in enumerate(thread.ops):
+                    print(pid, exid, tid, op_no, op.data)
                 print()
 
 if __name__ == "__main__":
