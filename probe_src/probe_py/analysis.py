@@ -135,9 +135,9 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                             raise Exception("unknown access mode")
 
                     elif isinstance(op, CloneOp):
-                        processNode = ProcessNode(((int)(NodeType.PROCESS), pid))
-                        processNode = ProcessNode(((int)(NodeType.PROCESS), op.task_id))
-                        dataflow_graph.add_edge(processNode, processNode)
+                        processNode1 = ProcessNode(((int)(NodeType.PROCESS), pid))
+                        processNode2 = ProcessNode(((int)(NodeType.PROCESS), op.task_id))
+                        dataflow_graph.add_edge(processNode1, processNode2)
     
     pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
     dot_string = pydot_graph.to_string()
