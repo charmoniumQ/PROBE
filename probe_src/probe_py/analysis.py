@@ -211,9 +211,9 @@ def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
             else:
                 ret.append(f"Node {node} has no successors")
     if not found_entry:
-        ret.append(f"Found no entry node")
+        ret.append("Found no entry node")
     if not found_exit:
-        ret.append(f"Found no exit node")
+        ret.append("Found no exit node")
     for (node0, node1) in process_graph.edges:
         pid0, eid0, tid0, op0 = node0
         pid1, eid1, tid1, op1 = node1
