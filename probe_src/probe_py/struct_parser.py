@@ -1,16 +1,14 @@
 from __future__ import annotations
 import ctypes
 import types
-import _ctypes
 import dataclasses
 import enum
 import textwrap
 import typing
-import pycparser # type: ignore
+import pycparser  # type: ignore
 
 
 _T = typing.TypeVar("_T")
-
 
 # CType: typing.TypeAlias = type[ctypes._CData]
 CArrayType = type(ctypes.c_int * 1)
@@ -34,7 +32,7 @@ default_c_types: CTypeMap = {
     ("unsigned", "__int64"): ctypes.c_ulonglong,
     ("size_t",): ctypes.c_size_t,
     ("ssize_t",): ctypes.c_ssize_t,
-    ("time_t",): ctypes.c_time_t, # type: ignore
+    ("time_t",): ctypes.c_time_t, 
     ("float",): ctypes.c_float,
     ("double",): ctypes.c_double,
     ("long", "double",): ctypes.c_longdouble,
@@ -43,14 +41,11 @@ default_c_types: CTypeMap = {
     ("void*",): ctypes.c_void_p,
 }
 
-
 class PyStructBase:
     pass
 
-
 class PyUnionBase:
     pass
-
 
 PyType: typing.TypeAlias = type[object]
 PyTypeMap: typing.TypeAlias = typing.Mapping[tuple[str, ...], PyType | Exception]
@@ -72,7 +67,7 @@ default_py_types: PyTypeMap = {
     ("unsigned", "__int64"): int,
     ("size_t",): int,
     ("ssize_t",): int,
-    ("time_t",): int, # type: ignore
+    ("time_t",): int, 
     ("float",): float,
     ("double",): float,
     ("long", "double",): int,
@@ -82,13 +77,11 @@ default_py_types: PyTypeMap = {
 }
 assert default_py_types.keys() == default_c_types.keys()
 
-
 def _expect_type(typ: type[_T], val: typing.Any) -> _T:
     if isinstance(val, typ):
         return val
     else:
         raise TypeError(f"Expected value of type {typ}, but got {val} of type {type(val)}")
-
 
 def _normalize_name(name: tuple[str, ...]) -> tuple[str, ...]:
     # Move 'unsigned' to the beginning (if exists)
@@ -99,16 +92,15 @@ def _normalize_name(name: tuple[str, ...]) -> tuple[str, ...]:
         *(t for t in name if t not in {"signed", "int", "unsigned"}),
     )
 
-
 for type_name in default_c_types.keys():
     assert _normalize_name(type_name) == type_name
-
 
 def int_representing_pointer(inner_c_type: CType) -> CType:
     class PointerStruct(ctypes.Structure):
         _fields_ = [("value", ctypes.c_ulong)]
-    PointerStruct.inner_c_type = inner_c_type
+    PointerStruct.inner_c_type = inner_c_type  # type: ignore
     return PointerStruct
+
 
 
 def _lookup_type(
@@ -127,7 +119,12 @@ def _lookup_type(
     return c_type, py_type
 
 
-def eval_compile_time_int(c_types, py_types, typ: pycparser.c_ast.Node, name: str) -> int | Exception:
+def eval_compile_time_int(
+        c_types: CTypeDict,
+        py_types: PyTypeDict,
+        typ: pycparser.c_ast.Node,
+        name: str,
+) -> int | Exception:
     if False:
         pass
     elif isinstance(typ, pycparser.c_ast.Constant):
@@ -143,7 +140,7 @@ def eval_compile_time_int(c_types, py_types, typ: pycparser.c_ast.Node, name: st
             else:
                 return ctypes.sizeof(c_type)
         else:
-            return eval(f"{typ.op} {eval_compile_time_int(c_types, py_types, typ.expr, name)}")
+            return int(eval(f"{typ.op} {eval_compile_time_int(c_types, py_types, typ.expr, name)}"))
     elif isinstance(typ, pycparser.c_ast.BinaryOp):
         left = eval_compile_time_int(c_types, py_types, typ.left, name + "_left")
         right = eval_compile_time_int(c_types, py_types, typ.right, name + "_right")
@@ -177,14 +174,15 @@ def ast_to_cpy_type(
         if isinstance(inner_c_type, Exception):
             c_type = inner_c_type
         else:
-            c_type = int_representing_pointer(inner_c_type)  # type: ignore
+            c_type = int_representing_pointer(inner_c_type)  
         if isinstance(inner_py_type, Exception):
             c_type = inner_py_type
         else:
+            py_type: type[object]
             if inner_c_type == ctypes.c_char:
                 py_type = str
             else:
-                py_type = list[inner_py_type] # type: ignore
+                py_type = list[inner_py_type]  # type: ignore
         return c_type, py_type
     elif isinstance(typ, pycparser.c_ast.ArrayDecl):
         repetitions = eval_compile_time_int(c_types, py_types, typ.dim, name)
@@ -194,11 +192,11 @@ def ast_to_cpy_type(
         if isinstance(inner_c_type, Exception):
             array_c_type = inner_c_type
         else:
-            array_c_type = inner_c_type * repetitions # type: ignore
+            array_c_type = inner_c_type * repetitions 
         if isinstance(inner_py_type, Exception):
             array_py_type = inner_py_type
         else:
-            array_py_type = tuple[(inner_py_type,)]
+            array_py_type = tuple[(inner_py_type,)]  # type: ignore
         return array_c_type, array_py_type
     elif isinstance(typ, pycparser.c_ast.Enum):
         if typ.values is None:
@@ -257,7 +255,9 @@ def parse_struct_or_union(
         else:
             field_c_types.append(c_type)
         if isinstance(py_type, Exception):
-            py_type_error = py_type
+           py_type= py_type
+           #py_type_error commented just to resolve ruff error, since py_type_error isnt being used anywhere else
+           # py_type_error = py_type
         else:
             field_py_types.append(py_type)
 
@@ -268,7 +268,7 @@ def parse_struct_or_union(
         zip(field_names, field_py_types),
         bases=(PyStructBase if is_struct else PyUnionBase,),
         frozen=True,
-    ) # type: ignore
+    ) 
 
     if c_type_error is None:
         c_types[(keyword, name)] = type(
@@ -355,7 +355,7 @@ def c_type_to_c_source(c_type: CType, top_level: bool = True) -> str:
             return "\n".join([
                 keyword + " " + c_type.__name__ + " " + "{",
                 *[
-                    textwrap.indent(c_type_to_c_source(field[1], False), "  ") + " " + field[0] + ";"  # type: ignore
+                    textwrap.indent(c_type_to_c_source(field[1], False), "  ") + " " + field[0] + ";"  
                     for field in c_type._fields_
                 ],
                 "}",
@@ -365,9 +365,10 @@ def c_type_to_c_source(c_type: CType, top_level: bool = True) -> str:
     elif isinstance(c_type, CArrayType):
         return c_type_to_c_source(c_type._type_, False) + "[" + str(c_type._length_) + "]"
     elif isinstance(c_type, type(ctypes._Pointer)):
-        return c_type_to_c_source(c_type._type_, False) + "*" # type: ignore
+        typ: ctypes._CData = c_type._type_  # type: ignore
+        return c_type_to_c_source(typ, False) + "*"
     elif isinstance(c_type, type(ctypes._SimpleCData)):
-        name = c_type.__name__  # type: ignore
+        name = c_type.__name__  
         return {
             # Ints
             "c_byte": "byte",
@@ -423,7 +424,7 @@ def convert_c_obj_to_py_obj(
         info: typing.Any,
         memory: MemoryMapping,
         depth: int = 0,
-) -> PyType:
+) -> PyType | None:
     if verbose:
         print(depth * "  ", c_obj, py_type, info)
     if False:
@@ -438,16 +439,15 @@ def convert_c_obj_to_py_obj(
         size = ctypes.sizeof(inner_c_type)
         pointer_int = _expect_type(int, c_obj.value)
         if pointer_int == 0:
-            return None  # type: ignore
+            return None
         if pointer_int not in memory:
             raise ValueError(f"Pointer {pointer_int:08x} is outside of memory {memory!s}")
         lst: inner_py_type = []  # type: ignore
-        idx = 0
         while True:
             cont, sub_info = (memory[pointer_int : pointer_int + 1] != b'\0', None) if info is None else info[0](memory, pointer_int)
             if cont:
                 inner_c_obj = inner_c_type.from_buffer_copy(memory[pointer_int : pointer_int + size])
-                inner_py_obj = convert_c_obj_to_py_obj(  # type: ignore
+                inner_py_obj = convert_c_obj_to_py_obj(  
                     inner_c_obj,
                     inner_py_type,
                     sub_info,
@@ -459,7 +459,7 @@ def convert_c_obj_to_py_obj(
             else:
                 break
         if py_type is str:
-            return "".join(lst) # type: ignore
+            return "".join(lst)  # type: ignore
         else:
             return lst
     elif isinstance(c_obj, ctypes.Array):

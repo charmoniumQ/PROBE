@@ -1,7 +1,7 @@
 import pathlib
 import tempfile
-import pycparser
-import pycparser.c_generator
+import pycparser  # type: ignore
+import pycparser.c_generator  # type: ignore
 import sys
 
 

@@ -258,3 +258,23 @@ static void listdir(const char* name, int indent) {
 }
 
 #endif
+
+/* strtol in libc is not totally static;
+ * It is defined itself as a static function, but that static code calls some dynamically loaded function.
+ * This would be fine, except some older versions of glibc may not have the deynamic function. */
+unsigned long my_strtoul(const char *restrict string, char **restrict string_end, int base) {
+    unsigned long accumulator = 0;
+    const char* ptr = string;
+    while (*ptr != '\0') {
+        if ('0' <= *ptr && *ptr < ('0' + base)) {
+            accumulator = accumulator * base + (*ptr - '0');
+        } else {
+            return 0;
+        }
+        ptr++;
+    }
+    if (string_end) {
+        *string_end = (char*) ptr;
+    }
+    return accumulator;
+}

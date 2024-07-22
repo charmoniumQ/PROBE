@@ -1,4 +1,4 @@
-- [ ] Implement Rust CLI for record. Jenna is working on this.
+a- [ ] Implement Rust CLI for record. Jenna is working on this.
   - The Rust wrapper should replace the functionality of `record` in the `./probe_py/cli.py`. It should output a language-neutral structure that can be parsed quickly later on.
   - [x] The Rust wrapper should exec the program in an environment with libprobe in `LD_PRELOAD`.
   - [x] The Rust wrapper should transcribe the C structs into a language-neutral format.
@@ -13,6 +13,8 @@
     - [ ] Verify we aren't "missing" an Epoch ID, e.g., 0, 1, 3, 4 is missing 2.
     - [ ] Verify that the TID returned by CloneOp is the same as the TID in the InitOp of the new thread.
     - [ ] Verify that the TID returned by WaitOp is a TID previously returned by CloneOp.
+    - [ ] Verify the graph is acyclic and has one root.
+    - [ ] Put some of these checks in a function, and have that function be called by `PROBE analysis --check`.
     - Note that the application may not close every file descriptor it opens; that would be considered a "sloppy" application, but it should still work in PROBE.
   - [x] Write a pthreads application for testing purposes (Saleha finished this).
   - [ ] Verify some properties of the pthreads application.
@@ -45,27 +47,30 @@
   - Think about assumptions in analysis
   - Think about front-end and UI/UX
 - [ ] Set up CI
-  - [ ] Write [Justfiles](https://github.com/casey/just). Each of the following should be a target:
-    - [ ] Format Nix code with alejandra.
-    - [ ] Format Python code with Black (please add to `flake.nix`).
-    - [ ] Check Python code with Ruff (please add to `flake.nix`).
-    - [ ] Check Python code with Mypy.
-    - [ ] Run tests on the current machine.
-    - [ ] Run tests in an Ubuntu Docker container.
-    - [ ] Run tests in a really old Ubuntu Docker container.
-  - [ ] Write a CI script that uses Nix to install dependencies and run the Justfiles.
+  - [x] Write [Justfiles](https://github.com/casey/just). Each of the following should be a target:
+    - [x] Format Nix code with alejandra.
+    - [x] Format Python code with Black (please add to `flake.nix`).
+    - [x] Check Python code with Ruff (please add to `flake.nix`).
+    - [x] Check Python code with Mypy.
+    - [x] Run tests on the current machine.
+  - [x] Write a CI script that uses Nix to install dependencies and run the Justfiles.
+  - [ ] Check (not format) code in Alejandra and Black.
+  - [ ] Reformat all Python code in Black.
+  - [ ] Figure out why tests don't work.
+  - [ ] Run tests in an Ubuntu Docker container.
+  - [ ] Run tests in a really old Ubuntu Docker container.
 - [ ] Write microbenchmarking
   - [ ] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
   - [ ] Write interesting performance tests, using `benchmark/workloads.py` as inspiration.
   - [ ] Run the benchmarks with Hyperfine, in Containerexec, in a Python script, storing the result as a CSV.
     - Python script that runs `hyperfine ./PROBE record --no-transcribe` and `hyperfine ./PROBE transcribe` for several tests.
 - [ ] Output conversions
-  - [ ] From the NetworkX digraph, export:
+  - [ ] From the NetworkX digraph, export (Shofiya is working on this):
     - [ ] A dataflow graph, showing only files, processes, and the flow of information between them. The following rules define when there is an edge:
       1. Data flows from a file to a process if on any thread there is an OpenOp with the flags set to `O_RDWR` or `O_RDONLY`.
       2. Data flows from a process to a process if one process CloneOp's the other.
       3. Data flows from a process to a file if on any thread there is a OpenOp with the flags set to `O_RDWR` or `O_WRONLY`.
-    - [ ] [Process Run Crate](https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/)
+    - [ ] [Process Run Crate](https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/) (Saleha is working on this)
     - [ ] [Common Workflow Language](https://www.commonwl.org/)
       - [ ] Write a test that runs the resulting CWL.
     - [ ] Makefile
@@ -82,11 +87,14 @@
   - [x] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
   - [x] Debug `gcc`.
   - [x] Add thread ID and pthread ID to op.
+  - [ ] Add Dup ops and debug `bash -c 'head foo > bar'`
   - [ ] Compile Libprobe with static Musl instead of glibc.
   - [ ] Put magic bytes in arena
   - [ ] Unify the Arenas.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
+  - [ ] Add more Ops (see branch add-new-ops)
+- [ ] Sort dirents (see branch sort-dirents)
 - [ ] Generate a replay package.
   - [ ] Should be activated by a flag: `./PROBE record --with-replay`
   - [ ] Should copy all read files into the probe log.
@@ -99,12 +107,21 @@
     - [ ] Research ways to speed up the recording phase.
 - [ ] UX
   - [ ] Document CLI tool.
+  - [ ] Combine Python and Rust CLIs.
   - [ ] Improve the README.
-  - [ ] Package for the following platforms:
-    - [ ] Nix
-    - [ ] Spack
-    - [ ] Guix
-    - [ ] Statically linked binary
+  - [ ] Style output with Rich.
+  - [ ] Style output of Rust tool.
+- [ ] Package for the following platforms:
+  - [ ] It should be obvious how to build libprobe and probe cli (Rust) with Nix from the README.
+  - [ ] The repository should be an installable Python package, using the PEP 518 (pyproject.toml). Consider having one Python package with bundled binaries and one without.
+  - [ ] PyPI
+  - [ ] Nix
+  - [ ] Spack
+  - [ ] Guix
+  - [ ] Docker image (consider whether to publish DockerHub, Quay, GHCR, or somewhere else).
+  - [ ] Statically linked, downloadable binary
+    - Built in CI on each "release" and downloadable from GitHub.
+  - [ ] Changelog
 - [ ] Develop user study
   - [ ] Develop protocol for assessing ease-of-use.
   - [ ] Apply for IRB.

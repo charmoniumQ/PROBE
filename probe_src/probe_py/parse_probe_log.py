@@ -1,6 +1,5 @@
 import collections
 import dataclasses
-import os
 import tarfile
 import enum
 import typing
@@ -9,6 +8,7 @@ import pathlib
 import pycparser # type: ignore
 import arena.parse_arena as arena
 from . import struct_parser
+import struct
 
 
 c_types = dict(struct_parser.default_c_types)
@@ -29,22 +29,40 @@ struct_parser.parse_all_types(ast.ext, c_types, py_types)
 CLONE_THREAD = 0x00010000
 
 
-COp = c_types[("struct", "Op")]
-Op: typing.TypeAlias = py_types[("struct", "Op")]
-InitExecEpochOp: typing.TypeAlias = py_types[("struct", "InitExecEpochOp")]
-InitThreadOp: typing.TypeAlias = py_types[("struct", "InitThreadOp")]
-CloneOp: typing.TypeAlias = py_types[("struct", "CloneOp")]
-ExecOp: typing.TypeAlias = py_types[("struct", "ExecOp")]
-WaitOp: typing.TypeAlias = py_types[("struct", "WaitOp")]
-OpenOp: typing.TypeAlias = py_types[("struct", "OpenOp")]
-CloseOp: typing.TypeAlias = py_types[("struct", "CloseOp")]
-OpCode: enum.EnumType = py_types[("enum", "OpCode")]
-TaskType: enum.EnumType = py_types[("enum", "TaskType")]
+if typing.TYPE_CHECKING:
+    COp: typing.Any = object
+    Op: typing.Any = object
+    InitExecEpochOp: typing.Any = object
+    InitProcessOp: typing.Any = object
+    InitThreadOp: typing.Any = object
+    CloneOp: typing.Any = object
+    ExecOp: typing.Any = object
+    WaitOp: typing.Any = object
+    OpenOp: typing.Any = object
+    CloseOp: typing.Any = object
+    OpCode: typing.Any = object
+    TaskType: typing.Any = object
+else:
+    # for type in sorted(c_types.keys()):
+    #     print(" ".join(type))
+    COp = c_types[("struct", "Op")]
+    Op: typing.TypeAlias = py_types[("struct", "Op")]
+    InitProcessOp: typing.TypeAlias = py_types[("struct", "InitProcessOp")]
+    InitExecEpochOp: typing.TypeAlias = py_types[("struct", "InitExecEpochOp")]
+    InitThreadOp: typing.TypeAlias = py_types[("struct", "InitThreadOp")]
+    CloneOp: typing.TypeAlias = py_types[("struct", "CloneOp")]
+    ExecOp: typing.TypeAlias = py_types[("struct", "ExecOp")]
+    WaitOp: typing.TypeAlias = py_types[("struct", "WaitOp")]
+    OpenOp: typing.TypeAlias = py_types[("struct", "OpenOp")]
+    CloseOp: typing.TypeAlias = py_types[("struct", "CloseOp")]
+    OpCode: enum.EnumType = py_types[("enum", "OpCode")]
+    TaskType: enum.EnumType = py_types[("enum", "TaskType")]
+
 
 @dataclasses.dataclass
 class ThreadProvLog:
     tid: int
-    ops: typing.Sequence[Op]  # type: ignore
+    ops: typing.Sequence[Op]
 
 
 @dataclasses.dataclass
@@ -114,7 +132,7 @@ def parse_probe_log_tar(probe_log_tar: tarfile.TarFile) -> ProvLog:
     ])
     threads = collections.defaultdict[int, dict[int, dict[int, ThreadProvLog]]](
         lambda: collections.defaultdict[int, dict[int, ThreadProvLog]](
-            collections.defaultdict[dict[int, ThreadProvLog]]
+            dict[int, ThreadProvLog]
         )
     )
     for member in member_paths:
