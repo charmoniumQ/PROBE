@@ -1,12 +1,76 @@
 import typing
 import networkx as nx  # type: ignore
-from .parse_probe_log import ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp ,CLONE_THREAD
+from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp, CLONE_THREAD
 from enum import IntEnum
+
 
 class EdgeLabels(IntEnum):
     PROGRAM_ORDER = 1
     FORK_JOIN = 2
     EXEC = 3
+
+
+def validate_provlog(
+        provlog: ProvLog,
+) -> list[str]:
+    ret = list[str]()
+    waited_processes = set[tuple[TaskType, int]]()
+    cloned_processes = set[tuple[TaskType, int]]()
+    opened_fds = set[int]()
+    closed_fds = set[int]()
+    for pid, process in provlog.processes.items():
+        epochs = set[int]()
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            epochs.add(exec_epoch_no)
+            pthread_ids = {
+                op.pthread_id
+                for tid, thread in exec_epoch.threads.items()
+                for op in thread.ops
+            }
+            iso_c_thread_ids = {
+                op.pthread_id
+                for tid, thread in exec_epoch.threads.items()
+                for op in thread.ops
+            }
+            for tid, thread in exec_epoch.threads.items():
+                for op in thread.ops:
+                    if False:
+                        pass
+                    elif isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+                        waited_processes.add((op.data.task_type, op.data.task_id))
+                    elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                        cloned_processes.add((op.data.task_type, op.data.task_id))
+                    elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
+                        opened_fds.add(op.data.fd)
+                    elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
+                        # Range in Python is up-to-not-including high_fd, so we add one to it.
+                        closed_fds.update(range(op.data.low_fd, op.data.high_fd + 1))
+                    elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                        if False:
+                            pass
+                        elif op.data.task_type == TaskType.TASK_PID and op.data.task_id not in provlog.processes.keys():
+                            ret.append(f"CloneOp returned a PID {op.data.task_id} that we didn't track")
+                        elif op.data.task_type == TaskType.TASK_TID and op.data.task_id not in exec_epoch.threads.keys():
+                            ret.append(f"CloneOp returned a TID {op.data.task_id} that we didn't track")
+                        elif op.data.task_type == TaskType.TASK_PTHREAD and op.data.task_id not in pthread_ids:
+                            ret.append(f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track")
+                        elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
+                            ret.append(f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track")
+                    elif isinstance(op.data, InitProcessOp):
+                        if exec_epoch_no != 0:
+                            ret.append(f"InitProcessOp happened, but exec_epoch was not zero, was {exec_epoch_no}")
+        expected_epochs = set(range(0, max(epochs)))
+        if epochs - expected_epochs:
+            ret.append(f"Missing epochs for pid={pid}: {sorted(epochs - expected_epochs)}")
+    reserved_fds = {0, 1, 2}
+    if False:
+        pass
+    elif closed_fds - opened_fds - reserved_fds:
+        ret.append(f"Closed more fds than we opened: {closed_fds - opened_fds - reserved_fds}")
+    elif waited_processes - cloned_processes:
+        ret.append(f"Waited on more processes than we cloned: {waited_processes - cloned_processes}")
+    return ret
+
 
 def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     # [pid, exec_epoch_no, tid, op_index]
@@ -66,7 +130,9 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for node in list(nodes):
         pid, exid, tid, op_index = node
         op = process_tree_prov_log.processes[pid].exec_epochs[exid].threads[tid].ops[op_index].data
-        if isinstance(op, CloneOp):
+        if False:
+            pass
+        elif isinstance(op, CloneOp) and op.data.ferrno == 0:
             if op.flags & CLONE_THREAD:
                 # Spawning a thread links to the current PID and exec epoch
                 target = (pid, exid, op.task_id)
@@ -104,6 +170,89 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     add_edges(exec_edges, EdgeLabels.EXEC)
     add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
     return process_graph
+
+
+def prov_log_get_node(prov_log: ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
+    return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
+
+
+def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+    ret = list[str]()
+    provlog_reverse = process_graph.reverse()
+    found_entry = False
+    found_exit = False
+    for node in process_graph.nodes:
+        op = prov_log_get_node(provlog, *node) if node[-1] != -1 else None
+        if op is None:
+            pass
+        elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
+            for closed_fd in range(op.data.low_fd, op.data.high_fd + 1):
+                for pred_node in nx.dfs_preorder_nodes(provlog_reverse, node):
+                    pred_op = prov_log_get_node(provlog, *pred_node) if pred_node[-1] != -1 else None
+                    if isinstance(pred_op.data, OpenOp) and pred_op.data.fd == closed_fd and op.data.ferrno == 0:
+                        break
+                else:
+                    ret.append(f"Close of {closed_fd} is not preceeded by corresponding open")
+        elif isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+            for pred_node in nx.dfs_preorder_nodes(provlog_reverse, node):
+                pred_op = prov_log_get_node(provlog, *pred_node) if pred_node[-1] != -1 else None
+                if isinstance(pred_op.data, CloneOp) and pred_op.data.task_type == op.data.task_type and pred_op.data.task_id == op.data.task_type and op.data.ferrno == 0:
+                    break
+            else:
+                ret.append(f"Close of {closed_fd} is not preceeded by corresponding open")
+        if process_graph.in_degree(node) == 0:
+            if not found_entry:
+                found_entry = True
+            else:
+                ret.append(f"Node {node} has no predecessors")
+        if process_graph.out_degree(node) == 0:
+            if not found_exit:
+                found_exit = True
+            else:
+                ret.append(f"Node {node} has no successors")
+    if not found_entry:
+        ret.append(f"Found no entry node")
+    if not found_exit:
+        ret.append(f"Found no exit node")
+    for (node0, node1) in process_graph.edges:
+        pid0, eid0, tid0, op0 = node0
+        pid1, eid1, tid1, op1 = node1
+        op0 = prov_log_get_node(provlog, *node0) if node0[-1] != -1 else None
+        op1 = prov_log_get_node(provlog, *node1) if node1[-1] != -1 else None
+        if op0 is None:
+            pass
+        elif isinstance(op0.data, ExecOp):
+            if eid0 + 1 != eid1:
+                ret.append(f"ExecOp {node0} is followed by {node1}, whose exec epoch id should be {eid0 + 1}")
+            if op1 is None or not isinstance(op1.data, InitExecEpochOp):
+                ret.append(f"ExecOp {node0} is followed by {op1}, which is not InitExecEpoch")
+        elif isinstance(op0.data, CloneOp) and op0.data.ferrno == 0:
+            if False:
+                pass
+            elif op0.data.task_type == TaskType.TASK_PID:
+                if op1 is None or not isinstance(op1.data, InitProcessOp):
+                    ret.append(f"CloneOp {node0} with TASK_PID is followed by {node1} which is not InitProcessOp")
+                if op0.data.task_id != pid1:
+                    ret.append(f"CloneOp {node0} returns {op0.data.task_id} but the next op has pid {pid1}")
+            elif op0.data.task_type == TaskType.TASK_TID:
+                if op1 is None or not isinstance(op1.data, InitThreadOp):
+                    ret.append(f"CloneOp {node0} with TASK_TID is followed by {node1} which is not InitThreadOp")
+                if op1 is None or not isinstance(op1.data, InitThreadOp):
+                    ret.append(f"CloneOp {node0} returns {op0.data.task_id} but the next op has tid {tid1}")
+            elif op0.data.task_type == TaskType.PTHREAD_PID:
+                if op1 is None or not op1.pthread_id != op0.data.task_id:
+                    ret.append(f"CloneOp {node0} with TASK_PTHREAD is followed by {node1} which has a different pthread_id")
+            elif op0.data.task_type == TaskType.ISO_C_THREAD_PID:
+                if op1 is None or not op1.iso_c_thread_id != op0.data.task_id:
+                    ret.append(f"CloneOp {node0} with TASK_ISO_C_THREAD is followed by {node1} which has a different pthread_id")
+    try:
+        cycle = nx.find_cycle(process_graph)
+    except nx.NetworkXNoCycle:
+        pass
+    else:
+        ret.append(f"Cycle detected: {cycle}")
+    return ret
+
 
 def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
 

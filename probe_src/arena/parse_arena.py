@@ -114,7 +114,7 @@ def parse_arena_dir(arena_dir: pathlib.Path) -> MemorySegments:
         assert path.name.endswith(".dat")
         buffr = path.read_bytes()
         memory_segments.append(parse_arena_buffer(buffr))
-    return MemorySegments(memory_segments)
+    return MemorySegments(sorted(memory_segments, key=lambda seg: seg.start))
 
 
 def parse_arena_dir_tar(
@@ -131,10 +131,11 @@ def parse_arena_dir_tar(
             buffr = extracted.read()
             memory_segment = parse_arena_buffer(buffr)
             memory_segments.append(memory_segment)
-    return MemorySegments(memory_segments)
+    return MemorySegments(sorted(memory_segments, key=lambda seg: seg.start))
 
 
 if __name__ == "__main__":
+    # Run by `make test`
     import sys
     arena_dir = pathlib.Path(sys.argv[1])
     print(f"Parsing {arena_dir!s}")

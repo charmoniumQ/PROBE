@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 import tempfile
 import subprocess
 import typing_extensions
@@ -7,6 +8,7 @@ import tarfile
 import pathlib
 import typer
 import shutil
+import rich
 from . import parse_probe_log
 from . import analysis
 from . import util
@@ -109,9 +111,16 @@ def process_graph(
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
     probe_log_tar_obj = tarfile.open(input, "r")
-    process_tree_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+    prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
-    print(analysis.construct_process_graph(process_tree_prov_log))
+    console = rich.console.Console(file=sys.stderr)
+    for warning in analysis.validate_provlog(prov_log):
+        console.print(warning, style="red")
+    process_graph = analysis.provlog_to_digraph(prov_log)
+    for warning in analysis.validate_hb_graph(prov_log, process_graph):
+        console.print(warning, style="red")
+    print(analysis.digraph_to_pydot_string(process_graph))
+    
 
 @app.command()
 def dump(
