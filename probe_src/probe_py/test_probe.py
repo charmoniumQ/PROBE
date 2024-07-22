@@ -203,7 +203,7 @@ def check_pthread_graph(
         if(isinstance(curr_node_op.data,parse_probe_log.CloneOp)):
             next_op = get_op_from_provlog(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
             if edge[1][2] != curr_tid:
-               assert next_op!=None
+               assert next_op is not None
                assert curr_node_op.data.task_id == next_op.pthread_id
                continue
             check_wait.append(curr_node_op.data.task_id)

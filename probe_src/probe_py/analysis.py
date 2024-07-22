@@ -1,6 +1,6 @@
 import typing
 import networkx as nx  # type: ignore
-from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp, CLONE_THREAD
+from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp
 from enum import IntEnum
 
 
@@ -279,8 +279,6 @@ def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
 
 def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, typing.Any]]:
     """Remove node from graph and attach its predecessors to its successors"""
-    predecessors = graph.predecessors(node)
-    successors = graph.successors(node)
     ret = list[tuple[typing.Any, typing.Any]]()
     for predecessor in graph.predecessors:
         for successor in graph.successors:
@@ -329,4 +327,4 @@ def construct_process_graph(process_tree_prov_log: ProvLog) -> str:
     """
 
     process_graph = provlog_to_digraph(process_tree_prov_log)
-    return digraph_to_pydot_string(process_graph)
+    return digraph_to_pydot_string(process_tree_prov_log, process_graph)
