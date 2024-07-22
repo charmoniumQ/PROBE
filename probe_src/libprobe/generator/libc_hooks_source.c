@@ -2122,7 +2122,7 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
         struct Op op = {
             wait_op_code,
             {.wait = {
-                .task_type = TASK_TID,
+                .task_type = TASK_PID,
                 .task_id = 0,
                 .options = options,
                 .status = 0,
