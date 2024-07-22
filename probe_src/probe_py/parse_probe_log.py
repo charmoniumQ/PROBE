@@ -58,6 +58,7 @@ else:
     OpCode: enum.EnumType = py_types[("enum", "OpCode")]
     TaskType: enum.EnumType = py_types[("enum", "TaskType")]
 
+
 @dataclasses.dataclass
 class ThreadProvLog:
     tid: int

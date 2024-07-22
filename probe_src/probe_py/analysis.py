@@ -82,6 +82,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
     for pid, process in process_tree_prov_log.processes.items():
+        
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             # to find the last executing epoch of the process
             last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
@@ -125,17 +126,43 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
             return exit_node
         else:
             return proc_to_ops[(pid, exid, tid)][-1]
+        
+    def get_first_pthread(pid, exid, target_pthread_id):
+        for kthread_id, thread in process_tree_prov_log.processes[pid].exec_epochs[exid].threads.items():          
+            op_index = 0
+            for op in thread.ops:               
+                if op.pthread_id == target_pthread_id:
+                    return (pid, exid, kthread_id, op_index)
+                op_index+=1  
+        return (pid, -1, target_pthread_id, -1) 
+
+    def get_last_pthread(pid, exid, target_pthread_id):
+        for kthread_id, thread in process_tree_prov_log.processes[pid].exec_epochs[exid].threads.items():          
+            op_index = len(thread.ops) - 1
+            ops = thread.ops
+            while op_index >= 0:  
+                op = ops[op_index]             
+                if op.pthread_id == target_pthread_id:
+                    return (pid, exid, kthread_id, op_index)
+                op_index-=1
+        return (pid, -1, target_pthread_id, -1)
 
     # Hook up forks/joins
     for node in list(nodes):
         pid, exid, tid, op_index = node
         op = process_tree_prov_log.processes[pid].exec_epochs[exid].threads[tid].ops[op_index].data
+        global target
         if False:
             pass
         elif isinstance(op, CloneOp) and op.data.ferrno == 0:
-            if op.flags & CLONE_THREAD:
+            if op.task_type == TaskType.TASK_PID:
                 # Spawning a thread links to the current PID and exec epoch
                 target = (pid, exid, op.task_id)
+            elif op.task_type == TaskType.TASK_PTHREAD:
+                target_pthread_id = op.task_id
+                dest = get_first_pthread(pid, exid, target_pthread_id)
+                fork_join_edges.append((node, dest))
+                continue
             else:
                 # New process always links to exec epoch 0 and main thread
                 # THe TID of the main thread is the same as the PID
@@ -143,9 +170,11 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
             exec_edges.append((node, first(*target)))
         elif isinstance(op, WaitOp) and op.ferrno == 0 and op.task_id > 0:
             # Always wait for main thread of the last exec epoch
-            if op.ferrno == 0:
+            if op.ferrno == 0 and (op.task_type == TaskType.TASK_PID or op.task_type == TaskType.TASK_TID):
                 target = (op.task_id, last_exec_epoch.get(op.task_id, 0), op.task_id)
                 fork_join_edges.append((last(*target), node))
+            elif op.ferrno == 0 and op.task_type == TaskType.TASK_PTHREAD:
+                fork_join_edges.append((get_last_pthread(pid, exid, op.task_id), node))
         elif isinstance(op, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, exid + 1, pid
@@ -155,8 +184,8 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             for tid, thread in exec_epoch.threads.items():
-                if tid != 0:
-                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, 0)))
+                if tid != pid:
+                    fork_join_edges.append((last(pid, exec_epoch_no, tid), last(pid, exec_epoch_no, pid)))
 
     process_graph = nx.DiGraph()
     for node in nodes:
