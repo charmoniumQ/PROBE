@@ -1,40 +1,13 @@
 {
-  description = "libprobe frontend";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-
-    crane = {
-      url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    flake-utils.url = "github:numtide/flake-utils";
-
-    advisory-db = {
-      url = "github:rustsec/advisory-db";
-      flake = false;
-    };
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
-
-  # TODO: cleanup derivations and make more usable:
-  # - version of probe cli with bundled libprobe and wrapper script
-  # - python code as actual module
-  # (this may require merging this flake with the top-level one)
-  outputs = {
-    self,
-    nixpkgs,
-    crane,
-    flake-utils,
-    advisory-db,
-    rust-overlay,
-    ...
-  }: let
+  self,
+  pkgs,
+  crane,
+  flake-utils,
+  advisory-db,
+  rust-overlay,
+  system,
+  ...
+}: let
     systems = {
       # "nix system" = "rust target";
       "x86_64-linux" = "x86_64-unknown-linux-musl";
@@ -42,12 +15,6 @@
       "aarch64-linux" = "aarch64-unknown-linux-musl";
       "armv7l-linux" = "armv7-unknown-linux-musleabi";
     };
-  in
-    flake-utils.lib.eachSystem (builtins.attrNames systems) (system: let
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [(import rust-overlay)];
-      };
 
       craneLib = (crane.mkLib pkgs).overrideToolchain (p:
         p.rust-bin.stable.latest.default.override {
@@ -71,6 +38,10 @@
         postUnpack = ''
           mkdir -p ./python
           export PYGEN_OUTFILE="$(realpath ./python/ops.py)"
+          # TODO: Rust frontend should search for libprobe-interface in the C include path.
+          # Then I should be able to add libprobe-interface as a build dependency, and Rust should find it.
+          # Also, the devshell hook would simply set an env var directing the C include path to include the libprobe-interface header.
+          cp -r ${self.packages.${system}.libprobe-interface}/include probe_frontend/lib/include
         '';
 
         CARGO_BUILD_TARGET = "${systems.${system}}";
@@ -96,12 +67,13 @@
       # This allows consumers to only depend on (and build) only what they need.
       # Though it is possible to build the entire workspace as a single derivation,
       # so this is left up to you on how to organize things
-      probe-frontend = craneLib.buildPackage (individualCrateArgs
+      probe-frontend = craneLib.buildPackage (
+        individualCrateArgs
         // {
           pname = "probe-frontend";
           cargoExtraArgs = "-p probe_frontend";
           installPhase = ''
-            mkdir -p $out/python
+            mkdir -p $out/probe_py/generated
             cp -r ./python $out/
           '';
         });
@@ -190,5 +162,4 @@
           pkgs.rust-analyzer
         ];
       };
-    });
-}
+    }

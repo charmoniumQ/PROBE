@@ -60,6 +60,7 @@ def test_pthreads() -> None:
 def execute_command(command: list[str], return_code: int = 0) -> parse_probe_log.ProvLog:
     input = pathlib.Path("probe_log")
     result = subprocess.run(
+        ["./"]
         ['./PROBE', 'record'] + (["--debug"] if DEBUG_LIBPROBE else []) + (["--make"] if REMAKE_LIBPROBE else []) + command,
         # capture_output=True,
         # text=True,
