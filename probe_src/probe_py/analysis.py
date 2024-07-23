@@ -264,13 +264,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
     return 
 
 def list_edges_from_start_node(graph: nx.DiGraph, start_node: Node) -> list[EdgeType]:
-    
     all_edges = list(graph.edges())
-    try:
-        start_index = next(i for i, edge in enumerate(all_edges) if edge[0] == start_node)
-    except StopIteration:
-        return [] 
-    # list from the start index
+    start_index = next(i for i, edge in enumerate(all_edges) if edge[0] == start_node)
     ordered_edges = all_edges[start_index:] + all_edges[:start_index] 
     return ordered_edges
 
