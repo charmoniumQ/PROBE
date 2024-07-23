@@ -3,11 +3,19 @@
     "advisory-db": {
       "flake": false,
       "locked": {
+<<<<<<< HEAD
         "lastModified": 1721864173,
         "narHash": "sha256-tQn2ZPLAH6u2nAfV8Ac/2HPS5giBi0iceCp4g9SqWAU=",
         "owner": "rustsec",
         "repo": "advisory-db",
         "rev": "af0e1b678a23ebd04efa0d0f63f98ad46781077d",
+=======
+        "lastModified": 1721760663,
+        "narHash": "sha256-UwyeParu5C9mEVQ0fvU2+9ljkZHRhucrnAuuVqcRDD4=",
+        "owner": "rustsec",
+        "repo": "advisory-db",
+        "rev": "1ddd5bec7ae07e0213e93617de032dec58ec545c",
+>>>>>>> fa9144f (Fix glue code)
         "type": "github"
       },
       "original": {
@@ -23,11 +31,19 @@
         ]
       },
       "locked": {
+<<<<<<< HEAD
         "lastModified": 1721842668,
         "narHash": "sha256-k3oiD2z2AAwBFLa4+xfU+7G5fisRXfkvrMTCJrjZzXo=",
         "owner": "ipetkov",
         "repo": "crane",
         "rev": "529c1a0b1f29f0d78fa3086b8f6a134c71ef3aaf",
+=======
+        "lastModified": 1721699339,
+        "narHash": "sha256-UqtSwU13vpzzM6w8tGghEbA7ObM3NCDzSpz19QQo9XE=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "0081e9c447f3b70822c142908f08ceeb436982b8",
+>>>>>>> fa9144f (Fix glue code)
         "type": "github"
       },
       "original": {
@@ -56,11 +72,19 @@
     },
     "nixpkgs": {
       "locked": {
+<<<<<<< HEAD
         "lastModified": 1721782431,
         "narHash": "sha256-UNDpwjYxNXQet/g3mgRLsQ9zxrbm9j2JEvP4ijF3AWs=",
         "owner": "NixOS",
         "repo": "nixpkgs",
         "rev": "4f02464258baaf54992debfd010a7a3662a25536",
+=======
+        "lastModified": 1721622093,
+        "narHash": "sha256-iQ+quy3A1EKeFyLyAtjhgSvZHH7r+xybXZkxMhasN4I=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "453402b94f39f968a7c27df28e060f69e4a50c3b",
+>>>>>>> fa9144f (Fix glue code)
         "type": "github"
       },
       "original": {
@@ -86,11 +110,19 @@
         ]
       },
       "locked": {
+<<<<<<< HEAD
         "lastModified": 1721928877,
         "narHash": "sha256-bW2ClCWzGCytPbUnqZwU8P1YsLW07uEs80EfHEctc0Q=",
         "owner": "oxalica",
         "repo": "rust-overlay",
         "rev": "8b81b8ed00b20fd57b24adcb390bd96ea81ecd90",
+=======
+        "lastModified": 1721701191,
+        "narHash": "sha256-nM4szL90VeZHZEC5rFfaiiPNTVOmsihdtk2QSP1l37I=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "4674ff2c2e5423a0cebe16e61aa874c359306af4",
+>>>>>>> fa9144f (Fix glue code)
         "type": "github"
       },
       "original": {

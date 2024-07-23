@@ -68,9 +68,16 @@ def execute_command(command: list[str], return_code: int = 0) -> ProvLog:
     if input.exists():
         input.unlink()
     result = subprocess.run(
+<<<<<<< HEAD:probe_src/python/probe_py/manual/test_probe.py
         ['probe', 'record'] + (["--debug"] if DEBUG_LIBPROBE else []) + (["--make"] if REMAKE_LIBPROBE else []) + command,
         capture_output=True,
         text=True,
+=======
+        ["./"]
+        ['./PROBE', 'record'] + (["--debug"] if DEBUG_LIBPROBE else []) + (["--make"] if REMAKE_LIBPROBE else []) + command,
+        # capture_output=True,
+        # text=True,
+>>>>>>> fa9144f (Fix glue code):probe_src/probe_py/test_probe.py
         check=False,
     )
     print(result.stdout)

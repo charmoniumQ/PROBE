@@ -5,7 +5,12 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "probe_py.generated"
 authors = [
+<<<<<<< HEAD
     # authors generated from Cargo.toml@authors@
+=======
+  {name = "Jenna Filgor", email = "jenna@fligor.net"},
+  {name = "Samuel Grayson", email = "sam@samgrayson.me"},
+>>>>>>> fa9144f (Fix glue code)
 ]
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]

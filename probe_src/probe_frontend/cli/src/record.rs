@@ -17,9 +17,13 @@ use std::{
     thread,
 };
 
+<<<<<<< HEAD
 use color_eyre::eyre::{eyre, Result, WrapErr};
 <<<<<<< HEAD
 <<<<<<< HEAD
+=======
+use color_eyre::eyre::{Result, WrapErr, OptionExt};
+>>>>>>> fa9144f (Fix glue code)
 use flate2::Compression;
 
 use crate::{transcribe, util::Dir};
@@ -222,11 +226,17 @@ impl Recorder {
     /// was recorded into
     pub fn record(self) -> Result<Dir> {
         // reading and canonicalizing path to libprobe
-        let mut libprobe = fs::canonicalize(match std::env::var_os("__PROBE_LIB") {
+        let ostensible_libprobe_path = match std::env::var_os("__PROBE_LIB") {
             Some(x) => PathBuf::from(x),
-            None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
-        })
-        .wrap_err("unable to canonicalize libprobe path")?;
+            None => std::env::current_exe()?
+                .parent()
+                .ok_or_eyre("Failed to get the parent of current exe")?
+                .parent()
+                .ok_or_eyre("Failed to get the parent of current exe")?
+                .join("lib"),
+        };
+        let mut libprobe = fs::canonicalize(ostensible_libprobe_path.clone())
+        .wrap_err(format!("unable to canonicalize libprobe path {:?}", ostensible_libprobe_path.clone()))?;
         if self.debug || self.gdb {
             log::debug!("Using debug version of libprobe");
             libprobe.push("libprobe-dbg.so");

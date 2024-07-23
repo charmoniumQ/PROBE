@@ -25,7 +25,7 @@ install:
 	install -D --target-directory $(INSTALL_PREFIX)/lib/ build/lib*.so
 
 clean:
-	mkdir --parents build/ generated/
+	mkdir --parents build generated/
 	touch $(GENERATED_FILES) $(ALL_TARGETS)
 	rm --force $(GENERATED_FILES) $(ALL_TARGETS)
 .PHONY: clean

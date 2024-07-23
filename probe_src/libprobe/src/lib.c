@@ -62,11 +62,19 @@ static __thread bool __thread_inited = false;
 
 /* #include "fd_table.c" */
 
+<<<<<<< HEAD
 #include "../include/libprobe/prov_ops.h"
 
 #define ARENA_USE_UNWRAPPED_LIBC
 #define ARENA_PERROR
 #include "../arena/include/arena.h"
+=======
+#include "prov_ops.h"
+
+#define ARENA_USE_UNWRAPPED_LIBC
+#define ARENA_PERROR
+#include "arena.h"
+>>>>>>> fa9144f (Fix glue code)
 
 #include "global_state.c"
 

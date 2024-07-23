@@ -65,8 +65,20 @@
     - [x] Check Python code with Mypy.
     - [x] Run tests on the current machine.
   - [x] Write a CI script that uses Nix to install dependencies and run the Justfiles.
+<<<<<<< HEAD
   - [x] Check (not format) code in Alejandra and Black.
   - [x] Figure out why tests don't work.
+=======
+  - [ ] Check (not format) code in Alejandra and Black.
+  - [ ] Reformat all Python code in Black.
+  - [x] Figure out why tests don't work.
+  - [ ] Run tests for subprojects (e.g., Arena).
+  - [ ] Consider using advice from <https://matt.sh/howto-c#formatting>
+    - [ ] Enforce <https://matt.sh/howto-c#_types> through linting
+    - [ ] Enforce <https://matt.sh/howto-c#_never-use-malloc> through linting
+  - [ ] Move all tests to Nix flake check.
+  - [ ] Enforce 0-warnings in Rust (compile warnings or clippy warnings) and C in CI.
+>>>>>>> fa9144f (Fix glue code)
   - [ ] Run tests in an Ubuntu Docker container.
   - [ ] Run tests in a really old Ubuntu Docker container.
   - [ ] Figure out how to intelligently combine Nix checks, Just checks, and GitHub CI checks, so we aren't duplicating checks.
