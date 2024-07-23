@@ -192,8 +192,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     add_edges(exec_edges, EdgeLabels.EXEC)
     return process_graph
 
-def recursive(process_tree_prov_log: ProvLog, starting_node: Node, traversed: list[int] , dataflow_graph:nx.DiGraph, file_version_map: Dict[str, int]) -> None:
-    
+def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node, traversed: list[int] , dataflow_graph:nx.DiGraph, file_version_map: Dict[str, int]) -> None:
     O_ACCMODE = 0x3
     starting_pid = starting_node[0]
     
@@ -256,7 +255,7 @@ def recursive(process_tree_prov_log: ProvLog, starting_node: Node, traversed: li
             dataflow_graph.add_edge(processNode1, processNode2)
         elif isinstance(op, WaitOp) and op.options == 0:
             for node in target_nodes[op.task_id]:
-                recursive(process_tree_prov_log, node, traversed, dataflow_graph, file_version_map)
+                traverse_hb_for_dfgraph(process_tree_prov_log, node, traversed, dataflow_graph, file_version_map)
                 traversed.append(node[2])
         # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
@@ -281,7 +280,7 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     traversed: list[int] = []
-    recursive(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map)
+    traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map)
     
     pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
     dot_string = pydot_graph.to_string()
