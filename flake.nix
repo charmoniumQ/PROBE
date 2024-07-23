@@ -36,6 +36,7 @@
             buildInputs =
               [
                 (pkgs.python312.withPackages (pypkgs: [
+                  pypkgs.psutil
                   pypkgs.typer
                   pypkgs.pycparser
                   pypkgs.pytest
@@ -44,6 +45,7 @@
                   pypkgs.networkx
                   pypkgs.ipython
                   pypkgs.pydot
+                  pypkgs.rich
                 ]))
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
                 pkgs.which

@@ -33,6 +33,7 @@ if typing.TYPE_CHECKING:
     COp: typing.Any = object
     Op: typing.Any = object
     InitExecEpochOp: typing.Any = object
+    InitProcessOp: typing.Any = object
     InitThreadOp: typing.Any = object
     CloneOp: typing.Any = object
     ExecOp: typing.Any = object
@@ -41,9 +42,13 @@ if typing.TYPE_CHECKING:
     CloseOp: typing.Any = object
     OpCode: typing.Any = object
     TaskType: typing.Any = object
+    StatOp: typing.Any = object
 else:
+    # for type in sorted(c_types.keys()):
+    #     print(" ".join(type))
     COp = c_types[("struct", "Op")]
     Op: typing.TypeAlias = py_types[("struct", "Op")]
+    InitProcessOp: typing.TypeAlias = py_types[("struct", "InitProcessOp")]
     InitExecEpochOp: typing.TypeAlias = py_types[("struct", "InitExecEpochOp")]
     InitThreadOp: typing.TypeAlias = py_types[("struct", "InitThreadOp")]
     CloneOp: typing.TypeAlias = py_types[("struct", "CloneOp")]
@@ -53,6 +58,8 @@ else:
     CloseOp: typing.TypeAlias = py_types[("struct", "CloseOp")]
     OpCode: enum.EnumType = py_types[("enum", "OpCode")]
     TaskType: enum.EnumType = py_types[("enum", "TaskType")]
+    StatOp: typing.TypeAlias = py_types[("struct", "StatOp")]
+
 
 @dataclasses.dataclass
 class ThreadProvLog:
@@ -83,6 +90,7 @@ def parse_segments(op_segments: arena.MemorySegments, data_segments: arena.Memor
     def info(fields: typing.Mapping[str, typing.Any], field_name: str) -> typing.Any:
         if field_name == "data":
             op_code_to_union_variant = {
+                OpCode.init_process_op_code: ("init_process", None),
                 OpCode.init_exec_epoch_op_code: ("init_exec_epoch", None),
                 OpCode.init_thread_op_code: ("init_thread", None),
                 OpCode.open_op_code: ("open", None),
