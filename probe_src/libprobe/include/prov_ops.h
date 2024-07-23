@@ -189,7 +189,7 @@ enum OpCode {
 struct Op {
     enum OpCode op_code;
     union {
-        struct InitProcessOp init_process_epoch;
+        struct InitProcessOp init_process;
         struct InitExecEpochOp init_exec_epoch;
         struct InitThreadOp init_thread;
         struct OpenOp open;

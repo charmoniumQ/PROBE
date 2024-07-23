@@ -117,9 +117,10 @@ def process_graph(
     prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
     probe_log_tar_obj.close()
     console = rich.console.Console(file=sys.stderr)
+    process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_provlog(prov_log):
         console.print(warning, style="red")
-    rich.traceback.install(show_locals=False)
+    rich.traceback.install(show_locals=False) # Figure out why we need this
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_hb_graph(prov_log, process_graph):
         console.print(warning, style="red")

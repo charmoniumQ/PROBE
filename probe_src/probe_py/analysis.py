@@ -1,6 +1,6 @@
 import typing
 import networkx as nx  # type: ignore
-from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp
+from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from enum import IntEnum
 
 
@@ -194,17 +194,13 @@ def prov_log_get_node(prov_log: ProvLog, pid: int, exec_epoch: int, tid: int, op
     return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
 
 
-def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
-    ret = list[str]()
+def validate_hb_closes(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
     provlog_reverse = process_graph.reverse()
-    found_entry = False
-    found_exit = False
+    ret = list[str]()
     reserved_fds = {0, 1, 2}
     for node in process_graph.nodes:
         op = prov_log_get_node(provlog, *node)
-        if False:
-            pass
-        elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
+        if isinstance(op.data, CloseOp) and op.data.ferrno == 0:
             for closed_fd in range(op.data.low_fd, op.data.high_fd + 1):
                 if closed_fd not in reserved_fds:
                     for pred_node in nx.dfs_preorder_nodes(provlog_reverse, node):
@@ -212,17 +208,32 @@ def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
                         if isinstance(pred_op.data, OpenOp) and pred_op.data.fd == closed_fd and op.data.ferrno == 0:
                             break
                     else:
-                        ret.append(f"Close of {closed_fd} is not preceeded by corresponding open")
-        elif isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+                        ret.append(f"Close of {closed_fd} in {node} is not preceeded by corresponding open")
+    return ret
+
+
+def validate_hb_waits(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+    provlog_reverse = process_graph.reverse()
+    ret = list[str]()
+    for node in process_graph.nodes:
+        op = prov_log_get_node(provlog, *node)
+        if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
             for pred_node in nx.dfs_preorder_nodes(provlog_reverse, node):
                 pred_op = prov_log_get_node(provlog, *pred_node)
                 pid1, eid1, tid1, opid1 = pred_node
-                if isinstance(pred_op.data, CloneOp) and pred_op.data.task_type == op.data.task_type and pred_op.data.task_id == op.data.task_type and op.data.ferrno == 0:
+                if isinstance(pred_op.data, CloneOp) and pred_op.data.task_type == op.data.task_type and pred_op.data.task_id == op.data.task_id and op.data.ferrno == 0:
                     break
             else:
-                ret.append(f"Close of {closed_fd} in {node} is not preceeded by corresponding open")
-        elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                ret.append(f"Wait of {op.data.task_id} in {node} is not preceeded by corresponding clone")
+    return ret
+
+def validate_hb_clones(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+    ret = list[str]()
+    for node in process_graph.nodes:
+        op = prov_log_get_node(provlog, *node)
+        if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
             for node1 in process_graph.successors(node):
+                pid1, exid1, tid1, op_no1 = node1
                 op1 = prov_log_get_node(provlog, *node1)
                 if False:
                     pass
@@ -241,7 +252,15 @@ def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
                 elif op.data.task_type == TaskType.TASK_ISO_C_THREAD_ID and op.data.task_id == op1.iso_c_thread_id:
                     break
             else:
-                ret.append(f"Could not find a successor for CloneOp {node} {op.data.task_type} in the target thread")
+                ret.append(f"Could not find a successor for CloneOp {node} {op.data.task_type.name} in the target thread")
+    return ret
+
+
+def validate_hb_degree(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+    ret = list[str]()
+    found_entry = False
+    found_exit = False
+    for node in process_graph.nodes:
         if process_graph.in_degree(node) == 0:
             if not found_entry:
                 found_entry = True
@@ -256,6 +275,20 @@ def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
         ret.append("Found no entry node")
     if not found_exit:
         ret.append("Found no exit node")
+    return ret
+
+
+def validate_hb_acyclic(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+    try:
+        cycle = nx.find_cycle(process_graph)
+    except nx.NetworkXNoCycle:
+        return []
+    else:
+        return [f"Cycle detected: {cycle}"]
+
+
+def validate_hb_execs(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+    ret = list[str]()
     for (node0, node1) in process_graph.edges:
         pid0, eid0, tid0, op0 = node0
         pid1, eid1, tid1, op1 = node1
@@ -268,12 +301,17 @@ def validate_hb_graph(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
                 ret.append(f"ExecOp {node0} is followed by {node1}, whose exec epoch id should be {eid0 + 1}")
             if not isinstance(op1.data, InitExecEpochOp):
                 ret.append(f"ExecOp {node0} is followed by {node1}, which is not InitExecEpoch")
-    try:
-        cycle = nx.find_cycle(process_graph)
-    except nx.NetworkXNoCycle:
-        pass
-    else:
-        ret.append(f"Cycle detected: {cycle}")
+    return ret
+
+
+def validate_hb_graph(processes: ProvLog, hb_graph: nx.DiGraph) -> list[str]:
+    ret = list[str]()
+    ret.extend(validate_hb_closes(processes, hb_graph))
+    ret.extend(validate_hb_waits(processes, hb_graph))
+    ret.extend(validate_hb_clones(processes, hb_graph))
+    ret.extend(validate_hb_degree(processes, hb_graph))
+    ret.extend(validate_hb_acyclic(processes, hb_graph))
+    ret.extend(validate_hb_execs(processes, hb_graph))
     return ret
 
 
@@ -309,10 +347,16 @@ def digraph_to_pydot_string(prov_log: ProvLog, process_graph: nx.DiGraph) -> str
         if False:
             pass
         elif isinstance(op.data, OpenOp):
-            data["label"] += f"\nopen{op.data.path.path} (fd={op.data.fd})"
+            data["label"] += f"\n{op.data.path.path} (fd={op.data.fd})"
         elif isinstance(op.data, CloseOp):
             fds = list(range(op.data.low_fd, op.data.high_fd + 1))
-            data["label"] += "\nclose" + " ".join(map(str, fds))
+            data["label"] += "\n" + " ".join(map(str, fds))
+        elif isinstance(op.data, CloneOp):
+            data["label"] += f"\n{op.data.task_type.name} {op.data.task_id}"
+        elif isinstance(op.data, WaitOp):
+            data["label"] += f"\n{op.data.task_type.name} {op.data.task_id}"
+        elif isinstance(op.data, StatOp):
+            data["label"] += f"\n{op.data.path.path}"
 
     pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
     dot_string = typing.cast(str, pydot_graph.to_string())

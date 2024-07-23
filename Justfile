@@ -2,14 +2,14 @@ fix-format-nix:
     #alejandra .
 
 check-format-nix:
-    #alejandra --check .
+    #alejandra --check . # TODO: uncomment
 
 fix-ruff:
-    #ruff format probe_src
+    #ruff format probe_src # TODO: uncomment
     ruff check --fix probe_src
 
 check-ruff:
-    #ruff format --check probe_src
+    #ruff format --check probe_src # TODO: uncomment
     ruff check probe_src
 
 check-mypy:

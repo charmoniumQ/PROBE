@@ -146,6 +146,16 @@ static void reinit_process() {
     reinit_thread_global_state();
     prov_log_enable();
 
+    struct Op init_process_op = {
+        init_process_op_code,
+        {.init_process = init_current_process()},
+        {0},
+        0,
+        0,
+    };
+    prov_log_try(init_process_op);
+    prov_log_record(init_process_op);
+
     struct Op init_exec_op = {
         init_exec_epoch_op_code,
         {.init_exec_epoch = init_current_exec_epoch()},
@@ -155,6 +165,7 @@ static void reinit_process() {
     };
     prov_log_try(init_exec_op);
     prov_log_record(init_exec_op);
+
     struct Op init_thread_op = {
         init_thread_op_code,
         {.init_thread = init_current_thread()},
