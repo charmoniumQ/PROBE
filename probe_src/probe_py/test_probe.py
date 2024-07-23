@@ -126,7 +126,7 @@ def check_for_clone_and_open(
             if wait_option == 0:
                 assert ret_pid in check_wait
                 check_wait.remove(ret_pid)
-        if(isinstance(curr_node_op,parse_probe_log.OpenOp)):
+        if(isinstance(curr_node_op,parse_probe_log.OpenOp)) and curr_node_op.ferrno == 0:
             file_descriptors.append(curr_node_op.fd)
             path = curr_node_op.path.path
             if path in paths:
