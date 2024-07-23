@@ -2,7 +2,8 @@ import typing
 import networkx as nx  # type: ignore
 from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from enum import IntEnum
-
+import rich
+import sys
 
 class EdgeLabels(IntEnum):
     PROGRAM_ORDER = 1
@@ -211,17 +212,13 @@ def recursive(process_tree_prov_log: ProvLog, starting_node, traversed, dataflow
     edges = edges_from_node_directed(process_graph, starting_node)
 
     target_nodes = {}
-
-    for edge in edges:
-        
+    console = rich.console.Console(file=sys.stderr)
+    for edge in edges:  
         pid, exec_epoch_no, tid, op_index = edge[0]
-
+        # check if the process is already visited when waitOp occurred
         if pid in traversed or tid in traversed:
-            print(f"repeated {edge}")
             continue
-        print(edge)
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
-        
         next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
         if isinstance(op, OpenOp):
             access_mode = op.flags & O_ACCMODE
@@ -229,7 +226,6 @@ def recursive(process_tree_prov_log: ProvLog, starting_node, traversed, dataflow
             file = op.path.path
             if op.path.path not in file_version_map:
                 file_version_map[file] = 0
-
             if access_mode == 0:
                 access_mode_str = "O_RDONLY (read-only)" 
                 curr_version = file_version_map[file]
@@ -242,7 +238,7 @@ def recursive(process_tree_prov_log: ProvLog, starting_node, traversed, dataflow
                 dataflow_graph.add_edge(processNode, fileNode)
                 access_mode_str = "O_WRONLY (write-only)"
             elif access_mode == 2:
-                print(f"found {op.path.path} with access mode O_RDWR")
+                console.print(f"Found file {op.path.path} with access mode O_RDWR", style="red")
             else:
                 raise Exception("unknown access mode")
         elif isinstance(op, CloneOp):
@@ -259,18 +255,13 @@ def recursive(process_tree_prov_log: ProvLog, starting_node, traversed, dataflow
             processNode2 = ProcessNode(((int)(NodeType.PROCESS), op.task_id, exec_epoch_no))
             dataflow_graph.add_edge(processNode1, processNode2)
         elif isinstance(op, WaitOp) and op.options == 0:
-            print("here")
-            print(op)
-            print(target_nodes[op.task_id])
             for node in target_nodes[op.task_id]:
                 recursive(process_tree_prov_log, node, traversed, dataflow_graph, file_version_map)
                 traversed.append(node[2])
-        
+        # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
             if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
-                print("return")
                 return
-    print(dataflow_graph)
     return 
 
 def edges_from_node_directed(G, start_node):
@@ -307,52 +298,15 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     class NodeType(IntEnum):
         FILE = 0
         PROCESS = 1
-    # print(process_tree_prov_log)
     file_version_map = {}
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     traversed = []
     recursive(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map)
     
-
-    # for edge in nx.dfs_edges(process_graph):
-    #     pid, exec_epoch_no, tid, op_index = edge[0]
-
-    #     op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
-    #     # [nodeType, name, mode, version]
-    #     FileNode: typing.TypeAlias = tuple[int, str, int, int]
-    #     # [nodeType, tid, exec_epoch]
-    #     ProcessNode: typing.TypeAlias = tuple[int, int, int]
-    #     if isinstance(op, OpenOp):
-    #         access_mode = op.flags & O_ACCMODE
-    #         processNode = ProcessNode(((int)(NodeType.PROCESS), tid, exec_epoch_no))
-    #         file = op.path.path
-    #         if op.path.path not in file_version_map:
-    #             file_version_map[file] = 0
-
-    #         if access_mode == 0:
-    #             access_mode_str = "O_RDONLY (read-only)" 
-    #             curr_version = file_version_map[file]
-    #             fileNode = FileNode(((int)(NodeType.FILE), file, access_mode, curr_version))
-    #             dataflow_graph.add_edge(fileNode, processNode)
-    #         elif access_mode == 1:
-    #             curr_version = file_version_map[file]
-    #             file_version_map[file] = curr_version + 1
-    #             fileNode = FileNode(((int)(NodeType.FILE), file, access_mode, curr_version+1))
-    #             dataflow_graph.add_edge(processNode, fileNode)
-    #             access_mode_str = "O_WRONLY (write-only)"
-    #         elif access_mode == 2:
-    #             print(f"found {op.path.path} with access mode O_RDWR")
-    #         else:
-    #             raise Exception("unknown access mode")
-    #     elif isinstance(op, CloneOp):
-    #         processNode1 = ProcessNode(((int)(NodeType.PROCESS), tid, exec_epoch_no))
-    #         processNode2 = ProcessNode(((int)(NodeType.PROCESS), op.task_id, exec_epoch_no))
-    #         dataflow_graph.add_edge(processNode1, processNode2)
-    
     pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
     dot_string = pydot_graph.to_string()
-    print(dot_string)
+    return dot_string
 
 def prov_log_get_node(prov_log: ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
     return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
