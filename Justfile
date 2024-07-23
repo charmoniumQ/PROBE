@@ -22,11 +22,11 @@ compile-libprobe:
 
 test-ci: compile-libprobe
     make --directory=probe_src/tests/c all
-    #cd probe_src && python -m pytest .
+    cd probe_src && python -m pytest .
 
 test-dev: compile-libprobe
     make --directory=probe_src/tests/c all
-    #cd probe_src && python -m pytest . --failed-first --maxfail=1
+    cd probe_src && python -m pytest . --failed-first --maxfail=1
 
 check-flake:
     nix flake check --all-systems

@@ -8,8 +8,8 @@ import subprocess
 
 
 Node: typing.TypeAlias = tuple[int, int, int, int]
-DEBUG_LIBPROBE = True
-REMAKE_LIBPROBE = True
+DEBUG_LIBPROBE = False
+REMAKE_LIBPROBE = False
 
 
 def test_diff_cmd() -> None:
@@ -18,6 +18,7 @@ def test_diff_cmd() -> None:
     ]
     process_tree_prov_log = execute_command(command, 1)
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
+    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
     paths = ['../flake.nix','../flake.lock']
     dfs_edges = list(nx.dfs_edges(process_graph))
     match_open_and_close_fd(dfs_edges, process_tree_prov_log, paths)
@@ -27,17 +28,19 @@ def test_bash_in_bash() -> None:
     command = ["bash", "-c", "head ../flake.nix ; head ../flake.lock"]
     process_tree_prov_log = execute_command(command)
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
+    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
     paths = ['../flake.nix', '../flake.lock']
     process_file_map = {}
     dfs_edges = list(nx.dfs_edges(process_graph))
     parent_process_id = dfs_edges[0][0][0]
     process_file_map[paths[len(paths)-1]] = parent_process_id
-    check_for_clone_and_open(dfs_edges, process_tree_prov_log, len(paths)-1, process_file_map, paths)
+    check_for_clone_and_open(dfs_edges, process_tree_prov_log, 1, process_file_map, paths)
 
 def test_bash_in_bash_pipe() -> None:
     command = ["bash", "-c", "head ../flake.nix | tail"]
     process_tree_prov_log = execute_command(command)
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
+    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
     paths = ['../flake.nix','stdout']
     dfs_edges = list(nx.dfs_edges(process_graph))
     check_for_clone_and_open(dfs_edges, process_tree_prov_log, len(paths), {}, paths)
@@ -46,6 +49,7 @@ def test_bash_in_bash_pipe() -> None:
 def test_pthreads() -> None:
     process_tree_prov_log = execute_command(["./tests/c/createFile.exe"])
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
+    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     bfs_nodes = [node for layer in nx.bfs_layers(process_graph, root_node) for node in layer]
     dfs_edges = list(nx.dfs_edges(process_graph))
@@ -99,6 +103,10 @@ def check_for_clone_and_open(
             if next_op is not None:
                 next_op = next_op.data
             if isinstance(next_op,parse_probe_log.ExecOp):
+                assert edge[1][0] == curr_node_op.task_id
+                check_child_processes.append(curr_node_op.task_id)
+                continue
+            if isinstance(next_op,parse_probe_log.InitProcessOp):
                 assert edge[1][0] == curr_node_op.task_id
                 check_child_processes.append(curr_node_op.task_id)
                 continue

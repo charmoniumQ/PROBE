@@ -195,6 +195,8 @@ def prov_log_get_node(prov_log: ProvLog, pid: int, exec_epoch: int, tid: int, op
 
 
 def validate_hb_closes(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+    # Note that this test doesn't work if a process "intentionally" leaves a fd open for its child.
+    # E.g., bash-in-pipe
     provlog_reverse = process_graph.reverse()
     ret = list[str]()
     reserved_fds = {0, 1, 2}
@@ -247,9 +249,9 @@ def validate_hb_clones(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]
                         if op.data.task_id != tid1:
                             ret.append(f"CloneOp {node} returns {op.data.task_id} but the next op has tid {tid1}")
                         break
-                elif op.data.task_type == TaskType.TASK_PTHREAD_ID and op.data.task_id == op1.pthread_id:
+                elif op.data.task_type == TaskType.TASK_PTHREAD and op.data.task_id == op1.pthread_id:
                     break
-                elif op.data.task_type == TaskType.TASK_ISO_C_THREAD_ID and op.data.task_id == op1.iso_c_thread_id:
+                elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id == op1.iso_c_thread_id:
                     break
             else:
                 ret.append(f"Could not find a successor for CloneOp {node} {op.data.task_type.name} in the target thread")
@@ -306,7 +308,7 @@ def validate_hb_execs(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
 
 def validate_hb_graph(processes: ProvLog, hb_graph: nx.DiGraph) -> list[str]:
     ret = list[str]()
-    ret.extend(validate_hb_closes(processes, hb_graph))
+    # ret.extend(validate_hb_closes(processes, hb_graph))
     ret.extend(validate_hb_waits(processes, hb_graph))
     ret.extend(validate_hb_clones(processes, hb_graph))
     ret.extend(validate_hb_degree(processes, hb_graph))
