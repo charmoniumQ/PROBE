@@ -251,7 +251,7 @@ impl FfiFrom<C_Op> for OpInternal {
         log::debug!("[unsafe] decoding Op tagged union [ OpCode={} ]", kind);
         Ok(match kind {
             C_OpCode_init_process_op_code => {
-                Self::InitProcessOp(unsafe { value.init_process_epoch }.ffi_into(ctx)?)
+                Self::InitProcessOp(unsafe { value.init_process }.ffi_into(ctx)?)
             }
             C_OpCode_init_exec_epoch_op_code => {
                 Self::InitExecEpochOp(unsafe { value.init_exec_epoch }.ffi_into(ctx)?)
