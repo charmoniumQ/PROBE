@@ -171,8 +171,14 @@ static void op_to_human_readable(char* dest, int size, struct Op* op) {
         size -= path_size;
     }
 
+    if (op->op_code == open_op_code) {
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d", op->data.open.fd);
+        dest += fd_size;
+        size -= fd_size;
+    }
+
     if (op->op_code == close_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, "%d", op->data.close.low_fd);
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d", op->data.close.low_fd);
         dest += fd_size;
         size -= fd_size;
     }

@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <unistd.h> 
 #include <time.h>   
+#include <assert.h>
 
 #define NUM_THREADS 3
 #define NUM_COUNTERS 3
@@ -106,7 +107,8 @@ int main() {
         FILE* file = fopen(filename, "r");
         if (file != NULL) {
             char buffer[50];
-            fgets(buffer, 50, file);
+            char* ret = fgets(buffer, 50, file);
+            assert(ret);
             printf("File /tmp/%ld.txt content: %s", t, buffer);
             fclose(file);
         } else {

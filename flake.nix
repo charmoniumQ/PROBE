@@ -14,26 +14,29 @@
           configureFlags = oldAttrs.configureFlags ++ ["--with-pydebug"];
           # patches = oldAttrs.patches ++ [ ./python.patch ];
         });
-        export-and-rename = pkg: file-pairs: pkgs.stdenv.mkDerivation {
-          pname = "${pkg.pname}-only-bin";
-          dontUnpack = true;
-          version = pkg.version;
-          buildInputs = [ pkg ];
-          buildPhase = builtins.concatStringsSep
-            "\n"
-            (builtins.map
-              (pairs: "install -D ${pkg}/${builtins.elemAt pairs 0} $out/${builtins.elemAt pairs 1}")
-              file-pairs);
-        };
+        export-and-rename = pkg: file-pairs:
+          pkgs.stdenv.mkDerivation {
+            pname = "${pkg.pname}-only-bin";
+            dontUnpack = true;
+            version = pkg.version;
+            buildInputs = [pkg];
+            buildPhase =
+              builtins.concatStringsSep
+              "\n"
+              (builtins.map
+                (pairs: "install -D ${pkg}/${builtins.elemAt pairs 0} $out/${builtins.elemAt pairs 1}")
+                file-pairs);
+          };
       in {
         packages = {
           python-dbg = python312-debug;
         };
         devShells = {
           default = pkgs.mkShell {
-            buildInputs = 
+            buildInputs =
               [
                 (pkgs.python312.withPackages (pypkgs: [
+                  pypkgs.psutil
                   pypkgs.typer
                   pypkgs.pycparser
                   pypkgs.pytest
@@ -42,13 +45,19 @@
                   pypkgs.networkx
                   pypkgs.ipython
                   pypkgs.pydot
+                  pypkgs.rich
                 ]))
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
+                pkgs.which
+                pkgs.gnumake
                 pkgs.gcc
                 pkgs.coreutils
                 pkgs.bash
                 pkgs.alejandra
                 pkgs.hyperfine
+                pkgs.just
+                pkgs.black
+                pkgs.ruff
               ]
               ++ (
                 # gdb broken on apple silicon
