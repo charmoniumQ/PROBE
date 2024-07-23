@@ -125,6 +125,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                     for op_index, op in enumerate(thread.ops):
                         if op.pthread_id == target_pthread_id:
                             ret.append((pid, exid, tid, op_index))
+                        break
         return ret
 
     def get_last_pthread(pid: int, exid: int, target_pthread_id: int) -> list[Node]:
@@ -135,6 +136,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                     for op_index, op in list(enumerate(thread.ops))[::-1]:
                         if op.pthread_id == target_pthread_id:
                             ret.append((pid, exid, tid, op_index))
+                        break
         return ret
 
     # Hook up forks/joins
@@ -185,9 +187,119 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
             process_graph.add_edge(node0, node1, label=label)
     
     add_edges(program_order_edges, EdgeLabels.PROGRAM_ORDER)
-    add_edges(exec_edges, EdgeLabels.EXEC)
     add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
+    add_edges(exec_edges, EdgeLabels.EXEC)
     return process_graph
+
+def recursive(process_tree_prov_log: ProvLog, starting_node, traversed, dataflow_graph, file_version_map) -> nx.DiGraph:
+    
+    O_ACCMODE = 0x3
+    starting_pid = starting_node[0]
+    
+    starting_op = prov_log_get_node(process_tree_prov_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
+    class NodeType(IntEnum):
+        FILE = 0
+        PROCESS = 1
+    
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    
+     # [nodeType, name, mode, version]
+    FileNode: typing.TypeAlias = tuple[int, str, int, int]
+    # [nodeType, tid, exec_epoch]
+    ProcessNode: typing.TypeAlias = tuple[int, int, int]
+
+    edges = edges_from_node_directed(process_graph, starting_node)
+
+    target_nodes = {}
+
+    for edge in edges:
+        
+        pid, exec_epoch_no, tid, op_index = edge[0]
+
+        if pid in traversed or tid in traversed:
+            print(f"repeated {edge}")
+            continue
+        print(edge)
+        op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
+        
+        next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
+        if isinstance(op, OpenOp):
+            access_mode = op.flags & O_ACCMODE
+            processNode = ProcessNode(((int)(NodeType.PROCESS), tid, exec_epoch_no))
+            file = op.path.path
+            if op.path.path not in file_version_map:
+                file_version_map[file] = 0
+
+            if access_mode == 0:
+                access_mode_str = "O_RDONLY (read-only)" 
+                curr_version = file_version_map[file]
+                fileNode = FileNode(((int)(NodeType.FILE), file, access_mode, curr_version))
+                dataflow_graph.add_edge(fileNode, processNode)
+            elif access_mode == 1:
+                curr_version = file_version_map[file]
+                file_version_map[file] = curr_version + 1
+                fileNode = FileNode(((int)(NodeType.FILE), file, access_mode, curr_version+1))
+                dataflow_graph.add_edge(processNode, fileNode)
+                access_mode_str = "O_WRONLY (write-only)"
+            elif access_mode == 2:
+                print(f"found {op.path.path} with access mode O_RDWR")
+            else:
+                raise Exception("unknown access mode")
+        elif isinstance(op, CloneOp):
+            if op.task_type == TaskType.TASK_PID:
+                if edge[0][0] != edge[1][0]:
+                    target_nodes[op.task_id].append(edge[1])
+                    continue
+            elif op.task_type == TaskType.TASK_PTHREAD:
+                if edge[0][2] != edge[1][2]:
+                    target_nodes[op.task_id].append(edge[1])
+                    continue
+            target_nodes[op.task_id] = []
+            processNode1 = ProcessNode(((int)(NodeType.PROCESS), tid, exec_epoch_no))
+            processNode2 = ProcessNode(((int)(NodeType.PROCESS), op.task_id, exec_epoch_no))
+            dataflow_graph.add_edge(processNode1, processNode2)
+        elif isinstance(op, WaitOp) and op.options == 0:
+            print("here")
+            print(op)
+            print(target_nodes[op.task_id])
+            for node in target_nodes[op.task_id]:
+                recursive(process_tree_prov_log, node, traversed, dataflow_graph, file_version_map)
+                traversed.append(node[2])
+        
+        if isinstance(next_op, WaitOp):
+            if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
+                print("return")
+                return
+    print(dataflow_graph)
+    return 
+
+def edges_from_node_directed(G, start_node):
+    
+    all_edges = list(G.edges())
+    try:
+        start_index = next(i for i, edge in enumerate(all_edges) if edge[0] == start_node)
+    except StopIteration:
+        return [] 
+    # list from the start index
+    ordered_edges = all_edges[start_index:] + all_edges[:start_index] 
+    return ordered_edges
+
+def dfs_edges_directed(G, start_node):
+    visited = set()
+    stack = [start_node]
+    edges = []
+
+    while stack:
+        node = stack.pop()
+        if node not in visited:
+            visited.add(node)
+            # Get all neighbors of the node
+            neighbors = list(G.successors(node))
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    stack.append(neighbor)
+                    edges.append((node, neighbor))
+    return edges
 
 def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     dataflow_graph = nx.DiGraph()
@@ -196,31 +308,47 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
         FILE = 0
         PROCESS = 1
     # print(process_tree_prov_log)
-    for pid, process in process_tree_prov_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            for tid, thread in exec_epoch.threads.items():
-                for op in thread.ops:
-                    op = op.data
-                    # [nodeType, name, mode]
-                    FileNode: typing.TypeAlias = tuple[int, str, int]
-                    # [nodeType, tid]
-                    ProcessNode: typing.TypeAlias = tuple[int, int]
-                    if isinstance(op, OpenOp):
-                        access_mode = op.flags & O_ACCMODE
-                        processNode = ProcessNode(((int)(NodeType.PROCESS), pid))
-                        fileNode = FileNode(((int)(NodeType.FILE), op.path.path, access_mode))
-                        if access_mode == 0 or access_mode == 2:
-                            access_mode_str = "O_RDONLY (read-only)" 
-                            dataflow_graph.add_edge(fileNode, processNode)
-                        elif access_mode == 1 or access_mode == 2:
-                            dataflow_graph.add_edge(processNode, fileNode)
-                            access_mode_str = "O_WRONLY (write-only)"
-                        else:
-                            raise Exception("unknown access mode")
-                    elif isinstance(op, CloneOp):
-                        processNode1 = ProcessNode(((int)(NodeType.PROCESS), pid))
-                        processNode2 = ProcessNode(((int)(NodeType.PROCESS), op.task_id))
-                        dataflow_graph.add_edge(processNode1, processNode2)
+    file_version_map = {}
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
+    traversed = []
+    recursive(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map)
+    
+
+    # for edge in nx.dfs_edges(process_graph):
+    #     pid, exec_epoch_no, tid, op_index = edge[0]
+
+    #     op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
+    #     # [nodeType, name, mode, version]
+    #     FileNode: typing.TypeAlias = tuple[int, str, int, int]
+    #     # [nodeType, tid, exec_epoch]
+    #     ProcessNode: typing.TypeAlias = tuple[int, int, int]
+    #     if isinstance(op, OpenOp):
+    #         access_mode = op.flags & O_ACCMODE
+    #         processNode = ProcessNode(((int)(NodeType.PROCESS), tid, exec_epoch_no))
+    #         file = op.path.path
+    #         if op.path.path not in file_version_map:
+    #             file_version_map[file] = 0
+
+    #         if access_mode == 0:
+    #             access_mode_str = "O_RDONLY (read-only)" 
+    #             curr_version = file_version_map[file]
+    #             fileNode = FileNode(((int)(NodeType.FILE), file, access_mode, curr_version))
+    #             dataflow_graph.add_edge(fileNode, processNode)
+    #         elif access_mode == 1:
+    #             curr_version = file_version_map[file]
+    #             file_version_map[file] = curr_version + 1
+    #             fileNode = FileNode(((int)(NodeType.FILE), file, access_mode, curr_version+1))
+    #             dataflow_graph.add_edge(processNode, fileNode)
+    #             access_mode_str = "O_WRONLY (write-only)"
+    #         elif access_mode == 2:
+    #             print(f"found {op.path.path} with access mode O_RDWR")
+    #         else:
+    #             raise Exception("unknown access mode")
+    #     elif isinstance(op, CloneOp):
+    #         processNode1 = ProcessNode(((int)(NodeType.PROCESS), tid, exec_epoch_no))
+    #         processNode2 = ProcessNode(((int)(NodeType.PROCESS), op.task_id, exec_epoch_no))
+    #         dataflow_graph.add_edge(processNode1, processNode2)
     
     pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
     dot_string = pydot_graph.to_string()
@@ -363,7 +491,8 @@ def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, ty
     graph.remove_node(node)
     return ret
 
-def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
+def digraph_to_pydot_string(prov_log: ProvLog, process_graph: nx.DiGraph) -> str:
+
     label_color_map = {
     EdgeLabels.EXEC: 'yellow',
     EdgeLabels.FORK_JOIN: 'red',
@@ -397,6 +526,7 @@ def digraph_to_pydot_string(process_graph: nx.DiGraph) -> str:
     pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
     dot_string = typing.cast(str, pydot_graph.to_string())
     return dot_string
+
 
 
 def construct_process_graph(process_tree_prov_log: ProvLog) -> str:

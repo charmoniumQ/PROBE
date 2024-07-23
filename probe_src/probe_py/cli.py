@@ -126,6 +126,29 @@ def process_graph(
         console.print(warning, style="red")
     print(analysis.digraph_to_pydot_string(prov_log, process_graph))
     
+@app.command()
+def dataflow_graph(
+        input: pathlib.Path = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Write a process graph from PROBE_LOG in DOT/graphviz format.
+    """
+    if not input.exists():
+        typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
+        raise typer.Abort()
+    probe_log_tar_obj = tarfile.open(input, "r")
+    prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+    probe_log_tar_obj.close()
+    console = rich.console.Console(file=sys.stderr)
+    process_graph = analysis.provlog_to_digraph(prov_log)
+    for warning in analysis.validate_provlog(prov_log):
+        console.print(warning, style="red")
+    rich.traceback.install(show_locals=False) # Figure out why we need this
+    process_graph = analysis.provlog_to_digraph(prov_log)
+    for warning in analysis.validate_hb_graph(prov_log, process_graph):
+        console.print(warning, style="red")
+    print(analysis.provlog_to_dataflow_graph(prov_log))
+
 
 @app.command()
 def dump(
