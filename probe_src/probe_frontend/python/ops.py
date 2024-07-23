@@ -214,6 +214,8 @@ class UpdateMetadataOp:
 class Op:
     data: OpInternal
     time: Timespec
+    pthread_id: int
+    iso_c_thread_id: int
 
 
 @dataclass(init=True, frozen=True)

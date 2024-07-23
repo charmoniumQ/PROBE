@@ -287,6 +287,8 @@ impl FfiFrom<C_Op> for OpInternal {
 pub struct Op {
     pub data: OpInternal,
     pub time: Timespec,
+    pub pthread_id: ::std::os::raw::c_ulong,
+    pub iso_c_thread_id: ::std::os::raw::c_ulong,
 
     #[serde(serialize_with = "Op::serialize_type")]
     #[serde(skip_deserializing)]
@@ -307,6 +309,8 @@ impl FfiFrom<C_Op> for Op {
         Ok(Self {
             data: value.ffi_into(ctx)?,
             time: value.time.ffi_into(ctx)?,
+            pthread_id: value.pthread_id.ffi_into(ctx)?,
+            iso_c_thread_id: value.iso_c_thread_id.ffi_into(ctx)?,
 
             _type: (),
         })
