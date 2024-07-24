@@ -55,6 +55,7 @@
         });
 
       src = ./.;
+      workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
 
       # Common arguments can be set here to avoid repeating them later
       commonArgs = {
@@ -68,7 +69,10 @@
         ];
 
         # pygen needs to know where to write the python file
-        postUnpack = ''
+        preConfigurePhases = [
+          "pygenConfigPhase"
+        ];
+        pygenConfigPhase = ''
           mkdir -p ./python
           export PYGEN_OUTFILE="$(realpath ./python/ops.py)"
         '';
@@ -100,9 +104,25 @@
         // {
           pname = "probe-frontend";
           cargoExtraArgs = "-p probe_frontend";
+        });
+      probe-py = craneLib.buildPackage (individualCrateArgs
+        // {
+          pname = "probe-py";
+          cargoExtraArgs = "-p probe_frontend";
+
           installPhase = ''
-            mkdir -p $out/python
-            cp -r ./python $out/
+            mkdir -p $out/probe_py/generated/
+            cp -r ./python/*.py $out/probe_py/generated/
+            touch $out/probe_py/generated/__init__.py
+
+            cp ./LICENSE $out/LICENSE
+            cat > $out/pyproject.toml << EOF
+            [project]
+            name = "probe_py"
+            version = "${workspace.package.version}"
+            license = {file = "LICENSE"}
+            classifiers = [ "License :: OSI Approved :: MIT License" ]
+            EOF
           '';
         });
       probe-cli = craneLib.buildPackage (individualCrateArgs
@@ -118,7 +138,7 @@
     in {
       checks = {
         # Build the crates as part of `nix flake check` for convenience
-        inherit probe-frontend probe-cli probe-macros;
+        inherit probe-frontend probe-py probe-cli probe-macros;
 
         # Run clippy (and deny all warnings) on the workspace source,
         # again, reusing the dependency artifacts from above.
@@ -169,7 +189,7 @@
       };
 
       packages = {
-        inherit probe-cli probe-frontend probe-macros;
+        inherit probe-cli probe-py probe-frontend probe-macros;
       };
 
       devShells.default = craneLib.devShell {
