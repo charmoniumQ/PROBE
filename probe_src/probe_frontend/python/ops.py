@@ -83,7 +83,7 @@ class Path:
     dirfd_valid: bool
 
     @property
-    def dirfd() -> int:
+    def dirfd(self) -> int:
         return self.dirfd_minus_at_fdcwd + AT_FDCWD
 
 

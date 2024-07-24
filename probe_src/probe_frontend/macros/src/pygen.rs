@@ -532,7 +532,7 @@ impl Display for DataclassProp {
         writeln!(
             f,
             "{indent_str}@property\n\
-            {indent_str}def {name}() -> {ret}:",
+            {indent_str}def {name}(self) -> {ret}:",
         )?;
 
         for line in &self.body {

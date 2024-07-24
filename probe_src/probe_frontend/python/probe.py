@@ -45,9 +45,9 @@ def load_log(path: str) -> ProvLog:
         tid: int = int(parts[2])
 
         # ensure necessary dict objects have been created
-        if not pid in op_map:
+        if pid not in op_map:
             op_map[pid] = {}
-        if not epoch in op_map[pid]:
+        if epoch not in op_map[pid]:
             op_map[pid][epoch] = {}
 
         # extract file contents as byte buffer
