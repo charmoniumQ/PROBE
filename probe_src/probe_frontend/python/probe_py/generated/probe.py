@@ -1,4 +1,4 @@
-
+import pathlib
 import typing
 import json
 import tarfile
@@ -26,10 +26,16 @@ class ProcessProvLog:
 class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
 
-def load_log(path: str) -> ProvLog:
-    op_map: typing.Dict[int, typing.Dict[int, typing.Dict[int, ThreadProvLog]]] = {}
 
-    tar = tarfile.open(path, mode='r')
+def parse_probe_log(path: pathlib.Path) -> ProvLog:
+    tar = tarfile.open(path, mode="r")
+    ret = parse_probe_log_tar(tar)
+    tar.close()
+    return ret
+
+
+def parse_probe_log_tar(tar: tarfile.TarFile) -> ProvLog:
+    op_map: typing.Dict[int, typing.Dict[int, typing.Dict[int, ThreadProvLog]]] = {}
 
     for item in tar:
         # items with size zero are directories in the tarball

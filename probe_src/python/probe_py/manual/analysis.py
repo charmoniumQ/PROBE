@@ -1,6 +1,7 @@
 import typing
-import networkx as nx  # type: ignore
-from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
+import networkx as nx # type: ignore
+from probe_py.generated.probe import ProvLog
+from probe_py.generated.ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from enum import IntEnum
 
 
@@ -349,16 +350,21 @@ def digraph_to_pydot_string(prov_log: ProvLog, process_graph: nx.DiGraph) -> str
         if False:
             pass
         elif isinstance(op.data, OpenOp):
-            data["label"] += f"\n{op.data.path.path} (fd={op.data.fd})"
+            data["label"] += f"\n{op.data.path.path.decode()} (fd={op.data.fd})"
         elif isinstance(op.data, CloseOp):
             fds = list(range(op.data.low_fd, op.data.high_fd + 1))
             data["label"] += "\n" + " ".join(map(str, fds))
         elif isinstance(op.data, CloneOp):
-            data["label"] += f"\n{op.data.task_type.name} {op.data.task_id}"
+            # TODO: we should just do op.data.task_type.name
+            # But the Rust front-end doesn't faithfully convert probe record-data of TaskType enum to {"_type": "TaskType", "value": ...}
+            # It just converts it to a raw int.
+            # So we look up the int in TaskType enum and ask for the name
+            data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, WaitOp):
-            data["label"] += f"\n{op.data.task_type.name} {op.data.task_id}"
+            # TODO: Likewise here.
+            data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
-            data["label"] += f"\n{op.data.path.path}"
+            data["label"] += f"\n{op.data.path.path.decode()}"
 
     pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
     dot_string = typing.cast(str, pydot_graph.to_string())

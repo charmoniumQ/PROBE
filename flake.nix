@@ -45,7 +45,8 @@
         overlays = [(import rust-overlay)];
       };
       inherit (pkgs) lib;
-      python312-debug = pkgs.python312.overrideAttrs (oldAttrs: {
+      python = pkgs.python312;
+      python-debug = python.overrideAttrs (oldAttrs: {
         configureFlags = oldAttrs.configureFlags ++ ["--with-pydebug"];
         # patches = oldAttrs.patches ++ [ ./python.patch ];
       });
@@ -65,7 +66,7 @@
       rust-stuff = (import ./probe_src/probe_frontend/rust-stuff.nix) ({ inherit system pkgs; } // inputs);
       in {
         packages = rec {
-          python-dbg = python312-debug;
+          inherit python-debug;
           libprobe-interface = pkgs.stdenv.mkDerivation {
             pname = "libprobe-interface";
             version = "0.1.0";
@@ -92,7 +93,7 @@
             buildInputs = [
               libprobe-interface
               arena
-              (pkgs.python312.withPackages (pypkgs: [
+              (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
             ];
@@ -109,17 +110,35 @@
               cp ${self.packages.${system}.probe-cli}/bin/* $out/bin
             '';
           };
-          probe-py-generated = pkgs.python312.pkgs.buildPythonPackage rec {
+          probe-py-generated = python.pkgs.buildPythonPackage rec {
             pname = "probe_py.generated";
             version = "0.1.0";
             pyproject = true;
             build-system = [
-              pkgs.python312Packages.flit-core
+              python.pkgs.flit-core
             ];
             unpackPhase = ''
               cp --recursive ${self.packages.${system}.probe-frontend}/python/* /build
               ls /build
             '';
+          };
+          probe-py-manual = python.pkgs.buildPythonPackage rec {
+            pname = "probe_py.manual";
+            version = "0.1.0";
+            pyproject = true;
+            build-system = [
+              python.pkgs.flit-core
+            ];
+            src = ./probe_src/python;
+            propagatedBuildInputs = [
+              probe-py-generated
+              python.pkgs.psutil
+              python.pkgs.networkx
+              python.pkgs.pygraphviz
+              python.pkgs.pydot
+              python.pkgs.rich
+              python.pkgs.typer
+            ];
           };
         } // rust-stuff.packages;
         checks = {
@@ -129,17 +148,12 @@
           default = pkgs.mkShell {
             buildInputs =
               [
-                (pkgs.python312.withPackages (pypkgs: [
-                  pypkgs.psutil
-                  pypkgs.typer
+                (python.withPackages (pypkgs: [
+                  pypkgs.flit
                   pypkgs.pycparser
                   pypkgs.pytest
                   pypkgs.mypy
-                  pypkgs.pygraphviz
-                  pypkgs.networkx
-                  pypkgs.ipython
-                  pypkgs.pydot
-                  pypkgs.rich
+                  self.packages.${system}.probe-py-manual
                 ]))
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
                 pkgs.which
