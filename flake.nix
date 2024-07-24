@@ -112,13 +112,13 @@
           probe-py-generated = pkgs.python312.pkgs.buildPythonPackage rec {
             pname = "probe_py.generated";
             version = "0.1.0";
-            format = "flit";
+            pyproject = true;
             build-system = [
               pkgs.python312Packages.flit-core
             ];
             unpackPhase = ''
-              cp --recursive ${self.packages.${system}.probe-frontend}/* .
-              mkdir dist
+              cp --recursive ${self.packages.${system}.probe-frontend}/python/* /build
+              ls /build
             '';
           };
         } // rust-stuff.packages;
