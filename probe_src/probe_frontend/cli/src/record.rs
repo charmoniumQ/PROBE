@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use color_eyre::eyre::{Result, WrapErr, OptionExt};
+use color_eyre::eyre::{OptionExt, Result, WrapErr};
 use flate2::Compression;
 
 use crate::{transcribe, util::Dir};
@@ -119,8 +119,10 @@ impl Recorder {
                 .ok_or_eyre("Failed to get the parent of current exe")?
                 .join("lib"),
         };
-        let mut libprobe = fs::canonicalize(ostensible_libprobe_path.clone())
-        .wrap_err(format!("unable to canonicalize libprobe path {:?}", ostensible_libprobe_path.clone()))?;
+        let mut libprobe = fs::canonicalize(ostensible_libprobe_path.clone()).wrap_err(format!(
+            "unable to canonicalize libprobe path {:?}",
+            ostensible_libprobe_path.clone()
+        ))?;
         if self.debug || self.gdb {
             log::debug!("Using debug version of libprobe");
             libprobe.push("libprobe-dbg.so");

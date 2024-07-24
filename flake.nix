@@ -122,7 +122,9 @@
             '';
           };
         } // rust-stuff.packages;
-        checks = rust-stuff.checks;
+        checks = {
+          inherit (self.packages.${system}) probe-py-generated;
+        } // rust-stuff.checks;
         devShells = {
           default = pkgs.mkShell {
             buildInputs =

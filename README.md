@@ -13,6 +13,8 @@ The provenance graph can help us re-execute the program, containerize the progra
 - [./docs/acm-rep-pres.pdf](./docs/acm-rep-pres.pdf) for an introduction to my work.
 - [Provenance for Computational Tasks: A Survey by Juliana Freire, David Koop, Emanuele Santos, and Cláudio T. Silva](https://sci.utah.edu/~csilva/papers/cise2008a.pdf) for an overview of provenance in general
 - [CDE: Using System Call Interposition to Automatically Create Portable Software Packages by Philip J. Guo and Dawson Engler](https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf) for a seminal system-level provenance tracer.
+- []()
+- [Computational Experiment Comprehension using Provenance Summarization](https://dl.acm.org/doi/abs/10.1145/3641525.3663617). How do we show this to the user?
 
 ## Running
 

@@ -133,11 +133,6 @@
             partitions = 1;
             partitionType = "count";
           });
-
-        probe-pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
-          cp ${probe-frontend}/python/ops.py $out
-          ${pkgs.python312}/bin/python $out
-        '';
       };
 
       packages = {
