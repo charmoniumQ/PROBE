@@ -197,8 +197,8 @@ impl Dump for ops::Path {
 impl Dump for ops::CloneOp {
     fn dump(&self) -> String {
         format!(
-            "[ child_process_id={}, child_thread_id={}, errno={} ]",
-            self.child_process_id, self.child_thread_id, self.ferrno,
+            "[ task_type={}, task_id={}, errno={} ]",
+            self.task_type, self.task_id, self.ferrno,
         )
     }
 }
@@ -248,8 +248,8 @@ impl Dump for ops::InitThreadOp {
 impl Dump for ops::WaitOp {
     fn dump(&self) -> String {
         format!(
-            "[ pid={}, options={}, status={}, ret={}, errno={} ]",
-            self.pid, self.options, self.status, self.ret, self.ferrno,
+            "[ task_type={}, task_id={}, options={}, status={}, errno={} ]",
+            self.task_type, self.task_id, self.options, self.status, self.ferrno,
         )
     }
 }

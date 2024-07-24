@@ -62,10 +62,11 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                             .into()))
                         }
                     };
-                    // filter out any identifier starting with __ since every example i've seen in
-                    // glibc of "__ident" is padding or reserved space.
-                    if ident.to_string().starts_with("__") {
-                        return None;
+                    let ident_str = ident.to_string();
+                    for prefix in ["__spare", "__reserved"] {
+                        if ident_str.starts_with(prefix) {
+                            return None;
+                        }
                     }
 
                     let pair = convert_bindgen_type(&field.ty).map(|ty| (ident, ty));

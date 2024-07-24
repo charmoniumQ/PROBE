@@ -151,12 +151,12 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
             Ok(match name.as_str() {
                 // that's a lot of ways to say "int", python ints are bigints so we don't have to
                 // care about size
-                "__dev_t" | "__gid_t" | "__ino_t" | "__mode_t" | "__s32" | "__s64"
+                "TaskType" | "__dev_t" | "__gid_t" | "__ino_t" | "__mode_t" | "__s32" | "__s64"
                 | "__suseconds_t" | "__syscall_slong_t" | "__syseconds_t" | "__time_t"
                 | "__u16" | "__u32" | "__u64" | "__uid_t" | "c_int" | "c_long" | "c_uint"
-                | "dev_t" | "gid_t" | "i128" | "i16" | "i32" | "i64" | "i8" | "ino_t" | "isize"
-                | "mode_t" | "pid_t" | "u128" | "u16" | "u32" | "u64" | "u8" | "uid_t"
-                | "usize" => "int".to_owned(),
+                | "c_ulong" | "dev_t" | "gid_t" | "i128" | "i16" | "i32" | "i64" | "i8"
+                | "ino_t" | "isize" | "mode_t" | "pid_t" | "pthread_t" | "thrd_t" | "u128"
+                | "u16" | "u32" | "u64" | "u8" | "uid_t" | "usize" => "int".to_owned(),
 
                 // float, python uses doubles for everything
                 "f32" | "f64" => "float".to_owned(),

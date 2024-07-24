@@ -23,6 +23,7 @@ fn main() -> Result<()> {
 
     let matches = command!()
         .about("Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.")
+        .propagate_version(true)
         .subcommands([
             Command::new("record")
                 .args([
@@ -72,7 +73,7 @@ fn main() -> Result<()> {
                         .default_value("probe_log")
                         .value_parser(value_parser!(OsString)),
                 ])
-                .about("Write the data from probe log data in a human-readable manne"),
+                .about("Write the data from probe log data in a human-readable manner"),
             Command::new("__gdb-exec-shim").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)
@@ -141,6 +142,7 @@ fn main() -> Result<()> {
 
             Err(e).wrap_err("Shim failed to exec")
         }
-        _ => Err(eyre!("unexpected subcommand")),
+        None => Err(eyre!("Subcommand expected, try --help for more info")),
+        _ => Err(eyre!("Unknown subcommand")),
     }
 }

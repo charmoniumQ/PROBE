@@ -135,8 +135,8 @@ class ExecOp:
 class CloneOp:
     flags: int
     run_pthread_atfork_handlers: bool
-    child_process_id: int
-    child_thread_id: int
+    task_type: int
+    task_id: int
     ferrno: int
 
 
@@ -172,10 +172,10 @@ class ReaddirOp:
 
 @dataclass(init=True, frozen=True)
 class WaitOp:
-    pid: int
+    task_type: int
+    task_id: int
     options: int
     status: int
-    ret: int
     ferrno: int
 
 
@@ -206,6 +206,8 @@ class UpdateMetadataOp:
 class Op:
     data: OpInternal
     time: Timespec
+    pthread_id: int
+    iso_c_thread_id: int
 
 
 @dataclass(init=True, frozen=True)

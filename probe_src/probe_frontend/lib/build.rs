@@ -110,6 +110,8 @@ fn main() {
             #include <sys/stat.h>
             #include <sys/types.h>
             #include <utime.h>
+            #include <threads.h>
+            #include <pthread.h>
 
             // HACK: defining this manually instead of using <sys/resource.h> is
             // a huge hack, but it greatly reduces the generated code complexity
