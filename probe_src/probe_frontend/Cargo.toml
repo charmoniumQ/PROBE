@@ -8,6 +8,7 @@ members = [
 
 [workspace.package]
 version = "0.2.0"
+license = "MIT"
 authors = ["Jenna Fligor <jenna@fligor.net>"]
 publish = false
 edition = "2021"
