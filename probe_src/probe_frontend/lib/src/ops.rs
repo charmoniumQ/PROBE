@@ -333,7 +333,7 @@ probe_macros::pygen_write_to_env!("PYGEN_OUTFILE");
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     // we define this constant in the generated python code, so we should make sure we get it
     // right.

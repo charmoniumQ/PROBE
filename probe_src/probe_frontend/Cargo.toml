@@ -9,7 +9,11 @@ members = [
 [workspace.package]
 version = "0.2.0"
 license = "MIT"
-authors = ["Jenna Fligor <jenna@fligor.net>"]
+# authors *MUST* be defined in the form "name <email>" for parsing reasons
+authors = [
+    "Jenna Fligor <jenna@fligor.net>",
+    "Samuel Grayson <sam@samgrayson.me>"
+]
 publish = false
 edition = "2021"
 

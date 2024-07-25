@@ -55,7 +55,6 @@
         });
 
       src = ./.;
-      workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
 
       # Common arguments can be set here to avoid repeating them later
       commonArgs = {
@@ -74,7 +73,7 @@
         ];
         pygenConfigPhase = ''
           mkdir -p ./python
-          export PYGEN_OUTFILE="$(realpath ./python/ops.py)"
+          export PYGEN_OUTFILE="$(realpath ./python/probe_py/generated/ops.py)"
         '';
 
         CARGO_BUILD_TARGET = "${systems.${system}}";
@@ -104,27 +103,35 @@
         // {
           pname = "probe-frontend";
           cargoExtraArgs = "-p probe_frontend";
-        });
-      probe-py = craneLib.buildPackage (individualCrateArgs
-        // {
-          pname = "probe-py";
-          cargoExtraArgs = "-p probe_frontend";
-
           installPhase = ''
-            mkdir -p $out/probe_py/generated/
-            cp -r ./python/*.py $out/probe_py/generated/
-            touch $out/probe_py/generated/__init__.py
-
+            cp -r ./python/ $out
             cp ./LICENSE $out/LICENSE
-            cat > $out/pyproject.toml << EOF
-            [project]
-            name = "probe_py"
-            version = "${workspace.package.version}"
-            license = {file = "LICENSE"}
-            classifiers = [ "License :: OSI Approved :: MIT License" ]
-            EOF
           '';
         });
+      probe-py = let
+        workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
+      in
+        pkgs.substituteAllFiles rec {
+          name = "probe-py-${version}";
+          src = probe-frontend;
+          files = [
+            "./pyproject.toml"
+            "./LICENSE"
+            "./probe_py/generated/__init__.py"
+            "./probe_py/generated/ops.py"
+            "./probe_py/generated/probe.py"
+          ];
+
+          authors = builtins.concatStringsSep "" (builtins.map (match: let
+            name = builtins.elemAt match 0;
+            email = builtins.elemAt match 1;
+          in "\n    {name = \"${name}\", email = \"${email}\"},") (
+            builtins.map
+            (author-str: builtins.match "(.+) <(.+)>" author-str)
+            (workspace.package.authors)
+          ));
+          version = workspace.package.version;
+        };
       probe-cli = craneLib.buildPackage (individualCrateArgs
         // {
           pname = "probe-cli";
@@ -183,7 +190,7 @@
           });
 
         probe-pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
-          cp ${probe-frontend}/python/ops.py $out
+          cp ${probe-py}/probe_py/generated/ops.py $out
           ${pkgs.python312}/bin/python $out
         '';
       };
@@ -198,7 +205,7 @@
 
         shellHook = ''
           export __PROBE_LIB="$(realpath ../libprobe/build)"
-          export PYGEN_OUTFILE="$(realpath ./python/ops.py)"
+          export PYGEN_OUTFILE="$(realpath ./python/probe_py/generated/ops.py)"
         '';
 
         packages = [
