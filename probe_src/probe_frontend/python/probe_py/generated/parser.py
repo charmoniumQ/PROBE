@@ -26,10 +26,8 @@ class ProcessProvLog:
 class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
 
-def load_log(path: str) -> ProvLog:
+def parse_tar_file(tar: tarfile.TarFile) -> ProvLog:
     op_map: typing.Dict[int, typing.Dict[int, typing.Dict[int, ThreadProvLog]]] = {}
-
-    tar = tarfile.open(path, mode='r')
 
     for item in tar:
         # items with size zero are directories in the tarball

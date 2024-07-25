@@ -93,7 +93,7 @@ let
           "./LICENSE"
           "./probe_py/generated/__init__.py"
           "./probe_py/generated/ops.py"
-          "./probe_py/generated/probe.py"
+          "./probe_py/generated/parser.py"
         ];
 
         authors = builtins.concatStringsSep "" (builtins.map (match: let
@@ -116,7 +116,6 @@ let
         ];
         unpackPhase = ''
           cp --recursive ${probe-py-generated-src}/* /build
-          cat /build/pyproject.toml
         '';
         pythonImportsCheck = [ pname ];
       };

@@ -44,11 +44,8 @@
         inherit system;
         overlays = [(import rust-overlay)];
       };
+      python = pkgs.python312;
       inherit (pkgs) lib;
-      python312-debug = pkgs.python312.overrideAttrs (oldAttrs: {
-        configureFlags = oldAttrs.configureFlags ++ ["--with-pydebug"];
-        # patches = oldAttrs.patches ++ [ ./python.patch ];
-      });
       export-and-rename = pkg: file-pairs:
         pkgs.stdenv.mkDerivation {
           pname = "${pkg.pname}-only-bin";
@@ -64,7 +61,6 @@
       rust-stuff = (import ./probe_src/probe_frontend/rust-stuff.nix) ({ inherit system pkgs; } // inputs);
        in {
         packages = rec {
-          python-dbg = python312-debug;
           libprobe-interface = pkgs.stdenv.mkDerivation {
            pname = "libprobe-interface";
             version = "0.1.0";
@@ -91,7 +87,7 @@
             buildInputs = [
               libprobe-interface
               arena
-              (pkgs.python312.withPackages (pypkgs: [
+              (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
             ];
@@ -110,23 +106,37 @@
                 --set __PROBE_LIB ${self.packages.${system}.libprobe}/lib
             '';
           };
+          probe-py-manual = python.pkgs.buildPythonPackage rec {
+            pname = "probe_py.manual";
+            version = "0.1.0";
+            pyproject = true;
+            build-system = [
+              python.pkgs.flit-core
+            ];
+            src = ./probe_src/python;
+            propagatedBuildInputs = [
+              self.packages.${system}.probe-py-generated
+              python.pkgs.networkx
+              python.pkgs.pygraphviz
+              python.pkgs.pydot
+              python.pkgs.rich
+              python.pkgs.typer
+            ];
+            pythonImportsCheck = [ pname ];
+          };
         } // rust-stuff.packages;
         checks = self.packages.${system} // rust-stuff.checks;
         devShells = {
           default = pkgs.mkShell {
             buildInputs =
               [
-                (pkgs.python312.withPackages (pypkgs: [
-                  pypkgs.psutil
-                  pypkgs.typer
+                self.packages.${system}.probe-bundled
+                (python.withPackages (pypkgs: [
+                  pypkgs.flit
                   pypkgs.pycparser
                   pypkgs.pytest
                   pypkgs.mypy
-                  pypkgs.pygraphviz
-                  pypkgs.networkx
-                  pypkgs.ipython
-                  pypkgs.pydot
-                  pypkgs.rich
+                  self.packages.${system}.probe-py-manual
                 ]))
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
                 pkgs.which
