@@ -1,40 +1,14 @@
 {
-  description = "libprobe frontend";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-
-    crane = {
-      url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    flake-utils.url = "github:numtide/flake-utils";
-
-    advisory-db = {
-      url = "github:rustsec/advisory-db";
-      flake = false;
-    };
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
-
-  # TODO: cleanup derivations and make more usable:
-  # - version of probe cli with bundled libprobe and wrapper script
-  # - python code as actual module
-  # (this may require merging this flake with the top-level one)
-  outputs = {
-    self,
-    nixpkgs,
-    crane,
-    flake-utils,
-    advisory-db,
-    rust-overlay,
-    ...
-  }: let
+  self,
+  pkgs,
+  crane,
+  flake-utils,
+  advisory-db,
+  rust-overlay,
+  system,
+  ...
+}:
+let
     systems = {
       # "nix system" = "rust target";
       "x86_64-linux" = "x86_64-unknown-linux-musl";
@@ -42,13 +16,6 @@
       "aarch64-linux" = "aarch64-unknown-linux-musl";
       "armv7l-linux" = "armv7-unknown-linux-musleabi";
     };
-  in
-    flake-utils.lib.eachSystem (builtins.attrNames systems) (system: let
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [(import rust-overlay)];
-      };
-
       craneLib = (crane.mkLib pkgs).overrideToolchain (p:
         p.rust-bin.stable.latest.default.override {
           targets = [systems.${system}];
@@ -76,7 +43,9 @@
           export PYGEN_OUTFILE="$(realpath ./python/probe_py/generated/ops.py)"
         '';
 
-        CARGO_BUILD_TARGET = "${systems.${system}}";
+        LIBPROBE_INTERFACE = self.packages.${system}.libprobe-interface;
+
+        CARGO_BUILD_TARGET = systems.${system};
         CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
       };
 
@@ -217,5 +186,4 @@
           pkgs.rust-analyzer
         ];
       };
-    });
-}
+    }

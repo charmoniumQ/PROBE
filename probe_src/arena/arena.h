@@ -1,5 +1,4 @@
-#ifndef ARENA
-#define ARENA
+#pragma once
 
 #define _GNU_SOURCE
 #ifdef PYCPARSER
@@ -334,5 +333,3 @@ __attribute__((unused)) static bool arena_is_initialized(struct ArenaDir* arena_
     );
     return arena_dir->__tail != NULL;
 }
-
-#endif // ARENA
