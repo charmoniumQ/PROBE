@@ -144,9 +144,8 @@ fn main() {
         // The input header we would like to generate
         // bindings for.
         .header(
-            env::var("LIBPROBE_INTERFACE")
-                .expect("Must define env var (see source of this panic)")
-                + "/include/libprobe/prov_ops.h"
+            env::var("LIBPROBE_INTERFACE").expect("Must define env var (see source of this panic)")
+                + "/include/libprobe/prov_ops.h",
         )
         // .header_contents("sizeof", "
         //     const size_t OP_SIZE = sizeof(struct Op);

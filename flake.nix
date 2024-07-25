@@ -110,18 +110,6 @@
                 --set __PROBE_LIB ${self.packages.${system}.libprobe}/lib
             '';
           };
-          probe-py-generated = pkgs.python312.pkgs.buildPythonPackage rec {
-            pname = "probe_py.generated";
-            version = "0.1.0";
-            pyproject = true;
-            build-system = [
-              pkgs.python312Packages.flit-core
-            ];
-            unpackPhase = ''
-              cp --recursive ${self.packages.${system}.probe-frontend}/python/* /build
-              ls /build
-            '';
-          };
         } // rust-stuff.packages;
         checks = self.packages.${system} // rust-stuff.checks;
         devShells = {
