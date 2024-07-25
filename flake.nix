@@ -96,8 +96,8 @@
               ]))
             ];
           };
-          bundled-probe = pkgs.stdenv.mkDerivation rec {
-            pname = "bundled-probe";
+          probe-bundled = pkgs.stdenv.mkDerivation rec {
+            pname = "probe-bundled";
             version = "0.1.0";
             dontUnpack = true;
             dontBuild = true;
