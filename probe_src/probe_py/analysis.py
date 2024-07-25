@@ -203,8 +203,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
     
     process_graph = provlog_to_digraph(process_tree_prov_log)
     
-    # [nodeType, name, mode, version]
-    FileNode: typing.TypeAlias = typing.Tuple[int, str, int, int]
+    # [nodeType, name, version]
+    FileNode: typing.TypeAlias = typing.Tuple[int, str, int]
     # [nodeType, tid, exec_epoch]
     ProcessNode: typing.TypeAlias = typing.Tuple[int, int, int]
 
@@ -228,13 +228,13 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             # access mode "O_RDONLY (read-only)"
             if access_mode == 0:
                 curr_version = file_version_map[file]
-                fileNode: FileNode = (((int)(NodeType.FILE), file, access_mode, curr_version))
+                fileNode: FileNode = (((int)(NodeType.FILE), file, curr_version))
                 dataflow_graph.add_edge(fileNode, processNode)
             # access mode "O_WRONLY (write-only)"
             elif access_mode == 1:
                 curr_version = file_version_map[file]
                 file_version_map[file] = curr_version + 1
-                fileNode = (((int)(NodeType.FILE), file, access_mode, curr_version+1))
+                fileNode = (((int)(NodeType.FILE), file, curr_version+1))
                 dataflow_graph.add_edge(processNode, fileNode)
             elif access_mode == 2:
                 console.print(f"Found file {op.path.path} with access mode O_RDWR", style="red")
