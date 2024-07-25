@@ -253,8 +253,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                     dataflow_graph.add_edge(processNode1, processNode2)
                     continue
             if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
-                processNode1: ProcessNode = (((int)(NodeType.PROCESS), tid, exec_epoch_no))
-                processNode2: ProcessNode = (((int)(NodeType.PROCESS), op.task_id, exec_epoch_no))
+                processNode1 = (((int)(NodeType.PROCESS), tid, exec_epoch_no))
+                processNode2 = (((int)(NodeType.PROCESS), op.task_id, exec_epoch_no))
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
