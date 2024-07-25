@@ -68,6 +68,7 @@ let
       # This allows consumers to only depend on (and build) only what they need.
       # Though it is possible to build the entire workspace as a single derivation,
       # so this is left up to you on how to organize things
+
       probe-frontend = craneLib.buildPackage (individualCrateArgs
         // {
           pname = "probe-frontend";
@@ -77,30 +78,49 @@ let
             cp ./LICENSE $out/LICENSE
           '';
         });
-      probe-py = let
-        workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
-      in
-        pkgs.substituteAllFiles rec {
-          name = "probe-py-${version}";
-          src = probe-frontend;
-          files = [
-            "./pyproject.toml"
-            "./LICENSE"
-            "./probe_py/generated/__init__.py"
-            "./probe_py/generated/ops.py"
-            "./probe_py/generated/probe.py"
-          ];
 
-          authors = builtins.concatStringsSep "" (builtins.map (match: let
-            name = builtins.elemAt match 0;
-            email = builtins.elemAt match 1;
-          in "\n    {name = \"${name}\", email = \"${email}\"},") (
-            builtins.map
-            (author-str: builtins.match "(.+) <(.+)>" author-str)
-            (workspace.package.authors)
-          ));
-          version = workspace.package.version;
-        };
+    probe-py-generated = let
+      workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
+
+      # TODO: Simplify this
+      # Perhaps by folding the substituteAllFiles into probe-py-generated (upstream) or probe-py-frontend (downstream)
+      # Could we combine all the packages?
+      probe-py-generated-src = pkgs.substituteAllFiles rec {
+        name = "probe-py-${version}";
+        src = probe-frontend;
+        files = [
+          "./pyproject.toml"
+          "./LICENSE"
+          "./probe_py/generated/__init__.py"
+          "./probe_py/generated/ops.py"
+          "./probe_py/generated/probe.py"
+        ];
+
+        authors = builtins.concatStringsSep "" (builtins.map (match: let
+          name = builtins.elemAt match 0;
+          email = builtins.elemAt match 1;
+        in "\n    {name = \"${name}\", email = \"${email}\"},") (
+          builtins.map
+          (author-str: builtins.match "(.+) <(.+)>" author-str)
+          (workspace.package.authors)
+        ));
+        version = workspace.package.version;
+      };
+    in
+      pkgs.python312.pkgs.buildPythonPackage rec {
+        pname = "probe_py.generated";
+        version = probe-py-generated-src.version;
+        pyproject = true;
+        build-system = [
+          pkgs.python312Packages.flit-core
+        ];
+        unpackPhase = ''
+          cp --recursive ${probe-py-generated-src}/* /build
+          cat /build/pyproject.toml
+        '';
+        pythonImportsCheck = [ pname ];
+      };
+
       probe-cli = craneLib.buildPackage (individualCrateArgs
         // {
           pname = "probe-cli";
@@ -114,7 +134,7 @@ let
     in {
       checks = {
         # Build the crates as part of `nix flake check` for convenience
-        inherit probe-frontend probe-py probe-cli probe-macros;
+        inherit probe-frontend probe-py-generated probe-cli probe-macros;
 
         # Run clippy (and deny all warnings) on the workspace source,
         # again, reusing the dependency artifacts from above.
@@ -158,14 +178,10 @@ let
             partitionType = "count";
           });
 
-        probe-pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
-          cp ${probe-py}/probe_py/generated/ops.py $out
-          ${pkgs.python312}/bin/python $out
-        '';
       };
 
       packages = {
-        inherit probe-cli probe-py probe-frontend probe-macros;
+        inherit probe-cli probe-py-generated probe-macros;
       };
 
       devShells.default = craneLib.devShell {

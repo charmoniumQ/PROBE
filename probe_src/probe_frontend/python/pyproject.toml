@@ -5,7 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "probe_py.generated"
 authors = [
-    # authors generated from Cargo.toml@authors@:
+    # authors generated from Cargo.toml@authors@
 ]
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
