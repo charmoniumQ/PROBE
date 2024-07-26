@@ -58,6 +58,7 @@
                 pkgs.just
                 pkgs.black
                 pkgs.ruff
+                pkgs.clang-tools
               ]
               ++ (
                 # gdb broken on apple silicon
