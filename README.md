@@ -90,6 +90,8 @@ PROBE record bash -c '<SHELL_CODE>'
 
 - **Transcription** (our term): The process of converting a PROBE record to a PROBE log.
 
+- **Translation**  (joke): The process of polypeptide synthesis from mRNA strands generated during [**transcription**](https://en.wikipedia.org/wiki/Transcription_(biology)).
+
 - **Program order** (our adaptation of an existing term): is a [partial order](https://www.wikiwand.com/en/Partially_ordered_set) on the set of prov ops, which is the order the operations appear in a dynamic trace of a single thread.
 
 - **Process fork-join order** (our term): is a partial order on the set of prov ops, which is that if A forks B, then the `fork` prov op in A should precede the first prov op of B. Likewise if A calls `waitpid` and `waitpid` returns the PID of B, then the last prov op in B should precede completion of the prov op `waitpid` in A.
