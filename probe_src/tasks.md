@@ -1,12 +1,12 @@
-a- [ ] Implement Rust CLI for record. Jenna is working on this.
+- [ ] Implement Rust CLI for record. Jenna is working on this.
   - The Rust wrapper should replace the functionality of `record` in the `./probe_py/cli.py`. It should output a language-neutral structure that can be parsed quickly later on.
   - [x] The Rust wrapper should exec the program in an environment with libprobe in `LD_PRELOAD`.
   - [x] The Rust wrapper should transcribe the C structs into a language-neutral format.
   - [x] Split "transcribing" from "running in PROBE". We should be able to do them in two steps.
-  - [ ] Parse the language-neutral format into a `ProvLogTree` in Python, replacing `./probe_py/parse_probe_log.py`.
+  - [x] Parse the language-neutral format into a `ProvLogTree` in Python, replacing `./probe_py/parse_probe_log.py`.
   - [ ] Make sure analysis code still runs.
-  - [ ] Get GDB working.
-  - [ ] Compile statically.
+  - [x] Get GDB working.
+  - [x] Compile statically.
 - [ ] Write end-to-end-tests. End-to-end test should verify properties of the NetworkX graph returned by `provlog_to_digraph`.
   - [ ] Check generic properties (Shofiya is working on this)
     - [ ] The file descriptor used in CloseOp is one returned by a prior OpenOp (or a special file descriptor).
