@@ -5,6 +5,8 @@ from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, Close
 from enum import IntEnum
 import rich
 import sys
+from dataclasses import dataclass
+import pathlib
 
 class EdgeLabels(IntEnum):
     PROGRAM_ORDER = 1
@@ -203,43 +205,61 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
     
     process_graph = provlog_to_digraph(process_tree_prov_log)
     
-    # [nodeType, name, version]
-    FileNode: typing.TypeAlias = typing.Tuple[int, str, int]
-    # [nodeType, tid, exec_epoch]
-    ProcessNode: typing.TypeAlias = typing.Tuple[int, int, int]
+    @dataclass(frozen=True)
+    class FileNode:
+        device_major: int
+        device_minor: int
+        inode: int
+        version: int
+        file: str
+ 
+ 
+    @dataclass(frozen=True)
+    class ProcessNode:
+        pid: int
 
     edges = list_edges_from_start_node(process_graph, starting_node)
+    name_map = dict[FileNode, list[pathlib.Path]]()
 
     target_nodes: Dict[str, list[Node]] = {}
     console = rich.console.Console(file=sys.stderr)
     for edge in edges:  
         pid, exec_epoch_no, tid, op_index = edge[0]
+        
         # check if the process is already visited when waitOp occurred
         if pid in traversed or tid in traversed:
             continue
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
         next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
         if isinstance(op, OpenOp):
+            print(op)
             access_mode = op.flags & O_ACCMODE
-            processNode: ProcessNode = (((int)(NodeType.PROCESS), tid, exec_epoch_no))
+            processNode = ProcessNode(pid=pid)
             file = op.path.path
             if op.path.path not in file_version_map:
                 file_version_map[file] = 0
             # access mode "O_RDONLY (read-only)"
             if access_mode == 0:
                 curr_version = file_version_map[file]
-                fileNode: FileNode = (((int)(NodeType.FILE), file, curr_version))
+                fileNode = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version, file=file)
+                if fileNode not in name_map:
+                    name_map[fileNode] = []
+                name_map[fileNode].append(file)     
                 dataflow_graph.add_edge(fileNode, processNode)
             # access mode "O_WRONLY (write-only)"
             elif access_mode == 1:
                 curr_version = file_version_map[file]
                 file_version_map[file] = curr_version + 1
-                fileNode = (((int)(NodeType.FILE), file, curr_version+1))
+                fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version+1, file=file)
+                if fileNode not in name_map:
+                    name_map[fileNode] = []
+                name_map[fileNode].append(file)     
                 dataflow_graph.add_edge(processNode, fileNode)
             elif access_mode == 2:
                 console.print(f"Found file {op.path.path} with access mode O_RDWR", style="red")
             else:
                 raise Exception("unknown access mode")
+            print(access_mode)
         elif isinstance(op, CloneOp):
             if op.task_type == TaskType.TASK_PID:
                 if edge[0][0] != edge[1][0]:
@@ -248,13 +268,13 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             elif op.task_type == TaskType.TASK_PTHREAD:
                 if edge[0][2] != edge[1][2]:
                     target_nodes[op.task_id].append(edge[1])
-                    processNode1: ProcessNode = (((int)(NodeType.PROCESS), tid, exec_epoch_no))
-                    processNode2: ProcessNode = (((int)(NodeType.PROCESS), edge[1][2], exec_epoch_no))
+                    processNode1 = ProcessNode(tid=tid)
+                    processNode2 = ProcessNode(tid = tid)
                     dataflow_graph.add_edge(processNode1, processNode2)
                     continue
             if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
-                processNode1 = (((int)(NodeType.PROCESS), tid, exec_epoch_no))
-                processNode2 = (((int)(NodeType.PROCESS), op.task_id, exec_epoch_no))
+                processNode1 = ProcessNode(tid = tid)
+                processNode2 = ProcessNode(tid = tid)
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
