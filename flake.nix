@@ -224,6 +224,7 @@
                 pkgs.cachix
                 pkgs.jq # to make cachix work
                 pkgs.podman
+                pkgs.clang-tools
               ]
               # gdb broken on i686
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow

@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #define ARENA_PERROR
 #include "arena.h"
+#define strncpy_s(dest, destsz, src, count)
 
 int main() {
     struct stat stat_buf;
@@ -25,14 +26,14 @@ int main() {
     for (size_t i = 0; i < 4000; ++i) {
         char* foo = arena_calloc(&arena_dir, 12, sizeof(char));
         assert(foo);
-        strncpy(foo, "hello world", 12);
+        strncpy_s(foo, 12, "hello world", 12);
         arena_uninstantiate_all_but_last(&arena_dir);
         arena_uninstantiate_all_but_last(&arena_dir);
     }
     /* This is greater than the old capacity of the arena */
     char* foo = arena_calloc(&arena_dir, 81920, sizeof(char));
     assert(foo);
-    strncpy(foo, "this is a reaaally long string", 40);
+    strncpy_s(foo, 4192,"this is a reaaally long string", 40);
     /* This next line is totally optional */
     /* arena_destroy(&arena_dir); */
     return 0;
