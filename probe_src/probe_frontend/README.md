@@ -3,29 +3,6 @@
 
 Tools for recording and manipulating libprobe provenance.
 
-## Terminology
-
-The documentation in this project assumes the reader understands a couple pieces
-of terminology specific to this tool.
-
-- **Probe record** (or probe recording)  
-This is an intermediate representation when creating a probe log. (see the section
-on serialization formats for more details)
-
-- **Probe log**  
-This is a file (`probe_log` by default) that encodes the data from a probe
-record in a format that is cross-platform and much easier to use. (see the
-section on serialization format for details)
-
-- **Transcription**  
-This is the process of converting a probe record to a probe log.
-
-- **Translation**  
-This is the process of polypeptide synthesis from mRNA strands generated during
-[**transcription**](https://en.wikipedia.org/wiki/Transcription_(biology)).
-(joke)
-
-
 ## Serialization formats
 
 ### Probe record directory

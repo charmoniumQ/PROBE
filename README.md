@@ -40,50 +40,25 @@ The simplest invocation of the `PROBE` cli is:
 PROBE record <CMD>
 ```
 
-This will run `<CMD>` under the benevolent supervision of libprobe, outputting
-the probe record to a temporary directory. Upon the process exiting, `PROBE` it
-will transcribe the record directory and write a probe log file named `probe_log` in
-the current directory.
+This will run `<CMD>` under the benevolent supervision of libprobe, outputting the probe record to a temporary directory. Upon the process exiting, `PROBE` it will transcribe the record directory and write a probe log file named `probe_log` in the current directory.
 
-If you run this again you'll notice it throws an error that the output file
-already exists, solve this by passing `-o <PATH>` to specify a new file to write
-the log to, or by passing `-f` to overwrite the previous log.
+If you run this again you'll notice it throws an error that the output file already exists, solve this by passing `-o <PATH>` to specify a new file to write the log to, or by passing `-f` to overwrite the previous log.
 
-The transcription process can take some time (but usually no more than a few
-seconds unless disk IO is exceptionally slow) after the program exits, if you
-don't want to automatically transcribe the record, you can pass the `-n` flag,
-this will change the default output path from `probe_log` to `probe_record`,
-and will output a probe record directory that can be transcribed to a probe log
-later with the `PROBE transcribe` command, however the probe record format is
-not stable, users are strongly encouraged to have `PROBE record` automatically
-transcribe the record directory immediately after the process exits. If you do
-separate the transcription step from recording, then transcription **must** be
-done on the same machine with the exact same version of the cli (and other
-constraints, see the
- [section on serialization format](https://github.com/charmoniumQ/PROBE/blob/main/probe_src/probe_frontend/README.md#serialization-formats)
-for more details).
+The transcription process can take some time (but usually no more than a few seconds unless disk IO is exceptionally slow) after the program exits, if you don't want to automatically transcribe the record, you can pass the `-n` flag, this will change the default output path from `probe_log` to `probe_record`, and will output a probe record directory that can be transcribed to a probe log later with the `PROBE transcribe` command, however the probe record format is not stable, users are strongly encouraged to have `PROBE record` automatically transcribe the record directory immediately after the process exits. If you do separate the transcription step from recording, then transcription **must** be done on the same machine with the exact same version of the cli (and other constraints, see the [section on serialization formats](https://github.com/charmoniumQ/PROBE/blob/main/probe_src/probe_frontend/README.md#serialization-formats) for more details).
 
 ### Subshells
 
-`PROBE record` does **not** pass your command through a shell, any
-subshell or environment substitutions will still be performed by your shell
-before the arguments are passed to `PROBE`. But it won't understand flow control
-statements like `if` and `for`, shell builtins like `cd`, or shell
-aliases/functions.
+`PROBE record` does **not** pass your command through a shell, any subshell or environment substitutions will still be performed by your shell before the arguments are passed to `PROBE`. But it won't understand flow control statements like `if` and `for`, shell builtins like `cd`, or shell aliases/functions.
 
-If you need these you can either write a shell script and
-invoke `PROBE record` on that, or else run:
+If you need these you can either write a shell script and invoke `PROBE record` on that, or else run:
 
 ```bash
 PROBE record bash -c '<SHELL_CODE>'
 ```
 
-(any flag after the first positional argument is ignored and treated like a
-command argument).
+(any flag after the first positional argument is treated as an argument to the command, not `PROBE`).
 
-## Analyzing
-
-<!-- TODO: write this section -->
+## Analyzing **TODO**
 
 ## Glossary
 
@@ -110,6 +85,10 @@ command argument).
 - **Exec epoch** (our term): the [exec-family](https://www.man7.org/linux/man-pages/man3/exec.3.html) of syscalls replace the _current_ process by loading a new one. The period in between subsequent execs or between an exec and an exit is called an "exec epoch". Note that we consider the thread's lifetime to be a sub-interval of the exec epoch (each exec epochs contains threads), since a call to `exec` kills all threads (Linux considers the main thread as killed and re-spawned at the exec boundary, even though it has the same PID and TID).
 
 - **PROBE log** (our output): A tar archive of logs for each process, for each exec epoch, for each thread spawned during that exec epoch. Each log contains an ordered list of prov ops.
+
+- **PROBE record** (our IR): An unstable intermediate representation of the data in a probe log (see the [section on serialization formats](https://github.com/charmoniumQ/PROBE/blob/main/probe_src/probe_frontend/README.md#serialization-formats) for more details)).
+
+- **Transcription** (our term): The process of converting a PROBE record to a PROBE log.
 
 - **Program order** (our adaptation of an existing term): is a [partial order](https://www.wikiwand.com/en/Partially_ordered_set) on the set of prov ops, which is the order the operations appear in a dynamic trace of a single thread.
 
