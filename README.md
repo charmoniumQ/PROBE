@@ -14,7 +14,7 @@ The provenance graph can help us re-execute the program, containerize the progra
 - [Provenance for Computational Tasks: A Survey by Juliana Freire, David Koop, Emanuele Santos, and Cláudio T. Silva](https://sci.utah.edu/~csilva/papers/cise2008a.pdf) for an overview of provenance in general
 - [CDE: Using System Call Interposition to Automatically Create Portable Software Packages by Philip J. Guo and Dawson Engler](https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf) for a seminal system-level provenance tracer.
 
-## Running
+## Building
 
 1. Install Nix with flakes.
 
@@ -30,30 +30,60 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 2. Acquire the source code: `git clone https://github.com/charmoniumQ/PROBE && cd PROBE`
 
-3. Run `nix develop` to enter the development environment.
+3. Run `nix build '.#probe-bundled'`
 
-4. `cd probe_src`
+## Running
 
-5. Run PROBE with `./PROBE record --make head ../flake.nix`
+The simplest invocation of the `PROBE` cli is:
 
-   - Note that `--make` will cause libprobe to be re-compiled or compiled, so if you make changes to libprobe or you haven't compiled it before, use this flag.
+```bash
+PROBE record <CMD>
+```
 
-   - This will output `probe_log` unless you pass `--output <desired_output_path>`.
+This will run `<CMD>` under the benevolent supervision of libprobe, outputting
+the probe record to a temporary directory. Upon the process exiting, `PROBE` it
+will transcribe the record directory and write a probe log file named `probe_log` in
+the current directory.
 
-   - Also note `--debug` which runs a build of libprobe that is more verbose, has runtime checks, and has debug symbols.
+If you run this again you'll notice it throws an error that the output file
+already exists, solve this by passing `-o <PATH>` to specify a new file to write
+the log to, or by passing `-f` to overwrite the previous log.
 
-   - Also note `--gdb` which loads libprobe, your command, and drops you into a GDB shell.
+The transcription process can take some time (but usually no more than a few
+seconds unless disk IO is exceptionally slow) after the program exits, if you
+don't want to automatically transcribe the record, you can pass the `-n` flag,
+this will change the default output path from `probe_log` to `probe_record`,
+and will output a probe record directory that can be transcribed to a probe log
+later with the `PROBE transcribe` command, however the probe record format is
+not stable, users are strongly encouraged to have `PROBE record` automatically
+transcribe the record directory immediately after the process exits. If you do
+separate the transcription step from recording, then transcription **must** be
+done on the same machine with the exact same version of the cli (and other
+constraints, see the
+ [section on serialization format](https://github.com/charmoniumQ/PROBE/blob/main/probe_src/probe_frontend/README.md#serialization-formats)
+for more details).
 
-6. Try `./PROBE dump`, which will read `probe_log` unless you pass `--input <desired_input_path>`. This should show a series of provenance operations, e.g.,
-  
-   ```
-   InitExecEpochOp(process_id=116448, exec_epoch=0, process_birth_time=timespec(tv_sec=1718127174, tv_nsec=333602925), program_name='head')
-   InitThreadOp(process_id=116448, process_birth_time=timespec(tv_sec=1718127174, tv_nsec=333602925), exec_epoch=0, sams_thread_id=0)
-   OpenOp(path=Path(dirfd_minus_at_fdcwd=0, path='../flake.nix', device_major=0, device_minor=32, inode=123261484, stat_valid=True, dirfd_valid=True), flags=0, mode=0, fd=6, ferrno=0)
-   CloseOp(low_fd=6, high_fd=6, ferrno=0)
-   CloseOp(low_fd=1, high_fd=1, ferrno=0)
-   CloseOp(low_fd=2, high_fd=2, ferrno=0)
-   ```
+### Subshells
+
+`PROBE record` does **not** pass your command through a shell, any
+subshell or environment substitutions will still be performed by your shell
+before the arguments are passed to `PROBE`. But it won't understand flow control
+statements like `if` and `for`, shell builtins like `cd`, or shell
+aliases/functions.
+
+If you need these you can either write a shell script and
+invoke `PROBE record` on that, or else run:
+
+```bash
+PROBE record bash -c '<SHELL_CODE>'
+```
+
+(any flag after the first positional argument is ignored and treated like a
+command argument).
+
+## Analyzing
+
+<!-- TODO: write this section -->
 
 ## Glossary
 
@@ -63,13 +93,13 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 - **Shared library**: A file containing a mapping from symbols to data or instructions. An executable can request a certain shared library be loaded at a certain place. The shared library can be specified by absolute path or by relative path, which will be resolved according to specific rules (see `RPATH` in [`man ld.so`](https://www.man7.org/linux/man-pages/man8/ld.so.8.html)).
 
-- **Libc**: A shared library that implements the functions defined in ANSI C. "In theory", the syscall table is the interface between an OS and an application; the OS provides `open`  at syscall `SYS_OPEN`. "In practice", libc is the interface between the OS and an applications; the OS's libc will define `FILE* fopen(const char* filename, const char* mode)`. This is because the syscall table has limited slots and expensive to invoke. Splitting paths is certainly OS dependent, but OS designers don't want to waste a valuable syscall slot for something that can be done in userspace, so they put it in libc. GNU Libc (aka glibc) is the most common implementation of Libc on Linux. The principle of using libc as an interface is quite strong; Rust uses satatic (not shared) libraries for everything *except* libc, because it is the best way to interface the OS. There are some notable exceptions, however; Go language does not use dynamically link against libc. Those programs are opaque to PROBE until future work, which may involve binary rewriting or ptrace.
+- **Libc**: A shared library that implements the functions defined in ANSI C. "In theory", the syscall table is the interface between an OS and an application; the OS provides `open` at syscall `SYS_OPEN`. "In practice", libc is the interface between the OS and an applications; the OS's libc will define `FILE* fopen(const char* filename, const char* mode)`. This is because the syscall table has limited slots and expensive to invoke. Splitting paths is certainly OS dependent, but OS designers don't want to waste a valuable syscall slot for something that can be done in userspace, so they put it in libc. GNU Libc (aka glibc) is the most common implementation of Libc on Linux. The principle of using libc as an interface is quite strong; Rust uses satatic (not shared) libraries for everything _except_ libc, because it is the best way to interface the OS. There are some notable exceptions, however; Go language does not use dynamically link against libc. Those programs are opaque to PROBE until future work, which may involve binary rewriting or ptrace.
 
 - **Symbol**: A symbol is a string used as the name of a global variable or function, optionally with version information appended to it, e.g., `fopen@@GLIBC_2.2.5`. Shared library exports symbols that can be referenced from an executable.
 
 - **Library interposition** is a technique that replaces a function symbol in a common library, like Libc, with a "proxy symbol". The proxy symbol will usually find and call the "true symbol" in the underlying library, but it may do arbitrary filtering, logging, or pre/post-processing as well. The proxy symbol is said to "hook" or "override" the original symbol. Library interposition is described more in [Curry's 1994 USENIX paper on library interposition in System V](https://www.usenix.org/conference/usenix-summer-1994-technical-conference/profiling-and-tracing-dynamic-library-usage), although it was probably known before that.
 
-- **`$LD_PRELOAD`**: an environment variable that tells the loader to load the colon-delimited list of shared libraries _before_ loading the other shared libraries that the program requests. These libraries will get searched first when the program requests a certain symbol. One can use `$LD_PRELOAD` to  implement library interpositioning on Linux.
+- **`$LD_PRELOAD`**: an environment variable that tells the loader to load the colon-delimited list of shared libraries _before_ loading the other shared libraries that the program requests. These libraries will get searched first when the program requests a certain symbol. One can use `$LD_PRELOAD` to implement library interpositioning on Linux.
 
 - **Provenance**: the process by which a particular element of the system's global state (often a file) came to have its current value. The process often includes an executable, its arguments, its environments, the files it read, and the provenance of the executable and read-files. We can observe some provenance by tracing one process, but most of the benefits are conferred by tracing a _set_ of interacting processes, e.g., a shell script, Makefile, or workflow.
 
@@ -86,9 +116,10 @@ The provenance graph can help us re-execute the program, containerize the progra
 - **Process fork-join order** (our term): is a partial order on the set of prov ops, which is that if A forks B, then the `fork` prov op in A should precede the first prov op of B. Likewise if A calls `waitpid` and `waitpid` returns the PID of B, then the last prov op in B should precede completion of the prov op `waitpid` in A.
 
 - **Happens-before order** (our term of an [existing term](https://www.wikiwand.com/en/Happens-before)): is the union of program order and process fork-join order.
-  - If a write from global state happens-before a read to global state, then the information *may* flow from the write to the read.
-  - If a read happens-before a write, information *can't* flow from the write to the read.
-  - If neither is true, information *may* flow.
+
+  - If a write from global state happens-before a read to global state, then the information _may_ flow from the write to the read.
+  - If a read happens-before a write, information _can't_ flow from the write to the read.
+  - If neither is true, information _may_ flow.
 
 - **Prov op interval** (our term): is an pair of prov ups, one called "upper" the other called "lower", where the upper precedes the lower in happens-before order. We say "x is in the interval" for a prov op x, if the upper prov op happens-before x and x happens-before the lower prov op.
 
