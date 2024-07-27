@@ -238,8 +238,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
         next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
         if isinstance(op, OpenOp):
             access_mode = op.flags & O_ACCMODE
-            cmd = " ".join(cmd_map[pid])
-            processNode = ProcessNode(pid=pid, cmd=cmd)
+            processNode = ProcessNode(pid=pid, cmd=" ".join(cmd_map[pid]))
             file = op.path.path
             if op.path.path not in file_version_map:
                 file_version_map[file] = 0
@@ -279,11 +278,6 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             elif op.task_type == TaskType.TASK_PTHREAD:
                 if edge[0][2] != edge[1][2]:
                     target_nodes[op.task_id].append(edge[1])
-                    # this will be a bidirectional thread
-                    # processNode1 = ProcessNode(pid= edge[0][2], cmd=cmd)
-                    # processNode2 = ProcessNode(pid = edge[1][2], cmd=cmd)
-                        
-                    # dataflow_graph.add_edge(processNode1, processNode2)
                     continue
             if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
                 
@@ -314,14 +308,14 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     traversed: list[int] = []
-    cmd = []
-    cmd_map = {}
+    cmd:list[str] = []
+    cmd_map:Dict[int, list[str]] = {}
     for edge in list(nx.edges(process_graph))[::-1]:
         pid, exec_epoch_no, tid, op_index = edge[0]
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
         if isinstance(op, OpenOp):
             file = op.path.path
-            if file not in cmd:
+            if file not in cmd and file!="/dev/tty":
                 cmd.insert(0, file)
         elif isinstance(op, InitExecEpochOp):
             program_name = op.program_name
@@ -329,9 +323,8 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
             if pid == tid and exec_epoch_no == 0:
                 cmd_map[tid] = cmd
                 cmd = []
-    print(cmd_map)
 
-    shared_files = []
+    shared_files:list[str] = []
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
     pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
     dot_string = pydot_graph.to_string()
