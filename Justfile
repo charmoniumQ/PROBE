@@ -18,7 +18,7 @@ check-mypy:
     mypy --strict --package probe_py.manual
 
 check-clang:
-    clang-tidy probe_src/**/*.c -- -Iinclude
+    clang-tidy probe_src/**/*.{c,h} -- -Iinclude
 
 compile-lib:
     make --directory=probe_src/libprobe all
@@ -35,3 +35,5 @@ test-dev: compile
     pytest probe_src --failed-first --maxfail=1
 
 pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy check-clang compile check-mypy test-dev
+
+on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
