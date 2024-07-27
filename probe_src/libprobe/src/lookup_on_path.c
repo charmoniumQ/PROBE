@@ -1,3 +1,11 @@
+#include <stdbool.h>  
+#include <stdlib.h>   
+#include <string.h>   
+#include <stddef.h> 
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+
 static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     size_t bin_name_length = strlen(bin_name);
     char* env_path = getenv("PATH");

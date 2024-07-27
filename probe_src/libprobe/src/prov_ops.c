@@ -1,3 +1,14 @@
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <limits.h>
+#include <linux/stat.h>
+
 static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
     if (likely(prov_log_is_enabled())) {
         struct Path ret = {
