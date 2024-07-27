@@ -19,8 +19,6 @@
 #include <assert.h>
 #include <unistd.h> 
 #include <sys/stat.h>
-#define memcpy_s(dest, destsz, src, count)
-#define snprintf_s(buffer, sizeOfBuffer, count, ...)
 #endif
 
 #ifdef ARENA_DEBUG
@@ -75,7 +73,7 @@ static size_t __arena_align(size_t offset, size_t alignment) {
 static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     /* Create a new mmap */
     char fname_buffer [__ARENA_FNAME_LENGTH];
-    snprintf_s(fname_buffer, __ARENA_FNAME_LENGTH, __ARENA_FNAME, arena_dir->__next_instantiation);
+    snprintf(fname_buffer, __ARENA_FNAME_LENGTH, __ARENA_FNAME, arena_dir->__next_instantiation);
     int fd = unwrapped_openat(arena_dir->__dirfd, fname_buffer, O_RDWR | O_CREAT, 0666);
     if (fd < 0) {
 #ifdef ARENA_PERROR
@@ -195,7 +193,7 @@ __attribute__((unused)) static void* arena_strndup(struct ArenaDir* arena, const
     size_t length = strnlen(string, max_size);
     char* dst = arena_calloc(arena, length + 1, sizeof(char));
     if (dst) {
-        memcpy_s(dst, sizeof(dst), string, length + 1);
+        memcpy(dst, sizeof(dst), string, length + 1);
     } else {
 #ifdef ARENA_PERROR
         fprintf(stderr, "arena_strndup: arena_calloc failed\n");
