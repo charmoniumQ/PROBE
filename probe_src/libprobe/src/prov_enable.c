@@ -1,3 +1,4 @@
+#include <stdbool.h>
 /*
  * TODO: Do I really need prov_log_disable?
  *

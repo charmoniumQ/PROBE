@@ -5,6 +5,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdio.h>
+#define BORROWED
+
 
 static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     const char* path_segment_start = getenv("PATH");
