@@ -36,4 +36,4 @@ test-dev: compile
 
 pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy check-clang compile check-mypy test-dev
 
-on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
+on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci check-clang-tidy
