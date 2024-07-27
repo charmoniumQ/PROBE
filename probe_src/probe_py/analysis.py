@@ -20,7 +20,6 @@ class FileNode:
     device_minor: int
     inode: int
     version: int
-    file: str
 
  
 @dataclass(frozen=True)
@@ -245,25 +244,26 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             # access mode "O_RDONLY (read-only)"
             if access_mode == 0:
                 curr_version = file_version_map[file]
-                fileNode = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version, file = file)
+                fileNode = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version)
                 if fileNode not in name_map:
                     name_map[fileNode] = []
-                name_map[fileNode].append(file)
-                
+                if file not in name_map[fileNode]:
+                    name_map[fileNode].append(file)
                 dataflow_graph.add_edge(fileNode, processNode)
             # access mode "O_WRONLY (write-only)"
             elif access_mode == 1:
                 curr_version = file_version_map[file]
                 if file in shared_files:
-                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version, file = file)
+                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version)
                 else:
                     file_version_map[file] = curr_version + 1
-                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version+1, file = file)
+                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version+1)
                     if starting_pid == pid:
                         shared_files.append(file)
                 if fileNode2 not in name_map:
                     name_map[fileNode2] = []
-                name_map[fileNode2].append(file)    
+                if file not in name_map[fileNode2]:
+                    name_map[fileNode2].append(file)    
                      
                 dataflow_graph.add_edge(processNode, fileNode2)
             elif access_mode == 2:
