@@ -1,3 +1,4 @@
+#include <dlfcn.h>
 void init_function_pointers()
 {
   unwrapped_fopen = dlsym(RTLD_NEXT, "fopen");

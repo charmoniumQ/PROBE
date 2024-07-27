@@ -1,3 +1,14 @@
+#include <stdio.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <ftw.h>
+#include <stdint.h>
+#include <signal.h> 
+#include <threads.h>
+#include <sys/wait.h>
+#define LIBC_HOOKS_H
+#define _GNU_SOURCE
+
 static FILE * (*unwrapped_fopen)(const char *filename, const char *opentype);
 static FILE * (*unwrapped_freopen)(const char *filename, const char *opentype, FILE *stream);
 static int (*unwrapped_fclose)(FILE *stream);
