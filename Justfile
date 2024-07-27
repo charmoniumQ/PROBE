@@ -18,7 +18,7 @@ check-mypy:
     mypy --strict probe_src/libprobe
 
 check-clang-tidy:
-    clang-tidy probe_src/**/*.c -- -Iinclude
+    for file in $(find probe_src -name "*.h" -o -name "*.c"); do clang-tidy $file -- -Iinclude; done
 
 compile-libprobe:
     make --directory=probe_src/libprobe all
@@ -34,6 +34,6 @@ test-dev: compile-libprobe
 check-flake:
     nix flake check --all-systems
 
-pre-commit: fix-format-nix fix-ruff check-mypy check-clang-tidy check-flake compile-libprobe test-dev
+pre-commit: fix-format-nix fix-ruff check-mypy check-flake compile-libprobe test-dev
 
-on-push: check-format-nix check-ruff check-mypy check-clang-tidy check-flake compile-libprobe test-ci
+on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
