@@ -34,6 +34,6 @@ test-dev: compile-libprobe
 check-flake:
     nix flake check --all-systems
 
-pre-commit: fix-format-nix fix-ruff check-mypy check-flake compile-libprobe test-dev
+pre-commit: fix-format-nix fix-ruff check-mypy check-flake compile-libprobe test-dev check-clang-tidy
 
-on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
+on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci check-clang-tidy
