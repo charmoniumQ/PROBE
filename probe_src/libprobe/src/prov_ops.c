@@ -8,6 +8,15 @@
 #include <sys/types.h>
 #include <limits.h>
 #include <linux/stat.h>
+#define BORROWED
+#ifndef likely
+#define likely(x) __builtin_expect((x), 1)
+#endif
+
+#ifndef unlikely
+#define unlikely(x) __builtin_expect((x), 0)
+#endif
+
 
 static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
     if (likely(prov_log_is_enabled())) {

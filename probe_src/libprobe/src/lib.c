@@ -1,14 +1,9 @@
 #define _GNU_SOURCE
 #include <assert.h>
 #include <fcntl.h>
-#include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
-#include <stdio.h>
 #include <limits.h>
-#include <time.h>
 #include <linux/limits.h>
-#include <errno.h>
 #include <dlfcn.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -22,7 +17,6 @@
 #include <sys/wait.h>
 #include <utime.h>
 #include <unistd.h>
-#include <signal.h>
 #include <ftw.h>
 #include <threads.h>
 #include <pthread.h>

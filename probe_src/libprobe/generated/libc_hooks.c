@@ -1,4 +1,12 @@
+#define _GNU_SOURCE
+#include "libc_hooks.h"
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <limits.h>
+#define __type_mode_t mode_t
+
 void init_function_pointers()
 {
   unwrapped_fopen = dlsym(RTLD_NEXT, "fopen");
