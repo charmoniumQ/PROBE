@@ -243,7 +243,6 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             file = op.path.path
             if op.path.path not in file_version_map:
                 file_version_map[file] = 0
-            shared_files.append(file)
             # access mode "O_RDONLY (read-only)"
             if access_mode == 0:
                 curr_version = file_version_map[file]
@@ -261,6 +260,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                 else:
                     file_version_map[file] = curr_version + 1
                     fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version+1, file = file)
+                    if starting_pid == pid:
+                        shared_files.append(file)
                 if fileNode2 not in name_map:
                     name_map[fileNode2] = []
                 name_map[fileNode2].append(file)    
@@ -317,7 +318,6 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, edge_order, shared_files=[])
     
     # Create a pydot graph
-    pydot_graph = pydot.Dot(graph_type='graph')
 
     # # Add nodes and edges to the pydot graph in the recorded order
     # for node in dataflow_graph.nodes():
