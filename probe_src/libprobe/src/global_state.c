@@ -1,3 +1,8 @@
+#include <pthread.h>
+#include <assert.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <limits.h>
 /*
  * For each member of global state $X of type $T, we have
  *

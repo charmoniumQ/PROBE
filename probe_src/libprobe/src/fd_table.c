@@ -1,3 +1,53 @@
+#include <pthread.h>
+#include <assert.h>
+#include <fcntl.h> 
+#include <stddef.h>
+#include <stdlib.h> 
+#include <string.h> 
+#include <sys/types.h>   
+#include <unistd.h>      
+#include <string.h>      
+#include <stdlib.h>      
+#include <stdio.h>   
+#include <limits.h>
+#include <stdbool.h>
+#define BORROWED        
+#define OWNED
+
+#ifndef likely
+#define likely(x) __builtin_expect((x), 1)
+#endif
+
+#ifndef unlikely
+#define unlikely(x) __builtin_expect((x), 0)
+#endif
+
+#define EXPECT(expected_value, expr) \
+    do { \
+        if ((expr) != (expected_value)) { \
+            fprintf(stderr, "Error: Expected %d but got %d at %s:%d\n", (expected_value), (expr), __FILE__, __LINE__); \
+            abort(); \
+        } \
+    } while (0)
+
+#define EXPECT_NONNULL(ptr) \
+    do { \
+        if ((ptr) == NULL) { \
+            fprintf(stderr, "Error: NULL pointer encountered at %s:%d\n", __FILE__, __LINE__); \
+            abort(); \
+        } \
+    } while (0)
+
+#define DEBUG(fmt, ...) \
+    do { \
+        fprintf(stderr, "DEBUG: %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
+    } while (0)
+
+typedef struct {
+    int inode;
+    int device;
+    int file_type; 
+} InodeTriple;
 /*
  * This file is responsible for tracking the process-global mapping between
  * file-descriptors and file paths.
@@ -40,7 +90,13 @@ static void __fd_table_ensure_capacity(int mapped_fd) {
          *
          * Note that this has to be zero-initialized, otherwise we won't know which __fd_table entries are populated.
          * */
-        __fd_table = EXPECT_NONNULL(realloc(__fd_table, new_fd_table_capacity * sizeof(*__fd_table)));
+        void* new_fd_table = realloc(__fd_table, new_fd_table_capacity * sizeof(*__fd_table));
+        
+        // Check if allocation was successful
+        EXPECT_NONNULL(new_fd_table);
+        
+        __fd_table = new_fd_table;
+      //  __fd_table = EXPECT_NONNULL(realloc(__fd_table, new_fd_table_capacity * sizeof(*__fd_table)));
         memset(__fd_table + __fd_table_capacity, 0, new_fd_table_capacity - __fd_table_capacity);
 
         /* Special case going from 0 to n. Must initialize process-global AT_FDCWD */
@@ -101,11 +157,11 @@ static void __fd_table_ensure_capacity(int mapped_fd) {
  * This is borrowed because the lifetime of normalized path will be bound by the lifetime of Op in the Op buffer
  * But the lifetime of our copy of it is bound by the lifetime of fd_table
  * */
-static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, struct InodeTriple inode_triple) {
+static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, InodeTriple inode_triple) {
     DEBUG("fd_table: %d = openat(%d, \"%s\")", fd, dirfd, path);
     fd = __map_fd(fd);
     dirfd = __map_fd(dirfd);
-    EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_wrlock(&__fd_table_lock));
     __fd_table_ensure_capacity(fd);
     /*
      * Somehow, __fd_table[fd].path assertion does not always pass.
@@ -117,7 +173,9 @@ static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, str
     /* assert(!__fd_table[fd].path); */
     /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise.
      * The tracee would likely run out of FDs if they didn't close their files. */
-    __fd_table[fd].path = EXPECT_NONNULL(strndup(path, PATH_MAX));
+    __fd_table[fd].path = strndup(path, PATH_MAX);
+    EXPECT_NONNULL(__fd_table[fd].path);  // Check for NULL pointer
+  //  __fd_table[fd].path = EXPECT_NONNULL(strndup(path, PATH_MAX));
     __fd_table[fd].dirfd = __unmap_fd(dirfd);
     /* Capture dirfd version before doing version++
      * Just in case fd == dirfd, as in chdir("foo") */
@@ -125,32 +183,32 @@ static void fd_table_associate(int fd, int dirfd, BORROWED const char* path, str
     __fd_table[fd].fd = __unmap_fd(fd);
     /* __fd_table[fd].inode_triple = inode_triple; */
     __fd_table[fd].version++;
-    EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_unlock(&__fd_table_lock));
 }
 
 static void fd_table_close(int fd) {
     DEBUG("fd_table: close(%d /* = openat(%d, \"%s\") */)", fd, __fd_table[__map_fd(fd)].dirfd, __fd_table[__map_fd(fd)].path);
     fd = __map_fd(fd);
-    EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_wrlock(&__fd_table_lock));
     assert(0 <= fd && fd < __fd_table_capacity && __fd_table[fd].path);
     free((char*) __fd_table[fd].path);
     __fd_table[fd].path = NULL;
-    EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_unlock(&__fd_table_lock));
 }
 
 static size_t fd_table_size() {
-    EXPECT(== 0, pthread_rwlock_rdlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_rdlock(&__fd_table_lock));
     int ret = __fd_table_capacity;
-    EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_unlock(&__fd_table_lock));
     return (ret == 0) ? 0 : __unmap_fd(ret);
 }
 
 static bool fd_table_is_used(int fd) {
     fd = __map_fd(fd);
-    EXPECT(== 0, pthread_rwlock_rdlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_rdlock(&__fd_table_lock));
     assert(0 <= fd && fd < __fd_table_capacity && __fd_table[fd].fd == __unmap_fd(fd));
     bool ret = (bool) __fd_table[fd].path;
-    EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_unlock(&__fd_table_lock));
     return ret;
 }
 
@@ -158,16 +216,18 @@ void fd_table_dup(int oldfd, int newfd) {
     DEBUG("fd_table: dup2(%d, %d)", oldfd, newfd);
     oldfd = __map_fd(oldfd);
     newfd = __map_fd(newfd);
-    EXPECT(== 0, pthread_rwlock_wrlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_wrlock(&__fd_table_lock));
     assert(0 <= oldfd && oldfd < __fd_table_capacity && __fd_table[oldfd].path && __fd_table[oldfd].fd == __unmap_fd(oldfd));
     assert(0 <= newfd && !__fd_table[newfd].path);
     __fd_table_ensure_capacity(newfd);
     /* This allocation is freed by fd_table_close if the tracee properly closes this file or never freed otherwise.
      * The tracee would likely run out of FDs if they didn't close their files. */
-    __fd_table[newfd].path = EXPECT_NONNULL(strndup(__fd_table[oldfd].path, PATH_MAX));
+    __fd_table[newfd].path = strndup(__fd_table[oldfd].path, PATH_MAX);
+    EXPECT_NONNULL(__fd_table[newfd].path);
+   // __fd_table[newfd].path = EXPECT_NONNULL(strndup(__fd_table[oldfd].path, PATH_MAX));
     __fd_table[newfd].dirfd = __fd_table[oldfd].dirfd;
     __fd_table[newfd].dirfd_version = __fd_table[oldfd].dirfd_version;
     __fd_table[newfd].fd = __unmap_fd(newfd);
     /* __fd_table[newfd].inode_triple = __fd_table[oldfd].inode_triple; */
-    EXPECT(== 0, pthread_rwlock_unlock(&__fd_table_lock));
+    EXPECT(0, pthread_rwlock_unlock(&__fd_table_lock));
 }

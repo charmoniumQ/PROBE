@@ -1,3 +1,20 @@
+#include <stdio.h>  
+#include <stdlib.h>  
+#include <string.h>  
+#include <unistd.h> 
+#include <sys/types.h> 
+#include <sys/syscall.h> 
+#include <sys/stat.h>
+#include <limits.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <stdbool.h>
+#include <assert.h> 
+#include <errno.h>
+#include <ftw.h>
+#include <dirent.h>
+#define BORROWED
+
 /*
  * OWNED/BORROWED determins who is responsible for freeing a pointer received or returned by a function-call.
  * Obviously, this is inspired by Rust.
