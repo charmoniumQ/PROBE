@@ -193,7 +193,7 @@ __attribute__((unused)) static void* arena_strndup(struct ArenaDir* arena, const
     size_t length = strnlen(string, max_size);
     char* dst = arena_calloc(arena, length + 1, sizeof(char));
     if (dst) {
-        memcpy(dst, sizeof(dst), string, length + 1);
+        memcpy(dst, string, length + 1);
     } else {
 #ifdef ARENA_PERROR
         fprintf(stderr, "arena_strndup: arena_calloc failed\n");
