@@ -316,18 +316,6 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     traversed: list[int] = []
     edge_order: list[tuple[EdgeType, EdgeType]] = []
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, edge_order, shared_files=[])
-    
-    # Create a pydot graph
-
-    # # Add nodes and edges to the pydot graph in the recorded order
-    # for node in dataflow_graph.nodes():
-    #     pydot_graph.add_node(pydot.Node(str(node)))
-
-    # for edge in edge_order:
-    #     pydot_graph.add_edge(pydot.Edge(str(edge[0]), str(edge[1])))
-
-    # Print the pydot graph as a string
-    
     pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
     dot_string = pydot_graph.to_string()
     return dot_string
