@@ -20,6 +20,19 @@
 #include <pthread.h>
 #endif
 
+#include <linux/stat.h> 
+#include <stddef.h>     
+#include <stdint.h>    
+#include <stdbool.h>    
+#include <sys/types.h>  
+#include <sys/stat.h>   
+#include <sys/resource.h> 
+#include <utime.h>      
+#include <threads.h>    
+#include <pthread.h>    
+
+#define OWNED
+
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
     const char* path; /* path valid if non-null */
