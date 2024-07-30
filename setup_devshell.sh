@@ -9,11 +9,10 @@ if [ ! -f flake.nix ]; then
 fi
 
 # Rust frontend uses CPATH to find libprobe headers
-export CPATH="$(realpath ./probe_src/libprobe/include):$CPATH"
+export CPATH="$PWD/probe_src/libprobe/include:$CPATH"
 
 # Rust CLI uses __PROBE_LIB to find libprobe binary
-# build may not exist yet, so we realpath its parent.
-export __PROBE_LIB="$(realpath ./probe_src/libprobe)/build"
+export __PROBE_LIB="$PWD/probe_src/libprobe/build"
 
 # Ensure libprobe.so gets maked
 if [ ! -f $__PROBE_LIB/libprobe.so ]; then
@@ -22,18 +21,20 @@ fi
 
 # Rust code uses PYGEN_OUTFILE to determine where to write this file.
 # TODO: Replace this with a static path, because it is never not this path.
-export PYGEN_OUTFILE="$(realpath ./probe_src/probe_frontend/python/probe_py/generated/ops.py)"
+export PYGEN_OUTFILE="$PWD/probe_src/probe_frontend/python/probe_py/generated/ops.py"
 
 # Ensure PROBE CLI gets built
 if [ ! -f probe_src/probe_frontend/target/release/probe ]; then
     echo -e "${red}Please run 'env -C probe_src/probe_frontend cargo build --release' to compile probe binary${clr}"
 fi
 
-# Add PROBE CLI to path, noting that target/release may not exist yet
-export PATH="$(realpath ./probe_src/probe_frontend)/target/release:$PATH"
+# Add PROBE CLI to path
+export PATH="$PWD/probe_src/probe_frontend/target/release:$PATH"
 
 # Add probe_py.generated to the Python path
-export PYTHONPATH="$(realpath ./probe_src/probe_frontend/python):$PYTHONPATH"
+export PYTHONPATH="$PWD/probe_src/probe_frontend/python:$PYTHONPATH"
+export MYPYPATH="$PWD/probe_src/probe_frontend/python:$MYPYPATH"
 
 # Add probe_py.manual to the Python path
-export PYTHONPATH="$(realpath ./probe_src/python):$PYTHONPATH"
+export PYTHONPATH="$PWD/probe_src/python:$PYTHONPATH"
+export MYPYPATH="$PWD/probe_src/python:$MYPYPATH"
