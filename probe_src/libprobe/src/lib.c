@@ -62,11 +62,11 @@ static __thread bool __thread_inited = false;
 
 /* #include "fd_table.c" */
 
-#include <libprobe/prov_ops.h>
+#include "../include/libprobe/prov_ops.h"
 
 #define ARENA_USE_UNWRAPPED_LIBC
 #define ARENA_PERROR
-#include <arena/arena.h>
+#include "../arena/include/arena.h"
 
 #include "global_state.c"
 

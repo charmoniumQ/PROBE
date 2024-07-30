@@ -39,11 +39,8 @@ let
           "pygenConfigPhase"
         ];
         pygenConfigPhase = ''
-          mkdir -p ./python
           export PYGEN_OUTFILE="$(realpath ./python/probe_py/generated/ops.py)"
         '';
-
-        LIBPROBE_INTERFACE = self.packages.${system}.libprobe-interface;
 
         CARGO_BUILD_TARGET = systems.${system};
         CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
@@ -77,10 +74,13 @@ let
             cp ./LICENSE $out/LICENSE
           '';
         });
-      probe-py = let
+      probe-py-generated = let
         workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
-      in
-        pkgs.substituteAllFiles rec {
+
+        # TODO: Simplify this
+        # Perhaps by folding the substituteAllFiles into probe-py-generated (upstream) or probe-py-frontend (downstream)
+        # Could we combine all the packages?
+        probe-py-generated-src = pkgs.substituteAllFiles rec {
           name = "probe-py-${version}";
           src = probe-frontend;
           files = [
@@ -88,7 +88,7 @@ let
             "./LICENSE"
             "./probe_py/generated/__init__.py"
             "./probe_py/generated/ops.py"
-            "./probe_py/generated/probe.py"
+            "./probe_py/generated/parser.py"
           ];
 
           authors = builtins.concatStringsSep "" (builtins.map (match: let
@@ -101,6 +101,18 @@ let
           ));
           version = workspace.package.version;
         };
+      in pkgs.python312.pkgs.buildPythonPackage rec {
+        pname = "probe_py.generated";
+        version = probe-py-generated-src.version;
+        pyproject = true;
+        build-system = [
+          pkgs.python312Packages.flit-core
+        ];
+        unpackPhase = ''
+          cp --recursive ${probe-py-generated-src}/* /build
+        '';
+        pythonImportsCheck = [ pname ];
+      };
       probe-cli = craneLib.buildPackage (individualCrateArgs
         // {
           pname = "probe-cli";
@@ -114,7 +126,7 @@ let
     in {
       checks = {
         # Build the crates as part of `nix flake check` for convenience
-        inherit probe-frontend probe-py probe-cli probe-macros;
+        inherit probe-frontend probe-py-generated probe-cli probe-macros;
 
         # Run clippy (and deny all warnings) on the workspace source,
         # again, reusing the dependency artifacts from above.
@@ -157,25 +169,15 @@ let
             partitions = 1;
             partitionType = "count";
           });
-
-        probe-pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
-          cp ${probe-py}/probe_py/generated/ops.py $out
-          ${pkgs.python312}/bin/python $out
-        '';
       };
 
       packages = {
-        inherit probe-cli probe-py probe-frontend probe-macros;
+        inherit probe-cli probe-py-generated probe-frontend probe-macros;
       };
 
       devShells.default = craneLib.devShell {
         # Inherit inputs from checks.
         checks = self.checks.${system};
-
-        shellHook = ''
-          export __PROBE_LIB="$(realpath ../libprobe/build)"
-          export PYGEN_OUTFILE="$(realpath ./python/probe_py/generated/ops.py)"
-        '';
 
         packages = [
           pkgs.cargo-audit

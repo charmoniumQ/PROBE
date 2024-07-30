@@ -1,7 +1,16 @@
 import typing
 import networkx as nx  # type: ignore
-from .parse_probe_log import Op, ProvLog, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, TaskType, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
+from probe_py.generated.ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
+from probe_py.generated.parser import ProvLog
 from enum import IntEnum
+
+
+# TODO: implement this in probe_py.generated.ops
+class TaskType(IntEnum):
+    TASK_PID = 0
+    TASK_TID = 1
+    TASK_ISO_C_THREAD = 2
+    TASK_PTHREAD = 3
 
 
 class EdgeLabels(IntEnum):
