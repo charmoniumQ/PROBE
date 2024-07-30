@@ -13,7 +13,6 @@ check-ruff:
     ruff check probe_src
 
 check-mypy:
-    MYPYPATH=probe_src mypy --strict --package arena
     MYPYPATH=probe_src mypy --strict --package probe_py
     mypy --strict probe_src/libprobe
 
@@ -31,6 +30,8 @@ test-dev: compile-libprobe
 check-flake:
     nix flake check --all-systems
 
+# TODO: checking the flake should do the tests and compilations...
+# So we should probably remove those checks from the Just file
 pre-commit: fix-format-nix fix-ruff check-mypy check-flake compile-libprobe test-dev
 
 on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
