@@ -26,9 +26,7 @@
   outputs = {
     self,
     nixpkgs,
-    crane,
     flake-utils,
-    advisory-db,
     rust-overlay,
     ...
   }@inputs: let
@@ -45,7 +43,7 @@
         overlays = [(import rust-overlay)];
       };
       python = pkgs.python312;
-      rust-stuff = (import ./probe_src/probe_frontend/rust-stuff.nix) ({ inherit system pkgs; } // inputs);
+      frontend = (import ./probe_src/probe_frontend/frontend.nix) ({ inherit system pkgs python; } // inputs);
     in {
         packages = rec {
           probe-bundled = let
@@ -95,10 +93,11 @@
             ];
             pythonImportsCheck = [ pname ];
           };
-        } // rust-stuff.packages;
-        checks = self.packages.${system} // rust-stuff.checks;
+          default = probe-bundled;
+        } // frontend.packages;
+        checks = self.packages.${system} // frontend.checks;
         devShells = {
-          default = rust-stuff.devShells.default.overrideAttrs (oldAttrs: rec {
+          default = frontend.devShells.default.overrideAttrs (oldAttrs: rec {
             shellHook = ''
               source setup_devshell.sh
             '';

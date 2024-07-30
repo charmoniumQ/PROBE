@@ -2,10 +2,9 @@
   self,
   pkgs,
   crane,
-  flake-utils,
   advisory-db,
-  rust-overlay,
   system,
+  python,
   ...
 }:
 let
@@ -101,12 +100,12 @@ let
           ));
           version = workspace.package.version;
         };
-      in pkgs.python312.pkgs.buildPythonPackage rec {
+      in python.pkgs.buildPythonPackage rec {
         pname = "probe_py.generated";
         version = probe-py-generated-src.version;
         pyproject = true;
         build-system = [
-          pkgs.python312Packages.flit-core
+          python.pkgs.flit-core
         ];
         unpackPhase = ''
           cp --recursive ${probe-py-generated-src}/* /build
