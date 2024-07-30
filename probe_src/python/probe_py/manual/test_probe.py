@@ -1,5 +1,4 @@
 import typing
-import tarfile
 from probe_py.generated.parser import ProvLog, parse_probe_log
 from probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
 from . import analysis
