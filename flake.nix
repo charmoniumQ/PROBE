@@ -100,11 +100,20 @@
         devShells = {
           default = frontend.devShells.default.overrideAttrs (oldAttrs: rec {
             shellHook = ''
-              source setup_devshell.sh
+              pushd $(git rev-parse --show-toplevel)
+              source ./setup_devshell.sh
+              popd
             '';
             buildInputs =
               oldAttrs.buildInputs ++ [
-                (pkgs.python312.withPackages (pypkgs: [
+                (python.withPackages (pypkgs: [
+                  python.pkgs.networkx
+                  python.pkgs.pygraphviz
+                  python.pkgs.pydot
+                  python.pkgs.rich
+                  python.pkgs.typer
+
+                  pypkgs.psutil
                   pypkgs.pytest
                   pypkgs.mypy
                   pypkgs.ipython

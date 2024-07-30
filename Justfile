@@ -13,7 +13,8 @@ check-ruff:
     ruff check probe_src
 
 check-mypy:
-    MYPYPATH=probe_src mypy --strict --package probe_py
+    mypy --strict --package probe_py.manual
+    mypy --strict --package probe_py.generated
     mypy --strict probe_src/libprobe
 
 compile-libprobe:

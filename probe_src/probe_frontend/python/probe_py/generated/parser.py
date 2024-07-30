@@ -71,7 +71,7 @@ def parse_probe_log(probe_log: pathlib.Path) -> ProvLog:
         for pid, epochs in op_map.items()
     })
 
-def op_hook(json_map: typing.Dict[str, typing.Any]):
+def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
     ty: str = json_map["_type"]
     json_map.pop("_type")
 
