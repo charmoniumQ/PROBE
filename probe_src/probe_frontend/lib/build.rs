@@ -6,17 +6,15 @@ use std::sync::OnceLock;
 use bindgen::callbacks::ParseCallbacks;
 
 fn find_in_cpath(name: &str) -> Result<PathBuf, &str> {
-    Ok(
-        env::var("CPATH")
-            .map_err(|_| "CPATH needs to be set (in unicode) so I can find include header files")?
-            .split(':')
-            .map(|path_str| PathBuf::from(path_str).join(name))
-            .filter(|path| path.exists())
-            .collect::<Vec<_>>()
-            .first()
-            .ok_or("name not found in CPATH")?
-            .clone()
-    )
+    Ok(env::var("CPATH")
+        .map_err(|_| "CPATH needs to be set (in unicode) so I can find include header files")?
+        .split(':')
+        .map(|path_str| PathBuf::from(path_str).join(name))
+        .filter(|path| path.exists())
+        .collect::<Vec<_>>()
+        .first()
+        .ok_or("name not found in CPATH")?
+        .clone())
 }
 
 #[derive(Debug)]
@@ -162,7 +160,7 @@ fn main() {
                 .unwrap()
                 .into_os_string()
                 .into_string()
-                .unwrap()
+                .unwrap(),
         )
         // .header_contents("sizeof", "
         //     const size_t OP_SIZE = sizeof(struct Op);

@@ -95,6 +95,7 @@
           };
           default = probe-bundled;
         } // frontend.packages;
+        # TODO: Run pytest tests in Nix checks
         checks = self.packages.${system} // frontend.checks;
         devShells = {
           default = frontend.devShells.default.overrideAttrs (oldAttrs: rec {

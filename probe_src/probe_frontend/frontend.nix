@@ -43,6 +43,7 @@ let
 
         CARGO_BUILD_TARGET = systems.${system};
         CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
+        CPATH = ../libprobe/include;
       };
 
       # Build *just* the cargo dependencies (of the entire workspace),
