@@ -20,6 +20,8 @@ class FileNode:
     device_minor: int
     inode: int
     version: int
+    file: str
+    label: str
 
  
 @dataclass(frozen=True)
@@ -238,13 +240,15 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
         if isinstance(op, OpenOp):
             access_mode = op.flags & O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=" ".join(cmd_map[pid]))
+            dataflow_graph.add_node(processNode, label = processNode.cmd)
             file = op.path.path
             if op.path.path not in file_version_map:
                 file_version_map[file] = 0
             # access mode "O_RDONLY (read-only)"
             if access_mode == 0:
                 curr_version = file_version_map[file]
-                fileNode = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version)
+                fileNode = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version, file, f"{file} v{curr_version}")
+                dataflow_graph.add_node(fileNode, label = fileNode.label)
                 if fileNode not in name_map:
                     name_map[fileNode] = []
                 if file not in name_map[fileNode]:
@@ -254,10 +258,12 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             elif access_mode == 1:
                 curr_version = file_version_map[file]
                 if file in shared_files:
-                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version)
+                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version, file, f"{file} v{curr_version}")
+                    dataflow_graph.add_node(fileNode2, label = fileNode2.label)
                 else:
                     file_version_map[file] = curr_version + 1
-                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version+1)
+                    fileNode2 = FileNode(op.path.device_major, op.path.device_minor, op.path.inode, curr_version+1, file, f"{file} v{curr_version}")
+                    dataflow_graph.add_node(fileNode2, label = fileNode2.label)
                     if starting_pid == pid:
                         shared_files.append(file)
                 if fileNode2 not in name_map:
@@ -283,7 +289,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                 
                 processNode1 = ProcessNode(pid = pid, cmd=" ".join(cmd_map[pid]))
                 processNode2 = ProcessNode(pid = op.task_id, cmd=" ".join(cmd_map[op.task_id]))
-                   
+                dataflow_graph.add_node(processNode1, label = processNode1.cmd)
+                dataflow_graph.add_node(processNode2, label = processNode2.cmd)
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
