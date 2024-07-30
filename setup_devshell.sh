@@ -29,11 +29,8 @@ if [ ! -f probe_src/probe_frontend/target/release/probe ]; then
     echo -e "${red}Please run 'env -C probe_src/probe_frontend cargo build --release' to compile probe binary${clr}"
 fi
 
-# Add PROBE CLI to path
-export PATH="$(realpath ./probe_src/probe_frontend/target/release):$PATH"
-
-# Add Arena to the Python path
-export PYTHONPATH="$(realpath ./probe_src/probe_frontend/python):$PYTHONPATH"
+# Add PROBE CLI to path, noting that target/release may not exist yet
+export PATH="$(realpath ./probe_src/probe_frontend)/target/release:$PATH"
 
 # Add probe_py.generated to the Python path
 export PYTHONPATH="$(realpath ./probe_src/probe_frontend/python):$PYTHONPATH"
