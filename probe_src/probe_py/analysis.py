@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass
 import pathlib
 import os
+import collections
 
 class EdgeLabels(IntEnum):
     PROGRAM_ORDER = 1
@@ -24,11 +25,14 @@ class InodeOnDevice:
     device_major: int
     device_minor: int
     inode: int
-    def __eq__(self, other):
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, InodeOnDevice):
+            return NotImplemented
         return (self.device_major == other.device_major and
                 self.device_minor == other.device_minor and
                 self.inode == other.inode)
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.device_major, self.device_minor, self.inode))
 
 @dataclass(frozen=True)
@@ -226,9 +230,9 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
     process_graph = provlog_to_digraph(process_tree_prov_log)
     
     edges = list_edges_from_start_node(process_graph, starting_node)
-    name_map = dict[FileNode, list[pathlib.Path]]()
+    name_map = collections.defaultdict[InodeOnDevice, list[pathlib.Path]](list)
 
-    target_nodes: Dict[str, list[Node]] = {}
+    target_nodes = collections.defaultdict[str, list[Node]](list)
     console = rich.console.Console(file=sys.stderr)
     
     for edge in edges:  
@@ -246,17 +250,13 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             processNode = ProcessNode(pid=pid, cmd=" ".join(cmd_map[pid]))
             dataflow_graph.add_node(processNode, label = processNode.cmd)
             file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
-            if file not in file_version_map:
-                file_version_map[file] = 0
             # access mode "O_RDONLY (read-only)"
             if access_mode == 0:
                 curr_version = file_version_map[file]
                 fileNode = FileNode(file, curr_version, op.path.path, f"{op.path.path} v{curr_version}")
                 dataflow_graph.add_node(fileNode, label = fileNode.label)
-                if fileNode not in name_map:
-                    name_map[fileNode] = []
-                if file not in name_map[fileNode]:
-                    name_map[fileNode].append(file)
+                if op.path.path not in name_map[file]:
+                    name_map[file].append(op.path.path)
                 dataflow_graph.add_edge(fileNode, processNode)
             # access mode "O_WRONLY (write-only)"
             elif access_mode == 1:
@@ -269,11 +269,9 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                     fileNode2 = FileNode(file, curr_version+1, op.path.path, f"{op.path.path} v{curr_version+1}")
                     dataflow_graph.add_node(fileNode2, label = fileNode2.label)
                     if starting_pid == pid:
-                        shared_files.append(file)
-                if fileNode2 not in name_map:
-                    name_map[fileNode2] = []
-                if file not in name_map[fileNode2]:
-                    name_map[fileNode2].append(file)    
+                        shared_files.add(file)
+                if op.path.path not in name_map[file]:
+                    name_map[file].append(op.path.path)    
                      
                 dataflow_graph.add_edge(processNode, fileNode2)
             elif access_mode == 2:
@@ -300,7 +298,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
         elif isinstance(op, WaitOp) and op.options == 0:
             for node in target_nodes[op.task_id]:
                 traverse_hb_for_dfgraph(process_tree_prov_log, node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map, cmd)
-                traversed.append(node[2])
+                traversed.add(node[2])
         # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
             if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
@@ -315,12 +313,12 @@ def list_edges_from_start_node(graph: nx.DiGraph, start_node: Node) -> list[Edge
 
 def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     dataflow_graph = nx.DiGraph()
-    file_version_map: Dict[InodeOnDevice, int] = {}
+    file_version_map = collections.defaultdict[InodeOnDevice, int](lambda: 0)
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
-    traversed: list[int] = []
+    traversed: set[int] = set()
     cmd:list[str] = []
-    cmd_map:Dict[int, list[str]] = {}
+    cmd_map = collections.defaultdict[int, list[str]](list)
     for edge in list(nx.edges(process_graph))[::-1]:
         pid, exec_epoch_no, tid, op_index = edge[0]
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
@@ -335,9 +333,8 @@ def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 cmd_map[tid] = cmd
                 cmd = []
 
-    shared_files:list[InodeOnDevice] = []
+    shared_files:set[InodeOnDevice] = set()
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
-    print(file_version_map)
     pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
     dot_string = pydot_graph.to_string()
     return dot_string
