@@ -181,7 +181,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
             elif op_data.ferrno == 0 and op_data.task_type == TaskType.TASK_PTHREAD:
                 for dest in get_last_pthread(pid, exid, op_data.task_id):
                     fork_join_edges.append((dest, node))
-        elif isinstance(op, ExecOp):
+        elif isinstance(op_data, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, exid + 1, pid
             exec_edges.append((node, first(*target)))
@@ -264,7 +264,7 @@ def validate_hb_clones(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]
                 elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id == op1.iso_c_thread_id:
                     break
             else:
-                ret.append(f"Could not find a successor for CloneOp {node} {TaskType(op.data.task_type).name} in the target thread")
+                ret.append(f"Could not find a successor for CloneOp {node} {TaskType(op.data.task_type).name} in the target thread/process/whatever")
     return ret
 
 
@@ -301,18 +301,19 @@ def validate_hb_acyclic(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str
 
 def validate_hb_execs(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
     ret = list[str]()
-    for (node0, node1) in process_graph.edges:
+    for node0 in process_graph.nodes():
         pid0, eid0, tid0, op0 = node0
-        pid1, eid1, tid1, op1 = node1
         op0 = prov_log_get_node(provlog, *node0)
-        op1 = prov_log_get_node(provlog, *node1)
-        if False:
-            pass
-        elif isinstance(op0.data, ExecOp):
-            if eid0 + 1 != eid1:
-                ret.append(f"ExecOp {node0} is followed by {node1}, whose exec epoch id should be {eid0 + 1}")
-            if not isinstance(op1.data, InitExecEpochOp):
-                ret.append(f"ExecOp {node0} is followed by {node1}, which is not InitExecEpoch")
+        if isinstance(op0.data, ExecOp):
+            for node1 in process_graph.successors(node0):
+                pid1, eid1, tid1, op1 = node1
+                op1 = prov_log_get_node(provlog, *node1)
+                if isinstance(op1.data, InitExecEpochOp):
+                    if eid0 + 1 != eid1:
+                        ret.append(f"ExecOp {node0} is followed by {node1}, whose exec epoch id should be {eid0 + 1}")
+                    break
+            else:
+                ret.append(f"ExecOp {node0} is not followed by an InitExecEpochOp.")
     return ret
 
 

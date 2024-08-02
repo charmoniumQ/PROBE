@@ -12,6 +12,18 @@ check-ruff:
     #ruff format --check probe_src # TODO: uncomment
     ruff check probe_src
 
+check-format-rust:
+    env --chdir probe_src/probe_frontend cargo fmt --check
+
+fix-format-rust:
+    env --chdir probe_src/probe_frontend cargo fmt
+
+check-clippy:
+    env --chdir probe_src/probe_frontend cargo clippy
+
+fix-clippy:
+    env --chdir probe_src/probe_frontend cargo clippy --fix --allow-staged
+
 check-mypy:
     mypy --strict --package probe_py.manual
     mypy --strict --package probe_py.generated
@@ -25,17 +37,15 @@ compile-cli:
 
 compile: compile-lib compile-cli
 
-test-ci: compile-libprobe
-    make --directory=probe_src/tests/c all
-    cd probe_src && python -m pytest .
+test-ci: compile-lib
+     python -m pytest .
 
-test-dev: compile-libprobe
-    make --directory=probe_src/tests/c all
+test-dev: compile-lib
     cd probe_src && python -m pytest . --failed-first --maxfail=1
 
 check-flake:
     nix flake check --all-systems
 
-pre-commit: fix-format-nix     fix-ruff compile-all check-mypy check-flake test-dev
+pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy   compile check-mypy             test-dev
 
-on-push:    check-format-nix check-ruff compile-all check-mypy check-flake test-ci
+on-push:    check-format-nix check-ruff check-format-rust check-clippy compile check-mypy check-flake test-ci

@@ -1,20 +1,20 @@
-a- [ ] Implement Rust CLI for record. Jenna is working on this.
+- [x] Implement Rust CLI for record. Jenna is working on this.
   - The Rust wrapper should replace the functionality of `record` in the `./probe_py/cli.py`. It should output a language-neutral structure that can be parsed quickly later on.
   - [x] The Rust wrapper should exec the program in an environment with libprobe in `LD_PRELOAD`.
   - [x] The Rust wrapper should transcribe the C structs into a language-neutral format.
   - [x] Split "transcribing" from "running in PROBE". We should be able to do them in two steps.
-  - [ ] Parse the language-neutral format into a `ProvLogTree` in Python, replacing `./probe_py/parse_probe_log.py`.
-  - [ ] Make sure analysis code still runs.
+  - [x] Parse the language-neutral format into a `ProvLogTree` in Python, replacing `./probe_py/parse_probe_log.py`.
+  - [x] Make sure analysis code still runs.
   - [ ] Get GDB working.
-  - [ ] Compile statically.
-- [ ] Write end-to-end-tests. End-to-end test should verify properties of the NetworkX graph returned by `provlog_to_digraph`.
-  - [ ] Check generic properties (Shofiya is working on this)
-    - [ ] The file descriptor used in CloseOp is one returned by a prior OpenOp (or a special file descriptor).
-    - [ ] Verify we aren't "missing" an Epoch ID, e.g., 0, 1, 3, 4 is missing 2.
-    - [ ] Verify that the TID returned by CloneOp is the same as the TID in the InitOp of the new thread.
-    - [ ] Verify that the TID returned by WaitOp is a TID previously returned by CloneOp.
-    - [ ] Verify the graph is acyclic and has one root.
-    - [ ] Put some of these checks in a function, and have that function be called by `PROBE analysis --check`.
+  - [x] Compile statically.
+- [x] Write end-to-end-tests. End-to-end test should verify properties of the NetworkX graph returned by `provlog_to_digraph`.
+  - [x] Check generic properties (Shofiya is working on this)
+    - [x] The file descriptor used in CloseOp is one returned by a prior OpenOp (or a special file descriptor).
+    - [x] Verify we aren't "missing" an Epoch ID, e.g., 0, 1, 3, 4 is missing 2.
+    - [x] Verify that the TID returned by CloneOp is the same as the TID in the InitOp of the new thread.
+    - [x] Verify that the TID returned by WaitOp is a TID previously returned by CloneOp.
+    - [x] Verify the graph is acyclic and has one root.
+    - [x] Put some of these checks in a function, and have that function be called by `PROBE analysis --check`.
     - Note that the application may not close every file descriptor it opens; that would be considered a "sloppy" application, but it should still work in PROBE.
   - [x] Write a pthreads application for testing purposes (Saleha finished this).
   - [ ] Verify some properties of the pthreads application.
@@ -29,6 +29,11 @@ a- [ ] Implement Rust CLI for record. Jenna is working on this.
   - [ ] Verify that this doesn't crash `sh -c "sh -c 'cat a ; cat b' ; sh -c 'cat d ; cat e'"` (in the past it did)
   - [ ] Continue along these lines one or two more cases.
 - [ ] Link with libbacktrace on `--debug` runs.
+- [ ] Refactor some identifiers in codebase.
+  - [ ] prov_log_process_tree -> process_tree
+  - [ ] (pid, ex_id, tid, op_id) -> dataclass
+  - [ ] digraph, process_graph -> hb_graph
+- Libprobe should identify which was the "root" process.
 - [ ] Write remote script wrappers
   - [ ] Write an SSH wrapper. Asif and Shofiya are working on this.
     - [ ] There should be a shell script named `ssh` that calls `./PROBE ssh <args...>`.
