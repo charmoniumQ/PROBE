@@ -38,10 +38,10 @@ compile-cli:
 compile: compile-lib compile-cli
 
 test-ci: compile-lib
-     python -m pytest .
+     pytest probe_src
 
 test-dev: compile-lib
-    cd probe_src && python -m pytest . --failed-first --maxfail=1
+    pytest probe_src --failed-first --maxfail=1
 
 check-flake:
     nix flake check --all-systems

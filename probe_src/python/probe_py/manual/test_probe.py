@@ -53,13 +53,13 @@ def test_bash_in_bash_pipe() -> None:
 def test_pthreads() -> None:
     process_tree_prov_log = execute_command([f"{project_root}/probe_src/tests/c/createFile.exe"])
     process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    #assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     bfs_nodes = [node for layer in nx.bfs_layers(process_graph, root_node) for node in layer]
     dfs_edges = list(nx.dfs_edges(process_graph))
     total_pthreads = 3
     paths = [b'/tmp/0.txt', b'/tmp/1.txt', b'/tmp/2.txt']
-    #check_pthread_graph(bfs_nodes, dfs_edges, process_tree_prov_log, total_pthreads, paths)
+    check_pthread_graph(bfs_nodes, dfs_edges, process_tree_prov_log, total_pthreads, paths)
     
 def execute_command(command: list[str], return_code: int = 0) -> ProvLog:
     input = pathlib.Path("probe_log")
@@ -67,10 +67,12 @@ def execute_command(command: list[str], return_code: int = 0) -> ProvLog:
         input.unlink()
     result = subprocess.run(
         ['probe', 'record'] + (["--debug"] if DEBUG_LIBPROBE else []) + (["--make"] if REMAKE_LIBPROBE else []) + command,
-        # capture_output=True,
-        # text=True,
+        capture_output=True,
+        text=True,
         check=False,
     )
+    print(result.stdout)
+    print(result.stderr)
     # TODO: Discuss if PROBE should preserve the returncode.
     # The Rust CLI currently does not
     # assert result.returncode == return_code
