@@ -107,16 +107,21 @@
             buildInputs =
               oldAttrs.buildInputs ++ [
                 (python.withPackages (pypkgs: [
-                  python.pkgs.networkx
-                  python.pkgs.pygraphviz
-                  python.pkgs.pydot
-                  python.pkgs.rich
-                  python.pkgs.typer
+                  # probe_py.manual runtime requirements
+                  pypkgs.networkx
+                  pypkgs.pygraphviz
+                  pypkgs.pydot
+                  pypkgs.rich
+                  pypkgs.typer
 
+                  # probe_py.manual "dev time" requirements
                   pypkgs.psutil
                   pypkgs.pytest
                   pypkgs.mypy
                   pypkgs.ipython
+
+                  # libprobe build time requirement
+                  pypkgs.pycparser
                 ]))
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
                 pkgs.which

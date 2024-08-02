@@ -17,8 +17,13 @@ check-mypy:
     mypy --strict --package probe_py.generated
     mypy --strict probe_src/libprobe
 
-compile-libprobe:
+compile-lib:
     make --directory=probe_src/libprobe all
+
+compile-cli:
+    env --chdir=probe_src/probe_frontend cargo build --release
+
+compile: compile-lib compile-cli
 
 test-ci: compile-libprobe
     make --directory=probe_src/tests/c all
@@ -31,8 +36,6 @@ test-dev: compile-libprobe
 check-flake:
     nix flake check --all-systems
 
-# TODO: checking the flake should do the tests and compilations...
-# So we should probably remove those checks from the Just file
-pre-commit: fix-format-nix fix-ruff check-mypy check-flake compile-libprobe test-dev
+pre-commit: fix-format-nix     fix-ruff compile-all check-mypy check-flake test-dev
 
-on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
+on-push:    check-format-nix check-ruff compile-all check-mypy check-flake test-ci
