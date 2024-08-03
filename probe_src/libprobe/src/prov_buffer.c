@@ -10,16 +10,9 @@
 #include <pthread.h> 
 #include <threads.h> 
 
-#ifndef CLONE_VFORK
-#define CLONE_VFORK 0x00004000
-#endif
-
 #ifndef likely
 #define likely(x) __builtin_expect(!!(x), 1)
 #endif
-
-#define clone_op_code 1 
-#define exec_op_code 2 
 
 static void prov_log_save() {
     /*
