@@ -8,12 +8,6 @@
 #include <sys/types.h>
 #include <limits.h>
 #include <linux/stat.h>
-<<<<<<< HEAD
-#include "../generated/libc_hooks.h"
-#include "../include/prov_ops.h"
-
-=======
->>>>>>> ecbb6e8ea2433c165586298c196b4613b1f9141f
 #define BORROWED
 #ifndef likely
 #define likely(x) __builtin_expect((x), 1)

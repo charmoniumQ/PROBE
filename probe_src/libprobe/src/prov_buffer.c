@@ -10,13 +10,6 @@
 #include <pthread.h> 
 #include <threads.h> 
 
-<<<<<<< HEAD
-#ifndef CLONE_VFORK
-#define CLONE_VFORK 0x00004000
-#endif
-
-=======
->>>>>>> ecbb6e8ea2433c165586298c196b4613b1f9141f
 #ifndef likely
 #define likely(x) __builtin_expect(!!(x), 1)
 #endif
