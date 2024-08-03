@@ -18,9 +18,6 @@
 #define likely(x) __builtin_expect(!!(x), 1)
 #endif
 
-#define clone_op_code 1 
-#define exec_op_code 2 
-
 static void prov_log_save() {
     /*
      * Before I was using mmap-arena, I needed to explicitly save stuff.
