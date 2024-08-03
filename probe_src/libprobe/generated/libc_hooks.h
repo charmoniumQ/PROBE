@@ -4,7 +4,10 @@
 #include <ftw.h>
 #include <sys/wait.h>
 #include <threads.h>
+<<<<<<< HEAD
 #include "../src/prov_enable.c"
+=======
+>>>>>>> ecbb6e8ea2433c165586298c196b4613b1f9141f
 
 static FILE * (*unwrapped_fopen)(const char *filename, const char *opentype);
 static FILE * (*unwrapped_freopen)(const char *filename, const char *opentype, FILE *stream);
