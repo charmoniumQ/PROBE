@@ -19,7 +19,7 @@ use std::ffi::CString;
 /// on each of it's fields. In order to make this work there are three base case implementations:
 ///
 /// - `*mut i8` and `*const i8` can (try to) be converted to [`CString`]s by looking up the
-/// pointers in the [`ArenaContext`],
+///   pointers in the [`ArenaContext`],
 /// - Any type implementing [`Copy`], this base case just returns itself.
 pub trait FfiFrom<T> {
     fn ffi_from(value: &T, ctx: &ArenaContext) -> Result<Self>
@@ -251,7 +251,7 @@ impl FfiFrom<C_Op> for OpInternal {
         log::debug!("[unsafe] decoding Op tagged union [ OpCode={} ]", kind);
         Ok(match kind {
             C_OpCode_init_process_op_code => {
-                Self::InitProcessOp(unsafe { value.init_process_epoch }.ffi_into(ctx)?)
+                Self::InitProcessOp(unsafe { value.init_process }.ffi_into(ctx)?)
             }
             C_OpCode_init_exec_epoch_op_code => {
                 Self::InitExecEpochOp(unsafe { value.init_exec_epoch }.ffi_into(ctx)?)

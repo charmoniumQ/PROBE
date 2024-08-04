@@ -9,7 +9,7 @@ import pathlib
 import typer
 import shutil
 import rich
-from . import parse_probe_log
+from probe_py.generated.parser import parse_probe_log
 from . import analysis
 from . import util
 
@@ -113,9 +113,7 @@ def process_graph(
     if not input.exists():
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
-    probe_log_tar_obj = tarfile.open(input, "r")
-    prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
-    probe_log_tar_obj.close()
+    prov_log = parse_probe_log(input)
     console = rich.console.Console(file=sys.stderr)
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_provlog(prov_log):
@@ -137,9 +135,7 @@ def dump(
     if not input.exists():
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
-    probe_log_tar_obj = tarfile.open(input, "r")
-    processes_prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
-    probe_log_tar_obj.close()
+    processes_prov_log = parse_probe_log(input)
     for pid, process in processes_prov_log.processes.items():
         print(pid)
         for exid, exec_epoch in process.exec_epochs.items():
