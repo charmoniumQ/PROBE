@@ -1,4 +1,3 @@
-
 - [x] Implement Rust CLI for record. Jenna finished this.
   - The Rust wrapper should replace the functionality of `record` in the `./probe_py/cli.py`. It should output a language-neutral structure that can be parsed quickly later on.
   - [x] The Rust wrapper should exec the program in an environment with libprobe in `LD_PRELOAD`.
