@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #define ARENA_PERROR
-#include "arena.c"
+#include "arena.h"
 
 int main() {
     struct stat stat_buf;

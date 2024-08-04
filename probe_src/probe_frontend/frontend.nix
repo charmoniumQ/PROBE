@@ -1,40 +1,13 @@
 {
-  description = "libprobe frontend";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-
-    crane = {
-      url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    flake-utils.url = "github:numtide/flake-utils";
-
-    advisory-db = {
-      url = "github:rustsec/advisory-db";
-      flake = false;
-    };
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
-
-  # TODO: cleanup derivations and make more usable:
-  # - version of probe cli with bundled libprobe and wrapper script
-  # - python code as actual module
-  # (this may require merging this flake with the top-level one)
-  outputs = {
-    self,
-    nixpkgs,
-    crane,
-    flake-utils,
-    advisory-db,
-    rust-overlay,
-    ...
-  }: let
+  self,
+  pkgs,
+  crane,
+  advisory-db,
+  system,
+  python,
+  ...
+}:
+let
     systems = {
       # "nix system" = "rust target";
       "x86_64-linux" = "x86_64-unknown-linux-musl";
@@ -42,13 +15,6 @@
       "aarch64-linux" = "aarch64-unknown-linux-musl";
       "armv7l-linux" = "armv7-unknown-linux-musleabi";
     };
-  in
-    flake-utils.lib.eachSystem (builtins.attrNames systems) (system: let
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [(import rust-overlay)];
-      };
-
       craneLib = (crane.mkLib pkgs).overrideToolchain (p:
         p.rust-bin.stable.latest.default.override {
           targets = [systems.${system}];
@@ -72,12 +38,12 @@
           "pygenConfigPhase"
         ];
         pygenConfigPhase = ''
-          mkdir -p ./python
           export PYGEN_OUTFILE="$(realpath ./python/probe_py/generated/ops.py)"
         '';
 
-        CARGO_BUILD_TARGET = "${systems.${system}}";
+        CARGO_BUILD_TARGET = systems.${system};
         CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
+        CPATH = ../libprobe/include;
       };
 
       # Build *just* the cargo dependencies (of the entire workspace),
@@ -108,10 +74,13 @@
             cp ./LICENSE $out/LICENSE
           '';
         });
-      probe-py = let
+      probe-py-generated = let
         workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
-      in
-        pkgs.substituteAllFiles rec {
+
+        # TODO: Simplify this
+        # Perhaps by folding the substituteAllFiles into probe-py-generated (upstream) or probe-py-frontend (downstream)
+        # Could we combine all the packages?
+        probe-py-generated-src = pkgs.substituteAllFiles rec {
           name = "probe-py-${version}";
           src = probe-frontend;
           files = [
@@ -119,7 +88,7 @@
             "./LICENSE"
             "./probe_py/generated/__init__.py"
             "./probe_py/generated/ops.py"
-            "./probe_py/generated/probe.py"
+            "./probe_py/generated/parser.py"
           ];
 
           authors = builtins.concatStringsSep "" (builtins.map (match: let
@@ -132,6 +101,18 @@
           ));
           version = workspace.package.version;
         };
+      in python.pkgs.buildPythonPackage rec {
+        pname = "probe_py.generated";
+        version = probe-py-generated-src.version;
+        pyproject = true;
+        build-system = [
+          python.pkgs.flit-core
+        ];
+        unpackPhase = ''
+          cp --recursive ${probe-py-generated-src}/* /build
+        '';
+        pythonImportsCheck = [ pname ];
+      };
       probe-cli = craneLib.buildPackage (individualCrateArgs
         // {
           pname = "probe-cli";
@@ -145,7 +126,7 @@
     in {
       checks = {
         # Build the crates as part of `nix flake check` for convenience
-        inherit probe-frontend probe-py probe-cli probe-macros;
+        inherit probe-frontend probe-py-generated probe-cli probe-macros;
 
         # Run clippy (and deny all warnings) on the workspace source,
         # again, reusing the dependency artifacts from above.
@@ -188,25 +169,15 @@
             partitions = 1;
             partitionType = "count";
           });
-
-        probe-pygen-sanity = pkgs.runCommand "pygen-sanity-check" {} ''
-          cp ${probe-py}/probe_py/generated/ops.py $out
-          ${pkgs.python312}/bin/python $out
-        '';
       };
 
       packages = {
-        inherit probe-cli probe-py probe-frontend probe-macros;
+        inherit probe-cli probe-py-generated probe-frontend probe-macros;
       };
 
       devShells.default = craneLib.devShell {
         # Inherit inputs from checks.
         checks = self.checks.${system};
-
-        shellHook = ''
-          export __PROBE_LIB="$(realpath ../libprobe/build)"
-          export PYGEN_OUTFILE="$(realpath ./python/probe_py/generated/ops.py)"
-        '';
 
         packages = [
           pkgs.cargo-audit
@@ -217,5 +188,4 @@
           pkgs.rust-analyzer
         ];
       };
-    });
-}
+    }
