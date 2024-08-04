@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -5,6 +6,7 @@
 #include <sys/wait.h>
 #include <threads.h>
 
+typedef int (*fn_ptr_int_void_ptr)(void*);
 static FILE * (*unwrapped_fopen)(const char *filename, const char *opentype);
 static FILE * (*unwrapped_freopen)(const char *filename, const char *opentype, FILE *stream);
 static int (*unwrapped_fclose)(FILE *stream);
@@ -16,8 +18,8 @@ static int (*unwrapped_close)(int filedes);
 static int (*unwrapped_close_range)(unsigned int lowfd, unsigned int maxfd, int flags);
 static void (*unwrapped_closefrom)(int lowfd);
 static int (*unwrapped_dup)(int old);
-static int (*unwrapped_dup2)(int old, int new_);
-static int (*unwrapped_dup3)(int old, int new_, int flags);
+static int (*unwrapped_dup2)(int old, int new);
+static int (*unwrapped_dup3)(int old, int new, int flags);
 static int (*unwrapped_fcntl)(int filedes, int command, ...);
 static int (*unwrapped_chdir)(const char *filename);
 static int (*unwrapped_fchdir)(int filedes);
@@ -85,9 +87,9 @@ static FILE * (*unwrapped_tmpfile64)();
 static char * (*unwrapped_tmpnam)(char *result);
 static char * (*unwrapped_tmpnam_r)(char *result);
 static char * (*unwrapped_tempnam)(const char *dir, const char *prefix);
-static char * (*unwrapped_mktemp)(char *template_);
-static int (*unwrapped_mkstemp)(char *template_);
-static char * (*unwrapped_mkdtemp)(char *template_);
+static char * (*unwrapped_mktemp)(char *template);
+static int (*unwrapped_mkstemp)(char *template);
+static char * (*unwrapped_mkdtemp)(char *template);
 static int (*unwrapped_execv)(const char *filename, char * const argv[]);
 static int (*unwrapped_execl)(const char *filename, const char *arg0, ...);
 static int (*unwrapped_execve)(const char *filename, char * const argv[], char * const env[]);

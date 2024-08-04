@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -8,7 +9,10 @@
 #include <limits.h>
 #include <linux/stat.h>
 #include <pthread.h> 
-#include <threads.h> 
+#include <threads.h>
+#include "libprobe/prov_ops.h"
+#include "util.h"
+#include "arena.h"
 
 #ifndef likely
 #define likely(x) __builtin_expect(!!(x), 1)

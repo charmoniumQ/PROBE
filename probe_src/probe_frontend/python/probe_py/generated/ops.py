@@ -7,9 +7,35 @@ from dataclasses import dataclass
 AT_FDCWD: int = -100
 
 @dataclass(init=True, frozen=True)
+class Timeval:
+    sec: int
+    usec: int
+
+
+@dataclass(init=True, frozen=True)
 class Timespec:
     sec: int
     nsec: int
+
+
+@dataclass(init=True, frozen=True)
+class Rusage:
+    utime: Timeval
+    stime: Timeval
+    maxrss: int
+    ixrss: int
+    idrss: int
+    isrss: int
+    minflt: int
+    majflt: int
+    nswap: int
+    inblock: int
+    oublock: int
+    msgsnd: int
+    msgrcv: int
+    nsignals: int
+    nvcsw: int
+    nivcsw: int
 
 
 @dataclass(init=True, frozen=True)
@@ -42,32 +68,6 @@ class Statx:
     mnt_id: int
     dio_mem_align: int
     dio_offset_align: int
-
-
-@dataclass(init=True, frozen=True)
-class Timeval:
-    sec: int
-    usec: int
-
-
-@dataclass(init=True, frozen=True)
-class Rusage:
-    utime: Timeval
-    stime: Timeval
-    maxrss: int
-    ixrss: int
-    idrss: int
-    isrss: int
-    minflt: int
-    majflt: int
-    nswap: int
-    inblock: int
-    oublock: int
-    msgsnd: int
-    msgrcv: int
-    nsignals: int
-    nvcsw: int
-    nivcsw: int
 
 
 @dataclass(init=True, frozen=True)

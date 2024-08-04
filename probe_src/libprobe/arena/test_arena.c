@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #define ARENA_PERROR
-#define strncpy_s(dest, destsz, src, count)
+#define strncpy_s(dest, destsz, src, count) strncpy(dest, src, count)
 #include "arena.h"
 
 int main() {
@@ -33,7 +33,7 @@ int main() {
     /* This is greater than the old capacity of the arena */
     char* foo = arena_calloc(&arena_dir, 81920, sizeof(char));
     assert(foo);
-    strncpy_s(foo, 4192,"this is a reaaally long string", 40);
+    strncpy_s(foo, 40,"this is a reaaally long string", 40);
     /* This next line is totally optional */
     /* arena_destroy(&arena_dir); */
     return 0;
