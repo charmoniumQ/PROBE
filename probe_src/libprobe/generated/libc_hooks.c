@@ -1,3 +1,4 @@
+
 #define _GNU_SOURCE
 #include "libc_hooks.h"
 #include <dlfcn.h>
@@ -5,8 +6,15 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <limits.h>
+/*
+ * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
+ * so we use some macros instead.
+ * To pycparser, these macros are defined as variable names (parsable as arguments).
+ * To GCC these macros are defined as type names.
+ * */
 #define __type_mode_t mode_t
-
+#define __type_charp char*
+#define __type_charpp char**
 void init_function_pointers()
 {
   unwrapped_fopen = dlsym(RTLD_NEXT, "fopen");

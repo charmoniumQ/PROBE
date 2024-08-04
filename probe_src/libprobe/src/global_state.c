@@ -3,6 +3,12 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
+#include "declarations.h"
+
+#define ARENA_USE_UNWRAPPED_LIBC
+#define ARENA_PERROR
+#include "../arena/include/arena.h"
+
 /*
  * For each member of global state $X of type $T, we have
  *

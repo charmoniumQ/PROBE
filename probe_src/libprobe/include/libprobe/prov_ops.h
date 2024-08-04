@@ -1,36 +1,19 @@
-<<<<<<< HEAD:probe_src/libprobe/include/libprobe/prov_ops.h
-#ifdef PYCPARSER
-#define _BITS_BYTESWAP_H
-#define __attribute__(x)
-#define __bswap_64(x)
-#define __restrict
-#define __inline
-#define __extension__
-#define BORROWED
-#define OWNED
-#define _GNU_SOURCE
-#define __asm__(x)
-#define __signed__ signed
+#pragma once
+
+#include <linux/stat.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/resource.h>
 #include <utime.h>
 #include <threads.h>
 #include <pthread.h>
-#endif
 
-#include <linux/stat.h> 
-#include <stddef.h>     
-#include <stdint.h>    
-#include <stdbool.h>    
-#include <sys/types.h>  
-#include <sys/stat.h>   
-#include <sys/resource.h> 
-#include <utime.h>      
-#include <threads.h>    
-#include <pthread.h>    
+// See note in build.rs
+#ifndef RUST_BINDGEN
+#include <sys/resource.h>
+#endif
 
 #define OWNED
 

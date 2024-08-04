@@ -1,5 +1,5 @@
 SOURCE_VERSION ?= $(shell git rev-parse --short HEAD)
-CFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wno-cast-function-type -Wno-array-parameter -ffreestanding -Wl,--as-needed -ldl -Wall -Wextra -pthread -fPIC -nostdlib -shared $(NIX_CFLAGS_COMPILE)
+CFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wno-cast-function-type -Wno-array-parameter -ffreestanding -Wl,--as-needed -Wall -Wextra -pthread -fPIC -nostdlib -shared $(NIX_CFLAGS_COMPILE) -std=c11
 DBGCFLAGS ?= -Og -g
 OPTCFLAGS ?= -O3 -DNDEBUG
 

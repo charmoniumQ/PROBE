@@ -115,16 +115,8 @@ fn main() {
         .header_contents(
             "wrapper",
             "
-            #define _GNU_SOURCE
-            #include <stdbool.h>
-            #include <stddef.h>
-            #include <stdint.h>
-            #include <sys/stat.h>
-            #include <sys/types.h>
-            #include <utime.h>
-            #include <threads.h>
-            #include <pthread.h>
-
+            #define RUST_BINDGEN 1
+            #include <sys/time.h>
             // HACK: defining this manually instead of using <sys/resource.h> is
             // a huge hack, but it greatly reduces the generated code complexity
             // since in glibc all the long ints are unions over two types that

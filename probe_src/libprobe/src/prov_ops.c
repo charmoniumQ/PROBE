@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -8,8 +9,12 @@
 #include <sys/types.h>
 #include <limits.h>
 #include <linux/stat.h>
+#include "libprobe/prov_ops.h"
+#include "declarations.h"
+#include "util.h"
 
 #define BORROWED
+
 #ifndef likely
 #define likely(x) __builtin_expect((x), 1)
 #endif
@@ -168,7 +173,7 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
             NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
-static int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
+static int path_to_string(const struct Path* path, char* buffer, size_t buffer_length) {
     return CHECK_SNPRINTF(
         buffer,
         buffer_length,
@@ -179,10 +184,10 @@ static int path_to_string(const struct Path* path, char* buffer, int buffer_leng
         path->dirfd_valid
     );
 }
-static void op_to_human_readable(char* dest, int size, struct Op* op) {
+static void op_to_human_readable(char* dest, size_t size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
     strncpy(dest, op_str, size);
-    size -= strlen(op_str);
+    size = size - strlen(op_str);
     dest += strlen(op_str);
 
     dest[0] = ' ';

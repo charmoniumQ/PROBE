@@ -18,7 +18,13 @@ check-mypy:
     mypy --strict --package probe_py.manual
 
 check-clang:
-    clang-tidy probe_src/**/*.{c,h} -- -Iinclude
+    clang-tidy \
+        probe_src/**/*.{c,h} \
+        -- \
+        -Iprobe_src/libprobe/include \
+        -Iprobe_src/libprobe/arena/include \
+        -std=c11 \
+        -DARENA_USE_UNWRAPPED_LIBC \
 
 compile-lib:
     make --directory=probe_src/libprobe all
@@ -36,4 +42,6 @@ test-dev: compile
 
 pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy check-clang compile check-mypy test-dev
 
-on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci check-clang-tidy
+pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy   clang-tidy compile check-mypy             test-dev
+
+on-push:    check-format-nix check-ruff check-format-rust check-clippy clang-tidy compile check-mypy check-flake test-ci
