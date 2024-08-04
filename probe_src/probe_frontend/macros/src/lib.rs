@@ -18,14 +18,14 @@ type MacroResult<T> = Result<T, TokenStream>;
 /// - be a named struct (tuple and unit structs not supported).
 /// - Name starts with `C_`.
 /// - contain only types that implement `FfiFrom` (defined in probe_frontend, see ops module for
-/// details).
+///   details).
 ///
 /// In will generate a struct with the following characteristics:
 ///
 /// - same name, but without the `C_` prefix, and converted from snake_case to PascalCase.
 /// - any field in the original struct starting with `__` is ignored.
 /// - any field in the original struct starting with `ru_`, `tv_`, or `stx_` will have that prefix
-/// removed.
+///   removed.
 /// - derives serde's `Serialize`, `Deserialize` traits.
 /// - contains a unit field `_type` that serializes to the struct's name.
 /// - implements `FfiFrom` by calling it recursively on each field.

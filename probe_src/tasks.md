@@ -1,20 +1,20 @@
-a- [ ] Implement Rust CLI for record. Jenna is working on this.
+- [x] Implement Rust CLI for record. Jenna finished this.
   - The Rust wrapper should replace the functionality of `record` in the `./probe_py/cli.py`. It should output a language-neutral structure that can be parsed quickly later on.
   - [x] The Rust wrapper should exec the program in an environment with libprobe in `LD_PRELOAD`.
   - [x] The Rust wrapper should transcribe the C structs into a language-neutral format.
   - [x] Split "transcribing" from "running in PROBE". We should be able to do them in two steps.
-  - [ ] Parse the language-neutral format into a `ProvLogTree` in Python, replacing `./probe_py/parse_probe_log.py`.
-  - [ ] Make sure analysis code still runs.
-  - [ ] Get GDB working.
-  - [ ] Compile statically.
-- [ ] Write end-to-end-tests. End-to-end test should verify properties of the NetworkX graph returned by `provlog_to_digraph`.
-  - [ ] Check generic properties (Shofiya is working on this)
-    - [ ] The file descriptor used in CloseOp is one returned by a prior OpenOp (or a special file descriptor).
-    - [ ] Verify we aren't "missing" an Epoch ID, e.g., 0, 1, 3, 4 is missing 2.
-    - [ ] Verify that the TID returned by CloneOp is the same as the TID in the InitOp of the new thread.
-    - [ ] Verify that the TID returned by WaitOp is a TID previously returned by CloneOp.
-    - [ ] Verify the graph is acyclic and has one root.
-    - [ ] Put some of these checks in a function, and have that function be called by `PROBE analysis --check`.
+  - [x] Parse the language-neutral format into a `ProvLogTree` in Python, replacing `./probe_py/parse_probe_log.py`.
+  - [x] Make sure analysis code still runs.
+  - [x] Get GDB working.
+  - [x] Compile statically.
+- [x] Write end-to-end-tests. End-to-end test should verify properties of the NetworkX graph returned by `provlog_to_digraph`.
+  - [x] Check generic properties Shofiya and Sam finished this.
+    - [x] The file descriptor used in CloseOp is one returned by a prior OpenOp (or a special file descriptor).
+    - [x] Verify we aren't "missing" an Epoch ID, e.g., 0, 1, 3, 4 is missing 2.
+    - [x] Verify that the TID returned by CloneOp is the same as the TID in the InitOp of the new thread.
+    - [x] Verify that the TID returned by WaitOp is a TID previously returned by CloneOp.
+    - [x] Verify the graph is acyclic and has one root.
+    - [x] Put some of these checks in a function, and have that function be called by `PROBE analysis --check`.
     - Note that the application may not close every file descriptor it opens; that would be considered a "sloppy" application, but it should still work in PROBE.
   - [x] Write a pthreads application for testing purposes (Saleha finished this).
   - [ ] Verify some properties of the pthreads application.
@@ -29,6 +29,17 @@ a- [ ] Implement Rust CLI for record. Jenna is working on this.
   - [ ] Verify that this doesn't crash `sh -c "sh -c 'cat a ; cat b' ; sh -c 'cat d ; cat e'"` (in the past it did)
   - [ ] Continue along these lines one or two more cases.
 - [ ] Link with libbacktrace on `--debug` runs.
+- [ ] Refactor some identifiers in codebase.
+  - [ ] prov_log_process_tree -> process_tree
+  - [ ] (pid, ex_id, tid, op_id) -> dataclass
+  - [ ] digraph, process_graph -> hb_graph
+  - [ ] Reformat Nix and Python
+  - [ ] Reformat repository layout
+    - [ ] `probe_src` -> `src` or just `/` (moving children up a level
+    - [ ] `probe_frontend` -> `rust`, and renaming the packages in it to `cli`, `macros`, and `pygen`
+    - [ ] Move tests to root level?
+    - [ ] Distinguish between unit-tests and end-to-end tests
+    - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
 - [ ] Write remote script wrappers
   - [ ] Write an SSH wrapper. Asif and Shofiya are working on this.
     - [ ] There should be a shell script named `ssh` that calls `./PROBE ssh <args...>`.
@@ -54,16 +65,14 @@ a- [ ] Implement Rust CLI for record. Jenna is working on this.
     - [x] Check Python code with Mypy.
     - [x] Run tests on the current machine.
   - [x] Write a CI script that uses Nix to install dependencies and run the Justfiles.
-  - [ ] Check (not format) code in Alejandra and Black.
-  - [ ] Reformat all Python code in Black.
-  - [ ] Figure out why tests don't work.
+  - [x] Check (not format) code in Alejandra and Black.
+  - [x] Figure out why tests don't work.
   - [ ] Run tests in an Ubuntu Docker container.
   - [ ] Run tests in a really old Ubuntu Docker container.
-- [ ] Write microbenchmarking
-  - [ ] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
+  - [ ] Figure out how to intelligently combine Nix checks, Just checks, and GitHub CI checks, so we aren't duplicating checks.
+- [x] Write microbenchmarking
+  - [x] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
   - [ ] Write interesting performance tests, using `benchmark/workloads.py` as inspiration.
-  - [ ] Run the benchmarks with Hyperfine, in Containerexec, in a Python script, storing the result as a CSV.
-    - Python script that runs `hyperfine ./PROBE record --no-transcribe` and `hyperfine ./PROBE transcribe` for several tests.
 - [ ] Output conversions
   - [ ] From the NetworkX digraph, export (Shofiya is working on this):
     - [ ] A dataflow graph, showing only files, processes, and the flow of information between them. The following rules define when there is an edge:
@@ -73,9 +82,11 @@ a- [ ] Implement Rust CLI for record. Jenna is working on this.
     - [ ] [Process Run Crate](https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/) (Saleha is working on this)
     - [ ] [Common Workflow Language](https://www.commonwl.org/)
       - [ ] Write a test that runs the resulting CWL.
+    - [ ] Nextflow (Kyrilos is working on this)
+      - [ ] Write a test that runs the resulting CWL.
     - [ ] Makefile
       - [ ] Write a test that runs the resulting Makefile.
-    - [ ] LLM context prompt
+    - [ ] LLM context prompt (Kyrilos is working on this)
       - Build on the work of Nichole Bufford et al.
 - [ ] Consider how to combine provenance from multiple sources
   - [ ] Consider language-level sources like rdtlite
@@ -87,15 +98,16 @@ a- [ ] Implement Rust CLI for record. Jenna is working on this.
   - [x] Debug `createFile.c` crash while trying to `mkdir_and_descend`.
   - [x] Debug `gcc`.
   - [x] Add thread ID and pthread ID to op.
-  - [ ] Add Dup ops and debug `bash -c 'head foo > bar'`
-  - [ ] Compile Libprobe with static Musl instead of glibc.
+  - [ ] Libprobe should identify which was the "root" process.
+  - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
+  - [ ] Libprobe should detect Musl vs Glibc at runtime.
   - [ ] Put magic bytes in arena
   - [ ] Unify the Arenas.
   - [ ] Try to break it. Jenna has some input on this.
   - [ ] Add interesting cases to tests.
   - [ ] Add more Ops (see branch add-new-ops)
-- [ ] Sort dirents (see branch sort-dirents)
-- [ ] Generate a replay package.
+- [ ] Sort dirents (see branch sort-dirents). Sam is working on this
+- [ ] Generate a replay package (see branch generate-replay-package). Sam is working on this
   - [ ] Should be activated by a flag: `./PROBE record --with-replay`
   - [ ] Should copy all read files into the probe log.
   - [ ] Should export the PROBE log to the following formats with a CWL script:

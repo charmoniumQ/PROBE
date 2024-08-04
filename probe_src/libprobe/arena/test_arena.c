@@ -6,8 +6,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #define ARENA_PERROR
-#define strncpy_s(dest, destsz, src, count) 
-#include "arena.c"
+#define strncpy_s(dest, destsz, src, count)
+#include "arena.h"
 
 int main() {
     struct stat stat_buf;

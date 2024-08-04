@@ -1,5 +1,0 @@
-#!/usr/bin/env sh
-
-project_root="$(dirname "$0")"
-export PYTHONPATH="${project_root}:${project_root}/arena:${PYTHONPATH}"
-exec python3 -m probe_py.cli "${@}"
