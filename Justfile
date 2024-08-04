@@ -35,7 +35,10 @@ compile-lib:
 compile-cli:
     env --chdir=probe_src/probe_frontend cargo build --release
 
-compile: compile-lib compile-cli
+compile-tests:
+    make --directory=probe_src/tests/c all
+
+compile: compile-lib compile-cli compile-tests
 
 test-ci: compile-lib
      pytest probe_src
