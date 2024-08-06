@@ -71,7 +71,7 @@
               mkdir $out $out/bin
               makeWrapper \
                 ${self.packages.${system}.probe-cli}/bin/probe \
-                $out/bin/PROBE \
+                $out/bin/probe \
                 --set __PROBE_LIB ${libprobe}/lib
             '';
           };
