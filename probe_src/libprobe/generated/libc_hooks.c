@@ -1,4 +1,3 @@
-
 #define _GNU_SOURCE
 #include "libc_hooks.h"
 #include <dlfcn.h>
@@ -6,6 +5,8 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <limits.h>
+#include "../src/declarations.h"
+
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
  * so we use some macros instead.

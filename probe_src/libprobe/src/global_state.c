@@ -4,10 +4,57 @@
 #include <unistd.h>
 #include <limits.h>
 #include "declarations.h"
+#include "errno.h"
+#include "util.h"
+#include "../arena/include/arena.h"
+
+#define unsigned_int_string_size (12)
 
 #define ARENA_USE_UNWRAPPED_LIBC
 #define ARENA_PERROR
-#include "../arena/include/arena.h"
+#define unsigned_long_string_size (22)
+#define signed_long_string_size (22)
+#define unwrapped_mkdirat mkdirat
+#define unwrapped_close close
+#define SOURCE_VERSION ""
+#define ERROR(...) ({ \
+    __LOG_PID(); \
+    __LOG_SOURCE(); \
+    fprintf(stderr, __VA_ARGS__); \
+    fprintf(stderr, "\n"); \
+    prov_log_disable(); \
+    exit(1); \
+})
+
+
+#define DEBUG(...) ({ \
+    __LOG_PID(); \
+    __LOG_SOURCE(); \
+    fprintf(stderr, __VA_ARGS__); \
+    fprintf(stderr, "\n"); \
+})
+
+
+#define ASSERTF(cond, ...) ({ \
+    if (unlikely(!(cond))) { \
+        __LOG_PID(); \
+        __LOG_SOURCE(); \
+        fprintf(stderr, "Assertion " #cond " failed: "); \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, "\n"); \
+	    prov_log_disable(); \
+        exit(1); \
+    } \
+})
+#define CHECK_SNPRINTF(s, n, ...) ({ \
+    int ret = snprintf(s, n, __VA_ARGS__); \
+    ASSERTF(ret > 0, "snprintf returned %d", ret); \
+    ASSERTF(ret < n, "%d-long string exceeds destination %lu-long destination buffer\n", ret, n); \
+    ret; \
+})
+#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d: ", getpid(), get_exec_epoch_safe(), my_gettid())
+
+#define __LOG_SOURCE() fprintf(stderr, SOURCE_VERSION ":" __FILE__ ":%d:%s(): ", __LINE__, __func__)
 
 /*
  * For each member of global state $X of type $T, we have
@@ -27,6 +74,23 @@
  *
  */
 
+ #define ASSERTF(cond, ...) ({ \
+    if (unlikely(!(cond))) { \
+        __LOG_PID(); \
+        __LOG_SOURCE(); \
+        fprintf(stderr, "Assertion " #cond " failed: "); \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, "\n"); \
+	    prov_log_disable(); \
+        exit(1); \
+    } \
+})
+#define EXPECT(cond, expr) ({ \
+    errno = 0; \
+    ssize_t ret = (expr); \
+    ASSERTF((ret cond), "Expected %s %s, but %s == %ld: %s (%d)", #expr, #cond, #expr, ret, strerror(errno), errno); \
+    ret; \
+})
 static const int __is_proc_root_initial = -1;
 static int __is_proc_root = __is_proc_root_initial;
 static const char* is_proc_root_env_var = PRIVATE_ENV_VAR_PREFIX "IS_ROOT";
