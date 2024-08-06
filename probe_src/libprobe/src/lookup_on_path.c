@@ -1,3 +1,16 @@
+#include <stdbool.h>  
+#include <stdlib.h>   
+#include <string.h>   
+#include <stddef.h> 
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+#include <stdio.h>
+#include "util.h"
+#include "libprobe/prov_ops.h"
+#define BORROWED
+
+
 static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     const char* path_segment_start = getenv("PATH");
     DEBUG("looking up \"%s\" on $PATH=\"%.50s...\"", bin_name, path_segment_start);

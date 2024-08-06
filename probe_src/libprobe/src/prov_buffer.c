@@ -1,3 +1,23 @@
+#define _GNU_SOURCE
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <limits.h>
+#include <linux/stat.h>
+#include <pthread.h> 
+#include <threads.h>
+#include "libprobe/prov_ops.h"
+#include "util.h"
+#include "arena.h"
+
+#ifndef likely
+#define likely(x) __builtin_expect(!!(x), 1)
+#endif
+
 static void prov_log_save() {
     /*
      * Before I was using mmap-arena, I needed to explicitly save stuff.

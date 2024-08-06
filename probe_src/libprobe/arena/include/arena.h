@@ -1,12 +1,6 @@
 #pragma once
 
 #define _GNU_SOURCE
-#ifdef PYCPARSER
-#define __attribute__(x)
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-#else
 #include <stddef.h>
 #include <stdio.h>
 #include <stdalign.h>
@@ -16,7 +10,9 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#endif
+#include <assert.h>
+#include <unistd.h> 
+#include <sys/stat.h>
 
 #ifdef ARENA_DEBUG
 #define ARENA_PERROR
