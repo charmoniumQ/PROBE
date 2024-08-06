@@ -1442,7 +1442,11 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "fast": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server", "splash3"}
+        if (
+                workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich", "Linux"}
+                and workload.kind not in {"w/Spack", "Linux", "http_server", "splash3"}
+                and workload.superkind not in {"Un/archive"}
+        )
     ],
     "superfast": [
         workload
