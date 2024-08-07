@@ -188,7 +188,7 @@ def scp(
             cmd.insert(0,f"-P {port}")
             cmd.insert(0,"scp")
             upload_files(cmd)
-            remote_file_path = os.path.join(destination_path, os.path.basename(source_file_path))
+            destination_path = os.path.join(destination_path, os.path.basename(source_file_path))
             print(destination_path)
             get_inode_and_device_on_local(destination_path)
         else:
