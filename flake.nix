@@ -90,6 +90,7 @@
               python.pkgs.pydot
               python.pkgs.rich
               python.pkgs.typer
+              python.pkgs.xdg-base-dirs
             ];
             pythonImportsCheck = [ pname ];
           };
@@ -113,6 +114,7 @@
                   pypkgs.pydot
                   pypkgs.rich
                   pypkgs.typer
+                  pypkgs.xdg-base-dirs
 
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil
