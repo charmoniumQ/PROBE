@@ -207,6 +207,81 @@ def scp(
     except Exception as e:
         print(str(e))
 
+
+
+@app.command()
+def rsync(
+        cmd: list[str],
+        port: str = typer.Option(22, "--p", "-P"),
+        dry_run: bool = typer.Option(False, "--dry-run", help="Simulate the file transfer.")
+) -> None:
+    """
+    Transfer files using rsync and get inode and device numbers.
+    """
+    try:
+        # Iterate from the end
+        destination = cmd[-1]
+        source = cmd[-2]
+
+        # Source is local and destination is remote
+        if "@" not in source:
+            user_name_and_ip = destination.split(":")[0]
+            destination_path = destination.split(":")[1]
+            local_file_path = source
+            src_inode, src_device = get_inode_and_device_on_local(local_file_path)
+            cmd.insert(0, f"--rsh=ssh -p {port}")
+            cmd.insert(0, "rsync")
+            if dry_run:
+                cmd.append("--dry-run")
+            run_rsync(cmd)
+            if not dry_run:
+                remote_file_path = os.path.join(destination_path, os.path.basename(local_file_path))
+                get_inode_and_device_on_remote(remote_file_path, user_name_and_ip)
+        # Source is remote and destination is local
+        elif "@" not in destination:
+            user_name_and_ip = source.split(":")[0]
+            source_file_path = source.split(":")[1]
+            destination_path = destination
+            if dry_run:
+                cmd.append("--dry-run")
+            run_rsync(cmd)
+            if not dry_run:
+                get_inode_and_device_on_remote(source_file_path, user_name_and_ip)
+                destination_path = os.path.join(destination_path, os.path.basename(source_file_path))
+                get_inode_and_device_on_local(destination_path)
+        else:
+            user_name_and_ip_src = source.split(":")[0]
+            source_file_path = source.split(":")[1]
+            if dry_run:
+                cmd.append("--dry-run")
+            run_rsync(cmd)
+            if not dry_run:
+                get_inode_and_device_on_remote(source_file_path, user_name_and_ip_src)
+                user_name_and_ip_dest = destination.split(":")[0]
+                destination_path = destination.split(":")[1]
+                remote_file_path = os.path.join(destination_path, os.path.basename(source_file_path))
+                get_inode_and_device_on_remote(remote_file_path, user_name_and_ip_dest)
+    except Exception as e:
+        print(str(e))
+
+def run_rsync(cmd):
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(result)
+        if "--dry-run" in cmd:
+            typer.echo("Dry run completed. These files would be transferred:")
+            typer.echo(result.stdout)
+        else:
+            typer.echo("File transfer successful.")
+            typer.echo(result.stdout)
+    except subprocess.CalledProcessError as e:
+        # Capture and print the error message
+        typer.echo(f"Error occurred during file transfer: {e}")
+        typer.echo(f"Exit code: {e.returncode}")
+        typer.echo(f"Error output: {e.stderr}")
+
+
+
 def upload_files(cmd):
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
