@@ -10,8 +10,9 @@ import typer
 import shutil
 import rich
 from probe_py.generated.parser import parse_probe_log
-from . import analysis
-from . import util
+import analysis
+import util
+import traceback
 
 rich.traceback.install(show_locals=False)
 
@@ -145,6 +146,108 @@ def dump(
                 for op_no, op in enumerate(thread.ops):
                     print(pid, exid, tid, op_no, op.data)
                 print()
+
+
+# scp source destination
+# find the <device>-<inode>.prov on source
+# upload to destination
+# find <device>-<inode>.prov inode on source
+# augment to InodeHistory
+# transfer the file to destination
+
+# scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir 
+@app.command()
+def scp(
+        cmd: list[str],
+        port: str = typer.Option(22, "--p", "-P")
+) -> None:
+    """
+    """
+    try:
+    # iterate from the end 
+        destination = cmd[-1]
+        source = cmd[-2]
+
+        # source is local and destination is remote
+        if "@" not in source:
+            user_name_and_ip = destination.split(":")[0]
+            destination_path = destination.split(":")[1]
+            local_file_path = source
+            src_inode, src_device = get_inode_and_device_on_local(local_file_path)
+            cmd.insert(0,f"-P {port}")
+            cmd.insert(0,"scp")
+            upload_files(cmd)
+            remote_file_path = os.path.join(destination_path, os.path.basename(local_file_path))
+            get_inode_and_device_on_remote(remote_file_path, user_name_and_ip)
+        # source is remote and destination is local
+        elif "@" not in destination:
+            user_name_and_ip = source.split(":")[0]
+            source_file_path = source.split(":")[1]
+            destination_path = destination
+            get_inode_and_device_on_remote(source_file_path, user_name_and_ip)
+            cmd.insert(0,f"-P {port}")
+            cmd.insert(0,"scp")
+            upload_files(cmd)
+            remote_file_path = os.path.join(destination_path, os.path.basename(source_file_path))
+            print(destination_path)
+            get_inode_and_device_on_local(destination_path)
+        else:
+            user_name_and_ip_src = source.split(":")[0]
+            source_file_path = source.split(":")[1]
+            get_inode_and_device_on_remote(source_file_path, user_name_and_ip_src)
+            cmd.insert(0,f"-P {port}")
+            cmd.insert(0,"scp")
+            upload_files(cmd)
+            user_name_and_ip_dest = destination.split(":")[0]
+            remote_file_path = os.path.join(destination_path, os.path.basename(source_file_path))
+            destination_path = destination.split(":")[1]
+            get_inode_and_device_on_remote(remote_file_path, user_name_and_ip_dest)
+
+
+    except Exception as e:
+        print(str(e))
+
+def upload_files(cmd):
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(result)
+        typer.echo("File transfer successful.")
+        typer.echo(result.stdout)
+    except subprocess.CalledProcessError as e:
+        # Capture and print the error message
+        typer.echo(f"Error occurred during file transfer: {e}")
+        typer.echo(f"Exit code: {e.returncode}")
+        typer.echo(f"Error output: {e.stderr}")
+
+def get_inode_and_device_on_remote(remote_file_path, user_name_and_ip):
+    try:
+        # Get the remote file path
+        
+        print(remote_file_path)
+        # SSH command to get inode and device number
+        ssh_command = f"ssh -p 2222 {user_name_and_ip} 'stat -c \"%d %i\" {remote_file_path}'"
+        result = subprocess.run(ssh_command, shell=True, check=True, capture_output=True, text=True)
+        # Parse the result
+        device, inode = result.stdout.strip().split()
+        print(device, " ", inode)
+    except subprocess.CalledProcessError as e:
+        # Capture and print the error message
+        typer.echo(f"Error occurred during file transfer: {e}")
+        typer.echo(f"Exit code: {e.returncode}")
+        typer.echo(f"Error output: {e.stderr}")
+    
+def get_inode_and_device_on_local(file_path):
+    try:
+        print(file_path)
+        file_stat = os.stat(file_path)
+        device = file_stat.st_dev
+        inode = file_stat.st_ino
+        print(device, " ", inode)
+        return inode, device
+    except FileNotFoundError:
+        raise Exception(f"File not found: {file_path}")
+    except Exception as e:
+        raise Exception(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
     app()
