@@ -1,4 +1,4 @@
-This file implements persistent (between-process) provenance.
+`probe_py.manual.persistent_provenance` implements persistent (between-process) provenance.
 
 `probe record ...` efficiently trackes provenance within a single process, writing the result to `probe_log`.
 If the process which reads a file is not the same as the process which writes one, but they have a common ancestor parent, this works well.
