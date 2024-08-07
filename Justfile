@@ -12,25 +12,43 @@ check-ruff:
     #ruff format --check probe_src # TODO: uncomment
     ruff check probe_src
 
+check-format-rust:
+    env --chdir probe_src/probe_frontend cargo fmt --check
+
+fix-format-rust:
+    env --chdir probe_src/probe_frontend cargo fmt
+
+check-clippy:
+    env --chdir probe_src/probe_frontend cargo clippy
+
+fix-clippy:
+    env --chdir probe_src/probe_frontend cargo clippy --fix --allow-staged
+
 check-mypy:
-    MYPYPATH=probe_src mypy --strict --package arena
-    MYPYPATH=probe_src mypy --strict --package probe_py
+    mypy --strict --package probe_py.manual
+    mypy --strict --package probe_py.generated
     mypy --strict probe_src/libprobe
 
-compile-libprobe:
+compile-lib:
     make --directory=probe_src/libprobe all
 
-test-ci: compile-libprobe
-    make --directory=probe_src/tests/c all
-    cd probe_src && python -m pytest .
+compile-cli:
+    env --chdir=probe_src/probe_frontend cargo build --release
 
-test-dev: compile-libprobe
+compile-tests:
     make --directory=probe_src/tests/c all
-    cd probe_src && python -m pytest . --failed-first --maxfail=1
+
+compile: compile-lib compile-cli compile-tests
+
+test-ci: compile-lib
+     pytest probe_src
+
+test-dev: compile-lib
+    pytest probe_src --failed-first --maxfail=1
 
 check-flake:
     nix flake check --all-systems
 
-pre-commit: fix-format-nix fix-ruff check-mypy check-flake compile-libprobe test-dev
+pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy   compile check-mypy             test-dev
 
-on-push: check-format-nix check-ruff check-mypy check-flake compile-libprobe test-ci
+on-push:    check-format-nix check-ruff check-format-rust check-clippy compile check-mypy check-flake test-ci
