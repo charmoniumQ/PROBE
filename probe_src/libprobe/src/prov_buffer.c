@@ -8,27 +8,25 @@ static void prov_log_save() {
 static void prov_log_record(struct Op op);
 
 bool op_is_read(struct Op op) {
-    return (op.op_code == open_op_code && (op.data.flags & O_RDONLY || op.data.flags & O_RDWR))
+    return (op.op_code == open_op_code && (op.data.open.flags & O_RDONLY || op.data.open.flags & O_RDWR))
         || op.op_code == exec_op_code
         || op.op_code == readdir_op_code
         || op.op_code == read_link_op_code;
 }
 
 bool op_is_write(struct Op op) {
-    return op.op_code == open_op_code && (op.data.flags & O_WRONLY || op.data.flags & O_RDWR);
+    return op.op_code == open_op_code && (op.data.open.flags & O_WRONLY || op.data.open.flags & O_RDWR);
 }
 
 bool op_is_overwrite(struct Op op) {
     /* TODO: Double check flags here */
-    return op.op_code == open_op_code && (op.data.flags & O_TRUNC || op.data.flags & O_CREAT);
+    return op.op_code == open_op_code && (op.data.open.flags & O_TRUNC || op.data.open.flags & O_CREAT);
 }
 
-bool op_is_metadata_read(struct Op op) {
-    return op.op_code == access_op_code || op.op_code == stat_op_code;
-}
-
-bool op_is_write(struct Op op) {
-    return op.op_code == open_op_code && (op.data.flags & O_WRONLY || op.data.flags & O_RDWR);
+int copy(const struct Path* path) {
+    static char dst_path[PATH_MAX];
+    path_to_id_string(path, dst_path);
+    return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, get_archive_dirfd(), dst_path, path->size);
 }
 
 /*
@@ -46,22 +44,17 @@ static void prov_log_try(struct Op op) {
         prov_log_record(op);
     }
 
-    struct Path* path = op_to_path(op);
+    const struct Path* path = op_to_path(&op);
     if (path->path) {
         if (false) {
         } else if (op_is_read(op)) {
             put_if_not_exists(read_inodes, path);
         } else if (op_is_write(op)) {
             if (contains(read_inodes, path) && put_if_not_exists(copied_or_overwritten_inodes, path)) {
-                copy(inode);
+                DEBUG("Copying %s", path->path);
+                copy(path);
             } else if (op_is_overwrite(op)) {
                 put_if_not_exists(copied_or_overwritten_inodes, path);
-            }
-        } else if (op_is_metadata_read(op)) {
-            put_if_not_exists(metadata_read_inodes, path);
-        } else if (op_is_metadata_write(op)) {
-            if (contains(read_metadata_inodes, path) && put_if_not_exists(copied_or_overwritten_metadata_inodes, path)) {
-                copy_metadata(path);
             }
         }
     }
@@ -94,28 +87,6 @@ static void prov_log_record(struct Op op) {
     memcpy(dest, &op, sizeof(struct Op));
 
     /* TODO: Special handling of ops that affect process state */
-
-/*
-    if (op.op_code == OpenRead || op.op_code == OpenReadWrite || op.op_code == OpenOverWrite || op.op_code == OpenWritePart || op.op_code == OpenDir) {
-        assert(op.dirfd);
-        assert(op.path);
-        assert(op.fd);
-        assert(!op.inode_triple.null);
-        fd_table_associate(op.fd, op.dirfd, op.path, op.inode_triple);
-    } else if (op.op_code == Close) {
-        fd_table_close(op.fd);
-    } else if (op.op_code == Chdir) {
-        if (op.path) {
-            assert(op.fd == null_fd);
-            fd_table_close(AT_FDCWD);
-            fd_table_associate(AT_FDCWD, AT_FDCWD, op.path, op.inode_triple);
-        } else {
-            assert(op.fd > 0);
-            fd_table_close(AT_FDCWD);
-            fd_table_dup(op.fd, AT_FDCWD);
-        }
-    }
-*/
 
     /* Freeing up virtual memory space is good in theory,
      * but it causes errors when decoding.
