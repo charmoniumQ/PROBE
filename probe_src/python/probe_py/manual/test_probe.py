@@ -1,6 +1,6 @@
 import typing
-from probe_py.generated.parser import ProvLog, parse_probe_log
-from probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
+from probe_src.probe_frontend.python.probe_py.generated.parser import ProvLog, parse_probe_log
+from probe_src.probe_frontend.python.probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
 from . import analysis
 import pathlib
 import networkx as nx  # type: ignore

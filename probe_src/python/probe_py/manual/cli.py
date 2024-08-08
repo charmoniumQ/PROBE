@@ -9,10 +9,9 @@ import pathlib
 import typer
 import shutil
 import rich
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-from probe_frontend.python.probe_py.generated.parser import parse_probe_log
-import analysis
-import util
+from probe_src.probe_frontend.python.probe_py.generated.parser import parse_probe_log
+from probe_py.manual import analysis
+from probe_py.manual import util
 
 rich.traceback.install(show_locals=False)
 
@@ -136,7 +135,6 @@ def dataflow_graph(
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
     probe_log_tar_obj = tarfile.open(input, "r")
-    input: pathlib.Path = pathlib.Path("probe_log")
     prov_log = parse_probe_log(input)
     probe_log_tar_obj.close()
     console = rich.console.Console(file=sys.stderr)
