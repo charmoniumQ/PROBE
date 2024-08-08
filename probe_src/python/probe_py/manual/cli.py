@@ -9,14 +9,15 @@ import pathlib
 import typer
 import shutil
 import rich
-from probe_py.generated.parser import parse_probe_log
-from . import analysis
-from . import util
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+from probe_frontend.python.probe_py.generated.parser import parse_probe_log
+import analysis
+import util
 
 rich.traceback.install(show_locals=False)
 
 
-project_root = pathlib.Path(__file__).resolve().parent.parent
+project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
 A = typing_extensions.Annotated
 
@@ -135,7 +136,8 @@ def dataflow_graph(
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
     probe_log_tar_obj = tarfile.open(input, "r")
-    prov_log = parse_probe_log.parse_probe_log_tar(probe_log_tar_obj)
+    input: pathlib.Path = pathlib.Path("probe_log")
+    prov_log = parse_probe_log(input)
     probe_log_tar_obj.close()
     console = rich.console.Console(file=sys.stderr)
     process_graph = analysis.provlog_to_digraph(prov_log)

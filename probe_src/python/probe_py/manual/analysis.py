@@ -1,8 +1,8 @@
 import typing
 from typing import Dict, Tuple
 import networkx as nx  # type: ignore
-from probe_py.generated.ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
-from probe_py.generated.parser import ProvLog
+from probe_frontend.python.probe_py.generated.ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
+from probe_frontend.python.probe_py.generated.parser import ProvLog
 from enum import IntEnum
 import rich
 import sys
@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import pathlib
 import os
 import collections
+import traceback
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(IntEnum):
@@ -322,32 +323,38 @@ def list_edges_from_start_node(graph: nx.DiGraph, start_node: Node) -> list[Edge
     return ordered_edges
 
 def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
-    dataflow_graph = nx.DiGraph()
-    file_version_map = collections.defaultdict[InodeOnDevice, int](lambda: 0)
-    process_graph = provlog_to_digraph(process_tree_prov_log)
-    root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
-    traversed: set[int] = set()
-    cmd:list[str] = []
-    cmd_map = collections.defaultdict[int, list[str]](list)
-    for edge in list(nx.edges(process_graph))[::-1]:
-        pid, exec_epoch_no, tid, op_index = edge[0]
-        op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
-        if isinstance(op, OpenOp):
-            file = op.path.path
-            if file not in cmd and file!="/dev/tty":
-                cmd.insert(0, file)
-        elif isinstance(op, InitExecEpochOp):
-            program_name = op.program_name
-            cmd.insert(0, program_name)
-            if pid == tid and exec_epoch_no == 0:
-                cmd_map[tid] = cmd
-                cmd = []
-
-    shared_files:set[InodeOnDevice] = set()
-    traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
-    pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
-    dot_string = pydot_graph.to_string()
-    return dot_string
+    try:
+        dataflow_graph = nx.DiGraph()
+        file_version_map = collections.defaultdict[InodeOnDevice, int](lambda: 0)
+        process_graph = provlog_to_digraph(process_tree_prov_log)
+        root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
+        traversed: set[int] = set()
+        cmd:list[str] = []
+        cmd_map = collections.defaultdict[int, list[str]](list)
+        for edge in list(nx.edges(process_graph))[::-1]:
+            pid, exec_epoch_no, tid, op_index = edge[0]
+            op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
+            if isinstance(op, OpenOp):
+                file = op.path.path
+                if file not in cmd and file!="/dev/tty":
+                    if isinstance(file, bytes):
+                        file = file.decode('utf-8')
+                    cmd.insert(0, file)
+            elif isinstance(op, InitExecEpochOp):
+                program_name = op.program_name
+                if isinstance(program_name, bytes):
+                    program_name = program_name.decode('utf-8')
+                cmd.insert(0, program_name)
+                if pid == tid and exec_epoch_no == 0:
+                    cmd_map[tid] = cmd
+                    cmd = []
+        shared_files:set[InodeOnDevice] = set()
+        traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
+        pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
+        dot_string = pydot_graph.to_string()
+        return dot_string
+    except Exception as e:
+        print(str(e))
 
 def prov_log_get_node(prov_log: ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
     return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
