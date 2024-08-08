@@ -50,7 +50,10 @@ class FileNode:
     inodeOnDevice: InodeOnDevice
     version: int
     file: str
-    label: str
+
+    @property
+    def label(self) -> str:
+        return f"{self.file} v{self.version}"
 
 # type alias for a node
 Node = Tuple[int, int, int, int]
@@ -262,8 +265,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             path_str = op.path.path.decode("utf-8")
             if access_mode == os.O_RDONLY:
                 curr_version = file_version_map[file]
-                label = f"{path_str} v{curr_version}"
-                fileNode = FileNode(file, curr_version, path_str, label)
+                fileNode = FileNode(file, curr_version, path_str)
                 dataflow_graph.add_node(fileNode, label = fileNode.label)
                 path = pathlib.Path(op.path.path.decode("utf-8"))
                 if path not in name_map[file]:
@@ -272,13 +274,11 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             elif access_mode == os.O_WRONLY:
                 curr_version = file_version_map[file]
                 if file in shared_files:
-                    label = f"{path_str} v{curr_version}"
-                    fileNode2 = FileNode(file, curr_version, path_str, label)
+                    fileNode2 = FileNode(file, curr_version, path_str)
                     dataflow_graph.add_node(fileNode2, label = fileNode2.label)
                 else:
                     file_version_map[file] = curr_version + 1
-                    label = f"{path_str} v{curr_version+1}"
-                    fileNode2 = FileNode(file, curr_version+1, path_str, label)
+                    fileNode2 = FileNode(file, curr_version+1, path_str)
                     dataflow_graph.add_node(fileNode2, label = fileNode2.label)
                     if starting_pid == pid:
                         shared_files.add(file)
