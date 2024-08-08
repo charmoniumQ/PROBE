@@ -88,40 +88,41 @@ static int get_exec_epoch_safe() {
     return __exec_epoch;
 }
 
-static int mkdir_and_descend(int dirfd, long child, bool mkdir, bool close) {
+static int mkdir_and_descend(int my_dirfd, long child, bool mkdir, bool close) {
     char buffer[signed_long_string_size + 1];
     CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
     if (mkdir) {
-        int mkdir_ret = unwrapped_mkdirat(dirfd, buffer, 0777);
+        int mkdir_ret = unwrapped_mkdirat(my_dirfd, buffer, 0777);
         if (mkdir_ret != 0) {
             int saved_errno = errno;
 #ifndef NDEBUG
-            listdir(dirfd_path(dirfd), 2);
+            listdir(dirfd_path(my_dirfd), 2);
 #endif
-            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(dirfd), child, strerror(saved_errno));
+            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(my_dirfd), child, strerror(saved_errno));
         }
     }
-    int sub_dirfd = unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY);
+    int sub_dirfd = unwrapped_openat(my_dirfd, buffer, O_RDONLY | O_DIRECTORY);
     if (sub_dirfd == -1) {
         int saved_errno = errno;
 #ifndef NDEBUG
-        listdir(dirfd_path(dirfd), 2);
+        listdir(dirfd_path(my_dirfd), 2);
 #endif
-        DEBUG("dirfd=%d buffer=\"%s\"", dirfd, buffer);
-        ERROR("Cannot openat %s/%ld (did we do mkdir? %d): %s", dirfd_path(dirfd), child, mkdir, strerror(saved_errno));
+        DEBUG("dirfd=%d buffer=\"%s\"", my_dirfd, buffer);
+        ERROR("Cannot openat %s/%ld (did we do mkdir? %d): %s", dirfd_path(my_dirfd), child, mkdir, strerror(saved_errno));
     }
     if (close) {
-        EXPECT(== 0, unwrapped_close(dirfd));
+        EXPECT(== 0, unwrapped_close(my_dirfd));
     }
     return sub_dirfd;
 }
 
-static const int initial_epoch_dirfd = -1;
-static int __epoch_dirfd = initial_epoch_dirfd;
+static const int invalid_dirfd = -1;
+static int __epoch_dirfd = invalid_dirfd;
+static int __archive_dirfd = invalid_dirfd;
 static const char* probe_dir_env_var = PRIVATE_ENV_VAR_PREFIX "DIR";
 static char __probe_dir[PATH_MAX + 1];
 static void init_probe_dir() {
-    assert(__epoch_dirfd == initial_epoch_dirfd);
+    assert(__epoch_dirfd == invalid_dirfd);
     if (__probe_dir[0] == '\0') {
         // Get initial probe dir
         const char* probe_dir_env_val = debug_getenv(probe_dir_env_var);
@@ -143,14 +144,24 @@ static void init_probe_dir() {
 
     DEBUG("probe_dir = \"%s\"", __probe_dir);
 
+    int mkdir_ret = unwrapped_mkdirat(probe_dirfd, "archive", 0777);
+    if (mkdir_ret != 0 && errno != EEXIST) {
+        ERROR("Cannot mkdir %s/archive: %s", dirfd_path(probe_dirfd), strerror(errno));
+    }
+    __archive_dirfd = unwrapped_openat(probe_dirfd, "archive", O_RDONLY | O_DIRECTORY);
+    assert(__archive_dirfd > 0);
+
     int pid_dirfd = mkdir_and_descend(probe_dirfd, getpid(), get_exec_epoch() == 0, true);
     __epoch_dirfd = mkdir_and_descend(pid_dirfd, get_exec_epoch(), my_gettid() == getpid(), true);
     DEBUG("__epoch_dirfd=%d (%s/%d/%d)", __epoch_dirfd, __probe_dir, getpid(), get_exec_epoch());
 }
 static int get_epoch_dirfd() {
-    assert(__epoch_dirfd != initial_epoch_dirfd);
     assert(fd_is_valid(__epoch_dirfd));
     return __epoch_dirfd;
+}
+static int get_archive_dirfd() {
+    assert(fd_is_valid(__archive_dirfd));
+    return __archive_dirfd;
 }
 
 static __thread struct ArenaDir __op_arena = { 0 };
@@ -195,7 +206,7 @@ static void init_thread_global_state() {
 static void reinit_process_global_state() {
     __is_proc_root = 0;
     __exec_epoch = 0;
-    __epoch_dirfd = initial_epoch_dirfd;
+    __epoch_dirfd = invalid_dirfd;
     init_probe_dir();
 }
 
