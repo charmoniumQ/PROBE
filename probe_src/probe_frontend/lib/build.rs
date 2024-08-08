@@ -166,7 +166,7 @@ fn main() {
             env::var("CFLAGS")
                 .unwrap_or("".to_owned())
                 .split(':')
-                .filter(|string| !string.is_empty())
+                .filter(|string| !string.is_empty()),
         )
         // .header_contents("sizeof", "
         //     const size_t OP_SIZE = sizeof(struct Op);
