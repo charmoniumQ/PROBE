@@ -28,7 +28,7 @@ class EdgeLabels(IntEnum):
 @dataclass(frozen=True)
 class ProcessNode:
     pid: int
-    cmd: str
+    cmd: tuple[str,...]
     
 @dataclass(frozen=True)
 class InodeOnDevice:
@@ -263,7 +263,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             shared_files = set()
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
-            processNode = ProcessNode(pid=pid, cmd=" ".join(cmd_map[pid]))
+            processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
             dataflow_graph.add_node(processNode, label=processNode.cmd)
             file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
             path_str = op.path.path.decode("utf-8")
@@ -306,8 +306,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                     continue
             if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
                 
-                processNode1 = ProcessNode(pid = pid, cmd=" ".join(cmd_map[pid]))
-                processNode2 = ProcessNode(pid = op.task_id, cmd=" ".join(cmd_map[op.task_id]))
+                processNode1 = ProcessNode(pid = pid, cmd=tuple(cmd_map[pid]))
+                processNode2 = ProcessNode(pid = op.task_id, cmd=tuple(cmd_map[op.task_id]))
                 dataflow_graph.add_node(processNode1, label = processNode1.cmd)
                 dataflow_graph.add_node(processNode2, label = processNode2.cmd)
                 dataflow_graph.add_edge(processNode1, processNode2)
