@@ -164,7 +164,7 @@ fn main() {
         )
         .clang_args(
             env::var("CFLAGS")
-                .unwrwap_or("".to_owned())
+                .unwrap_or("".to_owned())
                 .split(':')
                 .filter(|string| !string.is_empty())
         )
