@@ -260,8 +260,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             dataflow_graph.add_node(processNode, label = processNode.cmd)
             file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
             path_str = op.path.path.decode("utf-8")
-            # access mode "O_RDONLY (read-only)"
-            if access_mode == 0:
+            if access_mode == os.O_RDONLY:
                 curr_version = file_version_map[file]
                 label = f"{path_str} v{curr_version}"
                 fileNode = FileNode(file, curr_version, path_str, label)
@@ -270,8 +269,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                 if path not in name_map[file]:
                     name_map[file].append(path)
                 dataflow_graph.add_edge(fileNode, processNode)
-            # access mode "O_WRONLY (write-only)"
-            elif access_mode == 1:
+            elif access_mode == os.O_WRONLY:
                 curr_version = file_version_map[file]
                 if file in shared_files:
                     label = f"{path_str} v{curr_version}"
@@ -286,8 +284,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                         shared_files.add(file)
                 path = pathlib.Path(op.path.path.decode("utf-8"))
                 if path not in name_map[file]:
-                    name_map[file].append(path)    
-                     
+                    name_map[file].append(path)          
                 dataflow_graph.add_edge(processNode, fileNode2)
             elif access_mode == 2:
                 console.print(f"Found file {path_str} with access mode O_RDWR", style="red")
