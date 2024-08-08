@@ -162,6 +162,12 @@ fn main() {
                 .into_string()
                 .unwrap(),
         )
+        .clang_args(
+            env::var("CFLAGS")
+                .unwrwap_or("".to_owned())
+                .split(':')
+                .filter(|string| !string.is_empty())
+        )
         // .header_contents("sizeof", "
         //     const size_t OP_SIZE = sizeof(struct Op);
         // ")
