@@ -29,7 +29,7 @@ class EdgeLabels(IntEnum):
 class ProcessNode:
     pid: int
     cmd: str
-
+    
 @dataclass(frozen=True)
 class InodeOnDevice:
     device_major: int
@@ -255,12 +255,16 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
         # check if the process is already visited when waitOp occurred
         if pid in traversed or tid in traversed:
             continue
+        
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
         next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
+        # when we move to a new process which is not a child process but an independent process we empty the shared_files 
+        if edge[0][0]!=edge[1][0] and not isinstance(op, CloneOp) and not isinstance(next_op, WaitOp) and edge[1][1] == 0 and edge[1][3] == 0:
+            shared_files = set()
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
-            processNode = ProcessNode(pid=pid, cmd=''.join(cmd_map[pid]))
-            dataflow_graph.add_node(processNode, label = processNode.cmd)
+            processNode = ProcessNode(pid=pid, cmd=" ".join(cmd_map[pid]))
+            dataflow_graph.add_node(processNode, label=processNode.cmd)
             file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
             path_str = op.path.path.decode("utf-8")
             if access_mode == os.O_RDONLY:
@@ -281,6 +285,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                     fileNode2 = FileNode(file, curr_version+1, path_str)
                     dataflow_graph.add_node(fileNode2, label = fileNode2.label)
                     if starting_pid == pid:
+                        # shared_files: shared_files helps us keep track of the files shared between parent and child processes. This ensures that when the children write to the file, the version of the file is not incremented multiple times
                         shared_files.add(file)
                 path = pathlib.Path(op.path.path.decode("utf-8"))
                 if path not in name_map[file]:
