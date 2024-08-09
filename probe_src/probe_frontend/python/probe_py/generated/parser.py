@@ -75,6 +75,11 @@ def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
     ty: str = json_map["_type"]
     json_map.pop("_type")
 
+    # TODO: remove when we can parse char** in Rust FFI
+    if ty == "ExecOp":
+        json_map["argv"] = []
+        json_map["env"] = []
+
     constructor = ops.__dict__[ty]
 
     for ident, ty in constructor.__annotations__.items():

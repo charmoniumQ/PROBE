@@ -285,7 +285,7 @@ impl Dump for ops::ChdirOp {
 
 impl Dump for ops::ExecOp {
     fn dump(&self) -> String {
-        format!("[ path={}, errno={} ]", self.path.dump(), self.ferrno,)
+        format!("[ path={}, errno={}, argv={}, env={} ]", self.path.dump(), self.ferrno, self.argv, self.env)
     }
 }
 

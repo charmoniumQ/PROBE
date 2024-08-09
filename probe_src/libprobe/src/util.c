@@ -279,24 +279,29 @@ static unsigned long my_strtoul(const char *restrict string, char **restrict str
     return accumulator;
 }
 
-static char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * argv) {
-    /* Copy char* const argv[] into the arena */
-    size_t n_args = 0;
-    for (char * const* argv_p = argv; *argv_p; ++argv_p) {
-        n_args++;
+/* Copy char* const argv[] into the arena.
+ * If argc argument is 0, compute argc and store there (if the size actually was zero, this is no bug).
+ * If argc argument is positive, assume that is the argc.
+ * */
+static char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * argv, size_t* argc) {
+    if (*argc == 0) {
+        /* Compute argc and store in *argc */
+        for (char * const* argv_p = argv; *argv_p; ++argv_p) {
+            (*argc)++;
+        }
     }
 
-    char** argv_copy = arena_calloc(arena_dir, n_args + 1, sizeof(char*));
+    char** argv_copy = arena_calloc(arena_dir, *argc + 1, sizeof(char*));
 
-    for (size_t i = 0; i < n_args; ++i) {
+    for (size_t i = 0; i < *argc; ++i) {
         size_t length = strlen(argv[i]);
         argv_copy[i] = arena_calloc(arena_dir, length, sizeof(char));
         memcpy(argv_copy[i], argv[i], length + 1);
         assert(!argv_copy[i][length]);
     }
 
-    assert(!argv[n_args]);
-    argv_copy[n_args] = NULL;
+    assert(!argv[*argc]);
+    argv_copy[*argc] = NULL;
 
     return argv_copy;
 }

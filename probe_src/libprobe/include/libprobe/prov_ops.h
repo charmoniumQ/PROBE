@@ -52,7 +52,9 @@ struct ChdirOp {
 struct ExecOp {
     struct Path path;
     int ferrno;
-    char * const* args;
+    size_t argc;
+    char * const* argv;
+    size_t envc;
     char * const* env;
 };
 

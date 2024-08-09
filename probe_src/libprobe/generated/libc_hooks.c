@@ -1523,8 +1523,13 @@ char * mkdtemp(char *template)
 int execv(const char *filename, char * const argv[])
 {
   maybe_init_thread();
-  char * const *updated_env = update_env_with_probe_vars(environ);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  size_t argc = -1;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
+  op.data.exec.argc = argc;
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1550,7 +1555,6 @@ int execv(const char *filename, char * const argv[])
 int execl(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
-  char * const *updated_env = update_env_with_probe_vars(environ);
   size_t argc = COUNT_NONNULL_VARARGS(arg0);
   char **argv = malloc((argc + 1) * (sizeof(char *)));
   va_list ap;
@@ -1562,7 +1566,11 @@ int execl(const char *filename, const char *arg0, ...)
 
   va_end(ap);
   argv[argc] = NULL;
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1589,8 +1597,12 @@ int execl(const char *filename, const char *arg0, ...)
 int execve(const char *filename, char * const argv[], char * const env[])
 {
   maybe_init_thread();
-  char * const *updated_env = update_env_with_probe_vars(env);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(env, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1616,8 +1628,12 @@ int execve(const char *filename, char * const argv[], char * const env[])
 int fexecve(int fd, char * const argv[], char * const env[])
 {
   maybe_init_thread();
-  char * const *updated_env = update_env_with_probe_vars(env);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(env, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1653,10 +1669,13 @@ int execle(const char *filename, const char *arg0, ...)
   }
 
   argv[argc] = NULL;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
   char **env = va_arg(ap, __type_charpp);
   va_end(ap);
-  char * const *updated_env = update_env_with_probe_vars(env);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(env, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1684,10 +1703,14 @@ int execle(const char *filename, const char *arg0, ...)
 int execvp(const char *filename, char * const argv[])
 {
   maybe_init_thread();
-  char * const *updated_env = update_env_with_probe_vars(environ);
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1713,7 +1736,6 @@ int execvp(const char *filename, char * const argv[])
 int execlp(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
-  char * const *updated_env = update_env_with_probe_vars(environ);
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
   size_t argc = COUNT_NONNULL_VARARGS(arg0);
@@ -1727,7 +1749,11 @@ int execlp(const char *filename, const char *arg0, ...)
 
   argv[argc] = NULL;
   va_end(ap);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1754,10 +1780,14 @@ int execlp(const char *filename, const char *arg0, ...)
 int execvpe(const char *filename, char * const argv[], char * const envp[])
 {
   maybe_init_thread();
-  char * const *updated_env = update_env_with_probe_vars(envp);
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .args = arena_copy_argv(get_data_arena(), argv), .env = arena_copy_argv(get_data_arena(), updated_env)}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(envp, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
