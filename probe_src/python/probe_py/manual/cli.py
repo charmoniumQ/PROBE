@@ -1,5 +1,6 @@
 import io
 import os
+import socket
 import sys
 import tempfile
 import subprocess
@@ -13,17 +14,39 @@ from probe_py.generated.parser import parse_probe_log
 import analysis
 import util
 import traceback
+import pathlib
+import dataclasses
+import base64
+from persistent_provenance import (
+    InodeVersion,
+    Inode,
+    get_prov_upstream,
+    Process,
+    InodeMetadataVersion,
+)
+import struct
+import xdg_base_dirs
+import random
+import pickle
+import datetime
+import json
+
+PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
+PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
+PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
 rich.traceback.install(show_locals=False)
 
-
-project_root = pathlib.Path(__file__).resolve().parent.parent
+project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
 A = typing_extensions.Annotated
 
 app = typer.Typer()
 
-def transcribe(probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = False) -> None:
+
+def transcribe(
+    probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = False
+) -> None:
     """
     Transcribe the recorded data from PROBE_DIR into OUTPUT.
     """
@@ -43,16 +66,18 @@ def transcribe(probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = Fals
         print()
     shutil.rmtree(probe_dir)
 
-@app.command()    
+
+@app.command()
 def transcribe_only(
-        input_dir: pathlib.Path,
-        output: pathlib.Path = pathlib.Path("probe_log"),
-        debug: bool = typer.Option(default=False, help="Run in verbose mode"),
+    input_dir: pathlib.Path,
+    output: pathlib.Path = pathlib.Path("probe_log"),
+    debug: bool = typer.Option(default=False, help="Run in verbose mode"),
 ) -> None:
     """
     Transcribe the recorded data from INPUT_DIR into OUTPUT.
     """
     transcribe(input_dir, output, debug)
+
 
 @app.command(
     context_settings=dict(
@@ -60,12 +85,16 @@ def transcribe_only(
     ),
 )
 def record(
-        cmd: list[str],
-        gdb: bool = typer.Option(default=False, help="Run in GDB"),
-        debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
-        make: bool = typer.Option(default=False, help="Run make prior to executing"),
-        output: pathlib.Path = pathlib.Path("probe_log"),
-        no_transcribe: bool = typer.Option(default=False, help="Only execute without transcribing"),
+    cmd: list[str],
+    gdb: bool = typer.Option(default=False, help="Run in GDB"),
+    debug: bool = typer.Option(
+        default=False, help="Run verbose & debug build of libprobe"
+    ),
+    make: bool = typer.Option(default=False, help="Run make prior to executing"),
+    output: pathlib.Path = pathlib.Path("probe_log"),
+    no_transcribe: bool = typer.Option(
+        default=False, help="Only execute without transcribing"
+    ),
 ) -> None:
     """
     Execute CMD... and optionally record its provenance into OUTPUT.
@@ -79,62 +108,86 @@ def record(
             raise typer.Abort()
     if output.exists():
         output.unlink()
-    libprobe = project_root / "libprobe/build" / ("libprobe-dbg.so" if debug or gdb else "libprobe.so")
+    libprobe = (
+        project_root
+        / "libprobe/build"
+        / ("libprobe-dbg.so" if debug or gdb else "libprobe.so")
+    )
     if not libprobe.exists():
         typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
         raise typer.Abort()
-    ld_preload = str(libprobe) + (":" + os.environ["LD_PRELOAD"] if "LD_PRELOAD" in os.environ else "")
+    ld_preload = str(libprobe) + (
+        ":" + os.environ["LD_PRELOAD"] if "LD_PRELOAD" in os.environ else ""
+    )
     probe_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
     if gdb:
         subprocess.run(
-            ["gdb", "--args", "env", f"__PROBE_DIR={probe_dir}", f"LD_PRELOAD={ld_preload}", *cmd],
+            [
+                "gdb",
+                "--args",
+                "env",
+                f"__PROBE_DIR={probe_dir}",
+                f"LD_PRELOAD={ld_preload}",
+                *cmd,
+            ],
         )
     else:
         if debug:
-            typer.secho(f"Running {cmd} with libprobe into {probe_dir}", fg=typer.colors.GREEN)
+            typer.secho(
+                f"Running {cmd} with libprobe into {probe_dir}", fg=typer.colors.GREEN
+            )
         proc = subprocess.run(
             cmd,
             env={**os.environ, "LD_PRELOAD": ld_preload, "__PROBE_DIR": str(probe_dir)},
         )
 
         if no_transcribe:
-            typer.secho(f"Temporary probe directory: {probe_dir}", fg=typer.colors.YELLOW)
+            typer.secho(
+                f"Temporary probe directory: {probe_dir}", fg=typer.colors.YELLOW
+            )
             raise typer.Exit(proc.returncode)
-        
+
         transcribe(probe_dir, output, debug)
         raise typer.Exit(proc.returncode)
 
+
 @app.command()
 def process_graph(
-        input: pathlib.Path = pathlib.Path("probe_log"),
+    input: pathlib.Path = pathlib.Path("probe_log"),
 ) -> None:
     """
     Write a process graph from PROBE_LOG in DOT/graphviz format.
     """
     if not input.exists():
-        typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
+        typer.secho(
+            f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify",
+            fg=typer.colors.RED,
+        )
         raise typer.Abort()
     prov_log = parse_probe_log(input)
     console = rich.console.Console(file=sys.stderr)
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_provlog(prov_log):
         console.print(warning, style="red")
-    rich.traceback.install(show_locals=False) # Figure out why we need this
+    rich.traceback.install(show_locals=False)  # Figure out why we need this
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_hb_graph(prov_log, process_graph):
         console.print(warning, style="red")
     print(analysis.digraph_to_pydot_string(prov_log, process_graph))
-    
+
 
 @app.command()
 def dump(
-        input: pathlib.Path = pathlib.Path("probe_log"),
+    input: pathlib.Path = pathlib.Path("probe_log"),
 ) -> None:
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
     if not input.exists():
-        typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
+        typer.secho(
+            f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify",
+            fg=typer.colors.RED,
+        )
         raise typer.Abort()
     processes_prov_log = parse_probe_log(input)
     for pid, process in processes_prov_log.processes.items():
@@ -155,132 +208,217 @@ def dump(
 # augment to InodeHistory
 # transfer the file to destination
 
-# scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir 
+
+# scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
 @app.command()
-def scp(
-        cmd: list[str],
-        port: str = typer.Option(22, "--p", "-P")
-) -> None:
-    """
-    """
+def scp(cmd: list[str], port: str = typer.Option(22, "--p", "-P")) -> None:
+    """ """
     try:
-    # iterate from the end 
+        # iterate from the end
         destination = cmd[-1]
         source = cmd[-2]
 
         # source is local and destination is remote
         if "@" not in source:
             user_name_and_ip = destination.split(":")[0]
+            remote_user = user_name_and_ip.split("@")[0]
+            remote_host = user_name_and_ip.split("@")[1]
             destination_path = destination.split(":")[1]
             local_file_path = source
-            src_inode, src_device = get_inode_and_device_on_local(local_file_path)
-            cmd.insert(0,f"-P {port}")
-            cmd.insert(0,"scp")
+            src_inode_version = get_file_info_on_local(local_file_path)
+            stat_results = os.stat(local_file_path)
+            serialized_stat_results = pickle.dumps(stat_results)
+            src_inode_metadata = InodeMetadataVersion(
+                src_inode_version, serialized_stat_results
+            )
+
+            print("Created InodeVersion and InodeMetadata for file on source")
+            cmd.insert(0, f"-P {port}")
+            cmd.insert(0, "scp")
             upload_files(cmd)
-            remote_file_path = os.path.join(destination_path, os.path.basename(local_file_path))
-            get_inode_and_device_on_remote(remote_file_path, user_name_and_ip)
+            remote_file_path = os.path.join(
+                destination_path, os.path.basename(local_file_path)
+            )
+
+            process_closure, inode_version_writes = get_prov_upstream(src_inode_version)
+
+            print("Got the process_closure and inode_version_writes")
+
+            process_id_path = (
+                PROCESS_ID_THAT_WROTE_INODE_VERSION / src_inode_version.str_id()
+            )
+
+            remote_xdg = get_remote_xdg_data_home(remote_user, remote_host, port)
+            if remote_xdg == "":
+                home = get_remote_home(remote_user, remote_host, port)
+                remote_home = pathlib.Path(f"{home}/.local/share") / "PROBE"
+            else:
+                remote_home = pathlib.Path(f"home/{remote_xdg}/.local/share") / "PROBE"
+
+            print("get remote home for dest")
+            remote_directories = [
+                    f"{remote_home}/processes_by_id",
+                    f"{remote_home}/process_id_that_wrote_inode_version",  # Add more directories as needed
+                ]
+            for directory in remote_directories:
+                print(f"creating directory {directory}")
+                mkdir_command = [
+                    "ssh",
+                    "-p",
+                    "2222",
+                    f"{remote_user}@{remote_host}",
+                    f"mkdir -p {directory}",
+                ]
+                subprocess.run(mkdir_command, check=True)
+            print("Created the directories")
+            if process_id_path.exists():
+                process_id_src_inode_path_remote = (
+                    remote_home
+                    / "process_id_that_wrote_inode_version"
+                    / src_inode_version.str_id()
+                )
+                scp_command = [
+                    "scp",
+                    "-P",
+                    str(port),  # Specify the port
+                    local_file_path,  # Local file path
+                    f"{user_name_and_ip}:{process_id_src_inode_path_remote}",  # Remote file path
+                ]
+                upload_files(scp_command)
+            print("transferred src inode version to dest")
+            process_id = inode_version_writes[src_inode_version]
+            if process_id is not None:
+                process_path = PROCESSES_BY_ID / str(process_id)
+                if process_path.exists():
+                    process_by_id_remote = (
+                        remote_home / "processes_by_id" / str(process_id)
+                    )
+                    scp_command = [
+                        "scp",
+                        "-P",
+                        str(port),  # Specify the port
+                        local_file_path,  # Local file path
+                        f"{user_name_and_ip}:{process_by_id_remote}",  # Remote file path
+                    ]
+                    upload_files(scp_command)
+            print("transferred process from src to dest")
+
+            remote_inode_version: InodeVersion = get_file_info_on_remote(
+                remote_host, remote_file_path, remote_user, port
+            )
+            remote_inode_metadata: InodeMetadataVersion = None
+
+            # create remote_inode_file on the remote
+            random_pid = generate_random_pid()
+            print("generated random pid to refer to scp process")
+            process_id_remoteinode_path_remote = (
+                remote_home
+                / "process_id_that_wrote_inode_version" / remote_inode_version.str_id()
+            )
+            check_and_create_remote_file(remote_host, port, remote_user, process_id_remoteinode_path_remote)
+            create_file_command = [
+                "ssh",
+                f"-p {port}",
+                user_name_and_ip,
+                "bash",
+                "-c",
+                f"echo {random_pid} > '{process_id_remoteinode_path_remote}'",
+            ]
+            subprocess.run(create_file_command, check=True)
+            print("added reference to scp process id to the remote inode version")
+            # create Process object for scp
+            input_nodes = frozenset([src_inode_version])
+            input_inode_metadata = frozenset([src_inode_metadata])
+            output_inodes = frozenset([remote_inode_version])
+            output_inode_metadata = frozenset([])
+            time = datetime.datetime.today()
+            env:tuple[tuple[str, ...]] = ()
+            scp_process = Process(
+                input_nodes,
+                input_inode_metadata,
+                output_inodes,
+                output_inode_metadata,
+                time,
+                cmd,
+                random_pid,
+                env,
+                pathlib.Path(),
+            )
+
+            scp_process_json = process_to_json(scp_process)
+            print("converted scp process to json")
+            scp_process_path = remote_home / "processes_by_id"
+            check_and_create_remote_file(remote_host, port, remote_user, scp_process_path)
+            local_path = f"/tmp/{random_pid}.json"
+            with open(local_path, "w") as file:
+                file.write(scp_process_json)
+            scp_command = [
+                "scp",
+                f"-P {port}",
+                local_path,
+                f"{remote_user}@{remote_host}:{scp_process_path}",
+            ]
+            upload_files(scp_command)
+            print("write scp process to process id file")
+
         # source is remote and destination is local
         elif "@" not in destination:
             user_name_and_ip = source.split(":")[0]
             source_file_path = source.split(":")[1]
             destination_path = destination
-            get_inode_and_device_on_remote(source_file_path, user_name_and_ip)
-            cmd.insert(0,f"-P {port}")
-            cmd.insert(0,"scp")
+            get_file_info_on_remote(source_file_path, user_name_and_ip, port)
+            cmd.insert(0, f"-P {port}")
+            cmd.insert(0, "scp")
             upload_files(cmd)
-            destination_path = os.path.join(destination_path, os.path.basename(source_file_path))
+            destination_path = os.path.join(
+                destination_path, os.path.basename(source_file_path)
+            )
             print(destination_path)
-            get_inode_and_device_on_local(destination_path)
+            get_file_info_on_local(destination_path)
         else:
             user_name_and_ip_src = source.split(":")[0]
             source_file_path = source.split(":")[1]
-            get_inode_and_device_on_remote(source_file_path, user_name_and_ip_src)
-            cmd.insert(0,f"-P {port}")
-            cmd.insert(0,"scp")
+            get_file_info_on_remote(source_file_path, user_name_and_ip_src, port)
+            cmd.insert(0, f"-P {port}")
+            cmd.insert(0, "scp")
             upload_files(cmd)
             user_name_and_ip_dest = destination.split(":")[0]
-            remote_file_path = os.path.join(destination_path, os.path.basename(source_file_path))
+            remote_file_path = os.path.join(
+                destination_path, os.path.basename(source_file_path)
+            )
             destination_path = destination.split(":")[1]
-            get_inode_and_device_on_remote(remote_file_path, user_name_and_ip_dest)
-
+            get_file_info_on_remote(remote_file_path, user_name_and_ip_dest, port)
 
     except Exception as e:
+        traceback.print_exc()
         print(str(e))
 
+def process_to_json(process: Process) -> str:
+    process_dict = dataclasses.asdict(process)
+    
+    def custom_serializer(obj):
+        if isinstance(obj, frozenset):
+            return list(obj)  # Convert frozenset to list
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()  # Convert datetime to ISO format string
+        elif isinstance(obj, pathlib.Path):
+            return str(obj)  # Convert Path to string
+        elif isinstance(obj, tuple):
+            return list(obj)  # Convert tuple to list
+        elif isinstance(obj, InodeVersion) or isinstance(obj, Inode) or isinstance(obj, InodeMetadataVersion):
+            return obj.__dict__
+        elif isinstance(obj, bytes):
+            return base64.b64encode(obj).decode('ascii')
+        raise TypeError(f"Type {type(obj)} not serializable")
+    
+    # Convert the dictionary to JSON
+    return json.dumps(process_dict, default=custom_serializer, indent=4)
 
-
-@app.command()
-def rsync(
-        cmd: list[str],
-        port: str = typer.Option(22, "--p", "-P"),
-        dry_run: bool = typer.Option(False, "--dry-run", help="Simulate the file transfer.")
-) -> None:
-    """
-    Transfer files using rsync and get inode and device numbers.
-    """
-    try:
-        # Iterate from the end
-        destination = cmd[-1]
-        source = cmd[-2]
-
-        # Source is local and destination is remote
-        if "@" not in source:
-            user_name_and_ip = destination.split(":")[0]
-            destination_path = destination.split(":")[1]
-            local_file_path = source
-            src_inode, src_device = get_inode_and_device_on_local(local_file_path)
-            cmd.insert(0, f"--rsh=ssh -p {port}")
-            cmd.insert(0, "rsync")
-            if dry_run:
-                cmd.append("--dry-run")
-            run_rsync(cmd)
-            if not dry_run:
-                remote_file_path = os.path.join(destination_path, os.path.basename(local_file_path))
-                get_inode_and_device_on_remote(remote_file_path, user_name_and_ip)
-        # Source is remote and destination is local
-        elif "@" not in destination:
-            user_name_and_ip = source.split(":")[0]
-            source_file_path = source.split(":")[1]
-            destination_path = destination
-            if dry_run:
-                cmd.append("--dry-run")
-            run_rsync(cmd)
-            if not dry_run:
-                get_inode_and_device_on_remote(source_file_path, user_name_and_ip)
-                destination_path = os.path.join(destination_path, os.path.basename(source_file_path))
-                get_inode_and_device_on_local(destination_path)
-        else:
-            user_name_and_ip_src = source.split(":")[0]
-            source_file_path = source.split(":")[1]
-            if dry_run:
-                cmd.append("--dry-run")
-            run_rsync(cmd)
-            if not dry_run:
-                get_inode_and_device_on_remote(source_file_path, user_name_and_ip_src)
-                user_name_and_ip_dest = destination.split(":")[0]
-                destination_path = destination.split(":")[1]
-                remote_file_path = os.path.join(destination_path, os.path.basename(source_file_path))
-                get_inode_and_device_on_remote(remote_file_path, user_name_and_ip_dest)
-    except Exception as e:
-        print(str(e))
-
-def run_rsync(cmd):
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(result)
-        if "--dry-run" in cmd:
-            typer.echo("Dry run completed. These files would be transferred:")
-            typer.echo(result.stdout)
-        else:
-            typer.echo("File transfer successful.")
-            typer.echo(result.stdout)
-    except subprocess.CalledProcessError as e:
-        # Capture and print the error message
-        typer.echo(f"Error occurred during file transfer: {e}")
-        typer.echo(f"Exit code: {e.returncode}")
-        typer.echo(f"Error output: {e.stderr}")
-
-
+def generate_random_pid() -> int:
+    min_pid = 1
+    max_pid = 32767
+    random_pid = random.randint(min_pid, max_pid)
+    return random_pid
 
 def upload_files(cmd):
     try:
@@ -294,35 +432,171 @@ def upload_files(cmd):
         typer.echo(f"Exit code: {e.returncode}")
         typer.echo(f"Error output: {e.stderr}")
 
-def get_inode_and_device_on_remote(remote_file_path, user_name_and_ip):
+
+def check_and_create_remote_file(hostname, port, username, remote_file_path):
+    """
+    Check if a file exists on a remote server and create it if it does not.
+
+    Args:
+        hostname (str): The remote server's hostname or IP address.
+        port (int): The SSH port number.
+        username (str): The SSH username.
+        remote_file_path (str): The path to the file on the remote server.
+    """
     try:
-        # Get the remote file path
+        # Check if the file exists on the remote server
+        check_command = f"ssh -p {port} {username}@{hostname} 'test -f {remote_file_path} && echo \"File exists\" || echo \"File does not exist\"'"
+        result = subprocess.run(check_command, shell=True, check=True, capture_output=True, text=True)
+        output = result.stdout.strip()
         
-        print(remote_file_path)
-        # SSH command to get inode and device number
-        ssh_command = f"ssh -p 2222 {user_name_and_ip} 'stat -c \"%d %i\" {remote_file_path}'"
-        result = subprocess.run(ssh_command, shell=True, check=True, capture_output=True, text=True)
-        # Parse the result
-        device, inode = result.stdout.strip().split()
-        print(device, " ", inode)
+        if output == "File does not exist":
+            # Create the file if it does not exist
+            create_command = f"ssh -p {port} {username}@{hostname} 'touch {remote_file_path}'"
+            subprocess.run(create_command, shell=True, check=True)
+            print(f"File created: {remote_file_path}")
+        else:
+            print(f"File already exists: {remote_file_path}")
+
     except subprocess.CalledProcessError as e:
-        # Capture and print the error message
-        typer.echo(f"Error occurred during file transfer: {e}")
-        typer.echo(f"Exit code: {e.returncode}")
-        typer.echo(f"Error output: {e.stderr}")
-    
-def get_inode_and_device_on_local(file_path):
-    try:
-        print(file_path)
-        file_stat = os.stat(file_path)
-        device = file_stat.st_dev
-        inode = file_stat.st_ino
-        print(device, " ", inode)
-        return inode, device
-    except FileNotFoundError:
-        raise Exception(f"File not found: {file_path}")
+        print(f"Command failed with exit code {e.returncode}")
+        print(f"Error output: {e.stderr}")
     except Exception as e:
-        raise Exception(f"An error occurred: {str(e)}")
+        print(f"An error occurred: {e}")
+
+
+def get_remote_xdg_data_home(remote_user: str, remote_host: str, port: int):
+    try:
+        # Construct the SSH command to get the XDG_DATA_HOME environment variable
+        ssh_command = [
+            "ssh",
+            "-p",
+            str(port),  # Specify the port
+            f"{remote_user}@{remote_host}",  # Remote user and host
+            "echo $XDG_DATA_HOME",  # Command to retrieve XDG_DATA_HOME
+        ]
+
+        # Execute the SSH command
+        result = subprocess.run(ssh_command, capture_output=True, text=True, check=True)
+
+        # Get the output
+        xdg_data_home = result.stdout.strip()
+        print(f"XDG_DATA_HOME on remote: {xdg_data_home}")
+        return xdg_data_home
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error retrieving XDG_DATA_HOME: {e}")
+        return None
+
+
+def get_remote_home(remote_user: str, remote_host: str, port: int):
+    try:
+        # Construct the SSH command to get the XDG_DATA_HOME environment variable
+        ssh_command = [
+            "ssh",
+            "-p",
+            str(port),  # Specify the port
+            f"{remote_user}@{remote_host}",  # Remote user and host
+            "echo $HOME",  # Command to retrieve HOME
+        ]
+
+        # Execute the SSH command
+        result = subprocess.run(ssh_command, capture_output=True, text=True, check=True)
+
+        # Get the output
+        home = result.stdout.strip()
+        print(f"HOME on remote: {home}")
+        return home
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error retrieving XDG_DATA_HOME: {e}")
+        return None
+
+def get_file_info_on_local(file_path):
+    stat_info = os.stat(file_path)
+    device_major = os.major(stat_info.st_dev)
+    device_minor = os.minor(stat_info.st_dev)
+    inode = stat_info.st_ino
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    packed_ip = socket.inet_aton(ip_address)
+    host = struct.unpack("!I", packed_ip)[0]
+
+    # c uses mtime in nanoseconds
+    mtime_micro_seconds = stat_info.st_mtime
+    mtime = int(mtime_micro_seconds * 1_000_000_000)
+
+    size = stat_info.st_size
+    inode = Inode(host, device_major, device_minor, inode)
+    inode_version = InodeVersion(inode, mtime, size)
+    return inode_version
+
+
+def get_file_info_on_remote(remote_host, file_path, user, port) -> InodeVersion:
+    command = [
+        "ssh",
+        f"-p {port}",
+        f"{user}@{remote_host}",
+        f'stat -c "%D %i %s %Y" {file_path}',
+    ]
+
+    process = subprocess.run(command, check=True, capture_output=True, text=True)
+
+    output = process.stdout.strip()
+    device_hex, inode, size, mtime = output.split()
+
+    inode = int(inode)
+    size = int(size)
+    mtime = int(mtime) * 1_000_000_000
+
+    # Get host information
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    packed_ip = socket.inet_aton(ip_address)
+    host = struct.unpack("!I", packed_ip)[0]
+
+    command = [
+        "ssh",
+        f"-p {port}",
+        f"{user}@{remote_host}",
+        f'python3 -c \'import os, json; stat_info = os.stat("{file_path}"); device_id = stat_info.st_dev; result = {{"device_major": os.major(device_id), "device_minor": os.minor(device_id)}}; print(json.dumps(result))\'',
+    ]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    output = result.stdout.strip()
+    data = json.loads(output)
+    device_major = data["device_major"]
+    device_minor = data["device_minor"]
+    inode = Inode(host, device_major, device_minor, inode)
+    inode_version = InodeVersion(inode, mtime, size)
+    return inode_version
+
+
+def transfer_file_scp(
+    local_file_path: str,
+    remote_user: str,
+    remote_host: str,
+    port: int,
+    remote_path: str,
+):
+    try:
+        # Construct the SCP command
+        scp_command = [
+            "scp",
+            "-P",
+            str(port),  # Specify the port
+            local_file_path,  # Local file path
+            f"{remote_user}@{remote_host}:{remote_path}",  # Remote file path
+        ]
+
+        # Execute the SCP command
+        subprocess.run(scp_command, check=True)
+        print(
+            f"File '{local_file_path}' successfully transferred to '{remote_path}' on {remote_host}"
+        )
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error during file transfer: {e}")
+
 
 if __name__ == "__main__":
     app()
