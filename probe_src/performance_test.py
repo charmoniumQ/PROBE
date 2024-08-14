@@ -97,7 +97,7 @@ def benchmark_with_transcription(commands_to_run, warmup_count, benchmark_count)
                 })
 
             # Run ./PROBE record for both execution and transcription
-            record_command = f"./PROBE record {command_to_run}"
+            record_command = f"probe record {command_to_run}"
             print(f"Running benchmark for command (Record): {record_command}")
             record_results = benchmark_command(record_command, warmup_count, benchmark_count)
 
@@ -126,7 +126,7 @@ def benchmark_with_transcription(commands_to_run, warmup_count, benchmark_count)
                 })
 
             # Run ./PROBE record --no-transcribe for execution only
-            no_transcribe_command = f"./PROBE record --no-transcribe {command_to_run}"
+            no_transcribe_command = f"probe record --no-transcribe {command_to_run}"
             print(f"Running benchmark for command (No Transcribe): {no_transcribe_command}")
             no_transcribe_results = benchmark_command(no_transcribe_command, warmup_count, benchmark_count)
 
@@ -157,7 +157,7 @@ def benchmark_with_transcription(commands_to_run, warmup_count, benchmark_count)
                 # Run ./PROBE transcribe-only using the temporary probe directory
                 if result.returncode == 0:
                     probe_log_dir = result.stdout.strip().split(': ')[-1]  # Extracting the probe log directory
-                    transcribe_command = f"./PROBE transcribe-only {probe_log_dir} --output probe_log"
+                    transcribe_command = f"probe transcribe-only {probe_log_dir} --output probe_log"
                     print(f"Running transcription for command: {command_to_run}")
                     transcribe_proc = subprocess.run(transcribe_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 

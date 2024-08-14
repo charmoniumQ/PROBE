@@ -1,0 +1,37 @@
+Command,Phase,Return Code,Duration,ru_utime,ru_stime,ru_maxrss,ru_ixrss,ru_idrss,ru_isrss,ru_minflt,ru_majflt,ru_nswap,ru_inblock,ru_oublock,ru_msgsnd,ru_msgrcv,ru_nsignals,ru_nvcsw,ru_nivcsw
+ls -l,No PROBE,0,0.010595,0.000000,0.008851,17792,0,0,0,263,0,0,0,0,0,0,0,1,0
+ls -l,No PROBE,0,0.007766,0.003261,0.003261,17792,0,0,0,263,0,0,0,0,0,0,0,1,1
+ls -l,Record,0,0.06179,0.002339,0.010577,17792,0,0,0,598,0,0,0,8,0,0,0,17,4
+ls -l,Record,0,0.083581,0.022892,0.015409,17920,0,0,0,598,0,0,0,8,0,0,0,30,9
+ls -l,no-transcribe,0,0.058466,0.005630,0.002742,17920,0,0,0,470,0,0,0,0,0,0,0,4,0
+ls -l,no-transcribe,0,0.00813,0.000000,0.007161,17920,0,0,0,286,0,0,0,8,0,0,0,19,1
+ls -l,no-transcribe,0,0.05875,0.005827,0.002793,17920,0,0,0,470,0,0,0,0,0,0,0,4,0
+ls -l,no-transcribe,0,0.008326,0.003881,0.003881,17920,0,0,0,286,0,0,0,8,0,0,0,14,2
+echo Hello World,No PROBE,0,0.002702,0.000000,0.002117,18048,0,0,0,242,0,0,0,0,0,0,0,1,0
+echo Hello World,No PROBE,0,0.008176,0.000000,0.006167,18048,0,0,0,242,0,0,0,0,0,0,0,1,2
+echo Hello World,Record,0,0.063799,0.006146,0.008124,18048,0,0,0,578,0,0,0,8,0,0,0,17,1
+echo Hello World,Record,0,0.064157,0.003616,0.013168,18048,0,0,0,578,0,0,0,8,0,0,0,25,3
+echo Hello World,no-transcribe,0,0.054856,0.002910,0.002599,18048,0,0,0,450,0,0,0,0,0,0,0,4,1
+echo Hello World,no-transcribe,0,0.005814,0.000000,0.005384,18048,0,0,0,286,0,0,0,8,0,0,0,22,11
+echo Hello World,no-transcribe,0,0.060106,0.007293,0.002128,18048,0,0,0,450,0,0,0,0,0,0,0,4,1
+echo Hello World,no-transcribe,0,0.011632,0.000000,0.009121,18048,0,0,0,286,0,0,0,8,0,0,0,10,10
+pwd,No PROBE,0,0.008409,0.003256,0.003256,18048,0,0,0,243,0,0,0,0,0,0,0,1,0
+pwd,No PROBE,0,0.009004,0.003727,0.003727,18048,0,0,0,243,0,0,0,0,0,0,0,1,2
+pwd,Record,0,0.071501,0.008465,0.014953,18048,0,0,0,579,0,0,0,8,0,0,0,26,2
+pwd,Record,0,0.062167,0.003114,0.011838,18048,0,0,0,579,0,0,0,8,0,0,0,23,1
+pwd,no-transcribe,0,0.06119,0.007046,0.002273,18048,0,0,0,451,0,0,0,0,0,0,0,4,0
+pwd,no-transcribe,0,0.015779,0.002715,0.013576,18048,0,0,0,286,0,0,0,8,0,0,0,21,4
+pwd,no-transcribe,0,0.056557,0.004049,0.003445,18048,0,0,0,451,0,0,0,0,0,0,0,4,0
+pwd,no-transcribe,0,0.017801,0.006838,0.010258,18048,0,0,0,286,0,0,0,8,0,0,0,9,75
+gcc hello_world.c -o hello_world && ./hello_world,No PROBE,1,0.075919,0.041397,0.030342,18048,0,0,0,2703,0,0,0,0,0,0,0,16,19
+gcc hello_world.c -o hello_world && ./hello_world,No PROBE,1,0.074076,0.043712,0.027885,18048,0,0,0,2703,0,0,0,0,0,0,0,16,20
+gcc hello_world.c -o hello_world && ./hello_world,Record,0,0.083945,0.049998,0.032567,18048,0,0,0,3032,0,0,0,8,0,0,0,39,10
+gcc hello_world.c -o hello_world && ./hello_world,Record,0,0.087737,0.057485,0.026869,18048,0,0,0,3032,0,0,0,8,0,0,0,41,15
+gcc hello_world.c -o hello_world && ./hello_world,no-transcribe,0,0.075689,0.045919,0.027702,18048,0,0,0,2905,0,0,0,0,0,0,0,20,9
+gcc hello_world.c -o hello_world && ./hello_world,no-transcribe,0,0.021176,0.003797,0.015190,18048,0,0,0,286,0,0,0,8,0,0,0,17,17
+gcc hello_world.c -o hello_world && ./hello_world,no-transcribe,0,0.079871,0.045810,0.029608,18048,0,0,0,2905,0,0,0,0,0,0,0,20,6
+gcc hello_world.c -o hello_world && ./hello_world,no-transcribe,0,0.020713,0.012673,0.004224,18048,0,0,0,284,0,0,0,8,0,0,0,14,16
+gcc pthreads_example.c -o pthreads_example -lpthread && ./pthreads_example,No PROBE,1,0.0714,0.047607,0.022259,18048,0,0,0,2707,0,0,0,0,0,0,0,16,0
+gcc pthreads_example.c -o pthreads_example -lpthread && ./pthreads_example,No PROBE,1,0.07955,0.053364,0.024675,18048,0,0,0,2707,0,0,0,0,0,0,0,16,5
+gcc pthreads_example.c -o pthreads_example -lpthread && ./pthreads_example,Record,0,0.081858,0.044975,0.033051,18048,0,0,0,3037,0,0,0,8,0,0,0,41,17
+gcc pthreads_example.c -o pthreads_example -lpthread && ./pthreads_example,Record,0,0.160071,0.099576,0.051160,18048,0,0,0,3036,0,0,0,8,0,0,0,43,31
