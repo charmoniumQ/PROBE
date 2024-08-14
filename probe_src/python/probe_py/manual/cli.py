@@ -146,5 +146,63 @@ def dump(
                     print(pid, exid, tid, op_no, op.data)
                 print()
 
+@app.command(
+    context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
+def mpirun(
+        cmd: list[str],
+        np: int = typer.Option(default=1, help="Number of processes to use in mpirun"),
+        gdb: bool = typer.Option(default=False, help="Run in GDB"),
+        debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
+        make: bool = typer.Option(default=False, help="Run make prior to executing"),
+        output: pathlib.Path = pathlib.Path("probe_log"),
+        no_transcribe: bool = typer.Option(default=False, help="Only execute without transcribing"),
+) -> None:
+    """
+    Wrap mpirun to execute programs on N remote machines and record its provenance.
+    """
+    if make:
+        proc = subprocess.run(
+            ["make", "--directory", str(project_root / "libprobe"), "all"],
+        )
+        if proc.returncode != 0:
+            typer.secho("Make failed", fg=typer.colors.RED)
+            raise typer.Abort()
+
+    if output.exists():
+        output.unlink()
+
+    libprobe = pathlib.Path(os.environ["__PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
+
+    if not libprobe.exists():
+        typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
+        raise typer.Abort()
+
+    ld_preload = str(libprobe) + (":" + os.environ["__LD_PRELOAD"] if "LD_PRELOAD" in os.environ else "")
+
+    probe_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
+    mpirun_cmd = ["mpirun", "-np", str(np), *cmd]
+    
+    if gdb:
+        subprocess.run(
+            ["gdb", "--args", "env", f"__PROBE_DIR={probe_dir}", f"LD_PRELOAD={ld_preload}", *mpirun_cmd],
+        )
+    else:
+        if debug:
+            typer.secho(f"Running {mpirun_cmd} with libprobe into {probe_dir}", fg=typer.colors.GREEN)
+        proc = subprocess.run(
+            mpirun_cmd,
+            ["env", f"__LD_PRELOAD={ld_preload}", f"__PROBE_DIR={probe_dir}"]
+        )
+
+        if no_transcribe:
+            typer.secho(f"Temporary probe directory: {probe_dir}", fg=typer.colors.YELLOW)
+            raise typer.Exit(proc.returncode)
+        
+        transcribe(probe_dir, output, debug)
+        raise typer.Exit(proc.returncode)
+
 if __name__ == "__main__":
     app()
