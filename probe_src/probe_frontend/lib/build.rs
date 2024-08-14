@@ -5,7 +5,6 @@ use std::sync::OnceLock;
 
 use bindgen::callbacks::ParseCallbacks;
 
-<<<<<<< HEAD
 fn find_in_cpath(name: &str) -> Result<PathBuf, &str> {
     Ok(env::var("CPATH")
         .map_err(|_| "CPATH needs to be set (in unicode) so I can find include header files")?
@@ -22,16 +21,6 @@ fn find_in_cpath(name: &str) -> Result<PathBuf, &str> {
 struct LibprobeCallback;
 
 /// These C-structs get prefixed with "C_" because a rust version of the struct will be
-=======
-#[derive(Debug)]
-struct LibprobeCallback;
-
-<<<<<<< HEAD
-/// These C-structs get prefixed with "Bindgen_" because a rust version of the struct will be
->>>>>>> a83cce7 (version 0.2.0)
-=======
-/// These C-structs get prefixed with "C_" because a rust version of the struct will be
->>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
 /// either generated or manually implemented.
 fn should_prefix(name: &str) -> bool {
     static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
@@ -87,15 +76,7 @@ fn no_derive(name: &str) -> bool {
 impl ParseCallbacks for LibprobeCallback {
     fn item_name(&self, _original_item_name: &str) -> Option<String> {
         if should_prefix(_original_item_name) {
-<<<<<<< HEAD
-<<<<<<< HEAD
             Some(format!("C_{}", _original_item_name))
-=======
-            Some(format!("Bindgen_{}", _original_item_name))
->>>>>>> a83cce7 (version 0.2.0)
-=======
-            Some(format!("C_{}", _original_item_name))
->>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
         } else {
             None
         }
@@ -106,15 +87,7 @@ impl ParseCallbacks for LibprobeCallback {
 
         match info.kind {
             bindgen::callbacks::TypeKind::Struct => {
-<<<<<<< HEAD
-<<<<<<< HEAD
                 let orig_name = info.name.strip_prefix("C_");
-=======
-                let orig_name = info.name.strip_prefix("Bindgen_");
->>>>>>> a83cce7 (version 0.2.0)
-=======
-                let orig_name = info.name.strip_prefix("C_");
->>>>>>> f7c22ab (:sparkles: documentation :sparkles:)
                 if orig_name.is_some() && !no_derive(orig_name.unwrap()) {
                     ret.push("MakeRustOp".to_owned());
                 }
@@ -149,25 +122,14 @@ fn main() {
             #include <sys/stat.h>
             #include <sys/types.h>
             #include <utime.h>
-<<<<<<< HEAD
             #include <threads.h>
             #include <pthread.h>
-=======
->>>>>>> a83cce7 (version 0.2.0)
 
             // HACK: defining this manually instead of using <sys/resource.h> is
             // a huge hack, but it greatly reduces the generated code complexity
             // since in glibc all the long ints are unions over two types that
             // both alias to long int, this is done for kernel-userland
-<<<<<<< HEAD
-<<<<<<< HEAD
             // compatibility reasons that don't matter here.
-=======
-            // compatibilityreasons that don't matter here.
->>>>>>> a83cce7 (version 0.2.0)
-=======
-            // compatibility reasons that don't matter here.
->>>>>>> f4518ce (proc macros return compile_error!() instead of panicking)
             struct rusage {
                 struct timeval ru_utime;
                 struct timeval ru_stime;
@@ -193,7 +155,6 @@ fn main() {
         )
         // The input header we would like to generate
         // bindings for.
-<<<<<<< HEAD
         .header(
             find_in_cpath("libprobe/prov_ops.h")
                 .unwrap()
@@ -201,9 +162,12 @@ fn main() {
                 .into_string()
                 .unwrap(),
         )
-=======
-        .header("./include/prov_ops.h")
->>>>>>> a83cce7 (version 0.2.0)
+        .clang_args(
+            env::var("CFLAGS")
+                .unwrap_or("".to_owned())
+                .split(':')
+                .filter(|string| !string.is_empty()),
+        )
         // .header_contents("sizeof", "
         //     const size_t OP_SIZE = sizeof(struct Op);
         // ")
