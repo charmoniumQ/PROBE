@@ -33,16 +33,17 @@ class ResourcePopen(subprocess.Popen):
             self.rusage = res
         return (pid, sts)
 
-def resource_call(*popenargs, timeout=None, **kwargs):
-    with ResourcePopen(*popenargs, **kwargs) as p:
+def resource_call(*popenargs, timeout=None, **kwargs) -> Result:
+    with ResourcePopen(*popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs) as p:
+        start = datetime.datetime.now()
         try:
             stdout, stderr = p.communicate(timeout=timeout)
-            return p.returncode, p.rusage, stdout, stderr
         except:
             p.kill()
             stdout, stderr = p.communicate()
             raise
-
+        stop = datetime.datetime.now()
+        return Result(p.returncode, stdout.decode(), stderr.decode(), (stop - start).total_seconds(), p.rusage)
 def cleanup():
     if os.path.exists(LOG_FILE):
         print("Removing log file.")
