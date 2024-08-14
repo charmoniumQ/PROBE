@@ -12,15 +12,9 @@ import errno
 @dataclass
 class Result:
     returncode: int
-    user_time: float
-    system_time: float
-    memory_usage: int
-    io_counters: dict
     stdout: str
     stderr: str
-    start_time: datetime.datetime
-    end_time: datetime.datetime
-    cpu_usage_percent: float
+    duration: float
     rusage: resource.struct_rusage
 
 LOG_FILE = "probe_log"
@@ -58,28 +52,6 @@ def cleanup():
         shutil.rmtree(RECORD_DIR)
     time.sleep(3)
 
-def get_process_stats(pid, end_time_wait, start_time_psutil) -> tuple:
-    try:
-        process = psutil.Process(pid)
-        user_time = process.cpu_times().user
-        system_time = process.cpu_times().system
-        memory_usage = process.memory_info().rss
-        io_counters_raw = process.io_counters()
-        io_counters = {
-            'read_count': io_counters_raw.read_count,
-            'write_count': io_counters_raw.write_count,
-            'read_bytes': io_counters_raw.read_bytes,
-            'write_bytes': io_counters_raw.write_bytes
-        }
-        
-        total_cpu_time = user_time + system_time if user_time and system_time else 0
-        elapsed_time = (end_time_wait - start_time_psutil).total_seconds()
-        cpu_usage_percent = (total_cpu_time / elapsed_time) * 100 if elapsed_time > 0 else 0
-        return user_time, system_time, memory_usage, io_counters, cpu_usage_percent
-    except Exception as e:
-        print(f"Failed to get process stats: {e}")
-        return None, None, None, None
-
 def benchmark_command(command: list[str], warmup_iterations: int, benchmark_iterations: int, transcribe_flag: bool) -> list[Result]:
     results = []
 
@@ -90,49 +62,35 @@ def benchmark_command(command: list[str], warmup_iterations: int, benchmark_iter
 
     for _ in range(benchmark_iterations):
         cleanup()
-        start_time_psutil = datetime.datetime.now()
+        start_time = datetime.datetime.now()
         print(f"Starting process with command: {' '.join(command)}")
         returncode, rusage, stdout, stderr = resource_call(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        end_time_wait = datetime.datetime.now()
+        end_time = datetime.datetime.now()
         
-        pid = os.getpid()  
-        user_time, system_time, memory_usage, io_counters, cpu_usage_percent = get_process_stats(pid, end_time_wait, start_time_psutil)
+        pid = os.getpid()
 
         result = Result(
             rusage=rusage,
             returncode=returncode,
-            user_time=user_time,
-            system_time=system_time,
-            memory_usage=memory_usage,
-            io_counters=io_counters,
             stdout=stdout.decode('utf-8'),
             stderr=stderr.decode('utf-8'),
-            start_time=start_time_psutil,
-            end_time=end_time_wait,
-            cpu_usage_percent=cpu_usage_percent
+            duration=(end_time - start_time).total_seconds()
         )
         results.append(result)
         time.sleep(3)
 
         if transcribe_flag:
-            start_time_psutil = datetime.datetime.now()
+            start_time = datetime.datetime.now()
             print(f"Running probe transcribe -i {RECORD_DIR} -o {LOG_FILE}")
             returncode, rusage, stdout, stderr = resource_call(["probe", "transcribe", "-i", RECORD_DIR, "-o", LOG_FILE], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            end_time_wait = datetime.datetime.now()
-            user_time, system_time, memory_usage, io_counters, cpu_usage_percent = get_process_stats(pid, end_time_wait, start_time_psutil)
+            end_time = datetime.datetime.now()
 
             result = Result(
                 rusage=rusage,
                 returncode=returncode,
-                user_time=user_time,
-                system_time=system_time,
-                memory_usage=memory_usage,
-                io_counters=io_counters,
                 stdout=stdout.decode('utf-8'),
                 stderr=stderr.decode('utf-8'),
-                start_time=start_time_psutil,
-                end_time=end_time_wait,
-                cpu_usage_percent=cpu_usage_percent
+                duration= (end_time - start_time).total_seconds()
             )
             results.append(result)
             time.sleep(3)
@@ -146,17 +104,7 @@ def write_results_to_csv(writer, command_to_run, phase, results):
             'Command': command_to_run,
             'Phase': phase,
             'Return Code': result.returncode,
-            'User Time': f"{result.user_time:.6f}",
-            'System Time': f"{result.system_time:.6f}",
-            'Memory Usage': result.memory_usage,
-            'Read Count': result.io_counters['read_count'],
-            'Write Count': result.io_counters['write_count'],
-            'Read Bytes': result.io_counters['read_bytes'],
-            'Write Bytes': result.io_counters['write_bytes'],
-            'Start Time': result.start_time,
-            'End Time': result.end_time,
-            'Duration (s)': f"{(result.end_time - result.start_time).total_seconds():.6f}",
-            'CPU Usage (%)': f"{result.cpu_usage_percent:.6f}",
+            'Duration': result.duration,
             'ru_utime': f"{rusage.ru_utime:.6f}",
             'ru_stime': f"{rusage.ru_stime:.6f}",
             'ru_maxrss': rusage.ru_maxrss,
@@ -178,9 +126,7 @@ def write_results_to_csv(writer, command_to_run, phase, results):
 def benchmark_with_transcription(commands_to_run: list[str], warmup_count: int, benchmark_count: int):
     with open('benchmark_results.csv', mode='w', newline='') as csv_file:
         fieldnames = [
-            'Command', 'Phase', 'Return Code', 'User Time', 'System Time', 'Memory Usage',
-            'Read Count', 'Write Count', 'Read Bytes', 'Write Bytes',
-            'Start Time', 'End Time', 'Duration (s)', 'CPU Usage (%)',
+            'Command', 'Phase', 'Return Code', 'Duration',
             'ru_utime', 'ru_stime', 'ru_maxrss', 'ru_ixrss', 'ru_idrss', 'ru_isrss',
             'ru_minflt', 'ru_majflt', 'ru_nswap', 'ru_inblock', 'ru_oublock',
             'ru_msgsnd', 'ru_msgrcv', 'ru_nsignals', 'ru_nvcsw', 'ru_nivcsw'
@@ -193,7 +139,7 @@ def benchmark_with_transcription(commands_to_run: list[str], warmup_count: int, 
 
             print(f"Running benchmark for command (No PROBE): {command_to_run}")
             transcribe_flag = False
-            no_probe_results = benchmark_command(command_args, warmup_count, benchmark_count, flag)
+            no_probe_results = benchmark_command(command_args, warmup_count, benchmark_count, transcribe_flag)
             write_results_to_csv(writer, command_to_run, 'No PROBE', no_probe_results)
 
 <<<<<<< HEAD
@@ -224,7 +170,7 @@ def benchmark_with_transcription(commands_to_run: list[str], warmup_count: int, 
 =======
             record_command_args = ["probe", "record"] + command_args
             print(f"Running benchmark for command (Record): {' '.join(record_command_args)}")
-            record_results = benchmark_command(record_command_args, warmup_count, benchmark_count, flag)
+            record_results = benchmark_command(record_command_args, warmup_count, benchmark_count, transcribe_flag)
             write_results_to_csv(writer, command_to_run, 'Record', record_results)
 >>>>>>> 3c7eff4 (Update performance_test.py)
 
