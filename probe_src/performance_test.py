@@ -1,4 +1,5 @@
 import subprocess
+import shlex
 import datetime
 import csv
 import time
@@ -6,7 +7,7 @@ import os
 import shutil
 import resource
 from dataclasses import dataclass
-import psutil
+from typing import Any
 import errno
 from pathlib import Path
 
@@ -18,8 +19,8 @@ class Result:
     duration: float
     rusage: resource.struct_rusage
 
-LOG_FILE = Path("probe_log")
-RECORD_DIR = Path("probe_record")
+PROBE_LOG = Path("probe_log")
+PROBE_RECORD_DIR = Path("probe_record")
 
 class ResourcePopen(subprocess.Popen):
     def _try_wait(self, wait_flags):
@@ -34,8 +35,12 @@ class ResourcePopen(subprocess.Popen):
             self.rusage = res
         return (pid, sts)
 
-def resource_call(*popenargs, timeout=None, **kwargs) -> Result:
-    with ResourcePopen(*popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs) as p:
+def resource_call(
+        *popenargs: Any,
+        timeout: int | None = None,
+        **kwargs: Any,
+) -> Result:
+    with ResourcePopen(*popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False, **kwargs) as p:
         start = datetime.datetime.now()
         try:
             stdout, stderr = p.communicate(timeout=timeout)
@@ -46,36 +51,44 @@ def resource_call(*popenargs, timeout=None, **kwargs) -> Result:
         stop = datetime.datetime.now()
         return Result(p.returncode, stdout.decode(), stderr.decode(), (stop - start).total_seconds(), p.rusage)
 
+DELAY = 0.0
+
 def cleanup():
-    if LOG_FILE.exists():
-        print("Removing log file.")
-        LOG_FILE.unlink()
-    if RECORD_DIR.exists():
-        print("Removing record directory.")
-        shutil.rmtree(RECORD_DIR)
-    time.sleep(3)
+    if PROBE_LOG.exists():
+        PROBE_LOG.unlink()
+    if PROBE_RECORD_DIR.exists():
+        shutil.rmtree(PROBE_RECORD_DIR)
+    time.sleep(DELAY)
 
 def benchmark_command(command: list[str], warmup_iterations: int, benchmark_iterations: int, transcribe_flag: bool) -> list[Result]:
     results = []
 
     for _ in range(warmup_iterations):
-        print(f"Running warmup command: {' '.join(command)}")
-        if LOG_FILE.exists():
-            LOG_FILE.unlink()
-        subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(f"    Running warmup command: {shlex.join(command)}")
+        cleanup()
+        proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if proc.returncode != 0:
+            print(f"      Returned non-zero")
+            print(proc.stdout.decode())
+            print(proc.stderr.decode())
 
     for _ in range(benchmark_iterations):
         cleanup()
-        print(f"Starting process with command: {' '.join(command)}")
+        print(f"    Running process with command: {shlex.join(command)}")
         result = resource_call(command)
+        if result.returncode != 0:
+            print("      Returned non-zero")
+
         results.append(result)
-        time.sleep(3)
+        time.sleep(DELAY)
 
         if transcribe_flag:
-            print(f"Running probe transcribe -i {RECORD_DIR} -o {LOG_FILE}")
-            transcribe_result = resource_call(["probe", "transcribe", "-i", str(RECORD_DIR), "-o", str(LOG_FILE)])
+            print(f"    Running probe transcribe -i {PROBE_RECORD_DIR} -o {PROBE_LOG}")
+            transcribe_result = resource_call(["probe", "transcribe", "-i", str(PROBE_RECORD_DIR), "-o", str(PROBE_LOG)])
+            if result.returncode != 0:
+                print("      Transcribe returned non-zero")
             results.append(transcribe_result)
-            time.sleep(3)
+            time.sleep(DELAY)
 
     return results
 
@@ -105,7 +118,7 @@ def write_results_to_csv(writer, command_to_run, phase, results):
             'ru_nivcsw': rusage.ru_nivcsw
         })
 
-def benchmark_with_transcription(commands_to_run: list[str], warmup_count: int, benchmark_count: int):
+def benchmark_with_transcription(commands_to_run: list[list[str]], warmup_count: int, benchmark_count: int):
     with open('benchmark_results.csv', mode='w', newline='') as csv_file:
         fieldnames = [
             'Command', 'Phase', 'Return Code', 'Duration',
@@ -116,41 +129,43 @@ def benchmark_with_transcription(commands_to_run: list[str], warmup_count: int, 
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
 
-        for command_to_run in commands_to_run:
-            command_args = command_to_run.split()
+        for command_args in commands_to_run:
+            print(f"Benchmarking: {shlex.join(command_args)}")
 
-            print(f"Running benchmark for command (No PROBE): {command_to_run}")
+
+            print(f"  Running benchmark for command (No PROBE): {shlex.join(command_args)}")
             transcribe_flag = False
             no_probe_results = benchmark_command(command_args, warmup_count, benchmark_count, transcribe_flag)
-            write_results_to_csv(writer, command_to_run, 'No PROBE', no_probe_results)
+            write_results_to_csv(writer, shlex.join(command_args), 'No PROBE', no_probe_results)
 
             cleanup()
 
             record_command_args = ["probe", "record"] + command_args
-            print(f"Running benchmark for command (Record): {' '.join(record_command_args)}")
+            print(f"  Running benchmark for command (Record): {shlex.join(record_command_args)}")
             record_results = benchmark_command(record_command_args, warmup_count, benchmark_count, transcribe_flag)
-            write_results_to_csv(writer, command_to_run, 'Record', record_results)
+            write_results_to_csv(writer, shlex.join(command_args), 'Record', record_results)
 
             cleanup()
 
             transcribe_flag = True
-            print(f"Running benchmark for command probe no-transcribe: {command_to_run}")
             no_transcribe_args= ["probe", "record", "--no-transcribe"] + command_args
+            print(f"  Running benchmark for command probe no-transcribe: {shlex.join(no_transcribe_args)}")
             probe_results = benchmark_command(no_transcribe_args, warmup_count, benchmark_count, transcribe_flag)
-            write_results_to_csv(writer, command_to_run, 'no-transcribe', probe_results)
+            write_results_to_csv(writer, shlex.join(command_args), 'no-transcribe', probe_results)
 
             cleanup()
 
 if __name__ == "__main__":
     commands = [
-        "ls -l", 
-        "echo Hello World", 
-        "pwd",
-        "gcc hello_world.c -o hello_world && ./hello_world",   
-        "gcc pthreads_example.c -o pthreads_example -lpthread && ./pthreads_example",  
-        "python3 hello_world.py",
-        "date", 
-        "uptime"
+        ["ls", "-l"],
+        ["echo", "Hello World"],
+        ["pwd"],
+        ["sh", "-c", "cd probe_src/tests/c && gcc hello_world.c -o hello_world.exe && ./hello_world.exe"],
+        ["sh", "-c", "cd probe_src/tests/c && gcc createFile.c -o createFile.exe -lpthread && ./createFile.exe"],
+        ["python3", "-c", "import sys; sys.stdout.write('hello world')"],
+        ["date"],
+        ["uptime"],
     ]
 
-    benchmark_with_transcription(commands, warmup_count=1, benchmark_count=2)
+    os.chdir(Path(__file__).resolve().parent.parent)
+    benchmark_with_transcription(commands, warmup_count=1, benchmark_count=4)
