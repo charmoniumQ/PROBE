@@ -50,7 +50,9 @@
     - [ ] `./PROBE ssh` should run `env LD_LIBRARY_PATH=path/to/libprobe.so PROBE_DIR=path/to/blank-dir <command> <args...>` (from earlier) on the remote.
     - [ ] `./PROBE ssh` should tar, gzip, and download the PROBE log directory to the local host for further processing. Assumme for the moment that `tar` and `gzip` exist on the remote. When the Rust wrapper is complete, we can eliminate this dependency.
     - Think about avoiding multiple SSH sessions, and think about assumptions on the remote host.
-  - [ ] Write an [SCP wrapper](https://www.wikiwand.com/en/Secure_copy_protocol). The wrapper should be a shell named `scp` that calls `./PROBE scp <args...>`. `./PROBE scp <args...>` should determine whether we are going remote->local or local->remote. It should look for provenance of the inodes of the target files on the "source" node (could be local or remote) in `${XDG_DATA_HOME:$HOME/.local/share}`. It should copy the releveant provenance tree of just those inodes to the "destination node" (either local or remote). Then it should call the "real" `scp` with the appropriate arguments.
+  - [x] Write an [SCP wrapper](https://www.wikiwand.com/en/Secure_copy_protocol). The wrapper should be a shell named `scp` that calls `./PROBE scp <args...>`. `./PROBE scp <args...>` should determine whether we are going remote->local or local->remote. It should look for provenance of the inodes of the target files on the "source" node (could be local or remote) in `${XDG_DATA_HOME:$HOME/.local/share}`. It should copy the releveant provenance tree of just those inodes to the "destination node" (either local or remote). Then it should call the "real" `scp` with the appropriate arguments.
+    - [ ] implement get_prov_upstream function for remote host
+    Currently get_prov_upstream does raises an exception when the Inode is on a remote host
   - [ ] Write an [Rsync wrapper](https://rsync.samba.org/), which does the same thing as the SCP wrapper. Use `--dry-run` to determine which files will be accessed.
   - [ ] Research how `mpirun` works and write a wrapper for that.
   - [ ] Research how Condor works and write a wrapper for that.
