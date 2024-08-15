@@ -19,6 +19,7 @@ dependencies = [
     "pydot",
     "rich",
     "typer",
+    "xdg-base-dirs",
 ]
 
 [project.urls]
