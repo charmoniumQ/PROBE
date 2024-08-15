@@ -8,6 +8,7 @@ import resource
 from dataclasses import dataclass
 import psutil
 import errno
+from pathlib import Path
 
 @dataclass
 class Result:
@@ -17,8 +18,8 @@ class Result:
     duration: float
     rusage: resource.struct_rusage
 
-LOG_FILE = "probe_log"
-RECORD_DIR = "probe_record"
+LOG_FILE = Path("probe_log")
+RECORD_DIR = Path("probe_record")
 
 class ResourcePopen(subprocess.Popen):
     def _try_wait(self, wait_flags):
@@ -33,21 +34,23 @@ class ResourcePopen(subprocess.Popen):
             self.rusage = res
         return (pid, sts)
 
-def resource_call(*popenargs, timeout=None, **kwargs):
-    with ResourcePopen(*popenargs, **kwargs) as p:
+def resource_call(*popenargs, timeout=None, **kwargs) -> Result:
+    with ResourcePopen(*popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs) as p:
+        start = datetime.datetime.now()
         try:
             stdout, stderr = p.communicate(timeout=timeout)
-            return p.returncode, p.rusage, stdout, stderr
         except:
             p.kill()
             stdout, stderr = p.communicate()
             raise
+        stop = datetime.datetime.now()
+        return Result(p.returncode, stdout.decode(), stderr.decode(), (stop - start).total_seconds(), p.rusage)
 
 def cleanup():
-    if os.path.exists(LOG_FILE):
+    if LOG_FILE.exists():
         print("Removing log file.")
-        subprocess.run("rm probe_log", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if os.path.exists(RECORD_DIR):
+        LOG_FILE.unlink()
+    if RECORD_DIR.exists():
         print("Removing record directory.")
         shutil.rmtree(RECORD_DIR)
     time.sleep(3)
@@ -57,42 +60,21 @@ def benchmark_command(command: list[str], warmup_iterations: int, benchmark_iter
 
     for _ in range(warmup_iterations):
         print(f"Running warmup command: {' '.join(command)}")
-        subprocess.run("rm probe_log", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if LOG_FILE.exists():
+            LOG_FILE.unlink()
         subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     for _ in range(benchmark_iterations):
         cleanup()
-        start_time = datetime.datetime.now()
         print(f"Starting process with command: {' '.join(command)}")
-        returncode, rusage, stdout, stderr = resource_call(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        end_time = datetime.datetime.now()
-        
-        pid = os.getpid()
-
-        result = Result(
-            rusage=rusage,
-            returncode=returncode,
-            stdout=stdout.decode('utf-8'),
-            stderr=stderr.decode('utf-8'),
-            duration=(end_time - start_time).total_seconds()
-        )
+        result = resource_call(command)
         results.append(result)
         time.sleep(3)
 
         if transcribe_flag:
-            start_time = datetime.datetime.now()
             print(f"Running probe transcribe -i {RECORD_DIR} -o {LOG_FILE}")
-            returncode, rusage, stdout, stderr = resource_call(["probe", "transcribe", "-i", RECORD_DIR, "-o", LOG_FILE], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            end_time = datetime.datetime.now()
-
-            result = Result(
-                rusage=rusage,
-                returncode=returncode,
-                stdout=stdout.decode('utf-8'),
-                stderr=stderr.decode('utf-8'),
-                duration= (end_time - start_time).total_seconds()
-            )
-            results.append(result)
+            transcribe_result = resource_call(["probe", "transcribe", "-i", str(RECORD_DIR), "-o", str(LOG_FILE)])
+            results.append(transcribe_result)
             time.sleep(3)
 
     return results
@@ -161,15 +143,14 @@ def benchmark_with_transcription(commands_to_run: list[str], warmup_count: int, 
 
 if __name__ == "__main__":
     commands = [
-    "ls -l", 
-    "echo Hello World", 
-    "pwd",
-    "gcc hello_world.c -o hello_world && ./hello_world",   
-    "gcc pthreads_example.c -o pthreads_example -lpthread && ./pthreads_example",  
-    "python3 hello_world.py",
-    "date", 
-    "uptime"
-]
+        "ls -l", 
+        "echo Hello World", 
+        "pwd",
+        "gcc hello_world.c -o hello_world && ./hello_world",   
+        "gcc pthreads_example.c -o pthreads_example -lpthread && ./pthreads_example",  
+        "python3 hello_world.py",
+        "date", 
+        "uptime"
+    ]
 
     benchmark_with_transcription(commands, warmup_count=1, benchmark_count=2)
-
