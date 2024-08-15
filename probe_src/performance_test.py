@@ -68,7 +68,7 @@ def benchmark_command(command: list[str], warmup_iterations: int, benchmark_iter
         cleanup()
         proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if proc.returncode != 0:
-            print(f"      Returned non-zero")
+            print("      Returned non-zero")
             print(proc.stdout.decode())
             print(proc.stderr.decode())
 
