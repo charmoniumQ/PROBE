@@ -90,6 +90,7 @@
               python.pkgs.pydot
               python.pkgs.rich
               python.pkgs.typer
+              python.pkgs.xdg-base-dirs
             ];
             pythonImportsCheck = [ pname ];
           };
