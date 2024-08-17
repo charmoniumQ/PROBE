@@ -11,13 +11,13 @@ import typer
 import shutil
 import rich
 from probe_py.generated.parser import parse_probe_log
-import analysis
-import util
+from . import analysis
+from . import util
 import traceback
-import pathlib
 import dataclasses
 import base64
-from persistent_provenance import (
+from typing import Union, Any
+from .persistent_provenance import (
     InodeVersion,
     Inode,
     get_prov_upstream,
@@ -30,8 +30,6 @@ import random
 import pickle
 import datetime
 import json
-
-
 
 rich.traceback.install(show_locals=False)
 
@@ -262,11 +260,11 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
                     remote_home
                     / "process_id_that_wrote_inode_version"
                 )
-                scp_command = [
+                scp_command:list[str] = [
                     "scp",
                     "-P",
                     str(port),
-                    process_id_path,
+                    str(process_id_path),
                     f"{user_name_and_ip}:{remote_process_id_that_wrote_inode_version}",  # Remote file path
                 ]
                 upload_files(scp_command)
@@ -283,7 +281,7 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
                         "scp",
                         "-P",
                         str(port),  # Specify the port
-                        process_path,  # Local file path
+                        str(process_path),  # Local file path
                         f"{user_name_and_ip}:{process_by_id_remote}",  # Remote file path
                     ]
                     upload_files(scp_command)
@@ -326,7 +324,7 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
                 "-P",
                 str(port),  # Specify the port
                 f"{remote_user}@{remote_host}:{process_id_src_inode_path_remote}",  # Remote file path
-                PROCESS_ID_THAT_WROTE_INODE_VERSION,
+                str(PROCESS_ID_THAT_WROTE_INODE_VERSION),
             ]
             upload_files(scp_command)
 
@@ -340,7 +338,7 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
                     "-P",
                     str(port),  # Specify the port
                     f"{remote_user}@{remote_host}:{process_by_id_remote}",
-                    PROCESSES_BY_ID,
+                    str(PROCESSES_BY_ID),
                 ]
                 upload_files(scp_command)
             print("transferred process from src to dest")
@@ -365,9 +363,7 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
             cmd.insert(0, "scp")
             upload_files(cmd)
 
-            dest_inode_version = get_file_info_on_remote(dest_host, dest_file_path, dest_user, port)
-            stat_results = get_stat_results_remote(src_host, src_user, source_file_path, port)
-            dest_inode_metadata = InodeMetadataVersion(dest_inode_version, stat_results)
+            dest_inode_version, dest_inode_metadata = get_file_info_on_remote(dest_host, dest_file_path, dest_user, port)
             process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "remote")
             remote_home_src = pathlib.Path(get_remote_home(src_user, src_host, port))
             remote_home_dest = pathlib.Path(get_remote_home(dest_user, dest_host, port))
@@ -420,12 +416,13 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
                     PROCESS_ID_THAT_WROTE_INODE_VERSION / src_inode_version.str_id()
             )
             if process_id_path.exists():
+
                 scp_command = [
                     "scp",
                     "-P",
                     str(port),
-                    process_id_path,
-                    PROCESS_ID_THAT_WROTE_INODE_VERSION,  # Remote file path
+                    str(process_id_path),
+                    str(PROCESS_ID_THAT_WROTE_INODE_VERSION),  # Remote file path
                 ]
                 upload_files(scp_command)
 
@@ -438,8 +435,8 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
                         "scp",
                         "-P",
                         str(port),
-                        process_path,
-                        PROCESSES_BY_ID,
+                        str(process_path),
+                        str(PROCESSES_BY_ID),
                     ]
                     upload_files(scp_command)
 
@@ -449,7 +446,7 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
         print(str(e))
 
 
-def get_host_and_user(user_name_and_ip:str)->(str, str):
+def get_host_and_user(user_name_and_ip:str)->tuple[str, str]:
     host = user_name_and_ip.split("@")[1]
     user = user_name_and_ip.split("@")[0]
     return host, user
@@ -469,7 +466,7 @@ def create_directories_on_remote(remote_home:pathlib.Path, remote_user:str, remo
         ]
         subprocess.run(mkdir_command, check=True)
 
-def create_local_dest_inode_and_process(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, dest_inode_version:InodeVersion, dest_inode_metadata:InodeMetadataVersion, cmd:list[str]):
+def create_local_dest_inode_and_process(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, dest_inode_version:InodeVersion, dest_inode_metadata:InodeMetadataVersion, cmd:list[str])->None:
     PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
     PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
     PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
@@ -490,7 +487,7 @@ def create_local_dest_inode_and_process(src_inode_version:InodeVersion, src_inod
     with open(scp_process_path, "w") as file:
         file.write(scp_process_json)
 
-def create_remote_dest_inode_and_process(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, remote_home:pathlib.Path, dest_inode_version:InodeVersion, dest_inode_metadata:InodeMetadataVersion, remote_host:str, remote_user:str, port:int, cmd:list[str]):
+def create_remote_dest_inode_and_process(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, remote_home:pathlib.Path, dest_inode_version:InodeVersion, dest_inode_metadata:InodeMetadataVersion, remote_host:str, remote_user:str, port:int, cmd:list[str])->None:
     random_pid = generate_random_pid()
     process_id_remoteinode_path_remote = (
             remote_home
@@ -528,14 +525,14 @@ def get_scp_process(src_inode_version:InodeVersion, src_inode_metadata:InodeMeta
     output_inodes = frozenset([dest_inode_version])
     output_inode_metadata = frozenset([dest_inode_metadata])
     time = datetime.datetime.today()
-    env: tuple[list[str]] = ()
+    env: tuple[tuple[str, str], ...] = ()
     scp_process = Process(
         input_nodes,
         input_inode_metadata,
         output_inodes,
         output_inode_metadata,
         time,
-        cmd,
+        tuple(cmd),
         random_pid,
         env,
         pathlib.Path(),
@@ -556,7 +553,7 @@ def get_stat_results_remote(remote_host:str, username:str, file_path:pathlib.Pat
     except subprocess.CalledProcessError as e:
         raise ValueError(f"Error retrieving stat for {file_path}: {e.stderr.decode()}")
 
-    def convert_to_int(value):
+    def convert_to_int(value:str)->int:
         try:
             # Try to convert using base 10
             return int(value)
@@ -573,7 +570,7 @@ def get_stat_results_remote(remote_host:str, username:str, file_path:pathlib.Pat
 def process_to_json(process: Process) -> str:
     process_dict = dataclasses.asdict(process)
     
-    def custom_serializer(obj):
+    def custom_serializer(obj:object) -> Union[list[str], str, dict[str, Any]]:
         if isinstance(obj, frozenset):
             return list(obj)  # Convert frozenset to list
         elif isinstance(obj, datetime.datetime):
@@ -599,7 +596,7 @@ def generate_random_pid() -> int:
 
 def upload_files(cmd:list[str])->None:
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
         typer.echo("File transfer successful.")
     except subprocess.CalledProcessError as e:
         # Capture and print the error message
@@ -666,11 +663,11 @@ def get_remote_home_env(remote_user: str, remote_host: str, port: int)->str | No
         print(f"Error retrieving XDG_DATA_HOME: {e}")
         return None
 
-def get_file_info_on_local(file_path:pathlib.Path)->(InodeVersion, InodeMetadataVersion):
+def get_file_info_on_local(file_path:pathlib.Path)->tuple[InodeVersion, InodeMetadataVersion]:
     stat_info = os.stat(file_path)
     device_major = os.major(stat_info.st_dev)
     device_minor = os.minor(stat_info.st_dev)
-    inode = stat_info.st_ino
+    inode_val = stat_info.st_ino
     hostname = socket.gethostname()
     ip_address = socket.gethostbyname(hostname)
     packed_ip = socket.inet_aton(ip_address)
@@ -681,7 +678,7 @@ def get_file_info_on_local(file_path:pathlib.Path)->(InodeVersion, InodeMetadata
     mtime = int(mtime_micro_seconds * 1_000_000_000)
 
     size = stat_info.st_size
-    inode = Inode(host, device_major, device_minor, inode)
+    inode = Inode(host, device_major, device_minor, inode_val)
     inode_version = InodeVersion(inode, mtime, size)
     stat_results = os.stat(file_path)
     serialized_stat_results = pickle.dumps(stat_results)
@@ -691,7 +688,7 @@ def get_file_info_on_local(file_path:pathlib.Path)->(InodeVersion, InodeMetadata
     return inode_version, inode_metadata
 
 
-def get_file_info_on_remote(remote_host:str, file_path:pathlib.Path, remote_user:str, port:int) -> (InodeVersion, InodeMetadataVersion):
+def get_file_info_on_remote(remote_host:str, file_path:pathlib.Path, remote_user:str, port:int) -> tuple[InodeVersion, InodeMetadataVersion]:
     command = [
         "ssh",
         f"-p {port}",
@@ -702,11 +699,11 @@ def get_file_info_on_remote(remote_host:str, file_path:pathlib.Path, remote_user
     process = subprocess.run(command, check=True, capture_output=True, text=True)
 
     output = process.stdout.strip()
-    device_hex, inode, size, mtime = output.split()
+    device_hex, str_inode, str_size, str_mtime = output.split()
 
-    inode = int(inode)
-    size = int(size)
-    mtime = int(mtime) * 1_000_000_000
+    inode_val = int(str_inode)
+    size = int(str_size)
+    mtime = int(str_mtime) * 1_000_000_000
 
     # Get host information
     hostname = socket.gethostname()
@@ -726,7 +723,7 @@ def get_file_info_on_remote(remote_host:str, file_path:pathlib.Path, remote_user
     data = json.loads(output)
     device_major = data["device_major"]
     device_minor = data["device_minor"]
-    inode = Inode(host, device_major, device_minor, inode)
+    inode = Inode(host, device_major, device_minor, inode_val)
     inode_version = InodeVersion(inode, mtime, size)
     stat_results = get_stat_results_remote(remote_host, remote_user, file_path, port)
     inode_metadata = InodeMetadataVersion(inode_version, stat_results)

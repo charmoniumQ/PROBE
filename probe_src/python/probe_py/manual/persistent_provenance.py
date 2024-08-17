@@ -6,7 +6,6 @@ import dataclasses
 import pathlib
 import xdg_base_dirs
 
-
 @dataclasses.dataclass(frozen=True)
 class Inode:
     host: int
