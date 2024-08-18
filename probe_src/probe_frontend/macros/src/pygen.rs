@@ -147,7 +147,15 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
     match ty {
         syn::Type::Array(inner) => Ok(format!("list[{}]", convert_to_pytype(inner.elem.as_ref())?)),
         syn::Type::Path(inner) => {
-            let name = crate::type_basename(inner)?.to_string();
+            let inner_ty = crate::type_basename(inner)?;
+            let name = inner_ty.ident.to_string();
+            let generics = match &inner_ty.arguments {
+                syn::PathArguments::None => Vec::new(),
+                syn::PathArguments::AngleBracketed(inner) => {
+                    inner.args.iter().cloned().collect::<Vec<_>>()
+                }
+                syn::PathArguments::Parenthesized(_) => Vec::new(),
+            };
             Ok(match name.as_str() {
                 // that's a lot of ways to say "int", python ints are bigints so we don't have to
                 // care about size
@@ -168,7 +176,36 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
                 // bool types are basically the same everywhere
                 "bool" => name,
 
-                _ => name,
+                _ => {
+                    // no generics means we just pass it through verbatim
+                    if generics.is_empty() {
+                        name
+                    } else {
+                        let generic_types = generics
+                            .iter()
+                            .filter_map(|generic| match generic {
+                                syn::GenericArgument::Type(ty) => Some(convert_to_pytype(ty)),
+                                _ => None,
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        if generic_types.is_empty() {
+                            name
+                        } else {
+                            let py_generics = generic_types.iter().fold(String::new(), |mut acc, generic| {
+                                acc.push_str(generic);
+                                acc.push(',');
+                                acc.push(' ');
+                                acc
+                            });
+
+                            match name.as_str() {
+                                "Vec" => format!("list[{}]", py_generics),
+                                _ => format!("{}[{}]", name, py_generics),
+                            }
+                        }
+                    }
+                }
             })
         }
         _ => Err(quote_spanned! {

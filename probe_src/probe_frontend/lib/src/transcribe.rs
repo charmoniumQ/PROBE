@@ -257,6 +257,7 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
 }
 
 /// this struct represents a `<TID>/data` probe record directory.
+#[derive(Debug)]
 pub struct ArenaContext(pub Vec<DataArena>);
 
 impl ArenaContext {
@@ -271,6 +272,7 @@ impl ArenaContext {
 }
 
 /// This struct represents a single `data/*.dat` file from a probe record directory.
+#[derive(Debug)]
 pub struct DataArena {
     header: ArenaHeader,
     raw: Vec<u8>,

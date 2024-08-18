@@ -46,6 +46,27 @@ impl FfiFrom<*mut i8> for CString {
         try_cstring(*value, ctx)
     }
 }
+impl FfiFrom<*const *mut i8> for Vec<CString> {
+    fn ffi_from(value: &*const *mut i8, ctx: &ArenaContext) -> Result<Self> {
+        let ptr = ctx.try_get_slice(*value as usize).expect("fuck pointers");
+
+        let array = unsafe {
+            core::slice::from_raw_parts(
+                ptr.as_ptr() as *const *const i8,
+                // integer division truncates, which will implicitly align the byte array to the
+                // size of a pointer
+                ptr.len() / std::mem::size_of::<*const i8>(),
+            )
+        };
+
+        array
+            .iter()
+            .take_while(|ptr| !(**ptr).is_null())
+            .map(|ptr| try_cstring(*ptr, ctx))
+            .collect::<Result<Vec<_>>>()
+
+    }
+}
 
 /// Specialized version of [`std::convert::Into`] for working with libprobe arena structs.
 ///
@@ -67,7 +88,7 @@ where
     }
 }
 
-fn try_cstring(str: *const i8, ctx: &ArenaContext) -> Result<CString> {
+fn try_cstring<T>(str: *const T, ctx: &ArenaContext) -> Result<CString> {
     if str.is_null() {
         std::ffi::CString::new("").map_err(|_| ProbeError::MissingNull)
     } else {

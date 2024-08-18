@@ -1,4 +1,5 @@
 use std::{
+    ffi::CString,
     fs::File,
     io::{Read, Write},
     path::Path,
@@ -137,6 +138,18 @@ struct DumpOp {
 // might be able to do some kind of byte iterator approach and evaluate it all lazily
 trait Dump {
     fn dump(&self) -> String;
+}
+
+impl Dump for Vec<CString> {
+    fn dump(&self) -> String {
+        let mut ret = "[ ".to_owned();
+        for cstr in self {
+            ret.push_str(&format!("\"{}\", ", cstr.to_string_lossy()))
+        }
+        ret.push(']');
+
+        ret
+    }
 }
 
 impl Dump for ops::StatxTimestamp {
@@ -285,7 +298,13 @@ impl Dump for ops::ChdirOp {
 
 impl Dump for ops::ExecOp {
     fn dump(&self) -> String {
-        format!("[ path={}, errno={}, argv={}, env={} ]", self.path.dump(), self.ferrno, self.argv, self.env)
+        format!(
+            "[ path={}, errno={}, argv={}, env={} ]",
+            self.path.dump(),
+            self.ferrno,
+            self.argv.dump(),
+            self.env.dump()
+        )
     }
 }
 
