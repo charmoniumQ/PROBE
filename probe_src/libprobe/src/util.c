@@ -295,7 +295,7 @@ static char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * a
 
     for (size_t i = 0; i < *argc; ++i) {
         size_t length = strlen(argv[i]);
-        argv_copy[i] = arena_calloc(arena_dir, length, sizeof(char));
+        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
         memcpy(argv_copy[i], argv[i], length + 1);
         assert(!argv_copy[i][length]);
     }
