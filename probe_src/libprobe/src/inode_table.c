@@ -40,25 +40,31 @@ struct InodeL3 {
 };
 
 struct InodeL2 {
-    struct InodeL3* table[l2_length]; // bits 26 -- 39
+    struct InodeL3* table[l2_length];
+
+    pthread_rwlock_t lock; // bits 26 -- 39
 };
 
 struct InodeL1 {
     struct InodeL2* table[l1_length]; // bits 13 -- 26
+    pthread_rwlock_t lock;
 };
 
 struct InodeL0 {
     struct InodeL1* table[l0_length]; // bits 0 -- 13
+    pthread_rwlock_t lock;
 };
 
 #define device_minors_length 256
 struct DeviceMinorTable {
     struct InodeL0* table[device_minors_length];
+    pthread_rwlock_t lock;
 };
 
 #define device_majors_length 256
 struct DeviceMajorTable {
     struct DeviceMinorTable table[device_majors_length];
+    pthread_rwlock_t lock;
 };
 
 bool contains(struct DeviceMajorTable* majors, struct Path* path) {
