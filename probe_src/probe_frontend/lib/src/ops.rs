@@ -67,7 +67,6 @@ impl FfiFrom<*const *mut i8> for Vec<CString> {
             .take_while(|ptr| !(**ptr).is_null())
             .map(|ptr| try_cstring(*ptr, ctx))
             .collect::<Result<Vec<_>>>()
-
     }
 }
 

@@ -192,12 +192,15 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
                         if generic_types.is_empty() {
                             name
                         } else {
-                            let py_generics = generic_types.iter().fold(String::new(), |mut acc, generic| {
-                                acc.push_str(generic);
-                                acc.push(',');
-                                acc.push(' ');
-                                acc
-                            });
+                            let py_generics =
+                                generic_types
+                                    .iter()
+                                    .fold(String::new(), |mut acc, generic| {
+                                        acc.push_str(generic);
+                                        acc.push(',');
+                                        acc.push(' ');
+                                        acc
+                                    });
 
                             match name.as_str() {
                                 "Vec" => format!("list[{}]", py_generics),
