@@ -48,7 +48,10 @@ impl FfiFrom<*mut i8> for CString {
 }
 impl FfiFrom<*const *mut i8> for Vec<CString> {
     fn ffi_from(value: &*const *mut i8, ctx: &ArenaContext) -> Result<Self> {
-        let ptr = ctx.try_get_slice(*value as usize).expect("fuck pointers");
+        let ptr = match ctx.try_get_slice(*value as usize) {
+            Some(x) => x,
+            None => return Err(ProbeError::InvalidPointer(*value as usize)),
+        };
 
         let array = unsafe {
             core::slice::from_raw_parts(
