@@ -21,6 +21,8 @@ use std::vec::Vec;
 ///
 /// - `*mut i8` and `*const i8` can (try to) be converted to [`CString`]s by looking up the
 ///   pointers in the [`ArenaContext`],
+/// - `*const *mut i8` can (try to) be converted into [`Vec<CString>`]s by looking up the pointers
+///   in the [`ArenaContext`],
 /// - Any type implementing [`Copy`], this base case just returns itself.
 pub trait FfiFrom<T> {
     fn ffi_from(value: &T, ctx: &ArenaContext) -> Result<Self>
@@ -64,6 +66,9 @@ impl FfiFrom<*const *mut i8> for Vec<CString> {
 
         array
             .iter()
+            // the entire slice is valid memory (no risk of segfaults), but try_get_slice() just
+            // returns all the bytes from the pointer to the end of the arena, but only the data up
+            // until the first null pointer are valid *const i8 pointers.
             .take_while(|ptr| !(**ptr).is_null())
             .map(|ptr| try_cstring(*ptr, ctx))
             .collect::<Result<Vec<_>>>()
@@ -90,7 +95,7 @@ where
     }
 }
 
-fn try_cstring<T>(str: *const T, ctx: &ArenaContext) -> Result<CString> {
+fn try_cstring(str: *const i8, ctx: &ArenaContext) -> Result<CString> {
     if str.is_null() {
         std::ffi::CString::new("").map_err(|_| ProbeError::MissingNull)
     } else {

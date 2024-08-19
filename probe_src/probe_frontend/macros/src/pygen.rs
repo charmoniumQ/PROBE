@@ -177,7 +177,8 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
                 "bool" => name,
 
                 _ => {
-                    // no generics means we just pass it through verbatim
+                    // no generics means we just pass it through verbatim, this includes things
+                    // like dataclass types
                     if generics.is_empty() {
                         name
                     } else {
@@ -190,8 +191,14 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
                             .collect::<Result<Vec<_>, _>>()?;
 
                         if generic_types.is_empty() {
+                            // if there are no type generics on a type, that means that it has
+                            // constant or lifetime generics that aren't applicable to python, so
+                            // we just ignore them
                             name
                         } else {
+                            // NOTE: this does result in generic types in the generated file(s)
+                            // having a trailing comma, which *will* show up in type annotations
+                            // for things like class constructors, as those are stored as strings.
                             let py_generics =
                                 generic_types
                                     .iter()
@@ -203,7 +210,12 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
                                     });
 
                             match name.as_str() {
+                                // a rust vec is basically a list in python
                                 "Vec" => format!("list[{}]", py_generics),
+
+                                // Any type we don't know about gets passed through verbatim.
+                                // FIXME: this is really fragile, consider throwing a compiler
+                                // error instead.
                                 _ => format!("{}[{}]", name, py_generics),
                             }
                         }
