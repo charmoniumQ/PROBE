@@ -40,6 +40,7 @@
     - [ ] Move tests to root level?
     - [ ] Distinguish between unit-tests and end-to-end tests
     - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
+    - [ ] Use Clang's non-null attribute.
 - [ ] Write remote script wrappers
   - [ ] Write an SSH wrapper. Asif and Shofiya are working on this.
     - [ ] There should be a shell script named `ssh` that calls `./PROBE ssh <args...>`.

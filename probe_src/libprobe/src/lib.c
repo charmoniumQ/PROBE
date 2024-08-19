@@ -68,6 +68,8 @@ static __thread bool __thread_inited = false;
 #define ARENA_PERROR
 #include "../arena/include/arena.h"
 
+#include "inode_table.c"
+
 #include "global_state.c"
 
 #include "prov_ops.c"

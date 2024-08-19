@@ -79,6 +79,7 @@ class Path:
     inode: int
     mtime: StatxTimestamp
     ctime: StatxTimestamp
+    size: int
     stat_valid: bool
     dirfd_valid: bool
 

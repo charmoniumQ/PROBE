@@ -26,7 +26,7 @@ bool op_is_overwrite(struct Op op) {
 int copy(const struct Path* path) {
     static char dst_path[PATH_MAX];
     path_to_id_string(path, dst_path);
-    return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, get_archive_dirfd(), dst_path, path->size);
+    return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, get_inodes_dirfd(), dst_path, path->size);
 }
 
 /*
@@ -48,13 +48,13 @@ static void prov_log_try(struct Op op) {
     if (path->path) {
         if (false) {
         } else if (op_is_read(op)) {
-            put_if_not_exists(read_inodes, path);
+            inode_table_put_if_not_exists(&read_inodes, path);
         } else if (op_is_write(op)) {
-            if (contains(read_inodes, path) && put_if_not_exists(copied_or_overwritten_inodes, path)) {
+            if (inode_table_contains(&read_inodes, path) && inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
                 DEBUG("Copying %s", path->path);
                 copy(path);
             } else if (op_is_overwrite(op)) {
-                put_if_not_exists(copied_or_overwritten_inodes, path);
+                inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path);
             }
         }
     }

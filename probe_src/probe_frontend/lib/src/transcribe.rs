@@ -32,25 +32,42 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 
     let start = SystemTime::now();
 
-    let count = fs::read_dir(in_dir)
+    let pids_out_dir = out_dir.as_ref().join("pids");
+    fs::create_dir(&pids_out_dir).wrap_err("Failed to create pids directory")?;
+
+    let ops_count = fs::read_dir(in_dir.as_ref().join("pids"))
         .wrap_err("Error opening record directory")?
         .par_bridge()
         .map(|x| {
             parse_pid(
                 x.wrap_err("Error reading DirEntry from record directory")?
                     .path(),
-                &out_dir,
+                &pids_out_dir,
             )
         })
         .try_fold(|| 0usize, |acc, x| x.map(|x| acc + x))
         .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
 
+    let inodes_in_dir = in_dir.as_ref().join("inodes");
+    let inodes_out_dir = out_dir.as_ref().join("inodes");
+    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create pids directory")?;
+    let inode_count = fs::read_dir(inodes_in_dir.clone())
+        .wrap_err("Error opening inodes directory")?
+        .par_bridge()
+        .map(|inode_contents| {
+            let name = inode_contents.wrap_err("Error reading from inodes directory")?.file_name();
+            fs::hard_link(inodes_in_dir.join(name.clone()), inodes_out_dir.join(name)).wrap_err("Error hardlinking inode")?;
+            Ok(1usize)
+        })
+        .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
+        .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
+
     match SystemTime::now().duration_since(start) {
-        Ok(x) => log::info!("Processed {} Ops in {:.3} seconds", count, x.as_secs_f32()),
+        Ok(x) => log::info!("Processed {} Ops and {} inodes in {:.3} seconds", ops_count, inode_count, x.as_secs_f32()),
         Err(_) => log::error!("Processing arena dir took negative time"),
     };
 
-    Ok(count)
+    Ok(ops_count)
 }
 
 /// Recursively parse a probe record PID directory and write it as a probe log PID directory.
@@ -67,7 +84,7 @@ pub fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         path
     };
 
-    fs::create_dir(&dir).wrap_err("Failed to create ExecEpoch output directory")?;
+    fs::create_dir(&dir).wrap_err("Failed to create PID directory")?;
 
     fs::read_dir(in_dir)
         .wrap_err("Error opening PID directory")?
