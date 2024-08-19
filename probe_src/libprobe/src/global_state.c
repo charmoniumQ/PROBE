@@ -118,7 +118,7 @@ static int mkdir_and_descend(int my_dirfd, long child, bool mkdir, bool close) {
 
 static const int invalid_dirfd = -1;
 static int __epoch_dirfd = invalid_dirfd;
-static int __archive_dirfd = invalid_dirfd;
+static int __inodes_dirfd = invalid_dirfd;
 static const char* probe_dir_env_var = PRIVATE_ENV_VAR_PREFIX "DIR";
 static char __probe_dir[PATH_MAX + 1];
 static void init_probe_dir() {
@@ -144,14 +144,21 @@ static void init_probe_dir() {
 
     DEBUG("probe_dir = \"%s\"", __probe_dir);
 
-    int mkdir_ret = unwrapped_mkdirat(probe_dirfd, "archive", 0777);
+    int mkdir_ret = unwrapped_mkdirat(probe_dirfd, "inodes", 0777);
     if (mkdir_ret != 0 && errno != EEXIST) {
-        ERROR("Cannot mkdir %s/archive: %s", dirfd_path(probe_dirfd), strerror(errno));
+        ERROR("Cannot mkdir %s/inodes: %s", dirfd_path(probe_dirfd), strerror(errno));
     }
-    __archive_dirfd = unwrapped_openat(probe_dirfd, "archive", O_RDONLY | O_DIRECTORY);
-    assert(__archive_dirfd > 0);
+    __inodes_dirfd = unwrapped_openat(probe_dirfd, "inodes", O_RDONLY | O_DIRECTORY);
+    assert(__inodes_dirfd > 0);
 
-    int pid_dirfd = mkdir_and_descend(probe_dirfd, getpid(), get_exec_epoch() == 0, true);
+    mkdir_ret = unwrapped_mkdirat(probe_dirfd, "pids", 0777);
+    if (mkdir_ret != 0 && errno != EEXIST) {
+        ERROR("Cannot mkdir %s/pids: %s", dirfd_path(probe_dirfd), strerror(errno));
+    }
+    int __pids_dirfd = unwrapped_openat(probe_dirfd, "pids", O_RDONLY | O_DIRECTORY);
+    assert(__pids_dirfd > 0);
+
+    int pid_dirfd = mkdir_and_descend(__pids_dirfd, getpid(), get_exec_epoch() == 0, true);
     __epoch_dirfd = mkdir_and_descend(pid_dirfd, get_exec_epoch(), my_gettid() == getpid(), true);
     DEBUG("__epoch_dirfd=%d (%s/%d/%d)", __epoch_dirfd, __probe_dir, getpid(), get_exec_epoch());
 }
@@ -159,9 +166,9 @@ static int get_epoch_dirfd() {
     assert(fd_is_valid(__epoch_dirfd));
     return __epoch_dirfd;
 }
-static int get_archive_dirfd() {
-    assert(fd_is_valid(__archive_dirfd));
-    return __archive_dirfd;
+static int get_inodes_dirfd() {
+    assert(fd_is_valid(__inodes_dirfd));
+    return __inodes_dirfd;
 }
 
 static __thread struct ArenaDir __op_arena = { 0 };
@@ -184,14 +191,18 @@ static struct ArenaDir* get_data_arena() {
     return &__data_arena;
 }
 
+struct InodeTable read_inodes;
+struct InodeTable copied_or_overwritten_inodes;
+
 /**
  * Aggregate functions;
  * These functions call the init_* functions above */
-
 static void init_process_global_state() {
     init_is_proc_root();
     init_exec_epoch();
     init_probe_dir();
+    inode_table_init(&read_inodes);
+    inode_table_init(&copied_or_overwritten_inodes);
 }
 
 static void init_thread_global_state() {

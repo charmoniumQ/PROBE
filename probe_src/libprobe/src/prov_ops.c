@@ -113,7 +113,6 @@ static void free_op(struct Op op) {
 }
 */
 
-#ifndef NDEBUG
 static const struct Path* op_to_path(const struct Op* op) {
     switch (op->op_code) {
         case open_op_code: return &op->data.open.path;
@@ -127,6 +126,7 @@ static const struct Path* op_to_path(const struct Op* op) {
             return &null_path;
     }
 }
+#ifndef NDEBUG
 static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
         case init_process_op_code: return "init_process";

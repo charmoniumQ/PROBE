@@ -56,6 +56,7 @@ Core tests:
     - [x] Verify that the first child process has ExecOp, OpenOp (path should be `a`), and CloseOp. Analogously check the second child process.
   - [x] Verify that this doesn't crash `sh -c "sh -c 'cat a ; cat b' ; sh -c 'cat d ; cat e'"` (in the past it did)
   - [x] Continue along these lines one or two more cases.
+
 - [ ] Set up CI
   - [x] Write [Justfiles](https://github.com/casey/just). Each of the following should be a target:
     - [x] Format Nix code with alejandra.

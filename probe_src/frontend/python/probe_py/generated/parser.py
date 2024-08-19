@@ -38,11 +38,13 @@ def parse_probe_log(probe_log: pathlib.Path) -> ProvLog:
 
         # extract and name the hierarchy components
         parts = item.name.split("/")
-        if len(parts) != 3:
-            raise ValueError("malformed probe log")
-        pid: int = int(parts[0])
-        epoch: int = int(parts[1])
-        tid: int = int(parts[2])
+        if parts[0] != "pids":
+            continue
+        if len(parts) != 4:
+            raise RuntimeError("Invalid probe_log")
+        pid: int = int(parts[1])
+        epoch: int = int(parts[2])
+        tid: int = int(parts[3])
 
         # ensure necessary dict objects have been created
         if pid not in op_map:
