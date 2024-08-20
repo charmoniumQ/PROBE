@@ -77,8 +77,11 @@ def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
 
     constructor = ops.__dict__[ty]
 
+    # HACK: convert jsonlines' lists of integers into python byte types
     for ident, ty in constructor.__annotations__.items():
         if ty == "bytes" and ident in json_map:
             json_map[ident] = bytes(json_map[ident])
+        if ty == "list[bytes,]" and ident in json_map:
+            json_map[ident] = [bytes(x) for x in json_map[ident]]
 
     return constructor(**json_map)

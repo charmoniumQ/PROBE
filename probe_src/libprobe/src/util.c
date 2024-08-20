@@ -159,12 +159,12 @@ extern char** environ;
 
 static const char* getenv_copy(const char* name) {
     /* Validate input */
-    assert(name != NULL);
+    assert(name);
     assert(strchr(name, '=') == NULL);
-    assert(name[0] != '\0');
+    assert(name[0]);
     assert(environ);
     size_t name_len = strlen(name);
-    for (char **ep = environ; *ep != NULL; ++ep) {
+    for (char **ep = environ; *ep; ++ep) {
         if (unlikely(strncmp(name, *ep, name_len) == 0) && likely((*ep)[name_len] == '=')) {
             return *ep + name_len + 1;
         }
@@ -226,7 +226,7 @@ static OWNED const char* dirfd_path(int dirfd) {
  * -1 is never a valid fd because it's the error value for syscalls that return fds, so we can do the same.
  */
 static int try_dirfd(BORROWED DIR* dirp) {
-    return (dirp != NULL) ? (dirfd(dirp)) : (-1);
+    return dirp ? (dirfd(dirp)) : (-1);
 }
 
 #ifndef NDEBUG
@@ -242,7 +242,7 @@ static void listdir(const char* name, int indent) {
     if (!(dir = unwrapped_opendir(name)))
         return;
 
-    while ((entry = unwrapped_readdir(dir)) != NULL) {
+    while ((entry = unwrapped_readdir(dir))) {
         if (entry->d_type == DT_DIR) {
             char path[1024];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -262,10 +262,10 @@ static void listdir(const char* name, int indent) {
 /* strtol in libc is not totally static;
  * It is defined itself as a static function, but that static code calls some dynamically loaded function.
  * This would be fine, except some older versions of glibc may not have the deynamic function. */
-unsigned long my_strtoul(const char *restrict string, char **restrict string_end, int base) {
+static unsigned long my_strtoul(const char *restrict string, char **restrict string_end, int base) {
     unsigned long accumulator = 0;
     const char* ptr = string;
-    while (*ptr != '\0') {
+    while (*ptr) {
         if ('0' <= *ptr && *ptr < ('0' + base)) {
             accumulator = accumulator * base + (*ptr - '0');
         } else {
@@ -277,4 +277,31 @@ unsigned long my_strtoul(const char *restrict string, char **restrict string_end
         *string_end = (char*) ptr;
     }
     return accumulator;
+}
+
+/* Copy char* const argv[] into the arena.
+ * If argc argument is 0, compute argc and store there (if the size actually was zero, this is no bug).
+ * If argc argument is positive, assume that is the argc.
+ * */
+static char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * argv, size_t* argc) {
+    if (*argc == 0) {
+        /* Compute argc and store in *argc */
+        for (char * const* argv_p = argv; *argv_p; ++argv_p) {
+            (*argc)++;
+        }
+    }
+
+    char** argv_copy = arena_calloc(arena_dir, *argc + 1, sizeof(char*));
+
+    for (size_t i = 0; i < *argc; ++i) {
+        size_t length = strlen(argv[i]);
+        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
+        memcpy(argv_copy[i], argv[i], length + 1);
+        assert(!argv_copy[i][length]);
+    }
+
+    assert(!argv[*argc]);
+    argv_copy[*argc] = NULL;
+
+    return argv_copy;
 }

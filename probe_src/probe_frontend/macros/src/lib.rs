@@ -20,10 +20,10 @@ type MacroResult<T> = Result<T, TokenStream>;
 /// - contain only types that implement `FfiFrom` (defined in probe_frontend, see ops module for
 ///   details).
 ///
-/// In will generate a struct with the following characteristics:
+/// It will generate a struct with the following characteristics:
 ///
 /// - same name, but without the `C_` prefix, and converted from snake_case to PascalCase.
-/// - any field in the original struct starting with `__` is ignored.
+/// - any field in the original struct starting with `__spare` or `__reserved` is ignored.
 /// - any field in the original struct starting with `ru_`, `tv_`, or `stx_` will have that prefix
 ///   removed.
 /// - derives serde's `Serialize`, `Deserialize` traits.
@@ -175,14 +175,20 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
 
 fn convert_bindgen_type(ty: &syn::Type) -> MacroResult<syn::Type> {
     match ty {
-        syn::Type::Ptr(_inner) => Ok(parse_quote!(::std::ffi::CString)),
+        // single pointers are treated as recorded as null-terminated byte-strings (as CString),
+        // double pointers are treated as null-terminated arrays of null-terminated byte-strings
+        // (as Vec<CString>).
+        syn::Type::Ptr(inner) => Ok(match inner.elem.as_ref() {
+            syn::Type::Ptr(_inner) => parse_quote!(::std::vec::Vec<::std::ffi::CString>),
+            _ => parse_quote!(::std::ffi::CString),
+        }),
         syn::Type::Array(inner) => {
             let mut new = inner.clone();
             new.elem = Box::new(convert_bindgen_type(&new.elem)?);
             Ok(Type::Array(new))
         }
         syn::Type::Path(inner) => {
-            if let Some(name) = type_basename(inner)?.to_string().strip_prefix("C_") {
+            if let Some(name) = type_basename(inner)?.ident.to_string().strip_prefix("C_") {
                 let name = snake_case_to_pascal(name);
                 let name = Ident::new(&name, Span::mixed_site());
                 Ok(parse_quote!(#name))
@@ -198,7 +204,7 @@ fn convert_bindgen_type(ty: &syn::Type) -> MacroResult<syn::Type> {
     }
 }
 
-fn type_basename(ty: &syn::TypePath) -> MacroResult<&syn::Ident> {
+fn type_basename(ty: &syn::TypePath) -> MacroResult<&syn::PathSegment> {
     if let Some(qself) = &ty.qself {
         return Err(quote_spanned! {
             qself.span() =>
@@ -208,7 +214,7 @@ fn type_basename(ty: &syn::TypePath) -> MacroResult<&syn::Ident> {
     }
 
     match ty.path.segments.last() {
-        Some(x) => Ok(&x.ident),
+        Some(x) => Ok(x),
         None => Err(quote_spanned! {
             ty.path.segments.span() =>
             compile_error!("Type path has no segments");

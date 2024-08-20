@@ -7,6 +7,7 @@ use crate::transcribe::ArenaContext;
 use probe_macros::{MakeRustOp, PygenDataclass};
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
+use std::vec::Vec;
 
 /// Specialized version of [`std::convert::From`] for working with libprobe arena structs.
 ///
@@ -20,6 +21,8 @@ use std::ffi::CString;
 ///
 /// - `*mut i8` and `*const i8` can (try to) be converted to [`CString`]s by looking up the
 ///   pointers in the [`ArenaContext`],
+/// - `*const *mut i8` can (try to) be converted into [`Vec<CString>`]s by looking up the pointers
+///   in the [`ArenaContext`],
 /// - Any type implementing [`Copy`], this base case just returns itself.
 pub trait FfiFrom<T> {
     fn ffi_from(value: &T, ctx: &ArenaContext) -> Result<Self>
@@ -43,6 +46,32 @@ impl FfiFrom<*mut i8> for CString {
     #[inline]
     fn ffi_from(value: &*mut i8, ctx: &ArenaContext) -> Result<Self> {
         try_cstring(*value, ctx)
+    }
+}
+impl FfiFrom<*const *mut i8> for Vec<CString> {
+    fn ffi_from(value: &*const *mut i8, ctx: &ArenaContext) -> Result<Self> {
+        let ptr = match ctx.try_get_slice(*value as usize) {
+            Some(x) => x,
+            None => return Err(ProbeError::InvalidPointer(*value as usize)),
+        };
+
+        let array = unsafe {
+            core::slice::from_raw_parts(
+                ptr.as_ptr() as *const *const i8,
+                // integer division truncates, which will implicitly align the byte array to the
+                // size of a pointer
+                ptr.len() / std::mem::size_of::<*const i8>(),
+            )
+        };
+
+        array
+            .iter()
+            // the entire slice is valid memory (no risk of segfaults), but try_get_slice() just
+            // returns all the bytes from the pointer to the end of the arena, but only the data up
+            // until the first null pointer are valid *const i8 pointers.
+            .take_while(|ptr| !(**ptr).is_null())
+            .map(|ptr| try_cstring(*ptr, ctx))
+            .collect::<Result<Vec<_>>>()
     }
 }
 

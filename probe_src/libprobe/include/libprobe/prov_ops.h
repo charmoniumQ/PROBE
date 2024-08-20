@@ -52,6 +52,10 @@ struct ChdirOp {
 struct ExecOp {
     struct Path path;
     int ferrno;
+    size_t argc;
+    char * const* argv;
+    size_t envc;
+    char * const* env;
 };
 
 enum TaskType {

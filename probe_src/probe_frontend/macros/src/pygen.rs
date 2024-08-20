@@ -147,7 +147,15 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
     match ty {
         syn::Type::Array(inner) => Ok(format!("list[{}]", convert_to_pytype(inner.elem.as_ref())?)),
         syn::Type::Path(inner) => {
-            let name = crate::type_basename(inner)?.to_string();
+            let inner_ty = crate::type_basename(inner)?;
+            let name = inner_ty.ident.to_string();
+            let generics = match &inner_ty.arguments {
+                syn::PathArguments::None => Vec::new(),
+                syn::PathArguments::AngleBracketed(inner) => {
+                    inner.args.iter().cloned().collect::<Vec<_>>()
+                }
+                syn::PathArguments::Parenthesized(_) => Vec::new(),
+            };
             Ok(match name.as_str() {
                 // that's a lot of ways to say "int", python ints are bigints so we don't have to
                 // care about size
@@ -168,7 +176,51 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
                 // bool types are basically the same everywhere
                 "bool" => name,
 
-                _ => name,
+                _ => {
+                    // no generics means we just pass it through verbatim, this includes things
+                    // like dataclass types
+                    if generics.is_empty() {
+                        name
+                    } else {
+                        let generic_types = generics
+                            .iter()
+                            .filter_map(|generic| match generic {
+                                syn::GenericArgument::Type(ty) => Some(convert_to_pytype(ty)),
+                                _ => None,
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        if generic_types.is_empty() {
+                            // if there are no type generics on a type, that means that it has
+                            // constant or lifetime generics that aren't applicable to python, so
+                            // we just ignore them
+                            name
+                        } else {
+                            // NOTE: this does result in generic types in the generated file(s)
+                            // having a trailing comma, which *will* show up in type annotations
+                            // for things like class constructors, as those are stored as strings.
+                            let py_generics =
+                                generic_types
+                                    .iter()
+                                    .fold(String::new(), |mut acc, generic| {
+                                        acc.push_str(generic);
+                                        acc.push(',');
+                                        acc.push(' ');
+                                        acc
+                                    });
+
+                            match name.as_str() {
+                                // a rust vec is basically a list in python
+                                "Vec" => format!("list[{}]", py_generics),
+
+                                // Any type we don't know about gets passed through verbatim.
+                                // FIXME: this is really fragile, consider throwing a compiler
+                                // error instead.
+                                _ => format!("{}[{}]", name, py_generics),
+                            }
+                        }
+                    }
+                }
             })
         }
         _ => Err(quote_spanned! {
