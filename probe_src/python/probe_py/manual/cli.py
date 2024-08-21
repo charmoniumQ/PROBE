@@ -9,7 +9,7 @@ import pathlib
 import typer
 import shutil
 import rich
-from probe_src.probe_frontend.python.probe_py.generated.parser import parse_probe_log
+from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual import util
 
