@@ -72,7 +72,7 @@ def get_prov_upstream(root_inode_version: InodeVersion, host:str) -> tuple[typin
     The answer is a set of Process objects and a map of InodeVersion writes.
     """
     if host != "local":
-        raise Exception("get_prov_upstream does not support remote host")
+        raise NotImplementedError("scp where source is remote is not implemented, because it would be hard to copy the remote prov")
     inode_version_queue = list[InodeVersion]()
     inode_version_queue.append(root_inode_version)
 
