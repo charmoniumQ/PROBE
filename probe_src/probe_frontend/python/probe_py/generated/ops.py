@@ -129,6 +129,10 @@ class ChdirOp:
 class ExecOp:
     path: Path
     ferrno: int
+    argc: int
+    argv: list[bytes, ]
+    envc: int
+    env: list[bytes, ]
 
 
 @dataclass(init=True, frozen=True)

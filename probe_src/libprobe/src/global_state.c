@@ -210,7 +210,7 @@ static void reinit_thread_global_state() {
     init_log_arena();
 }
 
-static char* const* update_env_with_probe_vars(char* const* user_env) {
+static char* const* update_env_with_probe_vars(char* const* user_env, size_t* updated_env_size) {
     /* Define env vars we care about */
     const char* probe_vars[] = {
         is_proc_root_env_var,
@@ -254,15 +254,15 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
     }
 
     /* Allocate a new env, based on the user's requested env, with our probe vars */
-    char** new_env = malloc((user_env_size + probe_var_count + 1) * sizeof(char*));
-    if (!new_env) {
+    char** updated_env = malloc((user_env_size + probe_var_count + 1) * sizeof(char*));
+    if (!updated_env) {
         ERROR("Out of mem");
     }
 
     /* Copy user's env to new env
      * Clear out existence of probe_vars, if they happen to exist in the user's requested env.
      * */
-    size_t new_env_size = 0;
+    *updated_env_size = 0;
     for (char* const* ep = user_env; *ep; ++ep) {
         bool is_probe_var = false;
         for (size_t i = 0; i < probe_var_count; ++i) {
@@ -272,8 +272,8 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
             }
         }
         if (!is_probe_var) {
-            new_env[new_env_size] = *ep;
-            new_env_size++;
+            updated_env[*updated_env_size] = *ep;
+            (*updated_env_size)++;
         }
     }
 
@@ -281,40 +281,12 @@ static char* const* update_env_with_probe_vars(char* const* user_env) {
      * Now add our _desired_ versions of the probe vars we care about.
      */
     for (size_t i = 0; i < probe_var_count; ++i) {
-        new_env[new_env_size + i] = probe_entries[i];
+        updated_env[*updated_env_size] = probe_entries[i];
+        (*updated_env_size)++;
     }
 
     /* Top it off with a NULL */
-    new_env[new_env_size + probe_var_count] = NULL;
+    updated_env[*updated_env_size] = NULL;
 
-    return new_env;
-}
-
-static void putenv_probe_vars() {
-    /* TODO: We shouldn't doo this.
-     * Because it makes observable changes to the parent process.
-     * Instead, we should turn execv into execve and use update_env_with_probe_vars(copy(environ)). */
-
-    /* Define env vars we care about */
-    const char* probe_vars[] = {
-        is_proc_root_env_var,
-        exec_epoch_env_var,
-        pid_env_var,
-        probe_dir_env_var,
-    };
-    char exec_epoch_str[unsigned_int_string_size];
-    CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());
-    char pid_str[unsigned_int_string_size];
-    CHECK_SNPRINTF(pid_str, unsigned_int_string_size, "%d", getpid());
-    const char* probe_vals[] = {
-        "0",
-        exec_epoch_str,
-        pid_str,
-        __probe_dir,
-    };
-    const size_t probe_var_count = sizeof(probe_vars) / sizeof(char*);
-
-    for (size_t i = 0; i < probe_var_count; ++i) {
-        setenv(probe_vars[i], probe_vals[i], 1 /* overwrite*/);
-    }
+    return updated_env;
 }

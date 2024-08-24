@@ -1607,23 +1607,35 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        putenv_probe_vars();
+        size_t argc = -1;
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
             0,
         };
+        op.data.exec.argc = argc;
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
         } else {
             prov_log_save();
         }
+    });
+    void* call = ({
+        int ret = unwrapped_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         /*
@@ -1641,6 +1653,7 @@ int execv (const char *filename, char *const argv[]) {
          *   There must have been an error
          * }
          * */
+        free((char**) updated_env);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1650,12 +1663,28 @@ int execv (const char *filename, char *const argv[]) {
 }
 int execl (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
-        putenv_probe_vars();
+        size_t argc = COUNT_NONNULL_VARARGS(arg0);
+        char** argv = malloc((argc + 1) * sizeof(char*));
+        va_list ap;
+        va_start(ap, arg0);
+        for (size_t i = 0; i < argc; ++i) {
+            argv[i] = va_arg(ap, __type_charp);
+        }
+        va_end(ap);
+        argv[argc] = NULL;
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
@@ -1668,7 +1697,12 @@ int execl (const char *filename, const char *arg0, ...) {
             prov_log_save();
         }
     });
+    void* call = ({
+        int ret = unwrapped_execvpe(filename, argv, updated_env);
+    });
     void* post_call = ({
+        free((char**) updated_env);
+        free((char**) argv);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1679,12 +1713,20 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        env = update_env_with_probe_vars(env);
+        size_t argc = 0;
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
@@ -1696,10 +1738,12 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         } else {
             prov_log_save();
         }
-        DEBUG("in Execve");
+    });
+    void* call = ({
+        int ret = unwrapped_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
-        free((char**) env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
+        free((char**) updated_env);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1709,12 +1753,20 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        env = update_env_with_probe_vars(env);
+        size_t argc = 0;
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
@@ -1727,8 +1779,11 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
             prov_log_save();
         }
     });
+    void* call = ({
+        int ret = unwrapped_fexecve(fd, argv, updated_env);
+    });
     void* post_call = ({
-        free((char**) env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
+        free((char**) updated_env);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1738,11 +1793,29 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
 }
 int execle (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
+        size_t argc = COUNT_NONNULL_VARARGS(arg0) - 1;
+        char** argv = malloc((argc + 1) * sizeof(char*));
+        va_list ap;
+		va_start(ap, arg0);
+        for (size_t i = 0; i < argc; ++i) {
+            argv[i] = va_arg(ap, __type_charp);
+        }
+        argv[argc] = NULL;
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char** env = va_arg(ap, __type_charpp);
+        va_end(ap);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
@@ -1757,20 +1830,11 @@ int execle (const char *filename, const char *arg0, ...) {
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     void* call = ({
-        size_t argc = COUNT_NONNULL_VARARGS(arg0);
-        char** arg_vec = malloc(argc * sizeof(char*));
-        va_list ap;
-		va_start(ap, arg0);
-        for (size_t i = 0; i < argc - 1; ++i) {
-            arg_vec[i] = va_arg(ap, __type_charp);
-        }
-        char** env = va_arg(ap, __type_charpp);
-        va_end(ap);
-        char * const* updated_env = update_env_with_probe_vars(env);
-        int ret = unwrapped_execve(filename, arg_vec, updated_env);
+        int ret = unwrapped_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**)updated_env);
+        free((char**)argv);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1781,9 +1845,13 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        putenv_probe_vars();
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
+        size_t argc = 0;
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -1792,6 +1860,10 @@ int execvp (const char *filename, char *const argv[]) {
                  * */
                 .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
@@ -1804,7 +1876,11 @@ int execvp (const char *filename, char *const argv[]) {
             prov_log_save();
         }
     });
+    void* call = ({
+        int ret = unwrapped_execvpe(filename, argv, updated_env);
+    });
     void* post_call = ({
+        free((char**) updated_env);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1815,9 +1891,21 @@ int execvp (const char *filename, char *const argv[]) {
 int execlp (const char *filename, const char *arg0, ...) {
     size_t varargs_size = sizeof(char*) + (COUNT_NONNULL_VARARGS(arg0) + 1) * sizeof(char*);
     void* pre_call = ({
-        putenv_probe_vars();
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
+        size_t argc = COUNT_NONNULL_VARARGS(arg0);
+        char** argv = malloc((argc + 1) * sizeof(char*));
+        va_list ap;
+		va_start(ap, arg0);
+        for (size_t i = 0; i < argc; ++i) {
+            argv[i] = va_arg(ap, __type_charp);
+        }
+        argv[argc] = NULL;
+        va_end(ap);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -1826,6 +1914,10 @@ int execlp (const char *filename, const char *arg0, ...) {
                  * */
                 .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
@@ -1838,7 +1930,12 @@ int execlp (const char *filename, const char *arg0, ...) {
             prov_log_save();
         }
     });
+    void* call = ({
+        int ret = unwrapped_execvpe(filename, argv, updated_env);
+    });
     void* post_call = ({
+        free((char**) updated_env);
+        free((char**) argv);
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;
@@ -1850,9 +1947,13 @@ int execlp (const char *filename, const char *arg0, ...) {
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
-        envp = update_env_with_probe_vars(envp);
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
+        size_t argc = 0;
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(envp, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -1861,6 +1962,10 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
                  * */
                 .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
+                .argc = argc,
+                .argv = copied_argv,
+                .envc = envc,
+                .env = copied_updated_env,
             }},
             {0},
             0,
@@ -1873,8 +1978,11 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
             prov_log_save();
         }
     });
+    void* call = ({
+        int ret = unwrapped_execvpe(filename, argv, updated_env);
+    });
     void* post_call = ({
-        free((char**) envp); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
+        free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (likely(prov_log_is_enabled())) {
             assert(errno > 0);
             op.data.exec.ferrno = saved_errno;

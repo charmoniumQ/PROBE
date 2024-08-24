@@ -10,11 +10,13 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 ## Reading list
 
-- [Provenance for Computational Tasks: A Survey by Juliana Freire, David Koop, Emanuele Santos, and Cláudio T. Silva](https://sci.utah.edu/~csilva/papers/cise2008a.pdf) for an overview of provenance in general
-- [CDE: Using System Call Interposition to Automatically Create Portable Software Packages by Philip J. Guo and Dawson Engler](https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf) for a seminal system-level provenance tracer.
-- [Techniques for Preserving Scientific Software Executions: Preserve the Mess or Encourage Cleanliness?](https://curate.nd.edu/articles/journal_contribution/Techniques_for_Preserving_Scientific_Software_Executions_Preserve_the_Mess_or_Encourage_Cleanliness_/24824439?file=43664937) discusses whether enabling automatic-replay is actually a good idea. A cursory glance makes PROBE seem more like "preserving the mess", but I think, with some care in the design choices, it actually can be more like "encouraging cleanliness", for example, by having heuristics that help cull/simplify provenance and generating human readable/editable package-manager recipes.
-- [SoK: History is a Vast Early Warning System: Auditing the Provenance of System Intrusions](https://adambates.org/documents/Inam_Oakland23.pdf) discusses previous approaches for auditing, processing, and detecting intrusions, which is very related.
-- [System-Level Provenance Tracers `./docs/acm-rep-pres.pdf`](./docs/acm-rep-pres.pdf) for a motivation of this work.
+- [_Provenance for Computational Tasks: A Survey_ by Freire, et al. in  CiSE 2008](https://sci.utah.edu/~csilva/papers/cise2008a.pdf) for an overview of provenance in general.
+- [_Transparent Result Caching_ by Vahdat and Anderson in USENIX ATC 1998](https://www.usenix.org/legacy/publications/library/proceedings/usenix98/full_papers/vahdat/vahdat.pdf) for an early system-level provenance tracer in Solaris using the `/proc` fs. Linux's `/proc` fs doesn't have the same functionality. However, this paper discusses two interesting application of provenance: unmake  (query lineage information) and transparent Make (more generally, incremental computation).
+- [_CDE: Using System Call Interposition to Automatically Create Portable Software Packages_ by Guo and Engler in USENIX ATC 2011](https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf) for an early system-level provenance tracer. Their only application is software execution replay, but replay is quite an important application.
+- [_Techniques for Preserving Scientific Software Executions: Preserve the Mess or Encourage Cleanliness?_ by Thain, Meng, and Ivie in 2015 ](https://curate.nd.edu/articles/journal_contribution/Techniques_for_Preserving_Scientific_Software_Executions_Preserve_the_Mess_or_Encourage_Cleanliness_/24824439?file=43664937) discusses whether enabling automatic-replay is actually a good idea. A cursory glance makes PROBE seem more like "preserving the mess", but I think, with some care in the design choices, it actually can be more like "encouraging cleanliness", for example, by having heuristics that help cull/simplify provenance and generating human readable/editable package-manager recipes.
+- [_SoK: History is a Vast Early Warning System: Auditing the Provenance of System Intrusions_ by Inam et al. in IEEE Symposium on Security and Privacy 2023](https://adambates.org/documents/Inam_Oakland23.pdf) see specifically Inam's survey of different possibilities for the "Capture layer", "Reduction layer", and "Infrastructure layer". Although provenance-for-security has different constraints than provenacne for other purposes, the taxonomy that Inam lays out is still useful. PROBE operates by intercepting libc calls, which is essentially a "middleware" in Table I (platform modification, no program modification, no config change, incomplete mediation, not tamperproof, inter-process tracing, etc.).
+- [_System-Level Provenance Tracers_ by me et al. in ACM REP 2023](./docs/acm-rep-pres.pdf) for a motivation of this work. It surveys prior work, identifies potential gaps, and explains why I think library interposition is a promising path for future research.
+- [_Computational Experiment Comprehension using Provenance Summarization_ by Bufford et al. in ACM REP 2023](https://dl.acm.org/doi/pdf/10.1145/3641525.3663617) discusses how to implement an interface for querying provenance information. They compare classical graph-based visualization with an interactive LLM in a user-study.
 
 ## Installing PROBE
 
@@ -82,6 +84,14 @@ $ probe dump
 ## What can I do with provenance?
 
 That's a huge [work in progress](https://github.com/charmoniumQ/PROBE/pulls).
+
+We're starting out with just "analysis" of the provenance. Does this input file influence that output file in the PROBEd process? Run
+
+
+``` bash
+nix shell nixpkgs#graphviz github:charmoniumQ/PROBE#probe-py-manual \
+    --command sh -c 'python -m probe_py.manual.cli process-graph | tee /dev/stderr | dot -Tpng -ooutput.png /dev/stdin'
+```
 
 ## Developing PROBE
 
