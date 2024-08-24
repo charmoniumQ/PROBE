@@ -11,13 +11,13 @@ import typer
 import shutil
 import rich
 from probe_py.generated.parser import parse_probe_log
-from . import analysis
-from . import util
+import analysis
+import util
 import traceback
 import dataclasses
 import base64
 from typing import Union, Any
-from .persistent_provenance import (
+from persistent_provenance import (
     InodeVersion,
     Inode,
     get_prov_upstream,
@@ -30,6 +30,7 @@ import random
 import pickle
 import datetime
 import json
+import re
 
 rich.traceback.install(show_locals=False)
 
@@ -205,10 +206,18 @@ def dump(
 
 
 # scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
-@app.command()
-def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
+@app.command(
+context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
+def scp(cmd: list[str]) -> None:
     """ """
     try:
+        port = extract_port_from_scp_command(cmd)
+        print(port)
+        if port is None:
+            port = 22
         # iterate from the end
         destination = cmd[-1]
         source = cmd[-2]
@@ -455,6 +464,19 @@ def create_directories_on_remote(remote_home:pathlib.Path, remote_user:str, remo
             f"mkdir -p {directory}",
         ]
         subprocess.run(mkdir_command, check=True)
+
+def extract_port_from_scp_command(args:list[str])->int:
+    port = None
+    for i in range(len(args)):
+        if args[i] == '-P' and i + 1 < len(args):
+            port = args[i + 1]
+            break
+        elif re.match(r'^-P\d+$', args[i]):
+            port = args[i][2:]
+            break
+
+    return int(port)
+
 
 def create_local_dest_inode_and_process(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, dest_inode_version:InodeVersion, dest_inode_metadata:InodeMetadataVersion, cmd:list[str])->None:
     PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
