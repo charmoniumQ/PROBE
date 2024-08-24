@@ -21,6 +21,7 @@ import socket
 import subprocess
 import pathlib
 import typer
+import yaml
 
 def copy(source, destination, cmd):
     PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
@@ -377,27 +378,17 @@ def get_stat_results_remote(remote_host: str, username: str, file_path: pathlib.
     ssh_command = [
         "ssh", f"-p {port}",
         f"{username}@{remote_host}",
-        f'stat -c "%s %X %Y %Z %o %D %i %h %f %u %g" {file_path}'
+        f'stat -c "size: %s\nmode: 0x%f\n" {file_path}'
     ]
     try:
         result = subprocess.run(ssh_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output = result.stdout.decode().strip()
+        output = result.stdout
+        stats = yaml.safe_load(output)
     except subprocess.CalledProcessError as e:
         raise ValueError(f"Error retrieving stat for {file_path}: {e.stderr.decode()}")
 
-    def convert_to_int(value: str) -> int:
-        try:
-            # Try to convert using base 10
-            return int(value)
-        except ValueError:
-            # If it fails, treat it as hexadecimal
-            return int(value, 16)
-
-    stat_fields = [convert_to_int(value) for value in output.split()]
-
-    # Pack the stat fields into a bytes object using struct
-    stat_results = struct.pack(f"{len(stat_fields)}I", *stat_fields)
-    return stat_results
+    file_size = stats["size"]
+    return file_size
 
 
 def process_to_json(process: Process) -> str:
@@ -481,7 +472,8 @@ def get_remote_xdg_data_home(remote_user: str, remote_host: str, port: int) -> s
         return xdg_data_home
     except subprocess.CalledProcessError as e:
         print(f"Error retrieving XDG_DATA_HOME: {e}")
-        return None
+        # customary case when $HOME is None
+        return "/homeless-shelter"
 
 
 def get_remote_home_env(remote_user: str, remote_host: str, port: int) -> str | None:
@@ -498,7 +490,7 @@ def get_remote_home_env(remote_user: str, remote_host: str, port: int) -> str | 
         return home
     except subprocess.CalledProcessError as e:
         print(f"Error retrieving XDG_DATA_HOME: {e}")
-        return None
+        return "/homeless-shelter"
 
 
 def get_file_info_on_local(file_path: pathlib.Path) -> tuple[InodeVersion, InodeMetadataVersion]:
@@ -562,6 +554,8 @@ def get_file_info_on_remote(remote_host: str, file_path: pathlib.Path, remote_us
     data = json.loads(output)
     device_major = data["device_major"]
     device_minor = data["device_minor"]
+    print(device_major)
+    print(device_minor)
     inode = Inode(host, device_major, device_minor, inode_val)
     inode_version = InodeVersion(inode, mtime, size)
     stat_results = get_stat_results_remote(remote_host, remote_user, file_path, port)
