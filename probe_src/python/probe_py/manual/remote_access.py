@@ -1,3 +1,4 @@
+import functools
 import traceback
 import dataclasses
 import base64
@@ -475,7 +476,7 @@ def get_remote_xdg_data_home(remote_user: str, remote_host: str, port: int) -> s
         # customary case when $HOME is None
         return "/homeless-shelter"
 
-
+@functools.lru_cache(maxsize=128)
 def get_remote_home_env(remote_user: str, remote_host: str, port: int) -> str | None:
     try:
         ssh_command = [
