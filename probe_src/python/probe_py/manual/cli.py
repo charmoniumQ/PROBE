@@ -232,10 +232,8 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
         if "@" not in source and "@" in destination:
 
             # Create InodeVersion and InodeMetadata for file on source
-            user_name_and_ip = destination.split(":")[0]
-            remote_user = user_name_and_ip.split("@")[0]
-            remote_host = user_name_and_ip.split("@")[1]
-            destination_path = destination.split(":")[1]
+            user_name_and_ip, destination_path = destination.split(":")
+            remote_user, remote_host = user_name_and_ip.split("@")
             local_file_path = pathlib.Path(source)
             src_inode_version, src_inode_metadata = get_file_info_on_local(local_file_path)
             cmd.insert(0, f"-P {port}")
@@ -294,7 +292,8 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
             create_remote_dest_inode_and_process(src_inode_version, src_inode_metadata, remote_home, dest_inode_version, dest_inode_metadata, remote_host, remote_user, port, cmd)
 
         elif "@" not in destination and "@" in source:
-            remote_host, remote_user = get_host_and_user(source.split(":")[0])
+            user_name_and_ip = source.split(":")[0]
+            remote_user, remote_host = user_name_and_ip.split("@")
             source_file_path = pathlib.Path(source.split(":")[1])
             destination_path = destination
             src_inode_version, src_inode_metadata = get_file_info_on_remote(remote_host, source_file_path, remote_user, port)
@@ -348,12 +347,9 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
         elif "@" in destination and "@" in source:
             user_name_and_ip_src = source.split(":")[0]
             source_file_path = pathlib.Path(source.split(":")[1])
-            src_host = user_name_and_ip_src.split("@")[1]
-            src_user = user_name_and_ip_src.split("@")[0]
+            src_user, src_host  = user_name_and_ip_src.split("@")
             user_name_and_ip_dest = destination.split(":")[0]
-
-            dest_host = user_name_and_ip_dest.split("@")[1]
-            dest_user = user_name_and_ip_dest.split("@")[0]
+            dest_user, dest_host = user_name_and_ip_dest.split("@")
             dest_file_path = pathlib.Path(os.path.join(
                 destination.split(":")[1], os.path.basename(source_file_path)
             ))
@@ -444,12 +440,6 @@ def scp(cmd: list[str], port: int = typer.Option(22, "--p", "-P")) -> None:
     except Exception as e:
         traceback.print_exc()
         print(str(e))
-
-
-def get_host_and_user(user_name_and_ip:str)->tuple[str, str]:
-    host = user_name_and_ip.split("@")[1]
-    user = user_name_and_ip.split("@")[0]
-    return host, user
 
 def create_directories_on_remote(remote_home:pathlib.Path, remote_user:str, remote_host:str)->None:
     remote_directories = [
