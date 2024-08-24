@@ -72,7 +72,7 @@ def copy(source, destination, cmd):
                         remote_home
                         / "process_id_that_wrote_inode_version"
                 )
-                scp_command: list[str] = [
+                scp_command = [
                     "scp",
                     "-P",
                     str(port),

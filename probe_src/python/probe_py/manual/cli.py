@@ -22,9 +22,7 @@ A = typing_extensions.Annotated
 
 app = typer.Typer()
 
-def transcribe(
-    probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = False
-) -> None:
+def transcribe(probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = False) -> None:
     """
     Transcribe the recorded data from PROBE_DIR into OUTPUT.
     """
