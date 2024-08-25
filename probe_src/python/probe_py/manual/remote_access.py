@@ -175,7 +175,7 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
                                              dest_inode_metadata, dest_host, dest_user, port, cmd, ssh_options)
 
 
-def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], src_file_path:pathlib.Path, destination:str, port:int):
+def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], src_file_path:pathlib.Path, destination:str, port:int)->None:
     process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "local")
     ssh_options = translate_scp_to_ssh_args(cmd)
     if "@" in destination:
@@ -273,7 +273,7 @@ def create_directories_on_remote(remote_home: pathlib.Path, remote_user: str, re
 
 
 def extract_port_from_scp_command(args: list[str]) -> int:
-    port = 22
+    port = None
     for i in range(len(args)):
         if args[i] == '-P' and i + 1 < len(args):
             port = args[i + 1]
@@ -281,6 +281,8 @@ def extract_port_from_scp_command(args: list[str]) -> int:
         elif re.match(r'^-P\d+$', args[i]):
             port = args[i][2:]
             break
+    if port is None:
+        return 22
     return int(port)
 
 

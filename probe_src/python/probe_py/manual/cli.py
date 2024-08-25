@@ -10,8 +10,8 @@ import typer
 import shutil
 import rich
 from probe_py.generated.parser import parse_probe_log
-import probe_py.manual.analysis
-import probe_py.manual.util
+import probe_py.manual.analysis as analysis
+import probe_py.manual.util as util
 from probe_py.manual.remote_access import copy
 
 rich.traceback.install(show_locals=False)
