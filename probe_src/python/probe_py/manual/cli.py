@@ -10,9 +10,10 @@ import typer
 import shutil
 import rich
 from probe_py.generated.parser import parse_probe_log
-from probe_py.manual import analysis
-from probe_py.manual import util
+import analysis
+import util
 from remote_access import copy
+
 rich.traceback.install(show_locals=False)
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
@@ -214,10 +215,7 @@ context_settings=dict(
     ),
 )
 def scp(cmd: list[str]) -> None:
-    destination = cmd[-1]
-    source = cmd[-2]
-    copy(source, destination, cmd)
-
+    copy(cmd)
 
 if __name__ == "__main__":
     app()

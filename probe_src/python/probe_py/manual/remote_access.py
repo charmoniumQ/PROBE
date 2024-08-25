@@ -1,4 +1,3 @@
-import functools
 import traceback
 import dataclasses
 import base64
@@ -25,14 +24,13 @@ import pathlib
 import typer
 import yaml
 
-def copy(source, destination, cmd):
-    PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
-    PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
-    PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
-    # source is local and destination is remote
-    port = extract_port_from_scp_command(cmd)
-    if port is None:
-        port = 22
+PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
+PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
+PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
+
+
+
+def copy(cmd: list[str]):
     # 1. get the src_inode_version and src_inode_metadata
     # 2. upload the files
     # 3. get process closure and file_writes
@@ -46,222 +44,212 @@ def copy(source, destination, cmd):
     # 10. added reference to scp process id to the dest inode version
     # 11. copy the scp process to the file on dest
     try:
-        if "@" not in source and "@" in destination:
+        # Extract port from SCP command
+        port = extract_port_from_scp_command(cmd)
+        if port is None:
+            port = 22
 
-            # Create InodeVersion and InodeMetadata for file on source
-            user_name_and_ip, destination_path = destination.split(":")
-            remote_user, remote_host = user_name_and_ip.split("@")
-            local_file_path = pathlib.Path(source)
-            src_inode_version, src_inode_metadata = get_file_info_on_local(local_file_path)
-            cmd.insert(0, f"-P {port}")
-            cmd.insert(0, "scp")
-            upload_files(cmd)
-            ssh_options = translate_scp_to_ssh_args(cmd)
-            remote_file_path = pathlib.Path(os.path.join(
-                destination_path, os.path.basename(local_file_path)
-            ))
-            process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "local")
+        sources = parse_scp_command(cmd)
+        print(sources)
+        destination = cmd[-1]
+        prov_info = []
+        for source in sources:
+            src_inode, src_inode_metadata, src_file_path = get_source_info(source, cmd)
+            prov_info.append((src_inode, src_inode_metadata, src_file_path))
 
-            # "get remote home for dest"
-            remote_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
-
-            create_directories_on_remote(remote_home, remote_user, remote_host, ssh_options)
-
-            # transfer src inode version to dest
-            process_id_path = (
-                    PROCESS_ID_THAT_WROTE_INODE_VERSION / src_inode_version.str_id()
-            )
-            if process_id_path.exists():
-                remote_process_id_that_wrote_inode_version = (
-                        remote_home
-                        / "process_id_that_wrote_inode_version"
-                )
-                scp_command = [
-                    "scp",
-                    "-P",
-                    str(port),
-                    str(process_id_path),
-                    f"{user_name_and_ip}:{remote_process_id_that_wrote_inode_version}",  # Remote file path
-                ]
-                upload_files(scp_command)
-
-            #  transfer process from src to dest
-            process_id = inode_version_writes[src_inode_version]
-            if process_id is not None:
-                process_path = PROCESSES_BY_ID / str(process_id)
-                if process_path.exists():
-                    process_by_id_remote = (
-                            remote_home / "processes_by_id"
-                    )
-                    scp_command = [
-                        "scp",
-                        "-P",
-                        str(port),  # Specify the port
-                        str(process_path),  # Local file path
-                        f"{user_name_and_ip}:{process_by_id_remote}",  # Remote file path
-                    ]
-                    upload_files(scp_command)
-
-            dest_inode_version, dest_inode_metadata = get_file_info_on_remote(
-                remote_host, remote_file_path, remote_user, port, ssh_options
-            )
-
-            # create dest_inode_file and scp_process_id file on the dest
-            create_remote_dest_inode_and_process(src_inode_version, src_inode_metadata, remote_home, dest_inode_version,
-                                                 dest_inode_metadata, remote_host, remote_user, port, cmd, ssh_options)
-
-        elif "@" not in destination and "@" in source:
-            user_name_and_ip = source.split(":")[0]
-            remote_user, remote_host = user_name_and_ip.split("@")
-            source_file_path = pathlib.Path(source.split(":")[1])
-            destination_path = destination
-            ssh_options = translate_scp_to_ssh_args(cmd)
-            src_inode_version, src_inode_metadata = get_file_info_on_remote(remote_host, source_file_path, remote_user, port, ssh_options)
-            cmd.insert(0, f"-P {port}")
-            cmd.insert(0, "scp")
-            upload_files(cmd)
-            destination_path = os.path.join(
-                destination_path, os.path.basename(source_file_path)
-            )
-
-            dest_inode_version, dest_inode_metadata = get_file_info_on_local(pathlib.Path(destination_path))
-            process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "remote")
-            remote_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
-            local_directories = [
-                PROCESSES_BY_ID, PROCESS_ID_THAT_WROTE_INODE_VERSION
-            ]
-            for directory in local_directories:
-                print(f"Creating directory {directory}")
-                os.makedirs(directory, exist_ok=True)
-            process_id_src_inode_path_remote = (
-                    remote_home
-                    / "process_id_that_wrote_inode_version"
-                    / src_inode_version.str_id()
-            )
-            scp_command = [
-                "scp",
-                "-P",
-                str(port),  # Specify the port
-                f"{remote_user}@{remote_host}:{process_id_src_inode_path_remote}",  # Remote file path
-                str(PROCESS_ID_THAT_WROTE_INODE_VERSION),
-            ]
-            upload_files(scp_command)
-
-            process_id = inode_version_writes[src_inode_version]
-            if process_id is not None:
-                process_by_id_remote = (
-                        remote_home / "processes_by_id" / str(process_id)
-                )
-                scp_command = [
-                    "scp",
-                    "-P",
-                    str(port),  # Specify the port
-                    f"{remote_user}@{remote_host}:{process_by_id_remote}",
-                    str(PROCESSES_BY_ID),
-                ]
-                upload_files(scp_command)
-            print("transferred process from src to dest")
-
-            create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version, dest_inode_metadata,
-                                                cmd)
-
-        elif "@" in destination and "@" in source:
-            user_name_and_ip_src = source.split(":")[0]
-            source_file_path = pathlib.Path(source.split(":")[1])
-            src_user, src_host = user_name_and_ip_src.split("@")
-            user_name_and_ip_dest = destination.split(":")[0]
-            dest_user, dest_host = user_name_and_ip_dest.split("@")
-            dest_file_path = pathlib.Path(os.path.join(
-                destination.split(":")[1], os.path.basename(source_file_path)
-            ))
-            ssh_options = translate_scp_to_ssh_args(cmd)
-            src_inode_version, src_inode_metadata = get_file_info_on_remote(src_host, source_file_path, src_user, port, ssh_options)
-
-            cmd.insert(0, f"-P {port}")
-            cmd.insert(0, "scp")
-            upload_files(cmd)
-
-            dest_inode_version, dest_inode_metadata = get_file_info_on_remote(dest_host, dest_file_path, dest_user, port, ssh_options)
-            process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "remote")
-            remote_home_src = pathlib.Path(get_remote_home(src_user, src_host, ssh_options))
-            remote_home_dest = pathlib.Path(get_remote_home(dest_user, dest_host, ssh_options))
-
-            create_directories_on_remote(remote_home_src, src_user, src_host, ssh_options)
-            create_directories_on_remote(remote_home_dest, dest_user, dest_host, ssh_options)
-
-            process_id_src_inode_path_remote = (
-                    remote_home_src
-                    / "process_id_that_wrote_inode_version"
-                    / src_inode_version.str_id()
-            )
-
-            process_id_dest_inode_path = remote_home_src / "process_id_that_wrote_inode_version"
-            scp_command = [
-                "scp",
-                "-P",
-                str(port),  # Specify the port
-                f"{user_name_and_ip_src}:{process_id_src_inode_path_remote}",  # Remote file path
-                f"{user_name_and_ip_dest}:{process_id_dest_inode_path}",
-            ]
-            upload_files(scp_command)
-            process_id = inode_version_writes[src_inode_version]
-            if process_id is not None:
-                process_by_id_src_remote = (
-                        remote_home_src / "processes_by_id" / str(process_id)
-                )
-                process_by_id_dest_remote = remote_home_dest / "process_by_id"
-                scp_command = [
-                    "scp",
-                    "-P",
-                    str(port),  # Specify the port
-                    f"{user_name_and_ip_src}:{process_by_id_src_remote}",
-                    f"{user_name_and_ip_dest}:{process_by_id_dest_remote}",
-                ]
-
-                upload_files(scp_command)
-            create_remote_dest_inode_and_process(src_inode_version, src_inode_metadata, remote_home_dest, dest_inode_version,
-                                                 dest_inode_metadata, dest_host, dest_user, port, cmd, ssh_options)
-        else:
-            src_path = pathlib.Path(source)
-            dest_path = pathlib.Path(os.path.join(destination, os.path.basename(src_path)))
-            src_inode_version, src_inode_metadata = get_file_info_on_local(src_path)
-            cmd.insert(0, f"-P {port}")
-            cmd.insert(0, "scp")
-            upload_files(cmd)
-            dest_inode_version, dest_inode_metadata = get_file_info_on_local(dest_path)
-            process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "local")
-
-            process_id_path = (
-                    PROCESS_ID_THAT_WROTE_INODE_VERSION / src_inode_version.str_id()
-            )
-            if process_id_path.exists():
-                scp_command = [
-                    "scp",
-                    "-P",
-                    str(port),
-                    str(process_id_path),
-                    str(PROCESS_ID_THAT_WROTE_INODE_VERSION),  # Remote file path
-                ]
-                upload_files(scp_command)
-
-            #  transfer process from src to dest
-            process_id = inode_version_writes[src_inode_version]
-            if process_id is not None:
-                process_path = PROCESSES_BY_ID / str(process_id)
-                if process_path.exists():
-                    scp_command = [
-                        "scp",
-                        "-P",
-                        str(port),
-                        str(process_path),
-                        str(PROCESSES_BY_ID),
-                    ]
-                    upload_files(scp_command)
-
-            create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version, dest_inode_metadata,                                       cmd)
+        cmd.insert(0, f"-P {port}")
+        cmd.insert(0, "scp")
+        upload_files(cmd)
+        for idx in range(len(sources)):
+            src_inode_version, src_inode_metadata, src_file_path = prov_info[idx]
+            print(sources[idx])
+            if "@" not in sources[idx]:
+                prov_upload_src_local(src_inode_version, src_inode_metadata, cmd, src_file_path, destination, port)
+            else:
+                prov_upload_src_remote(sources[idx], src_inode_version, src_inode_metadata, cmd, destination, port)
     except Exception as e:
         traceback.print_exc()
         print(str(e))
+
+
+def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:str, port:int):
+    if "@" not in destination:
+        user_name_and_ip = source.split(":")[0]
+        remote_user, remote_host = user_name_and_ip.split("@")
+        source_file_path = pathlib.Path(source.split(":")[1])
+        destination_path = destination
+        ssh_options = translate_scp_to_ssh_args(cmd)
+        dest_inode_version, dest_inode_metadata = get_file_info_on_local(pathlib.Path(destination_path))
+        process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "remote")
+        remote_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
+        local_directories = [
+            PROCESSES_BY_ID, PROCESS_ID_THAT_WROTE_INODE_VERSION
+        ]
+        for directory in local_directories:
+            print(f"Creating directory {directory}")
+            os.makedirs(directory, exist_ok=True)
+        process_id_src_inode_path_remote = (
+                remote_home
+                / "process_id_that_wrote_inode_version"
+                / src_inode_version.str_id()
+        )
+        scp_command = [
+            "scp",
+            "-P",
+            str(port),  # Specify the port
+            f"{remote_user}@{remote_host}:{process_id_src_inode_path_remote}",  # Remote file path
+            str(PROCESS_ID_THAT_WROTE_INODE_VERSION),
+        ]
+        upload_files(scp_command)
+
+        process_id = inode_version_writes[src_inode_version]
+        if process_id is not None:
+            process_by_id_remote = (
+                    remote_home / "processes_by_id" / str(process_id)
+            )
+            scp_command = [
+                "scp",
+                "-P",
+                str(port),  # Specify the port
+                f"{remote_user}@{remote_host}:{process_by_id_remote}",
+                str(PROCESSES_BY_ID),
+            ]
+            upload_files(scp_command)
+        print("transferred process from src to dest")
+
+        create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version,
+                                            dest_inode_metadata,
+                                            cmd)
+    else:
+        user_name_and_ip_src = source.split(":")[0]
+        source_file_path = pathlib.Path(source.split(":")[1])
+        src_user, src_host = user_name_and_ip_src.split("@")
+        user_name_and_ip_dest = destination.split(":")[0]
+        dest_user, dest_host = user_name_and_ip_dest.split("@")
+        dest_file_path = pathlib.Path(os.path.join(
+            destination.split(":")[1], os.path.basename(source_file_path)
+        ))
+        ssh_options = translate_scp_to_ssh_args(cmd)
+
+        dest_inode_version, dest_inode_metadata = get_file_info_on_remote(dest_host, dest_file_path, dest_user,
+                                                                          ssh_options)
+        process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "remote")
+        remote_home_src = pathlib.Path(get_remote_home(src_user, src_host, ssh_options))
+        remote_home_dest = pathlib.Path(get_remote_home(dest_user, dest_host, ssh_options))
+
+        create_directories_on_remote(remote_home_src, src_user, src_host, ssh_options)
+        create_directories_on_remote(remote_home_dest, dest_user, dest_host, ssh_options)
+
+        process_id_src_inode_path_remote = (
+                remote_home_src
+                / "process_id_that_wrote_inode_version"
+                / src_inode_version.str_id()
+        )
+
+        process_id_dest_inode_path = remote_home_src / "process_id_that_wrote_inode_version"
+        scp_command = [
+            "scp",
+            "-P",
+            str(port),  # Specify the port
+            f"{user_name_and_ip_src}:{process_id_src_inode_path_remote}",  # Remote file path
+            f"{user_name_and_ip_dest}:{process_id_dest_inode_path}",
+        ]
+        upload_files(scp_command)
+        process_id = inode_version_writes[src_inode_version]
+        if process_id is not None:
+            process_by_id_src_remote = (
+                    remote_home_src / "processes_by_id" / str(process_id)
+            )
+            process_by_id_dest_remote = remote_home_dest / "process_by_id"
+            scp_command = [
+                "scp",
+                "-P",
+                str(port),  # Specify the port
+                f"{user_name_and_ip_src}:{process_by_id_src_remote}",
+                f"{user_name_and_ip_dest}:{process_by_id_dest_remote}",
+            ]
+
+            upload_files(scp_command)
+        create_remote_dest_inode_and_process(src_inode_version, src_inode_metadata, remote_home_dest,
+                                             dest_inode_version,
+                                             dest_inode_metadata, dest_host, dest_user, port, cmd, ssh_options)
+
+
+def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], src_file_path:pathlib.Path, destination:str, port:int):
+    process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "local")
+    ssh_options = translate_scp_to_ssh_args(cmd)
+    if "@" in destination:
+        user_name_and_ip, destination_path = destination.split(":")
+        remote_user, remote_host = user_name_and_ip.split("@")
+        dest_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
+        create_directories_on_remote(dest_home, remote_user, remote_host, ssh_options)
+        dest_file_path = pathlib.Path(os.path.join(destination_path, os.path.basename(src_file_path)))
+
+        # "get remote home for dest"
+        remote_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
+
+        create_directories_on_remote(remote_home, remote_user, remote_host, ssh_options)
+
+        # transfer src inode version to dest
+        process_id_path = (
+                PROCESS_ID_THAT_WROTE_INODE_VERSION / src_inode_version.str_id()
+        )
+        if process_id_path.exists():
+            remote_process_id_that_wrote_inode_version = (
+                    remote_home
+                    / "process_id_that_wrote_inode_version"
+            )
+            scp_command = [
+                "scp",
+                "-P",
+                str(port),
+                str(process_id_path),
+                f"{user_name_and_ip}:{remote_process_id_that_wrote_inode_version}",  # Remote file path
+            ]
+            upload_files(scp_command)
+
+        #  transfer process from src to dest
+        process_id = inode_version_writes[src_inode_version]
+        if process_id is not None:
+            process_path = PROCESSES_BY_ID / str(process_id)
+            if process_path.exists():
+                process_by_id_remote = (
+                        remote_home / "processes_by_id"
+                )
+                scp_command = [
+                    "scp",
+                    "-P",
+                    str(port),  # Specify the port
+                    str(process_path),  # Local file path
+                    f"{user_name_and_ip}:{process_by_id_remote}",  # Remote file path
+                ]
+                upload_files(scp_command)
+
+        dest_inode_version, dest_inode_metadata = get_file_info_on_remote(
+            remote_host, dest_file_path, remote_user, ssh_options
+        )
+
+        # create dest_inode_file and scp_process_id file on the dest
+        create_remote_dest_inode_and_process(src_inode_version, src_inode_metadata, remote_home, dest_inode_version,
+                                             dest_inode_metadata, remote_host, remote_user, port, cmd, ssh_options)
+    else:
+        print("here")
+        dest_path = pathlib.Path(os.path.join(destination, os.path.basename(src_file_path)))
+        dest_inode_version, dest_inode_metadata = get_file_info_on_local(dest_path)
+        # process_by_id and process_id_that_wrote_inode_version are not transferred to destination as source and destination both are local
+        create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version, dest_inode_metadata, cmd)
+
+def get_source_info(source:str, cmd:list[str]):
+    if "@" not in source:
+        source_file_path = pathlib.Path(source)
+        src_inode_version, src_inode_metadata = get_file_info_on_local(source_file_path)
+    else:
+        user_name_and_ip = source.split(":")[0]
+        src_user, src_host = user_name_and_ip.split("@")
+        source_file_path = pathlib.Path(source.split(":")[1])
+        ssh_options = translate_scp_to_ssh_args(cmd)
+        src_inode_version, src_inode_metadata = get_file_info_on_remote(src_host, source_file_path, src_user, ssh_options)
+    return src_inode_version, src_inode_metadata, source_file_path
 
 
 def create_directories_on_remote(remote_home: pathlib.Path, remote_user: str, remote_host: str, ssh_options: list[str]) -> None:
@@ -316,7 +304,7 @@ def create_local_dest_inode_and_process(src_inode_version: InodeVersion, src_ino
                                        random_pid, cmd)
 
     scp_process_path = PROCESSES_BY_ID / str(random_pid)
-
+    print(scp_process_path)
     with open(scp_process_path, "w") as file:
         file.write(scp_process_json)
 
@@ -384,7 +372,7 @@ def get_scp_process(src_inode_version: InodeVersion, src_inode_metadata: InodeMe
     return scp_process_json
 
 
-def get_stat_results_remote(remote_host: str, username: str, file_path: pathlib.Path, port: int, ssh_options: list[str]) -> bytes:
+def get_stat_results_remote(remote_host: str, username: str, file_path: pathlib.Path, ssh_options: list[str]) -> bytes:
     ssh_command = [
         "ssh",
         f"{username}@{remote_host}",
@@ -531,12 +519,11 @@ def get_file_info_on_local(file_path: pathlib.Path) -> tuple[InodeVersion, Inode
     return inode_version, inode_metadata
 
 
-def get_file_info_on_remote(remote_host: str, file_path: pathlib.Path, remote_user: str, port: int, ssh_options: list[str]) -> tuple[
+def get_file_info_on_remote(remote_host: str, file_path: pathlib.Path, remote_user: str, ssh_options: list[str]) -> tuple[
     InodeVersion, InodeMetadataVersion]:
     command = [
         "ssh",
         f"{remote_user}@{remote_host}",
-
     ]
     for option in ssh_options:
         command.insert(-1, option)
@@ -568,26 +555,25 @@ def get_file_info_on_remote(remote_host: str, file_path: pathlib.Path, remote_us
     print(device_minor)
     inode = Inode(host, device_major, device_minor, inode_val)
     inode_version = InodeVersion(inode, mtime, size)
-    stat_results = get_stat_results_remote(remote_host, remote_user, file_path, port, ssh_options)
+    stat_results = get_stat_results_remote(remote_host, remote_user, file_path, ssh_options)
     inode_metadata = InodeMetadataVersion(inode_version, stat_results)
     return inode_version, inode_metadata
 
-def translate_scp_to_ssh_args(scp_args)->list[str]:
+def translate_scp_to_ssh_args(scp_args:list[str])->list[str]:
     ssh_args = []
 
     option_mapping = {
-        '-4': '-4',  # Use IPv4 addresses only
-        '-6': '-6',  # Use IPv6 addresses only
-        '-A': '-A',  # Enable forwarding of the authentication agent connection
-        '-C': '-C',  # Enable compression
-        '-o': '-o',  # Pass options to ssh (e.g., -o "StrictHostKeyChecking=no")
-        '-i': '-i',  # Identity file
-        '-P': '-p',  # Port
-        '-v': '-v',  # Verbose mode
-        '-q': '-q',  # Quiet mode
+        '-4': '-4',
+        '-6': '-6',
+        '-A': '-A',
+        '-C': '-C',
+        '-o': '-o',
+        '-i': '-i',
+        '-P': '-p',
+        '-v': '-v',
+        '-q': '-q',
     }
 
-    # Handle each argument
     i = 0
     while i < len(scp_args):
         arg = scp_args[i]
@@ -605,3 +591,30 @@ def translate_scp_to_ssh_args(scp_args)->list[str]:
         i += 1
 
     return ssh_args
+
+
+# parse scp command to get list of sources
+def parse_scp_command(command: list[str]) -> list[str]:
+    if not command or len(command) < 2:
+        raise ValueError("The command must include at least a source and a destination.")
+
+    potential_sources = command[:-1]
+
+    # Initialize an empty list to store sources
+    sources = []
+
+    skip_next = False
+    for i, arg in enumerate(potential_sources):
+        if skip_next:
+            skip_next = False
+            continue
+
+        if arg.startswith('-'):
+            if i + 1 < len(potential_sources) and not potential_sources[i + 1].startswith('-'):
+                skip_next = True
+        else:
+            sources.append(arg)
+    return sources
+
+
+
