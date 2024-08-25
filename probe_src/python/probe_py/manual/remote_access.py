@@ -3,7 +3,7 @@ import dataclasses
 import base64
 from typing import Union, Any
 
-from persistent_provenance import (
+from probe_py.manual.persistent_provenance import (
     InodeVersion,
     Inode,
     get_prov_upstream,
@@ -30,7 +30,7 @@ PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
 
 
-def copy(cmd: list[str]):
+def copy(cmd: list[str])->None:
     # 1. get the src_inode_version and src_inode_metadata
     # 2. upload the files
     # 3. get process closure and file_writes
@@ -72,7 +72,7 @@ def copy(cmd: list[str]):
         print(str(e))
 
 
-def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:str, port:int):
+def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:str, port:int)->None:
     if "@" not in destination:
         user_name_and_ip = source.split(":")[0]
         remote_user, remote_host = user_name_and_ip.split("@")
@@ -239,7 +239,7 @@ def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:Ino
         # process_by_id and process_id_that_wrote_inode_version are not transferred to destination as source and destination both are local
         create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version, dest_inode_metadata, cmd)
 
-def get_source_info(source:str, cmd:list[str]):
+def get_source_info(source:str, cmd:list[str])->tuple[InodeVersion, InodeMetadataVersion, pathlib.Path]:
     if "@" not in source:
         source_file_path = pathlib.Path(source)
         src_inode_version, src_inode_metadata = get_file_info_on_local(source_file_path)
@@ -273,7 +273,7 @@ def create_directories_on_remote(remote_home: pathlib.Path, remote_user: str, re
 
 
 def extract_port_from_scp_command(args: list[str]) -> int:
-    port = None
+    port = 22
     for i in range(len(args)):
         if args[i] == '-P' and i + 1 < len(args):
             port = args[i + 1]
@@ -281,7 +281,6 @@ def extract_port_from_scp_command(args: list[str]) -> int:
         elif re.match(r'^-P\d+$', args[i]):
             port = args[i][2:]
             break
-
     return int(port)
 
 
@@ -389,8 +388,7 @@ def get_stat_results_remote(remote_host: str, username: str, file_path: pathlib.
         raise ValueError(f"Error retrieving stat for {file_path}: {e.stderr.decode()}")
 
     file_size = stats["size"]
-    return file_size
-
+    return bytes(file_size)
 
 def process_to_json(process: Process) -> str:
     process_dict = dataclasses.asdict(process)
