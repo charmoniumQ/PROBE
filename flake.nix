@@ -120,7 +120,7 @@
                   pypkgs.pydot
                   pypkgs.rich
                   pypkgs.typer
-                  pypkgs.xdg_base_dirs
+                  pypkgs.xdg-base-dirs
                   pypkgs.pyyaml
                   pypkgs.types-pyyaml
 
