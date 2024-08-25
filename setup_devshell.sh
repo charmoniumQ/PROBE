@@ -18,19 +18,19 @@ fi
 
 # Rust code uses PYGEN_OUTFILE to determine where to write this file.
 # TODO: Replace this with a static path, because it is never not this path.
-export PYGEN_OUTFILE="$project_root/probe_src/probe_frontend/python/probe_py/generated/ops.py"
+export PYGEN_OUTFILE="$project_root/probe_src/frontend/python/probe_py/generated/ops.py"
 
 # Ensure PROBE CLI gets built
-if [ ! -f $project_root/probe_src/probe_frontend/target/release/probe ]; then
+if [ ! -f $project_root/probe_src/frontend/target/release/probe ]; then
     echo -e "${red}Please run 'just compile-cli' to compile probe binary${clr}"
 fi
 
 # Add PROBE CLI to path
-export PATH="$project_root/probe_src/probe_frontend/target/release:$PATH"
+export PATH="$project_root/probe_src/frontend/target/release:$PATH"
 
 # Add probe_py.generated to the Python path
-export PYTHONPATH="$project_root/probe_src/probe_frontend/python:$PYTHONPATH"
-export MYPYPATH="$project_root/probe_src/probe_frontend/python:$MYPYPATH"
+export PYTHONPATH="$project_root/probe_src/frontend/python:$PYTHONPATH"
+export MYPYPATH="$project_root/probe_src/frontend/python:$MYPYPATH"
 
 # Add probe_py.manual to the Python path
 export PYTHONPATH="$project_root/probe_src/python:$PYTHONPATH"
