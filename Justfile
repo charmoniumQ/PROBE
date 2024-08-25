@@ -13,16 +13,16 @@ check-ruff:
     ruff check probe_src
 
 check-format-rust:
-    env --chdir probe_src/probe_frontend cargo fmt --check
+    env --chdir probe_src/frontend cargo fmt --check
 
 fix-format-rust:
-    env --chdir probe_src/probe_frontend cargo fmt
+    env --chdir probe_src/frontend cargo fmt
 
 check-clippy:
-    env --chdir probe_src/probe_frontend cargo clippy
+    env --chdir probe_src/frontend cargo clippy
 
 fix-clippy:
-    env --chdir probe_src/probe_frontend cargo clippy --fix --allow-staged
+    env --chdir probe_src/frontend cargo clippy --fix --allow-staged
 
 check-mypy:
     mypy --strict --package probe_py.manual
@@ -33,7 +33,7 @@ compile-lib:
     make --directory=probe_src/libprobe all
 
 compile-cli:
-    env --chdir=probe_src/probe_frontend cargo build --release
+    env --chdir=probe_src/frontend cargo build --release
 
 compile-tests:
     make --directory=probe_src/tests/c all
