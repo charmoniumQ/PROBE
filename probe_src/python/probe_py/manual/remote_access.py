@@ -463,7 +463,7 @@ def get_remote_xdg_data_home(remote_user: str, remote_host: str, ssh_options: li
     try:
         ssh_command = [
             "ssh",
-            f"{remote_user}@{remote_host}",  # Remote user and host
+            f"{remote_user}@{remote_host}",
         ]
         for option in ssh_options:
             ssh_command.insert(-1, option)
@@ -562,6 +562,8 @@ def get_file_info_on_remote(remote_host: str, file_path: pathlib.Path, remote_us
 def translate_scp_to_ssh_args(scp_args:list[str])->list[str]:
     ssh_args = []
 
+    common_options = ['-4', '-6', '-A', '-C', '-o', '-i', '-v', '-q']
+    
     option_mapping = {
         '-4': '-4',
         '-6': '-6',
@@ -578,13 +580,13 @@ def translate_scp_to_ssh_args(scp_args:list[str])->list[str]:
     while i < len(scp_args):
         arg = scp_args[i]
         if arg in option_mapping:
-            # Translate to ssh argument if a mapping exists
-            if option_mapping[arg] is not None:
-                ssh_args.append(option_mapping[arg])
-                if arg in ['-o', '-i', '-P']:
-                    if i + 1 < len(scp_args):
-                        ssh_args.append(scp_args[i + 1])
-                        i += 1
+            ssh_args.append(option_mapping[arg])
+        if arg in common_options:
+            ssh_args.append(arg)
+        if arg in ['-o', '-i', '-P']:
+            if i + 1 < len(scp_args):
+                ssh_args.append(scp_args[i + 1])
+                i += 1
         elif arg.startswith('-'):
             # Handle unknown or unmapped scp options (assumed to be scp-only)
             pass  # Add any specific handling for unrecognized options if needed
