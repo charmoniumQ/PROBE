@@ -16,18 +16,17 @@ import random
 import pickle
 import datetime
 import json
-import re
 import os
 import socket
 import subprocess
 import pathlib
 import typer
 import yaml
+from probe_py.manual.scp import extract_port_from_scp_command, parse_and_translate_scp_command
 
 PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
 PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
 PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
-
 
 
 def copy(cmd: list[str])->None:
@@ -263,19 +262,6 @@ def create_directories_on_remote(remote_home: pathlib.Path, remote_user: str, re
         mkdir_command.append(f"mkdir -p {directory}",)
         subprocess.run(mkdir_command, check=True)
         mkdir_command.pop()
-
-def extract_port_from_scp_command(args: list[str]) -> int:
-    port = None
-    for i in range(len(args)):
-        if args[i] == '-P' and i + 1 < len(args):
-            port = args[i + 1]
-            break
-        elif re.match(r'^-P\d+$', args[i]):
-            port = args[i][2:]
-            break
-    if port is None:
-        return 22
-    return int(port)
 
 
 def create_local_dest_inode_and_process(src_inode_version: InodeVersion, src_inode_metadata: InodeMetadataVersion,
@@ -550,45 +536,6 @@ def get_file_info_on_remote(remote_host: str, file_path: pathlib.Path, remote_us
     stat_results = get_stat_results_remote(remote_host, remote_user, file_path, ssh_options)
     inode_metadata = InodeMetadataVersion(inode_version, stat_results)
     return inode_version, inode_metadata
-
-
-def parse_and_translate_scp_command(cmd: list[str]) -> tuple[list[str], list[str]]:
-    ssh_options = []
-    sources = []
-    common_options = {'-4', '-6', '-A', '-C', '-o', '-i', '-v', '-q'}
-    option_mapping = {
-        '-P': '-p',
-    }
-    one_arg_options = {"-o", "-i", "-P"}
-
-    i = 0
-    while i < len(cmd):
-        arg = cmd[i]
-        unknown_option = True
-        if arg in option_mapping:
-            ssh_options.append(option_mapping[arg])
-            unknown_option = False
-        elif arg in common_options:
-            unknown_option = False
-            ssh_options.append(arg)
-
-        if unknown_option:
-            if arg.startswith('-'):
-                # Handle unknown or unmapped scp options (assumed to be scp-only)
-                pass  # Add any specific handling for unrecognized options if needed
-            else:
-                # Consider the argument as a source or destination if it's not an option
-                sources.append(arg)
-        else:
-            if arg in one_arg_options and i+1 < len(cmd):
-                ssh_options.append(cmd[i + 1])
-                i += 1
-        i += 1
-
-    # Separate the last item as the destination
-    destination = sources.pop() if sources else ""
-
-    return sources, ssh_options
 
 
 
