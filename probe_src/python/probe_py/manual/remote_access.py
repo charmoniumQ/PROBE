@@ -33,6 +33,14 @@ class Host:
     network_name: str
     username: str | None
 
+    def get_scp_address(self):
+        if self.username is None and self.network_name is None:
+            return ""
+        elif self.username is None:
+            return self.network_name
+        else:
+            return f"{self.username}@{self.network_name}"
+
 
 def copy(cmd: list[str])->None:
     # 1. get the src_inode_version and src_inode_metadata
@@ -49,32 +57,44 @@ def copy(cmd: list[str])->None:
     # 11. copy the scp process to the file on dest
     # Extract port from SCP command
     sources, ssh_options = parse_and_translate_scp_command(cmd)
+    src_hosts = []
     print(ssh_options)
     print(sources)
     port = extract_port_from_scp_command(cmd)
     destination = cmd[-1]
+    dest_host, dest_path = get_dest_host_and_path(destination)
     prov_info = []
     for source in sources:
-        src_inode, src_inode_metadata, src_file_path = get_source_info(source, cmd)
+        src_host, src_file_path = get_dest_host_and_path(source)
+        src_hosts.append((src_host, src_file_path))
+        src_inode, src_inode_metadata = get_source_info(src_host, src_file_path, ssh_options)
         prov_info.append((src_inode, src_inode_metadata, src_file_path))
     cmd.insert(0,"scp")
     upload_files(cmd)
     for idx in range(len(sources)):
         src_inode_version, src_inode_metadata, src_file_path = prov_info[idx]
-        print(sources[idx])
-        if ":" not in sources[idx]:
-            prov_upload_src_local(src_inode_version, src_inode_metadata, cmd, src_file_path, destination, port, ssh_options)
+        src_host, src_path = src_hosts[idx]
+        if src_host.username is None and src_host.network_name is None:
+            prov_upload_src_local(src_inode_version, src_inode_metadata, cmd, src_file_path, dest_host, dest_path, port, ssh_options)
         else:
-            prov_upload_src_remote(sources[idx], src_inode_version, src_inode_metadata, cmd, destination, port, ssh_options)
+            prov_upload_src_remote(src_host, src_path, src_inode_version, src_inode_metadata, cmd, dest_host, dest_path, port, ssh_options)
 
+def get_dest_host_and_path(address:str)->tuple[Host, pathlib.Path]:
+    network, host_name = None, None
+    if ":" in address:
+        user_name_and_network, file_path = address.split(":")
+        if "@" in user_name_and_network:
+            host_name, network = user_name_and_network.split("@")
+    else:
+        file_path = address
+    host = Host(network, host_name)
+    return host, pathlib.Path(file_path)
 
+def prov_upload_src_remote(source:Host, source_file_path:pathlib.Path, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:Host, destination_path:pathlib.Path, port:int, ssh_options:list[str])->None:
 
-def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:str, port:int, ssh_options:list[str])->None:
-    if ":" not in destination:
-        user_name_and_ip = source.split(":")[0]
-        remote_user, remote_host = user_name_and_ip.split("@")
-        source_file_path = pathlib.Path(source.split(":")[1])
-        destination_path = destination
+    if destination.username is None and destination.network_name is None:
+        remote_user = source.username
+        remote_host = source.network_name
         dest_inode_version, dest_inode_metadata = get_file_info_on_local(pathlib.Path(destination_path))
         process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "remote")
         remote_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
@@ -89,11 +109,13 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
                 / "process_id_that_wrote_inode_version"
                 / src_inode_version.str_id()
         )
+
+        address = source.get_scp_address()
         scp_command = [
             "scp",
             "-P",
             str(port),  # Specify the port
-            f"{remote_user}@{remote_host}:{process_id_src_inode_path_remote}",  # Remote file path
+            f"{address}:{process_id_src_inode_path_remote}",  # Remote file path
             str(PROCESS_ID_THAT_WROTE_INODE_VERSION),
         ]
         upload_files(scp_command)
@@ -107,7 +129,7 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
                 "scp",
                 "-P",
                 str(port),  # Specify the port
-                f"{remote_user}@{remote_host}:{process_by_id_remote}",
+                f"{address}:{process_by_id_remote}",
                 str(PROCESSES_BY_ID),
             ]
             upload_files(scp_command)
@@ -117,14 +139,11 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
                                             dest_inode_metadata,
                                             cmd)
     else:
-        user_name_and_ip_src = source.split(":")[0]
-        source_file_path = pathlib.Path(source.split(":")[1])
-        src_user, src_host = user_name_and_ip_src.split("@")
-        user_name_and_ip_dest = destination.split(":")[0]
-        dest_user, dest_host = user_name_and_ip_dest.split("@")
-        dest_file_path = pathlib.Path(os.path.join(
-            destination.split(":")[1], os.path.basename(source_file_path)
-        ))
+        src_user = source.username
+        src_host = source.network_name
+        dest_user = destination.username
+        dest_host = destination.network_name
+        dest_file_path = pathlib.Path(os.path.join(destination_path, os.path.basename(source_file_path)))
 
         dest_inode_version, dest_inode_metadata = get_file_info_on_remote(dest_host, dest_file_path, dest_user,
                                                                           ssh_options)
@@ -142,6 +161,9 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
         )
 
         process_id_dest_inode_path = remote_home_src / "process_id_that_wrote_inode_version"
+
+        user_name_and_ip_src = source.get_scp_address()
+        user_name_and_ip_dest = destination.get_scp_address()
         scp_command = [
             "scp",
             "-P",
@@ -170,11 +192,11 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
                                              dest_inode_metadata, dest_host, dest_user, port, cmd, ssh_options)
 
 
-def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], src_file_path:pathlib.Path, destination:str, port:int, ssh_options:list[str])->None:
+def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], src_file_path:pathlib.Path, destination:Host, destination_path:pathlib.Path, port:int, ssh_options:list[str])->None:
     process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "local")
-    if "@" in destination:
-        user_name_and_ip, destination_path = destination.split(":")
-        remote_user, remote_host = user_name_and_ip.split("@")
+    remote_user = destination.username
+    remote_host = destination.network_name
+    if remote_host is not None:
         dest_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
         create_directories_on_remote(dest_home, remote_user, remote_host, ssh_options)
         dest_file_path = pathlib.Path(os.path.join(destination_path, os.path.basename(src_file_path)))
@@ -188,6 +210,8 @@ def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:Ino
         process_id_path = (
                 PROCESS_ID_THAT_WROTE_INODE_VERSION / src_inode_version.str_id()
         )
+
+        user_name_and_ip = destination.get_scp_address()
         if process_id_path.exists():
             remote_process_id_that_wrote_inode_version = (
                     remote_home
@@ -213,9 +237,9 @@ def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:Ino
                 scp_command = [
                     "scp",
                     "-P",
-                    str(port),  # Specify the port
-                    str(process_path),  # Local file path
-                    f"{user_name_and_ip}:{process_by_id_remote}",  # Remote file path
+                    str(port),
+                    str(process_path),
+                    f"{user_name_and_ip}:{process_by_id_remote}",
                 ]
                 upload_files(scp_command)
 
@@ -227,22 +251,19 @@ def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:Ino
         create_remote_dest_inode_and_process(src_inode_version, src_inode_metadata, remote_home, dest_inode_version,
                                              dest_inode_metadata, remote_host, remote_user, port, cmd, ssh_options)
     else:
-        print("here")
-        dest_path = pathlib.Path(os.path.join(destination, os.path.basename(src_file_path)))
+        dest_path = pathlib.Path(os.path.join(destination_path, os.path.basename(src_file_path)))
         dest_inode_version, dest_inode_metadata = get_file_info_on_local(dest_path)
         # process_by_id and process_id_that_wrote_inode_version are not transferred to destination as source and destination both are local
         create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version, dest_inode_metadata, cmd)
 
-def get_source_info(source:str, ssh_options:list[str])->tuple[InodeVersion, InodeMetadataVersion, pathlib.Path]:
-    if ":" not in source:
-        source_file_path = pathlib.Path(source)
+def get_source_info(source:Host, source_file_path:pathlib.Path,  ssh_options:list[str])->tuple[InodeVersion, InodeMetadataVersion]:
+    username = source.username
+    network_name = source.network_name
+    if username is None and network_name is None:
         src_inode_version, src_inode_metadata = get_file_info_on_local(source_file_path)
     else:
-        user_name_and_ip = source.split(":")[0]
-        src_user, src_host = user_name_and_ip.split("@")
-        source_file_path = pathlib.Path(source.split(":")[1])
-        src_inode_version, src_inode_metadata = get_file_info_on_remote(src_host, source_file_path, src_user, ssh_options)
-    return src_inode_version, src_inode_metadata, source_file_path
+        src_inode_version, src_inode_metadata = get_file_info_on_remote(network_name, source_file_path, username, ssh_options)
+    return src_inode_version, src_inode_metadata
 
 
 def create_directories_on_remote(remote_home: pathlib.Path, remote_user: str, remote_host: str, ssh_options: list[str]) -> None:
