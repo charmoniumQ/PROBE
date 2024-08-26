@@ -28,6 +28,11 @@ PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
 PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
 PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
+@dataclasses.dataclass
+class Host:
+    network_name: str
+    username: str | None
+
 
 def copy(cmd: list[str])->None:
     # 1. get the src_inode_version and src_inode_metadata
@@ -42,34 +47,30 @@ def copy(cmd: list[str])->None:
     # 9. create an scp process json
     # 10. added reference to scp process id to the dest inode version
     # 11. copy the scp process to the file on dest
-    try:
-        # Extract port from SCP command
+    # Extract port from SCP command
+    sources, ssh_options = parse_and_translate_scp_command(cmd)
+    print(ssh_options)
+    print(sources)
+    port = extract_port_from_scp_command(cmd)
+    destination = cmd[-1]
+    prov_info = []
+    for source in sources:
+        src_inode, src_inode_metadata, src_file_path = get_source_info(source, cmd)
+        prov_info.append((src_inode, src_inode_metadata, src_file_path))
+    cmd.insert(0,"scp")
+    upload_files(cmd)
+    for idx in range(len(sources)):
+        src_inode_version, src_inode_metadata, src_file_path = prov_info[idx]
+        print(sources[idx])
+        if ":" not in sources[idx]:
+            prov_upload_src_local(src_inode_version, src_inode_metadata, cmd, src_file_path, destination, port, ssh_options)
+        else:
+            prov_upload_src_remote(sources[idx], src_inode_version, src_inode_metadata, cmd, destination, port, ssh_options)
 
-        sources, ssh_options = parse_and_translate_scp_command(cmd)
-        print(ssh_options)
-        print(sources)
-        port = extract_port_from_scp_command(cmd)
-        destination = cmd[-1]
-        prov_info = []
-        for source in sources:
-            src_inode, src_inode_metadata, src_file_path = get_source_info(source, cmd)
-            prov_info.append((src_inode, src_inode_metadata, src_file_path))
-        cmd.insert(0,"scp")
-        upload_files(cmd)
-        for idx in range(len(sources)):
-            src_inode_version, src_inode_metadata, src_file_path = prov_info[idx]
-            print(sources[idx])
-            if "@" not in sources[idx]:
-                prov_upload_src_local(src_inode_version, src_inode_metadata, cmd, src_file_path, destination, port, ssh_options)
-            else:
-                prov_upload_src_remote(sources[idx], src_inode_version, src_inode_metadata, cmd, destination, port, ssh_options)
-    except Exception as e:
-        traceback.print_exc()
-        print(str(e))
 
 
 def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:str, port:int, ssh_options:list[str])->None:
-    if "@" not in destination:
+    if ":" not in destination:
         user_name_and_ip = source.split(":")[0]
         remote_user, remote_host = user_name_and_ip.split("@")
         source_file_path = pathlib.Path(source.split(":")[1])
@@ -233,7 +234,7 @@ def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:Ino
         create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version, dest_inode_metadata, cmd)
 
 def get_source_info(source:str, ssh_options:list[str])->tuple[InodeVersion, InodeMetadataVersion, pathlib.Path]:
-    if "@" not in source:
+    if ":" not in source:
         source_file_path = pathlib.Path(source)
         src_inode_version, src_inode_metadata = get_file_info_on_local(source_file_path)
     else:
