@@ -45,40 +45,36 @@ def copy(cmd: list[str])->None:
     # 11. copy the scp process to the file on dest
     try:
         # Extract port from SCP command
-        port = extract_port_from_scp_command(cmd)
-        if port is None:
-            port = 22
 
-        sources = parse_scp_command(cmd)
+        sources, ssh_options = parse_and_translate_scp_command(cmd)
+        print(ssh_options)
         print(sources)
+        port = extract_port_from_scp_command(cmd)
         destination = cmd[-1]
         prov_info = []
         for source in sources:
             src_inode, src_inode_metadata, src_file_path = get_source_info(source, cmd)
             prov_info.append((src_inode, src_inode_metadata, src_file_path))
-
-        cmd.insert(0, f"-P {port}")
-        cmd.insert(0, "scp")
+        cmd.insert(0,"scp")
         upload_files(cmd)
         for idx in range(len(sources)):
             src_inode_version, src_inode_metadata, src_file_path = prov_info[idx]
             print(sources[idx])
             if "@" not in sources[idx]:
-                prov_upload_src_local(src_inode_version, src_inode_metadata, cmd, src_file_path, destination, port)
+                prov_upload_src_local(src_inode_version, src_inode_metadata, cmd, src_file_path, destination, port, ssh_options)
             else:
-                prov_upload_src_remote(sources[idx], src_inode_version, src_inode_metadata, cmd, destination, port)
+                prov_upload_src_remote(sources[idx], src_inode_version, src_inode_metadata, cmd, destination, port, ssh_options)
     except Exception as e:
         traceback.print_exc()
         print(str(e))
 
 
-def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:str, port:int)->None:
+def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], destination:str, port:int, ssh_options:list[str])->None:
     if "@" not in destination:
         user_name_and_ip = source.split(":")[0]
         remote_user, remote_host = user_name_and_ip.split("@")
         source_file_path = pathlib.Path(source.split(":")[1])
         destination_path = destination
-        ssh_options = translate_scp_to_ssh_args(cmd)
         dest_inode_version, dest_inode_metadata = get_file_info_on_local(pathlib.Path(destination_path))
         process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "remote")
         remote_home = pathlib.Path(get_remote_home(remote_user, remote_host, ssh_options))
@@ -129,7 +125,6 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
         dest_file_path = pathlib.Path(os.path.join(
             destination.split(":")[1], os.path.basename(source_file_path)
         ))
-        ssh_options = translate_scp_to_ssh_args(cmd)
 
         dest_inode_version, dest_inode_metadata = get_file_info_on_remote(dest_host, dest_file_path, dest_user,
                                                                           ssh_options)
@@ -175,9 +170,8 @@ def prov_upload_src_remote(source:str, src_inode_version:InodeVersion, src_inode
                                              dest_inode_metadata, dest_host, dest_user, port, cmd, ssh_options)
 
 
-def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], src_file_path:pathlib.Path, destination:str, port:int)->None:
+def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:InodeMetadataVersion, cmd:list[str], src_file_path:pathlib.Path, destination:str, port:int, ssh_options:list[str])->None:
     process_closure, inode_version_writes = get_prov_upstream(src_inode_version, "local")
-    ssh_options = translate_scp_to_ssh_args(cmd)
     if "@" in destination:
         user_name_and_ip, destination_path = destination.split(":")
         remote_user, remote_host = user_name_and_ip.split("@")
@@ -239,7 +233,7 @@ def prov_upload_src_local(src_inode_version:InodeVersion, src_inode_metadata:Ino
         # process_by_id and process_id_that_wrote_inode_version are not transferred to destination as source and destination both are local
         create_local_dest_inode_and_process(src_inode_version, src_inode_metadata, dest_inode_version, dest_inode_metadata, cmd)
 
-def get_source_info(source:str, cmd:list[str])->tuple[InodeVersion, InodeMetadataVersion, pathlib.Path]:
+def get_source_info(source:str, ssh_options:list[str])->tuple[InodeVersion, InodeMetadataVersion, pathlib.Path]:
     if "@" not in source:
         source_file_path = pathlib.Path(source)
         src_inode_version, src_inode_metadata = get_file_info_on_local(source_file_path)
@@ -247,7 +241,6 @@ def get_source_info(source:str, cmd:list[str])->tuple[InodeVersion, InodeMetadat
         user_name_and_ip = source.split(":")[0]
         src_user, src_host = user_name_and_ip.split("@")
         source_file_path = pathlib.Path(source.split(":")[1])
-        ssh_options = translate_scp_to_ssh_args(cmd)
         src_inode_version, src_inode_metadata = get_file_info_on_remote(src_host, source_file_path, src_user, ssh_options)
     return src_inode_version, src_inode_metadata, source_file_path
 
@@ -270,7 +263,6 @@ def create_directories_on_remote(remote_home: pathlib.Path, remote_user: str, re
         mkdir_command.append(f"mkdir -p {directory}",)
         subprocess.run(mkdir_command, check=True)
         mkdir_command.pop()
-
 
 def extract_port_from_scp_command(args: list[str]) -> int:
     port = None
@@ -559,64 +551,47 @@ def get_file_info_on_remote(remote_host: str, file_path: pathlib.Path, remote_us
     inode_metadata = InodeMetadataVersion(inode_version, stat_results)
     return inode_version, inode_metadata
 
-def translate_scp_to_ssh_args(scp_args:list[str])->list[str]:
-    ssh_args = []
 
-    common_options = ['-4', '-6', '-A', '-C', '-o', '-i', '-v', '-q']
-    
+def parse_and_translate_scp_command(cmd: list[str]) -> tuple[list[str], list[str]]:
+    ssh_options = []
+    sources = []
+    common_options = {'-4', '-6', '-A', '-C', '-o', '-i', '-v', '-q'}
     option_mapping = {
-        '-4': '-4',
-        '-6': '-6',
-        '-A': '-A',
-        '-C': '-C',
-        '-o': '-o',
-        '-i': '-i',
         '-P': '-p',
-        '-v': '-v',
-        '-q': '-q',
     }
+    one_arg_options = {"-o", "-i", "-P"}
 
     i = 0
-    while i < len(scp_args):
-        arg = scp_args[i]
+    while i < len(cmd):
+        arg = cmd[i]
+        unknown_option = True
         if arg in option_mapping:
-            ssh_args.append(option_mapping[arg])
-        if arg in common_options:
-            ssh_args.append(arg)
-        if arg in ['-o', '-i', '-P']:
-            if i + 1 < len(scp_args):
-                ssh_args.append(scp_args[i + 1])
+            ssh_options.append(option_mapping[arg])
+            unknown_option = False
+        elif arg in common_options:
+            unknown_option = False
+            ssh_options.append(arg)
+
+        if unknown_option:
+            if arg.startswith('-'):
+                # Handle unknown or unmapped scp options (assumed to be scp-only)
+                pass  # Add any specific handling for unrecognized options if needed
+            else:
+                # Consider the argument as a source or destination if it's not an option
+                sources.append(arg)
+        else:
+            if arg in one_arg_options and i+1 < len(cmd):
+                ssh_options.append(cmd[i + 1])
                 i += 1
-        elif arg.startswith('-'):
-            # Handle unknown or unmapped scp options (assumed to be scp-only)
-            pass  # Add any specific handling for unrecognized options if needed
         i += 1
 
-    return ssh_args
+    # Separate the last item as the destination
+    destination = sources.pop() if sources else ""
+
+    return sources, ssh_options
 
 
-# parse scp command to get list of sources
-def parse_scp_command(command: list[str]) -> list[str]:
-    if not command or len(command) < 2:
-        raise ValueError("The command must include at least a source and a destination.")
 
-    potential_sources = command[:-1]
-
-    # Initialize an empty list to store sources
-    sources = []
-
-    skip_next = False
-    for i, arg in enumerate(potential_sources):
-        if skip_next:
-            skip_next = False
-            continue
-
-        if arg.startswith('-'):
-            if i + 1 < len(potential_sources) and not potential_sources[i + 1].startswith('-'):
-                skip_next = True
-        else:
-            sources.append(arg)
-    return sources
 
 
 
