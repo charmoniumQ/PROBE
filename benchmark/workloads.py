@@ -1437,7 +1437,7 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.kind != "w/Spack" and workload.name != "Linux"
+        if workload.kind != "w/Spack" and workload.name != "Linux" and workload.kind != "lmbench"
     ],
     "fast": [
         workload

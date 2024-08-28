@@ -194,7 +194,6 @@
                 (python.withPackages (pypkgs: [
                   # probe_py.manual runtime requirements
                   pypkgs.networkx
-                  pypkgs.pygraphviz
                   pypkgs.pydot
                   pypkgs.rich
                   pypkgs.typer
