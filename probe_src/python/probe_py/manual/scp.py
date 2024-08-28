@@ -46,7 +46,4 @@ def parse_and_translate_scp_command(cmd: list[str]) -> tuple[list[str], list[str
                 i += 1
         i += 1
 
-    # Separate the last item as the destination
-    destination = sources.pop() if sources else ""
-
     return sources, ssh_options
