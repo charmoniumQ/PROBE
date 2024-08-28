@@ -86,7 +86,6 @@
             propagatedBuildInputs = [
               self.packages.${system}.probe-py-generated
               python.pkgs.networkx
-              python.pkgs.pygraphviz
               python.pkgs.pydot
               python.pkgs.rich
               python.pkgs.typer
@@ -109,7 +108,6 @@
                 (python.withPackages (pypkgs: [
                   # probe_py.manual runtime requirements
                   pypkgs.networkx
-                  pypkgs.pygraphviz
                   pypkgs.pydot
                   pypkgs.rich
                   pypkgs.typer
