@@ -139,6 +139,7 @@
                 pkgs.just
                 pkgs.black
                 pkgs.ruff
+                pkgs.nextflow
               ]
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb

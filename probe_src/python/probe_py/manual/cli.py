@@ -12,6 +12,11 @@ import rich
 from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual import util
+import networkx as nx
+import pydot
+from probe_py.manual.workflows import *
+from probe_py.manual.analysis import *
+import pickle
 
 rich.traceback.install(show_locals=False)
 
@@ -127,6 +132,7 @@ def process_graph(
 @app.command()
 def dataflow_graph(
         input: pathlib.Path = pathlib.Path("probe_log"),
+        output: pathlib.Path = pathlib.Path("dataflow_graph.pkl")
 ) -> None:
     """
     Write a process graph from PROBE_LOG in DOT/graphviz format.
@@ -145,7 +151,12 @@ def dataflow_graph(
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_hb_graph(prov_log, process_graph):
         console.print(warning, style="red")
-    print(analysis.provlog_to_dataflow_graph(prov_log))
+
+    dot_string, dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    print(dot_string)
+    import pickle
+    with open(output, 'wb') as f:
+        pickle.dump(dataflow_graph, f)
 
 
 @app.command()
@@ -169,5 +180,40 @@ def dump(
                     print(pid, exid, tid, op_no, op.data)
                 print()
 
+@app.command()
+def export(
+    input: pathlib.Path = pathlib.Path("dataflow_graph.pkl"),
+    makefile : bool = typer.Option(default=False, help="export in makefile format"),
+    nextflow : bool = typer.Option(default=True, help="export in nextflow format"),
+    output : pathlib.Path = pathlib.Path("workflow"),
+) -> None:
+    """
+    Export the dataflow graph to Workflow (Nextflow and Makefile).
+    """
+    output.mkdir(parents=True, exist_ok=True)
+    if not input.exists():
+        typer.secho(f"INPUT {input} does not exist", fg=typer.colors.RED)
+        raise typer.Abort()
+
+
+    with open(input, 'rb') as f:
+        dataflow_graph = pickle.load(f)
+    
+    if nextflow : 
+        generator = NextflowGenerator(dataflow_graph)
+        script = generator.generate_workflow()
+        output_file = output / "nextflow.nf"
+        print(script)
+        with output_file.open('a') as outfile:
+            outfile.write(script)
+    if makefile : 
+        generator = MakefileGenerator(dataflow_graph)
+        script = generator.generate_makefile()
+        output_file = output / "Makefile"
+        with output_file.open('a') as outfile:
+            outfile.write(script)
+        print(script)
+
+    
 if __name__ == "__main__":
     app()
