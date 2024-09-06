@@ -17,17 +17,17 @@
     - [x] Put some of these checks in a function, and have that function be called by `PROBE analysis --check`.
     - Note that the application may not close every file descriptor it opens; that would be considered a "sloppy" application, but it should still work in PROBE.
   - [x] Write a pthreads application for testing purposes (Saleha finished this).
-  - [ ] Verify some properties of the pthreads application.
-    - [ ] Verify that the main thread has N CloneOp followed by N WaitOps.
-  - [ ] Verify some properties of `cp a b`.
-    - [ ] Verify that `a` gets opened for reading.
-    - [ ] Verify that `b` gets opened for writing.
-    - [ ] Verify the file descriptors get closed at some point after both opens.
-  - [ ] Verify some properties of `sh -c "cat a ; cat b"`
-    - [ ] Verify that the root process has a CloneOp, WaitOp, CloneOp, WaitOp.
-    - [ ] Verify that the first child process has ExecOp, OpenOp (path should be `a`), and CloseOp. Analogously check the second child process.
-  - [ ] Verify that this doesn't crash `sh -c "sh -c 'cat a ; cat b' ; sh -c 'cat d ; cat e'"` (in the past it did)
-  - [ ] Continue along these lines one or two more cases.
+  - [x] Verify some properties of the pthreads application.
+    - [x] Verify that the main thread has N CloneOp followed by N WaitOps.
+  - [x] Verify some properties of `cp a b`.
+    - [x] Verify that `a` gets opened for reading.
+    - [x] Verify that `b` gets opened for writing.
+    - [x] Verify the file descriptors get closed at some point after both opens.
+  - [x] Verify some properties of `sh -c "cat a ; cat b"`
+    - [x] Verify that the root process has a CloneOp, WaitOp, CloneOp, WaitOp.
+    - [x] Verify that the first child process has ExecOp, OpenOp (path should be `a`), and CloseOp. Analogously check the second child process.
+  - [x] Verify that this doesn't crash `sh -c "sh -c 'cat a ; cat b' ; sh -c 'cat d ; cat e'"` (in the past it did)
+  - [x] Continue along these lines one or two more cases.
 - [ ] Link with libbacktrace on `--debug` runs.
 - [ ] Refactor some identifiers in codebase.
   - [ ] prov_log_process_tree -> process_tree
@@ -40,6 +40,7 @@
     - [ ] Move tests to root level?
     - [ ] Distinguish between unit-tests and end-to-end tests
     - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
+    - [ ] Use Clang's non-null attribute.
 - [ ] Write remote script wrappers
   - [ ] Write an SSH wrapper. Asif and Shofiya are working on this.
     - [ ] There should be a shell script named `ssh` that calls `./PROBE ssh <args...>`.
@@ -91,8 +92,8 @@
       - Build on the work of Nichole Bufford et al.
 - [ ] Consider how to combine provenance from multiple sources
   - [ ] Consider language-level sources like rdtlite
-  - [ ] Consider combining across multiple runs of PROBE
-  - [ ] Consider combining across multiple hosts
+  - [x] Consider combining across multiple runs of PROBE
+  - [x] Consider combining across multiple hosts
 - [ ] Ensuring libprobe works
   - [x] Debug why libprobe doesn't work with Python. Sam fixed this.
   - [x] Debug pthreads not making graph.
