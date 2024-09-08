@@ -45,5 +45,5 @@ def parse_and_translate_scp_command(cmd: list[str]) -> tuple[list[str], list[str
                 ssh_options.append(cmd[i + 1])
                 i += 1
         i += 1
-
+    sources.pop()
     return sources, ssh_options
