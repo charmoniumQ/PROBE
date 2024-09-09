@@ -15,7 +15,6 @@ from probe_py.manual import util
 
 rich.traceback.install(show_locals=False)
 from typing import List
-from . import parse_probe_log
 from . import analysis
 from . import util
 
