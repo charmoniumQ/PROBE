@@ -705,13 +705,15 @@
           lmbench = pkgs.stdenv.mkDerivation {
             pname = "lmbench";
             version = "3.0.a9";
-            src = pkgs.fetchzip {
-              url = "https://sourceforge.net/projects/lmbench/files/development/lmbench-3.0-a9/lmbench-3.0-a9.tgz";
-              hash = "sha256-vGS9f/oy9KjYqcdG0XOUUbPJCLw7hG4WpbNFcORzL6I=";
-              name = "lmbench";
-            };
-            sourceRoot = "lmbench";
-            buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
+            # src = pkgs.fetchzip {
+            #   url = "https://sourceforge.net/projects/lmbench/files/development/lmbench-3.0-a9/lmbench-3.0-a9.tgz";
+            #   hash = "sha256-vGS9f/oy9KjYqcdG0XOUUbPJCLw7hG4WpbNFcORzL6I=";
+            #   name = "lmbench";
+            # };
+            # sourceRoot = "lmbench";
+            src = ./lmbench-3.0-a9.tgz;
+            sourceRoot = "lmbench-3.0-a9";
+            buildInputs = [ pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils ];
             patchPhase = ''
               sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
               sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS)"/g' src/Makefile
