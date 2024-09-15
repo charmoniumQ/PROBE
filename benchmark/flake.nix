@@ -774,6 +774,7 @@
           env = pkgs.symlinkJoin {
             name = "env";
             paths = [
+              pkgs.coreutils
               pkgs.ruff
               pkgs.libseccomp.lib
               pkgs.glibc_multi.bin
