@@ -17,6 +17,7 @@ rich.traceback.install(show_locals=False)
 from typing import List
 from . import analysis
 from . import util
+from probe_py.manual.ssh_argparser import parse_ssh_args
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
@@ -185,53 +186,7 @@ def ssh(
     Wrap SSH and record provenance of the remote command.
     """
 
-    one_arg_options = set("BbcDEeFIiJLlmOoPpRSWw")
-    no_arg_options = set("46AaCfGgKkMNnqsTtVvXxYy")
-
-    # fsm to figure out the flags, destination and remote cmds
-    state = 'start'
-    i = 0
-    flags = []
-    destination = None
-    remote_host = []
-
-    while i < len(ssh_args):
-        curr_arg = ssh_args[i]
-
-        if state == 'start':
-            if curr_arg.startswith("-"):
-                state = 'flag'
-            elif destination != None:
-                state = 'cmd'
-            else:
-                state = 'destination'
-
-        elif state == 'flag':
-            opt = curr_arg[-1]
-            if opt in one_arg_options:
-                state = 'one_arg'
-            elif opt in no_arg_options:
-                flags.append(curr_arg)
-                state = 'start'
-            i+=1
-
-        elif state == 'one_arg':
-            flags.extend([ssh_args[i-1],curr_arg])
-            state = 'start'
-            i+=1
-
-        elif state == 'destination':
-            if destination == None:
-                destination = curr_arg
-                state = 'start'
-            else:
-                state = 'cmd'
-                continue
-            i+=1
-
-        elif state == 'cmd':
-            remote_host.extend(ssh_args[i:])
-            break
+    flags, destination, remote_host = parse_ssh_args(ssh_args)
         
     ssh_cmd = ["ssh"] + flags 
 
@@ -244,14 +199,14 @@ def ssh(
     local_temp_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
 
     # Check if remote platform matches local platform
-    remote_gcc_machine_cmd = ssh_cmd + ["gcc", "-dumpmachine"]
-    local_gcc_machine_cmd = ["gcc", "-dumpmachine"]
-
-    remote_gcc_machine = subprocess.check_output(remote_gcc_machine_cmd)
-    local_gcc_machine = subprocess.check_output(local_gcc_machine_cmd)
-
-    if remote_gcc_machine != local_gcc_machine:
-        raise NotImplementedError("Remote platform is different from local platform")
+    # remote_gcc_machine_cmd = ssh_cmd + ["gcc", "-dumpmachine"]
+    # local_gcc_machine_cmd = ["gcc", "-dumpmachine"]
+    #
+    # remote_gcc_machine = subprocess.check_output(remote_gcc_machine_cmd)
+    # local_gcc_machine = subprocess.check_output(local_gcc_machine_cmd)
+    #
+    # if remote_gcc_machine != local_gcc_machine:
+    #     raise NotImplementedError("Remote platform is different from local platform")
 
     # Upload libprobe.so to the remote temporary directory
     remote_temp_dir_cmd = ssh_cmd + [destination] + ["mktemp", "-d", "/tmp/probe_log_XXXXXX"]
