@@ -75,7 +75,8 @@
                   makeWrapper \
                     ${self.packages.${system}.probe-cli}/bin/probe \
                     $out/bin/probe \
-                    --set __PROBE_LIB ${libprobe}/lib
+                    --set __PROBE_LIB ${libprobe}/lib \
+                    --prefix PATH : ${probe-py}/bin
                 '';
               };
             probe-py-manual = python.pkgs.buildPythonPackage rec {
@@ -96,6 +97,7 @@
               ];
               pythonImportsCheck = [pname];
             };
+            probe-py = python.withPackages (pypkgs: [probe-py-manual]);
             default = probe-bundled;
           }
           // frontend.packages;
