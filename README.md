@@ -107,6 +107,8 @@ nix shell nixpkgs#graphviz github:charmoniumQ/PROBE#probe-py-manual \
 
 6. Run `probe <args...>` or `python -m probe_py.manual.cli <args...>` to invoke the Rust or Python code respectively.
 
+7. **Before submitting a PR**, run `just pre-commit` which will run pre-commit checks.
+
 ## Prior art
 
 - [RR-debugger](https://github.com/rr-debugger/rr) which is much slower, but features more complete capturing, lets you replay but doesn't let you do any other analysis.
