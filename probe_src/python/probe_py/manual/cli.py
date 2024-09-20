@@ -178,7 +178,7 @@ def dump(
 def ssh(
         ssh_args: list[str],
         debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
-):
+) -> None:
     """
     Wrap SSH and record provenance of the remote command.
     """
@@ -196,14 +196,14 @@ def ssh(
     local_temp_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
 
     # Check if remote platform matches local platform
-    # remote_gcc_machine_cmd = ssh_cmd + ["gcc", "-dumpmachine"]
-    # local_gcc_machine_cmd = ["gcc", "-dumpmachine"]
-    #
-    # remote_gcc_machine = subprocess.check_output(remote_gcc_machine_cmd)
-    # local_gcc_machine = subprocess.check_output(local_gcc_machine_cmd)
-    #
-    # if remote_gcc_machine != local_gcc_machine:
-    #     raise NotImplementedError("Remote platform is different from local platform")
+    remote_gcc_machine_cmd = ssh_cmd + ["gcc", "-dumpmachine"]
+    local_gcc_machine_cmd = ["gcc", "-dumpmachine"]
+
+    remote_gcc_machine = subprocess.check_output(remote_gcc_machine_cmd)
+    local_gcc_machine = subprocess.check_output(local_gcc_machine_cmd)
+
+    if remote_gcc_machine != local_gcc_machine:
+        raise NotImplementedError("Remote platform is different from local platform")
 
     # Upload libprobe.so to the remote temporary directory
     remote_temp_dir_cmd = ssh_cmd + [destination] + ["mktemp", "-d", "/tmp/probe_log_XXXXXX"]

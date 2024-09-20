@@ -1,4 +1,4 @@
-def parse_ssh_args(ssh_args):
+def parse_ssh_args(ssh_args: list[str]) -> tuple[list[str], str, list[str]]:
 
     one_arg_options = set("BbcDEeFIiJLlmOoPpRSWw")
     no_arg_options = set("46AaCfGgKkMNnqsTtVvXxYy")
@@ -47,5 +47,6 @@ def parse_ssh_args(ssh_args):
             remote_host.extend(ssh_args[i:])
             break
 
+    assert destination is not None
     return flags, destination, remote_host
 
