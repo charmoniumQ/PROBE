@@ -9,15 +9,12 @@ import pathlib
 import typer
 import shutil
 import rich
+from probe_py.manual.ssh_argparser import parse_ssh_args
 from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual import util
 
 rich.traceback.install(show_locals=False)
-from typing import List
-from . import analysis
-from . import util
-from probe_py.manual.ssh_argparser import parse_ssh_args
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
