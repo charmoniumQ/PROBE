@@ -16,7 +16,7 @@ import networkx as nx
 import pydot
 from probe_py.manual.workflows import *
 from probe_py.manual.analysis import *
-import pickle
+import enum
 
 rich.traceback.install(show_locals=False)
 
@@ -154,10 +154,6 @@ def dataflow_graph(
 
     dot_string, dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
     print(dot_string)
-    import pickle
-    with open(output, 'wb') as f:
-        pickle.dump(dataflow_graph, f)
-
 
 @app.command()
 def dump(
@@ -180,12 +176,15 @@ def dump(
                     print(pid, exid, tid, op_no, op.data)
                 print()
 
+class OutputFormat(str, enum.Enum):
+    makefile = "makefile"
+    nextflow = "nextflow"
+
 @app.command()
 def export(
-    input: pathlib.Path = pathlib.Path("dataflow_graph.pkl"),
-    makefile : bool = typer.Option(default=False, help="export in makefile format"),
-    nextflow : bool = typer.Option(default=True, help="export in nextflow format"),
-    output : pathlib.Path = pathlib.Path("workflow"),
+    input: pathlib.Path = pathlib.Path("probe_log"),
+    output_format: OutputFormat = typer.Option(OutputFormat.nextflow, help="Select output format", show_default=True),
+    output: pathlib.Path = pathlib.Path("workflow"),
 ) -> None:
     """
     Export the dataflow graph to Workflow (Nextflow and Makefile).
@@ -195,18 +194,17 @@ def export(
         typer.secho(f"INPUT {input} does not exist", fg=typer.colors.RED)
         raise typer.Abort()
 
+    prov_log = parse_probe_log(input)
+    _, dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
 
-    with open(input, 'rb') as f:
-        dataflow_graph = pickle.load(f)
-    
-    if nextflow : 
-        generator = NextflowGenerator(dataflow_graph)
-        script = generator.generate_workflow()
+    if output_format == OutputFormat.nextflow : 
+        generator = NextflowGenerator()
+        script = generator.generate_workflow(dataflow_graph)
         output_file = output / "nextflow.nf"
         print(script)
         with output_file.open('a') as outfile:
             outfile.write(script)
-    if makefile : 
+    if output_format == OutputFormat.makefile : 
         generator = MakefileGenerator(dataflow_graph)
         script = generator.generate_makefile()
         output_file = output / "Makefile"

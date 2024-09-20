@@ -1,5 +1,6 @@
 from probe_py.manual.analysis import *
 import networkx as nx
+import abc
 import dataclasses
 from dataclasses import dataclass
 from typing import Tuple, List, Set, Union
@@ -16,10 +17,13 @@ All the cases we should take care of:
 8- File and Directory Structure Assumptions (Scripts that assume a specific directory structure, Commands that change the working directory (cd))
 ...
 """
+class WorkflowGenerator(abc.ABC):
+    @abc.abstractmethod
+    def generate_workflow(self, graph: nx.DiGraph) -> str:
+        pass
 
-class NextflowGenerator:
-    def __init__(self, graph: nx.DiGraph):
-        self.graph = graph
+class NextflowGenerator(WorkflowGenerator):
+    def __init__(self):
         self.visited: Set[ProcessNode] = set()
         self.process_counter = {}
         self.nextflow_script = []
@@ -141,7 +145,7 @@ process process_{id(process)} {{
                     self.nextflow_script.append(process_script)
                     self.workflow.append(f"{self.escape_filename_for_nextflow(outputs[0].label)} = process_{id(node)}({', '.join([self.escape_filename_for_nextflow(i.label) for i in inputs])})")
                 elif self.is_multiple_output_case(node,inputs,outputs) : 
-                    raise NotImplementedError("")
+                    raise NotImplementedError("Handling multiple outputs not implemented yet.")
                 elif self.is_dynamic_filename_case(node, outputs):
                     process_script = self.handle_dynamic_filenames(node, inputs, outputs)
                 elif self.is_parallel_execution(node):
@@ -152,11 +156,12 @@ process process_{id(process)} {{
                     self.workflow.append(f"process_{id(node)}()")
 
                 self.visited.add(node)
-
-    def generate_workflow(self) -> str:
+  
+    def generate_workflow(self, graph: nx.DiGraph) -> str:  
         """
         Generate the complete Nextflow workflow script from the graph.
         """
+        self.graph = graph
         self.nextflow_script.append("nextflow.enable.dsl=2\n\n")
         self.create_processes()
 
@@ -236,28 +241,7 @@ class MakefileGenerator:
         """
         Create Makefile rules based on the dataflow graph.
         """
-        for node in self.graph.nodes:
-            if isinstance(node, ProcessNode) and node not in self.visited:
-                inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
-                outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
-
-                if self.is_standard_case(node, inputs, outputs):
-                    #rule = self.handle_standard_case(node, inputs, outputs)
-                    raise NotImplementedError("")
-                elif self.is_multiple_output_case(node, inputs, outputs):
-                    raise NotImplementedError("")
-                elif self.is_dynamic_filename_case(node, outputs):
-                    #rule = self.handle_dynamic_filenames(node, inputs, outputs)
-                    raise NotImplementedError("")
-                elif self.is_parallel_execution(node):
-                    #rule = self.handle_parallel_execution(node)
-                    raise NotImplementedError("")
-                else:
-                    #rule = self.handle_custom_shells(node)
-                    raise NotImplementedError("")
-
-                self.makefile_rules.append(rule)
-                self.visited.add(node)
+        raise NotImplementedError("Exporting to makefile is not implemented yet.")
 
     def generate_makefile(self) -> str:
         """
