@@ -1,7 +1,7 @@
 import typing
 from probe_py.generated.parser import ProvLog, parse_probe_log
 from probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
-from probe_py.manual.analysis import FileNode, ProcessNode
+from probe_py.manual.analysis import FileNode, ProcessNode, InodeOnDevice
 from probe_py.manual.workflows import NextflowGenerator
 from . import analysis
 import pathlib
@@ -283,8 +283,8 @@ def get_op_from_provlog(
 
 def test_dataflow_graph_to_nextflow_script() -> None:	
     dataflow_graph = nx.DiGraph()	
-    A = FileNode(0, 0, "A.txt")	
-    B = FileNode(1, 0, "B.txt")	
+    A = FileNode(InodeOnDevice(inode=0), 0, "A.txt")	
+    B = FileNode(InodeOnDevice(inode=1), 0, "B.txt")	
     W = ProcessNode(0, ("cp", "A.txt", "B.txt"))	
     dataflow_graph.add_nodes_from([A, B], color="red")	
     dataflow_graph.add_nodes_from([W], color="blue")	
@@ -323,10 +323,10 @@ workflow {
 
     assert script == expected_script	
 
-    A = FileNode(0, 0, "A.txt")	
-    B0 = FileNode(1, 0, "B.txt")	
-    B1 = FileNode(1, 1, "B.txt")	
-    C = FileNode(3, 0, "C.txt")	
+    A = FileNode(InodeOnDevice(inode=0), 0, "A.txt")	
+    B0 = FileNode(InodeOnDevice(inode=0), 0, "B.txt")	
+    B1 = FileNode(InodeOnDevice(inode=1), 1, "B.txt")	
+    C = FileNode(InodeOnDevice(inode=3), 0, "C.txt")	
     W = ProcessNode(0,("cp", "A.txt", "B.txt"))	
     X = ProcessNode(1,("sed", "s/foo/bar/g", "-i", "B.txt"))	
     # Note, the filename in FileNode will not always appear in the cmd of ProcessNode!	

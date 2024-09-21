@@ -22,7 +22,7 @@ class WorkflowGenerator(abc.ABC):
         pass
 
 class NextflowGenerator(WorkflowGenerator):
-    def __init__(self):
+    def __init__(self) -> None:
         self.visited: Set[ProcessNode] = set()
         self.process_counter = {}
         self.nextflow_script = []
@@ -125,12 +125,12 @@ process process_{id(process)} {{
         return len(inputs) >= 1 and len(outputs) >= 1
     
     def is_dynamic_filename_case(self, process: ProcessNode, outputs: List[FileNode]) -> bool:
-        return any("*" in file.fileName or "v*" in file.fileName for file in outputs if file.fileName)
+        return any("*" in file.file or "v*" in file.file for file in outputs if file.file)
 
     def is_parallel_execution(self, process: ProcessNode) -> bool:
         return len(process.cmd) > 1 and "parallel" in process.cmd
 
-    def create_processes(self):
+    def create_processes(self) -> None:
         """
         Create Nextflow processes based on the dataflow graph.
         """
@@ -236,7 +236,7 @@ class MakefileGenerator:
     def is_parallel_execution(self, process: ProcessNode) -> bool:
         return len(process.cmd) > 1 and "parallel" in process.cmd
 
-    def create_rules(self):
+    def create_rules(self) -> None:
         """
         Create Makefile rules based on the dataflow graph.
         """
