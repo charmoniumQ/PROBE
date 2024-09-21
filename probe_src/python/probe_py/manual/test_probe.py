@@ -8,6 +8,7 @@ import pathlib
 import networkx as nx  # type: ignore
 import subprocess
 import re
+import os
 
 Node: typing.TypeAlias = tuple[int, int, int, int]
 DEBUG_LIBPROBE = False
@@ -281,7 +282,30 @@ def get_op_from_provlog(
     return process_tree_prov_log.processes[pid].exec_epochs[exec_epoch_id].threads[tid].ops[op_idx]
 
 
-def test_dataflow_graph_to_nextflow_script() -> None:	
+def test_dataflow_graph_to_nextflow_script() -> None:
+    #current_path = 'probe_src/python/probe_py/manual/test_probe.py'
+
+    # Get the directory containing the script
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+
+    # Get the path to the folder before 'probe_src'
+    parent_of_probe_src = os.path.join(os.path.dirname(script_dir), "..", "..", "..")
+    
+    # Resolve the absolute path to the folder before 'probe_src'
+    parent_of_probe_src = os.path.abspath(parent_of_probe_src)
+
+    # Define the file paths
+    a_file_path = os.path.join(parent_of_probe_src, "A.txt")
+    b_file_path = os.path.join(parent_of_probe_src, "B.txt")
+
+    # Create and write to A.txt
+    with open(a_file_path, 'w') as a_file:
+        a_file.write("This is A.txt")
+
+    # Create and write to B.txt
+    with open(b_file_path, 'w') as b_file:
+        b_file.write("This is B.txt")
+	
     dataflow_graph = nx.DiGraph()	
     A = FileNode(InodeOnDevice(0,0,0), 0, "A.txt")	
     B = FileNode(InodeOnDevice(0,0,1), 0, "B.txt")	
@@ -320,11 +344,10 @@ workflow {
 
     script = re.sub(r'process_\d+', 'process_*', script)
     expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
-
     assert script == expected_script	
 
     A = FileNode(InodeOnDevice(0,0,0), 0, "A.txt")	
-    B0 = FileNode(InodeOnDevice(0,0,0), 0, "B.txt")	
+    B0 = FileNode(InodeOnDevice(0,0,1), 0, "B.txt")	
     B1 = FileNode(InodeOnDevice(0,0,1), 1, "B.txt")	
     C = FileNode(InodeOnDevice(0,0,3), 0, "C.txt")	
     W = ProcessNode(0,("cp", "A.txt", "B.txt"))	
@@ -411,4 +434,7 @@ workflow {
     script = generator.generate_workflow(example_dataflow_graph)
     script = re.sub(r'process_\d+', 'process_*', script)
     expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
-    assert script == expected_script	
+    assert script == expected_script
+
+    os.remove(a_file_path)
+    os.remove(b_file_path)	
