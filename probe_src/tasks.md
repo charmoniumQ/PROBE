@@ -102,7 +102,10 @@
   - [x] Add thread ID and pthread ID to op.
   - [ ] Libprobe should identify which was the "root" process.
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
-  - [ ] Libprobe should detect Musl vs Glibc at runtime.
+  - [ ] Don't use libc structs directly. Copy out the relevant data to a libprobe-owned struct.
+  - [ ] Check that various versions of glibc and various versions of musl have the same offsets for the relevant data in the libc structs described above.
+  - [ ] Write a FUSE that maps inodes (underlying fs) to inodes (of our choosing). Write an option for replay to use this FUSE.
+  - [ ] Sort readdir order in record and replay phases.
   - [ ] Put magic bytes in arena
   - [ ] Unify the Arenas.
   - [ ] Try to break it. Jenna has some input on this.
