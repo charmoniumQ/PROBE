@@ -186,8 +186,7 @@ process process_{id(process)} {{
 
 
 class MakefileGenerator:
-    def __init__(self, graph: nx.DiGraph):
-        self.graph = graph
+    def __init__(self):
         self.visited: Set[ProcessNode] = set()
         self.makefile_rules: list[str] = []
 
@@ -242,9 +241,10 @@ class MakefileGenerator:
         """
         raise NotImplementedError("Exporting to makefile is not implemented yet.")
 
-    def generate_makefile(self) -> str:
+    def generate_makefile(self, graph: nx.DiGraph) -> str:
         """
         Generate the complete Makefile script from the graph.
         """
+        self.graph = graph
         self.create_rules()
         return "\n".join(self.makefile_rules)
