@@ -186,7 +186,7 @@ process process_{id(process)} {{
 
 
 class MakefileGenerator:
-    def __init__(self):
+    def __init__(self) -> None:
         self.visited: Set[ProcessNode] = set()
         self.makefile_rules: list[str] = []
 
