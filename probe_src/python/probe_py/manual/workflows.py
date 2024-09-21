@@ -1,5 +1,5 @@
 from probe_py.manual.analysis import ProcessNode, FileNode
-import networkx as nx
+import networkx as nx # type: ignore
 import abc
 from typing import List, Set
 import pathlib
