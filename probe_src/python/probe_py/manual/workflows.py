@@ -189,7 +189,7 @@ class MakefileGenerator:
     def __init__(self, graph: nx.DiGraph):
         self.graph = graph
         self.visited: Set[ProcessNode] = set()
-        self.makefile_rules = []
+        self.makefile_rules: list[str] = []
 
     def escape_filename_for_makefile(self, filename: str) -> str:
         """
@@ -231,7 +231,7 @@ class MakefileGenerator:
         return len(inputs) >= 1 and len(outputs) >= 1
 
     def is_dynamic_filename_case(self, process: ProcessNode, outputs: List[FileNode]) -> bool:
-        return any("*" in file.fileName or "v*" in file.fileName for file in outputs if file.fileName)
+        return any("*" in file.file or "v*" in file.file for file in outputs if file.file)
 
     def is_parallel_execution(self, process: ProcessNode) -> bool:
         return len(process.cmd) > 1 and "parallel" in process.cmd
