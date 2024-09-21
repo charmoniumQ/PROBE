@@ -12,10 +12,7 @@ import rich
 from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual import util
-import networkx as nx
-import pydot
-from probe_py.manual.workflows import *
-from probe_py.manual.analysis import *
+from probe_py.manual.workflows import NextflowGenerator, MakefileGenerator
 import enum
 
 rich.traceback.install(show_locals=False)

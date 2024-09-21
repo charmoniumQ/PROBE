@@ -1,9 +1,8 @@
-from probe_py.manual.analysis import *
+from probe_py.manual.analysis import ProcessNode, FileNode
 import networkx as nx
 import abc
-import dataclasses
-from dataclasses import dataclass
-from typing import Tuple, List, Set, Union
+from typing import List, Set
+import pathlib
 
 """
 All the cases we should take care of:

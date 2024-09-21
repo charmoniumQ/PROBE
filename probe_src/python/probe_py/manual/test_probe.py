@@ -1,8 +1,8 @@
 import typing
 from probe_py.generated.parser import ProvLog, parse_probe_log
 from probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
-from probe_py.manual.analysis import *
-from probe_py.manual.workflows import *
+from probe_py.manual.analysis import FileNode, ProcessNode
+from probe_py.manual.workflows import NextflowGenerator
 from . import analysis
 import pathlib
 import networkx as nx  # type: ignore
