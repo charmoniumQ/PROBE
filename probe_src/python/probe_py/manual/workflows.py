@@ -24,9 +24,9 @@ class WorkflowGenerator(abc.ABC):
 class NextflowGenerator(WorkflowGenerator):
     def __init__(self) -> None:
         self.visited: Set[ProcessNode] = set()
-        self.process_counter = {}
-        self.nextflow_script = []
-        self.workflow = []
+        self.process_counter: dict[ProcessNode, int] = {} 
+        self.nextflow_script: list[str] = []  
+        self.workflow: list[str] = []
 
     def escape_filename_for_nextflow(self, filename: str) -> str:
         """
@@ -207,7 +207,7 @@ class MakefileGenerator:
 
     def handle_dynamic_filenames(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> str:
         input_files = " ".join([self.escape_filename_for_makefile(file.label) for file in inputs])
-        output_files = " ".join([self.escape_filename_for_makefile(file.fileName) + "_v*" for file in outputs if file.fileName])
+        output_files = " ".join([self.escape_filename_for_makefile(file.file) + "_v*" for file in outputs if file.file])
         cmd = " ".join(process.cmd)
         
         return f"{output_files}: {input_files}\n\t{cmd}\n"

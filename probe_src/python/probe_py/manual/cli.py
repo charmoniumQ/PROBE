@@ -201,9 +201,9 @@ def export(
         print(script)
         with output_file.open('a') as outfile:
             outfile.write(script)
-    if output_format == OutputFormat.makefile : 
-        generator = MakefileGenerator(dataflow_graph)
-        script = generator.generate_makefile()
+    elif output_format == OutputFormat.makefile : 
+        generator = MakefileGenerator()
+        script = generator.generate_makefile(dataflow_graph)
         output_file = output / "Makefile"
         with output_file.open('a') as outfile:
             outfile.write(script)
