@@ -44,7 +44,7 @@ def output_features(df: pandas.DataFrame) -> None:
         })
         .assign(**{
             "rel_slowdown": lambda df: df["walltime_mean"] / df.loc["noprov"]["walltime_mean"],
-            "slowdown_diff": lambda df: df.loc["noprov"]["walltime_mean"] - df["walltime_mean"],
+            "slowdown_diff": lambda df: df["walltime_mean"] - df.loc["noprov"]["walltime_mean"],
         })
         .assign(**{
             "log_rel_slowdown": lambda df: numpy.log(df["rel_slowdown"]),
@@ -55,27 +55,30 @@ def output_features(df: pandas.DataFrame) -> None:
     collectors = df["collector"].unique()
     if "strace" in collectors:
         strace = agged.loc["strace"]
-        all_syscalls = collections.Counter[str]()
-        for counter in strace["op_type_counts"]:
-            all_syscalls += counter
-        features_df = pandas.DataFrame({
-            syscall_group + "_syscalls": strace["op_type_counts_sum"][syscall_group]
-            for syscall_group in all_syscalls.keys()
-        })
-        features_df.to_pickle(output / "features_df.pkl")
+        all_syscalls = set[str]()
+        for counter in strace["op_type_counts_sum"]:
+            all_syscalls |= counter.keys()
+        benchmarks_by_features = pandas.DataFrame({
+            syscall_group + "_syscalls": [
+                counter[syscall_group]
+                for counter in strace["op_type_counts_sum"]
+            ]
+            for syscall_group in all_syscalls
+        }).set_index(strace.index)
+        benchmarks_by_features.to_pickle(output / "benchmarks_by_features.pkl")
 
-        tmp_df = agged.reset_index().pivot(index="collector", columns="workload", values="log_rel_slowdown")
+        systems_by_benchmarks = (
+            agged
+            .reset_index()
+            .pivot(index="collector", columns="workload", values="slowdown_diff")
+        )
+        systems_by_benchmarks.to_pickle(output / "systems_by_benchmarks.pkl")
 
         assert all(
             workload0 == workload1
-            for workload0, workload1 in zip(tmp_df.columns, features_df.index)
+            for workload0, workload1 in zip(systems_by_benchmarks.columns, benchmarks_by_features.index)
         )
 
-        numpy.save(output / "systems_by_benchmarks", tmp_df.values)
-        numpy.save(output / "benchmarks_by_features", features_df.values)
-        (output / "systems.txt").write_text("\n".join(agged.index.levels[0]))
-        (output / "benchmarks.txt").write_text("\n".join(agged.index.levels[1]))
-        (output / "features.txt").write_text("\n".join(features_df.columns))
 
 @charmonium.time_block.decor()
 def performance(df: pandas.DataFrame) -> None:
