@@ -116,6 +116,7 @@
                 pypkgs.scikit-learn
                 pypkgs.nbconvert
                 jupyter-contrib-nbextensions
+                pypkgs.xgboost
               ]))
             ];
           };
