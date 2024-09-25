@@ -1,20 +1,54 @@
 from __future__ import annotations
 import typing
+import os
+import random
+import socket
 import json
 import datetime
 import dataclasses
 import pathlib
 import xdg_base_dirs
 
+
+PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
+PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
+PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
+
+
+def get_local_node_name() -> str:
+    node_name = PROBE_HOME / "node_name"
+    if node_name.exists():
+        return node_name.read_text()
+    else:
+        hostname = socket.gethostname()
+        rng = random.Random(datetime.datetime.now().timestamp() ^ hash(hostname))
+        bits_per_hex_digit = 4
+        hex_digits = 8
+        random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
+        node_name = f"{random_number:0{hex_digits}x}.{hostname}"
+        node_name.write_text(node_name)
+        return node_name
+
+
 @dataclasses.dataclass(frozen=True)
 class Inode:
-    host: int
+    host: str
     device_major: int
     device_minor: int
     inode: int
 
     def str_id(self) -> str:
         return f"{self.host:012x}-{self.device_major:04x}-{self.device_minor:04x}-{self.inode:016x}"
+
+    @staticmethod
+    def from_local_path(path: pathlib.Path, stat_info: os.StatResult | None = None) -> Inode:
+        if stat_info is None:
+            stat_info = os.stat(path)
+        device_major = os.major(stat_info.st_dev)
+        device_minor = os.minor(stat_info.st_dev)
+        inode_val = stat_info.st_ino
+        host = get_local_node_name()
+        return Inode(host, device_major, device_minor, inode_val)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -42,18 +76,42 @@ class InodeVersion:
     def str_id(self) -> str:
         return f"{self.inode.str_id()}-{self.mtime:016x}-{self.size:016x}"
 
+    @staticmethod
+    def from_local_path(path: pathlib.Path, stat_info: os.StatInfo) -> InodeVersion:
+        if stat_info is None:
+            stat_info = os.stat(path)
+        mtime = int(stat_info.st_mtime * 1_000_000_000)
+        size = stat_info.st_size
+        return InodeVersion(Inode.from_local_path(path, stat_info), mtime, size)
+
 
 @dataclasses.dataclass(frozen=True)
-class InodeMetadataVersion:
-    inode_version: InodeVersion
-    stat_results: bytes
-    
+class InodeMetadata:
+    inode: Inode
+    mode: int
+    nlink: int
+    uid: int
+    gid: int
+
+    @staticmethod
+    def from_local_path(path: pathlib.Path, stat_info: os.StatInfo) -> InodeMetadata:
+        if stat_info is None:
+            stat_info = os.stat(path)
+        return InodeMetadata(
+            Inode.from_local_path(path, stat_info),
+            mode=stat_info.st_mode,
+            nlink=stat_info.st_nlink,
+            uid=stat_info.st_uid,
+            gid=stat_info.st_gid,
+        )
+
+
 @dataclasses.dataclass(frozen=True)
 class Process:
     input_inodes: frozenset[InodeVersion]
-    input_inode_metadatas: frozenset[InodeMetadataVersion]
+    input_inode_metadatas: frozenset[InodeMetadata]
     output_inodes: frozenset[InodeVersion]
-    output_inode_metadatas: frozenset[InodeMetadataVersion]
+    output_inode_metadatas: frozenset[InodeMetadata]
     time: datetime.datetime
     cmd: tuple[str, ...]
     pid: int
@@ -61,12 +119,11 @@ class Process:
     wd: pathlib.Path
 
 
-PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
-PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
-PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
-
 # TODO: implement this for remote host
-def get_prov_upstream(root_inode_version: InodeVersion, host:str) -> tuple[typing.Mapping[int, Process], typing.Mapping[InodeVersion, int | None]]:
+def get_prov_upstream(
+        root_inode_version: list[InodeVersion],
+        host: str,
+) -> tuple[typing.Mapping[int, Process], typing.Mapping[InodeVersion, int | None]]:
     """
     This function answers: What do we need to reconstruct the provenance of root_inode_version on another host?
     The answer is a set of Process objects and a map of InodeVersion writes.
@@ -74,7 +131,7 @@ def get_prov_upstream(root_inode_version: InodeVersion, host:str) -> tuple[typin
     if host != "local":
         raise NotImplementedError("scp where source is remote is not implemented, because it would be hard to copy the remote prov")
     inode_version_queue = list[InodeVersion]()
-    inode_version_queue.append(root_inode_version)
+    inode_version_queue.extend(root_inode_version)
 
     # Stuff we need to transfer
     inode_version_writes = dict[InodeVersion, int | None]()

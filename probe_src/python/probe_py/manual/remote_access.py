@@ -3,36 +3,33 @@ import base64
 from typing import Union, Any
 
 from probe_py.manual.persistent_provenance import (
-    InodeVersion,
     Inode,
+    InodeVersion,
+    InodeMetadata,
     get_prov_upstream,
     Process,
-    InodeMetadataVersion,
 )
-import struct
+import itertools
 import xdg_base_dirs
 import random
-import pickle
 import datetime
 import json
 import os
-import socket
+import random
 import subprocess
 import pathlib
-import typer
 import yaml
-from probe_py.manual.scp import extract_port_from_scp_command, parse_and_translate_scp_command
 import typing
 
-PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
-PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
-PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
-
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Host:
     network_name: str | None
-    username: str | None
+
+    # Later on, these fields may be properties that get computed based on other fields.
+    username: str
+    ssh_options: list[str]
+    ssh_options: list[str]
 
     def get_address(self) -> str | None:
         if self.username is None and self.network_name is None:
@@ -42,34 +39,55 @@ class Host:
         else:
             return f"{self.username}@{self.network_name}"
 
+    @property
+    def local(self) -> bool:
+        return self.username is None and self.network_name is None
 
-def copy(cmd: list[str]) -> None:
-    # 1. get the src_inode_version and src_inode_metadata
-    # 2. upload the files
-    # 3. get process closure and file_writes
-    # 4. get remote home for dest
-    # 5. create the two directories on dest
-    # 6. upload src_inode version to the destination
-    # 7. upload process that wrote the file, file to dest
-    #  do this for the dest
-    # 8. generate random_pid to refer to the process
-    # 9. create an scp process json
-    # 10. added reference to scp process id to the dest inode version
-    # 11. copy the scp process to the file on dest
-    # Extract port from SCP command
-    sources, ssh_options = parse_and_translate_scp_command(cmd)
-    port = extract_port_from_scp_command(cmd)
-    destination = cmd[-1]
-    dest_host, dest_path = get_dest_host_and_path(destination)
 
-    cmd.insert(0, "scp")
-    upload_files(cmd)
-    for source in sources:
-        src, src_file_path = get_dest_host_and_path(source)
-        src_inode, src_inode_metadata, process_closure, inode_version_writes = get_source_info(src, src_file_path, ssh_options)
-        success = prov_upload(process_closure, inode_version_writes, dest_host, dest_path, src_file_path, ssh_options, port, src_inode, src_inode_metadata, cmd)
-        if not success:
-            print(f"Upload of prov info to destination {dest_host.get_address()} for f{src.get_address()}:{src_file_path}")
+@dataclasses.dataclass(frozen=True)
+class HostPath:
+    host: Host
+    path: pathlib.Path
+
+
+def copy_provenance(source: HostPath, destination: HostPath) -> None:
+    provenance_info = lookup_provenance(source)
+    augment_provenance(destination, provenance_info)
+
+
+ProvenanceInfo: typing.TypeAlias = tuple[
+    list[InodeVersion],
+    list[InodeMetadata],
+    typing.Mapping[int, Process],
+    typing.Mapping[InodeVersion, int | None],
+]
+
+
+def lookup_provenance(source: HostPath) -> ProvenanceInfo:
+    """Returns the provenance info associated with source
+
+    If source is a directory, returns the provenance info for each file contained in the directory recursively.
+    """
+    if source.host.local:
+        return lookup_provenance_local(source.path)
+    else:
+        return lookup_provenance_remote(source.host, source.path)
+
+
+def augment_provenance(dest: HostPath, provenance_info: ProvenanceInfo) -> None:
+    if dest.host.local:
+        augment_provenance_local(dest.path, provenance_info)
+    else:
+        augment_provenance_remote(dest, provenance_info)
+
+
+def augment_provenance_local(dest: pathlib.Path, provenance_info: ProvenanceInfo) -> None:
+    pass
+
+
+def augment_provenance_remote(dest: HostPath, provenance_info: ProvenanceInfo) -> None:
+    pass
+
 
 def prov_upload(process_closure: typing.Mapping[int, Process],
                 inode_version_writes: typing.Mapping[InodeVersion, int | None], destination: Host,
@@ -140,31 +158,6 @@ def prov_upload(process_closure: typing.Mapping[int, Process],
         return True
     except Exception:
         return False
-
-
-def get_dest_host_and_path(address: str) -> tuple[Host, pathlib.Path]:
-    network, user_name = None, None
-    if ":" in address:
-        user_name_and_network, file_path = address.split(":")
-        if "@" in user_name_and_network:
-            user_name, network = user_name_and_network.split("@")
-    else:
-        file_path = address
-    host = Host(network, user_name)
-    return host, pathlib.Path(file_path)
-
-def get_source_info(source: Host, source_file_path: pathlib.Path, ssh_options: list[str]) -> tuple[
-    InodeVersion, InodeMetadataVersion, typing.Mapping[int, Process], typing.Mapping[InodeVersion, int | None]]:
-    username = source.username
-    network_name = source.network_name
-    if username is None and network_name is None:
-        src_inode_version, src_inode_metadata = get_file_info_on_local(source_file_path)
-        host = "local"
-    else:
-        src_inode_version, src_inode_metadata = get_file_info_on_remote(source, source_file_path, ssh_options)
-        host = "remote"
-    process_closure, inode_version_writes = get_prov_upstream(src_inode_version, host)
-    return src_inode_version, src_inode_metadata, process_closure, inode_version_writes
 
 
 def create_directories_on_remote(remote_home: pathlib.Path, remote: Host, ssh_options: list[str]) -> None:
@@ -323,144 +316,85 @@ def generate_random_pid() -> int:
     return random_pid
 
 
-def upload_files(cmd: list[str]) -> None:
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-        typer.echo("File transfer successful.")
-    except subprocess.CalledProcessError as e:
-        # Capture and print the error message
-        typer.echo(f"Error occurred during file transfer: {e}")
-        typer.echo(f"Exit code: {e.returncode}")
-        typer.echo(f"Error output: {e.stderr}")
+def get_descendants(root: pathlib.Path, include_directories: bool) -> list[pathlib.Path]:
+    queue = [root]
+    ret = []
+    while queue:
+        path = queue.pop()
+        if path.is_dir():
+            queue.extend(path.iterdir())
+            if include_directories:
+                ret.append(path)
+        else:
+            ret.append(path)
+    return ret
 
 
-def check_and_create_remote_file(remote: Host, port: int, remote_file_path: pathlib.Path) -> None:
-    try:
-        remote_address = remote.get_address()
-        # Check if the file exists on the remote server
-        check_command = f"ssh -p {port} {remote_address} 'test -f {remote_file_path} && echo \"File exists\" || echo \"File does not exist\"'"
-        result = subprocess.run(check_command, shell=True, check=True, capture_output=True, text=True)
-        output = result.stdout.strip()
-        if output == "File does not exist":
-            # Create the file if it does not exist
-            create_command = f"ssh -p {port} {remote_address} 'touch {remote_file_path}'"
-            subprocess.run(create_command, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Command failed with exit code {e.returncode}")
-        print(f"Error output: {e.stderr}")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-
-def get_remote_home(remote: Host, ssh_options: list[str]) -> pathlib.Path:
-    remote_xdg = get_remote_xdg_data_home(remote, ssh_options)
-    if remote_xdg != "":
-        remote_home = pathlib.Path(f"home/{remote_xdg}/.local/share") / "PROBE"
+def lookup_provenance_local(path: pathlib.Path) -> ProvenanceInfo:
+    if path.is_dir():
+        inode_versions = [
+            InodeVersion.from_local_path(descendant)
+            for descendant in get_descendants(path, False)
+        ]
+        inode_metadatas = [
+            InodeMetadata.from_local_path(descendant)
+            for descendant in get_descendants(path, True)
+        ]
     else:
-        home = get_remote_home_env(remote, ssh_options)
-        remote_home = pathlib.Path(f"{home}/.local/share") / "PROBE"
-    return remote_home
+        inode_versions = [InodeVersion.from_local_path(path)]
+        inode_metadatas = [InodeMetadata.from_local_path(path)]
+    process_map, inode_map = get_prov_upstream(inode_versions, "local")
+    return inode_versions, inode_metadatas, process_map, inode_map
 
 
-def get_remote_xdg_data_home(remote: Host, ssh_options: list[str]) -> str | None:
-    try:
-        remote_scp_address = remote.get_address()
-        ssh_command = [
+
+def lookup_provenance_remote(host: Host, path: pathlib.Path) -> ProvenanceInfo:
+    address = host.get_address()
+    assert address is not None
+    proc = subprocess.run(
+        [
             "ssh",
-            f"{remote_scp_address}",
-        ]
-        for option in ssh_options:
-            ssh_command.insert(-1, option)
-        ssh_command.append("echo $XDG_DATA_HOME", )
-        result = subprocess.run(ssh_command, capture_output=True, text=True, check=True)
-        xdg_data_home = result.stdout.strip()
-        return xdg_data_home
-    except subprocess.CalledProcessError as e:
-        print(f"Error retrieving XDG_DATA_HOME: {e}")
-        # customary case when $HOME is None
-        return "/homeless-shelter"
-
-
-# @functools.lru_cache(maxsize=128)
-def get_remote_home_env(remote: Host, ssh_options: list[str]) -> str | None:
-    remote_scp_address = remote.get_address()
-    try:
-        ssh_command = [
-            "ssh",
-            f"{remote_scp_address}",
-        ]
-        for option in ssh_options:
-            ssh_command.insert(-1, option)
-        ssh_command.append("echo $HOME")
-        result = subprocess.run(ssh_command, capture_output=True, text=True, check=True)
-        home = result.stdout.strip()
-        return home
-    except subprocess.CalledProcessError as e:
-        print(f"Error retrieving XDG_DATA_HOME: {e}")
-        return "/homeless-shelter"
-
-
-def get_file_info_on_local(file_path: pathlib.Path) -> tuple[InodeVersion, InodeMetadataVersion]:
-    stat_info = os.stat(file_path)
-    device_major = os.major(stat_info.st_dev)
-    device_minor = os.minor(stat_info.st_dev)
-    inode_val = stat_info.st_ino
-    hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
-    packed_ip = socket.inet_aton(ip_address)
-    host = struct.unpack("!I", packed_ip)[0]
-
-    # c uses mtime in nanoseconds
-    mtime_micro_seconds = stat_info.st_mtime
-    mtime = int(mtime_micro_seconds * 1_000_000_000)
-
-    size = stat_info.st_size
-    inode = Inode(host, device_major, device_minor, inode_val)
-    inode_version = InodeVersion(inode, mtime, size)
-    stat_results = os.stat(file_path)
-    serialized_stat_results = pickle.dumps(stat_results)
-    inode_metadata = InodeMetadataVersion(
-        inode_version, serialized_stat_results
+            *host.ssh_options,
+            address,
+            "sh", "-c", ";".join([
+                "node_name_file=${XDG_CACHE_HOME:-$HOME/.cache}/PROBE/node_name",
+                "[ ! -f $node_name_file ] && echo -n $(tr -dc 'A-F0-9' < /dev/urandom | head -c8).$(hostname) > $node_name_file",
+                # First field is node_name
+                "cat $node_name_file",
+                # I will use null-bytes as separators, because spaces (and even newlines) can occur in the filenames
+                # Second field will be PWD
+                'echo -e "\0$PWD\0"',
+                # The rest of the fields will be each of 9 entries in the following printf
+                "find -printf '%p\0%D\0%i\0%T@\0%s\0%m\0%n\0%U\0%G\0' {shlex.quote(file_path)}"
+            ]),
+        ],
+        capture_output=True,
+        check=True,
+        text=False,
     )
-    return inode_version, inode_metadata
+    fields = proc.stdout.split(b"\0")
+    node_name = fields[0]
+    #cwd = pathlib.Path(fields[1])
+    inode_metadatas = []
+    inode_versions = []
+    for _child_path, device, inode, mtime, size, mode, nlink, uid, gid in itertools.batched(fields[2:], 9):
+        inode = Inode(node_name, os.major(int(device)), os.minor(int(device)), int(inode))
+        inode_versions.append(InodeVersion(inode, int(mtime), int(size)))
+        inode_metadatas.append(InodeMetadata(inode, int(mode), int(nlink), int(uid), int(gid)))
+    # TODO: actually get the provenance info
+    return inode_versions, inode_metadatas, {}, {}
 
 
-def get_file_info_on_remote(remote: Host, file_path: pathlib.Path, ssh_options: list[str]) -> tuple[
-    InodeVersion, InodeMetadataVersion]:
-    remote_address = remote.get_address()
-    command = [
-        "ssh",
-        f"{remote_address}",
-    ]
-    for option in ssh_options:
-        command.insert(-1, option)
-    command.append(f'stat -c "%D %i %s %Y" {file_path}', )
-    process = subprocess.run(command, check=True, capture_output=True, text=True)
 
-    output = process.stdout.strip()
-    device_hex, str_inode, str_size, str_mtime = output.split()
-
-    inode_val = int(str_inode)
-    size = int(str_size)
-    mtime = int(str_mtime) * 1_000_000_000
-
-    # Get host information
-    hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
-    packed_ip = socket.inet_aton(ip_address)
-    host = struct.unpack("!I", packed_ip)[0]
-
-    command.pop()
-    command.append(
-        f'python3 -c \'import os, json; stat_info = os.stat("{file_path}"); device_id = stat_info.st_dev; result = {{"device_major": os.major(device_id), "device_minor": os.minor(device_id)}}; print(json.dumps(result))\'')
-
-    result = subprocess.run(command, capture_output=True, text=True)
-    output = result.stdout.strip()
-    data = json.loads(output)
-    device_major = data["device_major"]
-    device_minor = data["device_minor"]
-    inode = Inode(host, device_major, device_minor, inode_val)
-    inode_version = InodeVersion(inode, mtime, size)
-    stat_results = get_stat_results_remote(remote, file_path, ssh_options)
-    inode_metadata = InodeMetadataVersion(inode_version, stat_results)
-    return inode_version, inode_metadata
+# Notes:
+# - scp.py is the driver and remote_access.py is the library. This way, remote_access.py can be re-imported into ssh. It makes more sense to me.
+# - Parse options completely in 1 function. Rather than have parsing scattered in different functions.
+# - Parse options differently. I realized that options can be combined "scp -4iv".
+# - Introduce HostPath.
+# - Host should have instructions for connecting to it.
+# - In some cases, the source can be a whole directory, so the provenance needs to include every descendant of that directory "**".
+# - Use `find` to get inodes of remote rather than `stat`, since `find` explores directory recursively. It has a similar interface, like "%D %s %m...". I use null-bytes as separators rather than space and newline, in case the filename has space (or even new line) in it.
+# - I tried to combine as many of the SSH commands into one big SSH command. E.g., always use ${XDG_CACHE_HOME:-$HOME/.cache}
+# - Defined a type alias for provenance info: tuple[list[InodeVersion], list[InodeMetadata], ...]
+# - I changed how InodeMetadata works: no state_result (bytes); instead individual fields of the stat results. However, not all fields are exposed with find, which limits us on what we can write right now.
+# - I used (rand number, hostname) as the nodename. Hostname is human-readable; random number differentiates if the hostnames are not unique. Random number is stored in ~/.cache/PROBE/node_name, so it will be persistent.
