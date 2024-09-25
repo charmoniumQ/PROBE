@@ -53,16 +53,14 @@ def output_features(df: pandas.DataFrame) -> None:
     agged.to_pickle(output / "agged.pkl")
 
     collectors = df["collector"].unique()
-    if "probe" in collectors and "noprov" in collectors:
-        noprov = agged.loc["noprov"]
-        probe = agged.loc["probe"]
-        all_libcalls = collections.Counter[str]()
-        for counter in probe["op_type_counts"]:
-            all_libcalls += counter
+    if "strace" in collectors:
+        strace = agged.loc["strace"]
+        all_syscalls = collections.Counter[str]()
+        for counter in strace["op_type_counts"]:
+            all_syscalls += counter
         features_df = pandas.DataFrame({
-            libcall_group + "_libcalls": probe["op_type_counts_sum"][libcall_group]
-            for libcall_group in all_libcalls.keys()
-            # TODO: Total syscalls.
+            syscall_group + "_syscalls": strace["op_type_counts_sum"][syscall_group]
+            for syscall_group in all_syscalls.keys()
         })
         features_df.to_pickle(output / "features_df.pkl")
 
