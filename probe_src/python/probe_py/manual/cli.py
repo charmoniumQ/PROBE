@@ -169,5 +169,83 @@ def dump(
                     print(pid, exid, tid, op_no, op.data)
                 print()
 
+@app.command()
+def oci(
+    directory: pathlib.Path = typer.Argument(..., exists=True, file_okay=False, help="The directory containing files to build the OCI image."),
+    image_name: str = typer.Argument(..., help="The name of the OCI image."),
+    tag: str = typer.Argument(..., help="The tag of the OCI image."),
+    tar_output: bool = typer.Option(False, help="Whether to output a tar file of the image."),
+    docker_tar: bool = typer.Option(False, help="Whether to create a Docker-compatible tar file."),
+    load_docker: bool = typer.Option(False, help="Whether to load the image into Docker."),
+    load_podman: bool = typer.Option(False, help="Whether to load the image into Podman."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+) -> None:
+    """
+    Build an OCI image from a specified directory with options for tar output and loading into Docker/Podman.
+    """
+    if not directory.is_dir():
+        raise ValueError(f"The directory {directory} does not exist or is not a directory.")
+
+    image_tag = f"{image_name}:{tag}"
+    oci_tar_file = pathlib.Path(f"{image_name}.tar")
+    docker_tar_file = pathlib.Path(f"{image_name}-docker.tar")
+
+    try:
+        if verbose:
+            typer.secho(f"Creating OCI image '{image_tag}' from directory '{directory}'...", fg=typer.colors.GREEN)
+
+        container_id = subprocess.check_output(["buildah", "from", "scratch"]).strip().decode('utf-8')
+        if verbose:
+            typer.secho(f"Created container with ID: {container_id}", fg=typer.colors.GREEN)
+
+        subprocess.run(f"buildah add {container_id} {str(directory)} /",stdout=subprocess.DEVNULL if not verbose else None, stderr=subprocess.DEVNULL if not verbose else None, shell=True, check=True)
+        if verbose:
+            typer.secho(f"Added contents of {directory} to container {container_id}.", fg=typer.colors.GREEN)
+
+        subprocess.run(f"buildah commit {container_id} {image_tag}",stdout=subprocess.DEVNULL if not verbose else None, stderr=subprocess.DEVNULL if not verbose else None, shell=True, check=True)
+        if verbose:
+            typer.secho(f"OCI image '{image_tag}' built successfully.", fg=typer.colors.GREEN)
+
+        subprocess.run(f"buildah push {image_tag} oci-archive:{oci_tar_file}",stdout=subprocess.DEVNULL if not verbose else None, stderr=subprocess.DEVNULL if not verbose else None, shell=True, check=True)
+        if verbose:
+            typer.secho(f"OCI image saved as '{oci_tar_file}'.", fg=typer.colors.GREEN)
+
+        subprocess.run(f"buildah push {image_tag} docker-archive:{docker_tar_file}",stdout=subprocess.DEVNULL if not verbose else None, stderr=subprocess.DEVNULL if not verbose else None, shell=True, check=True)
+        if verbose:
+            typer.secho(f"OCI image saved as Docker-compatible tar '{docker_tar_file}'.", fg=typer.colors.GREEN)
+
+        if load_docker:
+            subprocess.run(f"docker load -i {docker_tar_file}",stdout=subprocess.DEVNULL if not verbose else None, stderr=subprocess.DEVNULL if not verbose else None, shell=True, check=True)
+            if verbose:
+                typer.secho(f"OCI image '{image_tag}' loaded into Docker.", fg=typer.colors.GREEN)
+
+        if not load_podman:
+            subprocess.run(f"podman rmi {image_tag}",stdout=subprocess.DEVNULL if not verbose else None, stderr=subprocess.DEVNULL if not verbose else None, shell=True)
+        else:
+            if verbose:
+                typer.secho(f"OCI image '{image_tag}' loaded into Podman.", fg=typer.colors.GREEN)
+
+    except subprocess.CalledProcessError as e:
+        typer.secho(f"Error occurred: {e}", fg=typer.colors.RED)
+        raise
+
+    finally:
+        tar_dir = pathlib.Path("tar")
+        tar_dir.mkdir(exist_ok=True)
+
+        if tar_output and oci_tar_file.exists():
+            shutil.move(str(oci_tar_file), tar_dir / oci_tar_file.name)
+            if verbose:
+                typer.secho(f"OCI tar file saved in {tar_dir / oci_tar_file.name}", fg=typer.colors.GREEN)
+        elif oci_tar_file.exists():
+            oci_tar_file.unlink()
+
+        if docker_tar and docker_tar_file.exists():
+            shutil.move(str(docker_tar_file), tar_dir / docker_tar_file.name)
+            if verbose:
+                typer.secho(f"Docker tar file saved in {tar_dir / docker_tar_file.name}", fg=typer.colors.GREEN)
+        elif docker_tar_file.exists():
+            docker_tar_file.unlink()
+
 if __name__ == "__main__":
     app()
