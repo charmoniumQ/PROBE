@@ -15,6 +15,7 @@ import random
 import datetime
 import json
 import os
+import shlex
 import random
 import subprocess
 import pathlib
@@ -29,7 +30,7 @@ class Host:
     # Later on, these fields may be properties that get computed based on other fields.
     username: str
     ssh_options: list[str]
-    ssh_options: list[str]
+    scp_options: list[str]
 
     def get_address(self) -> str | None:
         if self.username is None and self.network_name is None:
@@ -52,7 +53,13 @@ class HostPath:
 
 def copy_provenance(source: HostPath, destination: HostPath) -> None:
     provenance_info = lookup_provenance(source)
-    augment_provenance(destination, provenance_info)
+    destination_files = find_new_files(source, destination)
+    provenance_info = augment_provenance(provenance_info, destination.host, destination_files)
+    # TODO: Support uploading all the provenance_info from mulitple sources at once
+    # Either copy_provenance should take multiple sources
+    # Or it should return the provenance rather than uploading it
+    # so the caller can upload them all together
+    upload_provenance(destination.host, provenance_info)
 
 
 ProvenanceInfo: typing.TypeAlias = tuple[
@@ -74,19 +81,31 @@ def lookup_provenance(source: HostPath) -> ProvenanceInfo:
         return lookup_provenance_remote(source.host, source.path)
 
 
-def augment_provenance(dest: HostPath, provenance_info: ProvenanceInfo) -> None:
-    if dest.host.local:
-        augment_provenance_local(dest.path, provenance_info)
+def find_new_files(source: HostPath, destination: HostPath) -> list[pathlib.Path]:
+    """Returns the paths in destination corresponding to source"""
+    if destination.host.local:
+        find_new_files_local(source, destination)
     else:
-        augment_provenance_remote(dest, provenance_info)
+        find_new_files_remote(source, destination)
 
 
-def augment_provenance_local(dest: pathlib.Path, provenance_info: ProvenanceInfo) -> None:
-    pass
+def augment_provenance(
+        source_provenance_info: ProvenanceInfo,
+        destination: Host,
+        destination_files: list[Path],
+) -> ProvenanceInfo:
+    """Given provenance_info of files on a previous host, insert nodes to represent a remote transfer to destination."""
+    if destination.local:
+        augment_provenance_local(source_provenance_info, destination_files)
+    else:
+        augment_provenance_remote(source_provenance_info, destination, destination_files)
 
 
-def augment_provenance_remote(dest: HostPath, provenance_info: ProvenanceInfo) -> None:
-    pass
+def upload_provenance(dest: Host, provenance_info: ProvenanceInfo) -> None:
+    if dest.local:
+        upload_provenance_local(provenance_info)
+    else:
+        upload_provenance_remote(dest, provenance_info)
 
 
 def prov_upload(process_closure: typing.Mapping[int, Process],
@@ -361,17 +380,20 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path) -> ProvenanceInfo:
                 "[ ! -f $node_name_file ] && echo -n $(tr -dc 'A-F0-9' < /dev/urandom | head -c8).$(hostname) > $node_name_file",
                 # First field is node_name
                 "cat $node_name_file",
+
                 # I will use null-bytes as separators, because spaces (and even newlines) can occur in the filenames
                 # Second field will be PWD
                 'echo -e "\0$PWD\0"',
+
                 # The rest of the fields will be each of 9 entries in the following printf
-                "find -printf '%p\0%D\0%i\0%T@\0%s\0%m\0%n\0%U\0%G\0' {shlex.quote(file_path)}"
+                f"find -printf '%p\0%D\0%i\0%T@\0%s\0%m\0%n\0%U\0%G\0' {shlex.quote(str(path))}"
             ]),
         ],
         capture_output=True,
         check=True,
         text=False,
     )
+
     fields = proc.stdout.split(b"\0")
     node_name = fields[0]
     #cwd = pathlib.Path(fields[1])
@@ -381,9 +403,59 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path) -> ProvenanceInfo:
         inode = Inode(node_name, os.major(int(device)), os.minor(int(device)), int(inode))
         inode_versions.append(InodeVersion(inode, int(mtime), int(size)))
         inode_metadatas.append(InodeMetadata(inode, int(mode), int(nlink), int(uid), int(gid)))
-    # TODO: actually get the provenance info
+
+    # TODO: Implement this
+    proc = subprocess.run(
+        [
+            "ssh",
+            *host.ssh_options,
+            address,
+            "sh", "-c", ";".join([
+                "probe_data=${XDG_DATA_HOME:-$HOME/.local/share}/PROBE",
+                "process_by_id=${probe_data}/process_id_that_wrote_inode_version",
+                "process_that_wrote=${probe_data}/processes_by_id",
+
+                # cat the relevant stuff
+            ]),
+        ],
+        capture_output=True,
+        check=True,
+        text=False,
+    )
+    raise NotImplementedError()
+
     return inode_versions, inode_metadatas, {}, {}
 
+
+def find_new_files_local(source: HostPath, destination: pathlib.Path) -> list[pathlib.Path]:
+    raise NotImplementedError()
+
+
+def find_new_files_remote(source: HostPath, destination: HostPath) -> list[pathlib.Path]:
+    raise NotImplementedError()
+
+
+def augment_provenance_local(
+        source_provenance_info: ProvenanceInfo,
+        files: list[pathlib.Path],
+) -> ProvenanceInfo:
+    raise NotImplementedError()
+
+
+def augment_provenance_remote(
+        source_provenance_info: ProvenanceInfo,
+        destination: Host,
+        files: list[pathlib.Path],
+) -> ProvenanceInfo:
+    raise NotImplementedError
+
+
+def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
+    raise NotImplementedError()
+
+
+def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> None:
+    raise NotImplementedError()
 
 
 # Notes:
