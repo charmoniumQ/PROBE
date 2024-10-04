@@ -12,9 +12,9 @@ import rich
 from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual import util
+from probe_py.manual.remote_access import copy
 
 rich.traceback.install(show_locals=False)
-
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
@@ -42,16 +42,18 @@ def transcribe(probe_dir: pathlib.Path, output: pathlib.Path, debug: bool = Fals
         print()
     shutil.rmtree(probe_dir)
 
-@app.command()    
+
+@app.command()
 def transcribe_only(
-        input_dir: pathlib.Path,
-        output: pathlib.Path = pathlib.Path("probe_log"),
-        debug: bool = typer.Option(default=False, help="Run in verbose mode"),
+    input_dir: pathlib.Path,
+    output: pathlib.Path = pathlib.Path("probe_log"),
+    debug: bool = typer.Option(default=False, help="Run in verbose mode"),
 ) -> None:
     """
     Transcribe the recorded data from INPUT_DIR into OUTPUT.
     """
     transcribe(input_dir, output, debug)
+
 
 @app.command(
     context_settings=dict(
@@ -59,12 +61,16 @@ def transcribe_only(
     ),
 )
 def record(
-        cmd: list[str],
-        gdb: bool = typer.Option(default=False, help="Run in GDB"),
-        debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
-        make: bool = typer.Option(default=False, help="Run make prior to executing"),
-        output: pathlib.Path = pathlib.Path("probe_log"),
-        no_transcribe: bool = typer.Option(default=False, help="Only execute without transcribing"),
+    cmd: list[str],
+    gdb: bool = typer.Option(default=False, help="Run in GDB"),
+    debug: bool = typer.Option(
+        default=False, help="Run verbose & debug build of libprobe"
+    ),
+    make: bool = typer.Option(default=False, help="Run make prior to executing"),
+    output: pathlib.Path = pathlib.Path("probe_log"),
+    no_transcribe: bool = typer.Option(
+        default=False, help="Only execute without transcribing"
+    ),
 ) -> None:
     """
     Execute CMD... and optionally record its provenance into OUTPUT.
@@ -78,47 +84,68 @@ def record(
             raise typer.Abort()
     if output.exists():
         output.unlink()
-    libprobe = project_root / "libprobe/build" / ("libprobe-dbg.so" if debug or gdb else "libprobe.so")
+    libprobe = (
+        project_root
+        / "libprobe/build"
+        / ("libprobe-dbg.so" if debug or gdb else "libprobe.so")
+    )
     if not libprobe.exists():
         typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
         raise typer.Abort()
-    ld_preload = str(libprobe) + (":" + os.environ["LD_PRELOAD"] if "LD_PRELOAD" in os.environ else "")
+    ld_preload = str(libprobe) + (
+        ":" + os.environ["LD_PRELOAD"] if "LD_PRELOAD" in os.environ else ""
+    )
     probe_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
     if gdb:
         subprocess.run(
-            ["gdb", "--args", "env", f"__PROBE_DIR={probe_dir}", f"LD_PRELOAD={ld_preload}", *cmd],
+            [
+                "gdb",
+                "--args",
+                "env",
+                f"__PROBE_DIR={probe_dir}",
+                f"LD_PRELOAD={ld_preload}",
+                *cmd,
+            ],
         )
     else:
         if debug:
-            typer.secho(f"Running {cmd} with libprobe into {probe_dir}", fg=typer.colors.GREEN)
+            typer.secho(
+                f"Running {cmd} with libprobe into {probe_dir}", fg=typer.colors.GREEN
+            )
         proc = subprocess.run(
             cmd,
             env={**os.environ, "LD_PRELOAD": ld_preload, "__PROBE_DIR": str(probe_dir)},
         )
 
         if no_transcribe:
-            typer.secho(f"Temporary probe directory: {probe_dir}", fg=typer.colors.YELLOW)
+            typer.secho(
+                f"Temporary probe directory: {probe_dir}", fg=typer.colors.YELLOW
+            )
             raise typer.Exit(proc.returncode)
-        
+
         transcribe(probe_dir, output, debug)
         raise typer.Exit(proc.returncode)
 
+
 @app.command()
 def process_graph(
-        input: pathlib.Path = pathlib.Path("probe_log"),
+    input: pathlib.Path = pathlib.Path("probe_log"),
 ) -> None:
     """
     Write a process graph from PROBE_LOG in DOT/graphviz format.
     """
     if not input.exists():
-        typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
+        typer.secho(
+            f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify",
+            fg=typer.colors.RED,
+        )
         raise typer.Abort()
     prov_log = parse_probe_log(input)
     console = rich.console.Console(file=sys.stderr)
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_provlog(prov_log):
         console.print(warning, style="red")
-    rich.traceback.install(show_locals=False) # Figure out why we need this
+    rich.traceback.install(show_locals=False)  # Figure out why we need this
     process_graph = analysis.provlog_to_digraph(prov_log)
     for warning in analysis.validate_hb_graph(prov_log, process_graph):
         console.print(warning, style="red")
@@ -150,13 +177,16 @@ def dataflow_graph(
 
 @app.command()
 def dump(
-        input: pathlib.Path = pathlib.Path("probe_log"),
+    input: pathlib.Path = pathlib.Path("probe_log"),
 ) -> None:
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
     if not input.exists():
-        typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
+        typer.secho(
+            f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify",
+            fg=typer.colors.RED,
+        )
         raise typer.Abort()
     processes_prov_log = parse_probe_log(input)
     for pid, process in processes_prov_log.processes.items():
@@ -168,6 +198,24 @@ def dump(
                 for op_no, op in enumerate(thread.ops):
                     print(pid, exid, tid, op_no, op.data)
                 print()
+
+
+# scp source destination
+# find the <device>-<inode>.prov on source
+# upload to destination
+# find <device>-<inode>.prov inode on source
+# augment to InodeHistory
+# transfer the file to destination
+
+
+# scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
+@app.command(
+context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
+def scp(cmd: list[str]) -> None:
+    copy(cmd)
 
 if __name__ == "__main__":
     app()
