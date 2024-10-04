@@ -84,9 +84,9 @@ def lookup_provenance(source: HostPath) -> ProvenanceInfo:
 def find_new_files(source: HostPath, destination: HostPath) -> list[pathlib.Path]:
     """Returns the paths in destination corresponding to source"""
     if destination.host.local:
-        find_new_files_local(source, destination)
+        return find_new_files_local(source, destination.path)
     else:
-        find_new_files_remote(source, destination)
+        return find_new_files_remote(source, destination)
 
 
 def augment_provenance(
@@ -416,6 +416,10 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path) -> ProvenanceInfo:
                 "process_that_wrote=${probe_data}/processes_by_id",
 
                 # cat the relevant stuff
+                *[
+                    f"cat $process_by_id/{inode}.json && echo '\0'",
+                    for inode in []
+                ],
             ]),
         ],
         capture_output=True,
