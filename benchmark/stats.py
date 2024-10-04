@@ -59,7 +59,7 @@ def output_features(df: pandas.DataFrame) -> None:
         for counter in strace["op_type_counts_sum"]:
             all_syscalls |= counter.keys()
         benchmarks_by_features = pandas.DataFrame({
-            syscall_group + "_syscalls": [
+            syscall_group: [
                 counter[syscall_group]
                 for counter in strace["op_type_counts_sum"]
             ]
