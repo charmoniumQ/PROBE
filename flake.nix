@@ -37,8 +37,12 @@
       "armv7l-linux"
     ];
   in
-    flake-utils.lib.eachSystem supported-systems (
-      system: let
+    flake-utils.lib.eachSystem
+      # Even with Nextflow (requires OpenJDK) removed,
+      # i686-linux still doesn't build.
+      # Only the wind and water know why. Us mere mortals never will.
+      (nixpkgs.lib.lists.remove "i686-linux" supported-systems)
+      (system: let
         pkgs = import nixpkgs {
           inherit system;
           overlays = [(import rust-overlay)];
