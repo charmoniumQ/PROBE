@@ -8,18 +8,29 @@ on:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-20.04]
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os  }}
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4.2.1
 
     - name: Set up Nix
-      uses: cachix/install-nix-action@v27
+      uses: cachix/install-nix-action@v30
       with:
         extra_nix_config: |
           experimental-features = nix-command flakes
+
+    - name: Teset
+      run: echo ${{ secrets.CACHIX_SIGNING_KEY }} | wc -c
+
+    - uses: cachix/cachix-action@v15
+      with:
+        name: charmonium
+        signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
 
     - name: Run Just in development shell
       run: nix develop --command just on-push
