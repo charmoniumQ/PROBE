@@ -37,8 +37,12 @@
       "armv7l-linux"
     ];
   in
-    flake-utils.lib.eachSystem supported-systems (
-      system: let
+    flake-utils.lib.eachSystem
+      # Even with Nextflow (requires OpenJDK) removed,
+      # i686-linux still doesn't build.
+      # Only the wind and water know why. Us mere mortals never will.
+      (nixpkgs.lib.lists.remove "i686-linux" supported-systems)
+      (system: let
         pkgs = import nixpkgs {
           inherit system;
           overlays = [(import rust-overlay)];
@@ -75,7 +79,8 @@
                   makeWrapper \
                     ${self.packages.${system}.probe-cli}/bin/probe \
                     $out/bin/probe \
-                    --set __PROBE_LIB ${libprobe}/lib
+                    --set __PROBE_LIB ${libprobe}/lib \
+                    --prefix PATH : ${probe-py}/bin
                 '';
               };
             probe-py-manual = python.pkgs.buildPythonPackage rec {
@@ -96,6 +101,7 @@
               ];
               pythonImportsCheck = [pname];
             };
+            probe-py = python.withPackages (pypkgs: [probe-py-manual]);
             default = probe-bundled;
           }
           // frontend.packages;
@@ -140,6 +146,8 @@
                 pkgs.black
                 pkgs.ruff
               ]
+              # gdb broken on i686
+              ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is

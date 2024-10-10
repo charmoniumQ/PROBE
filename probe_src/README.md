@@ -1,5 +1,12 @@
 # Developer's README
 
+## Principles
+
+- **How to replay old libcalls**:
+I don't like replaying libcalls by intercepting and copy/pasting contents of the previous invocation (what RR-debugger does). That approach either disallows "new" executions in the "old" environment OR it can have inconsistencies if the same data is accessed by an un-recorded libcall. New execution is really important for scientific reproducibility. If the only goal was to replay "old" execution (no "new"), just send them a tar of the touched files and stdout. One often wants to change/tweak something, new data, different program path, whatnot.
+
+  I prefer to replay libcalls by changing the system such that the result of the previous invocation is the "right answer". E.g., Rather than intercept read libcalls to give the old data, run the process in a container where the file actually has the old data. New executions will work natively.
+
 ## Glossary
 
 - **Executable**: An executable is a file that contains the information telling a operating system and computer hardware how to execute a specific task. In paarticular, they instruct the operating system to load certain hardware instructions and data to certain locations in memory. In Linux, they are specified using the [ELF format](https://www.wikiwand.com/en/Elf_format).
