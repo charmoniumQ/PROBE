@@ -202,10 +202,10 @@ def export(
         with output_file.open('a') as outfile:
             outfile.write(script)
     elif output_format == OutputFormat.makefile : 
-        generator = MakefileGenerator(output_dir="experiments")
+        g = MakefileGenerator(output_dir="experiments")
 
         # Generate Makefile content
-        makefile_content = generator.generate_makefile(dataflow_graph)
+        makefile_content = g.generate_makefile(dataflow_graph)
 
         # Write to Makefile
         with open("Makefile", "w") as f:
