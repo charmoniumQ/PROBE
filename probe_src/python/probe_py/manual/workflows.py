@@ -1,7 +1,7 @@
 from probe_py.manual.analysis import ProcessNode, FileNode
 import networkx as nx # type: ignore
 import abc
-from typing import List, Set
+from typing import List, Set, Optional
 import pathlib
 
 """
@@ -186,60 +186,102 @@ process process_{id(process)} {{
 
 
 class MakefileGenerator:
-    def __init__(self) -> None:
+    def __init__(self, output_dir: str = "experiments") -> None:
         self.visited: Set[ProcessNode] = set()
-        self.makefile_rules: list[str] = []
+        self.makefile_commands: list[str] = []
+        self.output_dir = output_dir
 
     def escape_filename_for_makefile(self, filename: str) -> str:
         """
         Escape special characters in a filename for Makefile.
-        Replace spaces with underscores and other special characters with underscores as well.
+        Replace spaces and other special characters with underscores.
         """
         return filename.replace(" ", "_").replace("(", "_").replace(")", "_").replace(",", "_")
 
-    def handle_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> str:
-        input_files = " ".join([self.escape_filename_for_makefile(file.label) for file in inputs])
-        output_files = " ".join([self.escape_filename_for_makefile(file.label) for file in outputs])
-        cmd = " ".join(process.cmd)
+    def is_hidden_file(self, filename: str) -> bool:
+        """
+        Determine if a file is hidden.
+        Hidden files start with '.' or '._'.
+        """
+        return filename.startswith('.') or filename.startswith('._')
+
+    def create_experiment_folder_command(self, process: ProcessNode) -> str:
+        """
+        Generate the command to create a folder for the experiment.
+        """
+        folder_name = f"process_{id(ProcessNode)}"
+        return f"mkdir -p {folder_name}"
+
+    def copy_input_files_command(self, process: ProcessNode, inputs: List[FileNode]) -> Optional[str]:
+        """
+        Generate the command to copy input files into the experiment folder.
+        Returns None if there are no input files.
+        """
+        if not inputs:
+            return None
+
+        folder_name = f"process_{id(ProcessNode)}"
+        commands = []
+        for file in inputs:
+            if self.is_hidden_file(file.label):
+                continue  # Skip hidden files
+            escaped_file = self.escape_filename_for_makefile(file.label)
+            commands.append(f"cp {escaped_file} {folder_name}/")
         
-        return f"{output_files}: {input_files}\n\t{cmd}\n"
+        if commands:
+            return "\n\t".join(commands)
+        return None
 
-    def handle_dynamic_filenames(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> str:
-        input_files = " ".join([self.escape_filename_for_makefile(file.label) for file in inputs])
-        output_files = " ".join([self.escape_filename_for_makefile(file.file) + "_v*" for file in outputs if file.file])
+    def run_command_command(self, process: ProcessNode, outputs: List[FileNode]) -> str:
+        """
+        Generate the command to run the experiment's command within the experiment folder.
+        Redirect stdout and stderr to log files if outputs are not files.
+        """
+        folder_name = f"process_{id(ProcessNode)}"
         cmd = " ".join(process.cmd)
+        if not outputs:
+            # No output files, redirect to log
+            return f"({cmd}) > {folder_name}/output.log 2>&1"
+        else:
+            # Execute command within the folder
+            return f"(cd {folder_name} && {cmd})"
+
+    def handle_process_node(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> None:
+        """
+        Generate all necessary Makefile commands for a given process node.
+        Handles different cases based on presence of inputs and outputs.
+        """
+        # Create experiment folder
+        self.makefile_commands.append(f"# Process {id(ProcessNode)}: {' '.join(process.cmd)}")
+        self.makefile_commands.append(f"\tmkdir -p process_{id(ProcessNode)}")
         
-        return f"{output_files}: {input_files}\n\t{cmd}\n"
-
-    def handle_parallel_execution(self, process: ProcessNode) -> str:
-        input_files = "splitFile"
-        output_files = "outputFile"
-        cmd = " ".join(process.cmd)
-
-        return f"{output_files}: {input_files}\n\t{cmd} &\n"
-
-    def handle_custom_shells(self, process: ProcessNode) -> str:
-        cmd = " ".join(process.cmd)
+        # Copy input files
+        copy_inputs = self.copy_input_files_command(process, inputs)
+        if copy_inputs:
+            self.makefile_commands.append(f"# Copy input files for process {id(ProcessNode)}")
+            self.makefile_commands.append(f"\t{copy_inputs}")
         
-        return f".PHONY: process_{id(process)}\nprocess_{id(process)}:\n\t{cmd}\n"
-
-    def is_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> bool:
-        return len(inputs) >= 1 and len(outputs) == 1
-
-    def is_multiple_output_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> bool:
-        return len(inputs) >= 1 and len(outputs) >= 1
-
-    def is_dynamic_filename_case(self, process: ProcessNode, outputs: List[FileNode]) -> bool:
-        return any("*" in file.file or "v*" in file.file for file in outputs if file.file)
-
-    def is_parallel_execution(self, process: ProcessNode) -> bool:
-        return len(process.cmd) > 1 and "parallel" in process.cmd
+        # Run the command
+        self.makefile_commands.append(f"# Run command for process {id(ProcessNode)}")
+        run_cmd = self.run_command_command(process, outputs)
+        self.makefile_commands.append(f"\t{run_cmd}")
+        
+        # No copying of output files since they are inside the folder
 
     def create_rules(self) -> None:
         """
-        Create Makefile rules based on the dataflow graph.
+        Traverse the graph and create Makefile commands.
         """
-        raise NotImplementedError("Exporting to makefile is not implemented yet.")
+        # Ensure the output directory exists
+        self.makefile_commands.append(f"\tmkdir -p {self.output_dir}\n")
+        
+        # Traverse the graph in topological order to respect dependencies
+        for node in nx.topological_sort(self.graph):
+            if isinstance(node, ProcessNode):
+                inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
+                outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
+                
+                self.handle_process_node(node, inputs, outputs)
 
     def generate_makefile(self, graph: nx.DiGraph) -> str:
         """
@@ -247,4 +289,13 @@ class MakefileGenerator:
         """
         self.graph = graph
         self.create_rules()
-        return "\n".join(self.makefile_rules)
+        
+        # Assemble the Makefile
+        makefile = []
+        makefile.append("all:")
+        for command in self.makefile_commands:
+            # Ensure each command line is properly indented with a tab
+            # Makefile syntax requires tabs, not spaces
+            makefile.append(f"\t{command}")
+        
+        return "\n".join(makefile)
