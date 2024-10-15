@@ -317,7 +317,12 @@ impl<'a> OpsArena<'a> {
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;
 
         if ((header.used - size_of::<ArenaHeader>()) % size_of::<C_Op>()) != 0 {
-            return Err(ArenaError::Misaligned { size: header.used }.into());
+            return Err(ArenaError::Misaligned {
+                size: header.used,
+                header_size: size_of::<ArenaHeader>(),
+                op_size: size_of::<C_Op>(),
+            }
+            .into());
         }
 
         let count = (header.used - size_of::<ArenaHeader>()) / size_of::<C_Op>();
@@ -424,8 +429,12 @@ pub enum ArenaError {
 
     /// Returned if an [`OpsArena`]'s size isn't isn't `HEADER_SIZE + (N * OP_SIZE)` when `N` is
     /// some integer.
-    #[error("Arena alignment error: arena size ({size}) minus header isn't a multiple of op size")]
-    Misaligned { size: usize },
+    #[error("Arena alignment error: arena size ({size}) minus header ({header_size}) isn't a multiple of op size ({op_size})")]
+    Misaligned {
+        size: usize,
+        header_size: usize,
+        op_size: usize,
+    },
 
     /// Returned if the instantiation in a [`ArenaHeader`] doesn't match the indicated one
     #[error("Header contained Instantiation ID {header}, but {passed} was indicated")]

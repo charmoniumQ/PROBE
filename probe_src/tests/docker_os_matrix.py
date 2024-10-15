@@ -1,4 +1,3 @@
-import io
 import typing
 import tempfile
 import sys

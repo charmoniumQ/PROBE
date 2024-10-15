@@ -40,10 +40,10 @@ compile-tests:
 
 compile: compile-lib compile-cli compile-tests
 
-test-ci: compile-lib
+test-ci: compile
      pytest probe_src
 
-test-dev: compile-lib
+test-dev: compile
     pytest probe_src --failed-first --maxfail=1
 
 check-flake:
