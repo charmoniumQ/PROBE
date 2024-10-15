@@ -44,8 +44,9 @@
     };
   in
     flake-utils.lib.eachSystem
-      (builtins.attrNames supported-systems)
-      (system: let
+    (builtins.attrNames supported-systems)
+    (
+      system: let
         pkgs = import nixpkgs {
           inherit system;
           overlays = [(import rust-overlay)];
@@ -66,36 +67,37 @@
             craneLib
             lib
             advisory-db
-          ;
+            ;
         };
       in rec {
         packages = rec {
-            libprobe = pkgs.stdenv.mkDerivation rec {
-              pname = "libprobe";
-              version = "0.1.0";
-              src = ./probe_src/libprobe;
-              makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
-              buildInputs = [
-                (pkgs.python312.withPackages (pypkgs: [
-                  pypkgs.pycparser
-                ]))
-              ];
-            };
-            probe-bundled = pkgs.stdenv.mkDerivation rec {
-                pname = "probe-bundled";
-                version = "0.1.0";
-                dontUnpack = true;
-                dontBuild = true;
-                nativeBuildInputs = [pkgs.makeWrapper];
-                installPhase = ''
-                  mkdir $out $out/bin
-                  makeWrapper \
-                    ${frontend.packages.probe-cli}/bin/probe \
-                    $out/bin/probe \
-                    --set __PROBE_LIB ${libprobe}/lib \
-                    --prefix PATH : ${probe-py}/bin
-                '';
-              };
+          libprobe = pkgs.stdenv.mkDerivation rec {
+            pname = "libprobe";
+            version = "0.1.0";
+            src = ./probe_src/libprobe;
+            makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
+            buildInputs = [
+              (pkgs.python312.withPackages (pypkgs: [
+                pypkgs.pycparser
+              ]))
+            ];
+          };
+          probe-bundled = pkgs.stdenv.mkDerivation rec {
+            pname = "probe-bundled";
+            version = "0.1.0";
+            dontUnpack = true;
+            dontBuild = true;
+            nativeBuildInputs = [pkgs.makeWrapper];
+            installPhase = ''
+              mkdir $out $out/bin
+              makeWrapper \
+                ${frontend.packages.probe-cli}/bin/probe \
+                $out/bin/probe \
+                --set __PROBE_LIB ${libprobe}/lib \
+                --prefix PATH : ${probe-py}/bin
+            '';
+          };
+          probe-py = let
             probe-py-manual = python.pkgs.buildPythonPackage rec {
               pname = "probe_py.manual";
               version = "0.1.0";
@@ -114,18 +116,20 @@
               ];
               pythonImportsCheck = [pname];
             };
-            probe-py = python.withPackages (pypkgs: [frontend.packages.probe-py-manual]);
-            default = probe-bundled;
+          in
+            python.withPackages (pypkgs: [probe-py-manual]);
+          default = probe-bundled;
         };
         checks = {
-          inherit (frontend.checks)
+          inherit
+            (frontend.checks)
             probe-workspace-clippy
             probe-workspace-doc
             probe-workspace-fmt
             probe-workspace-audit
             probe-workspace-deny
             probe-workspace-nextest
-          ;
+            ;
           # The python import checks are so fast, we will incorporate those tests into the package.
           # TODO: Add integration PROBE tests (already have in pytest).
         };
@@ -141,7 +145,8 @@
               frontend.packages.probe-cli
               frontend.packages.probe-macros
             ];
-            packages = [
+            packages =
+              [
                 pkgs.cargo-audit
                 pkgs.cargo-expand
                 pkgs.cargo-flamegraph

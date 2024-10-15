@@ -1,8 +1,8 @@
 fix-format-nix:
-    #alejandra .
+    alejandra .
 
 check-format-nix:
-    #alejandra --check . # TODO: uncomment
+    alejandra --check .
 
 fix-ruff:
     #ruff format probe_src # TODO: uncomment
