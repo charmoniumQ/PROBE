@@ -165,13 +165,15 @@ Nice to have:
   - [ ] (pid, ex_id, tid, op_id) -> dataclass
   - [ ] digraph, process_graph -> hb_graph
   - [ ] Reformat Nix and Python
-  - [ ] Reformat repository layout
-    - [ ] `probe_src` -> `src` or just `/` (moving children up a level
-    - [ ] `probe_frontend` -> `rust`, and renaming the packages in it to `cli`, `macros`, and `pygen`
+  - [ ] Use Clang's non-null attribute.
+
+  [ ] Reformat repository layout
+    - [ ] `probe_src/python` -> `python-wrapper` or just `/` (moving children up a level
+    - [ ] `frontend` -> `rust-frontend`, and renaming the packages in it to `cli`, `macros`, and `pygen`
+    - [ ] `reproducibility_tests` -> `tests`
     - [ ] Move tests to root level?
     - [ ] Distinguish between unit-tests and end-to-end tests
     - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
-    - [ ] Use Clang's non-null attribute.
 
 Research tasks:
 - [ ] Develop user study
