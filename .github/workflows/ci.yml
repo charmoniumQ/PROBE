@@ -33,10 +33,5 @@ jobs:
         name: charmonium
         signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
 
-    - name: Build devshell
-      # I think we need to "build" the devshell so it gets cached by Cachix
-      # It has to be built anyway, to actually run
-      run: nix build .#devshell
-
     - name: Run Just on-push stuff in development shell
       run: nix develop --command just on-push
