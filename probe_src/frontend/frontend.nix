@@ -109,7 +109,9 @@
         python.pkgs.flit-core
       ];
       unpackPhase = ''
+        mkdir /build
         cp --recursive ${probe-py-generated-src}/* /build
+        cd /build
       '';
       pythonImportsCheck = [pname];
     };
