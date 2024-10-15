@@ -38,12 +38,6 @@
     CPATH = ../libprobe/include;
   };
 
-  # Build *just* the cargo dependencies (of the entire workspace),
-  # so we can reuse all of that work (e.g. via cachix) when running in CI
-  # It is *highly* recommended to use something like cargo-hakari to avoid
-  # cache misses when building individual top-level-crates
-  cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-
   individualCrateArgs =
     commonArgs
     // {
@@ -54,6 +48,12 @@
     };
 
   packages = rec {
+    # Build *just* the cargo dependencies (of the entire workspace),
+    # so we can reuse all of that work (e.g. via cachix) when running in CI
+    # It is *highly* recommended to use something like cargo-hakari to avoid
+    # cache misses when building individual top-level-crates
+    cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
     # Build the top-level crates of the workspace as individual derivations.
     # This allows consumers to only depend on (and build) only what they need.
     # Though it is possible to build the entire workspace as a single derivation,
@@ -116,13 +116,13 @@
   checks = {
     probe-workspace-clippy = craneLib.cargoClippy (commonArgs
       // {
-        inherit cargoArtifacts;
+        inherit (packages) cargoArtifacts;
         cargoClippyExtraArgs = "--all-targets -- --deny warnings";
       });
 
     probe-workspace-doc = craneLib.cargoDoc (commonArgs
       // {
-        inherit cargoArtifacts;
+        inherit (packages) cargoArtifacts;
       });
 
     # Check formatting
@@ -145,7 +145,7 @@
     # run the tests twice.
     probe-workspace-nextest = craneLib.cargoNextest (commonArgs
       // {
-        inherit cargoArtifacts;
+        inherit (packages) cargoArtifacts;
         partitions = 1;
         partitionType = "count";
       });

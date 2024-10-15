@@ -50,12 +50,20 @@ test-dev: compile
 check-flake:
     nix flake check --all-systems
 
-user-facing-build:
+user-facing-build: check-flake
     # `just compile` is great, but it's the _dev-facing_ build.
     # Users will build PROBE following the `README.md`
     # which says `nix profile install github:charmoniumQ/PROBE#probe-bundled`
     # Which should be equivalent to this:
-    nix build .#probe-bundled
+    nix build .#probe-bundled .#probe-py
+
+upload-cachix: user-facing-build
+    #!/usr/bin/env bash
+    if [ -z "$CACHIX_AUTH_TOKEN" ]; then
+        echo "CACHIX_AUTH_TOKEN not set"
+        exit 1
+    fi
+    nix-store -qR --include-outputs $(nix-store -qd $(nix build  --print-out-paths --no-link .#probe-bundled .#probe-py)) | grep -v '\.drv$' | cachix push charmonium
 
 pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy compile check-mypy test-dev
 on-push:  check-format-nix check-ruff check-format-rust check-clippy compile check-mypy test-ci check-flake user-facing-build

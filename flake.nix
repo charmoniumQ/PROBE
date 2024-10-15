@@ -71,6 +71,7 @@
         };
       in rec {
         packages = rec {
+          inherit (frontend.packages) cargoArtifacts;
           libprobe = pkgs.stdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
@@ -182,8 +183,9 @@
                 pkgs.alejandra
                 pkgs.hyperfine
                 pkgs.just
-                pkgs.black
                 pkgs.ruff
+                pkgs.cachix
+                pkgs.jq # to make cachix work
               ]
               # gdb broken on i686
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
