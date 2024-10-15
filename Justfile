@@ -22,6 +22,7 @@ check-clippy:
     env --chdir probe_src/frontend cargo clippy
 
 fix-clippy:
+    git add -A
     env --chdir probe_src/frontend cargo clippy --fix --allow-staged
 
 check-mypy:
