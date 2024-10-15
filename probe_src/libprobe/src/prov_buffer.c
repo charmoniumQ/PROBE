@@ -7,18 +7,18 @@ static void prov_log_save() {
 
 static void prov_log_record(struct Op op);
 
-bool op_is_read(struct Op op) {
+bool is_read_op(struct Op op) {
     return (op.op_code == open_op_code && (op.data.open.flags & O_RDONLY || op.data.open.flags & O_RDWR))
         || op.op_code == exec_op_code
         || op.op_code == readdir_op_code
         || op.op_code == read_link_op_code;
 }
 
-bool op_is_write(struct Op op) {
+bool is_mutate_op(struct Op op) {
     return op.op_code == open_op_code && (op.data.open.flags & O_WRONLY || op.data.open.flags & O_RDWR);
 }
 
-bool op_is_overwrite(struct Op op) {
+bool is_replace_op(struct Op op) {
     /* TODO: Double check flags here */
     return op.op_code == open_op_code && (op.data.open.flags & O_TRUNC || op.data.open.flags & O_CREAT);
 }
@@ -45,16 +45,27 @@ static void prov_log_try(struct Op op) {
     }
 
     const struct Path* path = op_to_path(&op);
-    if (path->path) {
-        if (false) {
-        } else if (op_is_read(op)) {
+    if (path->path && path->stat_valid) {
+        if (is_read_op(op)) {
+            DEBUG("Reading %s %d", path->path, path->inode);
             inode_table_put_if_not_exists(&read_inodes, path);
-        } else if (op_is_write(op)) {
-            if (inode_table_contains(&read_inodes, path) && inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
-                DEBUG("Copying %s", path->path);
+        } else if (is_mutate_op(op)) {
+            if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
+                DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+            } else {
+                DEBUG("Mutating, therefore copying %s %d", path->path, path->inode);
                 copy(path);
-            } else if (op_is_overwrite(op)) {
-                inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path);
+            }
+        } else if (is_replace_op(op)) {
+            if (inode_table_contains(&read_inodes, path)) {
+                if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
+                    DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+                } else {
+                    DEBUG("Replace after read %s %d", path->path, path->inode);
+                    copy(path);
+                }
+            } else {
+                DEBUG("Mutating, but not copying %s %d since it was never read", path->path, path->inode);
             }
         }
     }

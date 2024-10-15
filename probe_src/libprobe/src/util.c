@@ -311,6 +311,7 @@ static char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * a
     argv_copy[*argc] = NULL;
 
     return argv_copy;
+}
 
 int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path, ssize_t size) {
     /*

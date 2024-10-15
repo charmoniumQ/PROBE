@@ -186,6 +186,9 @@ static bool inode_table_put_if_not_exists(struct InodeTable* inode_table, const 
     struct IndexTable* inodes2   = (struct IndexTable*) index_table_get_default(inodes1            , (path->inode & INODES1_MASK) >> INODES1_SHIFT, &index_table_factory, (void*)INODES2_LENGTH);
     struct IndexTable* inodes3   = (struct IndexTable*) index_table_get_default(inodes2            , (path->inode & INODES2_MASK) >> INODES2_SHIFT, &index_table_factory, (void*)INODES3_LENGTH);
     struct IndexTable* inodes4   = (struct IndexTable*) index_table_get_default(inodes3            , (path->inode & INODES3_MASK) >> INODES3_SHIFT, &index_table_factory, (void*)INODES4_LENGTH);
-    bool                  if_exists = (bool                 ) index_table_put(        inodes4            , (path->inode & INODES4_MASK) >> INODES4_SHIFT, true                                          );
-    return !if_exists;
+    bool                  exists    = (bool                 ) index_table_put(        inodes4            , (path->inode & INODES4_MASK) >> INODES4_SHIFT, true                                          );
+    if (!exists) {
+        DEBUG("Put %p %s %d %d %d", inode_table, path->path, path->device_major, path->device_minor, path->inode);
+    }
+    return !exists;
 }

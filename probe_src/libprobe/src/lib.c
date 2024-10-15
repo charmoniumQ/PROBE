@@ -68,10 +68,6 @@ static __thread bool __thread_inited = false;
 
 #include "../include/libprobe/prov_ops.h"
 
-#define ARENA_USE_UNWRAPPED_LIBC
-#define ARENA_PERROR
-#include "../arena/include/arena.h"
-
 #include "inode_table.c"
 
 #include "global_state.c"

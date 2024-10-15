@@ -55,15 +55,23 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
         .wrap_err("Error opening inodes directory")?
         .par_bridge()
         .map(|inode_contents| {
-            let name = inode_contents.wrap_err("Error reading from inodes directory")?.file_name();
-            fs::hard_link(inodes_in_dir.join(name.clone()), inodes_out_dir.join(name)).wrap_err("Error hardlinking inode")?;
+            let name = inode_contents
+                .wrap_err("Error reading from inodes directory")?
+                .file_name();
+            fs::hard_link(inodes_in_dir.join(name.clone()), inodes_out_dir.join(name))
+                .wrap_err("Error hardlinking inode")?;
             Ok(1usize)
         })
         .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
         .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
 
     match SystemTime::now().duration_since(start) {
-        Ok(x) => log::info!("Processed {} Ops and {} inodes in {:.3} seconds", ops_count, inode_count, x.as_secs_f32()),
+        Ok(x) => log::info!(
+            "Processed {} Ops and {} inodes in {:.3} seconds",
+            ops_count,
+            inode_count,
+            x.as_secs_f32()
+        ),
         Err(_) => log::error!("Processing arena dir took negative time"),
     };
 

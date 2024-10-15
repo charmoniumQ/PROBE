@@ -105,6 +105,8 @@ Downstream applications:
   - [ ] LLM context prompt (Kyrilos is working on this)
     - Build on the work of Nichole Bufford et al.
 
+- [ ] Statically link libprobe. It should have no undefined symbols.
+
 Design issues:
 - [ ] Consider how to combine provenance from multiple sources
   - [ ] Consider language-level sources like rdtlite
@@ -114,6 +116,13 @@ Design issues:
 - [ ] Think about in situ transcription and analysis
   - Think about assumptions in analysis
   - Think about front-end and UI/UX
+
+Performance issues:
+- [ ] Have better benchmarks
+
+- [ ] InodeTable should be shared across process-trees or perhaps globally
+
+- [ ] Use lock-free implementation of InodeTable
 
 Documentation:
 
