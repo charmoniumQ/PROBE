@@ -713,7 +713,7 @@
             # sourceRoot = "lmbench";
             src = ./lmbench-3.0-a9.tgz;
             sourceRoot = "lmbench-3.0-a9";
-            buildInputs = [ pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils ];
+            buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
             patchPhase = ''
               sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
               sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS)"/g' src/Makefile
