@@ -1,8 +1,8 @@
 fix-format-nix:
-    #alejandra .
+    alejandra .
 
 check-format-nix:
-    #alejandra --check . # TODO: uncomment
+    alejandra --check .
 
 fix-ruff:
     #ruff format probe_src # TODO: uncomment
@@ -22,6 +22,7 @@ check-clippy:
     env --chdir probe_src/frontend cargo clippy
 
 fix-clippy:
+    git add -A
     env --chdir probe_src/frontend cargo clippy --fix --allow-staged
 
 check-mypy:
@@ -40,15 +41,29 @@ compile-tests:
 
 compile: compile-lib compile-cli compile-tests
 
-test-ci: compile-lib
+test-ci: compile
      pytest probe_src
 
-test-dev: compile-lib
+test-dev: compile
     pytest probe_src --failed-first --maxfail=1
 
 check-flake:
     nix flake check --all-systems
 
-pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy   compile check-mypy             test-dev
+user-facing-build: check-flake
+    # `just compile` is great, but it's the _dev-facing_ build.
+    # Users will build PROBE following the `README.md`
+    # which says `nix profile install github:charmoniumQ/PROBE#probe-bundled`
+    # Which should be equivalent to this:
+    nix build .#probe-bundled .#probe-py
 
-on-push:    check-format-nix check-ruff check-format-rust check-clippy compile check-mypy check-flake test-ci
+upload-cachix: user-facing-build
+    #!/usr/bin/env bash
+    if [ -z "$CACHIX_AUTH_TOKEN" ]; then
+        echo "CACHIX_AUTH_TOKEN not set"
+        exit 1
+    fi
+    nix-store -qR --include-outputs $(nix-store -qd $(nix build  --print-out-paths --no-link .#probe-bundled .#probe-py)) | grep -v '\.drv$' | cachix push charmonium
+
+pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy compile check-mypy test-dev
+on-push:  check-format-nix check-ruff check-format-rust check-clippy compile check-mypy test-ci check-flake user-facing-build

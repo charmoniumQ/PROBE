@@ -3,9 +3,14 @@
   # Use newer Nix to apply this bugfix
   # https://github.com/NixOS/nix/pull/10467
   inputs.new-nixos.url = "github:NixOS/nixpkgs";
-  outputs = { self, nixpkgs, flake-utils, ... }@inputs:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    ...
+  } @ inputs:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python310.override {
           packageOverrides = self: super: {
@@ -13,16 +18,23 @@
             debugpy = noPytest super.debugpy;
           };
         };
-        noPytest = pypkg: pypkg.overrideAttrs (self: super: {
-          pytestCheckPhase = ''true'';
-        });
-        removePackage = drv: pkgsToRemove: drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {name = pkgToRemove; value = null;}) pkgsToRemove));
-        renameInDrv = drv: oldFile: newFile: pkgs.runCommand "${drv.name}-renamed" {} ''
-          mkdir $out
-          cp --recursive ${drv}/* $out
-          chmod +w $out/${oldFile} $(dirname $out/${newFile})
-          mv $out/${oldFile} $out/${newFile}
-        '';
+        noPytest = pypkg:
+          pypkg.overrideAttrs (self: super: {
+            pytestCheckPhase = ''true'';
+          });
+        removePackage = drv: pkgsToRemove:
+          drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {
+              name = pkgToRemove;
+              value = null;
+            })
+            pkgsToRemove));
+        renameInDrv = drv: oldFile: newFile:
+          pkgs.runCommand "${drv.name}-renamed" {} ''
+            mkdir $out
+            cp --recursive ${drv}/* $out
+            chmod +w $out/${oldFile} $(dirname $out/${newFile})
+            mv $out/${oldFile} $out/${newFile}
+          '';
       in {
         packages = rec {
           nix = inputs.new-nixos.legacyPackages.${system}.nix;
@@ -65,7 +77,13 @@
               pkgs.bash
               pkgs.coreutils
               (pkgs.gnutar.overrideAttrs (super: {
-                patches = (if (super ? patches) then super.patches else []) ++ [ ./tar.patch ];
+                patches =
+                  (
+                    if (super ? patches)
+                    then super.patches
+                    else []
+                  )
+                  ++ [./tar.patch];
               }))
               pkgs.gzip
               pkgs.pigz
@@ -202,9 +220,9 @@
               rev = "master";
               hash = "sha256-HFgqYEHanlwA0FA/7kOSsmcPzcb8BLJ3lG74DV5RtBA=";
             };
-            a="hi";
-            patches = [ ./splash-3.diff ];
-            nativeBuildInputs = [ pkgs.m4 pkgs.binutils ];
+            a = "hi";
+            patches = [./splash-3.diff];
+            nativeBuildInputs = [pkgs.m4 pkgs.binutils];
             sourceRoot = "source/codes";
             buildPhase = ''
               ${pkgs.gnused}/bin/sed --in-place s=inputs/car.geo=$out/inputs/raytrace/car.geo=g apps/raytrace/inputs/car.env
@@ -246,7 +264,7 @@
               rev = "darshan-${version}";
               hash = "sha256-hNuLGKxJjpVogqoXMtUSMIgZlOQyA3nCM1s7ia2Y8kM=";
             };
-            buildInputs = [ pkgs.zlib pkgs.autoconf pkgs.automake pkgs.libtool ];
+            buildInputs = [pkgs.zlib pkgs.autoconf pkgs.automake pkgs.libtool];
             configurePhase = ''
               ./prepare.sh
               cd darshan-runtime/
@@ -269,7 +287,7 @@
             version = darshan-runtime.version;
             src = darshan-runtime.src;
             buildInputs = darshan-runtime.buildInputs;
-            propagatedBuildInputs = [ pkgs.perl pkgs.gnuplot pkgs.python3 pkgs.bash ];
+            propagatedBuildInputs = [pkgs.perl pkgs.gnuplot pkgs.python3 pkgs.bash];
             configurePhase = ''
               ./prepare.sh
               cd darshan-util/
@@ -278,35 +296,36 @@
           };
           spade = (
             let
-              mainSrc = (pkgs.fetchFromGitHub {
+              mainSrc = pkgs.fetchFromGitHub {
                 owner = "ashish-gehani";
                 repo = "SPADE";
                 rev = "master";
                 hash = "sha256-5Cvx9Z1Jn30wEqP+X+/rPviZZKiEOjRGvd1KJfg5Www=";
                 name = "main";
-              });
+              };
               neo4j = pkgs.fetchurl {
                 url = https://neo4j.com/artifact.php?name=neo4j-community-4.1.1-unix.tar.gz;
                 hash = "sha256-T2Y6UgvsQN/QsZcv6zz5OvMhwjC0SK223JF3F+Z6EnE=";
               };
               jdk = pkgs.jdk11;
               jre = pkgs.jdk11;
-              scriptDeps = [ pkgs.ps jre ];
-            in pkgs.stdenv.mkDerivation {
-              pname = "SPADE";
-              version = "2.0.0";
-              buildInputs = [ jdk pkgs.uthash pkgs.fuse ];
-              nativeBuildInputs = [ pkgs.makeWrapper pkgs.pkg-config ];
-              patches = [ ./spade.diff ];
-              srcs = [ mainSrc neo4j ];
-              sourceRoot = mainSrc.name;
-              postUnpack = "mv neo4j-community-4.1.1 ${mainSrc.name}/lib/";
-              preBuild = "patchShebangs --build bin/*";
-              postInstall = ''
-                wrapProgram $out/bin/spade --prefix PATH : ${pkgs.lib.makeBinPath scriptDeps}
-              '';
-              PKG_CONFIG_PATH = "${pkgs.fuse}/lib/pkgconfig";
-            }
+              scriptDeps = [pkgs.ps jre];
+            in
+              pkgs.stdenv.mkDerivation {
+                pname = "SPADE";
+                version = "2.0.0";
+                buildInputs = [jdk pkgs.uthash pkgs.fuse];
+                nativeBuildInputs = [pkgs.makeWrapper pkgs.pkg-config];
+                patches = [./spade.diff];
+                srcs = [mainSrc neo4j];
+                sourceRoot = mainSrc.name;
+                postUnpack = "mv neo4j-community-4.1.1 ${mainSrc.name}/lib/";
+                preBuild = "patchShebangs --build bin/*";
+                postInstall = ''
+                  wrapProgram $out/bin/spade --prefix PATH : ${pkgs.lib.makeBinPath scriptDeps}
+                '';
+                PKG_CONFIG_PATH = "${pkgs.fuse}/lib/pkgconfig";
+              }
           );
           benchexec = python.pkgs.buildPythonPackage rec {
             pname = "BenchExec";
@@ -315,11 +334,11 @@
               inherit pname version;
               sha256 = "e796e8636772825aa7c72aa3aaf0793522e3d0d55eb9220f7706421d4d3f38a9";
             };
-            propagatedBuildInputs = [ python.pkgs.pyyaml python.pkgs.pystemd python.pkgs.lxml ];
+            propagatedBuildInputs = [python.pkgs.pyyaml python.pkgs.pystemd python.pkgs.lxml];
             # checkInputs = [ python.pkgs.nose pkgs.busybox python.pkgs.lxml ];
             # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
             doCheck = false;
-            pythonImportsCheck = [ "benchexec" ];
+            pythonImportsCheck = ["benchexec"];
           };
           charmonium-time-block = python.pkgs.buildPythonPackage rec {
             pname = "charmonium.time_block";
@@ -330,11 +349,11 @@
               inherit version;
               sha256 = "5cbde16fdfc927393a473297690138c2db169e51cdfff13accbbf6ec44486968";
             };
-            nativeBuildInputs = [ python.pkgs.poetry-core ];
-            propagatedBuildInputs = [ python.pkgs.psutil ];
-            checkInputs = [ python.pkgs.pytest ];
-            pythonImportsCheck = [ "charmonium.time_block" ];
-            nativeCheckInputs = [ python.pkgs.pytestCheckHook ];
+            nativeBuildInputs = [python.pkgs.poetry-core];
+            propagatedBuildInputs = [python.pkgs.psutil];
+            checkInputs = [python.pkgs.pytest];
+            pythonImportsCheck = ["charmonium.time_block"];
+            nativeCheckInputs = [python.pkgs.pytestCheckHook];
           };
           rpaths = python.pkgs.buildPythonPackage rec {
             pname = "rpaths";
@@ -343,7 +362,7 @@
               inherit pname version;
               sha256 = "dd7418b2c837e1b4eb5c5490465d5f282645143e4638c809ddd250dc33395641";
             };
-            pythonImportsCheck = [ pname ];
+            pythonImportsCheck = [pname];
           };
           distro = python.pkgs.buildPythonPackage rec {
             pname = "distro";
@@ -353,8 +372,8 @@
               inherit pname version;
               sha256 = "02e111d1dc6a50abb8eed6bf31c3e48ed8b0830d1ea2a1b78c61765c2513fdd8";
             };
-            buildInputs = [ python.pkgs.setuptools ];
-            pythonImportsCheck = [ pname ];
+            buildInputs = [python.pkgs.setuptools];
+            pythonImportsCheck = [pname];
           };
           usagestats = python.pkgs.buildPythonPackage rec {
             pname = "usagestats";
@@ -363,9 +382,9 @@
               inherit pname version;
               sha256 = "d8887aa0f65769b1423b784e626ec6fb6ba6ed1432667e10d6115b783571be6d";
             };
-            buildInputs = [ python.pkgs.pip ];
-            propagatedBuildInputs = [ distro python.pkgs.requests ];
-            pythonImportsCheck = [ pname ];
+            buildInputs = [python.pkgs.pip];
+            propagatedBuildInputs = [distro python.pkgs.requests];
+            pythonImportsCheck = [pname];
             # Check tries to upload usage statistics to localhost over TCP which will not work in the Nix sandbox
             doCheck = false;
           };
@@ -376,8 +395,8 @@
               inherit pname version;
               sha256 = "a98b7f04c52c60072e3c42da21997d3ad41161ff6cb1139e18cda8d3012120f9";
             };
-            checkInputs = [ python.pkgs.pip ];
-            buildInputs = [ pkgs.sqlite ];
+            checkInputs = [python.pkgs.pip];
+            buildInputs = [pkgs.sqlite];
             propagatedBuildInputs = [
               rpaths
               usagestats
@@ -386,7 +405,7 @@
               pkgs.dpkg
               python.pkgs.setuptools
             ];
-            pythonImportsCheck = [ pname ];
+            pythonImportsCheck = [pname];
           };
           reprounzip = python.pkgs.buildPythonPackage rec {
             pname = "reprounzip";
@@ -395,9 +414,9 @@
               inherit pname version;
               sha256 = "3f0b6b4dcde9dbcde9d283dfdf154c223b3972d5aff41a1b049224468bba3496";
             };
-            checkInputs = [ python.pkgs.pip ];
-            propagatedBuildInputs = [ python.pkgs.pyyaml rpaths usagestats python.pkgs.requests distro python.pkgs.pyelftools ];
-            pythonImportsCheck = [ pname ];
+            checkInputs = [python.pkgs.pip];
+            propagatedBuildInputs = [python.pkgs.pyyaml rpaths usagestats python.pkgs.requests distro python.pkgs.pyelftools];
+            pythonImportsCheck = [pname];
           };
           reprounzip-docker = python.pkgs.buildPythonPackage rec {
             pname = "reprounzip-docker";
@@ -406,10 +425,10 @@
               inherit pname version;
               sha256 = "ccde16c7502072693afd7ab9d8b58f478e575efe3806ec4951659869a571fa2f";
             };
-            checkInputs = [ python.pkgs.pip ];
+            checkInputs = [python.pkgs.pip];
             doCheck = false;
-            propagatedBuildInputs = [ rpaths reprounzip ];
-            pythonImportsCheck = [ "reprounzip.unpackers.docker" ];
+            propagatedBuildInputs = [rpaths reprounzip];
+            pythonImportsCheck = ["reprounzip.unpackers.docker"];
           };
           provenance-to-use = pkgs.stdenv.mkDerivation rec {
             pname = "provenance-to-use";
@@ -424,13 +443,13 @@
               "-DBUILD_TESTING=OFF"
               "-DCMAKE_BUILD_TYPE=Release"
             ];
-            patches = [ ./provenance-to-use.patch ];
-            nativeBuildInputs = [ pkgs.cmake pkgs.makeWrapper ];
-            buildInputs = [ pkgs.coreutils ];
+            patches = [./provenance-to-use.patch];
+            nativeBuildInputs = [pkgs.cmake pkgs.makeWrapper];
+            buildInputs = [pkgs.coreutils];
             installPhase = ''
               install -d $out/bin
               install -t $out/bin ptu
-              wrapProgram $out/bin/ptu --prefix PATH : ${pkgs.lib.strings.makeBinPath [ pkgs.coreutils ]}
+              wrapProgram $out/bin/ptu --prefix PATH : ${pkgs.lib.strings.makeBinPath [pkgs.coreutils]}
             '';
           };
           sciunit-dedup = pkgs.stdenv.mkDerivation rec {
@@ -443,7 +462,7 @@
               rev = "7400941338892fef17791dd6dc3465cd280d99b2";
               hash = "sha256-eRtaYjIJHZi/ZEXj7Jd1g7kzDvafxWQzV45okoQmRik=";
             };
-            nativeBuildInputs = [ pkgs.cmake ];
+            nativeBuildInputs = [pkgs.cmake];
             patches = [
               ./sciunit-dedup.patch
               # https://github.com/depaul-dice/sciunit/blob/4c8011ddbf4f8ca7da6b987572d6de56d70661dc/CMakeLists.txt
@@ -462,7 +481,7 @@
               rev = "master";
               hash = "sha256-Z80106btm0MKf2IUuolJK5kJG0FCWBi3zBu0AN9eNRI=";
             };
-            nativeBuildInputs = [ pkgs.cmake ];
+            nativeBuildInputs = [pkgs.cmake];
             installPhase = ''
               install -d $out/bin
               install -t $out/bin scripter
@@ -475,7 +494,7 @@
               inherit pname version;
               sha256 = "4d4631f6062e658e9007ab3149a9b914f3548cb38bfb021c64f39a025ce578ae";
             };
-            pythonImportsCheck = [ pname ];
+            pythonImportsCheck = [pname];
           };
           utcdatetime = python.pkgs.buildPythonPackage rec {
             pname = "utcdatetime";
@@ -484,14 +503,14 @@
               inherit pname version;
               sha256 = "806d96da79fd129efade31e8e917a19ea602b047e5b6c3db12c0d69828a779f4";
             };
-            pythonImportsCheck = [ pname ];
+            pythonImportsCheck = [pname];
             nativeCheckInputs = [
               python.pkgs.nose
-              (python.pkgs.strict-rfc3339.overrideAttrs (_: { doCheck = false; }))
+              (python.pkgs.strict-rfc3339.overrideAttrs (_: {doCheck = false;}))
               python.pkgs.freezegun
               python.pkgs.pytz
             ];
-            patches = [ ./utcdatetime.patch ];
+            patches = [./utcdatetime.patch];
           };
           hs_restclient = python.pkgs.buildPythonPackage rec {
             pname = "hs_restclient";
@@ -506,12 +525,12 @@
               python.pkgs.oauthlib
               python.pkgs.requests_oauthlib
             ];
-            pythonImportsCheck = [ pname ];
+            pythonImportsCheck = [pname];
           };
           sciunit2 = python.pkgs.buildPythonApplication rec {
             pname = "sciunit2";
             version = "0.4.post82.dev130189670";
-            patches = [ ./sciunit2.patch ];
+            patches = [./sciunit2.patch];
             src = pkgs.fetchPypi {
               inherit pname version;
               sha256 = "a1ab36634ab7a1abe46f478b90643eb128ace56f85bda007dfe95525392fc876";
@@ -523,9 +542,9 @@
               rm sciunit2-*/sciunit2/libexec/{ptu,scripter,vv}
             '';
             postFixup = ''
-              wrapProgram $out/bin/sciunit --prefix PATH : ${(pkgs.lib.strings.makeBinPath [ pkgs.gnutar ])}
+              wrapProgram $out/bin/sciunit --prefix PATH : ${(pkgs.lib.strings.makeBinPath [pkgs.gnutar])}
             '';
-            pythonImportsCheck = [ pname ];
+            pythonImportsCheck = [pname];
             propagatedBuildInputs = [
               # https://github.com/depaul-dice/sciunit/blob/4c8011ddbf4f8ca7da6b987572d6de56d70661dc/CMakeLists.txt
               provenance-to-use
@@ -544,7 +563,7 @@
               hs_restclient
               pkgs.gnutar
             ];
-            nativeBuildInputs = [ python.pkgs.pip pkgs.makeWrapper ];
+            nativeBuildInputs = [python.pkgs.pip pkgs.makeWrapper];
             nativeCheckInputs = [
               python.pkgs.nose
               python.pkgs.nose-exclude
@@ -580,19 +599,23 @@
             # So I will do that manually here.
             # [1]: https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1647
             # [2]: https://github.com/NixOS/nixpkgs/commit/ba873b2be6252a5144c9f37fae1341973ac155ae
-            meta = { broken = false; };
-            patches = (({ patches = []; } // super).patches) ++ [
-              (pkgs.fetchpatch {
-                name = "notebook-v7-compat.patch";
-                url = "https://github.com/ipython-contrib/jupyter_contrib_nbextensions/commit/181e5f38f8c7e70a2e54a692f49564997f21a231.patch";
-                hash = "sha256-WrC9npEUAk3Hou8Tp8kK+Nw+H0bEEjR3GIoUTxrZxak=";
-              })
-            ];
+            meta = {broken = false;};
+            patches =
+              (({patches = [];} // super).patches)
+              ++ [
+                (pkgs.fetchpatch {
+                  name = "notebook-v7-compat.patch";
+                  url = "https://github.com/ipython-contrib/jupyter_contrib_nbextensions/commit/181e5f38f8c7e70a2e54a692f49564997f21a231.patch";
+                  hash = "sha256-WrC9npEUAk3Hou8Tp8kK+Nw+H0bEEjR3GIoUTxrZxak=";
+                })
+              ];
           });
           pcre2-dev = pkgs.pcre2.dev.overrideAttrs (super: {
-            postFixup = super.postFixup + ''
-              ${pkgs.gnused}/bin/sed --in-place s=/bin/sh=${pkgs.bash}/bin/bash=g $dev/bin/pcre2-config
-            '';
+            postFixup =
+              super.postFixup
+              + ''
+                ${pkgs.gnused}/bin/sed --in-place s=/bin/sh=${pkgs.bash}/bin/bash=g $dev/bin/pcre2-config
+              '';
           });
           pyTimecard = python.pkgs.buildPythonPackage rec {
             pname = "Timecard";
@@ -645,8 +668,8 @@
               cp --recursive proftpd-mod_vroot proftpd/contrib/mod_vroot
               cd proftpd
             '';
-            buildInputs = [ pkgs.libxcrypt ];
-            configureFlags = [ "--with-modules=mod_vroot" ];
+            buildInputs = [pkgs.libxcrypt];
+            configureFlags = ["--with-modules=mod_vroot"];
             installPhase = ''
               install --directory $out/bin
               install --target-directory $out/bin proftpd ftpcount ftpdctl ftpscrub ftpshut ftptop ftpwho contrib/ftpasswd contrib/ftpquota contrib/ftpmail
@@ -662,8 +685,8 @@
               hash = "sha256-kg9pxlPl7nU3ayUEmmimrgHg1uVd2mMB2Fo8fW65TiQ=";
             };
             # buildInputs = [ pkgs.glib.dev pkgs.gnulib.out ];
-            nativeBuildInputs = [ pkgs.autoconf pkgs.automake pkgs.glib.dev pkgs.gnulib.out pkgs.pkg-config pkgs.m4 pkgs.libtool pkgs.texinfo ];
-            buildInputs = [ pkgs.libssh ];
+            nativeBuildInputs = [pkgs.autoconf pkgs.automake pkgs.glib.dev pkgs.gnulib.out pkgs.pkg-config pkgs.m4 pkgs.libtool pkgs.texinfo];
+            buildInputs = [pkgs.libssh];
             configurePhase = ''
               glib-gettextize -f -c
 
@@ -688,7 +711,7 @@
               name = "lmbench";
             };
             sourceRoot = "lmbench";
-            buildInputs = [ pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils ];
+            buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
             patchPhase = ''
               sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
               sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS)"/g' src/Makefile
@@ -726,10 +749,10 @@
             '';
           });
           ltrace = pkgs.ltrace.overrideAttrs (super: {
-            patches = super.patches ++ [ ./ltrace.patch ];
+            patches = super.patches ++ [./ltrace.patch];
           });
           cde = pkgs.cde.overrideAttrs (super: {
-            patches = [ ./cde.patch ];
+            patches = [./cde.patch];
           });
           care = pkgs.stdenv.mkDerivation rec {
             pname = "care";
@@ -746,17 +769,17 @@
               # our cross machinery defines $CC and co just right
               sed -i /CROSS_COMPILE/d src/GNUmakefile
             '';
-            buildInputs = [ pkgs.ncurses pkgs.talloc pkgs.uthash pkgs.libarchive ];
-            nativeBuildInputs = [ pkgs.pkg-config pkgs.docutils pkgs.makeWrapper ];
-            makeFlags = [ "-C src" "care"];
+            buildInputs = [pkgs.ncurses pkgs.talloc pkgs.uthash pkgs.libarchive];
+            nativeBuildInputs = [pkgs.pkg-config pkgs.docutils pkgs.makeWrapper];
+            makeFlags = ["-C src" "care"];
             postBuild = ''
               make -C doc care/man.1
             '';
-            installFlags = [ "PREFIX=${placeholder "out"}" ];
+            installFlags = ["PREFIX=${placeholder "out"}"];
             installTargets = "install-care";
             postInstall = ''
               install -Dm644 doc/care/man.1 $out/share/man/man1/care.1
-              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.lzop ]}
+              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.lzop]}
             '';
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
@@ -766,9 +789,9 @@
           libseccomp = pkgs.libseccomp.lib;
           env-image = pkgs.dockerTools.buildImage {
             name = "prov-tracer-benchmark-env";
-            copyToRoot = [ env ];
+            copyToRoot = [env];
             config = {
-              Cmd = [ "${env}/bin/bash" ];
+              Cmd = ["${env}/bin/bash"];
             };
           };
           env = pkgs.symlinkJoin {
@@ -809,10 +832,8 @@
           };
         };
       }
-    )
-  ;
+    );
 }
-
 /*
 (progn
  (remhash 'pyls lsp-clients)
@@ -835,3 +856,4 @@
 
 (ein:jupyter-server-stop)
 */
+

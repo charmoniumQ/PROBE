@@ -6,12 +6,17 @@
   inputs.nix-documents.inputs.nixpkgs.follows = "nixpkgs";
   inputs.nix-utils.url = "github:charmoniumQ/nix-utils";
   inputs.nix-documents.inputs.nix-utils.follows = "nix-utils";
-  outputs = { self, nixpkgs, flake-utils, nix-documents, nix-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    nix-documents,
+    nix-utils,
+  }:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
         pkgs = nixpkgs.legacyPackages.${system};
-      in
-      {
+      in {
         packages = rec {
           application-level = nix-documents.lib.${system}.graphvizFigure {
             src = nix-utils.lib.${system}.mergeDerivations {
@@ -50,14 +55,15 @@
               };
             };
             texlivePackages = {
-              inherit (pkgs.texlive)
+              inherit
+                (pkgs.texlive)
                 geometry
                 hyperref
                 cleveref
                 booktabs
                 graphics
                 caption
-              ;
+                ;
             };
           };
           all-figs = nix-utils.lib.${system}.mergeDerivations {

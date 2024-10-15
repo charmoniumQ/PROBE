@@ -40,6 +40,8 @@ class Statx:
     dev_major: int
     dev_minor: int
     mnt_id: int
+    dio_mem_align: int
+    dio_offset_align: int
 
 
 @dataclass(init=True, frozen=True)

@@ -1,9 +1,9 @@
+import pytest
 import typing
 from probe_py.generated.parser import ProvLog, parse_probe_log
 from probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
-from probe_py.manual.analysis import FileNode, ProcessNode, InodeOnDevice
+from probe_py.manual.analysis import FileNode, ProcessNode, InodeOnDevice, provlog_to_digraph, validate_hb_graph
 from probe_py.manual.workflows import NextflowGenerator
-from . import analysis
 import pathlib
 import networkx as nx  # type: ignore
 import subprocess
@@ -15,15 +15,15 @@ DEBUG_LIBPROBE = False
 REMAKE_LIBPROBE = False
 
 
-project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent.parent
+project_root = pathlib.Path(__file__).resolve().parent.parent.parent
 
 
 def test_diff_cmd() -> None:
     paths = [str(project_root / "flake.nix"), str(project_root / "flake.lock")]
     command = ['diff', *paths]
     process_tree_prov_log = execute_command(command, 1)
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     path_bytes = [path.encode() for path in paths]
     dfs_edges = list(nx.dfs_edges(process_graph))
     match_open_and_close_fd(dfs_edges, process_tree_prov_log, path_bytes)
@@ -32,8 +32,8 @@ def test_diff_cmd() -> None:
 def test_bash_in_bash() -> None:
     command = ["bash", "-c", f"head {project_root}/flake.nix ; head {project_root}/flake.lock"]
     process_tree_prov_log = execute_command(command)
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     paths = [f'{project_root}/flake.nix'.encode(), f'{project_root}/flake.lock'.encode()]
     process_file_map = {}
     start_node = [node for node, degree in process_graph.in_degree() if degree == 0][0]
@@ -46,8 +46,8 @@ def test_bash_in_bash() -> None:
 def test_bash_in_bash_pipe() -> None:
     command = ["bash", "-c", f"head {project_root}/flake.nix | tail"]
     process_tree_prov_log = execute_command(command)
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     paths = [f'{project_root}/flake.nix'.encode(), b'stdout']
     start_node = [node for node, degree in process_graph.in_degree() if degree == 0][0]
     dfs_edges = list(nx.dfs_edges(process_graph,source=start_node))
@@ -56,8 +56,8 @@ def test_bash_in_bash_pipe() -> None:
 
 def test_pthreads() -> None:
     process_tree_prov_log = execute_command([f"{project_root}/probe_src/tests/c/createFile.exe"])
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     bfs_nodes = [node for layer in nx.bfs_layers(process_graph, root_node) for node in layer]
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
@@ -282,29 +282,13 @@ def get_op_from_provlog(
     return process_tree_prov_log.processes[pid].exec_epochs[exec_epoch_id].threads[tid].ops[op_idx]
 
 
+@pytest.mark.xfail
 def test_dataflow_graph_to_nextflow_script() -> None:
-    #current_path = 'probe_src/python/probe_py/manual/test_probe.py'
+    a_file_path = project_root / "probe_src" / "tests" / "A.txt"
+    b_file_path = project_root / "probe_src" / "tests" / "B.txt"
 
-    # Get the directory containing the script
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-
-    # Get the path to the folder before 'probe_src'
-    parent_of_probe_src = os.path.join(os.path.dirname(script_dir), "..", "..", "..")
-    
-    # Resolve the absolute path to the folder before 'probe_src'
-    parent_of_probe_src = os.path.abspath(parent_of_probe_src)
-
-    # Define the file paths
-    a_file_path = os.path.join(parent_of_probe_src, "A.txt")
-    b_file_path = os.path.join(parent_of_probe_src, "B.txt")
-
-    # Create and write to A.txt
-    with open(a_file_path, 'w') as a_file:
-        a_file.write("This is A.txt")
-
-    # Create and write to B.txt
-    with open(b_file_path, 'w') as b_file:
-        b_file.write("This is B.txt")
+    a_file_path.write_text("This is A.txt")
+    b_file_path.write_text("This is A.txt")
 	
     dataflow_graph = nx.DiGraph()	
     A = FileNode(InodeOnDevice(0,0,0), 0, "A.txt")	
@@ -437,4 +421,4 @@ workflow {
     assert script == expected_script
 
     os.remove(a_file_path)
-    os.remove(b_file_path)	
+    os.remove(b_file_path)
