@@ -9,7 +9,11 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-20.04]
+
+    runs-on: ${{ matrix.os  }}
 
     steps:
     - name: Checkout repository
@@ -21,5 +25,18 @@ jobs:
         extra_nix_config: |
           experimental-features = nix-command flakes
 
-    - name: Run Just in development shell
+    - name: Test existence of Cachix signing key
+      run: echo ${{ secrets.CACHIX_SIGNING_KEY }} | wc -c
+
+    - uses: cachix/cachix-action@v15
+      with:
+        name: charmonium
+        signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
+
+    - name: Build devshell
+      # I think we need to "build" the devshell so it gets cached by Cachix
+      # It has to be built anyway, to actually run
+      run: nix build .#devshell
+
+    - name: Run Just on-push stuff in development shell
       run: nix develop --command just on-push

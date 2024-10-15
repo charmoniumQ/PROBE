@@ -49,6 +49,12 @@ test-dev: compile-lib
 check-flake:
     nix flake check --all-systems
 
-pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy   compile check-mypy             test-dev
+user-facing-build:
+    # `just compile` is great, but it's the _dev-facing_ build.
+    # Users will build PROBE following the `README.md`
+    # which says `nix profile install github:charmoniumQ/PROBE#probe-bundled`
+    # Which should be equivalent to this:
+    nix build .#probe-bundled
 
-on-push:    check-format-nix check-ruff check-format-rust check-clippy compile check-mypy check-flake test-ci
+pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy compile check-mypy test-dev
+on-push:  check-format-nix check-ruff check-format-rust check-clippy compile check-mypy test-ci check-flake user-facing-build

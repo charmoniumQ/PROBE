@@ -52,6 +52,7 @@
       in {
         packages =
           rec {
+            devshell = self.packages.${system}.devShells.default;
             probe-bundled = let
               # libprobe is a "private" package
               # It is only used in probe-bundled

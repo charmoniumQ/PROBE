@@ -79,40 +79,33 @@
     # TODO: Simplify this
     # Perhaps by folding the substituteAllFiles into probe-py-generated (upstream) or probe-py-frontend (downstream)
     # Could we combine all the packages?
-    probe-py-generated-src = pkgs.substituteAllFiles rec {
-      name = "probe-py-${version}";
-      src = probe-frontend;
-      files = [
-        "./pyproject.toml"
-        "./LICENSE"
-        "./probe_py/generated/__init__.py"
-        "./probe_py/generated/ops.py"
-        "./probe_py/generated/parser.py"
-      ];
-
-      authors = builtins.concatStringsSep "" (builtins.map (match: let
-        name = builtins.elemAt match 0;
-        email = builtins.elemAt match 1;
-      in "\n    {name = \"${name}\", email = \"${email}\"},") (
-        builtins.map
-        (author-str: builtins.match "(.+) <(.+)>" author-str)
-        (workspace.package.authors)
-      ));
-      version = workspace.package.version;
-    };
   in
     python.pkgs.buildPythonPackage rec {
+      src = pkgs.substituteAllFiles rec {
+        src = probe-frontend;
+        files = [
+          "./pyproject.toml"
+          "./LICENSE"
+          "./probe_py/generated/__init__.py"
+          "./probe_py/generated/ops.py"
+          "./probe_py/generated/parser.py"
+        ];
+        authors = builtins.concatStringsSep "" (builtins.map (match: let
+          name = builtins.elemAt match 0;
+          email = builtins.elemAt match 1;
+        in "\n    {name = \"${name}\", email = \"${email}\"},") (
+          builtins.map
+            (author-str: builtins.match "(.+) <(.+)>" author-str)
+            (workspace.package.authors)
+        ));
+        version = workspace.package.version;
+      };
       pname = "probe_py.generated";
-      version = probe-py-generated-src.version;
+      version = workspace.package.version;
       pyproject = true;
       build-system = [
         python.pkgs.flit-core
       ];
-      unpackPhase = ''
-        mkdir /build
-        cp --recursive ${probe-py-generated-src}/* /build
-        cd /build
-      '';
       pythonImportsCheck = [pname];
     };
   probe-cli = craneLib.buildPackage (individualCrateArgs
