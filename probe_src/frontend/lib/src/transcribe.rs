@@ -65,11 +65,29 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
         .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
         .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
 
+    let info_in_dir = in_dir.as_ref().join("info");
+    let info_out_dir = out_dir.as_ref().join("info");
+    fs::create_dir(&info_out_dir).wrap_err("Failed to create info directory")?;
+    let info_count = fs::read_dir(inodes_in_dir.clone())
+        .wrap_err("Error opening info directory")?
+        .par_bridge()
+        .map(|info| {
+            let name = info
+                .wrap_err("Error reading from info directory")?
+                .file_name();
+            fs::hard_link(info_in_dir.join(name.clone()), info_out_dir.join(name))
+                .wrap_err("Error hardlinking info")?;
+            Ok(1usize)
+        })
+        .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
+        .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
+
     match SystemTime::now().duration_since(start) {
         Ok(x) => log::info!(
-            "Processed {} Ops and {} inodes in {:.3} seconds",
+            "Processed {} Ops, {} inodes, {} infos in {:.3} seconds",
             ops_count,
             inode_count,
+            info_count,
             x.as_secs_f32()
         ),
         Err(_) => log::error!("Processing arena dir took negative time"),

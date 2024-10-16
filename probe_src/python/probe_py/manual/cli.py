@@ -41,6 +41,22 @@ def validate(
     if should_have_files and not prov_log.has_inodes:
         warning_free = False
         console.print("No files stored in probe log", style="red")
+    with tarfile.open(input, "r") as tar_obj:
+        for inode, file_name in prov_log.inodes.items():
+            try:
+                content = tar_obj.extractfile(file_name)
+            except KeyError:
+                console.print(f"probe_log cannot extract {inode}")
+                warning_free = False
+                continue
+            if content is None:
+                console.print(f"probe_log cannot extract {inode}")
+                warning_free = False
+                continue
+            content_length = len(content.read())
+            if inode.size != content_length:
+                console.print(f"Blob for {inode} has actual size {content_length}", style="red")
+                warning_free = False
     if not warning_free:
         raise typer.Exit(code=1)
 

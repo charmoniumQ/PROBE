@@ -35,12 +35,12 @@ class InodeVersionLog:
 @dataclass(frozen=True)
 class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
-    inodes: typing.Mapping[InodeVersionLog, bytes]
+    inodes: typing.Mapping[InodeVersionLog, str]
     has_inodes: bool
 
 def parse_probe_log(probe_log: pathlib.Path) -> ProvLog:
     op_map = dict[int, dict[int, dict[int, ThreadProvLog]]]()
-    inodes = dict[InodeVersionLog, bytes]()
+    inodes = dict[InodeVersionLog, str]()
     has_inodes = False
 
     tar = tarfile.open(probe_log, mode='r')
@@ -58,13 +58,10 @@ def parse_probe_log(probe_log: pathlib.Path) -> ProvLog:
         elif parts[0] == "inodes":
             if len(parts) != 2:
                 raise RuntimeError("Invalid probe_log")
-            file = tar.extractfile(item)
-            if file is None:
-                raise IOError("Unable to read from probe_log")
             inodes[InodeVersionLog(*[
                 int(segment, 16)
                 for segment in parts[1].split("-")
-            ])] = file.read()
+            ])] = item.name
         elif parts[0] == "pids":
             if len(parts) != 4:
                 raise RuntimeError("Invalid probe_log")

@@ -67,17 +67,19 @@ fn main() -> Result<()> {
                         .value_parser(value_parser!(OsString)),
                 ])
                 .about("Convert PROBE records to PROBE logs."),
-            Command::new("dump")
-                .args([
-                    arg!(--json "Output JSON.")
-                        .required(false)
-                        .value_parser(value_parser!(bool)),
-                    arg!(-i --input <PATH> "Path to load PROBE log from.")
-                        .required(false)
-                        .default_value("probe_log")
-                        .value_parser(value_parser!(OsString)),
-                ])
-                .about("Write the data from probe log data in a human-readable manner"),
+            // Command::new("dump")
+            //     .args([
+            //         arg!(--json "Output JSON.")
+            //             .required(false)
+            //             .value_parser(value_parser!(bool)),
+            //         arg!(-i --input <PATH> "Path to load PROBE log from.")
+            //             .required(false)
+            //             .default_value("probe_log")
+            //             .value_parser(value_parser!(OsString)),
+            //     ])
+            //     .about("Write the data from probe log data in a human-readable manner"),
+            //     TODO: Dump is temporarily broken by https://github.com/charmoniumQ/PROBE/pull/60.
+            //     For now, we can just use tar xvf or analysis.generated.parse_prov_log(...) instead
             Command::new("__gdb-exec-shim").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)

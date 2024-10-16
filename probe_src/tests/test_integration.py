@@ -37,7 +37,8 @@ commands = [
         "test.c",
         "and",
         "./a.out",
-    )
+    ),
+    ["echo", "hi"],
 ]
 
 modes = [

@@ -158,6 +158,11 @@ Documentation:
 - [ ] Explain design decisions
 
 Nice to have:
+- [ ] Make it easier to get to the debug build of probe cli.
+  - Build both versions, called `probe` and `probe_dbg`.
+  - `probe_dbg` should use `libprobe_dbg`
+  - Get rid of `--debug`
+
 - [ ] Add more syscalls
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
 
