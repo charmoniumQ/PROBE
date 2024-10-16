@@ -31,7 +31,7 @@ The provenance graph can help us re-execute the program, containerize the progra
 
    If you want to build from source (e.g., for security reasons), skip this step.
 
-3. Run `nix env -i github:charmoniumQ/PROBE#probe-bundled`.
+3. Run `nix profile install github:charmoniumQ/PROBE#probe-bundled`.
 
 4. Now you should be able to run `probe record [-f] [-o probe_log] <cmd...>`, e.g., `probe record ./script.py --foo bar.txt`. See below for more details.
 
