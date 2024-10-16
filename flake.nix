@@ -182,7 +182,6 @@
                 pkgs.cargo-expand
                 pkgs.cargo-flamegraph
                 pkgs.cargo-watch
-                pkgs.gdb
                 pkgs.rust-analyzer
 
                 (python.withPackages (pypkgs: [
@@ -205,6 +204,7 @@
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
+                pkgs.buildah
                 pkgs.which
                 pkgs.gnumake
                 pkgs.gcc
