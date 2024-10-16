@@ -50,7 +50,7 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 
     let inodes_in_dir = in_dir.as_ref().join("inodes");
     let inodes_out_dir = out_dir.as_ref().join("inodes");
-    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create pids directory")?;
+    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create inodes directory")?;
     let inode_count = fs::read_dir(inodes_in_dir.clone())
         .wrap_err("Error opening inodes directory")?
         .par_bridge()
@@ -84,7 +84,7 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 ///
 /// On success, returns the number of Ops processed in the PID directory.
 pub fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<usize> {
-    let pid = filename_numeric(&in_dir)?;
+    let pid = filename_numeric(&in_dir).wrap_err("Error parsing numeric pid")?;
 
     let dir = {
         let mut path = out_dir.as_ref().to_owned();
@@ -118,7 +118,7 @@ pub fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(
     in_dir: P1,
     out_dir: P2,
 ) -> Result<usize> {
-    let epoch = filename_numeric(&in_dir)?;
+    let epoch = filename_numeric(&in_dir).wrap_err("Error parsing numeric epoch")?;
 
     let dir = {
         let mut path = out_dir.as_ref().to_owned();
@@ -173,7 +173,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
     }
 
     // STEP 1
-    let tid = filename_numeric(&in_dir)?;
+    let tid = filename_numeric(&in_dir).wrap_err("Error parsing numeric tid")?;
     let mut outfile = {
         let mut path = out_dir.as_ref().to_owned();
         path.push(tid.to_string());
@@ -205,7 +205,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
             DataArena::from_bytes(
                 std::fs::read(&data_dat_file)
                     .wrap_err("Failed to read file from data directory")?,
-                filename_numeric(&data_dat_file)?,
+                filename_numeric(&data_dat_file).wrap_err("Error parsing numeric data/$n.dat")?,
             )
         })
         .collect::<Result<Vec<_>>>()?,
@@ -225,7 +225,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         std::fs::read(&ops_dat_file)
             .wrap_err("Failed to read file from ops directory")
             .and_then(|file_contents| {
-                OpsArena::from_bytes(file_contents, filename_numeric(&ops_dat_file)?)
+                OpsArena::from_bytes(file_contents, filename_numeric(&ops_dat_file).wrap_err("Error parsing numeric ops/$n.dat")?)
                     .wrap_err("Error constructing OpsArena")?
                     .decode(&ctx)
                     .wrap_err("Error decoding OpsArena")
@@ -273,8 +273,9 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         .parse::<usize>()
         .map_err(|e| {
             log::error!(
-                "Parsing filename '{}' to integer",
-                file_stem.to_string_lossy()
+                "Parsing filename '{}' to integer in {:?}",
+                file_stem.to_string_lossy(),
+                dir.as_ref().to_str(),
             );
             ProbeError::from(e)
         })

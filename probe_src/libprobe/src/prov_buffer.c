@@ -45,7 +45,7 @@ static void prov_log_try(struct Op op) {
     }
 
     const struct Path* path = op_to_path(&op);
-    if (path->path && path->stat_valid) {
+    if (should_copy_files() && path->path && path->stat_valid) {
         if (is_read_op(op)) {
             DEBUG("Reading %s %d", path->path, path->inode);
             inode_table_put_if_not_exists(&read_inodes, path);

@@ -335,3 +335,12 @@ int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* ds
 
     return result;
 }
+
+int write_bytes(int dirfd, const char* path, const char* content, ssize_t size) {
+    int fd = unwrapped_openat(dirfd, path, O_RDWR | O_CREAT, 0666);
+    assert(fd > 0);
+    ssize_t ret = write(fd, content, size);
+    assert(ret == size);
+    EXPECT( == 0, unwrapped_close(fd));
+    return ret == size;
+}

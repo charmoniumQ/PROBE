@@ -122,6 +122,11 @@ Performance issues:
 
 - [ ] InodeTable should be shared across process-trees or perhaps globally
 
+- [ ] Unify the data and op Arenas
+  - [ ] Test high mem
+  - [ ] Put magic bytes in arena
+
+
 - [ ] Use lock-free implementation of InodeTable
 
 Documentation:
@@ -154,10 +159,6 @@ Documentation:
 Nice to have:
 - [ ] Add more syscalls
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
-
-- [ ] Unify the data and op Arenas
-  - [ ] Test high mem
-  - [ ] Put magic bytes in arena
 
 - [ ] Add more Ops (see branch add-new-ops)
 

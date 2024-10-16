@@ -43,6 +43,9 @@ fn main() -> Result<()> {
                     arg!(--debug "Run in verbose & debug build of libprobe.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
+                    arg!(-c --"copy-files" "Copy files that would be needed to re-execute the program.")
+                        .required(false)
+                        .value_parser(value_parser!(bool)),
                     arg!(<CMD> ... "Command to execute under provenance.")
                         .required(true)
                         .trailing_var_arg(true)
@@ -91,6 +94,7 @@ fn main() -> Result<()> {
             let no_transcribe = sub.get_flag("no-transcribe");
             let gdb = sub.get_flag("gdb");
             let debug = sub.get_flag("debug");
+            let copy_files = sub.get_flag("copy-files");
             let cmd = sub
                 .get_many::<OsString>("CMD")
                 .unwrap()
@@ -98,9 +102,9 @@ fn main() -> Result<()> {
                 .collect::<Vec<_>>();
 
             if no_transcribe {
-                record::record_no_transcribe(output, overwrite, gdb, debug, cmd)
+                record::record_no_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
             } else {
-                record::record_transcribe(output, overwrite, gdb, debug, cmd)
+                record::record_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
             }
             .wrap_err("Record command failed")
         }
