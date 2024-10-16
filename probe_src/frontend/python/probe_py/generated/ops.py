@@ -66,11 +66,7 @@ class Path:
 class InitProcessOp:
     pid: int
     is_root: bool
-    argc: int
-    argv: list[bytes, ]
-    envc: int
-    env: list[bytes, ]
-    cwd: bytes
+    cwd: Path
 
 
 @dataclass(init=True, frozen=True)

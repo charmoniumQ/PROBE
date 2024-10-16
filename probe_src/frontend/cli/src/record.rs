@@ -162,8 +162,8 @@ impl Recorder {
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            std::process::Command::new(&self.cmd[0])
-                .args(&self.cmd[1..])
+            std::process::Command::new("env")
+                .args(self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
                 .env("__PROBE_COPY_FILES", if self.copy_files { "1" } else { "" })

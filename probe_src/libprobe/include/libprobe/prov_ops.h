@@ -18,11 +18,7 @@ static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, 
 struct InitProcessOp {
     pid_t pid;
     bool is_root;
-    size_t argc;
-    char * const* argv;
-    size_t envc;
-    char * const* env;
-    char const* cwd;
+    struct Path cwd;
 };
 
 struct InitExecEpochOp {

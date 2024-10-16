@@ -60,63 +60,13 @@ void path_to_id_string(const struct Path* path, BORROWED char* string) {
 }
 
 struct InitProcessOp init_current_process() {
-    size_t argc = 0;
-    char ** copied_argv = { NULL };
-    size_t envc = 0;
-    char * const* copied_env = { NULL };
-    char* freeable_cwd = NULL;
-    char* cwd = NULL;
-    if (is_proc_root()) {
-        char* cmdline = malloc(4096);
-        size_t args_size = 0;
-        int fd = unwrapped_openat(AT_FDCWD, "/proc/self/cmdline", O_RDONLY);
-        while (true) {
-            int ret = read(fd, cmdline + args_size, 4096);
-            ASSERTF(ret >= 0, "read returned %d", ret);
-            if (ret == 0) {
-                break;
-            }
-            args_size += ret;
-            cmdline = realloc(cmdline, args_size + 4096);
-        }
-        unwrapped_close(fd);
-        char* copied_cmdline = EXPECT_NONNULL(arena_calloc(get_data_arena(), args_size, sizeof(char)));
-        EXPECT_NONNULL(memcpy(copied_cmdline, cmdline, args_size));
-        free(cmdline); cmdline = NULL;
-        for (char* ptr = copied_cmdline; ptr < copied_cmdline + args_size; ++ptr) {
-            if (*ptr == '\0') {
-                argc++;
-            }
-        }
-        copied_argv = EXPECT_NONNULL(arena_calloc(get_data_arena(), argc + 1, sizeof(char*)));
-        char *ptr = copied_cmdline;
-        for (size_t i = 0; i < argc; ++i) {
-            DEBUG("argv[%d] -> %p -> %s", i, ptr, *ptr);
-            copied_argv[i] = ptr;
-            while (*ptr != 0) { ptr++; }
-            ptr++;
-        }
-        copied_argv[argc] = NULL;
-
-        /* Can't use EXPECT_NONULL here because copied_env is const, and EXPECT_NONNULL is not */
-        copied_env = arena_copy_argv(get_data_arena(), environ, &envc);
-        ASSERTF(copied_env, "copied_env is null");
-        freeable_cwd = EXPECT_NONNULL(get_current_dir_name());
-        cwd = EXPECT_NONNULL(arena_strndup(get_data_arena(), freeable_cwd, PATH_MAX));
-        DEBUG("arg_size = %d, argc = %d", args_size, argc);
-    }
+    char const * cwd = EXPECT_NONNULL(get_current_dir_name());
     struct InitProcessOp ret = {
         .pid = getpid(),
         .is_root = is_proc_root(),
-        .argc = argc,
-        .argv = copied_argv,
-        .envc = envc,
-        .env = copied_env,
-        .cwd = cwd,
+        .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
     };
-    if (is_proc_root()) {
-        free(freeable_cwd);
-    }
+    free((char*) cwd);
     return ret;
 }
 
