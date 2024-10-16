@@ -151,7 +151,11 @@ impl Recorder {
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__gdb-exec-shim")
-                .args(if self.copy_files {std::vec!["--copy-files"]} else {std::vec![]})
+                .args(if self.copy_files {
+                    std::vec!["--copy-files"]
+                } else {
+                    std::vec![]
+                })
                 .args(&self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
@@ -162,7 +166,7 @@ impl Recorder {
                 .args(&self.cmd[1..])
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
-                .env("__PROBE_COPY_FILES", if self.copy_files {"1"} else {""})
+                .env("__PROBE_COPY_FILES", if self.copy_files { "1" } else { "" })
                 .env("__PROBE_DIR", self.output.path())
                 .env("LD_PRELOAD", ld_preload)
                 .spawn()

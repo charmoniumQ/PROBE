@@ -2,7 +2,7 @@ import re
 import pytest
 import pathlib
 import networkx as nx
-from probe_py.manual.analysis import FileNode, ProcessNode, InodeOnDevice, provlog_to_digraph, validate_hb_graph
+from probe_py.manual.analysis import FileNode, ProcessNode, InodeOnDevice
 from probe_py.manual.workflows import NextflowGenerator
 
 
@@ -146,6 +146,3 @@ workflow {
     script = re.sub(r'process_\d+', 'process_*', script)
     expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
     assert script == expected_script
-
-    os.remove(a_file_path)
-    os.remove(b_file_path)

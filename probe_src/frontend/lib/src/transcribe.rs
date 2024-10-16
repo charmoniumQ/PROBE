@@ -225,10 +225,13 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         std::fs::read(&ops_dat_file)
             .wrap_err("Failed to read file from ops directory")
             .and_then(|file_contents| {
-                OpsArena::from_bytes(file_contents, filename_numeric(&ops_dat_file).wrap_err("Error parsing numeric ops/$n.dat")?)
-                    .wrap_err("Error constructing OpsArena")?
-                    .decode(&ctx)
-                    .wrap_err("Error decoding OpsArena")
+                OpsArena::from_bytes(
+                    file_contents,
+                    filename_numeric(&ops_dat_file).wrap_err("Error parsing numeric ops/$n.dat")?,
+                )
+                .wrap_err("Error constructing OpsArena")?
+                .decode(&ctx)
+                .wrap_err("Error decoding OpsArena")
             })
     })
     // STEP 6
