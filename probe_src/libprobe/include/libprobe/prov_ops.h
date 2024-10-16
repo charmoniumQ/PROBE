@@ -86,11 +86,29 @@ struct AccessOp {
     int ferrno;
 };
 
+struct StatResult {
+    uint32_t mask;
+    uint32_t nlink;
+    uint32_t uid;
+    uint32_t gid;
+    uint16_t mode;
+    uint64_t ino;
+    uint64_t size;
+    uint64_t blocks;
+    uint32_t blksize;
+    struct statx_timestamp atime;
+    struct statx_timestamp btime;
+    struct statx_timestamp ctime;
+    struct statx_timestamp mtime;
+    uint32_t dev_major;
+    uint32_t dev_minor;
+};
+
 struct StatOp {
     struct Path path;
     int flags;
-    struct statx statx_buf;
     int ferrno;
+    struct StatResult stat_result;
 };
 
 struct ReaddirOp {

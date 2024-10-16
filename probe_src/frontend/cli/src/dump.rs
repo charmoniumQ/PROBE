@@ -170,7 +170,7 @@ impl Dump for ops::Timeval {
     }
 }
 
-impl Dump for ops::Statx {
+impl Dump for ops::StatResult {
     fn dump(&self) -> String {
         format!(
             "[ uid={}, gid={}, mode={:#06o} ino={}, size={}, mtime={} ]",
@@ -323,10 +323,10 @@ impl Dump for ops::AccessOp {
 impl Dump for ops::StatOp {
     fn dump(&self) -> String {
         format!(
-            "[ path={}, flags={}, statx_buf={}, errno={} ]",
+            "[ path={}, flags={}, stat_result={}, errno={} ]",
             self.path.dump(),
             self.flags,
-            self.statx_buf.dump(),
+            self.stat_result.dump(),
             self.ferrno,
         )
     }

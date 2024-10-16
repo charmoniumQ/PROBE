@@ -191,49 +191,63 @@ static void op_to_human_readable(char* dest, int size, struct Op* op) {
 }
 #endif
 
-void stat_to_statx(struct statx* statx_buf, struct stat* stat_buf) {
-    /*
-     * Sadly ChatGPT gets this wrong
-     * Here's the old-fashioned documentation:
-     *
-     * https://www.gnu.org/software/libc/manual/html_node/Attribute-Meanings.html#index-struct-stat
-     * https://www.man7.org/linux/man-pages/man2/statx.2.html
-     */
-    statx_buf->stx_mask = STATX_BASIC_STATS;
-    statx_buf->stx_mode = stat_buf->st_mode;
-    statx_buf->stx_ino = stat_buf->st_ino;
-    statx_buf->stx_dev_major = major(stat_buf->st_dev);
-    statx_buf->stx_dev_major = minor(stat_buf->st_dev);
-    statx_buf->stx_nlink = stat_buf->st_nlink;
-    statx_buf->stx_uid = stat_buf->st_uid;
-    statx_buf->stx_gid = stat_buf->st_gid;
-    statx_buf->stx_size = stat_buf->st_size;
-    statx_buf->stx_atime.tv_sec = stat_buf->st_atim.tv_sec;
-    statx_buf->stx_atime.tv_nsec = stat_buf->st_atim.tv_nsec;
-    statx_buf->stx_mtime.tv_sec = stat_buf->st_mtim.tv_sec;
-    statx_buf->stx_mtime.tv_nsec = stat_buf->st_mtim.tv_nsec;
-    statx_buf->stx_ctime.tv_sec = stat_buf->st_ctim.tv_sec;
-    statx_buf->stx_ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
-    statx_buf->stx_blocks = stat_buf->st_blocks;
-    statx_buf->stx_blksize = stat_buf->st_blksize;
+
+void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat_buf) {
+    stat_result_buf->mask = STATX_BASIC_STATS;
+    stat_result_buf->mode = stat_buf->st_mode;
+    stat_result_buf->ino = stat_buf->st_ino;
+    stat_result_buf->dev_major = major(stat_buf->st_dev);
+    stat_result_buf->dev_major = minor(stat_buf->st_dev);
+    stat_result_buf->nlink = stat_buf->st_nlink;
+    stat_result_buf->uid = stat_buf->st_uid;
+    stat_result_buf->gid = stat_buf->st_gid;
+    stat_result_buf->size = stat_buf->st_size;
+    stat_result_buf->atime.tv_sec = stat_buf->st_atim.tv_sec;
+    stat_result_buf->atime.tv_nsec = stat_buf->st_atim.tv_nsec;
+    stat_result_buf->mtime.tv_sec = stat_buf->st_mtim.tv_sec;
+    stat_result_buf->mtime.tv_nsec = stat_buf->st_mtim.tv_nsec;
+    stat_result_buf->ctime.tv_sec = stat_buf->st_ctim.tv_sec;
+    stat_result_buf->ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
+    stat_result_buf->blocks = stat_buf->st_blocks;
+    stat_result_buf->blksize = stat_buf->st_blksize;
 }
 
-void stat64_to_statx(struct statx* statx_buf, struct stat64* stat_buf) {
-    statx_buf->stx_mask = STATX_BASIC_STATS;
-    statx_buf->stx_mode = stat_buf->st_mode;
-    statx_buf->stx_ino = stat_buf->st_ino;
-    statx_buf->stx_dev_major = major(stat_buf->st_dev);
-    statx_buf->stx_dev_major = minor(stat_buf->st_dev);
-    statx_buf->stx_nlink = stat_buf->st_nlink;
-    statx_buf->stx_uid = stat_buf->st_uid;
-    statx_buf->stx_gid = stat_buf->st_gid;
-    statx_buf->stx_size = stat_buf->st_size;
-    statx_buf->stx_atime.tv_sec = stat_buf->st_atim.tv_sec;
-    statx_buf->stx_atime.tv_nsec = stat_buf->st_atim.tv_nsec;
-    statx_buf->stx_mtime.tv_sec = stat_buf->st_mtim.tv_sec;
-    statx_buf->stx_mtime.tv_nsec = stat_buf->st_mtim.tv_nsec;
-    statx_buf->stx_ctime.tv_sec = stat_buf->st_ctim.tv_sec;
-    statx_buf->stx_ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
-    statx_buf->stx_blocks = stat_buf->st_blocks;
-    statx_buf->stx_blksize = stat_buf->st_blksize;
+void stat_result_from_stat64(struct StatResult* stat_result_buf, struct stat64* stat64_buf) {
+    stat_result_buf->mask = STATX_BASIC_STATS;
+    stat_result_buf->mode = stat64_buf->st_mode;
+    stat_result_buf->ino = stat64_buf->st_ino;
+    stat_result_buf->dev_major = major(stat64_buf->st_dev);
+    stat_result_buf->dev_major = minor(stat64_buf->st_dev);
+    stat_result_buf->nlink = stat64_buf->st_nlink;
+    stat_result_buf->uid = stat64_buf->st_uid;
+    stat_result_buf->gid = stat64_buf->st_gid;
+    stat_result_buf->size = stat64_buf->st_size;
+    stat_result_buf->atime.tv_sec = stat64_buf->st_atim.tv_sec;
+    stat_result_buf->atime.tv_nsec = stat64_buf->st_atim.tv_nsec;
+    stat_result_buf->mtime.tv_sec = stat64_buf->st_mtim.tv_sec;
+    stat_result_buf->mtime.tv_nsec = stat64_buf->st_mtim.tv_nsec;
+    stat_result_buf->ctime.tv_sec = stat64_buf->st_ctim.tv_sec;
+    stat_result_buf->ctime.tv_nsec = stat64_buf->st_ctim.tv_nsec;
+    stat_result_buf->blocks = stat64_buf->st_blocks;
+    stat_result_buf->blksize = stat64_buf->st_blksize;
+}
+
+void stat_result_from_statx(struct StatResult* stat_result_buf, struct statx* statx_buf) {
+    stat_result_buf->mask = statx_buf->stx_mask;
+    stat_result_buf->mode = statx_buf->stx_mode;
+    stat_result_buf->ino = statx_buf->stx_ino;
+    stat_result_buf->dev_major = statx_buf->stx_dev_major;
+    stat_result_buf->dev_major = statx_buf->stx_dev_minor;
+    stat_result_buf->nlink = statx_buf->stx_nlink;
+    stat_result_buf->uid = statx_buf->stx_uid;
+    stat_result_buf->gid = statx_buf->stx_gid;
+    stat_result_buf->size = statx_buf->stx_size;
+    stat_result_buf->atime.tv_sec = statx_buf->stx_atime.tv_sec;
+    stat_result_buf->atime.tv_nsec = statx_buf->stx_atime.tv_nsec;
+    stat_result_buf->mtime.tv_sec = statx_buf->stx_mtime.tv_sec;
+    stat_result_buf->mtime.tv_nsec = statx_buf->stx_mtime.tv_nsec;
+    stat_result_buf->ctime.tv_sec = statx_buf->stx_ctime.tv_sec;
+    stat_result_buf->ctime.tv_nsec = statx_buf->stx_ctime.tv_nsec;
+    stat_result_buf->blocks = statx_buf->stx_blocks;
+    stat_result_buf->blksize = statx_buf->stx_blksize;
 }
