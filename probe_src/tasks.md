@@ -56,6 +56,7 @@ Core tests:
     - [x] Verify that the first child process has ExecOp, OpenOp (path should be `a`), and CloseOp. Analogously check the second child process.
   - [x] Verify that this doesn't crash `sh -c "sh -c 'cat a ; cat b' ; sh -c 'cat d ; cat e'"` (in the past it did)
   - [x] Continue along these lines one or two more cases.
+
 - [ ] Set up CI
   - [x] Write [Justfiles](https://github.com/casey/just). Each of the following should be a target:
     - [x] Format Nix code with alejandra.
@@ -104,6 +105,8 @@ Downstream applications:
   - [ ] LLM context prompt (Kyrilos is working on this)
     - Build on the work of Nichole Bufford et al.
 
+- [ ] Statically link libprobe. It should have no undefined symbols.
+
 Design issues:
 - [ ] Consider how to combine provenance from multiple sources
   - [ ] Consider language-level sources like rdtlite
@@ -114,7 +117,20 @@ Design issues:
   - Think about assumptions in analysis
   - Think about front-end and UI/UX
 
+Performance issues:
+- [ ] Have better benchmarks
+
+- [ ] InodeTable should be shared across process-trees or perhaps globally
+
+- [ ] Unify the data and op Arenas
+  - [ ] Test high mem
+  - [ ] Put magic bytes in arena
+
+
+- [ ] Use lock-free implementation of InodeTable
+
 Documentation:
+- [ ] Make the CLI better. You shouldn't need to give `-f` to make repeated applications work. You shouldn't need to give `--input`.
 
 - [ ] Document CLI tool.
 
@@ -142,12 +158,13 @@ Documentation:
 - [ ] Explain design decisions
 
 Nice to have:
+- [ ] Make it easier to get to the debug build of probe cli.
+  - Build both versions, called `probe` and `probe_dbg`.
+  - `probe_dbg` should use `libprobe_dbg`
+  - Get rid of `--debug`
+
 - [ ] Add more syscalls
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
-
-- [ ] Unify the data and op Arenas
-  - [ ] Test high mem
-  - [ ] Put magic bytes in arena
 
 - [ ] Add more Ops (see branch add-new-ops)
 
@@ -164,13 +181,15 @@ Nice to have:
   - [ ] (pid, ex_id, tid, op_id) -> dataclass
   - [ ] digraph, process_graph -> hb_graph
   - [ ] Reformat Nix and Python
-  - [ ] Reformat repository layout
-    - [ ] `probe_src` -> `src` or just `/` (moving children up a level
-    - [ ] `probe_frontend` -> `rust`, and renaming the packages in it to `cli`, `macros`, and `pygen`
+  - [ ] Use Clang's non-null attribute.
+
+  [ ] Reformat repository layout
+    - [ ] `probe_src/python` -> `python-wrapper` or just `/` (moving children up a level
+    - [ ] `frontend` -> `rust-frontend`, and renaming the packages in it to `cli`, `macros`, and `pygen`
+    - [ ] `reproducibility_tests` -> `tests`
     - [ ] Move tests to root level?
     - [ ] Distinguish between unit-tests and end-to-end tests
     - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
-    - [ ] Use Clang's non-null attribute.
 
 Research tasks:
 - [ ] Develop user study

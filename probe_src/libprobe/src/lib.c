@@ -68,6 +68,8 @@ static __thread bool __thread_inited = false;
 
 #include "../include/libprobe/prov_ops.h"
 
+#include "inode_table.c"
+
 #include "global_state.c"
 
 #include "prov_ops.c"

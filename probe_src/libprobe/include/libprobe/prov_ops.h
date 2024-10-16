@@ -6,11 +6,12 @@ struct Path {
     ino_t inode;
     struct statx_timestamp mtime;
     struct statx_timestamp ctime;
+    size_t size;
     bool stat_valid;
     bool dirfd_valid;
 };
 
-static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, false, false};
+static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, false};
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 

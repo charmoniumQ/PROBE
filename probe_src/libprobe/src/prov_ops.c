@@ -8,6 +8,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             -1,
             {0},
             {0},
+            0,
             false,
             true,
         };
@@ -27,7 +28,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
          * */
         prov_log_disable();
         struct statx statx_buf;
-        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME, &statx_buf);
+        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
         prov_log_enable();
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
@@ -35,6 +36,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             ret.inode = statx_buf.stx_ino;
             ret.mtime = statx_buf.stx_mtime;
             ret.ctime = statx_buf.stx_ctime;
+            ret.size = statx_buf.stx_size;
             ret.stat_valid = true;
         }
         return ret;
@@ -42,6 +44,10 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
         DEBUG("prov log not enabled");
         return null_path;
     }
+}
+
+void path_to_id_string(const struct Path* path, BORROWED char* string) {
+    CHECK_SNPRINTF(string, PATH_MAX, "%02lx-%02lx-%016lx-%016llx-%08x-%016lx", path->device_major, path->device_minor, path->inode, path->mtime.tv_sec, path->mtime.tv_nsec, path->size);
 }
 
 struct InitProcessOp init_current_process() {
@@ -107,8 +113,7 @@ static void free_op(struct Op op) {
 }
 */
 
-#ifndef NDEBUG
-static const struct Path* op_to_path(struct Op* op) {
+static const struct Path* op_to_path(const struct Op* op) {
     switch (op->op_code) {
         case open_op_code: return &op->data.open.path;
         case chdir_op_code: return &op->data.chdir.path;
@@ -121,6 +126,7 @@ static const struct Path* op_to_path(struct Op* op) {
             return &null_path;
     }
 }
+#ifndef NDEBUG
 static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
         case init_process_op_code: return "init_process";
@@ -172,7 +178,7 @@ static void op_to_human_readable(char* dest, int size, struct Op* op) {
     }
 
     if (op->op_code == open_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d", op->data.open.fd);
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
         dest += fd_size;
         size -= fd_size;
     }

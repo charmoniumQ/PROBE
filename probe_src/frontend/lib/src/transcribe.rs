@@ -32,25 +32,68 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 
     let start = SystemTime::now();
 
-    let count = fs::read_dir(in_dir)
+    let pids_out_dir = out_dir.as_ref().join("pids");
+    fs::create_dir(&pids_out_dir).wrap_err("Failed to create pids directory")?;
+
+    let ops_count = fs::read_dir(in_dir.as_ref().join("pids"))
         .wrap_err("Error opening record directory")?
         .par_bridge()
         .map(|x| {
             parse_pid(
                 x.wrap_err("Error reading DirEntry from record directory")?
                     .path(),
-                &out_dir,
+                &pids_out_dir,
             )
         })
         .try_fold(|| 0usize, |acc, x| x.map(|x| acc + x))
         .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
 
+    let inodes_in_dir = in_dir.as_ref().join("inodes");
+    let inodes_out_dir = out_dir.as_ref().join("inodes");
+    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create inodes directory")?;
+    let inode_count = fs::read_dir(inodes_in_dir.clone())
+        .wrap_err("Error opening inodes directory")?
+        .par_bridge()
+        .map(|inode_contents| {
+            let name = inode_contents
+                .wrap_err("Error reading from inodes directory")?
+                .file_name();
+            fs::hard_link(inodes_in_dir.join(name.clone()), inodes_out_dir.join(name))
+                .wrap_err("Error hardlinking inode")?;
+            Ok(1usize)
+        })
+        .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
+        .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
+
+    let info_in_dir = in_dir.as_ref().join("info");
+    let info_out_dir = out_dir.as_ref().join("info");
+    fs::create_dir(&info_out_dir).wrap_err("Failed to create info directory")?;
+    let info_count = fs::read_dir(inodes_in_dir.clone())
+        .wrap_err("Error opening info directory")?
+        .par_bridge()
+        .map(|info| {
+            let name = info
+                .wrap_err("Error reading from info directory")?
+                .file_name();
+            fs::hard_link(info_in_dir.join(name.clone()), info_out_dir.join(name))
+                .wrap_err("Error hardlinking info")?;
+            Ok(1usize)
+        })
+        .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
+        .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
+
     match SystemTime::now().duration_since(start) {
-        Ok(x) => log::info!("Processed {} Ops in {:.3} seconds", count, x.as_secs_f32()),
+        Ok(x) => log::info!(
+            "Processed {} Ops, {} inodes, {} infos in {:.3} seconds",
+            ops_count,
+            inode_count,
+            info_count,
+            x.as_secs_f32()
+        ),
         Err(_) => log::error!("Processing arena dir took negative time"),
     };
 
-    Ok(count)
+    Ok(ops_count)
 }
 
 /// Recursively parse a probe record PID directory and write it as a probe log PID directory.
@@ -59,7 +102,7 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 ///
 /// On success, returns the number of Ops processed in the PID directory.
 pub fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<usize> {
-    let pid = filename_numeric(&in_dir)?;
+    let pid = filename_numeric(&in_dir).wrap_err("Error parsing numeric pid")?;
 
     let dir = {
         let mut path = out_dir.as_ref().to_owned();
@@ -67,7 +110,7 @@ pub fn parse_pid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         path
     };
 
-    fs::create_dir(&dir).wrap_err("Failed to create ExecEpoch output directory")?;
+    fs::create_dir(&dir).wrap_err("Failed to create PID directory")?;
 
     fs::read_dir(in_dir)
         .wrap_err("Error opening PID directory")?
@@ -93,7 +136,7 @@ pub fn parse_exec_epoch<P1: AsRef<Path>, P2: AsRef<Path>>(
     in_dir: P1,
     out_dir: P2,
 ) -> Result<usize> {
-    let epoch = filename_numeric(&in_dir)?;
+    let epoch = filename_numeric(&in_dir).wrap_err("Error parsing numeric epoch")?;
 
     let dir = {
         let mut path = out_dir.as_ref().to_owned();
@@ -148,7 +191,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
     }
 
     // STEP 1
-    let tid = filename_numeric(&in_dir)?;
+    let tid = filename_numeric(&in_dir).wrap_err("Error parsing numeric tid")?;
     let mut outfile = {
         let mut path = out_dir.as_ref().to_owned();
         path.push(tid.to_string());
@@ -180,7 +223,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
             DataArena::from_bytes(
                 std::fs::read(&data_dat_file)
                     .wrap_err("Failed to read file from data directory")?,
-                filename_numeric(&data_dat_file)?,
+                filename_numeric(&data_dat_file).wrap_err("Error parsing numeric data/$n.dat")?,
             )
         })
         .collect::<Result<Vec<_>>>()?,
@@ -200,10 +243,13 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         std::fs::read(&ops_dat_file)
             .wrap_err("Failed to read file from ops directory")
             .and_then(|file_contents| {
-                OpsArena::from_bytes(file_contents, filename_numeric(&ops_dat_file)?)
-                    .wrap_err("Error constructing OpsArena")?
-                    .decode(&ctx)
-                    .wrap_err("Error decoding OpsArena")
+                OpsArena::from_bytes(
+                    file_contents,
+                    filename_numeric(&ops_dat_file).wrap_err("Error parsing numeric ops/$n.dat")?,
+                )
+                .wrap_err("Error constructing OpsArena")?
+                .decode(&ctx)
+                .wrap_err("Error decoding OpsArena")
             })
     })
     // STEP 6
@@ -248,8 +294,9 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         .parse::<usize>()
         .map_err(|e| {
             log::error!(
-                "Parsing filename '{}' to integer",
-                file_stem.to_string_lossy()
+                "Parsing filename '{}' to integer in {:?}",
+                file_stem.to_string_lossy(),
+                dir.as_ref().to_str(),
             );
             ProbeError::from(e)
         })

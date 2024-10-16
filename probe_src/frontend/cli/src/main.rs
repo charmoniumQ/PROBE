@@ -43,6 +43,9 @@ fn main() -> Result<()> {
                     arg!(--debug "Run in verbose & debug build of libprobe.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
+                    arg!(-c --"copy-files" "Copy files that would be needed to re-execute the program.")
+                        .required(false)
+                        .value_parser(value_parser!(bool)),
                     arg!(<CMD> ... "Command to execute under provenance.")
                         .required(true)
                         .trailing_var_arg(true)
@@ -64,17 +67,19 @@ fn main() -> Result<()> {
                         .value_parser(value_parser!(OsString)),
                 ])
                 .about("Convert PROBE records to PROBE logs."),
-            Command::new("dump")
-                .args([
-                    arg!(--json "Output JSON.")
-                        .required(false)
-                        .value_parser(value_parser!(bool)),
-                    arg!(-i --input <PATH> "Path to load PROBE log from.")
-                        .required(false)
-                        .default_value("probe_log")
-                        .value_parser(value_parser!(OsString)),
-                ])
-                .about("Write the data from probe log data in a human-readable manner"),
+            // Command::new("dump")
+            //     .args([
+            //         arg!(--json "Output JSON.")
+            //             .required(false)
+            //             .value_parser(value_parser!(bool)),
+            //         arg!(-i --input <PATH> "Path to load PROBE log from.")
+            //             .required(false)
+            //             .default_value("probe_log")
+            //             .value_parser(value_parser!(OsString)),
+            //     ])
+            //     .about("Write the data from probe log data in a human-readable manner"),
+            //     TODO: Dump is temporarily broken by https://github.com/charmoniumQ/PROBE/pull/60.
+            //     For now, we can just use tar xvf or analysis.generated.parse_prov_log(...) instead
             Command::new("__gdb-exec-shim").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)
@@ -91,6 +96,7 @@ fn main() -> Result<()> {
             let no_transcribe = sub.get_flag("no-transcribe");
             let gdb = sub.get_flag("gdb");
             let debug = sub.get_flag("debug");
+            let copy_files = sub.get_flag("copy-files");
             let cmd = sub
                 .get_many::<OsString>("CMD")
                 .unwrap()
@@ -98,9 +104,9 @@ fn main() -> Result<()> {
                 .collect::<Vec<_>>();
 
             if no_transcribe {
-                record::record_no_transcribe(output, overwrite, gdb, debug, cmd)
+                record::record_no_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
             } else {
-                record::record_transcribe(output, overwrite, gdb, debug, cmd)
+                record::record_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
             }
             .wrap_err("Record command failed")
         }
