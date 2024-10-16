@@ -1607,7 +1607,7 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        size_t argc = -1;
+        size_t argc = 0;
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(environ, &envc);
