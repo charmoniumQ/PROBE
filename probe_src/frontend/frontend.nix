@@ -82,6 +82,7 @@
             "./probe_py/generated/__init__.py"
             "./probe_py/generated/ops.py"
             "./probe_py/generated/parser.py"
+            "./probe_py/generated/py.typed"
           ];
           authors = builtins.concatStringsSep "" (builtins.map (match: let
             name = builtins.elemAt match 0;
@@ -99,7 +100,17 @@
         build-system = [
           python.pkgs.flit-core
         ];
-        pythonImportsCheck = [pname];
+        nativeCheckInputs = [
+          python.pkgs.mypy
+          pkgs.ruff
+        ];
+        # ruff, mypy
+        checkPhase = ''
+          runHook preCheck
+          python -c 'import probe_py.generated'
+          mypy --strict --package probe_py.generated
+          runHook postCheck
+        '';
       };
 
     probe-cli = craneLib.buildPackage (individualCrateArgs

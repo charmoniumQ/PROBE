@@ -184,9 +184,8 @@ Nice to have:
   - [ ] Use Clang's non-null attribute.
 
   [ ] Reformat repository layout
-    - [ ] `probe_src/python` -> `python-wrapper` or just `/` (moving children up a level
-    - [ ] `frontend` -> `rust-frontend`, and renaming the packages in it to `cli`, `macros`, and `pygen`
-    - [ ] `reproducibility_tests` -> `tests`
+    - [ ] Probably have 1 top-level folder for each language, but make sure all the pieces compose nicely.
+    - [ ] `reproducibility_tests` -> `tests`?
     - [ ] Move tests to root level?
     - [ ] Distinguish between unit-tests and end-to-end tests
     - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
