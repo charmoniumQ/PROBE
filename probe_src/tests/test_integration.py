@@ -50,7 +50,8 @@ modes = [
 def test_cmds() -> None:
     for command in commands:
         for mode in modes:
-            shutil.rmtree(tmpdir)
+            if tmpdir.exists():
+                shutil.rmtree(tmpdir)
             tmpdir.mkdir()
             subprocess.run(
                 [*mode, *command],
