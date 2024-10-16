@@ -1,3 +1,4 @@
+import shutil
 import pathlib
 import shlex
 import subprocess
@@ -57,7 +58,7 @@ def test_cmds() -> None:
                 cwd=tmpdir,
             )
             subprocess.run(
-                ["probe", "validate", *(["--should-have-files"] if "copy-files" in mode else []), *command],
+                ["probe", "validate", *(["--should-have-files"] if "copy-files" in mode else []), "--input", "probe_log"],
                 check=True,
                 cwd=tmpdir,
             )

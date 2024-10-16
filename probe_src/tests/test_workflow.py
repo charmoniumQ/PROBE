@@ -1,3 +1,4 @@
+import re
 import pytest
 import pathlib
 import networkx as nx
@@ -5,13 +6,13 @@ from probe_py.manual.analysis import FileNode, ProcessNode, InodeOnDevice, provl
 from probe_py.manual.workflows import NextflowGenerator
 
 
-project_root = pathlib.Path(__file__).resolve().parent.parent.parent
+tmpdir = pathlib.Path(__file__).resolve().parent / "tmp"
 
 
 @pytest.mark.xfail
 def test_dataflow_graph_to_nextflow_script() -> None:
-    a_file_path = project_root / "probe_src" / "tests" / "A.txt"
-    b_file_path = project_root / "probe_src" / "tests" / "B.txt"
+    a_file_path = tmpdir / "A.txt"
+    b_file_path = tmpdir / "B.txt"
 
     a_file_path.write_text("This is A.txt")
     b_file_path.write_text("This is A.txt")

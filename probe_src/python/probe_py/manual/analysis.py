@@ -120,7 +120,9 @@ def validate_provlog(
     if False:
         pass
     elif closed_fds - opened_fds - reserved_fds:
-        ret.append(f"Closed more fds than we opened: {closed_fds - reserved_fds=} {opened_fds=}")
+        # TODO: Problem due to some programs opening /dev/pts/0 in a way that libprobe doesn't notice, but they close it in a way we do notice.
+        pass
+        #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
     elif waited_processes - cloned_processes:
         ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
     return ret

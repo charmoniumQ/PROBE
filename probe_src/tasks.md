@@ -130,6 +130,7 @@ Performance issues:
 - [ ] Use lock-free implementation of InodeTable
 
 Documentation:
+- [ ] Make the CLI better. You shouldn't need to give `-f` to make repeated applications work. You shouldn't need to give `--input`.
 
 - [ ] Document CLI tool.
 

@@ -88,25 +88,25 @@ static int get_exec_epoch_safe() {
     return __exec_epoch;
 }
 
-static int __copy_files = 0;
+static int __copy_files = -1;
 static const char* copy_files_env_var = PRIVATE_ENV_VAR_PREFIX "COPY_FILES";
 struct InodeTable read_inodes;
 struct InodeTable copied_or_overwritten_inodes;
 static void init_copy_files() {
-    assert(__copy_files == 0);
+    assert(__copy_files == -1);
     const char* copy_files_str = debug_getenv(copy_files_env_var);
     if (copy_files_str != NULL && copy_files_str[0] != 0) {
-        __copy_files = 2;
+        __copy_files = 1;
         inode_table_init(&read_inodes);
         inode_table_init(&copied_or_overwritten_inodes);
     } else {
-        __copy_files = 1;
+        __copy_files = 0;
     }
-    DEBUG("Is copy files? %d", __copy_files - 1);
+    DEBUG("Is copy files? %d", __copy_files);
 }
 static bool should_copy_files() {
-    assert(__copy_files == 1 || __copy_files == 2);
-    return __copy_files == 2;
+    assert(__copy_files == 1 || __copy_files == 0);
+    return __copy_files;
 }
 
 static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mkdir, bool close) {
@@ -137,6 +137,7 @@ static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mk
     if (close) {
         EXPECT(== 0, unwrapped_close(my_dirfd));
     }
+    DEBUG("%s/%s -> fd %d", dirfd_path(my_dirfd), name ? name : buffer, sub_dirfd);
     return sub_dirfd;
 }
 
@@ -168,19 +169,19 @@ static void init_probe_dir() {
 
     DEBUG("probe_dir = \"%s\"", __probe_dir);
 
-    /* int info_dirfd = mkdir_and_descend(probe_dirfd, "info", 0, true, false); */
-    /* write_bytes(info_dirfd, "copy_files", should_copy_files() ? "1" : "0", 1); */
-    /* EXPECT(== 0, unwrapped_close(info_dirfd)); */
+    if (is_proc_root()) {
+        int info_dirfd = mkdir_and_descend(probe_dirfd, "info", 0, true, false);
+        write_bytes(info_dirfd, "copy_files", should_copy_files() ? "1" : "0", 1);
+        EXPECT(== 0, unwrapped_close(info_dirfd));
+    }
 
-    __inodes_dirfd = mkdir_and_descend(probe_dirfd, "inodes", 0, true, false);
+    int pids_dirfd = mkdir_and_descend(probe_dirfd, "pids", 0, is_proc_root(), false);
 
-    int pids_dirfd = mkdir_and_descend(probe_dirfd, "pids", 0, true, false);
+    __inodes_dirfd = mkdir_and_descend(probe_dirfd, "inodes", 0, is_proc_root(), false);
 
     int pid_dirfd = mkdir_and_descend(pids_dirfd, NULL, getpid(), get_exec_epoch() == 0, true);
 
     __epoch_dirfd = mkdir_and_descend(pid_dirfd, NULL, get_exec_epoch(), my_gettid() == getpid(), true);
-
-    DEBUG("__epoch_dirfd=%d (%s/%d/%d)", __epoch_dirfd, __probe_dir, getpid(), get_exec_epoch());
 }
 static int get_epoch_dirfd() {
     assert(fd_is_valid(__epoch_dirfd));
@@ -234,6 +235,7 @@ static void reinit_process_global_state() {
     __is_proc_root = 0;
     __exec_epoch = 0;
     __epoch_dirfd = invalid_dirfd;
+    /* TODO: Can we skip some of this if we got fork()ed and the FDs are still open? */
     init_probe_dir();
 }
 
