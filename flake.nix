@@ -98,6 +98,7 @@
                 --prefix PATH : ${probe-py}/bin
             '';
           };
+          probe-py-generated = frontend.packages.probe-py-generated;
           probe-py = let
             probe-py-manual = python.pkgs.buildPythonPackage rec {
               pname = "probe_py.manual";
@@ -115,7 +116,19 @@
                 python.pkgs.rich
                 python.pkgs.typer
               ];
-              pythonImportsCheck = [pname];
+              nativeCheckInputs = [
+                frontend.packages.probe-py-generated
+                python.pkgs.mypy
+                pkgs.ruff
+              ];
+              checkPhase = ''
+                runHook preCheck
+                #ruff format --check probe_src # TODO: uncomment
+                ruff check .
+                python -c 'import probe_py.manual'
+                mypy --strict --package probe_py.manual
+                runHook postCheck
+              '';
             };
           in
             python.withPackages (pypkgs: [probe-py-manual]);
@@ -131,8 +144,25 @@
             probe-workspace-deny
             probe-workspace-nextest
             ;
-          # The python import checks are so fast, we will incorporate those tests into the package.
-          # TODO: Add integration PROBE tests (already have in pytest).
+          fmt-nix = pkgs.stdenv.mkDerivation {
+            name = "fmt-nix";
+            src = ./.;
+            doCheck = true;
+            nativeBuildInputs = [pkgs.alejandra];
+            buildPhase = "touch $out";
+            checkPhase = ''
+              alejandra --check .
+            '';
+          };
+          probe-integration-tests = pkgs.stdenv.mkDerivation {
+            name = "probe-integration-tests";
+            src = ./probe_src/tests;
+            nativeBuildInputs = [packages.probe-bundled packages.probe-py];
+            buildPhase = "touch $out";
+            checkPhase = ''
+              pytest .
+            '';
+          };
         };
         devShells = {
           default = craneLib.devShell {
