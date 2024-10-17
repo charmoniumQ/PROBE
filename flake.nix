@@ -95,7 +95,8 @@
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set __PROBE_LIB ${libprobe}/lib \
-                --prefix PATH : ${probe-py}/bin
+                --prefix PATH : ${probe-py}/bin \
+                --prefix PATH : ${pkgs.buildah}/bin
             '';
           };
           probe-py-generated = frontend.packages.probe-py-generated;
@@ -157,7 +158,12 @@
           probe-integration-tests = pkgs.stdenv.mkDerivation {
             name = "probe-integration-tests";
             src = ./probe_src/tests;
-            nativeBuildInputs = [packages.probe-bundled packages.probe-py];
+            nativeBuildInputs = [
+              packages.probe-bundled
+              packages.probe-py
+              pkgs.podman
+              pkgs.docker
+            ];
             buildPhase = "touch $out";
             checkPhase = ''
               pytest .
@@ -216,6 +222,7 @@
                 pkgs.ruff
                 pkgs.cachix
                 pkgs.jq # to make cachix work
+                pkgs.podman
               ]
               # gdb broken on i686
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
