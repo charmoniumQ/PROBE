@@ -115,15 +115,17 @@ static void maybe_init_thread() {
         __thread_inited = true;
 
         if (!was_process_inited) {
-            struct Op proc_op = {
-                init_process_op_code,
-                {.init_process = init_current_process()},
-                {0},
-                0,
-                0,
-            };
-            prov_log_try(proc_op);
-            prov_log_record(proc_op);
+            if (get_exec_epoch() == 0) {
+                struct Op proc_op = {
+                    init_process_op_code,
+                    {.init_process = init_current_process()},
+                    {0},
+                    0,
+                    0,
+                };
+                prov_log_try(proc_op);
+                prov_log_record(proc_op);
+            }
 
             struct Op exec_epoch_op = {
                 init_exec_epoch_op_code,

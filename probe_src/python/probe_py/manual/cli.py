@@ -1,3 +1,5 @@
+import shutil
+import subprocess
 import sys
 import typing_extensions
 import tarfile
@@ -27,6 +29,8 @@ def validate(
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
     console = rich.console.Console(file=sys.stderr)
+
+    rich.traceback.install(show_locals=False)
     prov_log = parse_probe_log(input)
     process_graph = analysis.provlog_to_digraph(prov_log)
     warning_free = True
