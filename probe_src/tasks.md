@@ -169,6 +169,8 @@ Nice to have:
   - `probe_dbg` should use `libprobe_dbg`
   - Get rid of `--debug`
 
+- [ ] Don't check in generated code to VCS
+
 - [ ] Add more syscalls
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
 
