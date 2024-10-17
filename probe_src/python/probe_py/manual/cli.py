@@ -5,14 +5,13 @@ import typing_extensions
 import tarfile
 import pathlib
 import typer
-import rich
+import rich.console
 from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual.workflows import NextflowGenerator, MakefileGenerator
 import enum
 
 console = rich.console.Console(stderr=True)
-rich.traceback.install(show_locals=False, console=console)
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 

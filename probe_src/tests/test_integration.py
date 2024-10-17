@@ -13,20 +13,20 @@ def bash(*cmds: str) -> list[str]:
 
 
 commands = [
-    # bash(
-    #     "and",
-    #     *bash(
-    #         *bash("echo", "hi", "redirect_to", "file0"),
-    #         "and",
-    #         *bash("cat", "file0", "file0", "redirect_to", "file1"),
-    #     ),
-    #     "and",
-    #     *bash(
-    #         *bash("cat", "file0", "file1", "redirect_to", "file2"),
-    #         "and",
-    #         *bash("cat", "file0", "file2", "redirect_to", "file3"),
-    #     ),
-    # ),
+    bash(
+        "and",
+        *bash(
+            *bash("echo", "hi", "redirect_to", "file0"),
+            "and",
+            *bash("cat", "file0", "file0", "redirect_to", "file1"),
+        ),
+        "and",
+        *bash(
+            *bash("cat", "file0", "file1", "redirect_to", "file2"),
+            "and",
+            *bash("cat", "file0", "file2", "redirect_to", "file3"),
+        ),
+    ),
     bash(
         "echo",
         "#include <stdio.h>\n#include <fcntl.h>\nint main() {open(\".\", 0); printf(\"hello world\\n\"); return 0; }",
