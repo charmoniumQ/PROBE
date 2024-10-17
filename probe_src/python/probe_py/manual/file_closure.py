@@ -5,7 +5,7 @@ import warnings
 import pathlib
 import typing
 from probe_py.generated.parser import ProvLog, InodeVersionLog
-from probe_py.generated.ops import Path, ChdirOp, OpenOp, CloseOp
+from probe_py.generated.ops import Path, ChdirOp, OpenOp, CloseOp, InitProcessOp
 from .consts import AT_FDCWD
 
 
@@ -18,7 +18,6 @@ def build_oci_image(
         tmpdir = pathlib.Path(_tmpdir)
         copy_file_closure(
             prov_log,
-            prov_cwd,
             tmpdir,
             copy=False,
         )
@@ -57,8 +56,15 @@ def copy_file_closure(
         copy: bool,
 ) -> None:
     for pid, process in prov_log.processes.items():
+        first_op = process.exec_epochs[0].threads[pid].ops[0].data
+        if isinstance(first_op, InitProcessOp) and first_op.proc_root:
+            cwd = pathlib.Path(first_op.cwd.path)
+            break
+    else:
+        raise RuntimeError("Root process not found. Are you sure this probe_log is valid?")
+    for pid, process in prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            fds = {AT_FDCWD: prov_cwd}
+            fds = {AT_FDCWD: cwd}
             for tid, thread in exec_epoch.threads.items():
                 for op in thread.ops:
                     if isinstance(op.data, ChdirOp):
