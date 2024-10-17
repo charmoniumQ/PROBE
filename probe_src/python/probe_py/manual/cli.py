@@ -1,21 +1,23 @@
+import shutil
+import subprocess
 import sys
 import typing_extensions
 import tarfile
 import pathlib
 import typer
-import rich
+import rich.console
 from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual.workflows import NextflowGenerator, MakefileGenerator
 import enum
 
-rich.traceback.install(show_locals=False)
+console = rich.console.Console(stderr=True)
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
 A = typing_extensions.Annotated
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @app.command()
@@ -26,7 +28,7 @@ def validate(
     if not input.exists():
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
-    console = rich.console.Console(file=sys.stderr)
+
     prov_log = parse_probe_log(input)
     process_graph = analysis.provlog_to_digraph(prov_log)
     warning_free = True

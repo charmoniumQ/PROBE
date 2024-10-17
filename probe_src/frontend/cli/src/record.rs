@@ -162,8 +162,14 @@ impl Recorder {
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            std::process::Command::new(&self.cmd[0])
-                .args(&self.cmd[1..])
+            /* We start `env $cmd` instead of `$cmd`
+             * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
+             * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
+             * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
+             * Since the root process has special quirks, it should not be user's `$cmd`.
+             * */
+            std::process::Command::new("env")
+                .args(self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
                 .env("__PROBE_COPY_FILES", if self.copy_files { "1" } else { "" })

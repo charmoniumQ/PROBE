@@ -47,13 +47,26 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
 }
 
 void path_to_id_string(const struct Path* path, BORROWED char* string) {
-    CHECK_SNPRINTF(string, PATH_MAX, "%02lx-%02lx-%016lx-%016llx-%08x-%016lx", path->device_major, path->device_minor, path->inode, path->mtime.tv_sec, path->mtime.tv_nsec, path->size);
+    CHECK_SNPRINTF(
+        string,
+        PATH_MAX,
+        "%02lx-%02lx-%016lx-%016llx-%08x-%016lx",
+        path->device_major,
+        path->device_minor,
+        path->inode,
+        path->mtime.tv_sec,
+        path->mtime.tv_nsec,
+        path->size);
 }
 
 struct InitProcessOp init_current_process() {
+    char const * cwd = EXPECT_NONNULL(get_current_dir_name());
     struct InitProcessOp ret = {
         .pid = getpid(),
+        .is_root = is_proc_root(),
+        .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
     };
+    free((char*) cwd);
     return ret;
 }
 

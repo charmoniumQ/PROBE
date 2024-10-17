@@ -257,7 +257,7 @@ static char* const* update_env_with_probe_vars(char* const* user_env, size_t* up
         exec_epoch_env_var,
         pid_env_var,
         probe_dir_env_var,
-        /* TODO: include LD_PRELOAD */
+        /* TODO: include LD_PRELOAD, while noting LD_PRELOAD could have been changed by the user. */
     };
     char exec_epoch_str[unsigned_int_string_size];
     CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());

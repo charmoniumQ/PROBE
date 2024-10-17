@@ -65,6 +65,8 @@ class Path:
 @dataclass(init=True, frozen=True)
 class InitProcessOp:
     pid: int
+    is_root: bool
+    cwd: Path
 
 
 @dataclass(init=True, frozen=True)

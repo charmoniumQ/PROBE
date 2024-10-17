@@ -68,7 +68,7 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     let info_in_dir = in_dir.as_ref().join("info");
     let info_out_dir = out_dir.as_ref().join("info");
     fs::create_dir(&info_out_dir).wrap_err("Failed to create info directory")?;
-    let info_count = fs::read_dir(inodes_in_dir.clone())
+    let info_count = fs::read_dir(info_in_dir.clone())
         .wrap_err("Error opening info directory")?
         .par_bridge()
         .map(|info| {

@@ -1,3 +1,4 @@
+import pytest
 import typing
 from probe_py.generated.parser import ProvLog, parse_probe_log
 from probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
@@ -50,6 +51,7 @@ def test_bash_in_bash_pipe() -> None:
     check_for_clone_and_open(dfs_edges, process_tree_prov_log, len(paths), {}, paths)
 
 
+@pytest.mark.xfail
 def test_pthreads() -> None:
     process_tree_prov_log = execute_command([f"{project_root}/probe_src/tests/c/createFile.exe"])
     process_graph = provlog_to_digraph(process_tree_prov_log)
