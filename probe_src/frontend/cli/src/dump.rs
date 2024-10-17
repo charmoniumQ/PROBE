@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This hides some of the data and so is not suitable for machine consumption use
 /// [`to_stdout_json()`] instead.
+#[allow(dead_code)]
 pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();
@@ -33,6 +34,7 @@ pub fn to_stdout<P: AsRef<Path>>(tar_path: P) -> Result<()> {
 /// ```
 ///
 /// (without whitespace)
+#[allow(dead_code)]
 pub fn to_stdout_json<P: AsRef<Path>>(tar_path: P) -> Result<()> {
     dump_internal(tar_path, |(pid, epoch, tid), ops| {
         let mut stdout = std::io::stdout().lock();

@@ -2,7 +2,8 @@ from typing_extensions import Annotated
 import pathlib
 import typer
 import rich.console
-from .parser import parse_probe_log, parse_probe_log_ctx
+import rich.pretty
+from ..generated.parser import parse_probe_log, parse_probe_log_ctx
 from . import analysis
 from .workflows import NextflowGenerator, MakefileGenerator
 from . import file_closure
@@ -14,6 +15,8 @@ console = rich.console.Console(stderr=True)
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
+export_app = typer.Typer()
+app.add_typer(export_app, name="export")
 
 
 
@@ -94,8 +97,8 @@ def dataflow_graph(
     dot_string, dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
     print(dot_string)
 
-@app.command()
-def dump(
+@export_app.command()
+def text(
         probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
@@ -104,24 +107,32 @@ def dump(
     """
     Write the data from PROBE_LOG in a human-readable manner.
     """
-    prov_log = parse_probe_log(probe_log)
-    for pid, process in prov_log.processes.items():
-        print(pid)
-        for exid, exec_epoch in process.exec_epochs.items():
-            print(pid, exid)
-            for tid, thread in exec_epoch.threads.items():
-                print(pid, exid, tid)
-                for op_no, op in enumerate(thread.ops):
-                    print(pid, exid, tid, op_no, op.data)
-                print()
+    out_console = rich.console.Console()
+    with parse_probe_log_ctx(probe_log) as prov_log:
+        for pid, process in sorted(prov_log.processes.items()):
+            out_console.rule(f"{pid}")
+            for exid, exec_epoch in sorted(process.exec_epochs.items()):
+                out_console.rule(f"{pid} {exid}")
+                for tid, thread in sorted(exec_epoch.threads.items()):
+                    out_console.rule(f"{pid} {exid} {tid}")
+                    for op_no, op in enumerate(thread.ops):
+                        out_console.print(op_no)
+                        rich.pretty.pprint(
+                            op.data,
+                            console=console,
+                            max_string=40,
+                        )
+        for ivl, path in sorted(prov_log.inodes.items()):
+            out_console.print(f"device={ivl.device_major}.{ivl.device_minor} inode={ivl.inode} mtime={ivl.tv_sec}.{ivl.tv_nsec} -> {tvl.size} blob")
 
-@app.command()
+@export_app.command()
 def docker_image(
         image_name: str,
         probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        verbose: bool = True,
 ) -> None:
     """Generate a docker image from a probe_log with --copy-files
 
@@ -140,6 +151,38 @@ def docker_image(
             prov_log,
             image_name,
             True,
+            verbose,
+            console,
+        )
+
+@export_app.command()
+def oci_image(
+        image_name: str,
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+        verbose: bool = True,
+) -> None:
+    """Generate an OCI image from a probe_log with --copy-files
+
+    For example,
+
+        probe record python -c 'import numpy; print(numpy.array([1,2,3]).mean())'
+        probe oci-image python-numpy:latest
+        podman run --rm python-numpy:latest
+
+    """
+    with parse_probe_log_ctx(probe_log) as prov_log:
+        if not prov_log.has_inodes:
+            console.print("No files stored in probe log", style="red")
+            raise typer.Exit(code=1)
+        file_closure.build_oci_image(
+            prov_log,
+            image_name,
+            False,
+            verbose,
+            console,
         )
 
 
