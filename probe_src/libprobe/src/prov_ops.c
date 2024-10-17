@@ -8,6 +8,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             -1,
             {0},
             {0},
+            0,
             false,
             true,
         };
@@ -27,7 +28,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
          * */
         prov_log_disable();
         struct statx statx_buf;
-        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME, &statx_buf);
+        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
         prov_log_enable();
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
@@ -35,6 +36,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             ret.inode = statx_buf.stx_ino;
             ret.mtime = statx_buf.stx_mtime;
             ret.ctime = statx_buf.stx_ctime;
+            ret.size = statx_buf.stx_size;
             ret.stat_valid = true;
         }
         return ret;
@@ -44,10 +46,27 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
     }
 }
 
+void path_to_id_string(const struct Path* path, BORROWED char* string) {
+    CHECK_SNPRINTF(
+        string,
+        PATH_MAX,
+        "%02lx-%02lx-%016lx-%016llx-%08x-%016lx",
+        path->device_major,
+        path->device_minor,
+        path->inode,
+        path->mtime.tv_sec,
+        path->mtime.tv_nsec,
+        path->size);
+}
+
 struct InitProcessOp init_current_process() {
+    char const * cwd = EXPECT_NONNULL(get_current_dir_name());
     struct InitProcessOp ret = {
         .pid = getpid(),
+        .is_root = is_proc_root(),
+        .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
     };
+    free((char*) cwd);
     return ret;
 }
 
@@ -107,8 +126,7 @@ static void free_op(struct Op op) {
 }
 */
 
-#ifndef NDEBUG
-static const struct Path* op_to_path(struct Op* op) {
+static const struct Path* op_to_path(const struct Op* op) {
     switch (op->op_code) {
         case open_op_code: return &op->data.open.path;
         case chdir_op_code: return &op->data.chdir.path;
@@ -121,6 +139,7 @@ static const struct Path* op_to_path(struct Op* op) {
             return &null_path;
     }
 }
+#ifndef NDEBUG
 static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
         case init_process_op_code: return "init_process";
@@ -172,7 +191,7 @@ static void op_to_human_readable(char* dest, int size, struct Op* op) {
     }
 
     if (op->op_code == open_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d", op->data.open.fd);
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
         dest += fd_size;
         size -= fd_size;
     }
@@ -185,49 +204,63 @@ static void op_to_human_readable(char* dest, int size, struct Op* op) {
 }
 #endif
 
-void stat_to_statx(struct statx* statx_buf, struct stat* stat_buf) {
-    /*
-     * Sadly ChatGPT gets this wrong
-     * Here's the old-fashioned documentation:
-     *
-     * https://www.gnu.org/software/libc/manual/html_node/Attribute-Meanings.html#index-struct-stat
-     * https://www.man7.org/linux/man-pages/man2/statx.2.html
-     */
-    statx_buf->stx_mask = STATX_BASIC_STATS;
-    statx_buf->stx_mode = stat_buf->st_mode;
-    statx_buf->stx_ino = stat_buf->st_ino;
-    statx_buf->stx_dev_major = major(stat_buf->st_dev);
-    statx_buf->stx_dev_major = minor(stat_buf->st_dev);
-    statx_buf->stx_nlink = stat_buf->st_nlink;
-    statx_buf->stx_uid = stat_buf->st_uid;
-    statx_buf->stx_gid = stat_buf->st_gid;
-    statx_buf->stx_size = stat_buf->st_size;
-    statx_buf->stx_atime.tv_sec = stat_buf->st_atim.tv_sec;
-    statx_buf->stx_atime.tv_nsec = stat_buf->st_atim.tv_nsec;
-    statx_buf->stx_mtime.tv_sec = stat_buf->st_mtim.tv_sec;
-    statx_buf->stx_mtime.tv_nsec = stat_buf->st_mtim.tv_nsec;
-    statx_buf->stx_ctime.tv_sec = stat_buf->st_ctim.tv_sec;
-    statx_buf->stx_ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
-    statx_buf->stx_blocks = stat_buf->st_blocks;
-    statx_buf->stx_blksize = stat_buf->st_blksize;
+
+void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat_buf) {
+    stat_result_buf->mask = STATX_BASIC_STATS;
+    stat_result_buf->mode = stat_buf->st_mode;
+    stat_result_buf->ino = stat_buf->st_ino;
+    stat_result_buf->dev_major = major(stat_buf->st_dev);
+    stat_result_buf->dev_major = minor(stat_buf->st_dev);
+    stat_result_buf->nlink = stat_buf->st_nlink;
+    stat_result_buf->uid = stat_buf->st_uid;
+    stat_result_buf->gid = stat_buf->st_gid;
+    stat_result_buf->size = stat_buf->st_size;
+    stat_result_buf->atime.tv_sec = stat_buf->st_atim.tv_sec;
+    stat_result_buf->atime.tv_nsec = stat_buf->st_atim.tv_nsec;
+    stat_result_buf->mtime.tv_sec = stat_buf->st_mtim.tv_sec;
+    stat_result_buf->mtime.tv_nsec = stat_buf->st_mtim.tv_nsec;
+    stat_result_buf->ctime.tv_sec = stat_buf->st_ctim.tv_sec;
+    stat_result_buf->ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
+    stat_result_buf->blocks = stat_buf->st_blocks;
+    stat_result_buf->blksize = stat_buf->st_blksize;
 }
 
-void stat64_to_statx(struct statx* statx_buf, struct stat64* stat_buf) {
-    statx_buf->stx_mask = STATX_BASIC_STATS;
-    statx_buf->stx_mode = stat_buf->st_mode;
-    statx_buf->stx_ino = stat_buf->st_ino;
-    statx_buf->stx_dev_major = major(stat_buf->st_dev);
-    statx_buf->stx_dev_major = minor(stat_buf->st_dev);
-    statx_buf->stx_nlink = stat_buf->st_nlink;
-    statx_buf->stx_uid = stat_buf->st_uid;
-    statx_buf->stx_gid = stat_buf->st_gid;
-    statx_buf->stx_size = stat_buf->st_size;
-    statx_buf->stx_atime.tv_sec = stat_buf->st_atim.tv_sec;
-    statx_buf->stx_atime.tv_nsec = stat_buf->st_atim.tv_nsec;
-    statx_buf->stx_mtime.tv_sec = stat_buf->st_mtim.tv_sec;
-    statx_buf->stx_mtime.tv_nsec = stat_buf->st_mtim.tv_nsec;
-    statx_buf->stx_ctime.tv_sec = stat_buf->st_ctim.tv_sec;
-    statx_buf->stx_ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
-    statx_buf->stx_blocks = stat_buf->st_blocks;
-    statx_buf->stx_blksize = stat_buf->st_blksize;
+void stat_result_from_stat64(struct StatResult* stat_result_buf, struct stat64* stat64_buf) {
+    stat_result_buf->mask = STATX_BASIC_STATS;
+    stat_result_buf->mode = stat64_buf->st_mode;
+    stat_result_buf->ino = stat64_buf->st_ino;
+    stat_result_buf->dev_major = major(stat64_buf->st_dev);
+    stat_result_buf->dev_major = minor(stat64_buf->st_dev);
+    stat_result_buf->nlink = stat64_buf->st_nlink;
+    stat_result_buf->uid = stat64_buf->st_uid;
+    stat_result_buf->gid = stat64_buf->st_gid;
+    stat_result_buf->size = stat64_buf->st_size;
+    stat_result_buf->atime.tv_sec = stat64_buf->st_atim.tv_sec;
+    stat_result_buf->atime.tv_nsec = stat64_buf->st_atim.tv_nsec;
+    stat_result_buf->mtime.tv_sec = stat64_buf->st_mtim.tv_sec;
+    stat_result_buf->mtime.tv_nsec = stat64_buf->st_mtim.tv_nsec;
+    stat_result_buf->ctime.tv_sec = stat64_buf->st_ctim.tv_sec;
+    stat_result_buf->ctime.tv_nsec = stat64_buf->st_ctim.tv_nsec;
+    stat_result_buf->blocks = stat64_buf->st_blocks;
+    stat_result_buf->blksize = stat64_buf->st_blksize;
+}
+
+void stat_result_from_statx(struct StatResult* stat_result_buf, struct statx* statx_buf) {
+    stat_result_buf->mask = statx_buf->stx_mask;
+    stat_result_buf->mode = statx_buf->stx_mode;
+    stat_result_buf->ino = statx_buf->stx_ino;
+    stat_result_buf->dev_major = statx_buf->stx_dev_major;
+    stat_result_buf->dev_major = statx_buf->stx_dev_minor;
+    stat_result_buf->nlink = statx_buf->stx_nlink;
+    stat_result_buf->uid = statx_buf->stx_uid;
+    stat_result_buf->gid = statx_buf->stx_gid;
+    stat_result_buf->size = statx_buf->stx_size;
+    stat_result_buf->atime.tv_sec = statx_buf->stx_atime.tv_sec;
+    stat_result_buf->atime.tv_nsec = statx_buf->stx_atime.tv_nsec;
+    stat_result_buf->mtime.tv_sec = statx_buf->stx_mtime.tv_sec;
+    stat_result_buf->mtime.tv_nsec = statx_buf->stx_mtime.tv_nsec;
+    stat_result_buf->ctime.tv_sec = statx_buf->stx_ctime.tv_sec;
+    stat_result_buf->ctime.tv_nsec = statx_buf->stx_ctime.tv_nsec;
+    stat_result_buf->blocks = statx_buf->stx_blocks;
+    stat_result_buf->blksize = statx_buf->stx_blksize;
 }

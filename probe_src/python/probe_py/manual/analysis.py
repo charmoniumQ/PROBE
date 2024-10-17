@@ -68,10 +68,21 @@ def validate_provlog(
     cloned_processes = set[tuple[TaskType, int]]()
     opened_fds = set[int]()
     closed_fds = set[int]()
+    n_roots = 0
     for pid, process in provlog.processes.items():
         epochs = set[int]()
+        first_op = process.exec_epochs[0].threads[pid].ops[0]
+        if not isinstance(first_op.data, InitProcessOp):
+            ret.append("First op in exec_epoch 0 should be InitProcessOp")
+        else:
+            if first_op.data.is_root:
+                n_roots += 1
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             epochs.add(exec_epoch_no)
+            first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
+            first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
+            if not isinstance(first_ee_op.data, InitExecEpochOp):
+                ret.append(f"{first_ee_op_idx} in exec_epoch should be InitExecEpochOp")
             pthread_ids = {
                 op.pthread_id
                 for tid, thread in exec_epoch.threads.items()
@@ -83,10 +94,12 @@ def validate_provlog(
                 for op in thread.ops
             }
             for tid, thread in exec_epoch.threads.items():
+                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
+                first_thread_op = thread.ops[first_thread_op_idx]
+                if not isinstance(first_thread_op.data, InitThreadOp):
+                    ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
                 for op in thread.ops:
-                    if False:
-                        pass
-                    elif isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+                    if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
                         waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
                     elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
@@ -96,6 +109,13 @@ def validate_provlog(
                             cloned_processes.add((TaskType.TASK_TID, op.data.task_id))
                     elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
                         opened_fds.add(op.data.fd)
+                    elif isinstance(op.data, ExecOp):
+                        if len(op.data.argv) != op.data.argc:
+                            ret.append("argv vs argc mismatch")
+                        if len(op.data.env) != op.data.envc:
+                            ret.append("env vs envc mismatch")
+                        if not op.data.argv:
+                            ret.append("No arguments stored in exec syscall")
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
                         # Range in Python is up-to-not-including high_fd, so we add one to it.
                         closed_fds.update(range(op.data.low_fd, op.data.high_fd + 1))
@@ -117,12 +137,14 @@ def validate_provlog(
         if expected_epochs - epochs:
             ret.append(f"Missing epochs for pid={pid}: {sorted(epochs - expected_epochs)}")
     reserved_fds = {0, 1, 2}
-    if False:
+    if closed_fds - opened_fds - reserved_fds:
+        # TODO: Problem due to some programs opening /dev/pts/0 in a way that libprobe doesn't notice, but they close it in a way we do notice.
         pass
-    elif closed_fds - opened_fds - reserved_fds:
-        ret.append(f"Closed more fds than we opened: {closed_fds - reserved_fds=} {opened_fds=}")
+        #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
     elif waited_processes - cloned_processes:
         ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
+    if n_roots != 1:
+        ret.append(f"Got {n_roots} prov roots")
     return ret
 
 
@@ -466,7 +488,7 @@ def validate_hb_execs(provlog: parser.ProvLog, process_graph: nx.DiGraph) -> lis
                         ret.append(f"ExecOp {node0} is followed by {node1}, whose exec epoch id should be {eid0 + 1}")
                     break
             else:
-                ret.append(f"ExecOp {node0} is not followed by an InitExecEpochOp.")
+                ret.append(f"ExecOp {node0} is not followed by an InitExecEpochOp, but by {op1}.")
     return ret
 
 

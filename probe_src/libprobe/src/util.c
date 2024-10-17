@@ -11,6 +11,7 @@
  * If a function-call returns a BORROWED pointer, the callee can't free it.
  * If a function-call receives a BORROWED pointer, the function can't free it.
  * */
+#include <sys/sendfile.h>
 #define OWNED
 #define BORROWED
 
@@ -265,12 +266,18 @@ static void listdir(const char* name, int indent) {
 static unsigned long my_strtoul(const char *restrict string, char **restrict string_end, int base) {
     unsigned long accumulator = 0;
     const char* ptr = string;
-    while (*ptr) {
-        if ('0' <= *ptr && *ptr < ('0' + base)) {
-            accumulator = accumulator * base + (*ptr - '0');
+    while (*ptr != '\0') {
+        int value = 0;
+        if ('0' <= *ptr && *ptr <= '9') {
+            value = *ptr - '0';
+        } else if ('A' <= *ptr && *ptr < 'A' + base) {
+            value = *ptr - 'A' + 10;
+        } else if ('a' <= *ptr && *ptr < 'a' + base) {
+            value = *ptr - 'a' + 10;
         } else {
             return 0;
         }
+        accumulator = accumulator * base + value;
         ptr++;
     }
     if (string_end) {
@@ -304,4 +311,36 @@ static char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * a
     argv_copy[*argc] = NULL;
 
     return argv_copy;
+}
+
+int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path, ssize_t size) {
+    /*
+    ** Adapted from:
+    ** https://stackoverflow.com/a/2180157
+     */
+    int src_fd = unwrapped_openat(src_dirfd, src_path, O_RDONLY);
+    int dst_fd = unwrapped_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
+    int result = 0;
+    off_t copied = 0;
+    while (result == 0 && copied < size) {
+        ssize_t written = sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
+        copied += written;
+        if (written == -1) {
+            result = -1;
+        }
+    }
+
+    unwrapped_close(src_fd);
+    unwrapped_close(dst_fd);
+
+    return result;
+}
+
+int write_bytes(int dirfd, const char* path, const char* content, ssize_t size) {
+    int fd = unwrapped_openat(dirfd, path, O_RDWR | O_CREAT, 0666);
+    assert(fd > 0);
+    ssize_t ret = write(fd, content, size);
+    assert(ret == size);
+    EXPECT( == 0, unwrapped_close(fd));
+    return ret == size;
 }

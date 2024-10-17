@@ -23,11 +23,25 @@ class ProcessProvLog:
 
 
 @dataclass(frozen=True)
+class InodeVersionLog:
+    device_major: int
+    device_minor: int
+    inode: int
+    tv_sec: int
+    tv_nsec: int
+    size: int
+
+
+@dataclass(frozen=True)
 class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
+    inodes: typing.Mapping[InodeVersionLog, str]
+    has_inodes: bool
 
 def parse_probe_log(probe_log: pathlib.Path) -> ProvLog:
-    op_map: typing.Dict[int, typing.Dict[int, typing.Dict[int, ThreadProvLog]]] = {}
+    op_map = dict[int, dict[int, dict[int, ThreadProvLog]]]()
+    inodes = dict[InodeVersionLog, str]()
+    has_inodes = False
 
     tar = tarfile.open(probe_log, mode='r')
 
@@ -38,38 +52,47 @@ def parse_probe_log(probe_log: pathlib.Path) -> ProvLog:
 
         # extract and name the hierarchy components
         parts = item.name.split("/")
-        if len(parts) != 3:
-            raise ValueError("malformed probe log")
-        pid: int = int(parts[0])
-        epoch: int = int(parts[1])
-        tid: int = int(parts[2])
+        if parts[0] == "info":
+            if parts[1] == "copy_files":
+                has_inodes = True
+        elif parts[0] == "inodes":
+            if len(parts) != 2:
+                raise RuntimeError("Invalid probe_log")
+            inodes[InodeVersionLog(*[
+                int(segment, 16)
+                for segment in parts[1].split("-")
+            ])] = item.name
+        elif parts[0] == "pids":
+            if len(parts) != 4:
+                raise RuntimeError("Invalid probe_log")
+            pid: int = int(parts[1])
+            epoch: int = int(parts[2])
+            tid: int = int(parts[3])
 
-        # ensure necessary dict objects have been created
-        if pid not in op_map:
-            op_map[pid] = {}
-        if epoch not in op_map[pid]:
-            op_map[pid][epoch] = {}
+            # extract file contents as byte buffer
+            file = tar.extractfile(item)
+            if file is None:
+                raise IOError("Unable to read jsonlines from probe log")
 
-        # extract file contents as byte buffer
-        file = tar.extractfile(item)
-        if file is None:
-            raise IOError("Unable to read jsonlines from probe log")
+            # read, split, comprehend, deserialize, extend
+            jsonlines = file.read().strip().split(b"\n")
+            ops = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
+            op_map.setdefault(pid, {}).setdefault(epoch, {})[tid] = ops
 
-        # read, split, comprehend, deserialize, extend
-        jsonlines = file.read().strip().split(b"\n")
-        ops = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
-        op_map[pid][epoch][tid] = ops
-
-    return ProvLog({
-        pid: ProcessProvLog(
-            pid,
-            {
-                epoch: ExecEpochProvLog(epoch, threads)
-                for epoch, threads in epochs.items()
-            },
-        )
-        for pid, epochs in op_map.items()
-    })
+    return ProvLog(
+        processes={
+            pid: ProcessProvLog(
+                pid,
+                {
+                    epoch: ExecEpochProvLog(epoch, threads)
+                    for epoch, threads in epochs.items()
+                },
+            )
+            for pid, epochs in op_map.items()
+        },
+        inodes=inodes,
+        has_inodes=has_inodes,
+    )
 
 def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
     ty: str = json_map["_type"]

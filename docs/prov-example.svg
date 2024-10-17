@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="331pt" height="332pt" viewBox="0.00 0.00 331.33 332.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 328)">
+    <title>prov_example</title>
+    <polygon fill="white" stroke="none" points="-4,4 -4,-328 327.33,-328 327.33,4 -4,4">
+    </polygon>
+    <g id="node1" class="node">
+      <title>curl_ins</title>
+      <text text-anchor="middle" x="73.83" y="-301.32" font-family="Times,serif" font-size="14.00">...</text>
+    </g>
+    <g id="node2" class="node">
+      <title>curl</title>
+      <ellipse fill="none" stroke="black" cx="73.83" cy="-234" rx="73.83" ry="18"></ellipse>
+      <text text-anchor="middle" x="73.83" y="-229.32" font-family="Times,serif" font-size="14.00">curl http://...</text>
+    </g>
+    <g id="edge1" class="edge">
+      <title>curl_ins&#45;&gt;curl</title>
+      <path fill="none" stroke="black" d="M73.83,-288.05C73.83,-280.68 73.83,-271.84 73.83,-263.51"></path>
+      <polygon fill="black" stroke="black" points="77.33,-263.79 73.83,-253.79 70.33,-263.79 77.33,-263.79"></polygon>
+    </g>
+    <g id="node3" class="node">
+      <title>data</title>
+      <polygon fill="none" stroke="black" points="105.46,-180 36.21,-180 36.21,-144 111.46,-144 111.46,-174 105.46,-180"></polygon>
+      <polyline fill="none" stroke="black" points="105.46,-180 105.46,-174"></polyline>
+      <polyline fill="none" stroke="black" points="111.46,-174 105.46,-174"></polyline>
+      <text text-anchor="middle" x="73.83" y="-157.32" font-family="Times,serif" font-size="14.00">data.csv</text>
+    </g>
+    <g id="edge2" class="edge">
+      <title>curl&#45;&gt;data</title>
+      <path fill="none" stroke="black" d="M73.83,-215.7C73.83,-208.41 73.83,-199.73 73.83,-191.54"></path>
+      <polygon fill="black" stroke="black" points="77.33,-191.62 73.83,-181.62 70.33,-191.62 77.33,-191.62"></polygon>
+    </g>
+    <g id="node7" class="node">
+      <title>proc1</title>
+      <ellipse fill="none" stroke="black" cx="168.83" cy="-90" rx="93.3" ry="18"></ellipse>
+      <text text-anchor="middle" x="168.83" y="-85.33" font-family="Times,serif" font-size="14.00">python script.py</text>
+    </g>
+    <g id="edge4" class="edge">
+      <title>data&#45;&gt;proc1</title>
+      <path fill="none" stroke="black" d="M97.31,-143.7C109.25,-134.9 123.94,-124.08 136.89,-114.54"></path>
+      <polygon fill="black" stroke="black" points="138.75,-117.51 144.73,-108.76 134.6,-111.87 138.75,-117.51"></polygon>
+    </g>
+    <g id="node4" class="node">
+      <title>script</title>
+      <polygon fill="none" stroke="black" points="202.33,-180 129.33,-180 129.33,-144 208.33,-144 208.33,-174 202.33,-180"></polygon>
+      <polyline fill="none" stroke="black" points="202.33,-180 202.33,-174"></polyline>
+      <polyline fill="none" stroke="black" points="208.33,-174 202.33,-174"></polyline>
+      <text text-anchor="middle" x="168.83" y="-157.32" font-family="Times,serif" font-size="14.00">script.py</text>
+    </g>
+    <g id="edge5" class="edge">
+      <title>script&#45;&gt;proc1</title>
+      <path fill="none" stroke="black" d="M168.83,-143.7C168.83,-136.41 168.83,-127.73 168.83,-119.54"></path>
+      <polygon fill="black" stroke="black" points="172.33,-119.62 168.83,-109.62 165.33,-119.62 172.33,-119.62"></polygon>
+    </g>
+    <g id="node5" class="node">
+      <title>py_ins</title>
+      <text text-anchor="middle" x="274.83" y="-229.32" font-family="Times,serif" font-size="14.00">...</text>
+    </g>
+    <g id="node6" class="node">
+      <title>python</title>
+      <polygon fill="none" stroke="black" points="317.33,-180 226.33,-180 226.33,-144 323.33,-144 323.33,-174 317.33,-180"></polygon>
+      <polyline fill="none" stroke="black" points="317.33,-180 317.33,-174"></polyline>
+      <polyline fill="none" stroke="black" points="323.33,-174 317.33,-174"></polyline>
+      <text text-anchor="middle" x="274.83" y="-157.32" font-family="Times,serif" font-size="14.00">/bin/python</text>
+    </g>
+    <g id="edge3" class="edge">
+      <title>py_ins&#45;&gt;python</title>
+      <path fill="none" stroke="black" d="M274.83,-216.05C274.83,-208.68 274.83,-199.84 274.83,-191.51"></path>
+      <polygon fill="black" stroke="black" points="278.33,-191.79 274.83,-181.79 271.33,-191.79 278.33,-191.79"></polygon>
+    </g>
+    <g id="edge6" class="edge">
+      <title>python&#45;&gt;proc1</title>
+      <path fill="none" stroke="black" d="M248.36,-143.52C234.77,-134.55 218.06,-123.51 203.47,-113.87"></path>
+      <polygon fill="black" stroke="black" points="205.77,-111.2 195.5,-108.61 201.92,-117.04 205.77,-111.2"></polygon>
+    </g>
+    <g id="node8" class="node">
+      <title>fig</title>
+      <polygon fill="none" stroke="black" points="207.58,-36 124.08,-36 124.08,0 213.58,0 213.58,-30 207.58,-36"></polygon>
+      <polyline fill="none" stroke="black" points="207.58,-36 207.58,-30"></polyline>
+      <polyline fill="none" stroke="black" points="213.58,-30 207.58,-30"></polyline>
+      <text text-anchor="middle" x="168.83" y="-13.32" font-family="Times,serif" font-size="14.00">figure.png</text>
+    </g>
+    <g id="edge7" class="edge">
+      <title>proc1&#45;&gt;fig</title>
+      <path fill="none" stroke="black" d="M168.83,-71.7C168.83,-64.41 168.83,-55.73 168.83,-47.54"></path>
+      <polygon fill="black" stroke="black" points="172.33,-47.62 168.83,-37.62 165.33,-47.62 172.33,-47.62">
+      </polygon>
+    </g>
+  </g>
+</svg>

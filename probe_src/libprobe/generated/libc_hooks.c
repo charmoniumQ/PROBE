@@ -878,7 +878,7 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode)
 int stat(const char *filename, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .ferrno = 0, .stat_result = {0}}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -889,11 +889,11 @@ int stat(const char *filename, struct stat *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -904,7 +904,7 @@ int stat(const char *filename, struct stat *buf)
 int stat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -915,11 +915,11 @@ int stat64(const char *filename, struct stat64 *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -930,7 +930,7 @@ int stat64(const char *filename, struct stat64 *buf)
 int fstat(int filedes, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -941,11 +941,11 @@ int fstat(int filedes, struct stat *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -956,7 +956,7 @@ int fstat(int filedes, struct stat *buf)
 int fstat64(int filedes, struct stat64 * restrict buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -967,11 +967,11 @@ int fstat64(int filedes, struct stat64 * restrict buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -982,7 +982,7 @@ int fstat64(int filedes, struct stat64 * restrict buf)
 int lstat(const char *filename, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -993,11 +993,11 @@ int lstat(const char *filename, struct stat *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1008,7 +1008,7 @@ int lstat(const char *filename, struct stat *buf)
 int lstat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1023,7 +1023,7 @@ int lstat64(const char *filename, struct stat64 *buf)
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1034,7 +1034,7 @@ int lstat64(const char *filename, struct stat64 *buf)
 int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mask, struct statx * restrict statxbuf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1045,11 +1045,11 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      op.data.stat.statx_buf = *statxbuf;
+      stat_result_from_statx(&op.data.stat.stat_result, statxbuf);
     }
     prov_log_record(op);
   }
@@ -1060,7 +1060,7 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
 int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1071,11 +1071,11 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1086,7 +1086,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, int flags)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1097,11 +1097,11 @@ int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, 
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1523,7 +1523,7 @@ char * mkdtemp(char *template)
 int execv(const char *filename, char * const argv[])
 {
   maybe_init_thread();
-  size_t argc = -1;
+  size_t argc = 0;
   char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
   size_t envc = 0;
   char * const *updated_env = update_env_with_probe_vars(environ, &envc);

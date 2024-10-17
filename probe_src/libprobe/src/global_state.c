@@ -88,40 +88,66 @@ static int get_exec_epoch_safe() {
     return __exec_epoch;
 }
 
-static int mkdir_and_descend(int dirfd, long child, bool mkdir, bool close) {
+static int __copy_files = -1;
+static const char* copy_files_env_var = PRIVATE_ENV_VAR_PREFIX "COPY_FILES";
+struct InodeTable read_inodes;
+struct InodeTable copied_or_overwritten_inodes;
+static void init_copy_files() {
+    assert(__copy_files == -1);
+    const char* copy_files_str = debug_getenv(copy_files_env_var);
+    if (copy_files_str != NULL && copy_files_str[0] != 0) {
+        __copy_files = 1;
+        inode_table_init(&read_inodes);
+        inode_table_init(&copied_or_overwritten_inodes);
+    } else {
+        __copy_files = 0;
+    }
+    DEBUG("Is copy files? %d", __copy_files);
+}
+static bool should_copy_files() {
+    assert(__copy_files == 1 || __copy_files == 0);
+    return __copy_files;
+}
+
+static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mkdir, bool close) {
     char buffer[signed_long_string_size + 1];
-    CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
+    if (!name) {
+        CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
+    }
     if (mkdir) {
-        int mkdir_ret = unwrapped_mkdirat(dirfd, buffer, 0777);
+        DEBUG("mkdir %s/%s", dirfd_path(my_dirfd), name ? name : buffer);
+        int mkdir_ret = unwrapped_mkdirat(my_dirfd, name ? name : buffer, 0777);
         if (mkdir_ret != 0) {
             int saved_errno = errno;
 #ifndef NDEBUG
-            listdir(dirfd_path(dirfd), 2);
+            listdir(dirfd_path(my_dirfd), 2);
 #endif
-            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(dirfd), child, strerror(saved_errno));
+            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(my_dirfd), child, strerror(saved_errno));
         }
     }
-    int sub_dirfd = unwrapped_openat(dirfd, buffer, O_RDONLY | O_DIRECTORY);
+    int sub_dirfd = unwrapped_openat(my_dirfd, name ? name : buffer, O_RDONLY | O_DIRECTORY);
     if (sub_dirfd == -1) {
         int saved_errno = errno;
 #ifndef NDEBUG
-        listdir(dirfd_path(dirfd), 2);
+        listdir(dirfd_path(my_dirfd), 2);
 #endif
-        DEBUG("dirfd=%d buffer=\"%s\"", dirfd, buffer);
-        ERROR("Cannot openat %s/%ld (did we do mkdir? %d): %s", dirfd_path(dirfd), child, mkdir, strerror(saved_errno));
+        DEBUG("dirfd=%d buffer=\"%s\"", my_dirfd, name ? name : buffer);
+        ERROR("Cannot openat %s/%ld (did we do mkdir? %d): %s", dirfd_path(my_dirfd), child, mkdir, strerror(saved_errno));
     }
     if (close) {
-        EXPECT(== 0, unwrapped_close(dirfd));
+        EXPECT(== 0, unwrapped_close(my_dirfd));
     }
+    DEBUG("%s/%s -> fd %d", dirfd_path(my_dirfd), name ? name : buffer, sub_dirfd);
     return sub_dirfd;
 }
 
-static const int initial_epoch_dirfd = -1;
-static int __epoch_dirfd = initial_epoch_dirfd;
+static const int invalid_dirfd = -1;
+static int __epoch_dirfd = invalid_dirfd;
+static int __inodes_dirfd = invalid_dirfd;
 static const char* probe_dir_env_var = PRIVATE_ENV_VAR_PREFIX "DIR";
 static char __probe_dir[PATH_MAX + 1];
 static void init_probe_dir() {
-    assert(__epoch_dirfd == initial_epoch_dirfd);
+    assert(__epoch_dirfd == invalid_dirfd);
     if (__probe_dir[0] == '\0') {
         // Get initial probe dir
         const char* probe_dir_env_val = debug_getenv(probe_dir_env_var);
@@ -143,14 +169,27 @@ static void init_probe_dir() {
 
     DEBUG("probe_dir = \"%s\"", __probe_dir);
 
-    int pid_dirfd = mkdir_and_descend(probe_dirfd, getpid(), get_exec_epoch() == 0, true);
-    __epoch_dirfd = mkdir_and_descend(pid_dirfd, get_exec_epoch(), my_gettid() == getpid(), true);
-    DEBUG("__epoch_dirfd=%d (%s/%d/%d)", __epoch_dirfd, __probe_dir, getpid(), get_exec_epoch());
+    if (is_proc_root()) {
+        int info_dirfd = mkdir_and_descend(probe_dirfd, "info", 0, true, false);
+        write_bytes(info_dirfd, "copy_files", should_copy_files() ? "1" : "0", 1);
+        EXPECT(== 0, unwrapped_close(info_dirfd));
+    }
+
+    int pids_dirfd = mkdir_and_descend(probe_dirfd, "pids", 0, is_proc_root(), false);
+
+    __inodes_dirfd = mkdir_and_descend(probe_dirfd, "inodes", 0, is_proc_root(), false);
+
+    int pid_dirfd = mkdir_and_descend(pids_dirfd, NULL, getpid(), get_exec_epoch() == 0, true);
+
+    __epoch_dirfd = mkdir_and_descend(pid_dirfd, NULL, get_exec_epoch(), my_gettid() == getpid(), true);
 }
 static int get_epoch_dirfd() {
-    assert(__epoch_dirfd != initial_epoch_dirfd);
     assert(fd_is_valid(__epoch_dirfd));
     return __epoch_dirfd;
+}
+static int get_inodes_dirfd() {
+    assert(fd_is_valid(__inodes_dirfd));
+    return __inodes_dirfd;
 }
 
 static __thread struct ArenaDir __op_arena = { 0 };
@@ -160,7 +199,7 @@ static void init_log_arena() {
     assert(!arena_is_initialized(&__op_arena));
     assert(!arena_is_initialized(&__data_arena));
     DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", __probe_dir, getpid(), get_exec_epoch(), my_gettid(), true);
-    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), my_gettid(), true, false);
+    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), NULL, my_gettid(), true, false);
     EXPECT( == 0, arena_create(&__op_arena, thread_dirfd, "ops", prov_log_arena_size));
     EXPECT( == 0, arena_create(&__data_arena, thread_dirfd, "data", prov_log_arena_size));
 }
@@ -176,10 +215,10 @@ static struct ArenaDir* get_data_arena() {
 /**
  * Aggregate functions;
  * These functions call the init_* functions above */
-
 static void init_process_global_state() {
     init_is_proc_root();
     init_exec_epoch();
+    init_copy_files();
     init_probe_dir();
 }
 
@@ -195,7 +234,8 @@ static void init_thread_global_state() {
 static void reinit_process_global_state() {
     __is_proc_root = 0;
     __exec_epoch = 0;
-    __epoch_dirfd = initial_epoch_dirfd;
+    __epoch_dirfd = invalid_dirfd;
+    /* TODO: Can we skip some of this if we got fork()ed and the FDs are still open? */
     init_probe_dir();
 }
 
@@ -217,7 +257,7 @@ static char* const* update_env_with_probe_vars(char* const* user_env, size_t* up
         exec_epoch_env_var,
         pid_env_var,
         probe_dir_env_var,
-        /* TODO: include LD_PRELOAD */
+        /* TODO: include LD_PRELOAD, while noting LD_PRELOAD could have been changed by the user. */
     };
     char exec_epoch_str[unsigned_int_string_size];
     CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());
