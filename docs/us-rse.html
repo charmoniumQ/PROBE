@@ -145,6 +145,12 @@
           </figure>
         </section>
         <section>
+          <h2>Has this every happend to you?</h2>
+          <img
+            alt="Read based prior work; Find FAIR artifact; Run their code; FileNotFound"
+            src="https://i.imgflip.com/971i6i.jpg" />
+        </section>
+        <section>
           <h2>What is provenance?</h2>
           <img
             style="height: 60%; width: auto;"
@@ -162,7 +168,7 @@
         </section>
         <section>
           <h2>Comp. Provenance Example</h2>
-            <div style="margin: auto">
+            <div>
               <code>curl -o data.csv http://data.com
 python script.py</code>
             </div>
@@ -219,26 +225,26 @@ python script.py</code>
             <li><code>LD_PRELOAD</code> <span style="color: red">incomplete!</span> but good enough in practice</li>
             <li>Less than 2x slowdown in most cases (improving)</li>
             <li>No root!</li>
-            <li>Active team of 6; development in the open</li>
             <li><code>$ probe record &lt;your-command-here&gt;</code></li>
+            <li>2 implemented and 2 planned features</li>
           </ul>
         </section>
         <section>
           <h2>Understand dataflow in your pile of scripts</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
-<span class="fragment">$ probe export dataflow-png plot.png</span></code></pre>
+<span class="fragment">$ probe export dataflow-graph</span></code></pre>
           <figure class="contributor">
             <img
               alt="Shofiya Bootwala"
               src="https://media.discordapp.net/attachments/1251250007546531910/1294579613975969852/headshot.jpeg?ex=6710ccb8&is=670f7b38&hm=daaecbf0e84e301296da60673f04003c4522e794681ceae2527309d4663cd402&=&format=webp&width=543&height=816"
               />
-            <figcaption>Contributed by Shofiya Bootwala (applying for PhD)</figcaption>
+            <figcaption>Contributed by Shofiya Bootwala (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
           <h2>Create Makefile automatically</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh 42</span>
-<span class="fragment">$ probe export makefile plot.png</span>
+<span class="fragment">$ probe export makefile</span>
 <span class="fragment">$ cat Makefile
 input.csv: generate_data.py /bin/python
     ./generate_data.py --foo=42
@@ -250,27 +256,24 @@ plot.png: input.csv plot.py /bin/python
               alt="Kyrillos Ishak"
               src="https://media.licdn.com/dms/image/v2/D4D03AQGhnGuAH8b0uQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1728493902354?e=1733961600&v=beta&t=Rpw7PAkjSrzpKiEHjn8s374wNVAejQ_2CK9S5cCkyFI"
               />
-            <figcaption>Contributed by Kyrillos Ishak (applying for PhD)</figcaption>
+            <figcaption>Contributed by Kyrillos Ishak (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
-          <h2>Create container automatically</h2>
+          <h2>Create container automatically (Planned feature)</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
-<span class="fragment">$ probe export docker plot.png</span>
-<span class="fragment">$ docker load &lt; dockerimage --tag plot</span>
-<span class="fragment">$ docker run -v /out:$PWD/out plot</span>
-<span class="fragment">$ ls /out
-plot.png</span></code></pre>
+<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
+<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
           <figure class="contributor">
             <img
               alt="Asif Zubayer Palak"
               src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=lwLSWCgAAAAJ&citpid=1"
               />
-            <figcaption>Contributed by Asif Zubayer Palak (applying for PhD)</figcaption>
+            <figcaption>Contributed by Asif Zubayer Palak (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
-          <h2>What libraries does cmd use?</h2>
+          <h2>What libraries does cmd use? (Planned feature)</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
 <span class="fragment">$ probe export libs
   apt-get:
@@ -293,26 +296,25 @@ plot.png</span></code></pre>
           <figure class="contributor">
             <img
               alt="Jenna Fligor"
-              src="https://dl.boxcloud.com/api/2.0/internal_files/1674528466908/versions/1842473744508/representations/jpg_paged_2048x2048/content/1.jpg?access_token=1!n7Dwnn2T74AcDtNvXml0XpqqdqYPzxOkQrO6x4pOpt9wRMSld83OwmDoiDsJ8LpG2nh0aiF9e8IVQkuEe9d7ViQc9cM8xPouSss7YmPj2rwVjlEkzpZgCrpBUhY0tZYSkdRGByu59Jv0tKX959x3Z_qADA1Mf16uvnMLg2ySNjchaccFD2OgY1qAL2_P9Df_tEE2p3SlQSnR1GRfgH1k9U1ZZDMlKcAX8HV_vB4vb2YIeZsNoagpkHHiiY975SNUysqtDwgViicz1Ft-P7V7M4VOKJsDK4L8SE9Wmm5mDMOwaVM6JDGbWj7w5g4oJomohjPqbCEMQmz1kihzVbyQmF6xEIdcC43eXzeIV9MzoaEXpfQp05RcdlNRp7JhOisrTGhaEgJrfWptWU-pHQawBO3hZPhxdQPYR6lSawM2vNQHWhfHspqM2Nx2xjncv_3BKGcgjWg4tQ_lHEfIy84jAxADXaGgDLZFtQ9Ynt49cfRcAkPgY2Qw4unstOV_rwnIdfjQtmYGHspW7E3jKTVeClqYKhXGHFt6nwPDMq9YC3Z7uzv5FsN-I9br_tUV6yFF1hX4869aFRY41qqDbK9lM1kRvlKKqhI88bez_uqQXgBWI4LnJ3ZcxGMgxHcBBpCrg2VOZfB2rP2-__62fxi40D8q2L-krR3kU0Gp90SealoxQXSwR7PxU0eynD_a8FJAcfxhj34AoyL1nRiMXrW_M0C7XCs.&box_client_name=box-content-preview&box_client_version=2.110.0"
+              src="https://dl.boxcloud.com/api/2.0/internal_files/1674528466908/versions/1842473744508/representations/jpg_paged_2048x2048/content/1.jpg?access_token=1!Zv5ziYYpwnrMJ6K36f-iNXE96dMCXuwyxiVAoEDq-rgjHKsptWAD9yX2uRjddf26A4MYK881SS1iExSMyom8XsLxZdmCQQUoSb0TKEA39P-zHgsYeO7QxBO3IoFch6HaWfl3N3dky84buK2dTCQkSNdqluhCAPzdacTDHAhe7AZ-PWaoiM1Lez0ePVUawGJX9bYAsJB9dug8EJn1PpTd2xXCQ06XbsH7-VAyiyhavH84IK_InKcyUj1ID-0LGAtfsIhtnS11Wo68nV7aalz2Kgld_he1BTcrzJRIEWUNytsKdPn-cMB84xF--t6HNVolDyG7VNmi1EDDFQCJBeKvGtJ_vvB-2cnEbZ8G93LsS6tX3Y-kLLifrUa76eKDRL1_o4ngZj4lVf55u8I8KAWVOU2t1Q5ycEd21KtcKjHVWCtGq9Yqd-bvVEdrRsTN-ZwgAb2AwkrlPAH3RTf7jrPxAYg3cc3__-SlDFuthU5w3LRhfepPXH8WKAA51jFaFWhfB2f2CfNsfpaazu2EOIp3uXsKHmueqe5SNvN9P2O_ToYNdJqNz4yxkZr-Fes1l1cB52s9w5wdQqia9deQFrdGj5c8qcgUGIo0xURXTar2S0hVe4wHSEP_9HboJWXg0IvNvLOjiMTUHRoG__7nteF6tngwb5oCdjrzhyXjsY13getSZPQQNhp84QT6Dw2zgxUr41cLl-JuxDQZBNXPX4ZFTOK0N-M.&amp;box_client_name=box-content-preview&amp;box_client_version=2.110.0"
               />
-            <figcaption>Python → Rust by Jenna Fligor (applying for internships)</figcaption>
+            <figcaption>Python → Rust by Jenna Fligor (ugrad applying for internships)</figcaption>
           </figure>
           <figure class="contributor">
             <img
               alt="Saleha Muzammil"
               src="https://avatars.githubusercontent.com/u/84681153?v=4"
               />
-            <figcaption>Performance analysis by Saleha Muzammil (applying for internships)</figcaption>
+            <figcaption>Performance analysis by Saleha Muzammil (newgrad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
           <h2>Future prov applications</h2>
           <ul>
-            <li>Interoperable prov representation</li>
-            <li>Compare two runs (diff of intermediate results)</li>
-            <li>Automatic environment mutation</li>
-            <li>Using provenance to generate Spack package</li>
             <li>Remote provenance</li>
+            <li>Compare two runs (diff of intermediate results)</li>
+            <li>Using provenance to generate Spack package</li>
+            <li>Interoperable prov representation</li>
           </ul>
         </section>
         <section data-visibility="hidden">
@@ -323,6 +325,7 @@ plot.png</span></code></pre>
         </section>
         <section>
           <h2>Thank you</h2>
+          <p>Please give us feedback and issues</p>
           <figure class="contributor">
                 <img src="data:image/gif;base64,R0lGODlhhACEAJEAAAAAAP///wAAAAAAACH5BAEAAAIALAAAAACEAIQAAAL/jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8chQNf2jedIfkM8T/kJf8Gh0bYb+o60ItPofAqT04c0KgVOssoD1PrEcnvbGgbpNS+0jutabUFL5BU6nUpuh9/Nyx3cFwcX8GfA1uCmUBixyNAICIDnqAP5pTgYlZlWZTh4+NgZmHAouUlkqhl6qopnh8kXCbvoykn4qidqaZtLyQo5iQMcq/p5i+jZ5UuMLCosPMu8ujvMGF3cXIZ9GQxbusytXM1bC3qsPdqLPk6tW+49fU2dap6nzm6d7o5qGn9m3GqM1j1y/7rxy4dv3TOE4OwBbKgvXLuEA+UdhJju3cRz/84u1hMocCHGhhqTTZu3sWJIWQzrlSTI0aCgc/0qFdxmcc5Nh34CtlxC8lfPmDj90fxpkyjPmTnpGW1aE5dLoUzFjIn2smLWrFcjwuuqcJ9ErGJPerxqtevWsivHrgOr9KFatmTdaqULdycLaCObypWhgu/HnaQAkxDclp5Xw09F3pW6eARiuHJBZpS59GtQqY7RnqVYTnBlvWVHczGt8nJRzLqAQs0LOrZS0Z/jJp3qIbRJy29J66wFQjfM1L1t/5YWnPBuin8/tHaufHjzb35P8H7dNzLOxDCuO56eIWoM7yyLVz/O/QX57cw3iG/skStlvI81Dz5q3Cx1+WDX2v99XxpV9vE3l10EpheOa+Bd55mB9AGYYDb3EXeeU5gtqJqFTCVW2HEdsWfePGkRCN9qIFIoooQcZqjghfG96KF7ddmTUjwd0jifBgjaZ2NLN6KWSHgzAikbhcLBxsGOQdbIYm1ZlIhjdtEZWeSKYVVV3oRHokbklfp9mSJ162nIY5Uz7tjiiWN+WKZ54qHpooMmfjlZiLf5Jw529eFZJ4p30hcmnT552Sd43wEqIZu0yRmln5Cd6RuZsE1543NzHmYmE65VahKbmLo5xqYZWprZp1SedlufW0KHH26KFSlqfmsmmuWITsZaIYlD6elVj5s1ilKTnNWqIqx/xrjfrov/tqnloE8W26qtcy45aqjQ6iltZtT+2mCey+Kq6B7JqtnpsaWam6Sz76R57rhC/golnuyuC+O7rsaLKLLtDigjvLuGK6u6xOroo7j8iokUuf0pm2mzoPbVWY51FKxpvdvyOmmuAzPr66kTRrwwY4JyGym9J4o8rLsm5wkuygC7qh2YG7us66W0Ppofrt3+mGXHNXeQsaPeLgdxvelOamiqFNfH84YSN92ozw+WLGCwRZ889WxTBsouhAePfG+ANqc8sZ0Rujvr2Pt6evPXhWZd4ar6pnQg0RiHvDZrdtctXc/Wqv3ymw0rmTHbZNMNN+IKPwu43n0jbDbY3/7btuLMlGIY+cpcOy4Ng+39JzDBAT/MtN1Wwkx149PufS2cWKNd7uGso5fw0JGTGnjtOg9pbse9Gnv2q1fbLjTucbLcuu7XYq5x8PMqPXy2XhuOPO2Pl+3wnlW3vXv0y1scadBcci41o8khfSv5S8vLKpLprz7c6abmNT78ndceM836789///7/D8AACnCABCygAQ+IwARuoAAAOw=="/>
                 <figcaption>
