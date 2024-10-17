@@ -21,6 +21,14 @@ def build_oci_image(
         verbose: bool,
         console: rich.console.Console,
 ) -> None:
+    root_pid = get_root_pid(prov_log)
+    if root_pid is None:
+        console.print("Could not find root process; Are you sure this probe_log is valid?")
+        raise typer.Exit(code=1)
+    first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
+    if not isinstance(first_op, InitProcessOp):
+        console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
+        raise typer.Exit(code=1)
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
         copy_file_closure(
@@ -74,12 +82,21 @@ def build_oci_image(
             if not key_val.startswith(b"LD_PRELOAD="):
                 if b"$" in key_val:
                     # TODO: figure out how to escape money
-                    console.log(f"Skipping {key_val.decode(errors='ignore')} because $ confuses Buildah.")
+                    console.log(f"Skipping {key_val.decode(errors='surrogate')} because $ confuses Buildah.")
                     continue
                 env.append("--env")
-                env.append(key_val.decode(errors='ignore'))
-        shell = pathlib.Path(os.environ["SHELL"]).resolve()
-        cmd = ["buildah", "config", "--cmd", shlex.join(args), *env, "--entrypoint", f"[\"{shell}\"]", container_id]
+                env.append(key_val.decode(errors="surrogate"))
+        #shell = pathlib.Path(os.environ["SHELL"]).resolve()
+        cmd = [
+            "buildah",
+            "config",
+            "--workingdir",
+            first_op.cwd.path.decode(),
+            "--cmd",
+            shlex.join(args),
+            *env,
+            container_id,
+        ]
         if verbose:
             console.print(shlex.join(cmd))
         subprocess.run(
@@ -238,7 +255,7 @@ def get_root_pid(prov_log: ProvLog) -> int | None:
     return None
 
 
-ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+\(")
+ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+")
 ldd = shutil.which("ldd")
 
 def _get_dlibs(exe_or_dlib: pathlib.Path, found: set[str]) -> None:
