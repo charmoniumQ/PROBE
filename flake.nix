@@ -150,7 +150,8 @@
             src = ./.;
             doCheck = true;
             nativeBuildInputs = [pkgs.alejandra];
-            buildPhase = "touch $out";
+            installPhase = "mkdir $out";
+            buildPhase = "true";
             checkPhase = ''
               alejandra --check .
             '';
