@@ -371,9 +371,7 @@ def provlog_to_dataflow_graph(process_tree_prov_log: parser.ProvLog) -> nx.DiGra
                 cmd = []
     shared_files:set[InodeOnDevice] = set()
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
-    pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
-    dot_string = pydot_graph.to_string()
-    return dot_string, dataflow_graph
+    return dataflow_graph
 
 def prov_log_get_node(prov_log: parser.ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
     return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
@@ -513,12 +511,11 @@ def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, ty
     graph.remove_node(node)
     return ret
 
-def digraph_to_pydot_string(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> str:
-
+def color_hb_grpah(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
     label_color_map = {
-    EdgeLabels.EXEC: 'yellow',
-    EdgeLabels.FORK_JOIN: 'red',
-    EdgeLabels.PROGRAM_ORDER: 'green',
+        EdgeLabels.EXEC: 'yellow',
+        EdgeLabels.FORK_JOIN: 'red',
+        EdgeLabels.PROGRAM_ORDER: 'green',
     }
 
     for node0, node1, attrs in process_graph.edges(data=True):
@@ -544,11 +541,6 @@ def digraph_to_pydot_string(prov_log: parser.ProvLog, process_graph: nx.DiGraph)
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
-
-    pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
-    dot_string = typing.cast(str, pydot_graph.to_string())
-    return dot_string
-
 
 
 def construct_process_graph(process_tree_prov_log: parser.ProvLog) -> str:

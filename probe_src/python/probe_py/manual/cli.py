@@ -7,6 +7,7 @@ from ..generated.parser import parse_probe_log, parse_probe_log_ctx
 from . import analysis
 from .workflows import NextflowGenerator, MakefileGenerator
 from . import file_closure
+from . import graph_utils
 import enum
 
 
@@ -55,48 +56,52 @@ def validate(
         raise typer.Exit(code=1)
 
 
-@app.command()
-def process_graph(
+@export_app.command()
+def ops_graph(
+        output: Annotated[
+            pathlib.Path,
+            typer.Argument()
+        ] = pathlib.Path("file_ops_graph.png"),
         probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
 ) -> None:
     """
-    Write a process graph from PROBE_LOG in DOT/graphviz format.
-    """
-    prov_log = parse_probe_log(probe_log)
-    process_graph = analysis.provlog_to_digraph(prov_log)
-    for warning in analysis.validate_provlog(prov_log):
-        console.print(warning, style="red")
-    rich.traceback.install(show_locals=False) # Figure out why we need this
-    process_graph = analysis.provlog_to_digraph(prov_log)
-    for warning in analysis.validate_hb_graph(prov_log, process_graph):
-        console.print(warning, style="red")
-    print(analysis.digraph_to_pydot_string(prov_log, process_graph))
-    
-@app.command()
-def dataflow_graph(
-        probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
-        output: pathlib.Path = pathlib.Path("dataflow_graph.pkl")
-) -> None:
-    """
-    Write a process graph from PROBE_LOG in DOT/graphviz format.
-    """
-    prov_log = parse_probe_log(probe_log)
-    process_graph = analysis.provlog_to_digraph(prov_log)
-    for warning in analysis.validate_provlog(prov_log):
-        console.print(warning, style="red")
-    rich.traceback.install(show_locals=False) # Figure out why we need this
-    process_graph = analysis.provlog_to_digraph(prov_log)
-    for warning in analysis.validate_hb_graph(prov_log, process_graph):
-        console.print(warning, style="red")
+    Write a happens-before graph on the operations in probe_log.
 
-    dot_string, dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
-    print(dot_string)
+    Each operation is an individual exec, open, close, fork, etc.
+
+    If there is a path between two operations A to B, then A happens before B.
+
+    Supports .png, .svg, and .dot
+    """
+    prov_log = parse_probe_log(probe_log)
+    process_graph = analysis.provlog_to_digraph(prov_log)
+    analysis.color_hb_grpah(prov_log, process_graph)
+    graph_utils.serialize_graph(process_graph, output)
+
+    
+@export_app.command()
+def dataflow_graph(
+        output: Annotated[
+            pathlib.Path,
+            typer.Argument()
+        ] = pathlib.Path("file_ops_graph.png"),
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Write a dataflow graph for probe_log.
+
+    Dataflow shows the name of each proceess, its read files, and its write files.
+    """
+    prov_log = parse_probe_log(probe_log)
+    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    graph_utils.serialize_graph(dataflow_graph, output)
+
 
 @export_app.command()
 def debug_text(
@@ -196,42 +201,27 @@ class OutputFormat(str, enum.Enum):
     makefile = "makefile"
     nextflow = "nextflow"
 
-@app.command()
-def export(
-    input: pathlib.Path = pathlib.Path("probe_log"),
-    output_format: OutputFormat = typer.Option(OutputFormat.nextflow, help="Select output format", show_default=True),
-    output: pathlib.Path = pathlib.Path("workflow"),
+@export_app.command()
+def makefile(
+        output: Annotated[
+            pathlib.Path,
+            typer.Argument(),
+        ] = pathlib.Path("Makefile"),
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
 ) -> None:
     """
-    Export the dataflow graph to Workflow (Nextflow and Makefile).
+    Export the probe_log to a Makefile
     """
-    output.mkdir(parents=True, exist_ok=True)
-    if not input.exists():
-        typer.secho(f"INPUT {input} does not exist", fg=typer.colors.RED)
-        raise typer.Abort()
+    prov_log = parse_probe_log(probe_log)
+    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    g = MakefileGenerator()
+    output = pathlib.Path("Makefile")
+    script = g.generate_makefile(dataflow_graph)
+    output.write_text(script)
 
-    prov_log = parse_probe_log(input)
-    _, dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
 
-    if output_format == OutputFormat.nextflow : 
-        generator = NextflowGenerator()
-        script = generator.generate_workflow(dataflow_graph)
-        output_file = output / "nextflow.nf"
-        print(script)
-        with output_file.open('a') as outfile:
-            outfile.write(script)
-    elif output_format == OutputFormat.makefile : 
-        g = MakefileGenerator(output_dir="experiments")
-
-        # Generate Makefile content
-        makefile_content = g.generate_makefile(dataflow_graph)
-
-        # Write to Makefile
-        with open("Makefile", "w") as f:
-            f.write(makefile_content)
-
-        print(makefile_content)
-
-    
 if __name__ == "__main__":
     app()
