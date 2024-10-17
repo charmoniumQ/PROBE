@@ -1,5 +1,4 @@
 import os
-import itertools
 import re
 import shlex
 import rich.console
@@ -35,6 +34,10 @@ def build_oci_image(
         if not shutil.which("buildah"):
             console.print("Buildah not found; should be included in probe-bundled? for other packages, please install Buildah separately", style="red")
             raise typer.Exit(code=1)
+
+        # Start contianer
+        if verbose:
+            console.print("buildah from scratch")
         container_id = subprocess.run(
             ["buildah", "from", "scratch"],
             check=True,
@@ -43,12 +46,18 @@ def build_oci_image(
         ).stdout.strip()
         if verbose:
             console.print(f"Container ID: {container_id}")
+
+        # Copy relevant files
+        if verbose:
+            console.print(shlex.join(["buildah", "copy", container_id, str(tmpdir), "/"]))
         subprocess.run(
             ["buildah", "copy", container_id, str(tmpdir), "/"],
             check=True,
             capture_output=not verbose,
             text=True,
         )
+
+        # Set up other config (env, cmd, entrypoint)
         pid = get_root_pid(prov_log)
         if pid is None:
             console.print("Could not find root process; Are you sure this probe_log is valid?")
@@ -60,27 +69,44 @@ def build_oci_image(
         args = [
             arg.decode() for arg in last_op.argv
         ]
-        env = list(itertools.chain.from_iterable([
-            ("--env", f"{key_val.decode()}")
-            for key_val in last_op.env
-            if not key_val.startswith(b"LD_PRELOAD=")
-        ]))
+        env = []
+        for key_val in last_op.env:
+            if not key_val.startswith(b"LD_PRELOAD="):
+                if b"$" in key_val:
+                    # TODO: figure out how to escape money
+                    console.log(f"Skipping {key_val.decode(errors='ignore')} because $ confuses Buildah.")
+                    continue
+                env.append("--env")
+                env.append(key_val.decode(errors='ignore'))
         shell = pathlib.Path(os.environ["SHELL"]).resolve()
+        cmd = ["buildah", "config", "--cmd", shlex.join(args), *env, "--entrypoint", f"[\"{shell}\"]", container_id]
+        if verbose:
+            console.print(shlex.join(cmd))
         subprocess.run(
-            ["buildah", "config", "--cmd", shlex.join(args), *env, "--entrypoint", f"[\"{shell}\"]", container_id],
+            cmd,
             check=True,
             capture_output=not verbose,
             text=True,
         )
+
+        # Commit (exports OCI image; podman can read it from here)
+        cmd = ["buildah", "commit", container_id, image_name]
+        if verbose:
+            print(cmd)
         subprocess.run(
-            ["buildah", "commit", container_id, image_name],
+            cmd,
             check=True,
             capture_output=not verbose,
             text=True,
         )
+
+        # Export to docker, if requested
         if push_docker:
+            cmd = ["buildah", "push", image_name, f"docker-daemon:{image_name}"]
+            if verbose:
+                console.log(shlex.join(cmd))
             subprocess.run(
-            ["buildah", "push", image_name, f"docker-daemon:{image_name}"],
+                cmd,
                 check=True,
                 capture_output=not verbose,
                 text=True,
@@ -174,6 +200,9 @@ def copy_file_closure(
             destination_path.hardlink_to(inode_content)
             if verbose:
                 console.print(f"Hardlinking {resolved_path} from prov_log")
+        elif any(resolved_path.is_relative_to(forbidden_path) for forbidden_path in forbidden_paths):
+            if verbose:
+                console.print(f"Skipping {resolved_path}")
         elif resolved_path.exists():
             if ivl is not None and InodeVersionLog.from_path(resolved_path) != ivl:
                 warnings.warn(f"{resolved_path} changed in between the time of `probe record` and now.")
@@ -226,3 +255,10 @@ def _get_dlibs(exe_or_dlib: pathlib.Path, found: set[str]) -> None:
         if path is not None and path not in found:
             found.add(path)
             _get_dlibs(exe_or_dlib, found)
+
+
+forbidden_paths = [
+    pathlib.Path("/dev"),
+    pathlib.Path("/proc"),
+    pathlib.Path("/sys"),
+]
