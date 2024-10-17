@@ -106,15 +106,15 @@ def copy_file_closure(
     `copy` refers to whether we should copy files from disk or symlink them.
     """
 
-    to_copy = dict[pathlib.Path, Path]()
-    to_copy_exes = dict[pathlib.Path, Path]()
+    to_copy = dict[pathlib.Path, Path | None]()
+    to_copy_exes = dict[pathlib.Path, Path | None]()
     for pid, process in prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            pid = get_root_pid(prov_log)
-            if pid is None:
+            root_pid = get_root_pid(prov_log)
+            if root_pid is None:
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
-            first_op = prov_log.processes[pid].exec_epochs[0].threads[pid].ops[0].data
+            first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
             if not isinstance(first_op, InitProcessOp):
                 console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
@@ -147,24 +147,24 @@ def copy_file_closure(
 
     # For executables, we also have to use LDD to get the rqeuried dyn libs
     # There is a task in tasks.md for pushing this into libprobe the same way we do for searching for executables on $PATH.
-    for resolved_path, path in to_copy_exes.items():
-        to_copy[resolved_path] = path
+    for resolved_path, maybe_path in to_copy_exes.items():
+        to_copy[resolved_path] = maybe_path
         dependent_dlibs = set[str]()
         _get_dlibs(resolved_path, dependent_dlibs)
         for dependent_dlib in dependent_dlibs:
             to_copy[pathlib.Path(dependent_dlib)] = None
 
-    for resolved_path, path in to_copy.items():
+    for resolved_path, maybe_path in to_copy.items():
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
-        if path:
+        if maybe_path is not None:
             ivl = InodeVersionLog(
-                path.device_major,
-                path.device_minor,
-                path.inode,
-                path.mtime.sec,
-                path.mtime.nsec,
-                path.size,
+                maybe_path.device_major,
+                maybe_path.device_minor,
+                maybe_path.inode,
+                maybe_path.mtime.sec,
+                maybe_path.mtime.nsec,
+                maybe_path.size,
             )
         else:
             ivl = None

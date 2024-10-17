@@ -541,14 +541,3 @@ def color_hb_grpah(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
-
-
-def construct_process_graph(process_tree_prov_log: parser.ProvLog) -> str:
-    """
-    Construct a happens-before graph from process_tree_prov_log
-
-    The graph shows the order that prov ops happen.
-    """
-
-    process_graph = provlog_to_digraph(process_tree_prov_log)
-    return digraph_to_pydot_string(process_tree_prov_log, process_graph)
