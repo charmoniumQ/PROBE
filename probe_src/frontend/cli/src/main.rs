@@ -67,6 +67,9 @@ fn main() -> Result<()> {
                         .value_parser(value_parser!(OsString)),
                 ])
                 .about("Convert PROBE records to PROBE logs."),
+            /* No more probe dump in Rust.
+             * See `probe export debug-text` in Python.
+             * */
             Command::new("__gdb-exec-shim").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)

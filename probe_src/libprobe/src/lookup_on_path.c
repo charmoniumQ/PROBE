@@ -6,7 +6,7 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
         /* TODO: Test case where PATH starts with : */
         path_segment_start++;
     }
-    bool has_elements = path_segment_start == NULL || path_segment_start[0] == '\0';
+    bool has_elements = path_segment_start != NULL && path_segment_start[0] != '\0';
     /* TODO: Use default PATH when PATH is unset */
     if (has_elements) {
         while (true) {
@@ -29,10 +29,11 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
                 op.data.access.ferrno = errno;
                 prov_log_record(op);
             }
-            while (path_segment_start[0] == ':') {
+            while (path_segment_start[0] != ':') {
                 /* TODO: Test case where PATH segment contains empty strings, /foo/bin:::/bar/bin */
                 path_segment_start++;
             }
+            path_segment_start++;
             if (path_segment_start[0] == '\0') {
                 break;
             }

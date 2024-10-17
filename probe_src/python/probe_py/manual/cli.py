@@ -31,6 +31,7 @@ def validate(
             typer.Argument(help="Whether to check that the probe_log was run with --copy-files.")
         ] = False,
 ) -> None:
+    """Sanity-check probe_log and report errors."""
     warning_free = True
     with parse_probe_log_ctx(probe_log) as parsed_probe_log:
         for inode, contents in parsed_probe_log.inodes.items():
@@ -98,14 +99,14 @@ def dataflow_graph(
     print(dot_string)
 
 @export_app.command()
-def text(
+def debug_text(
         probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
 ) -> None:
     """
-    Write the data from PROBE_LOG in a human-readable manner.
+    Write the data from probe_log in a human-readable manner.
     """
     out_console = rich.console.Console()
     with parse_probe_log_ctx(probe_log) as prov_log:
@@ -123,7 +124,7 @@ def text(
                             max_string=40,
                         )
         for ivl, path in sorted(prov_log.inodes.items()):
-            out_console.print(f"device={ivl.device_major}.{ivl.device_minor} inode={ivl.inode} mtime={ivl.tv_sec}.{ivl.tv_nsec} -> {tvl.size} blob")
+            out_console.print(f"device={ivl.device_major}.{ivl.device_minor} inode={ivl.inode} mtime={ivl.tv_sec}.{ivl.tv_nsec} -> {ivl.size} blob")
 
 @export_app.command()
 def docker_image(
@@ -143,6 +144,11 @@ def docker_image(
         docker run --rm python-numpy:latest
 
     """
+    if image_name.count(":") == 0:
+        image_name = f"{image_name}:latest"
+    if image_name.count(":") != 1:
+        console.print(f"Invalid image name {image_name}", style="red")
+        raise typer.Exit(code=1)
     with parse_probe_log_ctx(probe_log) as prov_log:
         if not prov_log.has_inodes:
             console.print("No files stored in probe log", style="red")

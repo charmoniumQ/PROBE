@@ -84,12 +84,11 @@ $ probe dump
 
 That's a huge [work in progress](https://github.com/charmoniumQ/PROBE/pulls).
 
-We're starting out with just "analysis" of the provenance. Does this input file influence that output file in the PROBEd process? Run
+Try exporting to different formats.
 
 
 ``` bash
-nix shell nixpkgs#graphviz github:charmoniumQ/PROBE#probe-py-manual \
-    --command sh -c 'python -m probe_py.manual.cli process-graph | tee /dev/stderr | dot -Tpng -ooutput.png /dev/stdin'
+probe export --help
 ```
 
 ## Developing PROBE

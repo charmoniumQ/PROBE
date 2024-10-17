@@ -38,6 +38,8 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             ret.ctime = statx_buf.stx_ctime;
             ret.size = statx_buf.stx_size;
             ret.stat_valid = true;
+        } else {
+            DEBUG("Stat of %d,%s is not valid", dirfd, path);
         }
         return ret;
     } else {
