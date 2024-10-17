@@ -1,3 +1,4 @@
+import shlex
 import typing
 from typing import Dict, Tuple
 import networkx as nx  # type: ignore
@@ -329,8 +330,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
                 
                 processNode1 = ProcessNode(pid = pid, cmd=tuple(cmd_map[pid]))
                 processNode2 = ProcessNode(pid = op.task_id, cmd=tuple(cmd_map[op.task_id]))
-                dataflow_graph.add_node(processNode1, label = processNode1.cmd)
-                dataflow_graph.add_node(processNode2, label = processNode2.cmd)
+                dataflow_graph.add_node(processNode1, label = " ".join(arg for arg in processNode1.cmd))
+                dataflow_graph.add_node(processNode2, label = " ".join(arg for arg in processNode2.cmd))
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
@@ -341,7 +342,6 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
         if isinstance(next_op, WaitOp):
             if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
                 return
-    return
 
 def list_edges_from_start_node(graph: nx.DiGraph, start_node: Node) -> list[EdgeType]:
     all_edges = list(graph.edges())
@@ -355,20 +355,13 @@ def provlog_to_dataflow_graph(process_tree_prov_log: parser.ProvLog) -> nx.DiGra
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     traversed: set[int] = set()
-    cmd:list[str] = []
     cmd_map = collections.defaultdict[int, list[str]](list)
     for edge in list(nx.edges(process_graph))[::-1]:
         pid, exec_epoch_no, tid, op_index = edge[0]
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
-        if isinstance(op, OpenOp):
-            file = op.path.path.decode("utf-8")
-            if file not in cmd and file!="/dev/tty": 
-                cmd.insert(0, file)
-        elif isinstance(op, InitExecEpochOp):
-            cmd.insert(0, op.program_name.decode("utf-8"))
+        if isinstance(op, ExecOp):
             if pid == tid and exec_epoch_no == 0:
-                cmd_map[tid] = cmd
-                cmd = []
+                cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
     shared_files:set[InodeOnDevice] = set()
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
     return dataflow_graph
@@ -511,7 +504,7 @@ def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, ty
     graph.remove_node(node)
     return ret
 
-def color_hb_grpah(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
+def color_hb_graph(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
     label_color_map = {
         EdgeLabels.EXEC: 'yellow',
         EdgeLabels.FORK_JOIN: 'red',

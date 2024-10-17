@@ -61,7 +61,7 @@ def ops_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("file_ops_graph.png"),
+        ] = pathlib.Path("ops-graph.png"),
         probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
@@ -78,7 +78,7 @@ def ops_graph(
     """
     prov_log = parse_probe_log(probe_log)
     process_graph = analysis.provlog_to_digraph(prov_log)
-    analysis.color_hb_grpah(prov_log, process_graph)
+    analysis.color_hb_graph(prov_log, process_graph)
     graph_utils.serialize_graph(process_graph, output)
 
     
@@ -87,7 +87,7 @@ def dataflow_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("file_ops_graph.png"),
+        ] = pathlib.Path("dataflow-graph.png"),
         probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
