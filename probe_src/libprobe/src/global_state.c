@@ -257,8 +257,7 @@ static char* const* update_env_with_probe_vars(char* const* user_env, size_t* up
         exec_epoch_env_var,
         pid_env_var,
         probe_dir_env_var,
-        //"LD_PRELOAD",
-        /* TODO: include LD_PRELOAD */
+        /* TODO: include LD_PRELOAD, while noting LD_PRELOAD could have been changed by the user. */
     };
     char exec_epoch_str[unsigned_int_string_size];
     CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());
@@ -269,7 +268,6 @@ static char* const* update_env_with_probe_vars(char* const* user_env, size_t* up
         exec_epoch_str,
         pid_str,
         __probe_dir,
-        //debug_getenv("LD_PRELOAD"),
     };
     const size_t probe_var_count = sizeof(probe_vars) / sizeof(char*);
 

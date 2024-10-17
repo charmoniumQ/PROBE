@@ -11,13 +11,14 @@ from probe_py.manual import analysis
 from probe_py.manual.workflows import NextflowGenerator, MakefileGenerator
 import enum
 
-rich.traceback.install(show_locals=False)
+console = rich.console.Console(stderr=True)
+rich.traceback.install(show_locals=False, console=console)
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
 A = typing_extensions.Annotated
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @app.command()
@@ -28,9 +29,7 @@ def validate(
     if not input.exists():
         typer.secho(f"INPUT {input} does not exist\nUse `PROBE record --output {input} CMD...` to rectify", fg=typer.colors.RED)
         raise typer.Abort()
-    console = rich.console.Console(file=sys.stderr)
 
-    rich.traceback.install(show_locals=False)
     prov_log = parse_probe_log(input)
     process_graph = analysis.provlog_to_digraph(prov_log)
     warning_free = True
