@@ -226,7 +226,7 @@ python script.py</code>
         <section>
           <h2>Understand dataflow in your pile of scripts</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
-<span class="fragment">$ probe export dataflow-png plot.png</span></code></pre>
+<span class="fragment">$ probe export dataflow-graph</span></code></pre>
           <figure class="contributor">
             <img
               alt="Shofiya Bootwala"
@@ -238,7 +238,7 @@ python script.py</code>
         <section>
           <h2>Create Makefile automatically</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh 42</span>
-<span class="fragment">$ probe export makefile plot.png</span>
+<span class="fragment">$ probe export makefile</span>
 <span class="fragment">$ cat Makefile
 input.csv: generate_data.py /bin/python
     ./generate_data.py --foo=42
@@ -256,11 +256,8 @@ plot.png: input.csv plot.py /bin/python
         <section>
           <h2>Create container automatically</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
-<span class="fragment">$ probe export docker plot.png</span>
-<span class="fragment">$ docker load &lt; dockerimage --tag plot</span>
-<span class="fragment">$ docker run -v /out:$PWD/out plot</span>
-<span class="fragment">$ ls /out
-plot.png</span></code></pre>
+<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
+<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
           <figure class="contributor">
             <img
               alt="Asif Zubayer Palak"
@@ -270,7 +267,7 @@ plot.png</span></code></pre>
           </figure>
         </section>
         <section>
-          <h2>What libraries does cmd use?</h2>
+          <h2>What libraries does cmd use? (Planned feature)</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
 <span class="fragment">$ probe export libs
   apt-get:
