@@ -211,7 +211,7 @@ python script.py</code>
               Sciunit (<a href="https://doi.org/10.1109/eScience.2017.51">Ton That et al. 2017</a>),
               RR (<a href="http://arxiv.org/abs/1705.05937">O'Callahan et al. 2017</a>),
               CARE (<a href="https://dl.acm.org/doi/10.1145/2618137.2618138">Yves et al. 2014</a>),
-              ReproZip (<a href="https://dl.acm.org/doi/10.1145/2882903.2899401">Chirigati et al. 2016</a>),
+              ReproZip (<a href="https://dl.acm.org/doi/10.1145/2882903.2899401">Chirigati et al. 2016</a>)
             </li>
             <li>Speed</li>
             <li>Robustness of reproducibility</li>
@@ -242,7 +242,23 @@ python script.py</code>
           </figure>
         </section>
         <section>
-          <h2>Create Makefile automatically</h2>
+          <img alt="example dataflow graph" src="dataflow-graph.svg" />
+        </section>
+        <section>
+          <h2>Create container automatically</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
+<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
+          <figure class="contributor">
+            <img
+              alt="Asif Zubayer Palak"
+              src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=lwLSWCgAAAAJ&citpid=1"
+              />
+            <figcaption>Contributed by Asif Zubayer Palak (new grad applying for PhD)</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>Create Makefile automatically (planned feature)</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh 42</span>
 <span class="fragment">$ probe export makefile</span>
 <span class="fragment">$ cat Makefile
@@ -257,19 +273,6 @@ plot.png: input.csv plot.py /bin/python
               src="https://media.licdn.com/dms/image/v2/D4D03AQGhnGuAH8b0uQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1728493902354?e=1733961600&v=beta&t=Rpw7PAkjSrzpKiEHjn8s374wNVAejQ_2CK9S5cCkyFI"
               />
             <figcaption>Contributed by Kyrillos Ishak (new grad applying for PhD)</figcaption>
-          </figure>
-        </section>
-        <section>
-          <h2>Create container automatically (Planned feature)</h2>
-          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
-<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
-<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
-          <figure class="contributor">
-            <img
-              alt="Asif Zubayer Palak"
-              src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=lwLSWCgAAAAJ&citpid=1"
-              />
-            <figcaption>Contributed by Asif Zubayer Palak (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
@@ -291,7 +294,7 @@ plot.png: input.csv plot.py /bin/python
             <!-- <li>No standard benchmarks for system-level prov before <a href="https://dl.acm.org/doi/abs/10.1145/3641525.3663627">Grayson et al. 2023 ACM REP</a></li> -->
             <li class="fragment">Rust record (statically-linked) + Python extras</li>
             <!-- <li class="fragment">Less than 2x overhead on provenance benchmark suite (<a href="https://dl.acm.org/doi/abs/10.1145/3589806.3600037">Grayson et al. 2023 ACM REP</a>)</li> -->
-            <li class="fragment">Preliminary results show <code>LD_PRELOAD</code> beats <code>ptrace</code> by 2x to 1.1x</li>
+            <li class="fragment">Preliminary results show <code>LD_PRELOAD</code> (1.1x) faster than <code>ptrace</code> (2x)</li>
           </ul>
           <figure class="contributor">
             <img
