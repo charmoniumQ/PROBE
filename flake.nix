@@ -95,7 +95,8 @@
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set __PROBE_LIB ${libprobe}/lib \
-                --prefix PATH : ${probe-py}/bin
+                --prefix PATH : ${probe-py}/bin \
+                --prefix PATH : ${pkgs.buildah}/bin
             '';
           };
           probe-py-generated = frontend.packages.probe-py-generated;
@@ -149,7 +150,8 @@
             src = ./.;
             doCheck = true;
             nativeBuildInputs = [pkgs.alejandra];
-            buildPhase = "touch $out";
+            installPhase = "mkdir $out";
+            buildPhase = "true";
             checkPhase = ''
               alejandra --check .
             '';
@@ -157,7 +159,12 @@
           probe-integration-tests = pkgs.stdenv.mkDerivation {
             name = "probe-integration-tests";
             src = ./probe_src/tests;
-            nativeBuildInputs = [packages.probe-bundled packages.probe-py];
+            nativeBuildInputs = [
+              packages.probe-bundled
+              packages.probe-py
+              pkgs.podman
+              pkgs.docker
+            ];
             buildPhase = "touch $out";
             checkPhase = ''
               pytest .
@@ -182,7 +189,6 @@
                 pkgs.cargo-expand
                 pkgs.cargo-flamegraph
                 pkgs.cargo-watch
-                pkgs.gdb
                 pkgs.rust-analyzer
 
                 (python.withPackages (pypkgs: [
@@ -205,6 +211,7 @@
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
+                pkgs.buildah
                 pkgs.which
                 pkgs.gnumake
                 pkgs.gcc
@@ -216,6 +223,7 @@
                 pkgs.ruff
                 pkgs.cachix
                 pkgs.jq # to make cachix work
+                pkgs.podman
               ]
               # gdb broken on i686
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow

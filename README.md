@@ -66,7 +66,9 @@ If you need these you can either write a shell script and invoke `probe record` 
 probe record bash -c '<SHELL_CODE>'
 ```
 
-(any flag after the first positional argument is treated as an argument to the command, not `probe`).
+Any flag after the first positional argument is treated as an argument to the command, not `probe`.
+
+This creates a file called `probe_log`. If you already have that file from a previous recording, give `probe record -f` to overwrite.
 
 If you get tired of typing `probe record ...` in front of every command you wish to record, consider recording your entire shell session:
 
@@ -84,12 +86,11 @@ $ probe dump
 
 That's a huge [work in progress](https://github.com/charmoniumQ/PROBE/pulls).
 
-We're starting out with just "analysis" of the provenance. Does this input file influence that output file in the PROBEd process? Run
+Try exporting to different formats.
 
 
 ``` bash
-nix shell nixpkgs#graphviz github:charmoniumQ/PROBE#probe-py-manual \
-    --command sh -c 'python -m probe_py.manual.cli process-graph | tee /dev/stderr | dot -Tpng -ooutput.png /dev/stdin'
+probe export --help
 ```
 
 ## Developing PROBE

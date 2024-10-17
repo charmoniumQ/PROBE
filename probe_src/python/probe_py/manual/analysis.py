@@ -329,8 +329,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
                 
                 processNode1 = ProcessNode(pid = pid, cmd=tuple(cmd_map[pid]))
                 processNode2 = ProcessNode(pid = op.task_id, cmd=tuple(cmd_map[op.task_id]))
-                dataflow_graph.add_node(processNode1, label = processNode1.cmd)
-                dataflow_graph.add_node(processNode2, label = processNode2.cmd)
+                dataflow_graph.add_node(processNode1, label = " ".join(arg for arg in processNode1.cmd))
+                dataflow_graph.add_node(processNode2, label = " ".join(arg for arg in processNode2.cmd))
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
@@ -341,7 +341,6 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
         if isinstance(next_op, WaitOp):
             if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
                 return
-    return
 
 def list_edges_from_start_node(graph: nx.DiGraph, start_node: Node) -> list[EdgeType]:
     all_edges = list(graph.edges())
@@ -355,25 +354,16 @@ def provlog_to_dataflow_graph(process_tree_prov_log: parser.ProvLog) -> nx.DiGra
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     traversed: set[int] = set()
-    cmd:list[str] = []
     cmd_map = collections.defaultdict[int, list[str]](list)
     for edge in list(nx.edges(process_graph))[::-1]:
         pid, exec_epoch_no, tid, op_index = edge[0]
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
-        if isinstance(op, OpenOp):
-            file = op.path.path.decode("utf-8")
-            if file not in cmd and file!="/dev/tty": 
-                cmd.insert(0, file)
-        elif isinstance(op, InitExecEpochOp):
-            cmd.insert(0, op.program_name.decode("utf-8"))
+        if isinstance(op, ExecOp):
             if pid == tid and exec_epoch_no == 0:
-                cmd_map[tid] = cmd
-                cmd = []
+                cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
     shared_files:set[InodeOnDevice] = set()
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
-    pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
-    dot_string = pydot_graph.to_string()
-    return dot_string, dataflow_graph
+    return dataflow_graph
 
 def prov_log_get_node(prov_log: parser.ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
     return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
@@ -513,12 +503,11 @@ def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, ty
     graph.remove_node(node)
     return ret
 
-def digraph_to_pydot_string(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> str:
-
+def color_hb_graph(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
     label_color_map = {
-    EdgeLabels.EXEC: 'yellow',
-    EdgeLabels.FORK_JOIN: 'red',
-    EdgeLabels.PROGRAM_ORDER: 'green',
+        EdgeLabels.EXEC: 'yellow',
+        EdgeLabels.FORK_JOIN: 'red',
+        EdgeLabels.PROGRAM_ORDER: 'green',
     }
 
     for node0, node1, attrs in process_graph.edges(data=True):
@@ -544,19 +533,3 @@ def digraph_to_pydot_string(prov_log: parser.ProvLog, process_graph: nx.DiGraph)
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
-
-    pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
-    dot_string = typing.cast(str, pydot_graph.to_string())
-    return dot_string
-
-
-
-def construct_process_graph(process_tree_prov_log: parser.ProvLog) -> str:
-    """
-    Construct a happens-before graph from process_tree_prov_log
-
-    The graph shows the order that prov ops happen.
-    """
-
-    process_graph = provlog_to_digraph(process_tree_prov_log)
-    return digraph_to_pydot_string(process_tree_prov_log, process_graph)

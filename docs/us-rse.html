@@ -129,7 +129,7 @@
             style="height: 100%: width: auto; margin-top: auto; margin-bottom: auto; vertical-align: middle;"
             />
           <span>
-            Sandia National Laboratories
+            Sandia National Labs
           </span>
         </section>
         <section>
@@ -211,7 +211,7 @@ python script.py</code>
               Sciunit (<a href="https://doi.org/10.1109/eScience.2017.51">Ton That et al. 2017</a>),
               RR (<a href="http://arxiv.org/abs/1705.05937">O'Callahan et al. 2017</a>),
               CARE (<a href="https://dl.acm.org/doi/10.1145/2618137.2618138">Yves et al. 2014</a>),
-              ReproZip (<a href="https://dl.acm.org/doi/10.1145/2882903.2899401">Chirigati et al. 2016</a>),
+              ReproZip (<a href="https://dl.acm.org/doi/10.1145/2882903.2899401">Chirigati et al. 2016</a>)
             </li>
             <li>Speed</li>
             <li>Robustness of reproducibility</li>
@@ -236,13 +236,29 @@ python script.py</code>
           <figure class="contributor">
             <img
               alt="Shofiya Bootwala"
-              src="https://media.discordapp.net/attachments/1251250007546531910/1294579613975969852/headshot.jpeg?ex=6710ccb8&is=670f7b38&hm=daaecbf0e84e301296da60673f04003c4522e794681ceae2527309d4663cd402&=&format=webp&width=543&height=816"
+              src="./photo-1.webp"
               />
             <figcaption>Contributed by Shofiya Bootwala (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
-          <h2>Create Makefile automatically</h2>
+          <img alt="example dataflow graph" src="dataflow-graph.png" />
+        </section>
+        <section>
+          <h2>Create container automatically</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
+<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
+          <figure class="contributor">
+            <img
+              alt="Asif Zubayer Palak"
+              src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=lwLSWCgAAAAJ&citpid=1"
+              />
+            <figcaption>Contributed by Asif Zubayer Palak (new grad applying for PhD)</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>Create Makefile automatically (planned feature)</h2>
           <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh 42</span>
 <span class="fragment">$ probe export makefile</span>
 <span class="fragment">$ cat Makefile
@@ -257,19 +273,6 @@ plot.png: input.csv plot.py /bin/python
               src="https://media.licdn.com/dms/image/v2/D4D03AQGhnGuAH8b0uQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1728493902354?e=1733961600&v=beta&t=Rpw7PAkjSrzpKiEHjn8s374wNVAejQ_2CK9S5cCkyFI"
               />
             <figcaption>Contributed by Kyrillos Ishak (new grad applying for PhD)</figcaption>
-          </figure>
-        </section>
-        <section>
-          <h2>Create container automatically (Planned feature)</h2>
-          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
-<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
-<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
-          <figure class="contributor">
-            <img
-              alt="Asif Zubayer Palak"
-              src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=lwLSWCgAAAAJ&citpid=1"
-              />
-            <figcaption>Contributed by Asif Zubayer Palak (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
@@ -291,12 +294,12 @@ plot.png: input.csv plot.py /bin/python
             <!-- <li>No standard benchmarks for system-level prov before <a href="https://dl.acm.org/doi/abs/10.1145/3641525.3663627">Grayson et al. 2023 ACM REP</a></li> -->
             <li class="fragment">Rust record (statically-linked) + Python extras</li>
             <!-- <li class="fragment">Less than 2x overhead on provenance benchmark suite (<a href="https://dl.acm.org/doi/abs/10.1145/3589806.3600037">Grayson et al. 2023 ACM REP</a>)</li> -->
-            <li class="fragment">Preliminary results show <code>LD_PRELOAD</code> beats <code>ptrace</code> by 2x to 1.1x</li>
+            <li class="fragment">Preliminary results show <code>LD_PRELOAD</code> (1.1x) faster than <code>ptrace</code> (2x)</li>
           </ul>
           <figure class="contributor">
             <img
+              src="./photo-2.jpg"
               alt="Jenna Fligor"
-              src="https://dl.boxcloud.com/api/2.0/internal_files/1674528466908/versions/1842473744508/representations/jpg_paged_2048x2048/content/1.jpg?access_token=1!Zv5ziYYpwnrMJ6K36f-iNXE96dMCXuwyxiVAoEDq-rgjHKsptWAD9yX2uRjddf26A4MYK881SS1iExSMyom8XsLxZdmCQQUoSb0TKEA39P-zHgsYeO7QxBO3IoFch6HaWfl3N3dky84buK2dTCQkSNdqluhCAPzdacTDHAhe7AZ-PWaoiM1Lez0ePVUawGJX9bYAsJB9dug8EJn1PpTd2xXCQ06XbsH7-VAyiyhavH84IK_InKcyUj1ID-0LGAtfsIhtnS11Wo68nV7aalz2Kgld_he1BTcrzJRIEWUNytsKdPn-cMB84xF--t6HNVolDyG7VNmi1EDDFQCJBeKvGtJ_vvB-2cnEbZ8G93LsS6tX3Y-kLLifrUa76eKDRL1_o4ngZj4lVf55u8I8KAWVOU2t1Q5ycEd21KtcKjHVWCtGq9Yqd-bvVEdrRsTN-ZwgAb2AwkrlPAH3RTf7jrPxAYg3cc3__-SlDFuthU5w3LRhfepPXH8WKAA51jFaFWhfB2f2CfNsfpaazu2EOIp3uXsKHmueqe5SNvN9P2O_ToYNdJqNz4yxkZr-Fes1l1cB52s9w5wdQqia9deQFrdGj5c8qcgUGIo0xURXTar2S0hVe4wHSEP_9HboJWXg0IvNvLOjiMTUHRoG__7nteF6tngwb5oCdjrzhyXjsY13getSZPQQNhp84QT6Dw2zgxUr41cLl-JuxDQZBNXPX4ZFTOK0N-M.&amp;box_client_name=box-content-preview&amp;box_client_version=2.110.0"
               />
             <figcaption>Python → Rust by Jenna Fligor (ugrad applying for internships)</figcaption>
           </figure>

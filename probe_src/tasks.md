@@ -18,17 +18,9 @@ Core functionality:
   - [x] Get GDB working.
   - [x] Compile statically.
 
-- [ ] Generate a replay package (see branch generate-replay-package). Sam is working on this
-  - [ ] Should be activated by a flag: `./PROBE record --capture-files`
-  - [ ] Should copy all read files into the probe log.
-  - [ ] Should export the PROBE log to the following formats with a CWL script:
-    - [ ] [OCI image](https://opencontainers.org/) (runnable with Docker)
-      - [ ] Test that executing this image produces the same stdout, stderr, and files for the tests we already have.
-    - [ ] Tar-ball intended for chroot
-    - [ ] Directory
-    - [ ] VM image.
-      - [ ] Test execution again.
-    - [ ] Research ways to speed up the recording phase.
+- [x] Generate a replay package (see branch generate-replay-package). Sam is working on this
+  - [x] Should be activated by a flag: `./PROBE record --capture-files`
+  - [x] Should copy all read files into the probe log.
 
 - [ ] Persistent provenance
   - Provenance graph should get stored in user-wide directory.
@@ -70,11 +62,21 @@ Core tests:
   - [ ] Run tests in an Ubuntu Docker container.
   - [ ] Run tests in a really old Ubuntu Docker container.
   - [ ] Figure out how to intelligently combine Nix checks, Just checks, and GitHub CI checks, so we aren't duplicating checks.
+- [ ] Clang-analyzer
 - [x] Write microbenchmarking
   - [x] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
   - [ ] Write interesting performance tests, using `benchmark/workloads.py` as inspiration.
 
 Downstream applications:
+- [ ] Should export the PROBE log to the following formats:
+  - [ ] [OCI image](https://opencontainers.org/) (runnable with Docker)
+    - [ ] Test that executing this image produces the same stdout, stderr, and files for the tests we already have.
+  - [ ] Tar-ball intended for chroot
+  - [ ] Directory
+  - [ ] VM image.
+    - [ ] Test execution again.
+  - [ ] Research ways to speed up the recording phase.
+
 - [ ] SSH wrapper
   - [ ] There should be a shell script named `ssh` that calls `./PROBE ssh <args...>`.
   - [ ] `./PROBE ssh <args...>` will determine which arguments are arguments to SSH and which are arguments to a command, if any. Note that `ssh` can be called with or without a command, e.g., `ssh user@remote command --args` or `ssh user@remote` (user types interactively). In the latter case, we should pretend the command was `$SHELL` in the remote environment, defaulting to bash.
@@ -113,6 +115,8 @@ Design issues:
   - [x] Consider combining across multiple runs of PROBE
   - [x] Consider combining across multiple hosts
 
+- [ ] Think about how to copy metadata into container faithfully.
+
 - [ ] Think about in situ transcription and analysis
   - Think about assumptions in analysis
   - Think about front-end and UI/UX
@@ -133,6 +137,8 @@ Documentation:
 - [ ] Make the CLI better. You shouldn't need to give `-f` to make repeated applications work. You shouldn't need to give `--input`.
 
 - [ ] Document CLI tool.
+
+- [ ] Do we need to have a file-extension for probe_log?
 
 - [ ] Combine Python and Rust CLIs.
 
@@ -163,6 +169,10 @@ Nice to have:
   - `probe_dbg` should use `libprobe_dbg`
   - Get rid of `--debug`
 
+- [ ] Don't check in generated code to VCS
+
+- [ ] Incorporate searching for dynamic libraries in ExecOp (AccessOp and OpenOp or novel DlOpenOp)
+
 - [ ] Add more syscalls
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
 
@@ -172,16 +182,20 @@ Nice to have:
 
 - [ ] Sort readdir order in record and replay phases.
 
+- [ ] Re-enable some of the tests I disabled.
+
 - [ ] Write a FUSE that maps inodes (underlying fs) to inodes (of our choosing). Write an option for replay to use this FUSE.
 
 - [ ] Link with libbacktrace on `--debug` runs.
 
 - [ ] Refactor some identifiers in codebase.
-  - [ ] prov_log_process_tree -> process_tree
-  - [ ] (pid, ex_id, tid, op_id) -> dataclass
-  - [ ] digraph, process_graph -> hb_graph
-  - [ ] Reformat Nix and Python
+  - [ ] `prov_log_process_tree` -> `process_tree`
+  - [ ] `prov_log` -> `probe_log`
+  - [ ] `(pid, ex_id, tid, op_id)` -> `dataclass`
+  - [ ] `digraph`, `process_graph` -> `hb_graph`
+  - [ ] Format Python with Ruff
   - [ ] Use Clang's non-null attribute.
+  - [ ] Having fewer Python imports (e.g., generated.parser, generated.ops. Maybe we should re-export stuff in `__init__.py` of generated).
 
   [ ] Reformat repository layout
     - [ ] Probably have 1 top-level folder for each language, but make sure all the pieces compose nicely.
@@ -190,7 +204,10 @@ Nice to have:
     - [ ] Distinguish between unit-tests and end-to-end tests
     - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
 
+- [ ] Run pre-commit in GitHub Actions, committing fixes to PR branch
+
 Research tasks:
+
 - [ ] Develop user study
   - [ ] Develop protocol for assessing ease-of-use.
   - [ ] Apply for IRB.
