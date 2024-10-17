@@ -14,6 +14,19 @@ def bash(*cmds: str) -> list[str]:
 
 
 commands = [
+    ["echo", "hi"],
+    ["head", "../../../flake.nix"],
+    bash(
+        "echo",
+        "#include <stdio.h>\n#include <fcntl.h>\nint main() {open(\".\", 0); printf(\"hello world\\n\"); return 0; }",
+        "redirect_to",
+        "test.c",
+        "and",
+        "gcc",
+        "test.c",
+        "and",
+        "./a.out",
+    ),
     bash(
         "and",
         *bash(
@@ -28,18 +41,6 @@ commands = [
             *bash("cat", "file0", "file2", "redirect_to", "file3"),
         ),
     ),
-    bash(
-        "echo",
-        "#include <stdio.h>\n#include <fcntl.h>\nint main() {open(\".\", 0); printf(\"hello world\\n\"); return 0; }",
-        "redirect_to",
-        "test.c",
-        "and",
-        "gcc",
-        "test.c",
-        "and",
-        "./a.out",
-    ),
-    ["echo", "hi"],
 ]
 
 modes = [
@@ -54,12 +55,26 @@ modes = [
 def test_cmds(mode: list[str], command: list[str]) -> None:
     tmpdir.mkdir(exist_ok=True)
     (tmpdir / "probe_log").unlink(missing_ok=True)
+
     cmd = [*mode, *command]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
-    cmd = ["probe", "validate", *(["--should-have-files"] if "copy-files" in mode else []), "--input", "probe_log"]
+
+    cmd = ["probe", "validate", *(["--should-have-files"] if "copy-files" in mode else [])]
+    print(shlex.join(cmd))
+
+    if any("gcc" in arg for arg in command):
+        # GCC creates many threads and processes, so this stuff is pretty slow.
+        return
+
+    cmd = ["probe", "export", "ops-graph", "test.png"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
+
+    cmd = ["probe", "export", "dataflow-graph", "test.png"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, check=True, cwd=tmpdir)
+
     if "--copy-files" in mode:
 
         pass
