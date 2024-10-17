@@ -173,13 +173,15 @@ def copy_file_closure(
                         assert resolved_path.is_absolute()
                     elif isinstance(op.data, OpenOp):
                         path = op.data.path
-                        resolved_path = resolve_path(fds, path)
-                        fds[op.data.fd] = resolved_path
-                        to_copy[resolved_path] = path
+                        if op.data.ferrno == 0:
+                            resolved_path = resolve_path(fds, path)
+                            fds[op.data.fd] = resolved_path
+                            to_copy[resolved_path] = path
                     elif isinstance(op.data, ExecOp):
                         path = op.data.path
-                        resolved_path = resolve_path(fds, path)
-                        to_copy_exes[resolved_path] = path
+                        if op.data.ferrno == 0:
+                            resolved_path = resolve_path(fds, path)
+                            to_copy_exes[resolved_path] = path
                     elif isinstance(op.data, CloseOp):
                         for fd in range(op.data.low_fd, op.data.high_fd + 1):
                             if fd in fds:
@@ -223,11 +225,13 @@ def copy_file_closure(
         elif resolved_path.exists():
             if ivl is not None and InodeVersionLog.from_path(resolved_path) != ivl:
                 warnings.warn(f"{resolved_path} changed in between the time of `probe record` and now.")
-            if copy:
+            if resolved_path.is_dir():
+                destination_path.mkdir(exist_ok=True, parents=True)
+            elif copy:
                 if verbose:
                     console.print(f"Copying {resolved_path} from disk")
                 shutil.copy2(resolved_path, destination_path)
-            else:
+            else: # not directory and hardlink
                 if verbose:
                     console.print(f"Hardlinking {resolved_path} from disk")
                 destination_path.hardlink_to(resolved_path)

@@ -182,6 +182,8 @@ Nice to have:
 
 - [ ] Sort readdir order in record and replay phases.
 
+- [ ] Re-enable some of the tests I disabled.
+
 - [ ] Write a FUSE that maps inodes (underlying fs) to inodes (of our choosing). Write an option for replay to use this FUSE.
 
 - [ ] Link with libbacktrace on `--debug` runs.

@@ -142,6 +142,10 @@ def docker_image(
 ) -> None:
     """Generate a docker image from a probe_log with --copy-files
 
+    This may not work with moderately complex applications, like Python, yet.
+
+    File an issue if this is something you are interested in, and we will prioritize it.
+
     For example,
 
         probe record python -c 'import numpy; print(numpy.array([1,2,3]).mean())'
@@ -176,6 +180,10 @@ def oci_image(
         verbose: bool = True,
 ) -> None:
     """Generate an OCI image from a probe_log with --copy-files
+
+    This may not work with moderately complex applications, like Python, yet.
+
+    File an issue if this is something you are interested in, and we will prioritize it.
 
     For example,
 
