@@ -171,6 +171,8 @@ Nice to have:
 
 - [ ] Don't check in generated code to VCS
 
+- [ ] Incorporate searching for dynamic libraries in ExecOp (AccessOp and OpenOp or novel DlOpenOp)
+
 - [ ] Add more syscalls
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
 
