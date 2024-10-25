@@ -52,9 +52,9 @@ class HostPath:
 
 
 def copy_provenance(source: HostPath, destination: HostPath) -> None:
-    provenance_info = lookup_provenance(source)
-    destination_files = find_new_files(source, destination)
-    provenance_info = augment_provenance(provenance_info, destination.host, destination_files)
+    provenance_info_source = lookup_provenance_source(source)
+    provenance_info_destination = lookup_provenance_destination(source, destination)
+    provenance_info = augment_provenance(provenance_info_source, destination.host, provenance_info_destination)
     # TODO: Support uploading all the provenance_info from mulitple sources at once
     # Either copy_provenance should take multiple sources
     # Or it should return the provenance rather than uploading it
@@ -70,35 +70,46 @@ ProvenanceInfo: typing.TypeAlias = tuple[
 ]
 
 
-def lookup_provenance(source: HostPath) -> ProvenanceInfo:
+def lookup_provenance_source(source: HostPath) -> ProvenanceInfo:
     """Returns the provenance info associated with source
 
     If source is a directory, returns the provenance info for each file contained in the directory recursively.
     """
     if source.host.local:
-        return lookup_provenance_local(source.path)
+        return lookup_provenance_local(source.path, True)
     else:
-        return lookup_provenance_remote(source.host, source.path)
+        return lookup_provenance_remote(source.host, source.path, True)
 
-
-def find_new_files(source: HostPath, destination: HostPath) -> list[pathlib.Path]:
-    """Returns the paths in destination corresponding to source"""
-    if destination.host.local:
-        return find_new_files_local(source, destination.path)
+def lookup_provenance_destination(source: HostPath, destination: HostPath) -> ProvenanceInfo:
+    source_path = source.path
+    if source_path.is_dir():
+        source_files = get_descendants(source_path, False)
     else:
-        return find_new_files_remote(source, destination)
+        source_files = [source_path]
 
+    inode_versions = []
+    inode_metadatas = []
+    for path in source_files:
+        destination_path = destination.path / path.name
+        if destination.host.local:
+            inode_version, inode_metadata, _process_map, _inode_map = lookup_provenance_local(destination_path, False)
+        else:
+            inode_version, inode_metadata, _process_map, _inode_map = lookup_provenance_remote(destination.host, destination_path, False)
+        inode_versions.extend(inode_version)
+        inode_metadatas.extend(inode_metadata)
+
+    return inode_versions, inode_metadatas, {}, {}
 
 def augment_provenance(
         source_provenance_info: ProvenanceInfo,
         destination: Host,
-        destination_files: list[Path],
+        destination_provenance_info: ProvenanceInfo,
 ) -> ProvenanceInfo:
     """Given provenance_info of files on a previous host, insert nodes to represent a remote transfer to destination."""
     if destination.local:
-        augment_provenance_local(source_provenance_info, destination_files)
+        augment_provenance_local(source_provenance_info, destination_provenance_info)
     else:
-        augment_provenance_remote(source_provenance_info, destination, destination_files)
+        augment_provenance_remote(source_provenance_info, destination, destination_provenance_info)
 
 
 def upload_provenance(dest: Host, provenance_info: ProvenanceInfo) -> None:
@@ -349,7 +360,7 @@ def get_descendants(root: pathlib.Path, include_directories: bool) -> list[pathl
     return ret
 
 
-def lookup_provenance_local(path: pathlib.Path) -> ProvenanceInfo:
+def lookup_provenance_local(path: pathlib.Path, get_persistent_provenance: bool) -> ProvenanceInfo:
     if path.is_dir():
         inode_versions = [
             InodeVersion.from_local_path(descendant)
@@ -362,12 +373,14 @@ def lookup_provenance_local(path: pathlib.Path) -> ProvenanceInfo:
     else:
         inode_versions = [InodeVersion.from_local_path(path)]
         inode_metadatas = [InodeMetadata.from_local_path(path)]
-    process_map, inode_map = get_prov_upstream(inode_versions, "local")
-    return inode_versions, inode_metadatas, process_map, inode_map
+    if get_persistent_provenance:
+        process_map, inode_map = get_prov_upstream(inode_versions, "local")
+        return inode_versions, inode_metadatas, process_map, inode_map
+    return inode_versions, inode_metadatas, {}, {}
 
 
 
-def lookup_provenance_remote(host: Host, path: pathlib.Path) -> ProvenanceInfo:
+def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_provenance: bool) -> ProvenanceInfo:
     address = host.get_address()
     assert address is not None
     proc = subprocess.run(
@@ -404,6 +417,9 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path) -> ProvenanceInfo:
         inode_versions.append(InodeVersion(inode, int(mtime), int(size)))
         inode_metadatas.append(InodeMetadata(inode, int(mode), int(nlink), int(uid), int(gid)))
 
+    if not get_persistent_provenance:
+        return inode_versions, inode_metadatas, {}, {}
+
     # TODO: Implement this
     proc = subprocess.run(
         [
@@ -430,18 +446,9 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path) -> ProvenanceInfo:
 
     return inode_versions, inode_metadatas, {}, {}
 
-
-def find_new_files_local(source: HostPath, destination: pathlib.Path) -> list[pathlib.Path]:
-    raise NotImplementedError()
-
-
-def find_new_files_remote(source: HostPath, destination: HostPath) -> list[pathlib.Path]:
-    raise NotImplementedError()
-
-
 def augment_provenance_local(
         source_provenance_info: ProvenanceInfo,
-        files: list[pathlib.Path],
+        destination_provenance_info: ProvenanceInfo,
 ) -> ProvenanceInfo:
     raise NotImplementedError()
 
@@ -449,7 +456,7 @@ def augment_provenance_local(
 def augment_provenance_remote(
         source_provenance_info: ProvenanceInfo,
         destination: Host,
-        files: list[pathlib.Path],
+        destination_provenance_info: ProvenanceInfo,
 ) -> ProvenanceInfo:
     raise NotImplementedError
 
