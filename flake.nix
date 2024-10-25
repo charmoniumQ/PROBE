@@ -130,6 +130,7 @@
                   pypkgs.pytest
                   pypkgs.mypy
                   pypkgs.ipython
+                  pypkgs.paramiko
 
                   # libprobe build time requirement
                   pypkgs.pycparser
