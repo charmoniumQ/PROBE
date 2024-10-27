@@ -128,10 +128,7 @@ def augment_provenance(
     for destination_inode_version in destination_inode_versions:
         inode_writes[destination_inode_version] = scp_process_id
 
-    inode_versions = [*source_inode_versions, *destination_inode_versions]
-    inode_metadatas = [*source_inode_metadatas, *destination_inode_metadatas]
-
-    return inode_versions, inode_metadatas , process_closure, inode_writes
+    return destination_inode_versions, destination_inode_metadatas , process_closure, inode_writes
 
 def upload_provenance(dest: Host, provenance_info: ProvenanceInfo) -> None:
     if dest.local:
