@@ -51,10 +51,10 @@ class HostPath:
     path: pathlib.Path
 
 
-def copy_provenance(source: HostPath, destination: HostPath) -> None:
+def copy_provenance(source: HostPath, destination: HostPath, cmd: tuple[str, ...]) -> None:
     provenance_info_source = lookup_provenance_source(source)
     provenance_info_destination = lookup_provenance_destination(source, destination)
-    provenance_info = augment_provenance(provenance_info_source, destination.host, provenance_info_destination)
+    provenance_info = augment_provenance(provenance_info_source, provenance_info_destination, cmd)
     # TODO: Support uploading all the provenance_info from mulitple sources at once
     # Either copy_provenance should take multiple sources
     # Or it should return the provenance rather than uploading it
@@ -65,8 +65,8 @@ def copy_provenance(source: HostPath, destination: HostPath) -> None:
 ProvenanceInfo: typing.TypeAlias = tuple[
     list[InodeVersion],
     list[InodeMetadata],
-    typing.Mapping[int, Process],
-    typing.Mapping[InodeVersion, int | None],
+    typing.Dict[int, Process],
+    typing.Dict[InodeVersion, int | None],
 ]
 
 
@@ -102,15 +102,35 @@ def lookup_provenance_destination(source: HostPath, destination: HostPath) -> Pr
 
 def augment_provenance(
         source_provenance_info: ProvenanceInfo,
-        destination: Host,
         destination_provenance_info: ProvenanceInfo,
+        cmd: tuple[str, ...],
 ) -> ProvenanceInfo:
     """Given provenance_info of files on a previous host, insert nodes to represent a remote transfer to destination."""
-    if destination.local:
-        augment_provenance_local(source_provenance_info, destination_provenance_info)
-    else:
-        augment_provenance_remote(source_provenance_info, destination, destination_provenance_info)
+    source_inode_versions, source_inode_metadatas, process_closure, inode_writes = source_provenance_info
+    destination_inode_versions, destination_inode_metadatas, _process_closure, _inode_writes = destination_provenance_info
+    scp_process_id = generate_random_pid()
+    time = datetime.datetime.today()
+    env: tuple[tuple[str, str], ...] = ()
+    scp_process = Process(
+        source_inode_versions,
+        source_inode_metadatas,
+        destination_inode_versions,
+        destination_inode_metadatas,
+        time,
+        tuple(cmd),
+        scp_process_id,
+        env,
+        pathlib.Path(),
+    )
+    for destination_inode_version in destination_inode_versions:
+        inode_writes[destination_inode_version] = scp_process_id
+        if scp_process_id not in process_closure:
+            process_closure[scp_process_id] = scp_process
 
+    inode_versions = [*source_inode_versions, *destination_inode_versions]
+    inode_metadatas = [*source_inode_metadatas, *destination_inode_metadatas]
+
+    return inode_versions, inode_metadatas , process_closure, inode_writes
 
 def upload_provenance(dest: Host, provenance_info: ProvenanceInfo) -> None:
     if dest.local:
@@ -445,20 +465,6 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
     raise NotImplementedError()
 
     return inode_versions, inode_metadatas, {}, {}
-
-def augment_provenance_local(
-        source_provenance_info: ProvenanceInfo,
-        destination_provenance_info: ProvenanceInfo,
-) -> ProvenanceInfo:
-    raise NotImplementedError()
-
-
-def augment_provenance_remote(
-        source_provenance_info: ProvenanceInfo,
-        destination: Host,
-        destination_provenance_info: ProvenanceInfo,
-) -> ProvenanceInfo:
-    raise NotImplementedError
 
 
 def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
