@@ -111,6 +111,8 @@ def augment_provenance(
     scp_process_id = generate_random_pid()
     time = datetime.datetime.today()
     env: tuple[tuple[str, str], ...] = ()
+    while scp_process_id in process_closure:
+        scp_process_id = generate_random_pid()
     scp_process = Process(
         source_inode_versions,
         source_inode_metadatas,
@@ -122,10 +124,9 @@ def augment_provenance(
         env,
         pathlib.Path(),
     )
+    process_closure[scp_process_id] = scp_process
     for destination_inode_version in destination_inode_versions:
         inode_writes[destination_inode_version] = scp_process_id
-        if scp_process_id not in process_closure:
-            process_closure[scp_process_id] = scp_process
 
     inode_versions = [*source_inode_versions, *destination_inode_versions]
     inode_metadatas = [*source_inode_metadatas, *destination_inode_metadatas]
