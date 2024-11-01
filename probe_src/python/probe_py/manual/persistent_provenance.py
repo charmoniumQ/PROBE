@@ -15,20 +15,6 @@ PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_
 PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
 
-# Also note: https://news.ycombinator.com/item?id=25544397
-#
-# >>> I found that performance is pretty decent if you do almost everything inside SQLite using WITH RECURSIVE.
-#
-# >> The issue I found with WITH RECURSIVE queries is that they're incredibly inefficient for anything but trees. I've looked around and there doesn't seem to be any way to store a global list of visited nodes. This means that when performing a traversal of the graph the recursive query will follow all paths between two nodes.
-#
-# > I would say they are reasonably efficient.
-# > Of course many orders of magnitude slower than keeping it all in in memory maps and doing the traversal there, but fast enough to not be a limiting factor.
-# > Traversing a medium depth DAG with a million nodes to find orphaned nodes takes less than a second on average hardware.
-# > One thing to be aware of is that SQLite has lots of tuning options, and they are all set to very conservative values by default.
-# > E.g. the default journal mode is FULL, which means that it will flush all the way to disk after each write. The default cache size is tiny.
-# > With a bit of tuning you can get quite decent performance out of SQLite while still having full ACID guarantees, or very good performance for cases where you can compromise on the ACID stuff.
-
-
 def get_local_node_name() -> str:
     node_name = PROBE_HOME / "node_name"
     if node_name.exists():
