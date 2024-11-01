@@ -169,6 +169,12 @@ static void init_probe_dir() {
 
     DEBUG("probe_dir = \"%s\"", __probe_dir);
 
+    if (is_proc_root()) {
+        int info_dirfd = mkdir_and_descend(probe_dirfd, "info", 0, true, false);
+        write_bytes(info_dirfd, "copy_files", should_copy_files() ? "1" : "0", 1);
+        EXPECT(== 0, unwrapped_close(info_dirfd));
+    }
+
     int pids_dirfd = mkdir_and_descend(probe_dirfd, "pids", 0, is_proc_root(), false);
 
     __inodes_dirfd = mkdir_and_descend(probe_dirfd, "inodes", 0, is_proc_root(), false);
