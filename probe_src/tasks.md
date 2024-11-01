@@ -26,6 +26,20 @@ Core functionality:
   - Provenance graph should get stored in user-wide directory.
   - It should be SQLite.
 
+- [ ] We should record rusage of each process.
+  - Include:
+    - Time of start
+    - Time of stop
+    - Compute time
+    - IO
+    - MaxRSS
+  - [ ] Render that information somewhere? Maybe generated Makefile or Workflow should print wall time estimate, based on the planned computational steps.
+
+- [ ] Discuss Windows and MacOS implementation??
+  - https://en.wikipedia.org/wiki/DLL_injection#Approaches_on_Microsoft_Windows
+  - MacOS: `DYLD_INSERT_LIBRARIES="./test.dylib" DYLD_FORCE_FLAT_NAMESPACE=1 prog`
+  - [Detours: Binary interception of Win32 functions ](https://www.usenix.org/legacy/publications/library/proceedings/usenix-nt99/full_papers/hunt/hunt.pdf)
+
 Core tests:
 - [x] Write end-to-end-tests. End-to-end test should verify properties of the NetworkX graph returned by `provlog_to_digraph`.
   - [x] Check generic properties Shofiya and Sam finished this.
@@ -59,9 +73,9 @@ Core tests:
   - [x] Write a CI script that uses Nix to install dependencies and run the Justfiles.
   - [x] Check (not format) code in Alejandra and Black.
   - [x] Figure out why tests don't work.
-  - [ ] Run tests in an Ubuntu Docker container.
-  - [ ] Run tests in a really old Ubuntu Docker container.
-  - [ ] Figure out how to intelligently combine Nix checks, Just checks, and GitHub CI checks, so we aren't duplicating checks.
+  - [x] Run tests in an Ubuntu Docker container.
+  - [x] Run tests in a really old Ubuntu Docker container.
+  - [x] Figure out how to intelligently combine Nix checks, Just checks, and GitHub CI checks, so we aren't duplicating checks.
 - [ ] Clang-analyzer
 - [x] Write microbenchmarking
   - [x] Run performance test-cases in two steps: one with just libprobe record and one with just transcription. (3 new CLI entrypoints, described in comments in CLI.py)
@@ -69,13 +83,11 @@ Core tests:
 
 Downstream applications:
 - [ ] Should export the PROBE log to the following formats:
-  - [ ] [OCI image](https://opencontainers.org/) (runnable with Docker)
+  - [x] [OCI image](https://opencontainers.org/) (runnable with Docker)
     - [ ] Test that executing this image produces the same stdout, stderr, and files for the tests we already have.
-  - [ ] Tar-ball intended for chroot
-  - [ ] Directory
   - [ ] VM image.
     - [ ] Test execution again.
-  - [ ] Research ways to speed up the recording phase.
+  - [ ] Commented script. Comments would include files in, out, and time taken
 
 - [ ] SSH wrapper
   - [ ] There should be a shell script named `ssh` that calls `./PROBE ssh <args...>`.
@@ -119,7 +131,6 @@ Design issues:
 
 - [ ] Think about in situ transcription and analysis
   - Think about assumptions in analysis
-  - Think about front-end and UI/UX
 
 Performance issues:
 - [ ] Have better benchmarks
@@ -130,17 +141,21 @@ Performance issues:
   - [ ] Test high mem
   - [ ] Put magic bytes in arena
 
-
 - [ ] Use lock-free implementation of InodeTable
 
-Documentation:
-- [ ] Make the CLI better. You shouldn't need to give `-f` to make repeated applications work. You shouldn't need to give `--input`.
+- [ ] Put rdtsc performance counters in libprobe to instrument startup and re-exec cost. Write them to disk somehow. Look at the results.
+
+
+Better UI/UX:
+
+- [ ] Probe -o should support formatted-strings, including: %pid, %iso_datetime, %exe, %host, syntax subject to change.
+  - PROBE should default to `recording_%exe_%iso_datetime.tar.gz`; that way, you can run probe twice in a row with no error without needing `-f`. It's currently an unexpected pain-point, I think. CARE does something like `something.%pid`, I think.
+
+- [ ] Make the CLI better. You shouldn't need to give `--input`.
 
 - [ ] Document CLI tool.
 
 - [ ] Do we need to have a file-extension for probe_log?
-
-- [ ] Combine Python and Rust CLIs.
 
 - [ ] Improve the README.
 
@@ -149,13 +164,10 @@ Documentation:
 - [ ] Style output of Rust tool.
 
 - [ ] Package for the following platforms:
-  - [ ] It should be obvious how to build libprobe and probe cli (Rust) with Nix from the README.
-  - [ ] The repository should be an installable Python package, using the PEP 518 (pyproject.toml). Consider having one Python package with bundled binaries and one without.
+  - [x] Nix
   - [ ] PyPI
-  - [ ] Nix
   - [ ] Spack
   - [ ] Guix
-  - [ ] Docker image (consider whether to publish DockerHub, Quay, GHCR, or somewhere else).
   - [ ] Statically linked, downloadable binary
     - Built in CI on each "release" and downloadable from GitHub.
 
@@ -164,10 +176,6 @@ Documentation:
 - [ ] Explain design decisions
 
 Nice to have:
-- [ ] Make it easier to get to the debug build of probe cli.
-  - Build both versions, called `probe` and `probe_dbg`.
-  - `probe_dbg` should use `libprobe_dbg`
-  - Get rid of `--debug`
 
 - [ ] Don't check in generated code to VCS
 
@@ -176,28 +184,22 @@ Nice to have:
 - [ ] Add more syscalls
   - [ ] Add Dup ops and debug `bash -c 'head foo > bar'` (branch add-new-ops). Sam is working on this
 
-- [ ] Add more Ops (see branch add-new-ops)
-
 - [ ] Libprobe should identify which was the "root" process.
 
 - [ ] Sort readdir order in record and replay phases.
 
 - [ ] Re-enable some of the tests I disabled.
 
-- [ ] Write a FUSE that maps inodes (underlying fs) to inodes (of our choosing). Write an option for replay to use this FUSE.
-
-- [ ] Link with libbacktrace on `--debug` runs.
-
 - [ ] Refactor some identifiers in codebase.
   - [ ] `prov_log_process_tree` -> `process_tree`
   - [ ] `prov_log` -> `probe_log`
   - [ ] `(pid, ex_id, tid, op_id)` -> `dataclass`
   - [ ] `digraph`, `process_graph` -> `hb_graph`
-  - [ ] Format Python with Ruff
-  - [ ] Use Clang's non-null attribute.
-  - [ ] Having fewer Python imports (e.g., generated.parser, generated.ops. Maybe we should re-export stuff in `__init__.py` of generated).
 
-  [ ] Reformat repository layout
+
+- [ ] Have `probe` and `probe-dbg`; `probe` load `libprobe.so`; 	`probe-dbg` loads `libprobe-dbg.so` and possibly `libbacktrace.so`.
+
+- [ ] Reformat repository layout
     - [ ] Probably have 1 top-level folder for each language, but make sure all the pieces compose nicely.
     - [ ] `reproducibility_tests` -> `tests`?
     - [ ] Move tests to root level?
@@ -205,6 +207,10 @@ Nice to have:
     - [ ] Ensure Arena tests, struct_parser tests, and c tests are being compiled and exercised. Currently, I don't think the c tests are being compiled. Should pytest runner compile them or Justfile? Clang-tidy should cover them.
 
 - [ ] Run pre-commit in GitHub Actions, committing fixes to PR branch
+
+- [ ] We currently assume that coreutils will exist on the local and remote hosts. They might not. In that case, we should excise all invocations of coreutils. We could replace them with subcommands of PROBE, which _are_ guaranteed to exist on hosts that have PROBE. However, that doesn't feel necessary, since ost people _do_ have coreutils. So we will record this issue and do nothing until/unless someone complains.
+
+- [ ] Write a FUSE that maps inodes (underlying fs) to inodes (of our choosing). Write an option for replay to use this FUSE.
 
 Research tasks:
 

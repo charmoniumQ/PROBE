@@ -8,6 +8,7 @@ use std::{
 
 use color_eyre::eyre::{eyre, Result, WrapErr};
 use flate2::Compression;
+use serde::Serialize;
 
 use crate::{transcribe, util::Dir};
 
@@ -136,6 +137,12 @@ impl Recorder {
             ld_preload.push(&x);
         }
 
+        let info = ProbeInfo {
+            copy_files: self.copy_files,
+            host: get_host()?,
+        };
+        self.output.as_ref().join("pre_info.json").write_all(serde_json::to_string(&info));
+
         let mut child = if self.gdb {
             let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");
             dir_env.push(self.output.path());
@@ -167,6 +174,9 @@ impl Recorder {
              * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
              * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
              * Since the root process has special quirks, it should not be user's `$cmd`.
+             * */
+            /*
+             * TODO[coreutils]: (see tasks.md)
              * */
             std::process::Command::new("env")
                 .args(self.cmd)
@@ -261,4 +271,35 @@ impl Recorder {
         self.copy_files = copy_files;
         self
     }
+}
+
+#[derive(Serialize)]
+struct ProbeInfo {
+    copy_files: bool,
+    host: Host,
+}
+
+#[derive(Serialize)]
+struct Host {
+    host_name: String,
+    id: u32,
+    /* ID uniquifies in cases where host_name may be reused */
+}
+
+fn get_host() -> Result<Host> {
+    // let default_cache_home = Path(std::env::get("HOME", "/homeless-shelter")).join("/.cache");
+    // let cache_home = std::env::get("XDG_CACHE_HOME").or(default_cache_home);
+    // let probe_cache_home = cache_home.join("PROBE");
+    // let node_name_file = cache_home.join("node_name");
+    // let node_id = if node_name_file.exists() {
+    //     node_name.read_all().parse::<usize>()
+    // } else {
+    //     let node_id_tmp = random.Rand(0, 2**4**8);
+    //     node_name_file.write(node_id_tmp.to_str());
+    //     node_id_tmp
+    // }
+    Ok(Host { // TODO: fixme
+        host_name: "TODO: fixme".to_owned(),
+        id: 42,
+    })
 }

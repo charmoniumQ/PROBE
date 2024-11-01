@@ -1,8 +1,6 @@
 import typing
-from typing import Dict, Tuple
 import networkx as nx  # type: ignore
 from probe_py.generated.ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
-from probe_py.generated import parser
 from enum import IntEnum
 import rich
 import sys
@@ -10,13 +8,6 @@ from dataclasses import dataclass
 import pathlib
 import os
 import collections
-
-# TODO: implement this in probe_py.generated.ops
-class TaskType(IntEnum):
-    TASK_PID = 0
-    TASK_TID = 1
-    TASK_ISO_C_THREAD = 2
-    TASK_PTHREAD = 3
 
 
 class EdgeLabels(IntEnum):
@@ -28,21 +19,7 @@ class EdgeLabels(IntEnum):
 class ProcessNode:
     pid: int
     cmd: tuple[str,...]
-    
-@dataclass(frozen=True)
-class InodeOnDevice:
-    device_major: int
-    device_minor: int
-    inode: int
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, InodeOnDevice):
-            return NotImplemented
-        return (self.device_major == other.device_major and
-                self.device_minor == other.device_minor and
-                self.inode == other.inode)
-    def __hash__(self) -> int:
-        return hash((self.device_major, self.device_minor, self.inode))
 
 @dataclass(frozen=True)
 class FileNode:
@@ -55,97 +32,11 @@ class FileNode:
         return f"{self.file} v{self.version}"
 
 # type alias for a node
-Node = Tuple[int, int, int, int]
+Node = tuple[int, int, int, int]
 
 # type for the edges
-EdgeType = Tuple[Node, Node]
+EdgeType = tuple[Node, Node]
 
-def validate_provlog(
-        provlog: parser.ProvLog,
-) -> list[str]:
-    ret = list[str]()
-    waited_processes = set[tuple[TaskType, int]]()
-    cloned_processes = set[tuple[TaskType, int]]()
-    opened_fds = set[int]()
-    closed_fds = set[int]()
-    n_roots = 0
-    for pid, process in provlog.processes.items():
-        epochs = set[int]()
-        first_op = process.exec_epochs[0].threads[pid].ops[0]
-        if not isinstance(first_op.data, InitProcessOp):
-            ret.append("First op in exec_epoch 0 should be InitProcessOp")
-        else:
-            if first_op.data.is_root:
-                n_roots += 1
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            epochs.add(exec_epoch_no)
-            first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
-            first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
-            if not isinstance(first_ee_op.data, InitExecEpochOp):
-                ret.append(f"{first_ee_op_idx} in exec_epoch should be InitExecEpochOp")
-            pthread_ids = {
-                op.pthread_id
-                for tid, thread in exec_epoch.threads.items()
-                for op in thread.ops
-            }
-            iso_c_thread_ids = {
-                op.pthread_id
-                for tid, thread in exec_epoch.threads.items()
-                for op in thread.ops
-            }
-            for tid, thread in exec_epoch.threads.items():
-                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
-                first_thread_op = thread.ops[first_thread_op_idx]
-                if not isinstance(first_thread_op.data, InitThreadOp):
-                    ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
-                for op in thread.ops:
-                    if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
-                        # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
-                        waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
-                    elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
-                        cloned_processes.add((TaskType(op.data.task_type), op.data.task_id))
-                        if op.data.task_type == TaskType.TASK_PID:
-                            # New process implicitly also creates a new thread
-                            cloned_processes.add((TaskType.TASK_TID, op.data.task_id))
-                    elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
-                        opened_fds.add(op.data.fd)
-                    elif isinstance(op.data, ExecOp):
-                        if len(op.data.argv) != op.data.argc:
-                            ret.append("argv vs argc mismatch")
-                        if len(op.data.env) != op.data.envc:
-                            ret.append("env vs envc mismatch")
-                        if not op.data.argv:
-                            ret.append("No arguments stored in exec syscall")
-                    elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
-                        # Range in Python is up-to-not-including high_fd, so we add one to it.
-                        closed_fds.update(range(op.data.low_fd, op.data.high_fd + 1))
-                    elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
-                        if False:
-                            pass
-                        elif op.data.task_type == TaskType.TASK_PID and op.data.task_id not in provlog.processes.keys():
-                            ret.append(f"CloneOp returned a PID {op.data.task_id} that we didn't track")
-                        elif op.data.task_type == TaskType.TASK_TID and op.data.task_id not in exec_epoch.threads.keys():
-                            ret.append(f"CloneOp returned a TID {op.data.task_id} that we didn't track")
-                        elif op.data.task_type == TaskType.TASK_PTHREAD and op.data.task_id not in pthread_ids:
-                            ret.append(f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track")
-                        elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
-                            ret.append(f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track")
-                    elif isinstance(op.data, InitProcessOp):
-                        if exec_epoch_no != 0:
-                            ret.append(f"InitProcessOp happened, but exec_epoch was not zero, was {exec_epoch_no}")
-        expected_epochs = set(range(0, max(epochs) + 1))
-        if expected_epochs - epochs:
-            ret.append(f"Missing epochs for pid={pid}: {sorted(epochs - expected_epochs)}")
-    reserved_fds = {0, 1, 2}
-    if closed_fds - opened_fds - reserved_fds:
-        # TODO: Problem due to some programs opening /dev/pts/0 in a way that libprobe doesn't notice, but they close it in a way we do notice.
-        pass
-        #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
-    elif waited_processes - cloned_processes:
-        ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
-    if n_roots != 1:
-        ret.append(f"Got {n_roots} prov roots")
-    return ret
 
 
 # TODO: Rename "digraph" to "hb_graph" in the entire project.
@@ -258,7 +149,7 @@ def provlog_to_digraph(process_tree_prov_log: parser.ProvLog) -> nx.DiGraph:
     add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
     return process_graph
 
-def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, file_version_map: Dict[InodeOnDevice, int], shared_files: set[InodeOnDevice], cmd_map: Dict[int, list[str]]) -> None:
+def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, file_version_map: Dict[InodeOnDevice, int], shared_files: set[InodeOnDevice], cmd_map: dict[int, list[str]]) -> None:
     starting_pid = starting_node[0]
     
     starting_op = prov_log_get_node(process_tree_prov_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])

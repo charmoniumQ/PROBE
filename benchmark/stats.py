@@ -43,7 +43,7 @@ def output_features(df: pandas.DataFrame) -> None:
             ),
         })
         .assign(**{
-            "rel_slowdown": lambda df: df["walltime_mean"] / df.loc["noprov"]["walltime_mean"],
+            "rel_slowdown": lambda df: df["walltime_mean"] - df.loc["noprov"]["walltime_mean"],
         })
         .assign(**{
             "log_rel_slowdown": lambda df: numpy.log(df["rel_slowdown"]),

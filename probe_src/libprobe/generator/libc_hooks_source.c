@@ -2602,5 +2602,53 @@ int pthread_join(pthread_t thread, void **retval) {
 /* fn _Exit = _exit; */
 
 /*
-** TODO: getcwd, getwd, chroot
+TODO: getcwd, getwd, chroot
+glob, glob64
+shm_open, shm_unlink, memfd_create
+mount, umount
+ioctl
+pipe
+popen, pclose
+mkfifo
+sysconf, pathconf, fpathconf, confstr
+getent?
+bind
+socketpair
+connect
+send, recv, sendto, recvfrom
+getnetbyname, getnetbyaddr, setnetent, getnetent, endnetent
+time, clock_gettime, clock_getres, gettimeofday
+clock_settiime, ntp_gettime, ntp_adjtime, adjtime, stime, settimeofday
+
+Already counted:
+dup, dup2, dup3
+link
+linkat
+rewinddir, telldir, seekdir
+symlink, symlinkat
+readlink, readlinkat
+canonicalize_file_name
+realpath
+unlink
+rmdir
+remove
+rename
+mkdir, mkdirat
+tmpfile, tmpfile64
+tmpnam, tmpnam_r, tempnam
+mktemp, mkstemp, mkdtemp
+truncate, truncate64, ftruncate, ftruncate64
+mknod
+
+Possible:
+https://www.gnu.org/software/libc/manual/html_node/Standard-Locales.html
+
+Think about signal handling
+
+https://www.gnu.org/software/libc/manual/html_node/Limits-on-Resources.html
+https://www.gnu.org/software/libc/manual/html_node/Semaphores.html
+https://www.gnu.org/software/libc/manual/html_node/Name-Service-Switch.html
+https://www.gnu.org/software/libc/manual/html_node/Users-and-Groups.html
+https://www.gnu.org/software/libc/manual/html_node/System-Management.html
+
  */
