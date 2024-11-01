@@ -65,8 +65,8 @@ def copy_provenance(source: HostPath, destination: HostPath, cmd: tuple[str, ...
 ProvenanceInfo: typing.TypeAlias = tuple[
     list[InodeVersion],
     list[InodeMetadata],
-    typing.Dict[int, Process],
-    typing.Dict[InodeVersion, int | None],
+    dict[int, Process],
+    dict[InodeVersion, int | None],
 ]
 
 
