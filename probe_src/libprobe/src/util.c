@@ -11,7 +11,14 @@
  * If a function-call returns a BORROWED pointer, the callee can't free it.
  * If a function-call receives a BORROWED pointer, the function can't free it.
  * */
+#ifdef __linux__
 #include <sys/sendfile.h>
+#elif defined(__APPLE__)
+#include <sys/socket.h>
+#include <sys/uio.h>
+#else
+#error "Unsupported platform"
+#endif
 #define OWNED
 #define BORROWED
 
@@ -34,10 +41,16 @@
 #endif
 
 static pid_t my_gettid(){
+#ifdef __linux__
     return syscall(SYS_gettid);
+#elif defined(__APPLE__)
+    uint64_t tid;
+    pthread_threadid_np(NULL, &tid);
+    return (pid_t)tid;
+#endif
 }
 
-#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d: ", getpid(), get_exec_epoch_safe(), my_gettid())
+#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%llu: ", getpid(), get_exec_epoch_safe(), (unsigned long long)my_gettid())
 
 #define __LOG_SOURCE() fprintf(stderr, SOURCE_VERSION ":" __FILE__ ":%d:%s(): ", __LINE__, __func__)
 
@@ -61,7 +74,7 @@ static pid_t my_gettid(){
         fprintf(stderr, "Assertion " #cond " failed: "); \
         fprintf(stderr, __VA_ARGS__); \
         fprintf(stderr, "\n"); \
-	    prov_log_disable(); \
+        prov_log_disable(); \
         exit(1); \
     } \
 })
@@ -202,21 +215,26 @@ static const char* getenv_copy(const char* name) {
 #endif
 
 static bool is_dir(const char* dir) {
-    struct statx statx_buf;
-    int statx_ret = unwrapped_statx(AT_FDCWD, dir, 0, STATX_TYPE, &statx_buf);
-    if (statx_ret != 0) {
+    struct stat stat_buf;
+    int stat_ret = stat(dir, &stat_buf);
+    if (stat_ret != 0) {
         return false;
     } else {
-        return (statx_buf.stx_mode & S_IFMT) == S_IFDIR;
+        return S_ISDIR(stat_buf.st_mode);
     }
 }
 
 static OWNED const char* dirfd_path(int dirfd) {
+#ifdef __linux__
     static char dirfd_proc_path[PATH_MAX];
     CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fd/%d", dirfd);
     char* resolved_buffer = malloc(PATH_MAX);
     const char* ret = unwrapped_realpath(dirfd_proc_path, resolved_buffer);
     return ret;
+#else
+    NOT_IMPLEMENTED("dirfd_path is not implemented on macOS");
+    return NULL;
+#endif
 }
 
 /*
@@ -321,15 +339,23 @@ int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* ds
     int src_fd = unwrapped_openat(src_dirfd, src_path, O_RDONLY);
     int dst_fd = unwrapped_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
     int result = 0;
+#ifdef __linux__
     off_t copied = 0;
     while (result == 0 && copied < size) {
-        ssize_t written = sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
-        copied += written;
+        ssize_t written = sendfile(dst_fd, src_fd, &copied, size - copied);
         if (written == -1) {
             result = -1;
+            break;
         }
+        copied += written;
     }
-
+#elif defined(__APPLE__)
+    off_t offset = 0;
+    off_t len = size;
+    if (sendfile(src_fd, dst_fd, offset, &len, NULL, 0) == -1) {
+        result = -1;
+    }
+#endif
     unwrapped_close(src_fd);
     unwrapped_close(dst_fd);
 

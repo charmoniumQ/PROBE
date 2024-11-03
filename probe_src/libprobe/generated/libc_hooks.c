@@ -1,5 +1,93 @@
+#ifdef __APPLE__
+#define F_SETSIG 0
+#define F_SETLEASE 0
+#define F_NOTIFY 0
+#define F_SETPIPE_SZ 0
+#define F_ADD_SEALS 0
+#define F_GETOWN_EX 0
+#define F_SETOWN_EX 0
+#define F_GET_RW_HINT 0
+#define F_SET_RW_HINT 0
+#define F_GET_FILE_RW_HINT 0
+#define F_SET_FILE_RW_HINT 0
+#define thrd_success 0
+#define thrd_nomem 1
+
+#define ftruncate64 ftruncate
+#define truncate64 truncate
+#define unwrapped_open64 unwrapped_open
+#define unwrapped_openat64 unwrapped_openat
+static pid_t (*unwrapped__Fork)(void);
+typedef off_t off64_t;
+typedef struct stat stat64_t;
+#endif
+
+typedef int (*thrd_start_t)(void *);
+
+#ifdef __APPLE__
+typedef pthread_t thrd_t;
+typedef struct {
+    thrd_start_t func;
+    void *arg;
+} thrd_wrapper_args_t;
+
+void *thrd_start_wrapper(void *arg) {
+    thrd_wrapper_args_t *wrapper_args = (thrd_wrapper_args_t *)arg;
+    int res = wrapper_args->func(wrapper_args->arg);
+    free(wrapper_args);
+    return (void *)(intptr_t)res;
+}
+
+static int unwrapped_thrd_create(thrd_t *thr, thrd_start_t func, void *arg) {
+    thrd_wrapper_args_t *wrapper_args = malloc(sizeof(thrd_wrapper_args_t));
+    if (wrapper_args == NULL) {
+        return thrd_nomem;
+    }
+    wrapper_args->func = func;
+    wrapper_args->arg = arg;
+    int ret = pthread_create(thr, NULL, thrd_start_wrapper, wrapper_args);
+    if (ret != 0) {
+        free(wrapper_args);
+    }
+    return (ret == 0) ? thrd_success : ret;
+}
+
+static pid_t unwrapped_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, ...) {
+    errno = ENOSYS;
+    return -1;
+}
+#endif
+
+#ifdef __linux__
+int truncate64(const char *name, off64_t length) {
+    return truncate(name, length);
+}
+#endif
+
+#ifdef __APPLE__
+static ssize_t unwrapped_getdents64(int fd, void *dirp, size_t count) {
+    errno = ENOSYS;
+    return -1;
+}
+static int unwrapped_close_range(unsigned int lowfd, unsigned int maxfd, int flags) {
+    errno = ENOSYS;
+    return -1;
+}
+#endif
+
+#ifdef __linux__
+ssize_t getdents64(int fd, void *buffer, size_t length) {
+}
+#endif
+
 void init_function_pointers()
 {
+    #ifdef __APPLE__
+    unwrapped__Fork = fork;
+    #else
+    unwrapped__Fork = dlsym(RTLD_NEXT, "_Fork");
+    #endif
+
   unwrapped_fopen = dlsym(RTLD_NEXT, "fopen");
   unwrapped_freopen = dlsym(RTLD_NEXT, "freopen");
   unwrapped_fclose = dlsym(RTLD_NEXT, "fclose");
@@ -8,11 +96,15 @@ void init_function_pointers()
   unwrapped_open = dlsym(RTLD_NEXT, "open");
   unwrapped_creat = dlsym(RTLD_NEXT, "creat");
   unwrapped_close = dlsym(RTLD_NEXT, "close");
+
+  #ifdef __linux__
   unwrapped_close_range = dlsym(RTLD_NEXT, "close_range");
+  unwrapped_dup3 = dlsym(RTLD_NEXT, "dup3");
+  #endif
+
   unwrapped_closefrom = dlsym(RTLD_NEXT, "closefrom");
   unwrapped_dup = dlsym(RTLD_NEXT, "dup");
   unwrapped_dup2 = dlsym(RTLD_NEXT, "dup2");
-  unwrapped_dup3 = dlsym(RTLD_NEXT, "dup3");
   unwrapped_fcntl = dlsym(RTLD_NEXT, "fcntl");
   unwrapped_chdir = dlsym(RTLD_NEXT, "chdir");
   unwrapped_fchdir = dlsym(RTLD_NEXT, "fchdir");
@@ -20,27 +112,47 @@ void init_function_pointers()
   unwrapped_fdopendir = dlsym(RTLD_NEXT, "fdopendir");
   unwrapped_readdir = dlsym(RTLD_NEXT, "readdir");
   unwrapped_readdir_r = dlsym(RTLD_NEXT, "readdir_r");
+  
+  #ifdef __linux__
   unwrapped_readdir64 = dlsym(RTLD_NEXT, "readdir64");
   unwrapped_readdir64_r = dlsym(RTLD_NEXT, "readdir64_r");
+  #endif
+
   unwrapped_closedir = dlsym(RTLD_NEXT, "closedir");
   unwrapped_rewinddir = dlsym(RTLD_NEXT, "rewinddir");
   unwrapped_telldir = dlsym(RTLD_NEXT, "telldir");
   unwrapped_seekdir = dlsym(RTLD_NEXT, "seekdir");
   unwrapped_scandir = dlsym(RTLD_NEXT, "scandir");
+  
+  #ifdef __linux__
   unwrapped_scandir64 = dlsym(RTLD_NEXT, "scandir64");
   unwrapped_scandirat = dlsym(RTLD_NEXT, "scandirat");
   unwrapped_getdents64 = dlsym(RTLD_NEXT, "getdents64");
+  #endif
+
   unwrapped_ftw = dlsym(RTLD_NEXT, "ftw");
+  
+  #ifdef __linux__
   unwrapped_ftw64 = dlsym(RTLD_NEXT, "ftw64");
+  #endif
+
   unwrapped_nftw = dlsym(RTLD_NEXT, "nftw");
+  
+  #ifdef __linux__
   unwrapped_nftw64 = dlsym(RTLD_NEXT, "nftw64");
+  #endif
+
   unwrapped_link = dlsym(RTLD_NEXT, "link");
   unwrapped_linkat = dlsym(RTLD_NEXT, "linkat");
   unwrapped_symlink = dlsym(RTLD_NEXT, "symlink");
   unwrapped_symlinkat = dlsym(RTLD_NEXT, "symlinkat");
   unwrapped_readlink = dlsym(RTLD_NEXT, "readlink");
   unwrapped_readlinkat = dlsym(RTLD_NEXT, "readlinkat");
+  
+  #ifdef __linux__
   unwrapped_canonicalize_file_name = dlsym(RTLD_NEXT, "canonicalize_file_name");
+  #endif
+
   unwrapped_realpath = dlsym(RTLD_NEXT, "realpath");
   unwrapped_unlink = dlsym(RTLD_NEXT, "unlink");
   unwrapped_rmdir = dlsym(RTLD_NEXT, "rmdir");
@@ -49,14 +161,30 @@ void init_function_pointers()
   unwrapped_mkdir = dlsym(RTLD_NEXT, "mkdir");
   unwrapped_mkdirat = dlsym(RTLD_NEXT, "mkdirat");
   unwrapped_stat = dlsym(RTLD_NEXT, "stat");
+  
+  #ifdef __linux__
   unwrapped_stat64 = dlsym(RTLD_NEXT, "stat64");
+  #endif
+
   unwrapped_fstat = dlsym(RTLD_NEXT, "fstat");
+  
+  #ifdef __linux__
   unwrapped_fstat64 = dlsym(RTLD_NEXT, "fstat64");
+  #endif
+
   unwrapped_lstat = dlsym(RTLD_NEXT, "lstat");
+  
+  #ifdef __linux__
   unwrapped_lstat64 = dlsym(RTLD_NEXT, "lstat64");
   unwrapped_statx = dlsym(RTLD_NEXT, "statx");
+  #endif
+
   unwrapped_fstatat = dlsym(RTLD_NEXT, "fstatat");
+  
+  #ifdef __linux__
   unwrapped_fstatat64 = dlsym(RTLD_NEXT, "fstatat64");
+  #endif
+
   unwrapped_chown = dlsym(RTLD_NEXT, "chown");
   unwrapped_fchown = dlsym(RTLD_NEXT, "fchown");
   unwrapped_lchown = dlsym(RTLD_NEXT, "lchown");
@@ -71,12 +199,24 @@ void init_function_pointers()
   unwrapped_lutimes = dlsym(RTLD_NEXT, "lutimes");
   unwrapped_futimes = dlsym(RTLD_NEXT, "futimes");
   unwrapped_truncate = dlsym(RTLD_NEXT, "truncate");
+  
+  #ifdef __linux__
   unwrapped_truncate64 = dlsym(RTLD_NEXT, "truncate64");
+  #endif
+
   unwrapped_ftruncate = dlsym(RTLD_NEXT, "ftruncate");
+  
+  #ifdef __linux__
   unwrapped_ftruncate64 = dlsym(RTLD_NEXT, "ftruncate64");
+  #endif
+
   unwrapped_mknod = dlsym(RTLD_NEXT, "mknod");
   unwrapped_tmpfile = dlsym(RTLD_NEXT, "tmpfile");
+  
+  #ifdef __linux__
   unwrapped_tmpfile64 = dlsym(RTLD_NEXT, "tmpfile64");
+  #endif
+
   unwrapped_tmpnam = dlsym(RTLD_NEXT, "tmpnam");
   unwrapped_tmpnam_r = dlsym(RTLD_NEXT, "tmpnam_r");
   unwrapped_tempnam = dlsym(RTLD_NEXT, "tempnam");
@@ -90,25 +230,39 @@ void init_function_pointers()
   unwrapped_execle = dlsym(RTLD_NEXT, "execle");
   unwrapped_execvp = dlsym(RTLD_NEXT, "execvp");
   unwrapped_execlp = dlsym(RTLD_NEXT, "execlp");
+  
+  #ifdef __linux__
   unwrapped_execvpe = dlsym(RTLD_NEXT, "execvpe");
+  #endif
+
   unwrapped_fork = dlsym(RTLD_NEXT, "fork");
-  unwrapped__Fork = dlsym(RTLD_NEXT, "_Fork");
   unwrapped_vfork = dlsym(RTLD_NEXT, "vfork");
+  
+  #ifdef __linux__
   unwrapped_clone = dlsym(RTLD_NEXT, "clone");
+  #endif
+
   unwrapped_waitpid = dlsym(RTLD_NEXT, "waitpid");
   unwrapped_wait = dlsym(RTLD_NEXT, "wait");
   unwrapped_wait4 = dlsym(RTLD_NEXT, "wait4");
   unwrapped_wait3 = dlsym(RTLD_NEXT, "wait3");
   unwrapped_waitid = dlsym(RTLD_NEXT, "waitid");
+  
+  #ifdef __linux__
   unwrapped_thrd_create = dlsym(RTLD_NEXT, "thrd_create");
   unwrapped_thrd_join = dlsym(RTLD_NEXT, "thrd_join");
+  #endif
+
   unwrapped_pthread_create = dlsym(RTLD_NEXT, "pthread_create");
   unwrapped_pthread_join = dlsym(RTLD_NEXT, "pthread_join");
+  
+  #ifdef __linux__
   unwrapped_fopen64 = dlsym(RTLD_NEXT, "fopen64");
   unwrapped_freopen64 = dlsym(RTLD_NEXT, "freopen64");
   unwrapped_openat64 = dlsym(RTLD_NEXT, "openat64");
   unwrapped_open64 = dlsym(RTLD_NEXT, "open64");
-  unwrapped_create64 = dlsym(RTLD_NEXT, "create64");
+  unwrapped_create64 = dlsym(RTLD_NEXT, "creat64");
+  #endif
 }
 
 FILE * fopen(const char *filename, const char *opentype)
@@ -253,7 +407,16 @@ int open(const char *filename, int flags, ...)
     prov_log_try(op);
   }
   size_t varargs_size = ((sizeof(filename)) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_open, __builtin_apply_args(), varargs_size));
+int ret;
+if (has_mode_arg) {
+    va_list ap;
+    va_start(ap, flags);
+    mode_t mode = va_arg(ap, mode_t);
+    va_end(ap);
+    ret = unwrapped_open(filename, flags, mode);
+} else {
+    ret = unwrapped_open(filename, flags);
+}
   int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {
@@ -454,6 +617,7 @@ DIR * fdopendir(int fd)
   return ret;
 }
 
+#ifdef __linux__
 struct dirent * readdir(DIR *dirstream)
 {
   maybe_init_thread();
@@ -480,6 +644,7 @@ struct dirent * readdir(DIR *dirstream)
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
 {
@@ -508,6 +673,7 @@ int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
   return ret;
 }
 
+#ifdef __linux__
 struct dirent64 * readdir64(DIR *dirstream)
 {
   maybe_init_thread();
@@ -534,7 +700,6 @@ struct dirent64 * readdir64(DIR *dirstream)
   errno = saved_errno;
   return ret;
 }
-
 int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result)
 {
   maybe_init_thread();
@@ -561,6 +726,7 @@ int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int closedir(DIR *dirstream)
 {
@@ -623,6 +789,7 @@ int scandir(const char *dir, struct dirent ***namelist, int (*selector)(const st
   return ret;
 }
 
+#ifdef __linux__
 int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(const struct dirent64 *), int (*cmp)(const struct dirent64 **, const struct dirent64 **))
 {
   maybe_init_thread();
@@ -644,6 +811,7 @@ int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(cons
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict namelist, int (*filter)(const struct dirent *), int (*compar)(const struct dirent **, const struct dirent **))
 {
@@ -901,6 +1069,7 @@ int stat(const char *filename, struct stat *buf)
   return ret;
 }
 
+#ifdef __linux__
 int stat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
@@ -926,6 +1095,7 @@ int stat64(const char *filename, struct stat64 *buf)
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int fstat(int filedes, struct stat *buf)
 {
@@ -1031,6 +1201,7 @@ int lstat64(const char *filename, struct stat64 *buf)
   return ret;
 }
 
+#ifdef __linux__
 int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mask, struct statx * restrict statxbuf)
 {
   maybe_init_thread();
@@ -1056,6 +1227,29 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
   errno = saved_errno;
   return ret;
 }
+#endif
+
+#ifdef __APPLE__
+int statx(int dirfd, const char *pathname, int flags, unsigned int mask, void *statxbuf) {
+    errno = ENOSYS;
+    return -1;
+}
+static int unwrapped_execvpe(const char *file, char *const argv[], char *const envp[]) {
+    errno = ENOSYS;
+    return -1;
+}
+static int unwrapped_thrd_join(thrd_t thr, int *res) {
+    void *retval;
+    int ret = pthread_join(thr, &retval);
+    if (ret != 0) {
+        return ret;
+    }
+    if (res != NULL) {
+        *res = (int)(intptr_t)retval;
+    }
+    return thrd_success;
+}
+#endif
 
 int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags)
 {
@@ -1083,6 +1277,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
   return ret;
 }
 
+#ifdef __linux__
 int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, int flags)
 {
   maybe_init_thread();
@@ -1108,6 +1303,7 @@ int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, 
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int chown(const char *filename, uid_t owner, gid_t group)
 {
@@ -1429,12 +1625,14 @@ int futimes(int fd, const struct timeval tvp[2])
   return ret;
 }
 
+#ifdef __linux__
 int truncate(const char *filename, off_t length)
 {
   maybe_init_thread();
   int ret = unwrapped_truncate(filename, length);
   return ret;
 }
+#endif
 
 int truncate64(const char *name, off64_t length)
 {
@@ -1450,12 +1648,14 @@ int ftruncate(int fd, off_t length)
   return ret;
 }
 
+#ifdef __linux__
 int ftruncate64(int id, off64_t length)
 {
   maybe_init_thread();
   int ret = unwrapped_ftruncate64(id, length);
   return ret;
 }
+#endif
 
 int mknod(const char *filename, mode_t mode, dev_t dev)
 {
