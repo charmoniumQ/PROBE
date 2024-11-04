@@ -24,7 +24,7 @@ def scp_with_provenance(scp_args: list[str]) -> int:
     if proc.returncode == 0:
         sources, destination = parse_scp_args(scp_args)
         for source in sources:
-            copy_provenance(source, destination)
+            copy_provenance(source, destination, ["scp", *scp_args])
         return 0
     else:
         return proc.returncode
