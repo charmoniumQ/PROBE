@@ -472,6 +472,18 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
 
 
 def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
+    destination_inode_versions, destination_inode_metadatas, augmented_process_closure, augmented_inode_writes = provenance_info
+
+    for inode_version, process_id in augmented_inode_writes.items():
+        inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{inode_version.str_id()}.json"
+        with inode_version_path.open("w") as f:
+            json.dump(process_id if process_id is not None else None, f)
+
+    for process_id, process in augmented_process_closure.items():
+        process_path = PROCESSES_BY_ID / f"{process_id}.json"
+        with process_path.open("w") as f:
+            json.dump(process, f)
+
     raise NotImplementedError()
 
 
