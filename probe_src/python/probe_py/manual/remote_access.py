@@ -22,6 +22,9 @@ import pathlib
 import yaml
 import typing
 
+PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
+PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
+PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
 @dataclasses.dataclass(frozen=True)
 class Host:
@@ -125,6 +128,9 @@ def augment_provenance(
         pathlib.Path(),
     )
     process_closure[scp_process_id] = scp_process
+    process_path = PROCESSES_BY_ID / f"{str(scp_process_id)}.json"
+    with process_path.open("w") as f:
+        json.dump(scp_process, f)
     for destination_inode_version in destination_inode_versions:
         inode_writes[destination_inode_version] = scp_process_id
 
@@ -470,7 +476,50 @@ def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
 
 
 def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> None:
-    raise NotImplementedError()
+    destination_inode_versions, destination_inode_metadatas, augmented_process_closure, augmented_inode_writes = provenance_info
+
+    for inode_version, process_id in augmented_inode_writes.items():
+        if inode_version not in destination_inode_versions:
+            continue
+        inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{inode_version.str_id()}.json"
+        with inode_version_path.open("w") as f:
+            json.dump(process_id if process_id is not None else None, f)
+    address = dest.get_address()
+    assert address is not None
+    scp_commands = []
+    for inode_version, process_id in augmented_inode_writes.items():
+        inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{str(inode_version)}.json"
+        scp_commands.append(
+            f"scp {' '.join(dest.scp_options)} {shlex.quote(str(inode_version_path))} {dest.username}@{dest.network_name}:$process_that_wrote/{str(inode_version)}.json/"
+        )
+
+    for process_id, process in augmented_process_closure.items():
+        process_path = PROCESSES_BY_ID / f"{process_id}.json"
+        scp_commands.append(
+            f"scp {' '.join(dest.scp_options)} {shlex.quote(str(process_path))} {dest.username}@{dest.network_name}:$process_by_id/{process_id}.json/"
+        )
+    combined_scp_command = " && ".join(scp_commands)
+
+    subprocess.run(
+        [
+            "ssh",
+            *dest.ssh_options,
+            address,
+            "sh", "-c", ";".join([
+            "probe_data=${XDG_DATA_HOME:-$HOME/.local/share}/PROBE",
+            "process_that_wrote=${probe_data}/process_id_that_wrote_inode_version",
+            "process_by_id=${probe_data}/processes_by_id",
+            # Ensure the remote directory exists
+            "mkdir -p \"$process_that_wrote\"",
+            "mkdir -p \"$process_by_id\"",
+            combined_scp_command
+        ]),
+        ],
+        capture_output=True,
+        check=True,
+        text=False,
+    )
+
 
 
 # Notes:
