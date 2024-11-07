@@ -502,13 +502,13 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
     for inode_version, process_id in augmented_inode_writes.items():
         inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{str(inode_version)}.json"
         scp_commands.append(
-            f"scp {' '.join(dest.scp_options)} {shlex.quote(str(inode_version_path))} {dest.username}@{dest.network_name}:$process_that_wrote/{str(inode_version)}.json/"
+            f"scp {' '.join(dest.scp_options)} {shlex.quote(str(inode_version_path))} {dest.username}@{dest.network_name}:${{process_that_wrote}}/{str(inode_version)}.json"
         )
 
     for process_id, process in augmented_process_closure.items():
         process_path = PROCESSES_BY_ID / f"{process_id}.json"
         scp_commands.append(
-            f"scp {' '.join(dest.scp_options)} {shlex.quote(str(process_path))} {dest.username}@{dest.network_name}:$process_by_id/{process_id}.json/"
+            f"scp {' '.join(dest.scp_options)} {shlex.quote(str(process_path))} {dest.username}@{dest.network_name}:${{process_by_id}}/{process_id}.json"
         )
     combined_scp_command = " && ".join(scp_commands)
 
