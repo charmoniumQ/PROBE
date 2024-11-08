@@ -11,6 +11,7 @@ from .workflows import NextflowGenerator, MakefileGenerator
 from .ssh_argparser import parse_ssh_args
 from . import file_closure
 from . import graph_utils
+import subprocess
 import enum
 
 
