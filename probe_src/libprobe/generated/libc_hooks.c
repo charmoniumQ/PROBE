@@ -1,82 +1,16 @@
-#ifdef __APPLE__
-#define F_SETSIG 0
-#define F_SETLEASE 0
-#define F_NOTIFY 0
-#define F_SETPIPE_SZ 0
-#define F_ADD_SEALS 0
-#define F_GETOWN_EX 0
-#define F_SETOWN_EX 0
-#define F_GET_RW_HINT 0
-#define F_SET_RW_HINT 0
-#define F_GET_FILE_RW_HINT 0
-#define F_SET_FILE_RW_HINT 0
-#define thrd_success 0
-#define thrd_nomem 1
-
-#define ftruncate64 ftruncate
-#define truncate64 truncate
-#define unwrapped_open64 unwrapped_open
-#define unwrapped_openat64 unwrapped_openat
-static pid_t (*unwrapped__Fork)(void);
-typedef off_t off64_t;
-typedef struct stat stat64_t;
-#endif
-
 typedef int (*thrd_start_t)(void *);
 
-#ifdef __APPLE__
-typedef pthread_t thrd_t;
-typedef struct {
-    thrd_start_t func;
-    void *arg;
-} thrd_wrapper_args_t;
-
-void *thrd_start_wrapper(void *arg) {
-    thrd_wrapper_args_t *wrapper_args = (thrd_wrapper_args_t *)arg;
-    int res = wrapper_args->func(wrapper_args->arg);
-    free(wrapper_args);
-    return (void *)(intptr_t)res;
-}
-
-static int unwrapped_thrd_create(thrd_t *thr, thrd_start_t func, void *arg) {
-    thrd_wrapper_args_t *wrapper_args = malloc(sizeof(thrd_wrapper_args_t));
-    if (wrapper_args == NULL) {
-        return thrd_nomem;
-    }
-    wrapper_args->func = func;
-    wrapper_args->arg = arg;
-    int ret = pthread_create(thr, NULL, thrd_start_wrapper, wrapper_args);
-    if (ret != 0) {
-        free(wrapper_args);
-    }
-    return (ret == 0) ? thrd_success : ret;
-}
-
-static pid_t unwrapped_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, ...) {
-    errno = ENOSYS;
-    return -1;
-}
-#endif
-
-#ifdef __linux__
-int truncate64(const char *name, off64_t length) {
-    return truncate(name, length);
-}
-#endif
 
 #ifdef __APPLE__
 static ssize_t unwrapped_getdents64(int fd, void *dirp, size_t count) {
     errno = ENOSYS;
     return -1;
 }
+
+
 static int unwrapped_close_range(unsigned int lowfd, unsigned int maxfd, int flags) {
     errno = ENOSYS;
     return -1;
-}
-#endif
-
-#ifdef __linux__
-ssize_t getdents64(int fd, void *buffer, size_t length) {
 }
 #endif
 
@@ -407,16 +341,8 @@ int open(const char *filename, int flags, ...)
     prov_log_try(op);
   }
   size_t varargs_size = ((sizeof(filename)) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
-int ret;
-if (has_mode_arg) {
-    va_list ap;
-    va_start(ap, flags);
-    mode_t mode = va_arg(ap, mode_t);
-    va_end(ap);
-    ret = unwrapped_open(filename, flags, mode);
-} else {
-    ret = unwrapped_open(filename, flags);
-}
+  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_open, __builtin_apply_args(), varargs_size));
+
   int saved_errno = errno;
   if (likely(prov_log_is_enabled()))
   {

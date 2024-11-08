@@ -1,36 +1,10 @@
-#ifdef __APPLE__
-typedef struct stat stat64_t;
-typedef struct stat stat64;
-typedef int (*__ftw64_func_t)(const char *, const struct stat64 *, int);
-typedef int (*__nftw64_func_t)(const char *, const struct stat64 *, int, struct FTW *);
-#endif
-
 #ifdef __linux__
-#define _GNU_SOURCE
-#include <linux/limits.h>
-#include <malloc.h>
-#include <sys/sysmacros.h>
-#include <threads.h>
-#include <sys/syscall.h>
-
+#include "linux_defines.h"
 #elif defined(__APPLE__)
-#include <limits.h>
-#include <malloc/malloc.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <stdint.h>
-#include <sys/param.h>
-#include <stdlib.h>
-
-#ifdef __APPLE__
-#include <pthread.h>
-typedef pthread_t thrd_t;
-#define thrd_current() ((uintptr_t) pthread_self())
-#else
-#define thrd_current() ((uintptr_t) pthread_self())
+#include "macos_defines.h"
 #endif
+
+#define thrd_current() ((uintptr_t) pthread_self())
 
 #define CLONE_VFORK 0
 #define CLONE_THREAD 0
@@ -48,15 +22,6 @@ typedef pthread_t thrd_t;
 typedef struct stat stat64;
 typedef struct dirent dirent64;
 
-#ifdef __linux__
-static inline int fstatat64(int dirfd, const char *pathname, struct stat64 *buf, int flags) {
-    return fstatat(dirfd, pathname, buf, flags);
-}
-#endif
-
-#else
-#error "Unsupported platform"
-#endif
 
 #define _GNU_SOURCE
 #include <assert.h>
@@ -83,12 +48,6 @@ static inline int fstatat64(int dirfd, const char *pathname, struct stat64 *buf,
 #include <ftw.h>
 #include <pthread.h>
 
-#ifdef __APPLE__
-static inline int fstatat64(int dirfd, const char *pathname, struct stat64 *buf, int flags) {
-    return fstatat(dirfd, pathname, (struct stat *)buf, flags);
-}
-#endif
-
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
  * so we use some macros instead.
@@ -110,11 +69,6 @@ static void reinit_process();
 static void prov_log_disable();
 static int get_exec_epoch_safe();
 static bool __process_inited = false;
-#ifdef __linux__
-static __thread bool __thread_inited = false;
-#else
-static _Thread_local bool __thread_inited = false;
-#endif
 
 #define ENV_VAR_PREFIX "PROBE_"
 

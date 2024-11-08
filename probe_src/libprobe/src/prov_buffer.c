@@ -5,11 +5,6 @@ static void prov_log_save() {
      * */
 }
 
-#ifdef __APPLE__
-#define CLONE_VFORK 0
-#define CLONE_THREAD 0
-#endif
-
 static void prov_log_record(struct Op op);
 
 bool is_read_op(struct Op op) {
