@@ -77,3 +77,9 @@ I don't like replaying libcalls by intercepting and copy/pasting contents of the
   The entire close of `temp_file` in PID 101 precedes waitpid 101 in fork-join order, waitpid 101 precedes fork 102 in program order, and fork 102 precedess the open of `temp_file` in PID 102, so we can conclude that information may flow from `foo` to `bar`.
 
   From which, we can deduce the provenance graph `input_file` -> `foo` -> `temp_file` -> `bar` -> `output_file` with only the open/close intervals and happens-before order.
+
+# Python package
+
+probe_py is a package that implements experimental, non-core CLI functions of PROBE and Python library functionality of PROBE.
+
+Required reading: <https://matt.sh/python-project-structure-2024>

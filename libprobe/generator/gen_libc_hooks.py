@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from __future__ import annotations
+import json
 import dataclasses
 import pycparser  # type: ignore
 import pycparser.c_generator  # type: ignore
@@ -435,4 +436,9 @@ pathlib.Path("generated/libc_hooks.c").write_text(
             *static_args_wrapper_func_declarations,
         ])
     )
+)
+pathlib.Path("generated/libc_fns.csv").write_text(
+    "\n".join([
+        func_name for func_name, _ in funcs.items()
+    ])
 )

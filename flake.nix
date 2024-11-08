@@ -116,6 +116,7 @@
                 python.pkgs.pydot
                 python.pkgs.rich
                 python.pkgs.typer
+                python.pkgs.xdg-base-dirs
               ];
               nativeCheckInputs = [
                 frontend.packages.probe-py-generated
@@ -204,6 +205,7 @@
                   pypkgs.pytest
                   pypkgs.mypy
                   pypkgs.ipython
+                  pypkgs.xdg-base-dirs
 
                   # libprobe build time requirement
                   pypkgs.pycparser

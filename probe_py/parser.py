@@ -6,8 +6,8 @@ import json
 import tarfile
 import tempfile
 import contextlib
-from ..generated import ops
-from .types import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Op, Host
+from .ops import Op
+from .types import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host
 
 
 @contextlib.contextmanager
@@ -56,6 +56,7 @@ def parse_probe_log_ctx(probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
             ProbeOptions(
                 copy_files=copy_files,
             ),
+            host,
         )
 
 

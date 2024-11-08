@@ -3,7 +3,7 @@ import pathlib
 import typer
 import rich.console
 import rich.pretty
-from ..generated.parser import parse_probe_log, parse_probe_log_ctx
+from .parser import parse_probe_log, parse_probe_log_ctx
 from . import analysis
 from .workflows import MakefileGenerator
 from . import file_closure
@@ -34,22 +34,22 @@ def validate(
 ) -> None:
     """Sanity-check probe_log and report errors."""
     warning_free = True
-    with parse_probe_log_ctx(probe_log) as parsed_probe_log:
-        for inode, contents in parsed_probe_log.inodes.items():
+    with parse_probe_log_ctx(probe_log) as probe_log_obj:
+        for inode, contents in probe_log_obj.copied_files.items():
             content_length = contents.stat().st_size
             if inode.size != content_length:
                 console.print(f"Blob for {inode} has actual size {content_length}", style="red")
                 warning_free = False
         # At this point, the inode storage is gone, but the probe_log is already in memory
-    if should_have_files and not parsed_probe_log.has_inodes:
+    if should_have_files and not probe_log_obj.probe_options.copy_files:
         warning_free = False
         console.print("No files stored in probe log", style="red")
-    process_graph = analysis.provlog_to_digraph(parsed_probe_log)
-    for warning in analysis.validate_provlog(parsed_probe_log):
+    process_graph = analysis.probe_log_to_digraph(probe_log_obj)
+    for warning in analysis.validate_probe_log(probe_log_obj):
         warning_free = False
         console.print(warning, style="red")
-    process_graph = analysis.provlog_to_digraph(parsed_probe_log)
-    for warning in analysis.validate_hb_graph(parsed_probe_log, process_graph):
+    process_graph = analysis.probe_log_to_digraph(probe_log_obj)
+    for warning in analysis.validate_hb_graph(probe_log_obj, process_graph):
         warning_free = False
         console.print(warning, style="red")
     if not warning_free:
@@ -76,9 +76,9 @@ def ops_graph(
 
     Supports .png, .svg, and .dot
     """
-    prov_log = parse_probe_log(probe_log)
-    process_graph = analysis.provlog_to_digraph(prov_log)
-    analysis.color_hb_graph(prov_log, process_graph)
+    probe_log_obj = parse_probe_log(probe_log)
+    process_graph = analysis.probe_log_to_digraph(probe_log_obj)
+    analysis.color_hb_graph(probe_log, process_graph)
     graph_utils.serialize_graph(process_graph, output)
 
     
@@ -98,8 +98,8 @@ def dataflow_graph(
 
     Dataflow shows the name of each proceess, its read files, and its write files.
     """
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    probe_log_obj = parse_probe_log(probe_log)
+    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log_obj)
     graph_utils.serialize_graph(dataflow_graph, output)
 
 
@@ -117,7 +117,7 @@ def debug_text(
     with parse_probe_log_ctx(probe_log) as prov_log:
         for pid, process in sorted(prov_log.processes.items()):
             out_console.rule(f"{pid}")
-            for exid, exec_epoch in sorted(process.exec_epochs.items()):
+            for exid, exec_epoch in sorted(process.execs.items()):
                 out_console.rule(f"{pid} {exid}")
                 for tid, thread in sorted(exec_epoch.threads.items()):
                     out_console.rule(f"{pid} {exid} {tid}")
@@ -224,7 +224,7 @@ def makefile(
     Export the probe_log to a Makefile
     """
     prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    dataflow_graph = analysis.probe_log_to_dataflow_graph(prov_log)
     g = MakefileGenerator()
     output = pathlib.Path("Makefile")
     script = g.generate_makefile(dataflow_graph)

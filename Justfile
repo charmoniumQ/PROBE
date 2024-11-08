@@ -18,13 +18,13 @@ check-mypy:
     mypy --strict --package probe_py.manual
 
 compile-lib:
-    make --directory=probe_src/libprobe all
+    make --directory=libprobe all
 
 compile-cli:
-    env --chdir=probe_src/frontend cargo build --release
+    env --chdir=cli-wrapper cargo build --release
 
 compile-tests:
-    make --directory=probe_src/tests/c all
+    make --directory=tests/c all
 
 compile: compile-lib compile-cli compile-tests
 

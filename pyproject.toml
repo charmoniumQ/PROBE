@@ -1,0 +1,28 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "probe_py"
+authors = [
+    {name = "Samuel Grayson", email = "sam@samgrayson.me"},
+    {name = "Shofiya Bootwala"},
+    {name = "Saleha Muzammil"},
+    {name = "Asif Zubayer Palak"},
+    {name = "Kyrillos Ishak"},
+    {name = "Jenna Fligor"},
+]
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version", "description"]
+dependencies = [
+    "probe_py.generated",
+    "networkx",
+    "pygraphviz",
+    "pydot",
+    "rich",
+    "typer",
+]
+
+[project.urls]
+Home = "https://github.com/charmoniumQ/PROBE"
