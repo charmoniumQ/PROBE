@@ -1,4 +1,4 @@
-UNAME_S := $(shell uname -s)
+ UNAME_S := $(shell uname -s)
 
 SOURCE_VERSION ?= $(shell git rev-parse --short HEAD)
 CFLAGS_COMMON ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Wall -Wextra -pthread -fPIC $(NIX_CFLAGS_COMPILE)
@@ -37,7 +37,7 @@ build/lib%-dbg.$(LIB_EXTENSION): $(SOURCE_FILES) $(GENERATED_FILES)
 	gcc $(CFLAGS_COMMON) $(DBGCFLAGS) $(SHARED_LIB_FLAGS) $(EXTRA_LIBS) -o $@ src/lib.c
 
 $(GENERATED_FILES): $(wildcard generator/*)
-	./generator/gen_libc_hooks.py
+	./generator/gen_libc_hooks.py $(UNAME_S)
 
 install:
 	$(INSTALL_CMD)

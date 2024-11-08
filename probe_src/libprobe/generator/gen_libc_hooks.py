@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from __future__ import annotations
+import sys
 import dataclasses
 import pycparser  # type: ignore
 import pycparser.c_generator  # type: ignore
@@ -160,6 +161,24 @@ void_fn_ptr = pycparser.c_ast.Typename(
 )
 
 
+def find_decl(
+        block: typing.Sequence[Node],
+        name: str,
+        comment: typing.Any,
+) -> Decl | None:
+    relevant_stmts = [
+        stmt
+        for stmt in block
+        if isinstance(stmt, Decl) and stmt.name == name
+    ]
+    if not relevant_stmts:
+        return None
+    elif len(relevant_stmts) > 1:
+        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
+    else:
+        return relevant_stmts[0]
+
+
 @dataclasses.dataclass(frozen=True)
 class ParsedFunc:
     name: str
@@ -248,6 +267,26 @@ funcs = {
         if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
     },
 }
+if len(sys.argv) != 2:
+    raise RuntimeError("Need to pass exactly 1 arg")
+match sys.argv[1]:
+    case "Darwin":
+        compiling_for_linux = False
+    case "Linux":
+        compiling_for_linux = True
+    case _:
+        raise RuntimeError("First argument should be uname -s")
+platform_funcs = {}
+for func_name, func in funcs.items():
+    linux_only_field = find_decl(func.stmts, "linux_only", func.name)
+    linux_only_field_init = None if linux_only_field is None else linux_only_field.init
+    linux_only = linux_only_field_init is not None and linux_only_field_init.name == "true" # type: ignore
+    if linux_only and compiling_for_linux:
+        platform_funcs[func_name] = func
+    elif linux_only and not compiling_for_linux:
+        pass
+    else:
+        platform_funcs[func_name] = func
 # funcs = {
 #     key: val
 #     for key, val in list(funcs.items())
@@ -267,7 +306,7 @@ func_pointer_declarations = [
         init=None,
         bitsize=None,
     )
-    for func_name, func in funcs.items()
+    for func_name, func in platform_funcs.items()
 ]
 init_function_pointers = ParsedFunc(
     name="init_function_pointers",
@@ -288,7 +327,7 @@ init_function_pointers = ParsedFunc(
                 ),
             ),
         )
-        for func_name, func in funcs.items()
+        for func_name, func in platform_funcs.items()
     ],
 ).definition()
 
@@ -300,24 +339,6 @@ def raise_(exception: Exception) -> typing.NoReturn:
 
 def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
     return lambda *args, **kwarsg: raise_(exception)
-
-
-def find_decl(
-        block: typing.Sequence[Node],
-        name: str,
-        comment: typing.Any,
-) -> Decl | None:
-    relevant_stmts = [
-        stmt
-        for stmt in block
-        if isinstance(stmt, Decl) and stmt.name == name
-    ]
-    if not relevant_stmts:
-        return None
-    elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
-    else:
-        return relevant_stmts[0]
 
 
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
@@ -419,7 +440,7 @@ static_args_wrapper_func_declarations = [
         func,
         stmts=wrapper_func_body(func),
     ).definition()
-    for _, func in funcs.items()
+    for _, func in platform_funcs.items()
 ]
 pathlib.Path("generated/libc_hooks.h").write_text(
     GccCGenerator().visit(

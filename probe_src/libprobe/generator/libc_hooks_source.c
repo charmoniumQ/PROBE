@@ -304,6 +304,7 @@ int close (int filedes) {
     });
 }
 int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
+    bool linux_only = true;
     void* pre_call = ({
         if (flags != 0) {
             NOT_IMPLEMENTED("I don't know how to handle close_rnage flags yet");
