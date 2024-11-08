@@ -67,7 +67,7 @@
           margin-top: 3vw;
       }
       figure.contributor img {
-          height: 15vw;
+          height: 10vw;
           width: auto;
           margin: 0;
       }
@@ -85,169 +85,107 @@
     <div class="reveal">
       <div class="slides">
         <section>
-          <h1 style="font-weight: normal; font-size: 10vh;">PROBE4RSE: Provenance for Replay Observation Engine for Research Software Engineers</h1>
+          <h1 style="font-weight: normal; font-size: 10vh;">PROBE4RSE: Provenance Replay/Observation Engine for Research Software Engineers</h1>
           <p>
-            by <a href="https://samgrayson.me">Samuel Grayson</a>, <a href="https://rmmilewi.github.io/">Reed Milewicz</a>, <a href="https://danielskatz.org/">Daniel S. Katz</a>, and <a href="https://mir.cs.illinois.edu/marinov/">Darko Marinov</a>
-          </p>
-          <div style="background-color: white; padding: 2vw; width: auto;">
-          <img
-            alt="University of Illinois 'Block I' logo"
-            src="illinois.png"
-            style="height: 10vw; width: auto; padding: 2vw;"
+            by
+            <a href="https://samgrayson.me">Samuel&nbsp;Grayson</a><img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            /><img
+              alt="Sandia 'Thunderbird' logo"
+              src="./sandia.svg"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            />,
+            <a href="https://rmmilewi.github.io/">Reed&nbsp;Milewicz</a><img
+              alt="Sandia 'Thunderbird' logo"
+              src="./sandia.svg"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            />,
+            <a href="https://danielskatz.org/">Daniel&nbsp;S.&nbsp;Katz</a><img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            />,
+            and <a href="https://mir.cs.illinois.edu/marinov/">Darko&nbsp;Marinov</a><img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
             />
-          <img
+          </p>
+
+          <div style="display: grid; grid-template-columns: 7vw 40vw 7vw 40vw; grid-gap: 1vw; height:5vw; font-size: 2.5vw;">
+            <img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 100%: width: auto; margin-top: auto; margin-bottom: auto; vertical-align: middle;"
+            />
+          <span>
+            University of Illinois Urbana-Champaign
+          </span>
+            <img
             alt="Sandia National Laboratories 'Thunderbird' logo"
             src="sandia.svg"
-            style="height: 10vw; width: auto; padding: 2vw;"
+            style="height: 100%: width: auto; margin-top: auto; margin-bottom: auto; vertical-align: middle;"
             />
-          </div>
+          <span>
+            Sandia National Labs
+          </span>
         </section>
         <section>
           <h2>Takeaways</h2>
           <ol>
-            <li>Provenance is useful for computational scientists</li>
-            <li>Consider using <b><code>PROBE</code></b>. Let me know either way.</li>
+            <li>Provenance is useful (record/replay and more!)</li>
+            <li>Consider using <b><code>PROBE</code></b> to collect provenance.</li>
+            <li>Looking to collaborate on complex use-cases</li>
           </ol>
           <figure>
-            <img alt="QR code to https://github.com/charmoniumQ/PROBE" src="probe-qr.svg" />
+            <img alt="QR code to https://github.com/charmoniumQ/PROBE" src="data:image/gif;base64,R0lGODlhhACEAJEAAAAAAP///wAAAAAAACH5BAEAAAIALAAAAACEAIQAAAL/jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8chQNf2jedIfkM8T/kJf8Gh0bYb+o60ItPofAqT04c0KgVOssoD1PrEcnvbGgbpNS+0jutabUFL5BU6nUpuh9/Nyx3cFwcX8GfA1uCmUBixyNAICIDnqAP5pTgYlZlWZTh4+NgZmHAouUlkqhl6qopnh8kXCbvoykn4qidqaZtLyQo5iQMcq/p5i+jZ5UuMLCosPMu8ujvMGF3cXIZ9GQxbusytXM1bC3qsPdqLPk6tW+49fU2dap6nzm6d7o5qGn9m3GqM1j1y/7rxy4dv3TOE4OwBbKgvXLuEA+UdhJju3cRz/84u1hMocCHGhhqTTZu3sWJIWQzrlSTI0aCgc/0qFdxmcc5Nh34CtlxC8lfPmDj90fxpkyjPmTnpGW1aE5dLoUzFjIn2smLWrFcjwuuqcJ9ErGJPerxqtevWsivHrgOr9KFatmTdaqULdycLaCObypWhgu/HnaQAkxDclp5Xw09F3pW6eARiuHJBZpS59GtQqY7RnqVYTnBlvWVHczGt8nJRzLqAQs0LOrZS0Z/jJp3qIbRJy29J66wFQjfM1L1t/5YWnPBuin8/tHaufHjzb35P8H7dNzLOxDCuO56eIWoM7yyLVz/O/QX57cw3iG/skStlvI81Dz5q3Cx1+WDX2v99XxpV9vE3l10EpheOa+Bd55mB9AGYYDb3EXeeU5gtqJqFTCVW2HEdsWfePGkRCN9qIFIoooQcZqjghfG96KF7ddmTUjwd0jifBgjaZ2NLN6KWSHgzAikbhcLBxsGOQdbIYm1ZlIhjdtEZWeSKYVVV3oRHokbklfp9mSJ162nIY5Uz7tjiiWN+WKZ54qHpooMmfjlZiLf5Jw529eFZJ4p30hcmnT552Sd43wEqIZu0yRmln5Cd6RuZsE1543NzHmYmE65VahKbmLo5xqYZWprZp1SedlufW0KHH26KFSlqfmsmmuWITsZaIYlD6elVj5s1ilKTnNWqIqx/xrjfrov/tqnloE8W26qtcy45aqjQ6iltZtT+2mCey+Kq6B7JqtnpsaWam6Sz76R57rhC/golnuyuC+O7rsaLKLLtDigjvLuGK6u6xOroo7j8iokUuf0pm2mzoPbVWY51FKxpvdvyOmmuAzPr66kTRrwwY4JyGym9J4o8rLsm5wkuygC7qh2YG7us66W0Ppofrt3+mGXHNXeQsaPeLgdxvelOamiqFNfH84YSN92ozw+WLGCwRZ889WxTBsouhAePfG+ANqc8sZ0Rujvr2Pt6evPXhWZd4ar6pnQg0RiHvDZrdtctXc/Wqv3ymw0rmTHbZNMNN+IKPwu43n0jbDbY3/7btuLMlGIY+cpcOy4Ng+39JzDBAT/MtN1Wwkx149PufS2cWKNd7uGso5fw0JGTGnjtOg9pbse9Gnv2q1fbLjTucbLcuu7XYq5x8PMqPXy2XhuOPO2Pl+3wnlW3vXv0y1scadBcci41o8khfSv5S8vLKpLprz7c6abmNT78ndceM836789///7/D8AACnCABCygAQ+IwARuoAAAOw==" style="height: 15vw"/>
             <figcaption><a href="https://github.com/charmoniumQ/PROBE">https://github.com/charmoniumQ/PROBE</a></figcaption>
           </figure>
         </section>
         <section>
+          <h2>Has this every happend to you?</h2>
+          <img
+            alt="Read based prior work; Find FAIR artifact; Run their code; FileNotFound"
+            src="https://i.imgflip.com/971i6i.jpg" />
+        </section>
+        <section>
+          <h2>What is provenance?</h2>
+          <img
+            style="height: 60%; width: auto;"
+            alt="Lab notebook"
+            src="https://upload.wikimedia.org/wikipedia/commons/0/0c/AGBell_Notebook.jpg" />
+        </section>
+        <section>
           <h2>What is computational provenance?</h2>
           <ol>
-            <li>Process by which a comp. artifact (often a file) was generated</li>
+            <li>Process by which a file was generated</li>
             <li>The inputs to that process</li>
             <li>The provenance of those inputs (recursively)</li>
           </ol>
-          <p>Expressible as a graph whose nodes are processes or files</p>
+          <p>Graph on processes and files</p>
         </section>
         <section>
           <h2>Comp. Provenance Example</h2>
-          <table>
-            <thead>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="nowrap" style="width: 15em;">
-                  <pre>
-                    <code>
-curl http://...
-python script.py
-                    </code>
-                  </pre>
-                </td>
-                <td class="">
-                  <svg width="331pt" height="332pt" viewBox="0.00 0.00 331.33 332.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-
-                    <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 328)">
-                      <title>prov_example</title>
-                      <polygon fill="white" stroke="none" points="-4,4 -4,-328 327.33,-328 327.33,4 -4,4">
-                      </polygon>
-                      <g id="node1" class="node">
-                        <title>curl_ins</title>
-                        <text text-anchor="middle" x="73.83" y="-301.32" font-family="Times,serif" font-size="14.00">...</text>
-                      </g>
-                      <g id="node2" class="node">
-                        <title>curl</title>
-                        <ellipse fill="none" stroke="black" cx="73.83" cy="-234" rx="73.83" ry="18"></ellipse>
-                        <text text-anchor="middle" x="73.83" y="-229.32" font-family="Times,serif" font-size="14.00">curl http://...</text>
-                      </g>
-                      <g id="edge1" class="edge">
-                        <title>curl_ins&#45;&gt;curl</title>
-                        <path fill="none" stroke="black" d="M73.83,-288.05C73.83,-280.68 73.83,-271.84 73.83,-263.51"></path>
-                        <polygon fill="black" stroke="black" points="77.33,-263.79 73.83,-253.79 70.33,-263.79 77.33,-263.79"></polygon>
-                      </g>
-                      <g id="node3" class="node">
-                        <title>data</title>
-                        <polygon fill="none" stroke="black" points="105.46,-180 36.21,-180 36.21,-144 111.46,-144 111.46,-174 105.46,-180"></polygon>
-                        <polyline fill="none" stroke="black" points="105.46,-180 105.46,-174"></polyline>
-                        <polyline fill="none" stroke="black" points="111.46,-174 105.46,-174"></polyline>
-                        <text text-anchor="middle" x="73.83" y="-157.32" font-family="Times,serif" font-size="14.00">data.csv</text>
-                      </g>
-                      <g id="edge2" class="edge">
-                        <title>curl&#45;&gt;data</title>
-                        <path fill="none" stroke="black" d="M73.83,-215.7C73.83,-208.41 73.83,-199.73 73.83,-191.54"></path>
-                        <polygon fill="black" stroke="black" points="77.33,-191.62 73.83,-181.62 70.33,-191.62 77.33,-191.62"></polygon>
-                      </g>
-                      <g id="node7" class="node">
-                        <title>proc1</title>
-                        <ellipse fill="none" stroke="black" cx="168.83" cy="-90" rx="93.3" ry="18"></ellipse>
-                        <text text-anchor="middle" x="168.83" y="-85.33" font-family="Times,serif" font-size="14.00">python script.py</text>
-                      </g>
-                      <g id="edge4" class="edge">
-                        <title>data&#45;&gt;proc1</title>
-                        <path fill="none" stroke="black" d="M97.31,-143.7C109.25,-134.9 123.94,-124.08 136.89,-114.54"></path>
-                        <polygon fill="black" stroke="black" points="138.75,-117.51 144.73,-108.76 134.6,-111.87 138.75,-117.51"></polygon>
-                      </g>
-                      <g id="node4" class="node">
-                        <title>script</title>
-                        <polygon fill="none" stroke="black" points="202.33,-180 129.33,-180 129.33,-144 208.33,-144 208.33,-174 202.33,-180"></polygon>
-                        <polyline fill="none" stroke="black" points="202.33,-180 202.33,-174"></polyline>
-                        <polyline fill="none" stroke="black" points="208.33,-174 202.33,-174"></polyline>
-                        <text text-anchor="middle" x="168.83" y="-157.32" font-family="Times,serif" font-size="14.00">script.py</text>
-                      </g>
-                      <g id="edge5" class="edge">
-                        <title>script&#45;&gt;proc1</title>
-                        <path fill="none" stroke="black" d="M168.83,-143.7C168.83,-136.41 168.83,-127.73 168.83,-119.54"></path>
-                        <polygon fill="black" stroke="black" points="172.33,-119.62 168.83,-109.62 165.33,-119.62 172.33,-119.62"></polygon>
-                      </g>
-                      <g id="node5" class="node">
-                        <title>py_ins</title>
-                        <text text-anchor="middle" x="274.83" y="-229.32" font-family="Times,serif" font-size="14.00">...</text>
-                      </g>
-                      <g id="node6" class="node">
-                        <title>python</title>
-                        <polygon fill="none" stroke="black" points="317.33,-180 226.33,-180 226.33,-144 323.33,-144 323.33,-174 317.33,-180"></polygon>
-                        <polyline fill="none" stroke="black" points="317.33,-180 317.33,-174"></polyline>
-                        <polyline fill="none" stroke="black" points="323.33,-174 317.33,-174"></polyline>
-                        <text text-anchor="middle" x="274.83" y="-157.32" font-family="Times,serif" font-size="14.00">/bin/python</text>
-                      </g>
-                      <g id="edge3" class="edge">
-                        <title>py_ins&#45;&gt;python</title>
-                        <path fill="none" stroke="black" d="M274.83,-216.05C274.83,-208.68 274.83,-199.84 274.83,-191.51"></path>
-                        <polygon fill="black" stroke="black" points="278.33,-191.79 274.83,-181.79 271.33,-191.79 278.33,-191.79"></polygon>
-                      </g>
-                      <g id="edge6" class="edge">
-                        <title>python&#45;&gt;proc1</title>
-                        <path fill="none" stroke="black" d="M248.36,-143.52C234.77,-134.55 218.06,-123.51 203.47,-113.87"></path>
-                        <polygon fill="black" stroke="black" points="205.77,-111.2 195.5,-108.61 201.92,-117.04 205.77,-111.2"></polygon>
-                      </g>
-                      <g id="node8" class="node">
-                        <title>fig</title>
-                        <polygon fill="none" stroke="black" points="207.58,-36 124.08,-36 124.08,0 213.58,0 213.58,-30 207.58,-36"></polygon>
-                        <polyline fill="none" stroke="black" points="207.58,-36 207.58,-30"></polyline>
-                        <polyline fill="none" stroke="black" points="213.58,-30 207.58,-30"></polyline>
-                        <text text-anchor="middle" x="168.83" y="-13.32" font-family="Times,serif" font-size="14.00">figure.png</text>
-                      </g>
-                      <g id="edge7" class="edge">
-                        <title>proc1&#45;&gt;fig</title>
-                        <path fill="none" stroke="black" d="M168.83,-71.7C168.83,-64.41 168.83,-55.73 168.83,-47.54"></path>
-                        <polygon fill="black" stroke="black" points="172.33,-47.62 168.83,-37.62 165.33,-47.62 172.33,-47.62">
-                        </polygon>
-                      </g>
-                    </g>
-                  </svg>
-                </td>
-              </tr>
-            </tbody>
-            <tfoot>
-            </tfoot>
-          </table>
+            <div>
+              <code>curl -o data.csv http://data.com
+python script.py</code>
+            </div>
+            <img src="prov-example.svg" class="fragment" />
         </section>
-        <section>
+        <section data-visibility="hidden">
           <h2>What is it good for?</h2>
           <ul>
             <li class="fragment">Understanding dataflow</li>
-            <li class="fragment">Create a Makefile automatically</li>
-            <li class="fragment">What parameter of X did this output use?</li>
-            <li class="fragment">What runtime libraries does this process use</li>
+            <li class="fragment">Create (correct) Makefile automatically</li>
+            <li class="fragment">What runtime libraries does this app use</li>
             <li class="fragment">Record on host / replay in Docker</li>
-            <li class="fragment">How do the intermediates of these two processes differ?</li>
-            <li class="fragment" style="font-size: 150%; color: red; text-align: center; font-weight: bold;">RSE</li>
+            <!-- <li class="fragment">How do the intermediates of these two processes differ?</li> -->
           </ul>
+          <p class="fragment" style="font-size: 150%; color: red; text-align: center; font-weight: bold;">All things of interest for RSE</p>
         </section>
-        <section>
+        <section data-visibility="hidden">
           <h2>Why now?</h2>
           <ul>
             <li class="fragment">Initial work dates to 1998 (<a href="https://www.usenix.org/legacy/publications/library/proceedings/usenix98/full_papers/vahdat/vahdat.pdf">Vahdat and Anderson</a>) at least</li>
@@ -256,79 +194,91 @@ python script.py
           </ul>
         </section>
         <section>
+          <h2>Prior works in provenance collection</h2>
+          <ul>
+            <li>
+              Workflow-level provenance
+            </li>
+            <li>Language-level provenance</li>
+            <li>Provenance standards (PASSv2, OpenLineage)</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Prior works in record/replay</h2>
+          <ul>
+            <li>
+              CDE (<a href="https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf">Guo and Engler 2011</a>),
+              Sciunit (<a href="https://doi.org/10.1109/eScience.2017.51">Ton That et al. 2017</a>),
+              RR (<a href="http://arxiv.org/abs/1705.05937">O'Callahan et al. 2017</a>),
+              CARE (<a href="https://dl.acm.org/doi/10.1145/2618137.2618138">Yves et al. 2014</a>),
+              ReproZip (<a href="https://dl.acm.org/doi/10.1145/2882903.2899401">Chirigati et al. 2016</a>)
+            </li>
+            <li>Speed</li>
+            <li>Robustness of reproducibility</li>
+            <li>Openness to downstream analysis</li>
+            <li>Reuse environment for new exe</li>
+          </ul>
+        </section>
+        <section>
           <h2>PROBE</h2>
           <ul>
-            <li><code>LD_PRELOAD</code> <span style="color: red">Incomplete!</span> but good enough in most cases</li>
-            <li>Less than 2x slowdown in most cases (working on improving)</li>
+            <li><code>LD_PRELOAD</code> <span style="color: red">incomplete!</span> but good enough in practice</li>
+            <li>Less than 2x slowdown in most cases (improving)</li>
             <li>No root!</li>
-            <li>User-global provenance store</li>
-            <li><code>probe record <your-command-here></code></li>
-            <li>Active team of 6; development in the open</li>
+            <li><code>$ probe record &lt;your-command-here&gt;</code></li>
+            <li>2 implemented and 2 planned features</li>
           </ul>
         </section>
         <section>
           <h2>Understand dataflow in your pile of scripts</h2>
-          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./defudge.py</span>
-<span class="fragment">$ probe record ./make_plots.py</span>
-<span class="fragment">$ probe export dataflow-gv plots.png</span></code></pre>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export dataflow-graph</span></code></pre>
           <figure class="contributor">
             <img
               alt="Shofiya Bootwala"
-              src="https://avatars.githubusercontent.com/u/86974918?v=4"
+              src="./photo-1.webp"
               />
-            <figcaption>Contributed by Shofiya Bootwala (applying for PhD)</figcaption>
+            <figcaption>Contributed by Shofiya Bootwala (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
-          <h2>Create Makefile automatically</h2>
-          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./defudge.py</span>
-<span class="fragment">$ probe record ./make_plots.py</span>
-<span class="fragment">$ probe export makefile plots.png</span>
-<span class="fragment">$ cat Makefile
-plots.png: input.csv</span><span class="fragment"> make_plots.py</span><span class="fragment"> /bin/python</span>
-<span class="fragment">    ./make_plots.py</span>
-<span class="fragment">input.csv: defudge.py</span></code></pre>
-          <figure class="contributor">
-            <img
-              alt="Kyrillos Ishak"
-              src="https://media.licdn.com/dms/image/v2/D4D03AQGhnGuAH8b0uQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1728493902354?e=1733961600&v=beta&t=Rpw7PAkjSrzpKiEHjn8s374wNVAejQ_2CK9S5cCkyFI"
-              />
-            <figcaption>Contributed by Kyrillos Ishak (applying for PhD)</figcaption>
-          </figure>
+          <img alt="example dataflow graph" src="dataflow-graph.png" />
         </section>
         <section>
           <h2>Create container automatically</h2>
-          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./defudge.py</span>
-<span class="fragment">$ probe record ./make_plots.py</span>
-<span class="fragment">$ probe export docker plots.png # or singularity, podman, oci</span>
-<span class="fragment">$ docker load &lt; dockerimage --tag make-plots</span>
-<span class="fragment">$ docker run -v /out:$PWD/oute &lt; make-plots</span>
-<span class="fragment">$ ls /out
-plots.png</span></code></pre>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
+<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
           <figure class="contributor">
             <img
               alt="Asif Zubayer Palak"
               src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=lwLSWCgAAAAJ&citpid=1"
               />
-            <figcaption>Contributed by Asif Zubayer Palak (applying for PhD)</figcaption>
+            <figcaption>Contributed by Asif Zubayer Palak (new grad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
-          <h2>What version did I use?</h2>
-          <pre style="white-space: pre-line; font-size: 5vh;">
-            <code>
-              <span class="fragment">$ probe record ./make_plots.py data.csv plot.png</span>
-              <span class="fragment">$ ... many moons later</span>
-              <span class="fragment">$ probe export files plot.png</span>
-              <span class="fragment">$ ls files/data.csv</span>
-            </code>
-          </pre>
-          <p class="fragment">Only the relevant copy of <code>data.csv</code> is stored (i.e., replaced if <code>make_plots.py</code> is rerun)</p>
+          <h2>Create Makefile automatically (planned feature)</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh 42</span>
+<span class="fragment">$ probe export makefile</span>
+<span class="fragment">$ cat Makefile
+input.csv: generate_data.py /bin/python
+    ./generate_data.py --foo=42
+plot.png: input.csv plot.py /bin/python
+    ./plot.py
+</span></code></pre>
+          <figure class="contributor">
+            <img
+              alt="Kyrillos Ishak"
+              src="https://media.licdn.com/dms/image/v2/D4D03AQGhnGuAH8b0uQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1728493902354?e=1733961600&v=beta&t=Rpw7PAkjSrzpKiEHjn8s374wNVAejQ_2CK9S5cCkyFI"
+              />
+            <figcaption>Contributed by Kyrillos Ishak (new grad applying for PhD)</figcaption>
+          </figure>
         </section>
         <section>
-          <h2>What libraries does cmd use?</h2>
-          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./make_plots.py data.csv plot.png</span>
-<span class="fragment">$ probe detect-libs plot.png -o closure
+          <h2>What libraries does cmd use? (Planned feature)</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export libs
   apt-get:
     - name: python3
       version: 3.12.4
@@ -342,61 +292,56 @@ plots.png</span></code></pre>
           <h2>Performance and portability</h2>
           <ul>
             <!-- <li>No standard benchmarks for system-level prov before <a href="https://dl.acm.org/doi/abs/10.1145/3641525.3663627">Grayson et al. 2023 ACM REP</a></li> -->
-            <li class="fragment">Python → Rust core (static) + Python extensions</li>
-            <li class="fragment">Less than 2x overhead on provenance benchmark suite (<a href="https://dl.acm.org/doi/abs/10.1145/3589806.3600037">Grayson et al. 2023 ACM REP</a>)</li>
+            <li class="fragment">Rust record (statically-linked) + Python extras</li>
+            <!-- <li class="fragment">Less than 2x overhead on provenance benchmark suite (<a href="https://dl.acm.org/doi/abs/10.1145/3589806.3600037">Grayson et al. 2023 ACM REP</a>)</li> -->
+            <li class="fragment">Preliminary results show <code>LD_PRELOAD</code> (1.1x) faster than <code>ptrace</code> (2x)</li>
           </ul>
           <figure class="contributor">
             <img
+              src="./photo-2.jpg"
               alt="Jenna Fligor"
-              src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fwww.pikpng.com%2Fpngl%2Fb%2F227-2276314_woman-icon-people-icon-3d-png-clipart.png&f=1&nofb=1&ipt=45512c8faf68d3c5366acf4570eb8c49143d64c6fc629d5daeadf3e6996fa8d7&ipo=images"
               />
-            <figcaption>Python → Rust by Jenna Fligor (applying for internships)</figcaption>
+            <figcaption>Python → Rust by Jenna Fligor (ugrad applying for internships)</figcaption>
           </figure>
           <figure class="contributor">
             <img
               alt="Saleha Muzammil"
               src="https://avatars.githubusercontent.com/u/84681153?v=4"
               />
-            <figcaption>Performance analysis by Saleha Muzammil (applying for internships)</figcaption>
+            <figcaption>Performance analysis by Saleha Muzammil (newgrad applying for PhD)</figcaption>
           </figure>
         </section>
         <section>
-          <h2>Future work</h2>
+          <h2>Future prov applications</h2>
           <ul>
-            <li>Automatic environment mutation</li>
+            <li>Remote provenance</li>
             <li>Compare two runs (diff of intermediate results)</li>
-            <li>Performance characterization</li>
+            <li>Using provenance to generate Spack package</li>
+            <li>Interoperable prov representation</li>
           </ul>
         </section>
-        <section>
+        <section data-visibility="hidden">
           <h2>Difficulty of translational CS</h2>
           <div style="background-color: white;">
             <img src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fdavidabramson.org%2Fwp-content%2Fuploads%2F2022%2F10%2Fimage.png&f=1&nofb=1&ipt=f5a3ce0f2b009ee5c1b83cc6ab16eddd19608d751d28b75464a6d9d3d53e3dcf&ipo=images" />
           </div>
         </section>
         <section>
-          <h2>Collaboration</h2>
-          <ul>
-            <li>Sandia National Laboratories</li>
-            <li></li>
-          </ul>
-        </section>
-        <section>
-          <h2>Invitation for collaboration</h2>
-          <ul>
-            <li>Using provenance to generate Spack</li>
-            <li>Combine with workflow-level provenance (Parsl)</li>
-            <li>Build installer</li>
-            <li><a href="mailto:sam@samgrayson.me">sam@samgrayson.me</a></li>
-            <li>
-              <figure>
-                <img src="./probe-qr.svg" style="width: 20%; vertical-align: top;"/>
+          <h2>Thank you</h2>
+          <p>Please give us feedback and issues</p>
+          <figure class="contributor">
+                <img src="data:image/gif;base64,R0lGODlhhACEAJEAAAAAAP///wAAAAAAACH5BAEAAAIALAAAAACEAIQAAAL/jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8chQNf2jedIfkM8T/kJf8Gh0bYb+o60ItPofAqT04c0KgVOssoD1PrEcnvbGgbpNS+0jutabUFL5BU6nUpuh9/Nyx3cFwcX8GfA1uCmUBixyNAICIDnqAP5pTgYlZlWZTh4+NgZmHAouUlkqhl6qopnh8kXCbvoykn4qidqaZtLyQo5iQMcq/p5i+jZ5UuMLCosPMu8ujvMGF3cXIZ9GQxbusytXM1bC3qsPdqLPk6tW+49fU2dap6nzm6d7o5qGn9m3GqM1j1y/7rxy4dv3TOE4OwBbKgvXLuEA+UdhJju3cRz/84u1hMocCHGhhqTTZu3sWJIWQzrlSTI0aCgc/0qFdxmcc5Nh34CtlxC8lfPmDj90fxpkyjPmTnpGW1aE5dLoUzFjIn2smLWrFcjwuuqcJ9ErGJPerxqtevWsivHrgOr9KFatmTdaqULdycLaCObypWhgu/HnaQAkxDclp5Xw09F3pW6eARiuHJBZpS59GtQqY7RnqVYTnBlvWVHczGt8nJRzLqAQs0LOrZS0Z/jJp3qIbRJy29J66wFQjfM1L1t/5YWnPBuin8/tHaufHjzb35P8H7dNzLOxDCuO56eIWoM7yyLVz/O/QX57cw3iG/skStlvI81Dz5q3Cx1+WDX2v99XxpV9vE3l10EpheOa+Bd55mB9AGYYDb3EXeeU5gtqJqFTCVW2HEdsWfePGkRCN9qIFIoooQcZqjghfG96KF7ddmTUjwd0jifBgjaZ2NLN6KWSHgzAikbhcLBxsGOQdbIYm1ZlIhjdtEZWeSKYVVV3oRHokbklfp9mSJ162nIY5Uz7tjiiWN+WKZ54qHpooMmfjlZiLf5Jw529eFZJ4p30hcmnT552Sd43wEqIZu0yRmln5Cd6RuZsE1543NzHmYmE65VahKbmLo5xqYZWprZp1SedlufW0KHH26KFSlqfmsmmuWITsZaIYlD6elVj5s1ilKTnNWqIqx/xrjfrov/tqnloE8W26qtcy45aqjQ6iltZtT+2mCey+Kq6B7JqtnpsaWam6Sz76R57rhC/golnuyuC+O7rsaLKLLtDigjvLuGK6u6xOroo7j8iokUuf0pm2mzoPbVWY51FKxpvdvyOmmuAzPr66kTRrwwY4JyGym9J4o8rLsm5wkuygC7qh2YG7us66W0Ppofrt3+mGXHNXeQsaPeLgdxvelOamiqFNfH84YSN92ozw+WLGCwRZ889WxTBsouhAePfG+ANqc8sZ0Rujvr2Pt6evPXhWZd4ar6pnQg0RiHvDZrdtctXc/Wqv3ymw0rmTHbZNMNN+IKPwu43n0jbDbY3/7btuLMlGIY+cpcOy4Ng+39JzDBAT/MtN1Wwkx149PufS2cWKNd7uGso5fw0JGTGnjtOg9pbse9Gnv2q1fbLjTucbLcuu7XYq5x8PMqPXy2XhuOPO2Pl+3wnlW3vXv0y1scadBcci41o8khfSv5S8vLKpLprz7c6abmNT78ndceM836789///7/D8AACnCABCygAQ+IwARuoAAAOw=="/>
                 <figcaption>
                   <a href="https://github.com/charmoniumQ/PROBE">https://github.com/charmoniumQ/PROBE</a>
                 </figcaption>
               </figure>
-            </li>
-          </ul>
+          <figure class="contributor">
+                <img src="data:image/gif;base64,R0lGODlhdAB0AJEAAAAAAP///wAAAAAAACH5BAEAAAIALAAAAAB0AHQAAAL/jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrZuCcTyTNc2MyP2DuiyzwveJsIiDfc7GJOGnHJppECjC2cTCuw9p0Ept1tlBqbZ7LfmjWGsCXIYvdVa2BA6UWwWIuFX9cXuABgh6KawU/aH9yBYp9hHZTj0uObYwFaEOPkm1ybZ6fd4GJfGiTl6Ggn6ebSZxzdWuVeqhwqrmrlKKGaqKXFJ22vLies6XMsrTFr8q4q8XMnMQ7y4C5wcJ5oq3Yrtycgd6l0Npp29+twcCy5sHm2ObhyM/K0Nj0tvOT6bTn7tq99OHyV++woGvEWN4MGCAxkes4bvHkSBiQhK7BexlrJu/wrFIQy28d/HQQBLvtI1slHKdSHZmWQFUuOdlfUqGnwZTVZDUmdg+vuZ82HPVyqHBpVHEanRjOGMXnSo9KbTmUstCoUKtKo6FQuPvnDRNenXFmGtjiXr0SdTtB2X8DwD753NuJ6K9qRLdC5HSCSnNuW7c6+zhEPx+myID2W8rCMVF+Mgt6bkczJjRl0rKzG0zWYpT45cAfQ0y4wXO94LQnFZ00tH59qar/HEvH8L/cwMW+em1bi/uH6st1xa1XArv6bZVy3nbVHtUcW8W6zz5oJzo96wsLfyzoMD1bXpdXpp8Xatfx6eVrs7nNKpAq/dHn5bqdsXF33v8uRy3tU7t/9cHV5/9Im3lmay+XfdebTdFlxsrCH4l24RstSghJ4xOKGChxnXkoVPaWchaNBpSBxy6qGH0XfezQcieLPxJdo6IqqY3DxYJJgcfjo+96KNC3p4FXnGZcejiUOK1R2G+WFVnpGkeZVkiUwSVuByT814YH1vOankXUU+yMWOIoFpW5Nk3phhaPuhWeOabuHYoYAxCpelbXOyNeVlsI04VoB6IsfnV36WZqB9Zzno2nqAmqemVmf6FiSOdxoWZWuRpjmpnGxSmt5VihpKZ2HRQUodpjQCOWaijBZ6n3sNnpYqYa3GOkd8SqJ6Ia66ynokl6zySuuSUKLo6KavvohfsaKtavDpsPopS2oGzSJJLLTWBCYfVoVu2+OpMiLLIZyjMifsquxxt6e32U7r67napvujpvNVOS+1/bRY6oX00ucsufiO92279aJ777gfBgyqvuBma+bBGsYZrJjHaSkuabuu+GjCPg5IIcbYTmxmv7DmWGHFE4ts5Zdepinkk+5uueySJ2YZ4rVUWsqygLiymzCnKS5YKc06H0p00UYfjXTSSi/NdNNOPw111FJPXQAAOw=="/>
+                <figcaption>
+                  <a href="mailto:sam@samgrayson.me">sam@samgrayson.me</a>
+                </figcaption>
+              </figure>
+
         </section>
       </div>
     </div>

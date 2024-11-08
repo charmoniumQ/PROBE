@@ -6,16 +6,19 @@ struct Path {
     ino_t inode;
     struct statx_timestamp mtime;
     struct statx_timestamp ctime;
+    size_t size;
     bool stat_valid;
     bool dirfd_valid;
 };
 
-static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, false, false};
+static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, false};
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 
 struct InitProcessOp {
     pid_t pid;
+    bool is_root;
+    struct Path cwd;
 };
 
 struct InitExecEpochOp {
@@ -85,11 +88,29 @@ struct AccessOp {
     int ferrno;
 };
 
+struct StatResult {
+    uint32_t mask;
+    uint32_t nlink;
+    uint32_t uid;
+    uint32_t gid;
+    uint16_t mode;
+    uint64_t ino;
+    uint64_t size;
+    uint64_t blocks;
+    uint32_t blksize;
+    struct statx_timestamp atime;
+    struct statx_timestamp btime;
+    struct statx_timestamp ctime;
+    struct statx_timestamp mtime;
+    uint32_t dev_major;
+    uint32_t dev_minor;
+};
+
 struct StatOp {
     struct Path path;
     int flags;
-    struct statx statx_buf;
     int ferrno;
+    struct StatResult stat_result;
 };
 
 struct ReaddirOp {

@@ -1,8 +1,12 @@
+from __future__ import annotations
+import os
+import contextlib
+import tempfile
 import pathlib
 import typing
 import json
 import tarfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from . import ops
 
 @dataclass(frozen=True)
@@ -23,53 +27,73 @@ class ProcessProvLog:
 
 
 @dataclass(frozen=True)
+class InodeVersionLog:
+    device_major: int
+    device_minor: int
+    inode: int
+    tv_sec: int
+    tv_nsec: int
+    size: int
+
+    @staticmethod
+    def from_path(path: pathlib.Path) -> InodeVersionLog:
+        s = path.stat()
+        return InodeVersionLog(
+            os.major(s.st_dev),
+            os.minor(s.st_dev),
+            s.st_ino,
+            s.st_mtime_ns // int(1e9),
+            s.st_mtime_ns %  int(1e9),
+            s.st_size,
+        )
+
+
+@dataclass(frozen=True)
 class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
+    inodes: typing.Mapping[InodeVersionLog, pathlib.Path]
+    has_inodes: bool
 
-def parse_probe_log(probe_log: pathlib.Path) -> ProvLog:
-    op_map: typing.Dict[int, typing.Dict[int, typing.Dict[int, ThreadProvLog]]] = {}
+@contextlib.contextmanager
+def parse_probe_log_ctx(
+        probe_log: pathlib.Path,
+) -> typing.Iterator[ProvLog]:
+    """Parse probe log; return provenance data and inode contents"""
+    with tempfile.TemporaryDirectory() as _tmpdir:
+        tmpdir = pathlib.Path(_tmpdir)
+        with tarfile.open(probe_log, mode="r") as tar:
+            tar.extractall(tmpdir, filter="data")
+        has_inodes = (tmpdir / "info" / "copy_files").exists()
+        inodes = {
+            InodeVersionLog(*[
+                int(segment, 16)
+                for segment in file.name.split("-")
+            ]): file
+            for file in (tmpdir / "inodes").iterdir()
+        } if (tmpdir / "inodes").exists() else {}
 
-    tar = tarfile.open(probe_log, mode='r')
+        processes = {}
+        for pid_dir in (tmpdir / "pids").iterdir():
+            pid = int(pid_dir.name)
+            epochs = {}
+            for epoch_dir in pid_dir.iterdir():
+                epoch = int(epoch_dir.name)
+                tids = {}
+                for tid_file in epoch_dir.iterdir():
+                    tid = int(tid_file.name)
+                    # read, split, comprehend, deserialize, extend
+                    jsonlines = tid_file.read_text().strip().split("\n")
+                    tids[tid] = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
+                epochs[epoch] = ExecEpochProvLog(epoch, tids)
+            processes[pid] = ProcessProvLog(pid, epochs)
+        yield ProvLog(processes, inodes, has_inodes)
 
-    for item in tar:
-        # items with size zero are directories in the tarball
-        if item.size == 0:
-            continue
-
-        # extract and name the hierarchy components
-        parts = item.name.split("/")
-        if len(parts) != 3:
-            raise ValueError("malformed probe log")
-        pid: int = int(parts[0])
-        epoch: int = int(parts[1])
-        tid: int = int(parts[2])
-
-        # ensure necessary dict objects have been created
-        if pid not in op_map:
-            op_map[pid] = {}
-        if epoch not in op_map[pid]:
-            op_map[pid][epoch] = {}
-
-        # extract file contents as byte buffer
-        file = tar.extractfile(item)
-        if file is None:
-            raise IOError("Unable to read jsonlines from probe log")
-
-        # read, split, comprehend, deserialize, extend
-        jsonlines = file.read().strip().split(b"\n")
-        ops = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
-        op_map[pid][epoch][tid] = ops
-
-    return ProvLog({
-        pid: ProcessProvLog(
-            pid,
-            {
-                epoch: ExecEpochProvLog(epoch, threads)
-                for epoch, threads in epochs.items()
-            },
-        )
-        for pid, epochs in op_map.items()
-    })
+def parse_probe_log(
+        probe_log: pathlib.Path,
+) -> ProvLog:
+    """Parse probe log; return provenance data, but throw away inode contents"""
+    with parse_probe_log_ctx(probe_log) as prov_log:
+        return replace(prov_log, has_inodes=False, inodes={})
 
 def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
     ty: str = json_map["_type"]

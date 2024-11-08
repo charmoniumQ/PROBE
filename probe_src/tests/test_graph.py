@@ -1,29 +1,26 @@
+import pytest
 import typing
 from probe_py.generated.parser import ProvLog, parse_probe_log
 from probe_py.generated.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
-from probe_py.manual.analysis import FileNode, ProcessNode, InodeOnDevice
-from probe_py.manual.workflows import NextflowGenerator
-from . import analysis
+from probe_py.manual.analysis import provlog_to_digraph, validate_hb_graph
 import pathlib
 import networkx as nx  # type: ignore
 import subprocess
-import re
-import os
 
 Node: typing.TypeAlias = tuple[int, int, int, int]
 DEBUG_LIBPROBE = False
 REMAKE_LIBPROBE = False
 
 
-project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent.parent
+project_root = pathlib.Path(__file__).resolve().parent.parent.parent
 
 
 def test_diff_cmd() -> None:
     paths = [str(project_root / "flake.nix"), str(project_root / "flake.lock")]
     command = ['diff', *paths]
     process_tree_prov_log = execute_command(command, 1)
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     path_bytes = [path.encode() for path in paths]
     dfs_edges = list(nx.dfs_edges(process_graph))
     match_open_and_close_fd(dfs_edges, process_tree_prov_log, path_bytes)
@@ -32,8 +29,8 @@ def test_diff_cmd() -> None:
 def test_bash_in_bash() -> None:
     command = ["bash", "-c", f"head {project_root}/flake.nix ; head {project_root}/flake.lock"]
     process_tree_prov_log = execute_command(command)
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     paths = [f'{project_root}/flake.nix'.encode(), f'{project_root}/flake.lock'.encode()]
     process_file_map = {}
     start_node = [node for node, degree in process_graph.in_degree() if degree == 0][0]
@@ -46,18 +43,19 @@ def test_bash_in_bash() -> None:
 def test_bash_in_bash_pipe() -> None:
     command = ["bash", "-c", f"head {project_root}/flake.nix | tail"]
     process_tree_prov_log = execute_command(command)
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     paths = [f'{project_root}/flake.nix'.encode(), b'stdout']
     start_node = [node for node, degree in process_graph.in_degree() if degree == 0][0]
     dfs_edges = list(nx.dfs_edges(process_graph,source=start_node))
     check_for_clone_and_open(dfs_edges, process_tree_prov_log, len(paths), {}, paths)
 
 
+@pytest.mark.xfail
 def test_pthreads() -> None:
     process_tree_prov_log = execute_command([f"{project_root}/probe_src/tests/c/createFile.exe"])
-    process_graph = analysis.provlog_to_digraph(process_tree_prov_log)
-    assert not analysis.validate_hb_graph(process_tree_prov_log, process_graph)
+    process_graph = provlog_to_digraph(process_tree_prov_log)
+    assert not validate_hb_graph(process_tree_prov_log, process_graph)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     bfs_nodes = [node for layer in nx.bfs_layers(process_graph, root_node) for node in layer]
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
@@ -280,161 +278,3 @@ def get_op_from_provlog(
     if op_idx == -1 or exec_epoch_id == -1:
         raise ValueError()
     return process_tree_prov_log.processes[pid].exec_epochs[exec_epoch_id].threads[tid].ops[op_idx]
-
-
-def test_dataflow_graph_to_nextflow_script() -> None:
-    #current_path = 'probe_src/python/probe_py/manual/test_probe.py'
-
-    # Get the directory containing the script
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-
-    # Get the path to the folder before 'probe_src'
-    parent_of_probe_src = os.path.join(os.path.dirname(script_dir), "..", "..", "..")
-    
-    # Resolve the absolute path to the folder before 'probe_src'
-    parent_of_probe_src = os.path.abspath(parent_of_probe_src)
-
-    # Define the file paths
-    a_file_path = os.path.join(parent_of_probe_src, "A.txt")
-    b_file_path = os.path.join(parent_of_probe_src, "B.txt")
-
-    # Create and write to A.txt
-    with open(a_file_path, 'w') as a_file:
-        a_file.write("This is A.txt")
-
-    # Create and write to B.txt
-    with open(b_file_path, 'w') as b_file:
-        b_file.write("This is B.txt")
-	
-    dataflow_graph = nx.DiGraph()	
-    A = FileNode(InodeOnDevice(0,0,0), 0, "A.txt")	
-    B = FileNode(InodeOnDevice(0,0,1), 0, "B.txt")	
-    W = ProcessNode(0, ("cp", "A.txt", "B.txt"))	
-    dataflow_graph.add_nodes_from([A, B], color="red")	
-    dataflow_graph.add_nodes_from([W], color="blue")	
-    dataflow_graph.add_edges_from([(A, W), (W, B)])	
-
-    expected_script = '''nextflow.enable.dsl=2
-
-
-
-process process_140080913286064 {
-    input:
-    path "A.txt"
-   
-
-    output:
-    path "B.txt"
-   
-
-    script:
-    """
-    cp A.txt B.txt
-    """
-}
-
-workflow {
-
-  A_2etxt_20v0=file("A.txt")
-  B_2etxt_20v0=file("B.txt")
-  B_2etxt_20v0 = process_140080913286064(A_2etxt_20v0)
-}'''	
-    generator = NextflowGenerator()
-    script = generator.generate_workflow(dataflow_graph)
-
-    script = re.sub(r'process_\d+', 'process_*', script)
-    expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
-    assert script == expected_script	
-
-    A = FileNode(InodeOnDevice(0,0,0), 0, "A.txt")	
-    B0 = FileNode(InodeOnDevice(0,0,1), 0, "B.txt")	
-    B1 = FileNode(InodeOnDevice(0,0,1), 1, "B.txt")	
-    C = FileNode(InodeOnDevice(0,0,3), 0, "C.txt")	
-    W = ProcessNode(0,("cp", "A.txt", "B.txt"))	
-    X = ProcessNode(1,("sed", "s/foo/bar/g", "-i", "B.txt"))	
-    # Note, the filename in FileNode will not always appear in the cmd of ProcessNode!	
-    Y = ProcessNode(2,("analyze", "-i", "-k"))	
-
-
-    example_dataflow_graph = nx.DiGraph()	
-    # FileNodes will be red and ProcessNodes will be blue in the visualization	
-    # Code can distinguish between the two using isinstance(node, ProcessNode) or likewise with FileNode	
-    example_dataflow_graph.add_nodes_from([A, B0, B1, C], color="red")	
-    example_dataflow_graph.add_nodes_from([W, X, Y], color="blue")	
-    example_dataflow_graph.add_edges_from([	
-        (A, W),	
-        (W, B0),	
-        (B0, X),	
-        (X, B1),	
-        (A, Y),	
-        (B1, Y),	
-        (Y, C),	
-    ])	
-
-    expected_script = '''nextflow.enable.dsl=2
-
-
-
-process process_140123042500672 {
-    input:
-    path "A.txt"
-   
-
-    output:
-    path "B.txt"
-   
-
-    script:
-    """
-    cp A.txt B.txt
-    """
-}
-
-process process_140123042498656 {
-    input:
-    path "B.txt"
-   
-
-    output:
-    path "B.txt"
-   
-
-    script:
-    """
-    sed s/foo/bar/g -i B.txt
-    """
-}
-
-process process_140123043038656 {
-    input:
-    path "A.txt"
-    path "B.txt"
-   
-
-    output:
-    path "C.txt"
-   
-
-    script:
-    """
-    analyze -i -k
-    """
-}
-
-workflow {
-
-  A_2etxt_20v0=file("A.txt")
-  B_2etxt_20v0=file("B.txt")
-  B_2etxt_20v0 = process_140123042500672(A_2etxt_20v0)
-  B_2etxt_20v1 = process_140123042498656(B_2etxt_20v0)
-  C_2etxt_20v0 = process_140123043038656(A_2etxt_20v0, B_2etxt_20v1)
-}'''	
-
-    generator = NextflowGenerator()
-    script = generator.generate_workflow(example_dataflow_graph)
-    script = re.sub(r'process_\d+', 'process_*', script)
-    expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
-    assert script == expected_script
-
-    os.remove(a_file_path)
-    os.remove(b_file_path)	

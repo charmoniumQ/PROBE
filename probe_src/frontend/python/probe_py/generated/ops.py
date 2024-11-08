@@ -19,30 +19,6 @@ class StatxTimestamp:
 
 
 @dataclass(init=True, frozen=True)
-class Statx:
-    mask: int
-    blksize: int
-    attributes: int
-    nlink: int
-    uid: int
-    gid: int
-    mode: int
-    ino: int
-    size: int
-    blocks: int
-    attributes_mask: int
-    atime: StatxTimestamp
-    btime: StatxTimestamp
-    ctime: StatxTimestamp
-    mtime: StatxTimestamp
-    rdev_major: int
-    rdev_minor: int
-    dev_major: int
-    dev_minor: int
-    mnt_id: int
-
-
-@dataclass(init=True, frozen=True)
 class Timeval:
     sec: int
     usec: int
@@ -77,6 +53,7 @@ class Path:
     inode: int
     mtime: StatxTimestamp
     ctime: StatxTimestamp
+    size: int
     stat_valid: bool
     dirfd_valid: bool
 
@@ -88,6 +65,8 @@ class Path:
 @dataclass(init=True, frozen=True)
 class InitProcessOp:
     pid: int
+    is_root: bool
+    cwd: Path
 
 
 @dataclass(init=True, frozen=True)
@@ -157,11 +136,30 @@ class AccessOp:
 
 
 @dataclass(init=True, frozen=True)
+class StatResult:
+    mask: int
+    nlink: int
+    uid: int
+    gid: int
+    mode: int
+    ino: int
+    size: int
+    blocks: int
+    blksize: int
+    atime: StatxTimestamp
+    btime: StatxTimestamp
+    ctime: StatxTimestamp
+    mtime: StatxTimestamp
+    dev_major: int
+    dev_minor: int
+
+
+@dataclass(init=True, frozen=True)
 class StatOp:
     path: Path
     flags: int
-    statx_buf: Statx
     ferrno: int
+    stat_result: StatResult
 
 
 @dataclass(init=True, frozen=True)

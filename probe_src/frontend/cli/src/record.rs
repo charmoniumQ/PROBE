@@ -19,6 +19,7 @@ pub fn record_no_transcribe(
     overwrite: bool,
     gdb: bool,
     debug: bool,
+    copy_files: bool,
     cmd: Vec<OsString>,
 ) -> Result<()> {
     let output = match output {
@@ -44,6 +45,7 @@ pub fn record_no_transcribe(
     Recorder::new(cmd, record_dir)
         .gdb(gdb)
         .debug(debug)
+        .copy_files(copy_files)
         .record()?;
 
     Ok(())
@@ -55,6 +57,7 @@ pub fn record_transcribe(
     overwrite: bool,
     gdb: bool,
     debug: bool,
+    copy_files: bool,
     cmd: Vec<OsString>,
 ) -> Result<()> {
     let output = match output {
@@ -77,6 +80,7 @@ pub fn record_transcribe(
     )
     .gdb(gdb)
     .debug(debug)
+    .copy_files(copy_files)
     .record()?;
 
     match transcribe::transcribe(&record_dir, &mut tar) {
@@ -100,6 +104,7 @@ pub fn record_transcribe(
 pub struct Recorder {
     gdb: bool,
     debug: bool,
+    copy_files: bool,
 
     output: Dir,
     cmd: Vec<OsString>,
@@ -146,16 +151,28 @@ impl Recorder {
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__gdb-exec-shim")
+                .args(if self.copy_files {
+                    std::vec!["--copy-files"]
+                } else {
+                    std::vec![]
+                })
                 .args(&self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            std::process::Command::new(&self.cmd[0])
-                .args(&self.cmd[1..])
+            /* We start `env $cmd` instead of `$cmd`
+             * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
+             * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
+             * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
+             * Since the root process has special quirks, it should not be user's `$cmd`.
+             * */
+            std::process::Command::new("env")
+                .args(self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
+                .env("__PROBE_COPY_FILES", if self.copy_files { "1" } else { "" })
                 .env("__PROBE_DIR", self.output.path())
                 .env("LD_PRELOAD", ld_preload)
                 .spawn()
@@ -221,7 +238,7 @@ impl Recorder {
         Self {
             gdb: false,
             debug: false,
-
+            copy_files: false,
             output,
             cmd,
         }
@@ -236,6 +253,12 @@ impl Recorder {
     /// Set if the debug version of libprobe should be used.
     pub fn debug(mut self, debug: bool) -> Self {
         self.debug = debug;
+        self
+    }
+
+    /// Set if probe should copy files needed to re-execute.
+    pub fn copy_files(mut self, copy_files: bool) -> Self {
+        self.copy_files = copy_files;
         self
     }
 }
