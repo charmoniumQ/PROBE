@@ -9,11 +9,11 @@
 INTERPOSE_C(int, open, (const char *path, int oflag, ...), (path, oflag)) {
     int result;
     va_list args;
-    int mode = 0;
+    mode_t mode = 0;
 
     if (oflag & O_CREAT) {
         va_start(args, oflag);
-        mode = va_arg(args, int);
+        mode = va_arg(args, mode_t);
         va_end(args);
         // Log message
         char buffer[256];
