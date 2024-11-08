@@ -62,55 +62,7 @@
       // {
         pname = "probe-frontend";
         cargoExtraArgs = "-p probe_frontend";
-        installPhase = ''
-          cp -r ./python/ $out
-          cp ./LICENSE $out/LICENSE
-        '';
       });
-    probe-py-generated = let
-      workspace = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace;
-      # TODO: Simplify this
-      # Perhaps by folding the substituteAllFiles into probe-py-generated (upstream) or probe-py-frontend (downstream)
-      # Could we combine all the packages?
-    in
-      python.pkgs.buildPythonPackage rec {
-        src = pkgs.substituteAllFiles rec {
-          src = probe-frontend;
-          files = [
-            "./pyproject.toml"
-            "./LICENSE"
-            "./probe_py/generated/__init__.py"
-            "./probe_py/generated/ops.py"
-            "./probe_py/generated/py.typed"
-          ];
-          authors = builtins.concatStringsSep "" (builtins.map (match: let
-            name = builtins.elemAt match 0;
-            email = builtins.elemAt match 1;
-          in "\n    {name = \"${name}\", email = \"${email}\"},") (
-            builtins.map
-            (author-str: builtins.match "(.+) <(.+)>" author-str)
-            (workspace.package.authors)
-          ));
-          version = workspace.package.version;
-        };
-        pname = "probe_py.generated";
-        version = workspace.package.version;
-        pyproject = true;
-        build-system = [
-          python.pkgs.flit-core
-        ];
-        nativeCheckInputs = [
-          python.pkgs.mypy
-          pkgs.ruff
-        ];
-        # ruff, mypy
-        checkPhase = ''
-          runHook preCheck
-          python -c 'import probe_py.generated'
-          mypy --strict --package probe_py.generated
-          runHook postCheck
-        '';
-      };
 
     probe-cli = craneLib.buildPackage (individualCrateArgs
       // {
