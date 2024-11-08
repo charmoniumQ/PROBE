@@ -58,7 +58,7 @@
           p.rust-bin.stable.latest.default.override {
             targets = [rust-target];
           });
-        frontend = (import ./probe_src/frontend/frontend.nix) {
+        frontend = (import ./cli-wrapper/frontend.nix) {
           inherit
             system
             pkgs
@@ -71,11 +71,11 @@
         };
       in rec {
         packages = rec {
-          inherit (frontend.packages) cargoArtifacts;
+          inherit (frontend.packages) cargoArtifacts probe-cli;
           libprobe = pkgs.stdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
-            src = ./probe_src/libprobe;
+            src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
             buildInputs = [
               (pkgs.python312.withPackages (pypkgs: [

@@ -19,7 +19,7 @@ build/lib%-dbg.so: $(SOURCE_FILES) $(GENERATED_FILES)
 	gcc $(CFLAGS) $(DBGCFLAGS) -o $@ src/lib.c
 
 $(GENERATED_FILES): $(wildcard generator/*)
-	./generator/gen_libc_hooks.py
+	python3 ./generator/gen_libc_hooks.py
 
 install:
 	install -D --target-directory $(INSTALL_PREFIX)/lib/ build/lib*.so

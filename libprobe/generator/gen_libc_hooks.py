@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-
 from __future__ import annotations
-import json
 import dataclasses
 import pycparser  # type: ignore
 import pycparser.c_generator  # type: ignore
@@ -422,14 +419,16 @@ static_args_wrapper_func_declarations = [
     ).definition()
     for _, func in funcs.items()
 ]
-pathlib.Path("generated/libc_hooks.h").write_text(
+generated = pathlib.Path("generated")
+generated.mkdir(exist_ok=True)
+(generated / "libc_hooks.h").write_text(
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             *func_pointer_declarations,
         ])
     )
 )
-pathlib.Path("generated/libc_hooks.c").write_text(
+(generated / "libc_hooks.c").write_text(
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             init_function_pointers,
@@ -437,7 +436,7 @@ pathlib.Path("generated/libc_hooks.c").write_text(
         ])
     )
 )
-pathlib.Path("generated/libc_fns.csv").write_text(
+(generated / "libc_fns.csv").write_text(
     "\n".join([
         func_name for func_name, _ in funcs.items()
     ])

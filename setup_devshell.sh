@@ -29,10 +29,6 @@ fi
 # Add PROBE CLI to path
 export PATH="$project_root/cli-wrapper/target/release:$PATH"
 
-# Add probe_py.generated to the Python path
-export PYTHONPATH="$project_root/cli-wrapper/python:$PYTHONPATH"
-export MYPYPATH="$project_root/cli-wrapper/python:$MYPYPATH"
-
-# Add probe_py.manual to the Python path
+# Add probe_py to the Python path
 export PYTHONPATH="$project_root/:$PYTHONPATH"
 export MYPYPATH="$project_root/:$MYPYPATH"

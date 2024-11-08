@@ -9,7 +9,7 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .types import ProbeLog, initial_exec_no, Inode, InodeVersion
+from .types import ProbeLog, initial_exec_no, Inode, InodeVersion, Pid
 from .ops import Path, ChdirOp, OpenOp, CloseOp, InitProcessOp, ExecOp
 from .consts import AT_FDCWD
 
@@ -25,7 +25,7 @@ def build_oci_image(
     if root_pid is None:
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
-    first_op = probe_log.processes[root_pid][initial_exec_no][root_pid.main_thread()][0].data
+    first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
     if not isinstance(first_op, InitProcessOp):
         console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
@@ -70,7 +70,7 @@ def build_oci_image(
         if pid is None:
             console.print("Could not find root process; Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
-        last_op = probe_log.processes[pid][initial_exec_no][pid.main_thread()][-1].data
+        last_op = probe_log.processes[pid].execs[initial_exec_no].threads[pid.main_thread()].ops[-1].data
         if not isinstance(last_op, ExecOp):
             console.print("Last op is not ExecOp. Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
@@ -152,17 +152,17 @@ def copy_file_closure(
     to_copy = dict[pathlib.Path, Path | None]()
     to_copy_exes = dict[pathlib.Path, Path | None]()
     for pid, process in probe_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.items():
+        for exec_epoch_no, exec_epoch in process.execs.items():
             root_pid = get_root_pid(probe_log)
             if root_pid is None:
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
-            first_op = probe_log.processes[root_pid][initial_exec_no][root_pid.main_thread()][0].data
+            first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
             if not isinstance(first_op, InitProcessOp):
                 console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
             fds = {AT_FDCWD: pathlib.Path(first_op.cwd.path.decode())}
-            for tid, thread in exec_epoch.items():
+            for tid, thread in exec_epoch.threads.items():
                 for op_no, op in enumerate(thread.ops):
                     if isinstance(op.data, ChdirOp):
                         path = op.data.path
@@ -256,7 +256,7 @@ def resolve_path(
 
 def get_root_pid(probe_log: ProbeLog) -> Pid | None:
     for pid, process in probe_log.processes.items():
-        first_op = process[initial_exec_epoch][pid][0].data
+        first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0].data
         if isinstance(first_op, InitProcessOp) and first_op.is_root:
             return pid
     return None

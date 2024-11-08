@@ -1,5 +1,6 @@
 from typing import Iterator
-from .types import Tid, Pid, ProbeLog, initial_exec_no, InitProcessOp, InitExecEpochOp, InitCloneOp, TaskType, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp
+from .ops import InitProcessOp, InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp
+from .types import Tid, Pid, ProbeLog, initial_exec_no, TaskType
 
 
 """The analyses make a lot of assumptions about the probe_log.
@@ -30,9 +31,9 @@ def validate_root_pid(
         probe_log: ProbeLog,
 ) -> Iterator[str]:
     n_roots = 0
-    for pid, execs in probe_log.processes.items():
-        first_op = execs[initial_exec_no][pid.main_thread()][0]
-        if isinstance(first_op, InitProcessOp) and first_op.data.is_root:
+    for pid, process in probe_log.processes.items():
+        first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0]
+        if isinstance(first_op, InitProcessOp) and first_op.is_root:
             n_roots += 1
     if n_roots == 0:
         yield "No root pid found"
@@ -44,37 +45,37 @@ def validate_init_ops(
         probe_log: ProbeLog,
 ) -> Iterator[str]:
     """Init ops have to appear before any other ops"""
-    for pid, execs in probe_log.processes.items():
-        for exec_no, tids in execs.items():
-            for tid, op_list in tids.items():
+    for pid, process in probe_log.processes.items():
+        for exec_no, exec_ep in process.execs.items():
+            for tid, thread in exec_ep.threads.items():
                 op_idx = 0
-                op = op_list[op_idx]
-                if exec_no == initial_exec_no and tid == op.main_thread():
+                op = thread.ops[op_idx]
+                if exec_no == initial_exec_no and tid == pid.main_thread():
                     if not isinstance(op.data, InitProcessOp):
                         yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitProcesOp, not {op.data}"
                     op_idx += 1
 
-                op = op_list[op_idx]
-                if tid == op.main_thread():
+                op = thread.ops[op_idx]
+                if tid == pid.main_thread():
                     if not isinstance(op.data, InitExecEpochOp):
                         yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitExecEPochOp, not {op.data}"
                     op_idx += 1
 
-                op = op_list[op_idx]
+                op = thread.ops[op_idx]
                 if not isinstance(op.data, InitThreadOp):
                     yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitThreadOp, not {op.data}"
                 op_idx += 1
 
-                for op_no, op in enumerate(op_list[op_idx:]):
+                for op_no, op in enumerate(thread.ops[op_idx:]):
                     if isinstance(op, (InitProcessOp, InitExecEpochOp, InitThreadOp)):
                         yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is Init*Op, but it does not appear early enough"
 
 
 def validate_exec_epoch_presence(probe_log: ProbeLog) -> Iterator[str]:
     """We must have all exec_epochs from 0..N"""
-    for pid, execs in probe_log.processes.items():
-        present_execs = set(execs.keys())
-        max_exec_no = max(execs.keys())
+    for pid, process in probe_log.processes.items():
+        present_execs = set(process.execs.keys())
+        max_exec_no = max(process.execs.keys())
         expected_execs = set(range(0, max_exec_no))
         if present_execs != expected_execs:
             yield f"{pid} has execs {sorted(present_execs)}; expected [0, ..., {max_exec_no}]"
@@ -83,20 +84,20 @@ def validate_exec_epoch_presence(probe_log: ProbeLog) -> Iterator[str]:
 def validate_clone_targets(probe_log: ProbeLog) -> Iterator[str]:
     """Clone must return threads that we observe"""
     pids = probe_log.processes.keys()
-    for pid, execs in probe_log.processes.items():
-        for exec_no, tids in execs.items():
+    for pid, process in probe_log.processes.items():
+        for exec_no, exec_ep in process.execs.items():
             pthread_ids = {
                 op.pthread_id
-                for tid, thread in tids.items()
+                for tid, thread in exec_ep.threads.items()
                 for op in thread.ops
             }
             iso_c_thread_ids = {
                 op.pthread_id
-                for tid, thread in tids.items()
+                for tid, thread in exec_ep.threads.items()
                 for op in thread.ops
             }
-            for tid, op_list in tids.items():
-                for op in op_list:
+            for tid, thread in exec_ep.threads.items():
+                for op in thread.ops:
                     if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
                         if op.data.task_type == TaskType.TASK_PID and Pid(op.data.task_id) not in pids:
                             yield f"CloneOp returned a PID {op.data.task_id} that we didn't track"
@@ -112,10 +113,10 @@ def validate_clones_and_waits(probe_log: ProbeLog) -> Iterator[str]:
     """Cloned PIDs and TIDs == waited PIDs and TIDs"""
     cloned_processes = set[tuple[TaskType, int]]()
     waited_processes = set[tuple[TaskType, int]]()
-    for pid, execs in probe_log.processes.items(): 
-        for exec_no, tids in execs.items():
-            for tid, op_list in tids.items():
-                for op in op_list:
+    for pid, process in probe_log.processes.items():
+        for exec_no, exec_ep in process.execs.items():
+            for tid, thread in exec_ep.threads.items():
+                for op in thread.ops:
                     if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
                         waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
@@ -129,10 +130,10 @@ def validate_clones_and_waits(probe_log: ProbeLog) -> Iterator[str]:
 
 
 def validate_execs(probe_log: ProbeLog) -> Iterator[str]:
-    for pid, execs in probe_log.processes.items(): 
-        for exec_no, tids in execs.items():
-            for tid, op_list in tids.items():
-                for op in op_list:
+    for pid, process in probe_log.processes.items():
+        for exec_no, exec_ep in process.execs.items():
+            for tid, thread in exec_ep.threads.items():
+                for op in thread.ops:
                     if isinstance(op.data, ExecOp):
                         if len(op.data.argv) != op.data.argc:
                             yield "argv vs argc mismatch"
@@ -144,10 +145,10 @@ def validate_execs(probe_log: ProbeLog) -> Iterator[str]:
 def validate_opens_and_closes(probe_log: ProbeLog) -> Iterator[str]:
     opened_fds = set[int]()
     closed_fds = set[int]()
-    for pid, execs in probe_log.processes.items(): 
-        for exec_no, tids in execs.items():
-            for tid, op_list in tids.items():
-                for op in op_list:
+    for pid, process in probe_log.processes.items():
+        for exec_no, exec_ep in process.execs.items():
+            for tid, thread in exec_ep.threads.items():
+                for op in thread.ops:
                     if isinstance(op.data, OpenOp) and op.data.ferrno == 0:
                         opened_fds.add(op.data.fd)
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
@@ -157,4 +158,4 @@ def validate_opens_and_closes(probe_log: ProbeLog) -> Iterator[str]:
     opened_fds -= reserved_fds
     closed_fds -= reserved_fds
     if opened_fds != closed_fds:
-        yield f"Opened different fds than we closed {opened_fds=} {cloned_fds=}"
+        yield f"Opened different fds than we closed {opened_fds=} {closed_fds=}"

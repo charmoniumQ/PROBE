@@ -3,9 +3,10 @@ import pathlib
 import typer
 import rich.console
 import rich.pretty
-from .parser import parse_probe_log, parse_probe_log_ctx
+from . import parser
+from . import validators
 from . import analysis
-from .workflows import MakefileGenerator
+from . import workflows
 from . import file_closure
 from . import graph_utils
 import enum
@@ -23,7 +24,7 @@ app.add_typer(export_app, name="export")
 
 @app.command()
 def validate(
-        probe_log: Annotated[
+        probe_log_path: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -34,22 +35,22 @@ def validate(
 ) -> None:
     """Sanity-check probe_log and report errors."""
     warning_free = True
-    with parse_probe_log_ctx(probe_log) as probe_log_obj:
-        for inode, contents in probe_log_obj.copied_files.items():
+    with parser.parse_probe_log_ctx(probe_log_path) as probe_log:
+        for inode, contents in probe_log.copied_files.items():
             content_length = contents.stat().st_size
             if inode.size != content_length:
                 console.print(f"Blob for {inode} has actual size {content_length}", style="red")
                 warning_free = False
         # At this point, the inode storage is gone, but the probe_log is already in memory
-    if should_have_files and not probe_log_obj.probe_options.copy_files:
+    if should_have_files and not probe_log.probe_options.copy_files:
         warning_free = False
         console.print("No files stored in probe log", style="red")
-    process_graph = analysis.probe_log_to_digraph(probe_log_obj)
-    for warning in analysis.validate_probe_log(probe_log_obj):
+    process_graph = analysis.probe_log_to_digraph(probe_log)
+    for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    process_graph = analysis.probe_log_to_digraph(probe_log_obj)
-    for warning in analysis.validate_hb_graph(probe_log_obj, process_graph):
+    process_graph = analysis.probe_log_to_digraph(probe_log)
+    for warning in analysis.validate_hb_graph(probe_log, process_graph):
         warning_free = False
         console.print(warning, style="red")
     if not warning_free:
@@ -62,7 +63,7 @@ def ops_graph(
             pathlib.Path,
             typer.Argument()
         ] = pathlib.Path("ops-graph.png"),
-        probe_log: Annotated[
+        probe_log_path: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -76,8 +77,8 @@ def ops_graph(
 
     Supports .png, .svg, and .dot
     """
-    probe_log_obj = parse_probe_log(probe_log)
-    process_graph = analysis.probe_log_to_digraph(probe_log_obj)
+    probe_log = parser.parse_probe_log(probe_log_path)
+    process_graph = analysis.probe_log_to_digraph(probe_log)
     analysis.color_hb_graph(probe_log, process_graph)
     graph_utils.serialize_graph(process_graph, output)
 
@@ -88,7 +89,7 @@ def dataflow_graph(
             pathlib.Path,
             typer.Argument()
         ] = pathlib.Path("dataflow-graph.png"),
-        probe_log: Annotated[
+        probe_log_path: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -98,14 +99,14 @@ def dataflow_graph(
 
     Dataflow shows the name of each proceess, its read files, and its write files.
     """
-    probe_log_obj = parse_probe_log(probe_log)
-    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log_obj)
+    probe_log = parser.parse_probe_log(probe_log_path)
+    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
     graph_utils.serialize_graph(dataflow_graph, output)
 
 
 @export_app.command()
 def debug_text(
-        probe_log: Annotated[
+        probe_log_path: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -114,8 +115,8 @@ def debug_text(
     Write the data from probe_log in a human-readable manner.
     """
     out_console = rich.console.Console()
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        for pid, process in sorted(prov_log.processes.items()):
+    with parser.parse_probe_log_ctx(probe_log_path) as probe_log:
+        for pid, process in sorted(probe_log.processes.items()):
             out_console.rule(f"{pid}")
             for exid, exec_epoch in sorted(process.execs.items()):
                 out_console.rule(f"{pid} {exid}")
@@ -128,13 +129,15 @@ def debug_text(
                             console=console,
                             max_string=40,
                         )
-        for ivl, path in sorted(prov_log.inodes.items()):
-            out_console.print(f"device={ivl.device_major}.{ivl.device_minor} inode={ivl.inode} mtime={ivl.tv_sec}.{ivl.tv_nsec} -> {ivl.size} blob")
+        for ino_ver, path in sorted(probe_log.copied_files.items()):
+            out_console.print(
+                f"device={ino_ver.inode.device_major}.{ino_ver.inode.device_minor} inode={ino_ver.inode.inode} mtime={ino_ver.mtime_sec}.{ino_ver.mtime_nsec} -> {ino_ver.size} blob"
+            )
 
 @export_app.command()
 def docker_image(
         image_name: str,
-        probe_log: Annotated[
+        probe_log_path: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -158,12 +161,12 @@ def docker_image(
     if image_name.count(":") != 1:
         console.print(f"Invalid image name {image_name}", style="red")
         raise typer.Exit(code=1)
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        if not prov_log.has_inodes:
+    with parser.parse_probe_log_ctx(probe_log_path) as probe_log:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
-            prov_log,
+            probe_log,
             image_name,
             True,
             verbose,
@@ -173,7 +176,7 @@ def docker_image(
 @export_app.command()
 def oci_image(
         image_name: str,
-        probe_log: Annotated[
+        probe_log_path: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -192,12 +195,12 @@ def oci_image(
         podman run --rm python-numpy:latest
 
     """
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        if not prov_log.has_inodes:
+    with parser.parse_probe_log_ctx(probe_log_path) as probe_log:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
-            prov_log,
+            probe_log,
             image_name,
             False,
             verbose,
@@ -215,7 +218,7 @@ def makefile(
             pathlib.Path,
             typer.Argument(),
         ] = pathlib.Path("Makefile"),
-        probe_log: Annotated[
+        probe_log_path: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -223,9 +226,9 @@ def makefile(
     """
     Export the probe_log to a Makefile
     """
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.probe_log_to_dataflow_graph(prov_log)
-    g = MakefileGenerator()
+    probe_log = parser.parse_probe_log(probe_log_path)
+    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
+    g = workflows.MakefileGenerator()
     output = pathlib.Path("Makefile")
     script = g.generate_makefile(dataflow_graph)
     output.write_text(script)
