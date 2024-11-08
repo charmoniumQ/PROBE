@@ -2564,6 +2564,46 @@ int pthread_join(pthread_t thread, void **retval) {
    });
 }
 
+
+/* Docs: https://sourceware.org/glibc/manual/latest/html_node/Accepting-Connections.html */
+int accept (int socket, struct sockaddr *addr, socklen_t *length_ptr) {
+    void* pre_call = ({
+        struct Op op = {
+            /* ../include/libprobe/prov_ops.h */
+            accept_op_code,
+            {.accept = {
+                .fd = -1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret == -1) {
+                op.data.accept.ferrno = saved_errno;
+            } else {
+                op.data.accept.fd = ret;
+                // TODO: add fd to a list of fds that refer to sockets
+                // Later on, reads/writes to this fd may have to be recorded
+            }
+        }
+    });
+}
+
+/* connect (be similar to accept BUT include the port and address connecting to) */
+/* bind (be similar to accept BUT include the port and address connecting to) */
+/* read (do nothing) */
+/* write (do nothing) */
+
+/* read: test if fd is a socket and if prov_log enabled { record read ouptut } */
+/* write: test if fd is a socket and if prov_loge enabled { record write input } */
+
 /* void exit (int status) { */
 /*     void* pre_call = ({ */
 /*         struct Op op = { */

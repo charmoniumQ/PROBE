@@ -48,6 +48,11 @@ struct OpenOp {
     int ferrno;
     /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
 };
+struct AcceptOp {
+    int32_t fd;
+    int ferrno;
+    /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
+};
 
 struct CloseOp {
     int32_t low_fd;
