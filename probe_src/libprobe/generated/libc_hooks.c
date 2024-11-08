@@ -6,8 +6,6 @@ static ssize_t unwrapped_getdents64(int fd, void *dirp, size_t count) {
     errno = ENOSYS;
     return -1;
 }
-
-
 static int unwrapped_close_range(unsigned int lowfd, unsigned int maxfd, int flags) {
     errno = ENOSYS;
     return -1;
