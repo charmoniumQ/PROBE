@@ -8,7 +8,6 @@ import os
 import tempfile
 import subprocess
 from filecmp import cmp
-from typing import List
 import re
 """
 All the cases we should take care of:
@@ -88,7 +87,7 @@ process process_{id(process)} {{
             base_name = os.path.basename(file.file)
             temp_name = f"temp_{base_name}"
             final_name = f"{os.path.splitext(base_name)[0]}_modified{os.path.splitext(base_name)[1]}"
-            print(temp_name)
+
             # Replace the original filename in the command with the temp filename
             modified_cmd = []
             for cmd in process.cmd:
@@ -97,7 +96,7 @@ process process_{id(process)} {{
                 modified_cmd.append(cmd_modified)
 
             script_commands.extend([
-                f'cp {base_name} {temp_name}',  # Copy to temp file
+                f'cp {file.file} {temp_name}',  # Copy to temp file
                 " ".join(modified_cmd),  # Apply inline edit with temp filename
                 f'mv {temp_name} {final_name}'  # Rename temp file to final output
             ])
@@ -169,7 +168,7 @@ process process_{id(process)} {{
     \"\"\"
 }}"""
 
-    def is_inline_editing_command_sandbox(self, command: str, input_files: List[str]) -> bool:
+    def is_inline_editing_command_sandbox(self, command: str, input_files: list[FileNode]) -> bool:
         """
         Determine if a command modifies any of the input files in-place, even if the content remains the same.
         """

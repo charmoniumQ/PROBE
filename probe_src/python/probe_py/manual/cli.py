@@ -6,7 +6,7 @@ import rich.console
 import rich.pretty
 from ..generated.parser import parse_probe_log, parse_probe_log_ctx
 from . import analysis
-from .workflows import MakefileGenerator
+from .workflows import MakefileGenerator, NextflowGenerator
 from .ssh_argparser import parse_ssh_args
 from . import file_closure
 from . import graph_utils
