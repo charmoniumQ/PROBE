@@ -445,12 +445,14 @@ int dup2(int old, int new)
   return ret;
 }
 
+#ifdef __linux__
 int dup3(int old, int new, int flags)
 {
   maybe_init_thread();
   int ret = unwrapped_dup3(old, new, flags);
   return ret;
 }
+#endif
 
 int fcntl(int filedes, int command, ...)
 {
@@ -735,7 +737,6 @@ int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(cons
   errno = saved_errno;
   return ret;
 }
-#endif
 
 int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict namelist, int (*filter)(const struct dirent *), int (*compar)(const struct dirent **, const struct dirent **))
 {
@@ -758,6 +759,7 @@ int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict 
   errno = saved_errno;
   return ret;
 }
+#endif
 
 ssize_t getdents64(int fd, void *buffer, size_t length)
 {
@@ -803,6 +805,7 @@ int ftw(const char *filename, __ftw_func_t func, int descriptors)
   return ret;
 }
 
+#ifdef __linux__
 int ftw64(const char *filename, __ftw64_func_t func, int descriptors)
 {
   maybe_init_thread();
@@ -824,6 +827,7 @@ int ftw64(const char *filename, __ftw64_func_t func, int descriptors)
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
 {
@@ -846,7 +850,7 @@ int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
   errno = saved_errno;
   return ret;
 }
-
+#ifdef __linux__
 int nftw64(const char *filename, __nftw64_func_t func, int descriptors, int flag)
 {
   maybe_init_thread();
@@ -868,6 +872,7 @@ int nftw64(const char *filename, __nftw64_func_t func, int descriptors, int flag
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int link(const char *oldname, const char *newname)
 {
@@ -911,12 +916,14 @@ ssize_t readlinkat(int dirfd, const char *filename, char *buffer, size_t size)
   return ret;
 }
 
+#ifdef __linux__
 char * canonicalize_file_name(const char *name)
 {
   maybe_init_thread();
   char * ret = unwrapped_canonicalize_file_name(name);
   return ret;
 }
+#endif
 
 char * realpath(const char * restrict name, char * restrict resolved)
 {
@@ -1047,6 +1054,7 @@ int fstat(int filedes, struct stat *buf)
   return ret;
 }
 
+#ifdef __linux__
 int fstat64(int filedes, struct stat64 * restrict buf)
 {
   maybe_init_thread();
@@ -1072,6 +1080,7 @@ int fstat64(int filedes, struct stat64 * restrict buf)
   errno = saved_errno;
   return ret;
 }
+#endif
 
 int lstat(const char *filename, struct stat *buf)
 {
@@ -1099,6 +1108,7 @@ int lstat(const char *filename, struct stat *buf)
   return ret;
 }
 
+#ifdef __linux__
 int lstat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
@@ -1125,7 +1135,6 @@ int lstat64(const char *filename, struct stat64 *buf)
   return ret;
 }
 
-#ifdef __linux__
 int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mask, struct statx * restrict statxbuf)
 {
   maybe_init_thread();
@@ -1556,7 +1565,6 @@ int truncate(const char *filename, off_t length)
   int ret = unwrapped_truncate(filename, length);
   return ret;
 }
-#endif
 
 int truncate64(const char *name, off64_t length)
 {
@@ -1564,6 +1572,7 @@ int truncate64(const char *name, off64_t length)
   int ret = unwrapped_truncate64(name, length);
   return ret;
 }
+#endif
 
 int ftruncate(int fd, off_t length)
 {
@@ -1595,12 +1604,14 @@ FILE * tmpfile()
   return ret;
 }
 
+#ifdef __linux__
 FILE * tmpfile64()
 {
   maybe_init_thread();
   FILE * ret = unwrapped_tmpfile64();
   return ret;
 }
+#endif
 
 char * tmpnam(char *result)
 {
@@ -2368,6 +2379,7 @@ int pthread_join(pthread_t thread, void **retval)
   return ret;
 }
 
+#ifdef __linux__
 FILE * fopen64(const char *filename, const char *opentype)
 {
   maybe_init_thread();
@@ -2424,6 +2436,8 @@ FILE * freopen64(const char *filename, const char *opentype, FILE *stream)
   errno = saved_errno;
   return ret;
 }
+
+#endif
 
 int openat64(int dirfd, const char *filename, int flags, ...)
 {
@@ -2483,6 +2497,7 @@ int open64(const char *filename, int flags, ...)
   return ret;
 }
 
+#ifdef __linux__
 int create64(const char *filename, mode_t mode)
 {
   maybe_init_thread();
@@ -2502,4 +2517,5 @@ int create64(const char *filename, mode_t mode)
   errno = saved_errno;
   return ret;
 }
+#endif
 

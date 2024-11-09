@@ -97,7 +97,9 @@ pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
         libc::SIGQUIT => "SIGQUIT",
         libc::SIGILL => "SIGILL",
         libc::SIGTRAP => "SIGTRAP",
-        libc::SIGABRT => "SIGABRT/SIGIOT", // SIGABRT and SIGIOT have the same code
+        libc::SIGABRT => "SIGABRT",
+        #[cfg(target_os = "linux")]
+        libc::SIGIOT => "SIGIOT",
         libc::SIGBUS => "SIGBUS",
         libc::SIGFPE => "SIGFPE",
         libc::SIGKILL => "SIGKILL",
@@ -107,6 +109,7 @@ pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
         libc::SIGPIPE => "SIGPIPE",
         libc::SIGALRM => "SIGALRM",
         libc::SIGTERM => "SIGTERM",
+        #[cfg(target_os = "linux")]
         libc::SIGSTKFLT => "SIGSTKFLT",
         libc::SIGCHLD => "SIGCHLD",
         libc::SIGCONT => "SIGCONT",
@@ -120,7 +123,11 @@ pub(crate) fn sig_to_name(sig: i32) -> Option<&'static str> {
         libc::SIGVTALRM => "SIGVTALRM",
         libc::SIGPROF => "SIGPROF",
         libc::SIGWINCH => "SIGWINCH",
-        libc::SIGIO => "SIGIO/SIGPOLL", // SIGIO and SIGPOLL have the same code
+        #[cfg(target_os = "linux")]
+        libc::SIGIO => "SIGIO/SIGPOLL",
+        #[cfg(target_os = "linux")]
+        libc::SIGPOLL => "SIGPOLL",
+        #[cfg(target_os = "linux")]
         libc::SIGPWR => "SIGPWR",
         libc::SIGSYS => "SIGSYS",
 

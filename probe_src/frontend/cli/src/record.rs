@@ -1,3 +1,4 @@
+use cfg_if::cfg_if;
 use std::{
     ffi::OsString,
     fs::{self, File},
@@ -120,27 +121,43 @@ impl Recorder {
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
         .wrap_err("unable to canonicalize libprobe path")?;
+
+        let lib_extension = if cfg!(target_os = "macos") {
+            "dylib"
+        } else {
+            "so"
+        };
+
         if self.debug || self.gdb {
             log::debug!("Using debug version of libprobe");
-            libprobe.push("libprobe-dbg.so");
+            libprobe.push(format!("libprobe-dbg.{}", lib_extension));
         } else {
-            libprobe.push("libprobe.so");
+            libprobe.push(format!("libprobe.{}", lib_extension));
         }
 
-        // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
+                // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
         // a PathBuf to a OsString because PathBuf::push() automatically adds path separators which
         // is incorrect here.
-        let mut ld_preload = OsString::from(libprobe);
-        if let Some(x) = std::env::var_os("LD_PRELOAD") {
-            ld_preload.push(":");
-            ld_preload.push(&x);
+
+        let preload_env_var = if cfg!(target_os = "macos") {
+            "DYLD_INSERT_LIBRARIES"
+        } else {
+            "LD_PRELOAD"
+        };
+
+        let mut preload_value = OsString::from(libprobe);
+        if let Some(x) = std::env::var_os(preload_env_var) {
+            preload_value.push(":");
+            preload_value.push(&x);
         }
 
         let mut child = if self.gdb {
             let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");
             dir_env.push(self.output.path());
-            let mut preload_env = OsString::from("--init-eval-command=set environment LD_PRELOAD=");
-            preload_env.push(ld_preload);
+            let mut preload_env = OsString::from("--init-eval-command=set environment ");
+            preload_env.push(preload_env_var);
+            preload_env.push("=");
+            preload_env.push(&preload_value);
 
             let self_bin =
                 std::env::current_exe().wrap_err("Failed to get path to current executable")?;
@@ -174,7 +191,7 @@ impl Recorder {
                 .env_remove("__PROBE_LOG")
                 .env("__PROBE_COPY_FILES", if self.copy_files { "1" } else { "" })
                 .env("__PROBE_DIR", self.output.path())
-                .env("LD_PRELOAD", ld_preload)
+                .env(preload_env_var, &preload_value)
                 .spawn()
                 .wrap_err("Failed to launch child process")?
         };
@@ -215,10 +232,16 @@ impl Recorder {
                     Some(sig) => match crate::util::sig_to_name(sig) {
                         Some(name) => log::warn!("Recorded process exited with signal {name}"),
                         None => {
-                            if sig < libc::SIGRTMAX() {
-                                log::warn!("Recorded process exited with realtime signal {sig}");
-                            } else {
-                                log::warn!("Recorded process exited with unknown signal {sig}");
+                            cfg_if! {
+                                if #[cfg(target_os = "linux")] {
+                                    if sig >= libc::SIGRTMIN() && sig <= libc::SIGRTMAX() {
+                                        log::warn!("Recorded process exited with realtime signal {sig}");
+                                    } else {
+                                        log::warn!("Recorded process exited with unknown signal {sig}");
+                                    }
+                                } else {
+                                    log::warn!("Recorded process exited with unknown signal {sig}");
+                                }
                             }
                         }
                     },

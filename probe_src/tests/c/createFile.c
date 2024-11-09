@@ -8,6 +8,75 @@
 #define NUM_THREADS 3
 #define NUM_COUNTERS 3
 
+#ifdef __APPLE__
+#include <errno.h>
+
+#ifndef PTHREAD_BARRIER_SERIAL_THREAD
+#define PTHREAD_BARRIER_SERIAL_THREAD (-1)
+#endif
+
+typedef struct {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    int count;
+    int tripCount;
+} pthread_barrier_t;
+
+typedef int pthread_barrierattr_t;
+
+int pthread_barrier_init(pthread_barrier_t *barrier,
+                         const pthread_barrierattr_t *attr,
+                         unsigned int count) {
+    if (count == 0) {
+        return EINVAL;
+    }
+    int result;
+    if ((result = pthread_mutex_init(&barrier->mutex, NULL))) {
+        return result;
+    }
+    if ((result = pthread_cond_init(&barrier->cond, NULL))) {
+        pthread_mutex_destroy(&barrier->mutex);
+        return result;
+    }
+    barrier->tripCount = count;
+    barrier->count = 0;
+    return 0;
+}
+
+int pthread_barrier_destroy(pthread_barrier_t *barrier) {
+    int result;
+    if ((result = pthread_mutex_destroy(&barrier->mutex))) {
+        return result;
+    }
+    if ((result = pthread_cond_destroy(&barrier->cond))) {
+        return result;
+    }
+    return 0;
+}
+
+int pthread_barrier_wait(pthread_barrier_t *barrier) {
+    int result = 0;
+    pthread_mutex_lock(&barrier->mutex);
+
+    barrier->count++;
+    if (barrier->count >= barrier->tripCount) {
+        barrier->count = 0;
+        // Wake up all threads waiting for the barrier
+        result = pthread_cond_broadcast(&barrier->cond);
+        if (result == 0) {
+            // Indicate that this thread is the serial thread
+            result = PTHREAD_BARRIER_SERIAL_THREAD;
+        }
+    } else {
+        pthread_cond_wait(&barrier->cond, &barrier->mutex);
+    }
+
+    pthread_mutex_unlock(&barrier->mutex);
+    return result;
+}
+
+#endif
+
 typedef struct {
     long thread_id;
     int* shared_counters;
@@ -37,19 +106,21 @@ void* increment_counters(void* args) {
         printf("Thread #%ld: released lock for counter %d.\n", tid, i);
     }
 
-char filename[20];
-sprintf(filename, "/tmp/%ld.txt", tid);  // Filename without directory prefix
-FILE* file = fopen(filename, "w");
-if (file != NULL) {
-    fprintf(file, "Thread #%ld was here\n", tid);
-    fclose(file);
-} else {
-    printf("Thread #%ld: failed to write file.\n", tid);
-}
-
+    char filename[20];
+    sprintf(filename, "/tmp/%ld.txt", tid);
+    FILE* file = fopen(filename, "w");
+    if (file != NULL) {
+        fprintf(file, "Thread #%ld was here\n", tid);
+        fclose(file);
+    } else {
+        printf("Thread #%ld: failed to write file.\n", tid);
+    }
 
     printf("Thread #%ld: waiting at barrier.\n", tid);
-    pthread_barrier_wait(barrier);
+    int barrier_result = pthread_barrier_wait(barrier);
+    if (barrier_result == PTHREAD_BARRIER_SERIAL_THREAD) {
+        printf("Thread #%ld: is the serial thread after the barrier.\n", tid);
+    }
     printf("Thread #%ld: passed the barrier.\n", tid);
 
     pthread_exit(NULL);
@@ -64,7 +135,7 @@ int main() {
     int rc;
     long t;
 
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
 
     for (int i = 0; i < NUM_COUNTERS; i++) {
         pthread_mutex_init(&mutexes[i], NULL);
@@ -107,7 +178,7 @@ int main() {
         FILE* file = fopen(filename, "r");
         if (file != NULL) {
             char buffer[50];
-            char* ret = fgets(buffer, 50, file);
+            char* ret = fgets(buffer, sizeof(buffer), file);
             assert(ret);
             printf("File /tmp/%ld.txt content: %s", t, buffer);
             fclose(file);
