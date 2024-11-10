@@ -10,12 +10,6 @@
 
 #define THREAD_LOCAL __thread
 
-#ifndef HAVE_FSTATAT64
-static inline int fstatat64(int dirfd, const char *pathname, struct stat64 *buf, int flags) {
-    return fstatat(dirfd, pathname, buf, flags);
-}
-#endif
-
 static THREAD_LOCAL bool __thread_inited = false;
 
 #endif
