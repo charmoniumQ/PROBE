@@ -101,7 +101,7 @@ impl ParseCallbacks for LibprobeCallback {
 }
 
 fn main() {
-        // Tell cargo to look for shared libraries in the specified directory
+    // Tell cargo to look for shared libraries in the specified directory
     // println!("cargo:rustc-link-search=/path/to/lib");
 
     // Tell cargo to tell rustc to link the system bzip2

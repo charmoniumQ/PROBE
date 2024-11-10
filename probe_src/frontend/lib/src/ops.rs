@@ -7,8 +7,8 @@ use crate::transcribe::ArenaContext;
 use probe_macros::{MakeRustOp, PygenDataclass};
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
-use std::vec::Vec;
 use std::os::raw::c_ulong;
+use std::vec::Vec;
 
 /// Specialized version of [`std::convert::From`] for working with libprobe arena structs.
 ///

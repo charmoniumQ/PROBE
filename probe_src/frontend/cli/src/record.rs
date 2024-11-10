@@ -135,7 +135,7 @@ impl Recorder {
             libprobe.push(format!("libprobe.{}", lib_extension));
         }
 
-                // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
+        // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
         // a PathBuf to a OsString because PathBuf::push() automatically adds path separators which
         // is incorrect here.
 
