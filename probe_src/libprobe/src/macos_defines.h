@@ -36,6 +36,8 @@
 #define truncate64 truncate
 #define unwrapped_open64 unwrapped_open
 #define unwrapped_openat64 unwrapped_openat
+#define THREAD_LOCAL _Thread_local
+
 static pid_t (*unwrapped__Fork)(void);
 
 typedef int (*thrd_start_t)(void *);
@@ -84,5 +86,6 @@ static inline int fstatat64(int dirfd, const char *pathname, struct stat64 *buf,
 static _Thread_local bool __thread_inited = false;
 
 #endif
+#define thrd_current() ((uintptr_t) pthread_self())
 
 #endif
