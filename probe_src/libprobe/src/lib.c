@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #ifdef __linux__
 #include "linux_defines.h"
 #elif defined(__APPLE__)
@@ -19,11 +20,8 @@
 #define AT_EMPTY_PATH 0
 #endif
 
-typedef struct stat stat64;
 typedef struct dirent dirent64;
 
-
-#define _GNU_SOURCE
 #include <assert.h>
 #include <fcntl.h>
 #include <stdlib.h>
