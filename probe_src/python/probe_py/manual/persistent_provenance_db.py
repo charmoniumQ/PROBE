@@ -4,7 +4,6 @@ from sqlalchemy.orm import sessionmaker
 import xdg_base_dirs
 
 database_path = xdg_base_dirs.xdg_data_home() / "probe_log.db"
-print(database_path)
 engine = create_engine(f'sqlite:///{database_path}', echo=True)
 Base = declarative_base()
 
