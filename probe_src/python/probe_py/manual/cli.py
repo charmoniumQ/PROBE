@@ -1,4 +1,3 @@
-import datetime
 from typing_extensions import Annotated
 import pathlib
 import typer
@@ -15,13 +14,6 @@ import subprocess
 import os
 import tempfile
 import enum
-import networkx as nx
-from .persistance_provenance.database import ProcessThatWrites, Process, ProcessInputs, session
-from probe_py.manual.persistent_provenance import get_local_node_name
-from sqlalchemy import exists
-import socket
-import xdg_base_dirs
-import random
 
 
 console = rich.console.Console(stderr=True)
@@ -115,74 +107,6 @@ def dataflow_graph(
     dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
     graph_utils.serialize_graph(dataflow_graph, output)
 
-@app.command()
-def store_provenance(
-probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log")
-) -> None:
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
-    root_nodes = [node for node in dataflow_graph.nodes if dataflow_graph.in_degree(node) == 0]
-    root_process_node = None
-    for node in root_nodes:
-        if isinstance(node, analysis.ProcessNode):
-            root_process_node = node
-    if root_process_node is None:
-        print("Could not find the root process node.")
-        return
-    record_exists = session.query(
-        exists().where(
-            Process.id == root_process_node.pid)
-    ).scalar()
-    if record_exists:
-        return
-    process_entry = Process(
-        id=root_process_node.pid,
-        cmd=' '.join(root_process_node.cmd),
-        time=datetime.datetime.now()
-    )
-
-    session.add(process_entry)
-    for source, target in dataflow_graph.edges():
-        if isinstance(source, analysis.FileNode) and isinstance(target, analysis.ProcessNode):
-            record_exists = session.query(
-                exists().where(ProcessInputs.inode == source.inodeOnDevice.inode).where(ProcessInputs.process_id == root_process_node.pid)
-            ).scalar()
-            if record_exists:
-                continue
-            node_name = get_local_node_name()
-            process_input_entry = ProcessInputs(
-                inode=source.inodeOnDevice.inode,
-                process_id=root_process_node.pid,
-                device_major=source.inodeOnDevice.device_major,
-                device_minor=source.inodeOnDevice.device_minor,
-                host=node_name,
-                path=source.file
-            )
-            session.add(process_input_entry)
-
-        elif isinstance(source, analysis.ProcessNode) and isinstance(target, analysis.FileNode):
-            record_exists = session.query(
-                exists().where(ProcessThatWrites.inode == target.inodeOnDevice.inode).where(
-                    ProcessThatWrites.process_id == root_process_node.pid)
-            ).scalar()
-            if record_exists:
-                continue
-            print(target.inodeOnDevice.inode, root_process_node.pid)
-            node_name = get_local_node_name()
-            process_write_entry = ProcessThatWrites(
-                inode=target.inodeOnDevice.inode,
-                process_id=root_process_node.pid,
-                device_major=target.inodeOnDevice.device_major,
-                device_minor=target.inodeOnDevice.device_minor,
-                host=node_name,
-                path=target.file
-            )
-            session.add(process_write_entry)
-
-    session.commit()
 
 @export_app.command()
 def debug_text(
