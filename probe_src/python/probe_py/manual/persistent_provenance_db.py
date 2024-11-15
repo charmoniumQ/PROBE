@@ -27,7 +27,8 @@ class ProcessThatWrites(Base):
 class Process(Base):
     __tablename__ = 'process'
 
-    id = Column(Integer, primary_key=True)
+    process_id = Column(Integer, primary_key=True)
+    parent_process_id = Column(Integer, nullable=True)
     cmd = Column(String)
     time = Column(TIMESTAMP)
 
