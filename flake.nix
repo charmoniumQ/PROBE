@@ -71,7 +71,7 @@
         };
       in rec {
         packages = rec {
-          inherit (frontend.packages) cargoArtifacts probe-cli;
+          inherit (frontend.packages) cargoArtifacts probe-cli probe-lib probe-macros;
           libprobe = pkgs.stdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
@@ -83,23 +83,22 @@
               ]))
             ];
           };
-          probe-bundled = pkgs.stdenv.mkDerivation rec {
-            pname = "probe-bundled";
-            version = "0.1.0";
-            dontUnpack = true;
-            dontBuild = true;
-            nativeBuildInputs = [pkgs.makeWrapper];
-            installPhase = ''
-              mkdir $out $out/bin
-              makeWrapper \
-                ${frontend.packages.probe-cli}/bin/probe \
-                $out/bin/probe \
-                --set __PROBE_LIB ${libprobe}/lib \
-                --prefix PATH : ${probe-py}/bin \
-                --prefix PATH : ${pkgs.buildah}/bin
-            '';
-          };
-          probe-py-generated = frontend.packages.probe-py-generated;
+          # probe-bundled = pkgs.stdenv.mkDerivation rec {
+          #   pname = "probe-bundled";
+          #   version = "0.1.0";
+          #   dontUnpack = true;
+          #   dontBuild = true;
+          #   nativeBuildInputs = [pkgs.makeWrapper];
+          #   installPhase = ''
+          #     mkdir $out $out/bin
+          #     makeWrapper \
+          #       ${frontend.packages.probe-cli}/bin/probe \
+          #       $out/bin/probe \
+          #       --set __PROBE_LIB ${libprobe}/lib \
+          #       --prefix PATH : ${probe-py}/bin \
+          #       --prefix PATH : ${pkgs.buildah}/bin
+          #   '';
+          # };
           probe-py = let
             probe-py-manual = python.pkgs.buildPythonPackage rec {
               pname = "probe_py.manual";
@@ -110,7 +109,6 @@
               ];
               src = ./probe_src/python;
               propagatedBuildInputs = [
-                frontend.packages.probe-py-generated
                 python.pkgs.networkx
                 python.pkgs.pygraphviz
                 python.pkgs.pydot
@@ -119,7 +117,6 @@
                 python.pkgs.xdg-base-dirs
               ];
               nativeCheckInputs = [
-                frontend.packages.probe-py-generated
                 python.pkgs.mypy
                 pkgs.ruff
               ];
@@ -134,7 +131,7 @@
             };
           in
             python.withPackages (pypkgs: [probe-py-manual]);
-          default = probe-bundled;
+          # default = probe-bundled;
         };
         checks = {
           inherit
@@ -161,7 +158,7 @@
             name = "probe-integration-tests";
             src = ./probe_src/tests;
             nativeBuildInputs = [
-              packages.probe-bundled
+              # packages.probe-bundled
               packages.probe-py
               pkgs.podman
               pkgs.docker
@@ -180,7 +177,7 @@
               popd
             '';
             inputsFrom = [
-              frontend.packages.probe-frontend
+              frontend.packages.probe-lib
               frontend.packages.probe-cli
               frontend.packages.probe-macros
             ];

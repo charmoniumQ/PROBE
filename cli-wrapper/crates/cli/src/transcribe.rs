@@ -10,7 +10,7 @@ pub fn transcribe<P: AsRef<Path>, T: Write>(
 ) -> Result<()> {
     let log_dir = Dir::temp(true).wrap_err("Failed to create temp directory for transcription")?;
 
-    probe_frontend::transcribe::parse_top_level(record_dir, &log_dir)
+    probe_lib::transcribe::parse_top_level(record_dir, &log_dir)
         .wrap_err("Failed to transcribe record directory")?;
 
     tar.append_dir_all(".", &log_dir)

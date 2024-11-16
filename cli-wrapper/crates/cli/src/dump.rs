@@ -7,7 +7,7 @@ use std::{
 
 use chrono::{DateTime, SecondsFormat};
 use color_eyre::eyre::{eyre, Result, WrapErr};
-use probe_frontend::ops;
+use probe_lib::ops;
 use serde::{Deserialize, Serialize};
 
 /// Print the ops from a probe log out for humans.
