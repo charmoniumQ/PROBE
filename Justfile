@@ -1,34 +1,39 @@
-fix-format-nix:
+fix-nix:
     alejandra .
 
-fix-ruff:
-    #ruff format probe_src # TODO: uncomment
-    ruff check --fix probe_src
+fix-py:
+    #ruff format probe_py # TODO: uncomment
+    ruff check --fix probe_py tests/ libprobe/generator/ mypy_stubs/
 
-fix-format-rust:
-    env --chdir probe_src/frontend cargo fmt
+fix-cli:
+    env --chdir cli-wrapper git add -A
+    env --chdir cli-wrapper cargo clippy --fix --allow-staged -- --deny warnings
+    env --chdir cli-wrapper cargo fmt
 
-fix-clippy:
-    git add -A
-    env --chdir probe_src/frontend cargo clippy --fix --allow-staged
+fix: fix-nix fix-py fix-cli
 
-check-mypy:
-    mypy --strict probe_src/libprobe
-    mypy --strict --package probe_py.generated
-    mypy --strict --package probe_py.manual
+check-py:
+    mypy --strict --no-namespace-packages --pretty --package probe_py
+    mypy --strict --no-namespace-packages --pretty tests/ libprobe/generator/
+
+check-cli:
+    env --chdir cli-wrapper cargo doc --workspace
+
+check: check-py check-cli
 
 compile-lib:
     make --directory=libprobe all
 
 compile-cli:
     env --chdir=cli-wrapper cargo build --release
+    env --chdir=cli-wrapper cargo build
 
 compile-tests:
-    make --directory=tests/c all
+    make --directory=tests/examples all
 
 compile: compile-lib compile-cli compile-tests
 
-test-dev: compile
-    pytest probe_src --failed-first --maxfail=1
+test: compile
+    python -m pytest tests/ -ra --failed-first --maxfail=1 -v
 
-pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy compile check-mypy test-dev
+pre-commit: fix check compile test

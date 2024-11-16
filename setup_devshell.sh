@@ -31,4 +31,4 @@ export PATH="$project_root/cli-wrapper/target/release:$PATH"
 
 # Add probe_py to the Python path
 export PYTHONPATH="$project_root/:$PYTHONPATH"
-export MYPYPATH="$project_root/:$MYPYPATH"
+export MYPYPATH="$project_root/mypy_stubs:$project_root/:$MYPYPATH"

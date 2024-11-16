@@ -6,12 +6,12 @@ import time
 import os
 import shutil
 import resource
-from dataclasses import dataclass
-from typing import Any
+import dataclasses
+import typing
 import errno
-from pathlib import Path
+import pathlib
 
-@dataclass
+@dataclasses.dataclass
 class Result:
     returncode: int
     stdout: str
@@ -19,11 +19,11 @@ class Result:
     duration: float
     rusage: resource.struct_rusage
 
-PROBE_LOG = Path("probe_log")
-PROBE_RECORD_DIR = Path("probe_record")
+PROBE_LOG = pathlib.Path("probe_log")
+PROBE_RECORD_DIR = pathlib.Path("probe_record")
 
-class ResourcePopen(subprocess.Popen):
-    def _try_wait(self, wait_flags):
+class ResourcePopen(subprocess.Popen[bytes]):
+    def _try_wait(self, wait_flags: int) -> tuple[int, int]:
         try:
             (pid, sts, res) = os.wait4(self.pid, wait_flags)
         except OSError as e:
@@ -36,11 +36,10 @@ class ResourcePopen(subprocess.Popen):
         return (pid, sts)
 
 def resource_call(
-        *popenargs: Any,
-        timeout: int | None = None,
-        **kwargs: Any,
+        popenargs: typing.Sequence[str],
+        timeout: float | None = None,
 ) -> Result:
-    with ResourcePopen(*popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False, **kwargs) as p:
+    with ResourcePopen(popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
         start = datetime.datetime.now()
         try:
             stdout, stderr = p.communicate(timeout=timeout)
@@ -53,7 +52,7 @@ def resource_call(
 
 DELAY = 0.0
 
-def cleanup():
+def cleanup() -> None:
     if PROBE_LOG.exists():
         PROBE_LOG.unlink()
     if PROBE_RECORD_DIR.exists():
@@ -92,7 +91,12 @@ def benchmark_command(command: list[str], warmup_iterations: int, benchmark_iter
 
     return results
 
-def write_results_to_csv(writer, command_to_run, phase, results):
+def write_results_to_csv(
+        writer: csv.DictWriter[str],
+        command_to_run: str,
+        phase: str,
+        results: list[Result],
+) -> None:
     for idx, result in enumerate(results, start=1):
         rusage = result.rusage
         writer.writerow({
@@ -118,7 +122,7 @@ def write_results_to_csv(writer, command_to_run, phase, results):
             'ru_nivcsw': rusage.ru_nivcsw
         })
 
-def benchmark_with_transcription(commands_to_run: list[list[str]], warmup_count: int, benchmark_count: int):
+def benchmark_with_transcription(commands_to_run: list[list[str]], warmup_count: int, benchmark_count: int) -> None:
     with open('benchmark_results.csv', mode='w', newline='') as csv_file:
         fieldnames = [
             'Command', 'Phase', 'Return Code', 'Duration',
@@ -167,5 +171,5 @@ if __name__ == "__main__":
         ["uptime"],
     ]
 
-    os.chdir(Path(__file__).resolve().parent.parent)
+    os.chdir(pathlib.Path(__file__).resolve().parent.parent)
     benchmark_with_transcription(commands, warmup_count=1, benchmark_count=4)

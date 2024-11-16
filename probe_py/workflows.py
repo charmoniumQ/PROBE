@@ -1,5 +1,5 @@
-from .analysis import ProcessNode, FileNode
-import networkx as nx # type: ignore
+from .analysis import ProcessNode, FileNode, DfGraph
+import networkx as nx
 import abc
 from typing import List, Set, Optional
 import pathlib
@@ -18,7 +18,7 @@ All the cases we should take care of:
 """
 class WorkflowGenerator(abc.ABC):
     @abc.abstractmethod
-    def generate_workflow(self, graph: nx.DiGraph) -> str:
+    def generate_workflow(self, graph: DfGraph) -> str:
         pass
 
 class NextflowGenerator(WorkflowGenerator):
@@ -134,7 +134,7 @@ process process_{id(process)} {{
         """
         Create Nextflow processes based on the dataflow graph.
         """
-        for node in self.graph.nodes:
+        for node in self.graph.nodes(data=False):
             if isinstance(node, ProcessNode) and node not in self.visited:
                 inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
                 outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
@@ -156,7 +156,7 @@ process process_{id(process)} {{
 
                 self.visited.add(node)
   
-    def generate_workflow(self, graph: nx.DiGraph) -> str:  
+    def generate_workflow(self, graph: DfGraph) -> str:
         """
         Generate the complete Nextflow workflow script from the graph.
         """
@@ -169,13 +169,13 @@ process process_{id(process)} {{
 
         # Add file nodes to the script
         filenames = set()
-        for node in self.graph.nodes:
+        for node in self.graph.nodes(data=False):
             if isinstance(node, FileNode):
                 escaped_name = self.escape_filename_for_nextflow(node.label)
-                if node.inodeOnDevice not in filenames:
+                if node.inode not in filenames:
                     if pathlib.Path(node.file).exists():
                         self.nextflow_script.append(f"  {escaped_name}=file(\"{node.file}\")")
-                        filenames.add(node.inodeOnDevice)
+                        filenames.add(node.inode)
 
         
         for step in self.workflow:
@@ -283,7 +283,7 @@ class MakefileGenerator:
                 
                 self.handle_process_node(node, inputs, outputs)
 
-    def generate_makefile(self, graph: nx.DiGraph) -> str:
+    def generate_makefile(self, graph: DfGraph) -> str:
         """
         Generate the complete Makefile script from the graph.
         """

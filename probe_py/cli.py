@@ -45,12 +45,12 @@ def validate(
     if should_have_files and not probe_log.probe_options.copy_files:
         warning_free = False
         console.print("No files stored in probe log", style="red")
-    process_graph = analysis.probe_log_to_digraph(probe_log)
+    hb_graph = analysis.probe_log_to_hb_graph(probe_log)
     for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    process_graph = analysis.probe_log_to_digraph(probe_log)
-    for warning in analysis.validate_hb_graph(probe_log, process_graph):
+    hb_graph = analysis.probe_log_to_hb_graph(probe_log)
+    for warning in analysis.validate_hb_graph(probe_log, hb_graph):
         warning_free = False
         console.print(warning, style="red")
     if not warning_free:
@@ -78,9 +78,9 @@ def ops_graph(
     Supports .png, .svg, and .dot
     """
     probe_log = parser.parse_probe_log(probe_log_path)
-    process_graph = analysis.probe_log_to_digraph(probe_log)
-    analysis.color_hb_graph(probe_log, process_graph)
-    graph_utils.serialize_graph(process_graph, output)
+    hb_graph = analysis.probe_log_to_hb_graph(probe_log)
+    analysis.color_hb_graph(probe_log, hb_graph)
+    graph_utils.serialize_graph(hb_graph, output)
 
     
 @export_app.command()

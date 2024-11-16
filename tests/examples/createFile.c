@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <unistd.h> 
-#include <time.h>   
+#include <unistd.h>
+#include <time.h>
 #include <assert.h>
 
 #define NUM_THREADS 3
@@ -123,4 +123,3 @@ int main() {
 
     pthread_exit(NULL);
 }
-

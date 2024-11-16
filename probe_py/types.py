@@ -40,18 +40,18 @@ class Host:
     @staticmethod
     def localhost() -> Host:
         """Returns a Host object representing the current host"""
-        node_name = consts.PROBE_HOME / "node_name"
-        if node_name.exists():
-            return Host(socket.gethostname(), int(node_name.read_text(), 16))
+        node_id_file = consts.PROBE_HOME / "node_id"
+        if node_id_file.exists():
+            return Host(socket.gethostname(), int(node_id_file.read_text(), 16))
         else:
+            node_id_file.parent.mkdir(exist_ok=True)
             hostname = socket.gethostname()
             rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
             bits_per_hex_digit = 4
             hex_digits = 8
-            random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
-            node_name = f"{random_number:0{hex_digits}x}.{hostname}"
-            node_name.write_text(node_name)
-            return Host(hostname, random_number)
+            node_id = rng.getrandbits(bits_per_hex_digit * hex_digits)
+            node_id_file.write_text(f"{node_id:0{hex_digits}x}")
+            return Host(hostname, node_id)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -91,7 +91,7 @@ class ProbeOptions:
 
 
 @dataclasses.dataclass(frozen=True)
-class Thread:
+class KernelThread:
     tid: Tid
     ops: typing.Sequence[ops.Op]
 
@@ -99,7 +99,7 @@ class Thread:
 @dataclasses.dataclass(frozen=True)
 class Exec:
     exec_no: ExecNo
-    threads: typing.Mapping[Tid, Thread]
+    threads: typing.Mapping[Tid, KernelThread]
 
 
 @dataclasses.dataclass(frozen=True)

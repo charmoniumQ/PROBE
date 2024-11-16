@@ -6,8 +6,8 @@ import json
 import tarfile
 import tempfile
 import contextlib
-from .ops import Op
-from .types import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host
+from . import ops
+from .types import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
 @contextlib.contextmanager
@@ -25,8 +25,9 @@ def parse_probe_log_ctx(probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
 
         copy_files = (tmpdir / "info" / "copy_files").exists()
 
-        host_name, host_id = (tmpdir / "info"/ "host").read_text().split()
-        host = Host(host_name, int(host_id, 16))
+        host_name = (tmpdir / "info" / "host_name").read_text()
+        host_id = int((tmpdir / "info" / "host_id").read_text(), 16)
+        host = Host(host_name, host_id)
 
         inodes = dict()
         if copy_files and (tmpdir / "inodes").exists():
@@ -36,19 +37,23 @@ def parse_probe_log_ctx(probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
                 inode_version = InodeVersion(inode, int(mtime_sec, 16), int(mtime_nsec, 16), int(size, 16))
                 inodes[inode_version] = copied_file
 
-        processes = dict[Pid, dict[ExecNo, dict[Tid, typing.Sequence[Op]]]]()
+        processes = dict[Pid, Process]()
         for pid_dir in (tmpdir / "pids").iterdir():
             pid = Pid(pid_dir.name)
+            execs = {}
             for epoch_dir in pid_dir.iterdir():
                 exec_no = ExecNo(epoch_dir.name)
+                threads = {}
                 for tid_file in epoch_dir.iterdir():
                     tid = Tid(tid_file.name)
                     jsonlines = tid_file.read_text().strip().split("\n")
-                    ops = [
+                    ops_list = [
                         json.loads(line, object_hook=op_hook)
                         for line in jsonlines
                     ]
-                    processes.setdefault(pid, {}).setdefault(exec_no, {})[tid] = ops
+                    threads[tid] = KernelThread(tid, ops_list)
+                execs[exec_no] = Exec(exec_no, threads)
+            processes[pid] = Process(pid, execs)
 
         yield ProbeLog(
             processes,

@@ -114,6 +114,21 @@ impl Recorder {
     /// runs the built recorder, on success returns the PID of launched process and the TempDir it
     /// was recorded into
     pub fn record(self) -> Result<Dir> {
+        let info_dir = self.output.path().join("info");
+        std::fs::create_dir(&info_dir).wrap_err("couldn't create 'info' dir")?;
+        std::fs::write(
+            info_dir.join("copy_files"),
+            if self.copy_files { "1" } else { "0" },
+        )?;
+        std::fs::write(
+            info_dir.join("host_id"),
+            format!("{:x}", get_node_id().wrap_err("Couldn't read or generate-and-write node_id")?),
+        )?;
+        std::fs::write(
+            info_dir.join("host_name"),
+            gethostname::gethostname().as_encoded_bytes(),
+        )?;
+
         // reading and canonicalizing path to libprobe
         let mut libprobe = fs::canonicalize(match std::env::var_os("__PROBE_LIB") {
             Some(x) => PathBuf::from(x),
@@ -261,4 +276,32 @@ impl Recorder {
         self.copy_files = copy_files;
         self
     }
+}
+
+fn get_node_id() -> Result<u32> {
+    let node_id_file = xdg::BaseDirectories::with_prefix("PROBE")?
+        .get_data_home()
+        .join("node_id");
+
+    /*
+     * If file exists, and it parses as an int, return that
+     * If either fails, create a new random int, store it in the file, and return it.
+     */
+    std::fs::read_to_string(&node_id_file)
+        .and_then(|string|
+                  u32::from_str_radix(&string, 16)
+                  .map_err(|_| std::io::Error::other("parse int failed"))
+        )
+        .or_else(|_| {
+            let node_id = rand::random::<u32>();
+
+            /*
+             * We could try ignoring this error.
+             * We generated a node_id for this process tree, it didn't save for some reason.
+             * But it would be better if the user knows about it, so their provenance from other procs on the same host get connected up.
+             */
+            std::fs::write(&node_id_file, format!("{:x}", node_id))
+                .wrap_err(format!("Couldn't write node_id_file {:?}", &node_id_file))?;
+            Ok(node_id)
+        })
 }

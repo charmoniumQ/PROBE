@@ -137,7 +137,7 @@ fn main() -> Result<()> {
 
             let exit = std::process::Command::new("python3")
                 .arg("-m")
-                .arg("probe_py.manual.cli")
+                .arg("probe_py.cli")
                 .arg(subcommand)
                 .args(&args)
                 .spawn()

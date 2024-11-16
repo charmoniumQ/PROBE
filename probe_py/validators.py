@@ -101,7 +101,7 @@ def validate_clone_targets(probe_log: ProbeLog) -> Iterator[str]:
                     if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
                         if op.data.task_type == TaskType.TASK_PID and Pid(op.data.task_id) not in pids:
                             yield f"CloneOp returned a PID {op.data.task_id} that we didn't track"
-                        elif op.data.task_type == TaskType.TASK_TID and Tid(op.data.task_id) not in tids:
+                        elif op.data.task_type == TaskType.TASK_TID and Tid(op.data.task_id) not in exec_ep.threads:
                             yield f"CloneOp returned a TID {op.data.task_id} that we didn't track"
                         elif op.data.task_type == TaskType.TASK_PTHREAD and op.data.task_id not in pthread_ids:
                             yield f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track"

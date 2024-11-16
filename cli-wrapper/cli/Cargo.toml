@@ -17,6 +17,7 @@ color-eyre = "0.6.3"
 env_logger = "0.11.3"
 exec = "0.3.1"
 flate2 = "1.0.30"
+gethostname = "0.5.0"
 libc = "0.2.155"
 log = "0.4.21"
 probe_frontend = { path = "../lib" }
@@ -24,6 +25,7 @@ rand = "0.8.5"
 serde =  "1.0.203"
 serde_json = "1.0.118"
 tar = "0.4.41"
+xdg = "2.5.2"
 
 [lints]
 workspace = true
