@@ -25,6 +25,16 @@
     CARGO_BUILD_TARGET = rust-target;
     CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
     CPATH = ../libprobe/include;
+
+    # pygen needs to know where to write the python file
+    preConfigurePhases = [
+      "pygenConfigPhase"
+    ];
+    pygenConfigPhase = ''
+      export PYGEN_OUTFILE="$out/resources/ops.py"
+      mkdir --parents "$(dirname "$PYGEN_OUTFILE")"
+      echo "Sending python code to $PYGEN_OUTFILE"
+    '';
   };
 
   # Build *just* the cargo dependencies (of the entire workspace),
@@ -42,41 +52,48 @@
       doCheck = false;
     };
 
-  fileSetForCrate = crate: lib.fileset.toSource {
+  fileSetForCrate = crates: lib.fileset.toSource {
     root = ./.;
-    fileset = lib.fileset.unions [
+    fileset = lib.fileset.unions ([
       ./Cargo.toml
       ./Cargo.lock
-      (craneLib.fileset.commonCargoSources crate)
-    ];
+    ] ++ (builtins.map craneLib.fileset.commonCargoSources crates));
   };
 
   packages = rec {
     inherit cargoArtifacts;
 
-    # Build the top-level crates of the workspace as individual derivations.
-    # This allows consumers to only depend on (and build) only what they need.
-    # Though it is possible to build the entire workspace as a single derivation,
-    # so this is left up to you on how to organize things
-    probe-lib = craneLib.buildPackage (individualCrateArgs
-      // {
-        pname = "probe-lib";
-        cargoExtraArgs = "-p probe_lib";
-        src = fileSetForCrate ./crates/lib;
-      });
+    # Prior to this version, the old code had one derivatino per crate (probe-cli, probe-lib, and probe-macros).
+    # What could go wrong?
+    # Since the old version used `src = ./.`, it would rebuild all three if any one changed.
+
+    # craneLib's workspace example [1] says to use `src = fileSetForCrate ./path/to/crate`.
+    # However, when I tried doing that, it would say "failed to load manifest for workspace member lib" because "failed to read macros/Cargo.toml".
+    # Because `lib/Cargo.toml` has a dependency on `{path = "../macros"}`,
+    # I think the source code of both crates have to be present at build-time of lib.
+    # Which means no source filtering is possible.
+    # Indeed the exposed packages in craneLib's example (my-cli and my-server) [1] do not depend on each other.
+    # They depend on my-common, which is *not* filtered out (*is* included) in the `src` for those crates.
+    # If it's possible to simultaneously:
+    #   - expose two Cargo crates A and B
+    #   - where A depends on B
+    #   - when A changes only A needs to be rebuilt
+    # then I don't know how to do it.
+    # Therefore, I will only offer one crate as a Nix package.
+    #
+    # https://crane.dev/examples/quick-start-workspace.html
 
     probe-cli = craneLib.buildPackage (individualCrateArgs
       // {
         pname = "probe-cli";
         cargoExtraArgs = "-p probe_cli";
-        src = fileSetForCrate ./crates/cli;
+        src = fileSetForCrate [
+          ./cli
+          ./lib
+          ./macros
+        ];
       });
-    probe-macros = craneLib.buildPackage (individualCrateArgs
-      // {
-        pname = "probe-macros";
-        cargoExtraArgs = "-p probe_macros";
-        src = fileSetForCrate ./crates/macros;
-      });
+
   };
   checks = {
     probe-workspace-clippy = craneLib.cargoClippy (commonArgs

@@ -1,7 +1,9 @@
 [workspace]
 resolver = "2"
-members = [ 
-    "crates/*",
+members = [
+    "cli",
+    "lib",
+    "macros",
 ]
 
 [workspace.package]

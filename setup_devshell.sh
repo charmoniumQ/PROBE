@@ -19,7 +19,7 @@ fi
 
 # Rust code uses PYGEN_OUTFILE to determine where to write this file.
 # TODO: Replace this with a static path, because it is never not this path.
-export PYGEN_OUTFILE="$project_root/probe_py/ops.py"
+export PYGEN_OUTFILE="$project_root/probe_py/probe_py/ops.py"
 
 # Ensure PROBE CLI gets built
 if [ ! -f $project_root/probe_src/frontend/target/release/probe ]; then
@@ -30,5 +30,5 @@ fi
 export PATH="$project_root/cli-wrapper/target/release:$PATH"
 
 # Add probe_py to the Python path
-export PYTHONPATH="$project_root/:$PYTHONPATH"
-export MYPYPATH="$project_root/mypy_stubs:$project_root/:$MYPYPATH"
+export PYTHONPATH="$project_root/probe_py/:$PYTHONPATH"
+export MYPYPATH="$project_root/probe_py/mypy_stubs:$project_root/:$MYPYPATH"

@@ -71,7 +71,7 @@
         };
       in rec {
         packages = rec {
-          inherit (frontend.packages) cargoArtifacts probe-cli probe-lib probe-macros;
+          inherit (frontend.packages) cargoArtifacts probe-cli;
           libprobe = pkgs.stdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
@@ -99,38 +99,40 @@
           #       --prefix PATH : ${pkgs.buildah}/bin
           #   '';
           # };
-          probe-py = let
-            probe-py-manual = python.pkgs.buildPythonPackage rec {
-              pname = "probe_py.manual";
-              version = "0.1.0";
-              pyproject = true;
-              build-system = [
-                python.pkgs.flit-core
-              ];
-              src = ./probe_src/python;
-              propagatedBuildInputs = [
-                python.pkgs.networkx
-                python.pkgs.pygraphviz
-                python.pkgs.pydot
-                python.pkgs.rich
-                python.pkgs.typer
-                python.pkgs.xdg-base-dirs
-              ];
-              nativeCheckInputs = [
-                python.pkgs.mypy
-                pkgs.ruff
-              ];
-              checkPhase = ''
-                runHook preCheck
-                #ruff format --check probe_src # TODO: uncomment
-                ruff check .
-                python -c 'import probe_py.manual'
-                mypy --strict --package probe_py.manual
-                runHook postCheck
-              '';
-            };
-          in
-            python.withPackages (pypkgs: [probe-py-manual]);
+          probe-py = python.pkgs.buildPythonPackage rec {
+            pname = "probe_py";
+            version = "0.1.0";
+            pyproject = true;
+            build-system = [
+              python.pkgs.flit-core
+            ];
+            src = ./probe_py;
+            propagatedBuildInputs = [
+              python.pkgs.networkx
+              python.pkgs.pygraphviz
+              python.pkgs.pydot
+              python.pkgs.rich
+              python.pkgs.typer
+              python.pkgs.xdg-base-dirs
+            ];
+            # postUnpackPhase = ''
+            #   echo $src
+            #   ls -ahlt $src
+            #   cp ${probe-cli}/resources/ops.py $src/probe_py/ops.py
+            # '';
+            nativeCheckInputs = [
+              python.pkgs.mypy
+              pkgs.ruff
+            ];
+            checkPhase = ''
+              runHook preCheck
+              #ruff format --check probe_src # TODO: uncomment
+              ruff check .
+              python -c 'import probe_py.manual'
+              mypy --strict --package probe_py.manual
+              runHook postCheck
+            '';
+          };
           # default = probe-bundled;
         };
         checks = {
@@ -177,9 +179,7 @@
               popd
             '';
             inputsFrom = [
-              frontend.packages.probe-lib
               frontend.packages.probe-cli
-              frontend.packages.probe-macros
             ];
             packages =
               [
@@ -230,8 +230,9 @@
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
               ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
-          };
+            };
         };
       }
-    );
+    )
+  ;
 }
