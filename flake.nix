@@ -106,7 +106,18 @@
             build-system = [
               python.pkgs.flit-core
             ];
-            src = ./probe_py;
+            src = pkgs.stdenv.mkDerivation {
+              src = ./probe_py;
+              pname = "probe-py-with-pygen-code";
+              version = "0.1.0";
+              buildPhase = "true";
+              installPhase = ''
+                mkdir $out/
+                cp --recursive $src/* $out/
+                chmod 755 $out/probe_py
+                cp ${probe-cli}/resources/ops.py $out/probe_py/
+              '';
+            };
             propagatedBuildInputs = [
               python.pkgs.networkx
               python.pkgs.pygraphviz
@@ -115,11 +126,6 @@
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
             ];
-            # postUnpackPhase = ''
-            #   echo $src
-            #   ls -ahlt $src
-            #   cp ${probe-cli}/resources/ops.py $src/probe_py/ops.py
-            # '';
             nativeCheckInputs = [
               python.pkgs.mypy
               pkgs.ruff
@@ -128,8 +134,8 @@
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
-              python -c 'import probe_py.manual'
-              mypy --strict --package probe_py.manual
+              python -c 'import probe_py'
+              MYPYPATH=$src/mypy_stubs mypy --strict --package probe_py
               runHook postCheck
             '';
           };

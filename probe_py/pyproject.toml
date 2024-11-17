@@ -5,6 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "probe_py"
 version = "0.1.0"
+description = "Python library and CLI extensions for PROBE"
 authors = [
     {name = "Samuel Grayson", email = "sam@samgrayson.me"},
     {name = "Shofiya Bootwala"},
@@ -15,9 +16,7 @@ authors = [
 ]
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
-dynamic = ["version", "description"]
 dependencies = [
-    "probe_py.generated",
     "networkx",
     "pygraphviz",
     "pydot",
