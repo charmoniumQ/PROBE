@@ -498,19 +498,18 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
             json.dump(process_id if process_id is not None else None, f)
     address = dest.get_address()
     assert address is not None
-    scp_commands = []
+    echo_commands = []
     for inode_version, process_id in augmented_inode_writes.items():
         inode_version = str(inode_version)
-        scp_commands.append(
+        echo_commands.append(
             f"echo {shlex.quote(json.dumps(process_id))} > \"${{process_that_wrote}}/{inode_version}.json\""
         )
 
     for process_id, process in augmented_process_closure.items():
         process_id = str(process_id)
-        scp_commands.append(
+        echo_commands.append(
             f"echo {shlex.quote(json.dumps(process))} > \"${{process_by_id}}/{process_id}.json\""
         )
-    combined_scp_command = " && ".join(scp_commands)
 
     subprocess.run(
         [
@@ -524,7 +523,7 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
             # Ensure the remote directory exists
             "mkdir -p \"$process_that_wrote\"",
             "mkdir -p \"$process_by_id\"",
-            combined_scp_command
+            echo_commands,
         ]),
         ],
         capture_output=True,
