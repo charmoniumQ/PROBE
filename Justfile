@@ -1,34 +1,51 @@
-fix-format-nix:
+fix-nix:
     alejandra .
 
-fix-ruff:
-    #ruff format probe_src # TODO: uncomment
-    ruff check --fix probe_src
+fix-py: compile-cli
+    # fix-py depends on compile-cli for the autogen python code
+    #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
+    ruff check --fix probe_py/ tests/ libprobe/generator/
 
-fix-format-rust:
-    env --chdir probe_src/frontend cargo fmt
+fix-cli:
+    # cargo clippy refuses to run if unstaged inputs (fixes may be destructive)
+    # so we git add -A
+    env --chdir cli-wrapper git add -A
+    env --chdir cli-wrapper cargo clippy --fix --allow-staged -- --deny warnings
+    env --chdir cli-wrapper cargo fmt
 
-fix-clippy:
-    git add -A
-    env --chdir probe_src/frontend cargo clippy --fix --allow-staged
+fix: fix-nix fix-py fix-cli
 
-check-mypy:
-    mypy --strict probe_src/libprobe
-    mypy --strict --package probe_py.generated
-    mypy --strict --package probe_py.manual
+check-py: compile-cli
+    # dmypy == daemon mypy; much faster.
+    dmypy run -- --strict --no-namespace-packages --pretty probe_py/ tests/ libprobe/generator/
+
+check-cli:
+    env --chdir cli-wrapper cargo doc --workspace
+
+check: check-py check-cli
 
 compile-lib:
-    make --directory=probe_src/libprobe all
+    make --directory=libprobe all
 
 compile-cli:
-    env --chdir=probe_src/frontend cargo build --release
+    env --chdir=cli-wrapper cargo build --release
+    env --chdir=cli-wrapper cargo build
 
 compile-tests:
-    make --directory=probe_src/tests/c all
+    make --directory=tests/examples all
 
 compile: compile-lib compile-cli compile-tests
 
-test-dev: compile
-    pytest probe_src --failed-first --maxfail=1
+test-nix:
+    nix build .#probe-bundled
+    nix flake check --all-systems
 
-pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy compile check-mypy test-dev
+test-native: compile
+    python -m pytest tests/ -ra --failed-first --maxfail=1 -v
+
+test: test-native
+# Unless you the user explicitly asks (`just test-nix`),
+# we don't really need to test-nix.
+# It runs the same checks as `just test` and `just check`, but in Nix.
+
+pre-commit: fix check compile test

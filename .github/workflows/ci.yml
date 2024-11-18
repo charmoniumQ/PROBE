@@ -43,4 +43,8 @@ jobs:
 
     - run: nix flake check --all-systems --print-build-logs
 
-    - run: nix build --print-build-logs .#probe-bundled .#probe-py
+    - run: nix build --print-build-logs .#probe-bundled
+
+    # The devshell uses slightly different build process than the Nix pkg
+    # Might as well test that too
+    - run: nix develop --command just compile fix check test-native
