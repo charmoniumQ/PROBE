@@ -15,7 +15,7 @@ def bash(*cmds: str) -> list[str]:
 
 commands = [
     ["echo", "hi"],
-    ["head", "../../../flake.nix"],
+    ["head", "../../flake.nix"],
     bash(
         "echo",
         "#include <stdio.h>\n#include <fcntl.h>\nint main() {open(\".\", 0); printf(\"hello world\\n\"); return 0; }",
