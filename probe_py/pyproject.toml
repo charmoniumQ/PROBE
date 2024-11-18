@@ -1,0 +1,28 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "probe_py"
+version = "0.1.0"
+description = "Python library and CLI extensions for PROBE"
+authors = [
+    {name = "Samuel Grayson", email = "sam@samgrayson.me"},
+    {name = "Shofiya Bootwala"},
+    {name = "Saleha Muzammil"},
+    {name = "Asif Zubayer Palak"},
+    {name = "Kyrillos Ishak"},
+    {name = "Jenna Fligor"},
+]
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dependencies = [
+    "networkx",
+    "pydot",
+    "rich",
+    "typer",
+    "xdg-base-dirs"
+]
+
+[project.urls]
+Home = "https://github.com/charmoniumQ/PROBE"
