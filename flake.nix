@@ -169,6 +169,7 @@
               packages.probe-bundled
               pkgs.podman
               pkgs.docker
+              pkgs.coreutils # so we can `probe record head ...`, etc.
             ];
             buildPhase = "touch $out";
             checkPhase = ''

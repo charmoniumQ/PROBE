@@ -131,7 +131,7 @@ test = [
 
 
 @pytest.mark.skip("This test takes a long time")
-async def test_docker(max_concurrency: int = 1, capture_output: bool = True) -> bool:
+async def test_docker(max_concurrency: int = 1, capture_output: bool = True) -> None:
     results = as_completed_with_concurrency(max_concurrency, [
         run_in_docker(
             f"probe-{image}-{tag}",
