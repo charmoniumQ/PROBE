@@ -22,6 +22,9 @@ import pathlib
 import yaml
 import typing
 
+PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
+PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
+PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
 @dataclasses.dataclass(frozen=True)
 class Host:
@@ -125,6 +128,9 @@ def augment_provenance(
         pathlib.Path(),
     )
     process_closure[scp_process_id] = scp_process
+    process_path = PROCESSES_BY_ID / f"{str(scp_process_id)}.json"
+    with process_path.open("w") as f:
+        json.dump(scp_process, f)
     for destination_inode_version in destination_inode_versions:
         inode_writes[destination_inode_version] = scp_process_id
 
@@ -466,11 +472,65 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
 
 
 def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
+    destination_inode_versions, destination_inode_metadatas, augmented_process_closure, augmented_inode_writes = provenance_info
+
+    for inode_version, process_id in augmented_inode_writes.items():
+        inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{inode_version.str_id()}.json"
+        with inode_version_path.open("w") as f:
+            json.dump(process_id if process_id is not None else None, f)
+
+    for process_id, process in augmented_process_closure.items():
+        process_path = PROCESSES_BY_ID / f"{process_id}.json"
+        with process_path.open("w") as f:
+            json.dump(process, f)
+
     raise NotImplementedError()
 
 
 def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> None:
-    raise NotImplementedError()
+    destination_inode_versions, destination_inode_metadatas, augmented_process_closure, augmented_inode_writes = provenance_info
+
+    for inode_version, process_id in augmented_inode_writes.items():
+        if inode_version not in destination_inode_versions:
+            continue
+        inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{inode_version.str_id()}.json"
+        with inode_version_path.open("w") as f:
+            json.dump(process_id if process_id is not None else None, f)
+    address = dest.get_address()
+    assert address is not None
+    echo_commands = []
+    for inode_version, process_id in augmented_inode_writes.items():
+        inode_version = str(inode_version)
+        echo_commands.append(
+            f"echo {shlex.quote(json.dumps(process_id))} > \"${{process_that_wrote}}/{inode_version}.json\""
+        )
+
+    for process_id, process in augmented_process_closure.items():
+        process_id = str(process_id)
+        echo_commands.append(
+            f"echo {shlex.quote(json.dumps(process))} > \"${{process_by_id}}/{process_id}.json\""
+        )
+
+    subprocess.run(
+        [
+            "ssh",
+            *dest.ssh_options,
+            address,
+            "sh", "-c", ";".join([
+            "probe_data=${XDG_DATA_HOME:-$HOME/.local/share}/PROBE",
+            "process_that_wrote=${probe_data}/process_id_that_wrote_inode_version",
+            "process_by_id=${probe_data}/processes_by_id",
+            # Ensure the remote directory exists
+            "mkdir -p \"$process_that_wrote\"",
+            "mkdir -p \"$process_by_id\"",
+            echo_commands,
+        ]),
+        ],
+        capture_output=True,
+        check=True,
+        text=False,
+    )
+
 
 
 # Notes:
