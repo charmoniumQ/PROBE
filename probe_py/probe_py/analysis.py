@@ -3,6 +3,7 @@ import networkx as nx  # type: ignore
 from .ptypes import TaskType, ProvLog
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
+from . import parser
 from enum import IntEnum
 import rich
 import sys

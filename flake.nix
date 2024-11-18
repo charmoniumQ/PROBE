@@ -241,8 +241,9 @@
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
               ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
-          };
+            };
         };
       }
-    );
+    )
+  ;
 }

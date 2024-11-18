@@ -52,15 +52,13 @@
       doCheck = false;
     };
 
-  fileSetForCrate = crates:
-    lib.fileset.toSource {
-      root = ./.;
-      fileset = lib.fileset.unions ([
-          ./Cargo.toml
-          ./Cargo.lock
-        ]
-        ++ (builtins.map craneLib.fileset.commonCargoSources crates));
-    };
+  fileSetForCrate = crates: lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions ([
+      ./Cargo.toml
+      ./Cargo.lock
+    ] ++ (builtins.map craneLib.fileset.commonCargoSources crates));
+  };
 
   packages = rec {
     inherit cargoArtifacts;
@@ -95,6 +93,7 @@
           ./macros
         ];
       });
+
   };
   checks = {
     probe-workspace-clippy = craneLib.cargoClippy (commonArgs
