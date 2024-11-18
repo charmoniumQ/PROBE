@@ -43,4 +43,9 @@ test-nix:
 test-native: compile
     python -m pytest tests/ -ra --failed-first --maxfail=1 -v
 
-pre-commit: fix check compile test-native test-nix
+test: test-native
+# Unless you the user explicitly asks (`just test-nix`),
+# we don't really need to test-nix.
+# It runs the same checks as `just test` and `just check`, but in Nix.
+
+pre-commit: fix check compile test
