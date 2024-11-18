@@ -4,4 +4,8 @@
 # which complicates testing probe
 # To simplify, use this script.
 
-env - __PROBE_LIB=$__PROBE_LIB PATH=$PATH PYTHONPATH=$PYTHONPATH $@
+project_root="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")"
+
+path="$project_root/cli-wrapper/target/release"
+
+env - __PROBE_LIB="$__PROBE_LIB" PATH="$path" "${@}"
