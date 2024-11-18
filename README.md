@@ -108,3 +108,29 @@ probe export --help
 6. Run `probe <args...>` or `python -m probe_py.manual.cli <args...>` to invoke the Rust or Python code respectively.
 
 7. **Before submitting a PR**, run `just pre-commit` which will run pre-commit checks.
+
+## Directory structure
+
+- `libprobe`: Library that implements interposition (C, Make, Python; happens to be manual and code-gen).
+  - `libprobe/include`: Headers that will be used by the Rust wrapper to read PROBE data.
+  - `libprobe/src`: Main C sources of `libprobe`.
+  - `libprobe/generator`: Python and C-template code-generator.
+  - `libprobe/generated`: (Generated, not committed to Git) output of code-generation.
+  - `libprobe/Makefile`: Makefile that runs all of `libprobe`; run `just compile-cli` to invoke.
+- `cli-wrapper`: (Cargo workspace) code that wraps libprobe.
+  - `cli-wrapper/cli`: (Cargo crate) main CLI.
+  - `cli-wrapper/lib`: (Cargo crate) supporting library functions.
+  - `cli-wrapper/macros`: (Cargo crate) supporting macros; they use structs from `libprobe/include` to create Rust structs and Python dataclasses.
+  - `cli-wrapper/frontend.nix`: Nix code that builds the Cargo workspace; Gets included in `flake.nix`.
+- `probe_py`: Python Code that implements analysis of PROBE data (happens to be manual and code-gen), should be added to `$PYTHONPATH` by `nix develop`
+  - `probe_py/probe_py`: Main package to be imported or run.
+  - `probe_py/pyproject.toml`: Definition of main package and dependencies.
+  - `probe_py/tests`: Python unittests, i.e., `from probe_py import foobar; test_foobar()`; Run `just test-py`.
+  - `probe_py/mypy_stubs`: "Stub" files that tell Mypy how to check untyped library code. Should be added to `$MYPYPATH` by `nix develop`.
+- `tests`: End-to-end opaque-box tests. They will be run with Pytest, but they will not test Python directly; they should always `subprocess.run(["probe", ...])`. Additionally, some tests have to be manually invoked.
+- `docs`: Documentation and papers.
+- `benchmark`: Programs and infrastructure for benchmarking.
+  - `benchmark/REPRODUCING.md`: Read this first!
+- `flake.nix`: Nix code that defines packages and the devshell.
+- `setup_devshell.sh`: Helps instantiate Nix devshell.
+- `Justfile`: "Shortcuts" for defining and running common commands (e.g., `just --list`).

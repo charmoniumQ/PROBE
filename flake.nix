@@ -139,7 +139,7 @@
               runHook postCheck
             '';
           };
-          # default = probe-bundled;
+          default = probe-bundled;
         };
         checks = {
           inherit
@@ -164,10 +164,9 @@
           };
           probe-integration-tests = pkgs.stdenv.mkDerivation {
             name = "probe-integration-tests";
-            src = ./probe_src/tests;
+            src = ./tests;
             nativeBuildInputs = [
-              # packages.probe-bundled
-              packages.probe-py
+              packages.probe-bundled
               pkgs.podman
               pkgs.docker
             ];
@@ -239,9 +238,8 @@
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
               ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
-            };
+          };
         };
       }
-    )
-  ;
+    );
 }
