@@ -7,7 +7,7 @@ import tarfile
 import tempfile
 import contextlib
 from . import ops
-from .types import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
+from .ptypes import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
 @contextlib.contextmanager

@@ -1,7 +1,7 @@
 import pytest
 import typing
 from probe_py.parser import parse_probe_log
-from probe_py.types import ProbeLog, Pid, ExecNo, Tid
+from probe_py.ptypes import ProbeLog, Pid, ExecNo, Tid
 from probe_py.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
 from probe_py.analysis import probe_log_to_hb_graph, validate_hb_graph
 import pathlib

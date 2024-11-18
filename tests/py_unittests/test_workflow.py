@@ -3,7 +3,7 @@ import pytest
 import pathlib
 from probe_py.workflows import NextflowGenerator
 from probe_py.analysis import FileNode, ProcessNode, DfGraph
-from probe_py.types import Inode, Host
+from probe_py.ptypes import Inode, Host
 
 
 tmpdir = pathlib.Path(__file__).resolve().parent.parent / "tmp"

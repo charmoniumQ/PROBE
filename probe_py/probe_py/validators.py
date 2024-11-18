@@ -1,6 +1,6 @@
 from typing import Iterator
 from .ops import InitProcessOp, InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp
-from .types import Tid, Pid, ProbeLog, initial_exec_no, TaskType
+from .ptypes import Tid, Pid, ProbeLog, initial_exec_no, TaskType
 
 
 """The analyses make a lot of assumptions about the probe_log.

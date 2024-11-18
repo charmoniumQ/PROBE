@@ -1,6 +1,6 @@
 import typing
 import networkx as nx
-from .types import Inode, ProbeLog, TaskType, Host, Pid, ExecNo, Tid
+from .ptypes import Inode, ProbeLog, TaskType, Host, Pid, ExecNo, Tid
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
 from enum import IntEnum

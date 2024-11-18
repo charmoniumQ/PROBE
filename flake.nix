@@ -135,7 +135,7 @@
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
               python -c 'import probe_py'
-              MYPYPATH=$src/mypy_stubs mypy --strict --package probe_py
+              MYPYPATH=$src/mypy_stubs:$MYPYPATH mypy --strict --package probe_py
               runHook postCheck
             '';
           };

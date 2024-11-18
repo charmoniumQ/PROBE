@@ -10,7 +10,7 @@ mod dump;
 /// Run commands under provenance and generate probe record directory.
 mod record;
 
-/// Wrapper over [`probe_frontend::transcribe`].
+/// Wrapper over [`probe_lib::transcribe`].
 mod transcribe;
 
 /// Utility code for creating temporary directories.
