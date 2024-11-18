@@ -2,7 +2,7 @@ import subprocess
 import threading
 import os
 
-def run_openssh_server():
+def run_openssh_server() -> None:
     os.chdir("./openssh-server/")
     process = subprocess.Popen("docker compose up -d", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -13,7 +13,7 @@ def run_openssh_server():
     Press "q" and Enter to stop the server.
     ''')
 
-    def wait_for_input():
+    def wait_for_input() -> None:
         while True:
             user_input = input()  
             if user_input.strip().lower() == 'q':
