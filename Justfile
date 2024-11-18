@@ -7,7 +7,8 @@ fix-py: compile-cli
     ruff check --fix probe_py/ tests/ libprobe/generator/
 
 fix-cli:
-    # stage because cargo clippy fix may be destructive
+    # cargo clippy refuses to run if unstaged inputs (fixes may be destructive)
+    # so we git add -A
     env --chdir cli-wrapper git add -A
     env --chdir cli-wrapper cargo clippy --fix --allow-staged -- --deny warnings
     env --chdir cli-wrapper cargo fmt
@@ -35,7 +36,11 @@ compile-tests:
 
 compile: compile-lib compile-cli compile-tests
 
-test: compile
+test-nix:
+    nix build .#probe-bundled
+    nix flake check --all-systems
+
+test-native: compile
     python -m pytest tests/ -ra --failed-first --maxfail=1 -v
 
-pre-commit: fix check compile test
+pre-commit: fix check compile test-native test-nix

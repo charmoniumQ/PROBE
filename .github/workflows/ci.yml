@@ -47,4 +47,4 @@ jobs:
 
     # The devshell uses slightly different build process than the Nix pkg
     # Might as well test that too
-    - run: nix develop --command just compile fix check test
+    - run: nix develop --command just compile fix check test-native
