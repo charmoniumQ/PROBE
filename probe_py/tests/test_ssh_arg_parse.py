@@ -1,5 +1,4 @@
-import sys
-from probe_py.manual.ssh_argparser import parse_ssh_args
+from probe_py.ssh_argparser import parse_ssh_args
 
 # List of test cases
 test_cases = [
@@ -14,16 +13,10 @@ test_cases = [
     (['-v', '-p', '22', '-A', 'user@host.com', 'uptime'], (['-v', '-p', '22', '-A'], 'user@host.com', ['uptime']))
 ]
 
-def run_test_cases():
+def run_test_cases() -> None:
     for i, (input_args, expected_output) in enumerate(test_cases):
         result = parse_ssh_args(input_args)
-        if result == expected_output:
-            print(f"Test case {i+1} passed!")
-        else:
-            print(f"Test case {i+1} failed!")
-            print(f"Input: {input_args}")
-            print(f"Expected: {expected_output}")
-            print(f"Got: {result}")
+        assert result == expected_output
 
 
 if __name__ == "__main__":

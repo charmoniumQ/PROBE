@@ -6,7 +6,11 @@ import networkx  # type: ignore
 _Node = typing.TypeVar("_Node")
 
 
-DiGraph: typing.TypeAlias = networkx.DiGraph[_Node]
+if typing.TYPE_CHECKING:
+    DiGraph: typing.TypeAlias = networkx.DiGraph[_Node]
+else:
+    class DiGraph(typing.Generic[_Node], networkx.DiGraph):
+        pass
 
 
 def serialize_graph(

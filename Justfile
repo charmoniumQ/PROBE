@@ -1,10 +1,10 @@
 fix-nix:
     alejandra .
 
-# fix-py depends on compile-cli for the autogen python code
 fix-py: compile-cli
+    # fix-py depends on compile-cli for the autogen python code
     #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
-    ruff check --fix probe_py probe_py/ tests/ libprobe/generator/
+    ruff check --fix probe_py/ tests/ libprobe/generator/
 
 fix-cli:
     # stage because cargo clippy fix may be destructive

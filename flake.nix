@@ -83,22 +83,6 @@
               ]))
             ];
           };
-          # probe-bundled = pkgs.stdenv.mkDerivation rec {
-          #   pname = "probe-bundled";
-          #   version = "0.1.0";
-          #   dontUnpack = true;
-          #   dontBuild = true;
-          #   nativeBuildInputs = [pkgs.makeWrapper];
-          #   installPhase = ''
-          #     mkdir $out $out/bin
-          #     makeWrapper \
-          #       ${frontend.packages.probe-cli}/bin/probe \
-          #       $out/bin/probe \
-          #       --set __PROBE_LIB ${libprobe}/lib \
-          #       --prefix PATH : ${probe-py}/bin \
-          #       --prefix PATH : ${pkgs.buildah}/bin
-          #   '';
-          # };
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
             version = "0.1.0";
@@ -139,7 +123,23 @@
               runHook postCheck
             '';
           };
-          # default = probe-bundled;
+          probe-bundled = pkgs.stdenv.mkDerivation rec {
+            pname = "probe-bundled";
+            version = "0.1.0";
+            dontUnpack = true;
+            dontBuild = true;
+            nativeBuildInputs = [pkgs.makeWrapper];
+            installPhase = ''
+              mkdir $out $out/bin
+              makeWrapper \
+                ${frontend.packages.probe-cli}/bin/probe \
+                $out/bin/probe \
+                --set __PROBE_LIB ${libprobe}/lib \
+                --prefix PATH : ${probe-py}/bin \
+                --prefix PATH : ${pkgs.buildah}/bin
+            '';
+          };
+          default = probe-bundled;
         };
         checks = {
           inherit
@@ -164,10 +164,9 @@
           };
           probe-integration-tests = pkgs.stdenv.mkDerivation {
             name = "probe-integration-tests";
-            src = ./probe_src/tests;
+            src = ./tests;
             nativeBuildInputs = [
-              # packages.probe-bundled
-              packages.probe-py
+              packages.probe-bundled
               pkgs.podman
               pkgs.docker
             ];
@@ -236,9 +235,8 @@
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
               ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
-            };
+          };
         };
       }
-    )
-  ;
+    );
 }
