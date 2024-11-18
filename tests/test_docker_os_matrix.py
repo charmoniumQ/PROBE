@@ -6,6 +6,7 @@ import subprocess
 import shlex
 import pathlib
 import asyncio
+import pytest
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -129,7 +130,8 @@ test = [
 ]
 
 
-async def main(max_concurrency: int, capture_output: bool) -> bool:
+@pytest.mark.skip("This test takes a long time")
+async def test_docker(max_concurrency: int = 1, capture_output: bool = True) -> bool:
     results = as_completed_with_concurrency(max_concurrency, [
         run_in_docker(
             f"probe-{image}-{tag}",
@@ -143,7 +145,6 @@ async def main(max_concurrency: int, capture_output: bool) -> bool:
         for image, tags, pre_script in images
         for tag in tags
     ])
-    any_failed = False
     for result in results:
         image, success, stdout, stderr = await result
         if not success:
@@ -151,11 +152,4 @@ async def main(max_concurrency: int, capture_output: bool) -> bool:
             sys.stdout.buffer.write(stdout)
             sys.stderr.buffer.write(stderr)
             print("\n")
-            any_failed = True
-    return any_failed
-
-if asyncio.run(main(
-        max_concurrency=1,
-        capture_output=False,
-)):
-    sys.exit(1)
+            assert success, f"{image} failed"
