@@ -37,6 +37,7 @@ if typing.TYPE_CHECKING:
     class Compound(Node):
         block_items: list[Node]
     class ID(Node):
+        def __init__(self, name: str) -> None: ...
         name: str
     class Decl(Node):
         def __init__(self, name: str, quals: list[str], align: list[str], storage: list[str], funcspec: list[str], type: TypeDecl, init: Node | None, bitsize : Node | None) -> None: ...
@@ -49,7 +50,7 @@ if typing.TYPE_CHECKING:
         init: Node | None
         bitsize: Node | None
     class TypeDecl(Node):
-        def __init__(self, declname: str, quals: list[Node], align: Node | None, type: Node) -> None: ...
+        def __init__(self, declname: str | None, quals: list[Node | str], align: Node | None, type: Node) -> None: ...
         declname: str
         quals: list[Node]
         align: Node | None
@@ -291,17 +292,18 @@ for func_name, func in funcs.items():
 #     key: val
 #     for key, val in list(funcs.items())
 # }
-func_prefix = "unwrapped_"
+unwrapped_prefix = "unwrapped_"
+interpose_prefix = "interpose_"
 func_pointer_declarations = [
     Decl(
-        name=func_prefix + func_name,
+        name=unwrapped_prefix + func_name,
         quals=[],
         align=[],
         storage=["static"],
         funcspec=[],
         type=pycparser.c_ast.PtrDecl(
             quals=[],
-            type=dataclasses.replace(func, name=func_prefix + func.name).declaration(),
+            type=dataclasses.replace(func, name=unwrapped_prefix + func.name).declaration(),
         ),
         init=None,
         bitsize=None,
@@ -316,15 +318,18 @@ init_function_pointers = ParsedFunc(
     stmts=[
         Assignment(
             op='=',
-            lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
-            rvalue=pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID(name="dlsym"),
-                args=pycparser.c_ast.ExprList(
-                    exprs=[
-                        pycparser.c_ast.ID(name="RTLD_NEXT"),
-                        pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
-                    ],
-                ),
+            lvalue=pycparser.c_ast.ID(name=unwrapped_prefix + func_name),
+            rvalue=(
+                pycparser.c_ast.FuncCall(
+                    name=pycparser.c_ast.ID(name="dlsym"),
+                    args=pycparser.c_ast.ExprList(
+                        exprs=[
+                            pycparser.c_ast.ID(name="RTLD_NEXT"),
+                            pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
+                        ],
+                    ),
+                ) if compiling_for_linux else
+                pycparser.c_ast.ID(name=func_name)
             ),
         )
         for func_name, func in platform_funcs.items()
@@ -376,7 +381,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                     exprs=[
                         pycparser.c_ast.Cast(
                             to_type=void_fn_ptr,
-                            expr=pycparser.c_ast.ID(name=func_prefix + func.name)
+                            expr=pycparser.c_ast.ID(name=unwrapped_prefix + func.name)
                         ),
                         pycparser.c_ast.FuncCall(name=pycparser.c_ast.ID(name="__builtin_apply_args"), args=None),
                         pycparser.c_ast.ID(name="varargs_size"),
@@ -400,7 +405,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         else:
             call_expr = pycparser.c_ast.FuncCall(
                 name=pycparser.c_ast.ID(
-                    name=func_prefix + func.name,
+                    name=unwrapped_prefix + func.name,
                 ),
                 args=pycparser.c_ast.ExprList(
                     exprs=[
@@ -435,11 +440,83 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     return pre_call_stmts + call_stmts + post_call_stmts
 
 
+def gen_mac_os_struct(func_name: str) -> Decl:
+    return Decl(
+        name='__osx_interpose_' + func_name,
+        quals=['const'],
+        align=[],
+        storage=['static'],
+        funcspec=[],
+        type=TypeDecl(
+            declname='__osx_interpose_' + func_name,
+            quals=['const'],
+            align=None,
+            type=pycparser.c_ast.Struct(name='__osx_interpose', decls=None),
+        ),
+        init=pycparser.c_ast.InitList(
+            exprs=[
+                pycparser.c_ast.BinaryOp(
+                    op='&',
+                    left=pycparser.c_ast.Cast(
+                        to_type=pycparser.c_ast.Typename(
+                            name=None,
+                            quals=['const'],
+                            align=None,
+                            type=pycparser.c_ast.PtrDecl(
+                                quals=[],
+                                type=TypeDecl(
+                                    declname=None,
+                                    quals=['const'],
+                                    align=None,
+                                    type=IdentifierType(
+                                        names=['void'],
+                                    ),
+                                ),
+                            ),
+                        ),
+                        expr=ID(name='uintptr_t')
+                    ),
+                    right=ID(name=interpose_prefix + func_name),
+                ),
+                pycparser.c_ast.BinaryOp(
+                    op='&',
+                    left=pycparser.c_ast.Cast(
+                        to_type=pycparser.c_ast.Typename(
+                            name=None,
+                            quals=['const'],
+                            align=None,
+                            type=pycparser.c_ast.PtrDecl(
+                                quals=[],
+                                type=TypeDecl(
+                                    declname=None,
+                                    quals=['const'],
+                                    align=None,
+                                    type=IdentifierType(
+                                        names=['void']
+                                    ),
+                                ),
+                            ),
+                        ),
+                        expr=ID(name='uintptr_t')
+                    ),
+                    right=ID(name='fopen')
+                )
+            ]
+        ),
+        bitsize=None,
+    )
+
+
 static_args_wrapper_func_declarations = [
     dataclasses.replace(
         func,
         stmts=wrapper_func_body(func),
+        name=(func_name if compiling_for_linux else interpose_prefix + func.name),
     ).definition()
+    for _, func in platform_funcs.items()
+]
+structs = [] if compiling_for_linux else [
+    gen_mac_os_struct(func.name)
     for _, func in platform_funcs.items()
 ]
 pathlib.Path("generated/libc_hooks.h").write_text(
@@ -449,11 +526,13 @@ pathlib.Path("generated/libc_hooks.h").write_text(
         ])
     )
 )
-pathlib.Path("generated/libc_hooks.c").write_text(
-    GccCGenerator().visit(
-        pycparser.c_ast.FileAST(ext=[
-            init_function_pointers,
-            *static_args_wrapper_func_declarations,
-        ])
-    )
+libc_hooks = GccCGenerator().visit(
+    pycparser.c_ast.FileAST(ext=[
+        init_function_pointers,
+        *static_args_wrapper_func_declarations,
+        *structs,
+    ])
 )
+# Use regex to insert non-standard struct BS
+#libc_hooks = re.sub("(__osx_interpose .*)", "\1 __attribtue__()", libc_hooks)
+pathlib.Path("generated/libc_hooks.c").write_text(libc_hooks)

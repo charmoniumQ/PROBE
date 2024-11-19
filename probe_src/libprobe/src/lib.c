@@ -96,6 +96,13 @@ static bool __process_inited = false;
 
 #include "lookup_on_path.c"
 
+#ifdef __APPLE__
+struct __osx_interpose {
+    const void* new_func;
+    const void* orig_func;
+};
+#endif
+
 #include "../generated/libc_hooks.c"
 
 static void check_function_pointers() {
