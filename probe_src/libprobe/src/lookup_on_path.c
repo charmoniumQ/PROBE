@@ -12,6 +12,8 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
      * -- https://man7.org/linux/man-pages/man3/exec.3.html
     */
     char* path = env_path ? env_path : get_default_path();
+    /* Note that strtok_r is destructive, so we will have to copy this. */
+    path = strndup(path, sysconf(_SC_ARG_MAX));
 
     DEBUG("looking up \"%s\" on $PATH=\"%.50s...\"", bin_name, path);
 
