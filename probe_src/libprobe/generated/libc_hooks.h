@@ -37,7 +37,6 @@ static int (*unwrapped_stat)(const char *filename, struct stat *buf);
 static int (*unwrapped_fstat)(int filedes, struct stat *buf);
 static int (*unwrapped_lstat)(const char *filename, struct stat *buf);
 static int (*unwrapped_fstatat)(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags);
-static int (*unwrapped_fstatat64)(int fd, const char * restrict file, struct stat64 * restrict buf, int flags);
 static int (*unwrapped_chown)(const char *filename, uid_t owner, gid_t group);
 static int (*unwrapped_fchown)(int filedes, uid_t owner, gid_t group);
 static int (*unwrapped_lchown)(const char *pathname, uid_t owner, gid_t group);
@@ -74,7 +73,3 @@ static pid_t (*unwrapped_wait3)(int *status_ptr, int options, struct rusage *usa
 static int (*unwrapped_waitid)(idtype_t idtype, id_t id, siginfo_t *infop, int options);
 static int (*unwrapped_pthread_create)(pthread_t * restrict thread, const pthread_attr_t * restrict attr, void *(*start_routine)(void *), void * restrict arg);
 static int (*unwrapped_pthread_join)(pthread_t thread, void **retval);
-static FILE * (*unwrapped_fopen64)(const char *filename, const char *opentype);
-static int (*unwrapped_openat64)(int dirfd, const char *filename, int flags, ...);
-static int (*unwrapped_open64)(const char *filename, int flags, ...);
-static int (*unwrapped_create64)(const char *filename, mode_t mode);

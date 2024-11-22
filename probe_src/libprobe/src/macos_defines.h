@@ -33,19 +33,16 @@
 #define F_SET_FILE_RW_HINT 0
 #define thrd_success 0
 #define thrd_nomem 1
-
 #define ftruncate64 ftruncate
 #define truncate64 truncate
-#define unwrapped_open64 unwrapped_open
-#define unwrapped_openat64 unwrapped_openat
 #define THREAD_LOCAL _Thread_local
 
 static pid_t (*unwrapped__Fork)(void);
 
 typedef int (*thrd_start_t)(void *);
 typedef off_t off64_t;
-typedef struct stat stat64_t;
-typedef struct stat stat64;
+// typedef struct stat stat64_t;
+// typedef struct stat stat64;
 
 typedef pthread_t thrd_t;
 typedef struct {
@@ -79,14 +76,6 @@ static int unwrapped_thrd_create(thrd_t *thr, thrd_start_t func, void *arg) {
     return (ret == 0) ? thrd_success : ret;
 }
 
-static pid_t unwrapped_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, ...) {
-    errno = ENOSYS;
-    return -1;
-}
-
-static inline int fstatat64(int dirfd, const char *pathname, struct stat64 *buf, int flags) {
-    return fstatat(dirfd, pathname, (struct stat *)buf, flags);
-}
 static _Thread_local bool __thread_inited = false;
 
 #endif

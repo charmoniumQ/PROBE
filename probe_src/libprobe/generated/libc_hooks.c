@@ -39,7 +39,6 @@ void init_function_pointers()
   unwrapped_fstat = fstat;
   unwrapped_lstat = lstat;
   unwrapped_fstatat = fstatat;
-  unwrapped_fstatat64 = fstatat64;
   unwrapped_chown = chown;
   unwrapped_fchown = fchown;
   unwrapped_lchown = lchown;
@@ -76,10 +75,6 @@ void init_function_pointers()
   unwrapped_waitid = waitid;
   unwrapped_pthread_create = pthread_create;
   unwrapped_pthread_join = pthread_join;
-  unwrapped_fopen64 = fopen64;
-  unwrapped_openat64 = openat64;
-  unwrapped_open64 = open64;
-  unwrapped_create64 = create64;
 }
 
 FILE * interpose_fopen(const char *filename, const char *opentype)
@@ -675,32 +670,6 @@ int interpose_fstatat(int dirfd, const char * restrict pathname, struct stat * r
     else
     {
       stat_result_from_stat(&op.data.stat.stat_result, buf);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int interpose_fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, int flags)
-{
-  maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_fstatat64(fd, file, buf, flags);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.stat.ferrno = saved_errno;
-    }
-    else
-    {
-      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1524,110 +1493,6 @@ int interpose_pthread_join(pthread_t thread, void **retval)
   return ret;
 }
 
-FILE * interpose_fopen64(const char *filename, const char *opentype)
-{
-  maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  FILE * ret = unwrapped_fopen64(filename, opentype);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret == NULL)
-    {
-      op.data.open.ferrno = saved_errno;
-    }
-    else
-    {
-      op.data.open.fd = fileno(ret);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int interpose_openat64(int dirfd, const char *filename, int flags, ...)
-{
-  maybe_init_thread();
-  bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    if (has_mode_arg)
-    {
-      va_list ap;
-      va_start(ap, flags);
-      op.data.open.mode = va_arg(ap, __type_mode_t);
-      va_end(ap);
-    }
-    prov_log_try(op);
-  }
-  size_t varargs_size = (((sizeof(dirfd)) + (sizeof(filename))) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_openat64, __builtin_apply_args(), varargs_size));
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.open.ferrno = (unlikely(ret == (-1))) ? (errno) : (0);
-    op.data.open.fd = ret;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int interpose_open64(const char *filename, int flags, ...)
-{
-  maybe_init_thread();
-  bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    if (has_mode_arg)
-    {
-      va_list ap;
-      va_start(ap, flags);
-      op.data.open.mode = va_arg(ap, __type_mode_t);
-      va_end(ap);
-    }
-    prov_log_try(op);
-  }
-  size_t varargs_size = ((sizeof(filename)) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_open64, __builtin_apply_args(), varargs_size));
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.open.ferrno = (unlikely(ret == (-1))) ? (errno) : (0);
-    op.data.open.fd = ret;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int interpose_create64(const char *filename, mode_t mode)
-{
-  maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_create64(filename, mode);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.open.ferrno = (unlikely(ret == (-1))) ? (errno) : (0);
-    op.data.open.fd = ret;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
 static const struct __osx_interpose __osx_interpose_fopen __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fopen), (const void *) (&fopen)};
 static const struct __osx_interpose __osx_interpose_fclose __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fclose), (const void *) (&fclose)};
 static const struct __osx_interpose __osx_interpose_openat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_openat), (const void *) (&openat)};
@@ -1667,7 +1532,6 @@ static const struct __osx_interpose __osx_interpose_stat __attribute__((used, se
 static const struct __osx_interpose __osx_interpose_fstat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fstat), (const void *) (&fstat)};
 static const struct __osx_interpose __osx_interpose_lstat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_lstat), (const void *) (&lstat)};
 static const struct __osx_interpose __osx_interpose_fstatat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fstatat), (const void *) (&fstatat)};
-static const struct __osx_interpose __osx_interpose_fstatat64 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fstatat64), (const void *) (&fstatat64)};
 static const struct __osx_interpose __osx_interpose_chown __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_chown), (const void *) (&chown)};
 static const struct __osx_interpose __osx_interpose_fchown __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fchown), (const void *) (&fchown)};
 static const struct __osx_interpose __osx_interpose_lchown __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_lchown), (const void *) (&lchown)};
@@ -1704,7 +1568,3 @@ static const struct __osx_interpose __osx_interpose_wait3 __attribute__((used, s
 static const struct __osx_interpose __osx_interpose_waitid __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_waitid), (const void *) (&waitid)};
 static const struct __osx_interpose __osx_interpose_pthread_create __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_pthread_create), (const void *) (&pthread_create)};
 static const struct __osx_interpose __osx_interpose_pthread_join __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_pthread_join), (const void *) (&pthread_join)};
-static const struct __osx_interpose __osx_interpose_fopen64 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fopen64), (const void *) (&fopen64)};
-static const struct __osx_interpose __osx_interpose_openat64 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_openat64), (const void *) (&openat64)};
-static const struct __osx_interpose __osx_interpose_open64 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_open64), (const void *) (&open64)};
-static const struct __osx_interpose __osx_interpose_create64 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_create64), (const void *) (&create64)};

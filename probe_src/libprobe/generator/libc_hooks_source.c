@@ -211,9 +211,9 @@ int openat(int dirfd, const char *filename, int flags, ...) {
     });
 }
 
-int openat(int dirfd, const char *filename, int flags, ...) {
+int openat64(int dirfd, const char *filename, int flags, ...) {
+    bool linux_only= true;
     void* copy_stmts_from = openat;
-    bool linux_only = true;
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
@@ -1004,7 +1004,7 @@ int fstat (int filedes, struct stat *buf) {
     });
 }
 int fstat64 (int filedes, struct stat64 * restrict buf) {
-    bool linux_only =true ;
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
@@ -1157,6 +1157,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 }
 
 int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf, int flags) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
