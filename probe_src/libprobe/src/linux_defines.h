@@ -1,5 +1,4 @@
-#ifndef LINUX_DEFINES_H
-#define LINUX_DEFINES_H
+#pragma once
 
 #include <stdbool.h>
 #include <linux/limits.h>
@@ -8,8 +7,8 @@
 #include <threads.h>
 #include <sys/syscall.h>
 
-#define THREAD_LOCAL __thread
+static __thread bool __thread_inited = false;
 
-static THREAD_LOCAL bool __thread_inited = false;
+#define platform_independent_execvpe execvpe
 
-#endif
+#define

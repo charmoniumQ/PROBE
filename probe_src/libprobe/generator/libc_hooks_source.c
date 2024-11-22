@@ -1157,7 +1157,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 }
 
 int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf, int flags) {
-    bool linux_only= true;
+    bool linux_only = true;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
@@ -1668,7 +1668,7 @@ int execv (const char *filename, char *const argv[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         /*
@@ -1731,7 +1731,7 @@ int execl (const char *filename, const char *arg0, ...) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1773,7 +1773,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1866,7 +1866,7 @@ int execle (const char *filename, const char *arg0, ...) {
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**)updated_env);
@@ -1913,7 +1913,7 @@ int execvp (const char *filename, char *const argv[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1967,7 +1967,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2017,7 +2017,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free

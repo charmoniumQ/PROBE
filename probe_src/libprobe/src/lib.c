@@ -1,26 +1,9 @@
 #define _GNU_SOURCE
 #ifdef __linux__
-#include "linux_defines.h"
+# include "linux_defines.h"
 #elif defined(__APPLE__)
-#include "macos_defines.h"
+# include "macos_defines.h"
 #endif
-
-#define thrd_current() ((uintptr_t) pthread_self())
-
-#define CLONE_VFORK 0
-#define CLONE_THREAD 0
-#define CLONE_VM 0
-#define CLONE_FILES 0
-#define CLONE_FS 0
-#define CLONE_IO 0
-#define CLONE_PARENT 0
-#define CLONE_SIGHAND 0
-#define __O_TMPFILE 0
-#ifndef AT_EMPTY_PATH
-#define AT_EMPTY_PATH 0
-#endif
-
-typedef struct dirent dirent64;
 
 #include <assert.h>
 #include <fcntl.h>
