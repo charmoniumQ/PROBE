@@ -98,8 +98,8 @@ static bool __process_inited = false;
 
 #ifdef __APPLE__
 struct __osx_interpose {
-    const void* new_func;
-    const void* orig_func;
+    const void *new_func;
+    const void *orig_func;
 };
 #endif
 

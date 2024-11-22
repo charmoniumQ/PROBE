@@ -19,9 +19,9 @@ struct __osx_interpose {
 #define OSX_INTERPOSE_STRUCT(NEW, OLD) \
     static const struct __osx_interpose __osx_interpose_##OLD \
         __attribute__((used, section("__DATA, __interpose"))) = { \
-            (const void*)(uintptr_t)&(NEW), \
-            (const void*)(uintptr_t)&(OLD) \
-        }
+        (const void*)(uintptr_t)&(NEW), \
+        (const void*)(uintptr_t)&(OLD) \
+    }
 
 /**
  * Macros to interpose functions on macOS

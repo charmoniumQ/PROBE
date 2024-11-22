@@ -4,6 +4,7 @@ use std::{
 };
 
 use color_eyre::eyre::{Context, Result};
+use log::{debug, warn};
 use rand::Rng;
 
 /// Represents a newly created directory and optionally acts as a RAII guard that (attempts to)
@@ -25,6 +26,7 @@ impl Dir {
     /// By default directories created this way **are not** deleted when [`Dir`] is dropped.
     #[inline]
     pub fn new(path: PathBuf) -> Result<Self> {
+        debug!("Creating new directory: {:?}", path);
         fs::create_dir(&path).wrap_err("Failed to create named directory")?;
         Ok(Self { path, drop: false })
     }
@@ -55,6 +57,7 @@ impl Dir {
         let mut path = std::env::temp_dir();
         path.push(format!("probe-{}", rand_alphanumeric(8)));
 
+        debug!("Creating temp directory: {:?}", path);
         match fs::create_dir(&path) {
             Ok(_) => Ok(Self { path, drop }),
             Err(e) => match e.kind() {
@@ -80,7 +83,7 @@ impl Drop for Dir {
     fn drop(&mut self) {
         if self.drop {
             if let Err(e) = fs::remove_dir_all(&self.path) {
-                log::warn!(
+                warn!(
                     "Failed to remove temporary directory '{}' because: {}",
                     self.path.to_string_lossy(),
                     e

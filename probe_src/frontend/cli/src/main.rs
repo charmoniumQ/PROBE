@@ -3,6 +3,7 @@ use std::{ffi::OsString, fs::File};
 use clap::{arg, command, value_parser, Command};
 use color_eyre::eyre::{eyre, Context, Result};
 use flate2::Compression;
+use log::debug;
 
 /// Output the ops from a probe log file to stdout.
 mod dump;
@@ -19,7 +20,7 @@ mod util;
 fn main() -> Result<()> {
     color_eyre::install()?;
     env_logger::Builder::from_env(env_logger::Env::new().filter_or("__PROBE_LOG", "warn")).init();
-    log::debug!("Logger initialized");
+    debug!("Logger initialized");
 
     let matches = command!()
         .about("Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.")
@@ -28,7 +29,7 @@ fn main() -> Result<()> {
         .subcommands([
             Command::new("record")
                 .args([
-                    arg!(-o --output <PATH> "Set destinaton for recording.")
+                    arg!(-o --output <PATH> "Set destination for recording.")
                         .required(false)
                         .value_parser(value_parser!(OsString)),
                     arg!(-f --overwrite "Overwrite existing output if it exists.")
@@ -93,6 +94,15 @@ fn main() -> Result<()> {
                 .cloned()
                 .collect::<Vec<_>>();
 
+            debug!("Record command invoked with:");
+            debug!("Output: {:?}", output);
+            debug!("Overwrite: {}", overwrite);
+            debug!("No Transcribe: {}", no_transcribe);
+            debug!("GDB: {}", gdb);
+            debug!("Debug: {}", debug);
+            debug!("Copy Files: {}", copy_files);
+            debug!("Command: {:?}", cmd);
+
             if no_transcribe {
                 record::record_no_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
             } else {
@@ -104,6 +114,11 @@ fn main() -> Result<()> {
             let overwrite = sub.get_flag("overwrite");
             let output = sub.get_one::<OsString>("output").unwrap().clone();
             let input = sub.get_one::<OsString>("input").unwrap().clone();
+
+            debug!("Transcribe command invoked with:");
+            debug!("Overwrite: {}", overwrite);
+            debug!("Output: {:?}", output);
+            debug!("Input: {:?}", input);
 
             if overwrite {
                 File::create(&output)

@@ -8,14 +8,14 @@ AT_FDCWD: int = -100
 
 @dataclass(init=True, frozen=True)
 class Timespec:
-    sec: __darwin_time_t # type: ignore
+    sec: __darwin_time_t
     nsec: int
 
 
 @dataclass(init=True, frozen=True)
 class Timeval:
-    sec: __darwin_time_t # type: ignore
-    usec: __darwin_suseconds_t # type: ignore
+    sec: __darwin_time_t
+    usec: __darwin_suseconds_t
 
 
 @dataclass(init=True, frozen=True)

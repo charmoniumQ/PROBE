@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from __future__ import annotations
+import re
 import sys
 import dataclasses
 import pycparser  # type: ignore
@@ -534,5 +535,5 @@ libc_hooks = GccCGenerator().visit(
     ])
 )
 # Use regex to insert non-standard struct BS
-#libc_hooks = re.sub("(__osx_interpose .*)", "\1 __attribtue__()", libc_hooks)
+libc_hooks = re.sub("(__osx_interpose .*)", "\\1 __attribtue__((used, section(\"__DATA, __interpose\")))", libc_hooks)
 pathlib.Path("generated/libc_hooks.c").write_text(libc_hooks)

@@ -16,6 +16,8 @@
 #include <pthread.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <sys/stat.h>
+#include <ftw.h>
 
 
 #define F_SETSIG 0
@@ -53,6 +55,8 @@ typedef struct {
 
 typedef int (*__ftw64_func_t)(const char *, const struct stat64 *, int);
 typedef int (*__nftw64_func_t)(const char *, const struct stat64 *, int, struct FTW *);
+typedef int (*__ftw_func_t)(const char *fpath, const struct stat *sb, int typeflag);
+typedef int (*__nftw_func_t)(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf);
 
 void *thrd_start_wrapper(void *arg) {
     thrd_wrapper_args_t *wrapper_args = (thrd_wrapper_args_t *)arg;

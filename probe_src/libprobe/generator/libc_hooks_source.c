@@ -192,7 +192,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                op.data.open.mode = va_arg(ap, __type_mode_t);
+    op.data.open.mode = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
             prov_log_try(op);
@@ -237,7 +237,7 @@ int open (const char *filename, int flags, ...) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                op.data.open.mode = va_arg(ap, __type_mode_t);
+    op.data.open.mode = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
             prov_log_try(op);
