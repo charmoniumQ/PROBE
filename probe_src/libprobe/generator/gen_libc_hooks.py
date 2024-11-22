@@ -456,51 +456,49 @@ def gen_mac_os_struct(func_name: str) -> Decl:
         ),
         init=pycparser.c_ast.InitList(
             exprs=[
-                pycparser.c_ast.BinaryOp(
-                    op='&',
-                    left=pycparser.c_ast.Cast(
-                        to_type=pycparser.c_ast.Typename(
-                            name=None,
-                            quals=['const'],
-                            align=None,
-                            type=pycparser.c_ast.PtrDecl(
-                                quals=[],
-                                type=TypeDecl(
-                                    declname=None,
-                                    quals=['const'],
-                                    align=None,
-                                    type=IdentifierType(
-                                        names=['void'],
-                                    ),
+                pycparser.c_ast.Cast(
+                    to_type=pycparser.c_ast.Typename(
+                        name=None,
+                        quals=['const'],
+                        align=None,
+                        type=pycparser.c_ast.PtrDecl(
+                            quals=[],
+                            type=TypeDecl(
+                                declname=None,
+                                quals=['const'],
+                                align=None,
+                                type=IdentifierType(
+                                    names=['void'],
                                 ),
                             ),
                         ),
-                        expr=ID(name='uintptr_t')
                     ),
-                    right=ID(name=interpose_prefix + func_name),
+                    expr=pycparser.c_ast.UnaryOp(
+                        op="&",
+                        expr=ID(interpose_prefix + func_name),
+                    ),
                 ),
-                pycparser.c_ast.BinaryOp(
-                    op='&',
-                    left=pycparser.c_ast.Cast(
-                        to_type=pycparser.c_ast.Typename(
-                            name=None,
-                            quals=['const'],
-                            align=None,
-                            type=pycparser.c_ast.PtrDecl(
-                                quals=[],
-                                type=TypeDecl(
-                                    declname=None,
-                                    quals=['const'],
-                                    align=None,
-                                    type=IdentifierType(
-                                        names=['void']
-                                    ),
+                pycparser.c_ast.Cast(
+                    to_type=pycparser.c_ast.Typename(
+                        name=None,
+                        quals=['const'],
+                        align=None,
+                        type=pycparser.c_ast.PtrDecl(
+                            quals=[],
+                            type=TypeDecl(
+                                declname=None,
+                                quals=['const'],
+                                align=None,
+                                type=IdentifierType(
+                                    names=['void']
                                 ),
                             ),
                         ),
-                        expr=ID(name='uintptr_t')
                     ),
-                    right=ID(name='fopen')
+                    expr=pycparser.c_ast.UnaryOp(
+                        op="&",
+                        expr=ID(func_name),
+                    ),
                 )
             ]
         ),
