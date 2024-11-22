@@ -79,6 +79,7 @@ void init_function_pointers()
 
 FILE * interpose_fopen(const char *filename, const char *opentype)
 {
+  DEBUG("fopen(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -105,6 +106,7 @@ FILE * interpose_fopen(const char *filename, const char *opentype)
 
 int interpose_fclose(FILE *stream)
 {
+  DEBUG("fclose(...)");
   maybe_init_thread();
   int fd = fileno(stream);
   struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}, 0, 0};
@@ -125,6 +127,7 @@ int interpose_fclose(FILE *stream)
 
 int interpose_openat(int dirfd, const char *filename, int flags, ...)
 {
+  DEBUG("openat(...)");
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
@@ -154,6 +157,7 @@ int interpose_openat(int dirfd, const char *filename, int flags, ...)
 
 int interpose_open(const char *filename, int flags, ...)
 {
+  DEBUG("open(...)");
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
@@ -183,6 +187,7 @@ int interpose_open(const char *filename, int flags, ...)
 
 int interpose_creat(const char *filename, mode_t mode)
 {
+  DEBUG("creat(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -203,6 +208,7 @@ int interpose_creat(const char *filename, mode_t mode)
 
 int interpose_close(int filedes)
 {
+  DEBUG("close(...)");
   maybe_init_thread();
   struct Op op = {close_op_code, {.close = {filedes, filedes, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -222,6 +228,7 @@ int interpose_close(int filedes)
 
 int interpose_dup(int old)
 {
+  DEBUG("dup(...)");
   maybe_init_thread();
   int ret = unwrapped_dup(old);
   return ret;
@@ -229,6 +236,7 @@ int interpose_dup(int old)
 
 int interpose_dup2(int old, int new)
 {
+  DEBUG("dup2(...)");
   maybe_init_thread();
   int ret = unwrapped_dup2(old, new);
   return ret;
@@ -236,6 +244,7 @@ int interpose_dup2(int old, int new)
 
 int interpose_fcntl(int filedes, int command, ...)
 {
+  DEBUG("fcntl(...)");
   maybe_init_thread();
   bool int_arg = (((((((((command == F_DUPFD) || (command == F_DUPFD_CLOEXEC)) || (command == F_SETFD)) || (command == F_SETFL)) || (command == F_SETOWN)) || (command == F_SETSIG)) || (command == F_SETLEASE)) || (command == F_NOTIFY)) || (command == F_SETPIPE_SZ)) || (command == F_ADD_SEALS);
   bool ptr_arg = ((((((((command == F_SETLK) || (command == F_SETLKW)) || (command == F_GETLK)) || (command == F_GETOWN_EX)) || (command == F_SETOWN_EX)) || (command == F_GET_RW_HINT)) || (command == F_SET_RW_HINT)) || (command == F_GET_FILE_RW_HINT)) || (command == F_SET_FILE_RW_HINT);
@@ -247,6 +256,7 @@ int interpose_fcntl(int filedes, int command, ...)
 
 int interpose_chdir(const char *filename)
 {
+  DEBUG("chdir(...)");
   maybe_init_thread();
   struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(AT_FDCWD, filename, 0), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -266,6 +276,7 @@ int interpose_chdir(const char *filename)
 
 int interpose_fchdir(int filedes)
 {
+  DEBUG("fchdir(...)");
   maybe_init_thread();
   struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -285,6 +296,7 @@ int interpose_fchdir(int filedes)
 
 DIR * interpose_opendir(const char *dirname)
 {
+  DEBUG("opendir(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, dirname, 0), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -305,6 +317,7 @@ DIR * interpose_opendir(const char *dirname)
 
 DIR * interpose_fdopendir(int fd)
 {
+  DEBUG("fdopendir(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -325,6 +338,7 @@ DIR * interpose_fdopendir(int fd)
 
 struct dirent * interpose_readdir(DIR *dirstream)
 {
+  DEBUG("readdir(...)");
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
@@ -352,6 +366,7 @@ struct dirent * interpose_readdir(DIR *dirstream)
 
 int interpose_readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
 {
+  DEBUG("readdir_r(...)");
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
@@ -379,6 +394,7 @@ int interpose_readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **re
 
 int interpose_closedir(DIR *dirstream)
 {
+  DEBUG("closedir(...)");
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
   struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}, 0, 0};
@@ -399,12 +415,14 @@ int interpose_closedir(DIR *dirstream)
 
 void interpose_rewinddir(DIR *dirstream)
 {
+  DEBUG("rewinddir(...)");
   maybe_init_thread();
   unwrapped_rewinddir(dirstream);
 }
 
 long int interpose_telldir(DIR *dirstream)
 {
+  DEBUG("telldir(...)");
   maybe_init_thread();
   long int ret = unwrapped_telldir(dirstream);
   return ret;
@@ -412,12 +430,14 @@ long int interpose_telldir(DIR *dirstream)
 
 void interpose_seekdir(DIR *dirstream, long int pos)
 {
+  DEBUG("seekdir(...)");
   maybe_init_thread();
   unwrapped_seekdir(dirstream, pos);
 }
 
 int interpose_scandir(const char *dir, struct dirent ***namelist, int (*selector)(const struct dirent *), int (*cmp)(const struct dirent **, const struct dirent **))
 {
+  DEBUG("scandir(...)");
   maybe_init_thread();
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -440,6 +460,7 @@ int interpose_scandir(const char *dir, struct dirent ***namelist, int (*selector
 
 int interpose_ftw(const char *filename, __ftw_func_t func, int descriptors)
 {
+  DEBUG("ftw(...)");
   maybe_init_thread();
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -462,6 +483,7 @@ int interpose_ftw(const char *filename, __ftw_func_t func, int descriptors)
 
 int interpose_nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
 {
+  DEBUG("nftw(...)");
   maybe_init_thread();
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -484,6 +506,7 @@ int interpose_nftw(const char *filename, __nftw_func_t func, int descriptors, in
 
 int interpose_link(const char *oldname, const char *newname)
 {
+  DEBUG("link(...)");
   maybe_init_thread();
   int ret = unwrapped_link(oldname, newname);
   return ret;
@@ -491,6 +514,7 @@ int interpose_link(const char *oldname, const char *newname)
 
 int interpose_linkat(int oldfd, const char *oldname, int newfd, const char *newname, int flags)
 {
+  DEBUG("linkat(...)");
   maybe_init_thread();
   int ret = unwrapped_linkat(oldfd, oldname, newfd, newname, flags);
   return ret;
@@ -498,6 +522,7 @@ int interpose_linkat(int oldfd, const char *oldname, int newfd, const char *newn
 
 int interpose_symlink(const char *oldname, const char *newname)
 {
+  DEBUG("symlink(...)");
   maybe_init_thread();
   int ret = unwrapped_symlink(oldname, newname);
   return ret;
@@ -505,6 +530,7 @@ int interpose_symlink(const char *oldname, const char *newname)
 
 int interpose_symlinkat(const char *target, int newdirfd, const char *linkpath)
 {
+  DEBUG("symlinkat(...)");
   maybe_init_thread();
   int ret = unwrapped_symlinkat(target, newdirfd, linkpath);
   return ret;
@@ -512,6 +538,7 @@ int interpose_symlinkat(const char *target, int newdirfd, const char *linkpath)
 
 ssize_t interpose_readlink(const char *filename, char *buffer, size_t size)
 {
+  DEBUG("readlink(...)");
   maybe_init_thread();
   ssize_t ret = unwrapped_readlink(filename, buffer, size);
   return ret;
@@ -519,6 +546,7 @@ ssize_t interpose_readlink(const char *filename, char *buffer, size_t size)
 
 ssize_t interpose_readlinkat(int dirfd, const char *filename, char *buffer, size_t size)
 {
+  DEBUG("readlinkat(...)");
   maybe_init_thread();
   ssize_t ret = unwrapped_readlinkat(dirfd, filename, buffer, size);
   return ret;
@@ -526,6 +554,7 @@ ssize_t interpose_readlinkat(int dirfd, const char *filename, char *buffer, size
 
 char * interpose_realpath(const char * restrict name, char * restrict resolved)
 {
+  DEBUG("realpath(...)");
   maybe_init_thread();
   char * ret = unwrapped_realpath(name, resolved);
   return ret;
@@ -533,6 +562,7 @@ char * interpose_realpath(const char * restrict name, char * restrict resolved)
 
 int interpose_unlink(const char *filename)
 {
+  DEBUG("unlink(...)");
   maybe_init_thread();
   int ret = unwrapped_unlink(filename);
   return ret;
@@ -540,6 +570,7 @@ int interpose_unlink(const char *filename)
 
 int interpose_rmdir(const char *filename)
 {
+  DEBUG("rmdir(...)");
   maybe_init_thread();
   int ret = unwrapped_rmdir(filename);
   return ret;
@@ -547,6 +578,7 @@ int interpose_rmdir(const char *filename)
 
 int interpose_remove(const char *filename)
 {
+  DEBUG("remove(...)");
   maybe_init_thread();
   int ret = unwrapped_remove(filename);
   return ret;
@@ -554,6 +586,7 @@ int interpose_remove(const char *filename)
 
 int interpose_rename(const char *oldname, const char *newname)
 {
+  DEBUG("rename(...)");
   maybe_init_thread();
   int ret = unwrapped_rename(oldname, newname);
   return ret;
@@ -561,6 +594,7 @@ int interpose_rename(const char *oldname, const char *newname)
 
 int interpose_mkdir(const char *filename, mode_t mode)
 {
+  DEBUG("mkdir(...)");
   maybe_init_thread();
   int ret = unwrapped_mkdir(filename, mode);
   return ret;
@@ -568,6 +602,7 @@ int interpose_mkdir(const char *filename, mode_t mode)
 
 int interpose_mkdirat(int dirfd, const char *pathname, mode_t mode)
 {
+  DEBUG("mkdirat(...)");
   maybe_init_thread();
   int ret = unwrapped_mkdirat(dirfd, pathname, mode);
   return ret;
@@ -575,6 +610,7 @@ int interpose_mkdirat(int dirfd, const char *pathname, mode_t mode)
 
 int interpose_stat(const char *filename, struct stat *buf)
 {
+  DEBUG("stat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .ferrno = 0, .stat_result = {0}}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -601,6 +637,7 @@ int interpose_stat(const char *filename, struct stat *buf)
 
 int interpose_fstat(int filedes, struct stat *buf)
 {
+  DEBUG("fstat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -627,6 +664,7 @@ int interpose_fstat(int filedes, struct stat *buf)
 
 int interpose_lstat(const char *filename, struct stat *buf)
 {
+  DEBUG("lstat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -653,6 +691,7 @@ int interpose_lstat(const char *filename, struct stat *buf)
 
 int interpose_fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags)
 {
+  DEBUG("fstatat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -679,6 +718,7 @@ int interpose_fstatat(int dirfd, const char * restrict pathname, struct stat * r
 
 int interpose_chown(const char *filename, uid_t owner, gid_t group)
 {
+  DEBUG("chown(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -701,6 +741,7 @@ int interpose_chown(const char *filename, uid_t owner, gid_t group)
 
 int interpose_fchown(int filedes, uid_t owner, gid_t group)
 {
+  DEBUG("fchown(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -723,6 +764,7 @@ int interpose_fchown(int filedes, uid_t owner, gid_t group)
 
 int interpose_lchown(const char *pathname, uid_t owner, gid_t group)
 {
+  DEBUG("lchown(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, pathname, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -745,6 +787,7 @@ int interpose_lchown(const char *pathname, uid_t owner, gid_t group)
 
 int interpose_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
 {
+  DEBUG("fchownat(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -767,6 +810,7 @@ int interpose_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group
 
 int interpose_chmod(const char *filename, mode_t mode)
 {
+  DEBUG("chmod(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -789,6 +833,7 @@ int interpose_chmod(const char *filename, mode_t mode)
 
 int interpose_fchmod(int filedes, mode_t mode)
 {
+  DEBUG("fchmod(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -811,6 +856,7 @@ int interpose_fchmod(int filedes, mode_t mode)
 
 int interpose_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
 {
+  DEBUG("fchmodat(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -833,6 +879,7 @@ int interpose_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
 
 int interpose_access(const char *filename, int how)
 {
+  DEBUG("access(...)");
   maybe_init_thread();
   struct Op op = {access_op_code, {.access = {create_path_lazy(AT_FDCWD, filename, 0), how, 0, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -852,6 +899,7 @@ int interpose_access(const char *filename, int how)
 
 int interpose_faccessat(int dirfd, const char *pathname, int mode, int flags)
 {
+  DEBUG("faccessat(...)");
   maybe_init_thread();
   struct Op op = {access_op_code, {.access = {.path = create_path_lazy(dirfd, pathname, 0), .mode = mode, .flags = flags, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -871,6 +919,7 @@ int interpose_faccessat(int dirfd, const char *pathname, int mode, int flags)
 
 int interpose_utime(const char *filename, const struct utimbuf *times)
 {
+  DEBUG("utime(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (times)
@@ -903,6 +952,7 @@ int interpose_utime(const char *filename, const struct utimbuf *times)
 
 int interpose_truncate(const char *filename, off_t length)
 {
+  DEBUG("truncate(...)");
   maybe_init_thread();
   int ret = unwrapped_truncate(filename, length);
   return ret;
@@ -910,6 +960,7 @@ int interpose_truncate(const char *filename, off_t length)
 
 int interpose_truncate64(const char *name, off64_t length)
 {
+  DEBUG("truncate64(...)");
   maybe_init_thread();
   int ret = unwrapped_truncate64(name, length);
   return ret;
@@ -917,6 +968,7 @@ int interpose_truncate64(const char *name, off64_t length)
 
 int interpose_ftruncate(int fd, off_t length)
 {
+  DEBUG("ftruncate(...)");
   maybe_init_thread();
   int ret = unwrapped_ftruncate(fd, length);
   return ret;
@@ -924,6 +976,7 @@ int interpose_ftruncate(int fd, off_t length)
 
 int interpose_ftruncate64(int id, off64_t length)
 {
+  DEBUG("ftruncate64(...)");
   maybe_init_thread();
   int ret = unwrapped_ftruncate64(id, length);
   return ret;
@@ -931,6 +984,7 @@ int interpose_ftruncate64(int id, off64_t length)
 
 int interpose_mknod(const char *filename, mode_t mode, dev_t dev)
 {
+  DEBUG("mknod(...)");
   maybe_init_thread();
   int ret = unwrapped_mknod(filename, mode, dev);
   return ret;
@@ -938,6 +992,7 @@ int interpose_mknod(const char *filename, mode_t mode, dev_t dev)
 
 FILE * interpose_tmpfile()
 {
+  DEBUG("tmpfile(...)");
   maybe_init_thread();
   FILE * ret = unwrapped_tmpfile();
   return ret;
@@ -945,6 +1000,7 @@ FILE * interpose_tmpfile()
 
 char * interpose_tmpnam(char *result)
 {
+  DEBUG("tmpnam(...)");
   maybe_init_thread();
   char * ret = unwrapped_tmpnam(result);
   return ret;
@@ -952,6 +1008,7 @@ char * interpose_tmpnam(char *result)
 
 char * interpose_tempnam(const char *dir, const char *prefix)
 {
+  DEBUG("tempnam(...)");
   maybe_init_thread();
   char * ret = unwrapped_tempnam(dir, prefix);
   return ret;
@@ -959,6 +1016,7 @@ char * interpose_tempnam(const char *dir, const char *prefix)
 
 char * interpose_mktemp(char *template)
 {
+  DEBUG("mktemp(...)");
   maybe_init_thread();
   char * ret = unwrapped_mktemp(template);
   return ret;
@@ -966,6 +1024,7 @@ char * interpose_mktemp(char *template)
 
 int interpose_mkstemp(char *template)
 {
+  DEBUG("mkstemp(...)");
   maybe_init_thread();
   int ret = unwrapped_mkstemp(template);
   return ret;
@@ -973,6 +1032,7 @@ int interpose_mkstemp(char *template)
 
 char * interpose_mkdtemp(char *template)
 {
+  DEBUG("mkdtemp(...)");
   maybe_init_thread();
   char * ret = unwrapped_mkdtemp(template);
   return ret;
@@ -980,6 +1040,7 @@ char * interpose_mkdtemp(char *template)
 
 int interpose_execv(const char *filename, char * const argv[])
 {
+  DEBUG("execv(...)");
   maybe_init_thread();
   size_t argc = 0;
   char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
@@ -997,7 +1058,7 @@ int interpose_execv(const char *filename, char * const argv[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
@@ -1012,6 +1073,7 @@ int interpose_execv(const char *filename, char * const argv[])
 
 int interpose_execl(const char *filename, const char *arg0, ...)
 {
+  DEBUG("execl(...)");
   maybe_init_thread();
   size_t argc = COUNT_NONNULL_VARARGS(arg0);
   char **argv = malloc((argc + 1) * (sizeof(char *)));
@@ -1038,7 +1100,7 @@ int interpose_execl(const char *filename, const char *arg0, ...)
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   free((char **) argv);
@@ -1054,6 +1116,7 @@ int interpose_execl(const char *filename, const char *arg0, ...)
 
 int interpose_execve(const char *filename, char * const argv[], char * const env[])
 {
+  DEBUG("execve(...)");
   maybe_init_thread();
   size_t argc = 0;
   char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
@@ -1070,7 +1133,7 @@ int interpose_execve(const char *filename, char * const argv[], char * const env
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
@@ -1085,6 +1148,7 @@ int interpose_execve(const char *filename, char * const argv[], char * const env
 
 int interpose_execle(const char *filename, const char *arg0, ...)
 {
+  DEBUG("execle(...)");
   maybe_init_thread();
   size_t argc = COUNT_NONNULL_VARARGS(arg0) - 1;
   char **argv = malloc((argc + 1) * (sizeof(char *)));
@@ -1113,7 +1177,7 @@ int interpose_execle(const char *filename, const char *arg0, ...)
     prov_log_save();
   }
   ERROR("Not implemented; I need to figure out how to update the environment.");
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   free((char **) argv);
@@ -1129,6 +1193,7 @@ int interpose_execle(const char *filename, const char *arg0, ...)
 
 int interpose_execvp(const char *filename, char * const argv[])
 {
+  DEBUG("execvp(...)");
   maybe_init_thread();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
@@ -1147,7 +1212,7 @@ int interpose_execvp(const char *filename, char * const argv[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
@@ -1162,6 +1227,7 @@ int interpose_execvp(const char *filename, char * const argv[])
 
 int interpose_execlp(const char *filename, const char *arg0, ...)
 {
+  DEBUG("execlp(...)");
   maybe_init_thread();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
@@ -1190,7 +1256,7 @@ int interpose_execlp(const char *filename, const char *arg0, ...)
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   free((char **) argv);
@@ -1206,6 +1272,7 @@ int interpose_execlp(const char *filename, const char *arg0, ...)
 
 pid_t interpose_fork()
 {
+  DEBUG("fork(...)");
   maybe_init_thread();
   struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1243,6 +1310,7 @@ pid_t interpose_fork()
 
 pid_t interpose_vfork()
 {
+  DEBUG("vfork(...)");
   maybe_init_thread();
   struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = 0, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1280,6 +1348,7 @@ pid_t interpose_vfork()
 
 pid_t interpose_waitpid(pid_t pid, int *status_ptr, int options)
 {
+  DEBUG("waitpid(...)");
   maybe_init_thread();
   int status;
   if (status_ptr == NULL)
@@ -1309,6 +1378,7 @@ pid_t interpose_waitpid(pid_t pid, int *status_ptr, int options)
 
 pid_t interpose_wait(int *status_ptr)
 {
+  DEBUG("wait(...)");
   maybe_init_thread();
   int status;
   if (status_ptr == NULL)
@@ -1338,6 +1408,7 @@ pid_t interpose_wait(int *status_ptr)
 
 pid_t interpose_wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
 {
+  DEBUG("wait4(...)");
   maybe_init_thread();
   struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
@@ -1379,6 +1450,7 @@ pid_t interpose_wait4(pid_t pid, int *status_ptr, int options, struct rusage *us
 
 pid_t interpose_wait3(int *status_ptr, int options, struct rusage *usage)
 {
+  DEBUG("wait3(...)");
   maybe_init_thread();
   struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_PID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
@@ -1420,6 +1492,7 @@ pid_t interpose_wait3(int *status_ptr, int options, struct rusage *usage)
 
 int interpose_waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
+  DEBUG("waitid(...)");
   maybe_init_thread();
   struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
@@ -1444,6 +1517,7 @@ int interpose_waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 
 int interpose_pthread_create(pthread_t * restrict thread, const pthread_attr_t * restrict attr, void *(*start_routine)(void *), void * restrict arg)
 {
+  DEBUG("pthread_create(...)");
   maybe_init_thread();
   struct Op op = {clone_op_code, {.clone = {.flags = (((((CLONE_FILES | CLONE_FS) | CLONE_IO) | CLONE_PARENT) | CLONE_SIGHAND) | CLONE_THREAD) | CLONE_VM, .task_type = TASK_PTHREAD, .task_id = 0, .run_pthread_atfork_handlers = false, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_pthread_create(thread, attr, start_routine, arg);
@@ -1470,6 +1544,7 @@ int interpose_pthread_create(pthread_t * restrict thread, const pthread_attr_t *
 
 int interpose_pthread_join(pthread_t thread, void **retval)
 {
+  DEBUG("pthread_join(...)");
   maybe_init_thread();
   struct Op op = {wait_op_code, {.wait = {.task_type = TASK_PTHREAD, .task_id = thread, .options = 0, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_pthread_join(thread, retval);

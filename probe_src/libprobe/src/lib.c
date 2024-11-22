@@ -103,6 +103,8 @@ static void check_function_pointers() {
 static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void maybe_init_thread() {
+    DEBUG("Here 0");
+    DEBUG("Here %p", &__thread_inited);
     if (unlikely(!__thread_inited)) {
         DEBUG("Acquiring mutex");
         EXPECT(== 0, pthread_mutex_lock(&init_lock));

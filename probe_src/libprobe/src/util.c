@@ -158,7 +158,6 @@ static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWE
 /* len(str(2**63)) + 1 == 20 */
 #define signed_long_string_size (22)
 
-extern char** environ;
 
 #ifndef NDEBUG
 #define printenv() ({ \

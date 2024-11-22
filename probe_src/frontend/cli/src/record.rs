@@ -124,12 +124,16 @@ impl Recorder {
             "so"
         };
 
+
         if self.debug || self.gdb {
             debug!("Using debug version of libprobe");
             libprobe.push(format!("libprobe-dbg.{}", lib_extension));
         } else {
             libprobe.push(format!("libprobe.{}", lib_extension));
         }
+        println!("***************** = {:?}", lib_extension );
+        println!("***************** = {:?}", libprobe);
+
 
         let preload_env_var = if cfg!(target_os = "macos") {
             "DYLD_INSERT_LIBRARIES"
@@ -142,13 +146,14 @@ impl Recorder {
             preload_value.push(":");
             preload_value.push(&x);
         }
+        println!("***************** = {:?}", preload_value);
 
-        // Append libinterpose.dylib to DYLD_INSERT_LIBRARIES
-        let libinterpose_path = PathBuf::from("/Users/salehamuzammil/Desktop/PROBE/libinterpose.dylib");
-        if cfg!(target_os = "macos") {
-            preload_value.push(":");
-            preload_value.push(libinterpose_path);
-        }
+        // // Append libinterpose.dylib to DYLD_INSERT_LIBRARIES
+        // let libinterpose_path = PathBuf::from("/Users/salehamuzammil/Desktop/PROBE/libinterpose.dylib");
+        // if cfg!(target_os = "macos") {
+        //     preload_value.push(":");
+        //     preload_value.push(libinterpose_path);
+        // }
 
         let mut child = if self.gdb {
             let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");

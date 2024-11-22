@@ -369,6 +369,12 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
 
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     pre_call_stmts = [
+                pycparser.c_ast.FuncCall(
+            name=pycparser.c_ast.ID(name="DEBUG"),
+            args=pycparser.c_ast.ExprList(exprs=[
+                pycparser.c_ast.Constant(type="string", value='"' + func.name + '(...)"'),
+            ]),
+        ),
         pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="maybe_init_thread"),
             args=pycparser.c_ast.ExprList(exprs=[]),

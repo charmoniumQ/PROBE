@@ -1,5 +1,6 @@
 #pragma once
 
+extern char** environ;
 #include <stdbool.h>
 #include <linux/limits.h>
 #include <malloc.h>
