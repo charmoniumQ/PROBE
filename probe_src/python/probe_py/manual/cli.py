@@ -14,6 +14,15 @@ import subprocess
 import os
 import tempfile
 import enum
+import networkx as nx
+from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
+from sqlalchemy.orm import Session
+from .analysis import ProcessNode, FileNode
+import shlex
+import datetime
+import random
+import socket
+import xdg_base_dirs
 
 
 console = rich.console.Console(stderr=True)
@@ -107,6 +116,58 @@ def dataflow_graph(
     dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
     graph_utils.serialize_graph(dataflow_graph, output)
 
+def get_host_name() -> int:
+    PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
+    node_name = PROBE_HOME / "node_name"
+    if node_name.exists():
+        return node_name.read_text()
+    else:
+        hostname = socket.gethostname()
+        rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
+        bits_per_hex_digit = 4
+        hex_digits = 8
+        random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
+        return random_number
+
+@export_app.command()
+def store_dataflow_graph(probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log")):
+    prov_log = parse_probe_log(probe_log)
+    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    engine = get_engine()
+    with Session(engine) as session:
+        for node in dataflow_graph.nodes():
+            if isinstance(node, ProcessNode):
+                print(node)
+                new_process = Process(process_id = int(node.pid), parent_process_id = 0, cmd = shlex.join(node.cmd), time = datetime.datetime.now())
+                session.add(new_process)
+
+        for (node1, node2) in dataflow_graph.edges():
+            if isinstance(node1, ProcessNode) and isinstance(node2, ProcessNode):
+                parent_process_id = node1.pid
+                child_process = session.get(Process, node2.pid)
+                child_process.parent_process_id = parent_process_id
+
+            elif isinstance(node1, ProcessNode) and isinstance(node2, FileNode):
+                inode_info = node2.inodeOnDevice
+                host = get_host_name()
+                stat_info = os.stat(node2.file)
+                mtime = int(stat_info.st_mtime * 1_000_000_000)
+                size = stat_info.st_size
+                new_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.device_major, device_minor  = inode_info.device_minor, host = host, path = node2.file, mtime = mtime, size = size)
+                session.add(new_inode)
+
+            if isinstance(node1, FileNode) and isinstance(node2, ProcessNode):
+                inode_info = node1.inodeOnDevice
+                host = get_host_name()
+                stat_info = os.stat(node1.file)
+                mtime = int(stat_info.st_mtime * 1_000_000_000)
+                size = stat_info.st_size
+                new_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.device_major, device_minor= inode_info.device_minor, host = host, path = node1.file, mtime=mtime, size=size)
+                session.add(new_inode)
+        session.commit()
 
 @export_app.command()
 def debug_text(
