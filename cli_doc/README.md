@@ -44,41 +44,41 @@
 |--------|-------------|-------------|
 | ssh_args | SSH_ARGS... | [default: None] [required] |
 
-### probe ops-graph
+### probe export ops-graph
 
 | Option | Parameter | Description |
 |--------|-------------|-------------|
 | output | [OUTPUT] | [default: ops-graph.png] |
 | probe_log | [PROBE_LOG] | output file written by `probe record -o $file`. [default: probe_log] |
 
-### probe dataflow-graph
+### probe export dataflow-graph
 
 | Option | Parameter | Description |
 |--------|-------------|-------------|
 | output | [OUTPUT] | [default: dataflow-graph.png] |
 | probe_log | [PROBE_LOG] | output file written by `probe record -o $file`. [default: probe_log] |
 
-### probe debug-text
+### probe export debug-text
 
 | Option | Parameter | Description |
 |--------|-------------|-------------|
 | probe_log | [PROBE_LOG] | output file written by `probe record -o $file`. [default: probe_log] |
 
-### probe docker-image
-
-| Option | Parameter | Description |
-|--------|-------------|-------------|
-| image_name | TEXT | [default: None] [required] |
-| probe_log | [PROBE_LOG] | output file written by `probe record -o $file`. [default: probe_log] |
-
-### probe oci-image
+### probe export docker-image
 
 | Option | Parameter | Description |
 |--------|-------------|-------------|
 | image_name | TEXT | [default: None] [required] |
 | probe_log | [PROBE_LOG] | output file written by `probe record -o $file`. [default: probe_log] |
 
-### probe makefile
+### probe export oci-image
+
+| Option | Parameter | Description |
+|--------|-------------|-------------|
+| image_name | TEXT | [default: None] [required] |
+| probe_log | [PROBE_LOG] | output file written by `probe record -o $file`. [default: probe_log] |
+
+### probe export makefile
 
 | Option | Parameter | Description |
 |--------|-------------|-------------|
