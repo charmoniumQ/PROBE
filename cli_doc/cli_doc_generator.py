@@ -167,4 +167,4 @@ if __name__ == '__main__':
                                  capture_output=True,
                                  text=True)
         opt_lines = [i.strip() for i in cmd_doc.stdout.split("\n") if i.strip()]
-        write_to_readme_exported(command,process_lines(extract_arguments(opt_lines)))
+        write_to_readme_exported(f"export {command}",process_lines(extract_arguments(opt_lines)))
