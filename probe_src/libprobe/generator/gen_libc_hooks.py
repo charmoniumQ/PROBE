@@ -535,5 +535,9 @@ libc_hooks = GccCGenerator().visit(
     ])
 )
 # Use regex to insert non-standard struct BS
-libc_hooks = re.sub("(__osx_interpose .*)", "\\1 __attribtue__((used, section(\"__DATA, __interpose\")))", libc_hooks)
+libc_hooks = re.sub(
+    "(__osx_interpose +[^ ]*)",
+    "\\1 __attribute__((used, section(\"__DATA, __interpose\")))",
+    libc_hooks,
+)
 pathlib.Path("generated/libc_hooks.c").write_text(libc_hooks)
