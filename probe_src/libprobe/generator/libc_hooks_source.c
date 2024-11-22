@@ -35,7 +35,6 @@ struct stat;
 struct stat64;
 struct utimebuf;
 typedef void* OpCode;
-typedef void* fn;
 typedef void* va_list;
 struct utimbuf;
 struct dirent;
@@ -79,7 +78,10 @@ FILE * fopen (const char *filename, const char *opentype) {
         }
     });
 }
-fn fopen64 = fopen;
+FILE * fopen64 (const char *filename, const char *opentype) {
+    bool linux_only = true;
+    void* copy_stmts_from = fopen;
+}
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     bool linux_only= true;
     void* pre_call = ({
@@ -122,7 +124,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         }
     });
 }
-fn freopen64 = freopen;
+void* freopen64 = freopen;
 
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
@@ -209,7 +211,10 @@ int openat(int dirfd, const char *filename, int flags, ...) {
     });
 }
 
-fn openat64 = openat;
+int openat(int dirfd, const char *filename, int flags, ...) {
+    void* copy_stmts_from = openat;
+    bool linux_only = true;
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open (const char *filename, int flags, ...) {
@@ -253,7 +258,10 @@ int open (const char *filename, int flags, ...) {
         }
     });
 }
-fn open64 = open;
+int open64 (const char *filename, int flags, ...) {
+    void* copy_stmts_from = open;
+    bool linux_only = true;
+}
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
         /**
@@ -285,7 +293,10 @@ int creat (const char *filename, mode_t mode) {
         }
     });
 }
-fn create64 = creat;
+int creat64 (const char *filename, mode_t mode) {
+    copy_stmts_from = creat;
+    bool linux_only = true;
+}
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
@@ -1174,7 +1185,7 @@ int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf,
         }
     });
 }
-/* fn newfstatat = fstatat; */
+/* This casuses an error: fn newfstatat = fstatat; */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
 int chown (const char *filename, uid_t owner, gid_t group) {
@@ -2670,7 +2681,7 @@ int pthread_join(pthread_t thread, void **retval) {
 /*     }); */
 /* } */
 
-/* fn _Exit = _exit; */
+/* We don't need this yet: fn _Exit = _exit; */
 
 /*
 ** TODO: getcwd, getwd, chroot

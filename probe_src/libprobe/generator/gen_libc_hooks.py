@@ -11,9 +11,9 @@ import pathlib
 
 
 _T = typing.TypeVar("_T")
-def expect_type(typ: type[_T], data: typing.Any) -> _T:
+def expect_type(typ: type[_T], data: typing.Any, comment: typing.Any = None) -> _T:
     if not isinstance(data, typ):
-        raise TypeError(f"Expected type {typ} for {data}")
+        raise TypeError(f"Expected type {typ} for {data}: {comment}")
     return data
 
 
@@ -168,17 +168,18 @@ def find_decl(
         name: str,
         comment: typing.Any,
 ) -> Decl | None:
-    relevant_stmts = [
-        stmt
-        for stmt in block
-        if isinstance(stmt, Decl) and stmt.name == name
-    ]
-    if not relevant_stmts:
-        return None
-    elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
-    else:
-        return relevant_stmts[0]
+    try:
+        relevant_stmts = [
+            stmt
+            for stmt in block
+            if isinstance(stmt, Decl) and stmt.name == name
+        ]
+        if not relevant_stmts:
+            return None
+        else:
+            return relevant_stmts[0]
+    except Exception as exc:
+        raise RuntimeError(f"Erorr while parsing {comment}") from exc
 
 
 @dataclasses.dataclass(frozen=True)
@@ -256,17 +257,39 @@ class ParsedFunc:
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
 ast = pycparser.parse_file(filename, use_cpp=True)
-orig_funcs = {
+normal_funcs: typing.Mapping[str, ParsedFunc] = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
-    if isinstance(node, pycparser.c_ast.FuncDef)
+    if isinstance(node, pycparser.c_ast.FuncDef) and find_decl(node.body.block_items or [], "copy_stmts_from", node.decl.name) is None
 }
-funcs = {
-    **orig_funcs,
+normal_and_alias_funcs: typing.Mapping[str, ParsedFunc] = {
+    **normal_funcs,
     **{
-        node.name: dataclasses.replace(orig_funcs[typing.cast(ID, node.init).name], name=node.name)
+        node.decl.name: dataclasses.replace(
+            # Parse me, but augment my statements
+            ParsedFunc.from_defn(node),
+            stmts=[
+
+                # include my statements above my alias source's
+                *node.body.block_items,
+
+                # include my alias source's statements
+                *normal_funcs[
+                    # get my alias's name
+                    expect_type(
+                        ID,
+                        expect_type(
+                            Decl,
+                            find_decl(node.body.block_items, "copy_stmts_from", node.decl.name),
+                            node.decl.name,
+                        ).init,
+                        node.decl.name,
+                    ).name
+                ].stmts,
+            ],
+        )
         for node in ast.ext
-        if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
+        if isinstance(node, pycparser.c_ast.FuncDef) and find_decl(node.body.block_items or [], "copy_stmts_from", node.decl.name) is not None
     },
 }
 if len(sys.argv) != 2:
@@ -278,21 +301,18 @@ match sys.argv[1]:
         compiling_for_linux = True
     case _:
         raise RuntimeError("First argument should be uname -s")
-platform_funcs = {}
-for func_name, func in funcs.items():
+platform_specific_funcs = {}
+for func_name, func in normal_and_alias_funcs.items():
     linux_only_field = find_decl(func.stmts, "linux_only", func.name)
     linux_only_field_init = None if linux_only_field is None else linux_only_field.init
     linux_only = linux_only_field_init is not None and linux_only_field_init.name == "true" # type: ignore
     if linux_only and compiling_for_linux:
-        platform_funcs[func_name] = func
+        platform_specific_funcs[func_name] = func
     elif linux_only and not compiling_for_linux:
         pass
     else:
-        platform_funcs[func_name] = func
-# funcs = {
-#     key: val
-#     for key, val in list(funcs.items())
-# }
+        platform_specific_funcs[func_name] = func
+
 unwrapped_prefix = "unwrapped_"
 interpose_prefix = "interpose_"
 func_pointer_declarations = [
@@ -309,7 +329,7 @@ func_pointer_declarations = [
         init=None,
         bitsize=None,
     )
-    for func_name, func in platform_funcs.items()
+    for func_name, func in platform_specific_funcs.items()
 ]
 init_function_pointers = ParsedFunc(
     name="init_function_pointers",
@@ -333,7 +353,7 @@ init_function_pointers = ParsedFunc(
                 pycparser.c_ast.ID(name=func_name)
             ),
         )
-        for func_name, func in platform_funcs.items()
+        for func_name, func in platform_specific_funcs.items()
     ],
 ).definition()
 
@@ -512,11 +532,11 @@ static_args_wrapper_func_declarations = [
         stmts=wrapper_func_body(func),
         name=(func_name if compiling_for_linux else interpose_prefix + func.name),
     ).definition()
-    for _, func in platform_funcs.items()
+    for _, func in platform_specific_funcs.items()
 ]
 structs = [] if compiling_for_linux else [
     gen_mac_os_struct(func.name)
-    for _, func in platform_funcs.items()
+    for _, func in platform_specific_funcs.items()
 ]
 pathlib.Path("generated/libc_hooks.h").write_text(
     GccCGenerator().visit(
