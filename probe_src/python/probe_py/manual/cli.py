@@ -14,7 +14,6 @@ import subprocess
 import os
 import tempfile
 import enum
-import networkx as nx
 from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
 from sqlalchemy.orm import Session
 from .analysis import ProcessNode, FileNode
@@ -22,7 +21,6 @@ import shlex
 import datetime
 import random
 import socket
-import xdg_base_dirs
 
 
 console = rich.console.Console(stderr=True)
@@ -117,23 +115,18 @@ def dataflow_graph(
     graph_utils.serialize_graph(dataflow_graph, output)
 
 def get_host_name() -> int:
-    PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
-    node_name = PROBE_HOME / "node_name"
-    if node_name.exists():
-        return node_name.read_text()
-    else:
-        hostname = socket.gethostname()
-        rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
-        bits_per_hex_digit = 4
-        hex_digits = 8
-        random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
-        return random_number
+    hostname = socket.gethostname()
+    rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
+    bits_per_hex_digit = 4
+    hex_digits = 8
+    random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
+    return random_number
 
 @export_app.command()
 def store_dataflow_graph(probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log")):
+        ] = pathlib.Path("probe_log"))->None:
     prov_log = parse_probe_log(probe_log)
     dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
     engine = get_engine()
@@ -148,7 +141,8 @@ def store_dataflow_graph(probe_log: Annotated[
             if isinstance(node1, ProcessNode) and isinstance(node2, ProcessNode):
                 parent_process_id = node1.pid
                 child_process = session.get(Process, node2.pid)
-                child_process.parent_process_id = parent_process_id
+                if child_process:
+                    child_process.parent_process_id = parent_process_id
 
             elif isinstance(node1, ProcessNode) and isinstance(node2, FileNode):
                 inode_info = node2.inodeOnDevice
@@ -156,17 +150,31 @@ def store_dataflow_graph(probe_log: Annotated[
                 stat_info = os.stat(node2.file)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.device_major, device_minor  = inode_info.device_minor, host = host, path = node2.file, mtime = mtime, size = size)
-                session.add(new_inode)
+                new_output_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.device_major, device_minor  = inode_info.device_minor, host = host, path = node2.file, mtime = mtime, size = size)
+                session.add(new_output_inode)
 
-            if isinstance(node1, FileNode) and isinstance(node2, ProcessNode):
+            elif isinstance(node1, FileNode) and isinstance(node2, ProcessNode):
                 inode_info = node1.inodeOnDevice
                 host = get_host_name()
                 stat_info = os.stat(node1.file)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.device_major, device_minor= inode_info.device_minor, host = host, path = node1.file, mtime=mtime, size=size)
-                session.add(new_inode)
+                new_input_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.device_major, device_minor= inode_info.device_minor, host = host, path = node1.file, mtime=mtime, size=size)
+                session.add(new_input_inode)
+
+        root_process = None
+        for node in dataflow_graph.nodes():
+            if isinstance(node, ProcessNode):
+                pid = node.pid
+                process_record = session.get(Process, pid)
+                if process_record and process_record.parent_process_id == 0:
+                    if root_process is not None:
+                        print(f"Error: Two parent processes - {pid} and {root_process}")
+                        session.rollback()
+                        return
+                    else:
+                        root_process = pid
+
         session.commit()
 
 @export_app.command()
