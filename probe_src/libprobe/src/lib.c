@@ -102,10 +102,21 @@ static void check_function_pointers() {
 
 static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
 
+static void __thread_inited_key_init() {
+    pthread_key_create(&__thread_inited_key, free);
+}
 static void maybe_init_thread() {
     DEBUG("Here 0");
-    DEBUG("Here %p", &__thread_inited);
-    if (unlikely(!__thread_inited)) {
+
+    bool *p_inited = (bool *)pthread_getspecific(__thread_inited_key);
+    if (p_inited == NULL) {
+        p_inited = malloc(sizeof(bool));
+        *p_inited = false;
+        pthread_setspecific(__thread_inited_key, p_inited);
+    }
+    DEBUG("Here %p", p_inited);
+
+    if (unlikely(!*p_inited)) {
         DEBUG("Acquiring mutex");
         EXPECT(== 0, pthread_mutex_lock(&init_lock));
         DEBUG("Acquired mutex");
@@ -124,7 +135,7 @@ static void maybe_init_thread() {
         }
         EXPECT(== 0, pthread_mutex_unlock(&init_lock));
         prov_log_enable();
-        __thread_inited = true;
+        *p_inited = true;
 
         if (!was_process_inited) {
             if (get_exec_epoch() == 0) {

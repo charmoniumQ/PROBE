@@ -65,7 +65,12 @@ void *thrd_start_wrapper(void *arg) {
     return (void *)(intptr_t)res;
 }
 
-static bool __thread_inited = false;
+static pthread_key_t __thread_inited_key;
+
+__attribute__((constructor))
+static void initialize_thread_inited_key() {
+    pthread_key_create(&__thread_inited_key, free);
+}
 
 #define thrd_current() ((uintptr_t) pthread_self())
 
