@@ -47,25 +47,25 @@ static void prov_log_try(struct Op op) {
     const struct Path* path = op_to_path(&op);
     if (should_copy_files() && path->path && path->stat_valid) {
         if (is_read_op(op)) {
-            DEBUG("Reading %s %d", path->path, path->inode);
+            DEBUG("Reading %s %llu", path->path, (unsigned long long)path->inode);
             inode_table_put_if_not_exists(&read_inodes, path);
         } else if (is_mutate_op(op)) {
             if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
-                DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+                DEBUG("Mutating, but not copying %s %llu since it is copied already or overwritten", path->path, (unsigned long long)path->inode);
             } else {
-                DEBUG("Mutating, therefore copying %s %d", path->path, path->inode);
+                DEBUG("Mutating, therefore copying %s %llu", path->path, (unsigned long long)path->inode);
                 copy(path);
             }
         } else if (is_replace_op(op)) {
             if (inode_table_contains(&read_inodes, path)) {
                 if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
-                    DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+                    DEBUG("Mutating, but not copying %s %llu since it is copied already or overwritten", path->path, (unsigned long long)path->inode);
                 } else {
-                    DEBUG("Replace after read %s %d", path->path, path->inode);
+                    DEBUG("Replace after read %s %llu", path->path, (unsigned long long)path->inode);
                     copy(path);
                 }
             } else {
-                DEBUG("Mutating, but not copying %s %d since it was never read", path->path, path->inode);
+                DEBUG("Mutating, but not copying %s %llu since it was never read", path->path, (unsigned long long)path->inode);
             }
         }
     }
@@ -76,9 +76,9 @@ static void prov_log_try(struct Op op) {
  */
 static void prov_log_record(struct Op op) {
 #ifdef DEBUG_LOG
-        char str[PATH_MAX * 2];
-        op_to_human_readable(str, PATH_MAX * 2, &op);
-        DEBUG("record op: %s", str);
+    char str[PATH_MAX * 2];
+    op_to_human_readable(str, PATH_MAX * 2, &op);
+    DEBUG("record op: %s", str);
 #endif
 
     if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {

@@ -1,118 +1,85 @@
 void init_function_pointers()
 {
-  unwrapped_fopen = dlsym(RTLD_NEXT, "fopen");
-  unwrapped_freopen = dlsym(RTLD_NEXT, "freopen");
-  unwrapped_fclose = dlsym(RTLD_NEXT, "fclose");
-  unwrapped_fcloseall = dlsym(RTLD_NEXT, "fcloseall");
-  unwrapped_openat = dlsym(RTLD_NEXT, "openat");
-  unwrapped_open = dlsym(RTLD_NEXT, "open");
-  unwrapped_creat = dlsym(RTLD_NEXT, "creat");
-  unwrapped_close = dlsym(RTLD_NEXT, "close");
-  unwrapped_close_range = dlsym(RTLD_NEXT, "close_range");
-  unwrapped_closefrom = dlsym(RTLD_NEXT, "closefrom");
-  unwrapped_dup = dlsym(RTLD_NEXT, "dup");
-  unwrapped_dup2 = dlsym(RTLD_NEXT, "dup2");
-  unwrapped_dup3 = dlsym(RTLD_NEXT, "dup3");
-  unwrapped_fcntl = dlsym(RTLD_NEXT, "fcntl");
-  unwrapped_chdir = dlsym(RTLD_NEXT, "chdir");
-  unwrapped_fchdir = dlsym(RTLD_NEXT, "fchdir");
-  unwrapped_opendir = dlsym(RTLD_NEXT, "opendir");
-  unwrapped_fdopendir = dlsym(RTLD_NEXT, "fdopendir");
-  unwrapped_readdir = dlsym(RTLD_NEXT, "readdir");
-  unwrapped_readdir_r = dlsym(RTLD_NEXT, "readdir_r");
-  unwrapped_readdir64 = dlsym(RTLD_NEXT, "readdir64");
-  unwrapped_readdir64_r = dlsym(RTLD_NEXT, "readdir64_r");
-  unwrapped_closedir = dlsym(RTLD_NEXT, "closedir");
-  unwrapped_rewinddir = dlsym(RTLD_NEXT, "rewinddir");
-  unwrapped_telldir = dlsym(RTLD_NEXT, "telldir");
-  unwrapped_seekdir = dlsym(RTLD_NEXT, "seekdir");
-  unwrapped_scandir = dlsym(RTLD_NEXT, "scandir");
-  unwrapped_scandir64 = dlsym(RTLD_NEXT, "scandir64");
-  unwrapped_scandirat = dlsym(RTLD_NEXT, "scandirat");
-  unwrapped_getdents64 = dlsym(RTLD_NEXT, "getdents64");
-  unwrapped_ftw = dlsym(RTLD_NEXT, "ftw");
-  unwrapped_ftw64 = dlsym(RTLD_NEXT, "ftw64");
-  unwrapped_nftw = dlsym(RTLD_NEXT, "nftw");
-  unwrapped_nftw64 = dlsym(RTLD_NEXT, "nftw64");
-  unwrapped_link = dlsym(RTLD_NEXT, "link");
-  unwrapped_linkat = dlsym(RTLD_NEXT, "linkat");
-  unwrapped_symlink = dlsym(RTLD_NEXT, "symlink");
-  unwrapped_symlinkat = dlsym(RTLD_NEXT, "symlinkat");
-  unwrapped_readlink = dlsym(RTLD_NEXT, "readlink");
-  unwrapped_readlinkat = dlsym(RTLD_NEXT, "readlinkat");
-  unwrapped_canonicalize_file_name = dlsym(RTLD_NEXT, "canonicalize_file_name");
-  unwrapped_realpath = dlsym(RTLD_NEXT, "realpath");
-  unwrapped_unlink = dlsym(RTLD_NEXT, "unlink");
-  unwrapped_rmdir = dlsym(RTLD_NEXT, "rmdir");
-  unwrapped_remove = dlsym(RTLD_NEXT, "remove");
-  unwrapped_rename = dlsym(RTLD_NEXT, "rename");
-  unwrapped_mkdir = dlsym(RTLD_NEXT, "mkdir");
-  unwrapped_mkdirat = dlsym(RTLD_NEXT, "mkdirat");
-  unwrapped_stat = dlsym(RTLD_NEXT, "stat");
-  unwrapped_stat64 = dlsym(RTLD_NEXT, "stat64");
-  unwrapped_fstat = dlsym(RTLD_NEXT, "fstat");
-  unwrapped_fstat64 = dlsym(RTLD_NEXT, "fstat64");
-  unwrapped_lstat = dlsym(RTLD_NEXT, "lstat");
-  unwrapped_lstat64 = dlsym(RTLD_NEXT, "lstat64");
-  unwrapped_statx = dlsym(RTLD_NEXT, "statx");
-  unwrapped_fstatat = dlsym(RTLD_NEXT, "fstatat");
-  unwrapped_fstatat64 = dlsym(RTLD_NEXT, "fstatat64");
-  unwrapped_chown = dlsym(RTLD_NEXT, "chown");
-  unwrapped_fchown = dlsym(RTLD_NEXT, "fchown");
-  unwrapped_lchown = dlsym(RTLD_NEXT, "lchown");
-  unwrapped_fchownat = dlsym(RTLD_NEXT, "fchownat");
-  unwrapped_chmod = dlsym(RTLD_NEXT, "chmod");
-  unwrapped_fchmod = dlsym(RTLD_NEXT, "fchmod");
-  unwrapped_fchmodat = dlsym(RTLD_NEXT, "fchmodat");
-  unwrapped_access = dlsym(RTLD_NEXT, "access");
-  unwrapped_faccessat = dlsym(RTLD_NEXT, "faccessat");
-  unwrapped_utime = dlsym(RTLD_NEXT, "utime");
-  unwrapped_utimes = dlsym(RTLD_NEXT, "utimes");
-  unwrapped_lutimes = dlsym(RTLD_NEXT, "lutimes");
-  unwrapped_futimes = dlsym(RTLD_NEXT, "futimes");
-  unwrapped_truncate = dlsym(RTLD_NEXT, "truncate");
-  unwrapped_truncate64 = dlsym(RTLD_NEXT, "truncate64");
-  unwrapped_ftruncate = dlsym(RTLD_NEXT, "ftruncate");
-  unwrapped_ftruncate64 = dlsym(RTLD_NEXT, "ftruncate64");
-  unwrapped_mknod = dlsym(RTLD_NEXT, "mknod");
-  unwrapped_tmpfile = dlsym(RTLD_NEXT, "tmpfile");
-  unwrapped_tmpfile64 = dlsym(RTLD_NEXT, "tmpfile64");
-  unwrapped_tmpnam = dlsym(RTLD_NEXT, "tmpnam");
-  unwrapped_tmpnam_r = dlsym(RTLD_NEXT, "tmpnam_r");
-  unwrapped_tempnam = dlsym(RTLD_NEXT, "tempnam");
-  unwrapped_mktemp = dlsym(RTLD_NEXT, "mktemp");
-  unwrapped_mkstemp = dlsym(RTLD_NEXT, "mkstemp");
-  unwrapped_mkdtemp = dlsym(RTLD_NEXT, "mkdtemp");
-  unwrapped_execv = dlsym(RTLD_NEXT, "execv");
-  unwrapped_execl = dlsym(RTLD_NEXT, "execl");
-  unwrapped_execve = dlsym(RTLD_NEXT, "execve");
-  unwrapped_fexecve = dlsym(RTLD_NEXT, "fexecve");
-  unwrapped_execle = dlsym(RTLD_NEXT, "execle");
-  unwrapped_execvp = dlsym(RTLD_NEXT, "execvp");
-  unwrapped_execlp = dlsym(RTLD_NEXT, "execlp");
-  unwrapped_execvpe = dlsym(RTLD_NEXT, "execvpe");
-  unwrapped_fork = dlsym(RTLD_NEXT, "fork");
-  unwrapped__Fork = dlsym(RTLD_NEXT, "_Fork");
-  unwrapped_vfork = dlsym(RTLD_NEXT, "vfork");
-  unwrapped_clone = dlsym(RTLD_NEXT, "clone");
-  unwrapped_waitpid = dlsym(RTLD_NEXT, "waitpid");
-  unwrapped_wait = dlsym(RTLD_NEXT, "wait");
-  unwrapped_wait4 = dlsym(RTLD_NEXT, "wait4");
-  unwrapped_wait3 = dlsym(RTLD_NEXT, "wait3");
-  unwrapped_waitid = dlsym(RTLD_NEXT, "waitid");
-  unwrapped_thrd_create = dlsym(RTLD_NEXT, "thrd_create");
-  unwrapped_thrd_join = dlsym(RTLD_NEXT, "thrd_join");
-  unwrapped_pthread_create = dlsym(RTLD_NEXT, "pthread_create");
-  unwrapped_pthread_join = dlsym(RTLD_NEXT, "pthread_join");
-  unwrapped_fopen64 = dlsym(RTLD_NEXT, "fopen64");
-  unwrapped_freopen64 = dlsym(RTLD_NEXT, "freopen64");
-  unwrapped_openat64 = dlsym(RTLD_NEXT, "openat64");
-  unwrapped_open64 = dlsym(RTLD_NEXT, "open64");
-  unwrapped_create64 = dlsym(RTLD_NEXT, "create64");
+  unwrapped_fopen = fopen;
+  unwrapped_fclose = fclose;
+  unwrapped_openat = openat;
+  unwrapped_open = open;
+  unwrapped_creat = creat;
+  unwrapped_close = close;
+  unwrapped_dup = dup;
+  unwrapped_dup2 = dup2;
+  unwrapped_fcntl = fcntl;
+  unwrapped_chdir = chdir;
+  unwrapped_fchdir = fchdir;
+  unwrapped_opendir = opendir;
+  unwrapped_fdopendir = fdopendir;
+  unwrapped_readdir = readdir;
+  unwrapped_readdir_r = readdir_r;
+  unwrapped_closedir = closedir;
+  unwrapped_rewinddir = rewinddir;
+  unwrapped_telldir = telldir;
+  unwrapped_seekdir = seekdir;
+  unwrapped_scandir = scandir;
+  unwrapped_ftw = ftw;
+  unwrapped_nftw = nftw;
+  unwrapped_link = link;
+  unwrapped_linkat = linkat;
+  unwrapped_symlink = symlink;
+  unwrapped_symlinkat = symlinkat;
+  unwrapped_readlink = readlink;
+  unwrapped_readlinkat = readlinkat;
+  unwrapped_realpath = realpath;
+  unwrapped_unlink = unlink;
+  unwrapped_rmdir = rmdir;
+  unwrapped_remove = remove;
+  unwrapped_rename = rename;
+  unwrapped_mkdir = mkdir;
+  unwrapped_mkdirat = mkdirat;
+  unwrapped_stat = stat;
+  unwrapped_fstat = fstat;
+  unwrapped_lstat = lstat;
+  unwrapped_fstatat = fstatat;
+  unwrapped_chown = chown;
+  unwrapped_fchown = fchown;
+  unwrapped_lchown = lchown;
+  unwrapped_fchownat = fchownat;
+  unwrapped_chmod = chmod;
+  unwrapped_fchmod = fchmod;
+  unwrapped_fchmodat = fchmodat;
+  unwrapped_access = access;
+  unwrapped_faccessat = faccessat;
+  unwrapped_utime = utime;
+  unwrapped_truncate = truncate;
+  unwrapped_truncate64 = truncate64;
+  unwrapped_ftruncate = ftruncate;
+  unwrapped_ftruncate64 = ftruncate64;
+  unwrapped_mknod = mknod;
+  unwrapped_tmpfile = tmpfile;
+  unwrapped_tmpnam = tmpnam;
+  unwrapped_tempnam = tempnam;
+  unwrapped_mktemp = mktemp;
+  unwrapped_mkstemp = mkstemp;
+  unwrapped_mkdtemp = mkdtemp;
+  unwrapped_execv = execv;
+  unwrapped_execl = execl;
+  unwrapped_execve = execve;
+  unwrapped_execle = execle;
+  unwrapped_execvp = execvp;
+  unwrapped_execlp = execlp;
+  unwrapped_fork = fork;
+  unwrapped_vfork = vfork;
+  unwrapped_waitpid = waitpid;
+  unwrapped_wait = wait;
+  unwrapped_wait4 = wait4;
+  unwrapped_wait3 = wait3;
+  unwrapped_waitid = waitid;
+  unwrapped_pthread_create = pthread_create;
+  unwrapped_pthread_join = pthread_join;
 }
 
-FILE * fopen(const char *filename, const char *opentype)
+FILE * interpose_fopen(const char *filename, const char *opentype)
 {
+  DEBUG("fopen(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -137,39 +104,9 @@ FILE * fopen(const char *filename, const char *opentype)
   return ret;
 }
 
-FILE * freopen(const char *filename, const char *opentype, FILE *stream)
+int interpose_fclose(FILE *stream)
 {
-  maybe_init_thread();
-  int original_fd = fileno(stream);
-  struct Op open_op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  struct Op close_op = {close_op_code, {.close = {original_fd, original_fd, 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(open_op);
-    prov_log_try(close_op);
-  }
-  FILE * ret = unwrapped_freopen(filename, opentype, stream);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret == NULL)
-    {
-      open_op.data.open.ferrno = saved_errno;
-      close_op.data.close.ferrno = saved_errno;
-    }
-    else
-    {
-      open_op.data.open.fd = fileno(ret);
-    }
-    prov_log_record(open_op);
-    prov_log_record(close_op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int fclose(FILE *stream)
-{
+  DEBUG("fclose(...)");
   maybe_init_thread();
   int fd = fileno(stream);
   struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}, 0, 0};
@@ -188,27 +125,9 @@ int fclose(FILE *stream)
   return ret;
 }
 
-int fcloseall()
+int interpose_openat(int dirfd, const char *filename, int flags, ...)
 {
-  maybe_init_thread();
-  struct Op op = {close_op_code, {.close = {0, INT_MAX, 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_fcloseall();
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.close.ferrno = (ret == 0) ? (0) : (errno);
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int openat(int dirfd, const char *filename, int flags, ...)
-{
+  DEBUG("openat(...)");
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
@@ -236,8 +155,9 @@ int openat(int dirfd, const char *filename, int flags, ...)
   return ret;
 }
 
-int open(const char *filename, int flags, ...)
+int interpose_open(const char *filename, int flags, ...)
 {
+  DEBUG("open(...)");
   maybe_init_thread();
   bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
@@ -265,8 +185,9 @@ int open(const char *filename, int flags, ...)
   return ret;
 }
 
-int creat(const char *filename, mode_t mode)
+int interpose_creat(const char *filename, mode_t mode)
 {
+  DEBUG("creat(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -285,8 +206,9 @@ int creat(const char *filename, mode_t mode)
   return ret;
 }
 
-int close(int filedes)
+int interpose_close(int filedes)
 {
+  DEBUG("close(...)");
   maybe_init_thread();
   struct Op op = {close_op_code, {.close = {filedes, filedes, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -304,69 +226,25 @@ int close(int filedes)
   return ret;
 }
 
-int close_range(unsigned int lowfd, unsigned int maxfd, int flags)
+int interpose_dup(int old)
 {
-  maybe_init_thread();
-  if (flags != 0)
-  {
-    NOT_IMPLEMENTED("I don't know how to handle close_rnage flags yet");
-  }
-  struct Op op = {close_op_code, {.close = {lowfd, maxfd, 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_close_range(lowfd, maxfd, flags);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.close.ferrno = (ret == 0) ? (0) : (errno);
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-void closefrom(int lowfd)
-{
-  maybe_init_thread();
-  struct Op op = {close_op_code, {.close = {lowfd, INT_MAX, 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  unwrapped_closefrom(lowfd);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-}
-
-int dup(int old)
-{
+  DEBUG("dup(...)");
   maybe_init_thread();
   int ret = unwrapped_dup(old);
   return ret;
 }
 
-int dup2(int old, int new)
+int interpose_dup2(int old, int new)
 {
+  DEBUG("dup2(...)");
   maybe_init_thread();
   int ret = unwrapped_dup2(old, new);
   return ret;
 }
 
-int dup3(int old, int new, int flags)
+int interpose_fcntl(int filedes, int command, ...)
 {
-  maybe_init_thread();
-  int ret = unwrapped_dup3(old, new, flags);
-  return ret;
-}
-
-int fcntl(int filedes, int command, ...)
-{
+  DEBUG("fcntl(...)");
   maybe_init_thread();
   bool int_arg = (((((((((command == F_DUPFD) || (command == F_DUPFD_CLOEXEC)) || (command == F_SETFD)) || (command == F_SETFL)) || (command == F_SETOWN)) || (command == F_SETSIG)) || (command == F_SETLEASE)) || (command == F_NOTIFY)) || (command == F_SETPIPE_SZ)) || (command == F_ADD_SEALS);
   bool ptr_arg = ((((((((command == F_SETLK) || (command == F_SETLKW)) || (command == F_GETLK)) || (command == F_GETOWN_EX)) || (command == F_SETOWN_EX)) || (command == F_GET_RW_HINT)) || (command == F_SET_RW_HINT)) || (command == F_GET_FILE_RW_HINT)) || (command == F_SET_FILE_RW_HINT);
@@ -376,8 +254,9 @@ int fcntl(int filedes, int command, ...)
   return ret;
 }
 
-int chdir(const char *filename)
+int interpose_chdir(const char *filename)
 {
+  DEBUG("chdir(...)");
   maybe_init_thread();
   struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(AT_FDCWD, filename, 0), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -395,8 +274,9 @@ int chdir(const char *filename)
   return ret;
 }
 
-int fchdir(int filedes)
+int interpose_fchdir(int filedes)
 {
+  DEBUG("fchdir(...)");
   maybe_init_thread();
   struct Op op = {chdir_op_code, {.chdir = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -414,8 +294,9 @@ int fchdir(int filedes)
   return ret;
 }
 
-DIR * opendir(const char *dirname)
+DIR * interpose_opendir(const char *dirname)
 {
+  DEBUG("opendir(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, dirname, 0), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -434,8 +315,9 @@ DIR * opendir(const char *dirname)
   return ret;
 }
 
-DIR * fdopendir(int fd)
+DIR * interpose_fdopendir(int fd)
 {
+  DEBUG("fdopendir(...)");
   maybe_init_thread();
   struct Op op = {open_op_code, {.open = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .flags = (O_RDONLY | O_DIRECTORY) | O_CLOEXEC, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -454,8 +336,9 @@ DIR * fdopendir(int fd)
   return ret;
 }
 
-struct dirent * readdir(DIR *dirstream)
+struct dirent * interpose_readdir(DIR *dirstream)
 {
+  DEBUG("readdir(...)");
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
@@ -481,8 +364,9 @@ struct dirent * readdir(DIR *dirstream)
   return ret;
 }
 
-int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
+int interpose_readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
 {
+  DEBUG("readdir_r(...)");
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
@@ -508,62 +392,9 @@ int readdir_r(DIR *dirstream, struct dirent *entry, struct dirent **result)
   return ret;
 }
 
-struct dirent64 * readdir64(DIR *dirstream)
+int interpose_closedir(DIR *dirstream)
 {
-  maybe_init_thread();
-  int fd = try_dirfd(dirstream);
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  struct dirent64 * ret = unwrapped_readdir64(dirstream);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret == NULL)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    else
-    {
-      op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int readdir64_r(DIR *dirstream, struct dirent64 *entry, struct dirent64 **result)
-{
-  maybe_init_thread();
-  int fd = try_dirfd(dirstream);
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = false, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_readdir64_r(dirstream, entry, result);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if ((*result) == NULL)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    else
-    {
-      op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int closedir(DIR *dirstream)
-{
+  DEBUG("closedir(...)");
   maybe_init_thread();
   int fd = try_dirfd(dirstream);
   struct Op op = {close_op_code, {.close = {fd, fd, 0}}, {0}, 0, 0};
@@ -582,27 +413,31 @@ int closedir(DIR *dirstream)
   return ret;
 }
 
-void rewinddir(DIR *dirstream)
+void interpose_rewinddir(DIR *dirstream)
 {
+  DEBUG("rewinddir(...)");
   maybe_init_thread();
   unwrapped_rewinddir(dirstream);
 }
 
-long int telldir(DIR *dirstream)
+long int interpose_telldir(DIR *dirstream)
 {
+  DEBUG("telldir(...)");
   maybe_init_thread();
   long int ret = unwrapped_telldir(dirstream);
   return ret;
 }
 
-void seekdir(DIR *dirstream, long int pos)
+void interpose_seekdir(DIR *dirstream, long int pos)
 {
+  DEBUG("seekdir(...)");
   maybe_init_thread();
   unwrapped_seekdir(dirstream, pos);
 }
 
-int scandir(const char *dir, struct dirent ***namelist, int (*selector)(const struct dirent *), int (*cmp)(const struct dirent **, const struct dirent **))
+int interpose_scandir(const char *dir, struct dirent ***namelist, int (*selector)(const struct dirent *), int (*cmp)(const struct dirent **, const struct dirent **))
 {
+  DEBUG("scandir(...)");
   maybe_init_thread();
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -623,74 +458,9 @@ int scandir(const char *dir, struct dirent ***namelist, int (*selector)(const st
   return ret;
 }
 
-int scandir64(const char *dir, struct dirent64 ***namelist, int (*selector)(const struct dirent64 *), int (*cmp)(const struct dirent64 **, const struct dirent64 **))
+int interpose_ftw(const char *filename, __ftw_func_t func, int descriptors)
 {
-  maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, dir, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_scandir64(dir, namelist, selector, cmp);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int scandirat(int dirfd, const char * restrict dirp, struct dirent *** restrict namelist, int (*filter)(const struct dirent *), int (*compar)(const struct dirent **, const struct dirent **))
-{
-  maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(dirfd, dirp, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_scandirat(dirfd, dirp, namelist, filter, compar);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-ssize_t getdents64(int fd, void *buffer, size_t length)
-{
-  maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(fd, "", AT_EMPTY_PATH), .child = NULL, .all_children = true}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  ssize_t ret = unwrapped_getdents64(fd, buffer, length);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (unlikely(ret == (-1)))
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int ftw(const char *filename, __ftw_func_t func, int descriptors)
-{
+  DEBUG("ftw(...)");
   maybe_init_thread();
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -711,30 +481,9 @@ int ftw(const char *filename, __ftw_func_t func, int descriptors)
   return ret;
 }
 
-int ftw64(const char *filename, __ftw64_func_t func, int descriptors)
+int interpose_nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
 {
-  maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_ftw64(filename, func, descriptors);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
-{
+  DEBUG("nftw(...)");
   maybe_init_thread();
   struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -755,128 +504,113 @@ int nftw(const char *filename, __nftw_func_t func, int descriptors, int flag)
   return ret;
 }
 
-int nftw64(const char *filename, __nftw64_func_t func, int descriptors, int flag)
+int interpose_link(const char *oldname, const char *newname)
 {
-  maybe_init_thread();
-  struct Op op = {readdir_op_code, {.readdir = {.dir = create_path_lazy(AT_FDCWD, filename, 0), .child = NULL, .all_children = true}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_nftw64(filename, func, descriptors, flag);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int link(const char *oldname, const char *newname)
-{
+  DEBUG("link(...)");
   maybe_init_thread();
   int ret = unwrapped_link(oldname, newname);
   return ret;
 }
 
-int linkat(int oldfd, const char *oldname, int newfd, const char *newname, int flags)
+int interpose_linkat(int oldfd, const char *oldname, int newfd, const char *newname, int flags)
 {
+  DEBUG("linkat(...)");
   maybe_init_thread();
   int ret = unwrapped_linkat(oldfd, oldname, newfd, newname, flags);
   return ret;
 }
 
-int symlink(const char *oldname, const char *newname)
+int interpose_symlink(const char *oldname, const char *newname)
 {
+  DEBUG("symlink(...)");
   maybe_init_thread();
   int ret = unwrapped_symlink(oldname, newname);
   return ret;
 }
 
-int symlinkat(const char *target, int newdirfd, const char *linkpath)
+int interpose_symlinkat(const char *target, int newdirfd, const char *linkpath)
 {
+  DEBUG("symlinkat(...)");
   maybe_init_thread();
   int ret = unwrapped_symlinkat(target, newdirfd, linkpath);
   return ret;
 }
 
-ssize_t readlink(const char *filename, char *buffer, size_t size)
+ssize_t interpose_readlink(const char *filename, char *buffer, size_t size)
 {
+  DEBUG("readlink(...)");
   maybe_init_thread();
   ssize_t ret = unwrapped_readlink(filename, buffer, size);
   return ret;
 }
 
-ssize_t readlinkat(int dirfd, const char *filename, char *buffer, size_t size)
+ssize_t interpose_readlinkat(int dirfd, const char *filename, char *buffer, size_t size)
 {
+  DEBUG("readlinkat(...)");
   maybe_init_thread();
   ssize_t ret = unwrapped_readlinkat(dirfd, filename, buffer, size);
   return ret;
 }
 
-char * canonicalize_file_name(const char *name)
+char * interpose_realpath(const char * restrict name, char * restrict resolved)
 {
-  maybe_init_thread();
-  char * ret = unwrapped_canonicalize_file_name(name);
-  return ret;
-}
-
-char * realpath(const char * restrict name, char * restrict resolved)
-{
+  DEBUG("realpath(...)");
   maybe_init_thread();
   char * ret = unwrapped_realpath(name, resolved);
   return ret;
 }
 
-int unlink(const char *filename)
+int interpose_unlink(const char *filename)
 {
+  DEBUG("unlink(...)");
   maybe_init_thread();
   int ret = unwrapped_unlink(filename);
   return ret;
 }
 
-int rmdir(const char *filename)
+int interpose_rmdir(const char *filename)
 {
+  DEBUG("rmdir(...)");
   maybe_init_thread();
   int ret = unwrapped_rmdir(filename);
   return ret;
 }
 
-int remove(const char *filename)
+int interpose_remove(const char *filename)
 {
+  DEBUG("remove(...)");
   maybe_init_thread();
   int ret = unwrapped_remove(filename);
   return ret;
 }
 
-int rename(const char *oldname, const char *newname)
+int interpose_rename(const char *oldname, const char *newname)
 {
+  DEBUG("rename(...)");
   maybe_init_thread();
   int ret = unwrapped_rename(oldname, newname);
   return ret;
 }
 
-int mkdir(const char *filename, mode_t mode)
+int interpose_mkdir(const char *filename, mode_t mode)
 {
+  DEBUG("mkdir(...)");
   maybe_init_thread();
   int ret = unwrapped_mkdir(filename, mode);
   return ret;
 }
 
-int mkdirat(int dirfd, const char *pathname, mode_t mode)
+int interpose_mkdirat(int dirfd, const char *pathname, mode_t mode)
 {
+  DEBUG("mkdirat(...)");
   maybe_init_thread();
   int ret = unwrapped_mkdirat(dirfd, pathname, mode);
   return ret;
 }
 
-int stat(const char *filename, struct stat *buf)
+int interpose_stat(const char *filename, struct stat *buf)
 {
+  DEBUG("stat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .ferrno = 0, .stat_result = {0}}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -901,34 +635,9 @@ int stat(const char *filename, struct stat *buf)
   return ret;
 }
 
-int stat64(const char *filename, struct stat64 *buf)
+int interpose_fstat(int filedes, struct stat *buf)
 {
-  maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_stat64(filename, buf);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.stat.ferrno = saved_errno;
-    }
-    else
-    {
-      stat_result_from_stat64(&op.data.stat.stat_result, buf);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int fstat(int filedes, struct stat *buf)
-{
+  DEBUG("fstat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -953,34 +662,9 @@ int fstat(int filedes, struct stat *buf)
   return ret;
 }
 
-int fstat64(int filedes, struct stat64 * restrict buf)
+int interpose_lstat(const char *filename, struct stat *buf)
 {
-  maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_fstat64(filedes, buf);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.stat.ferrno = saved_errno;
-    }
-    else
-    {
-      stat_result_from_stat64(&op.data.stat.stat_result, buf);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int lstat(const char *filename, struct stat *buf)
-{
+  DEBUG("lstat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1005,60 +689,9 @@ int lstat(const char *filename, struct stat *buf)
   return ret;
 }
 
-int lstat64(const char *filename, struct stat64 *buf)
+int interpose_fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags)
 {
-  maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_lstat64(filename, buf);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    else
-    {
-      stat_result_from_stat64(&op.data.stat.stat_result, buf);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mask, struct statx * restrict statxbuf)
-{
-  maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_statx(dirfd, pathname, flags, mask, statxbuf);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.stat.ferrno = saved_errno;
-    }
-    else
-    {
-      stat_result_from_statx(&op.data.stat.stat_result, statxbuf);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags)
-{
+  DEBUG("fstatat(...)");
   maybe_init_thread();
   struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1083,34 +716,9 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
   return ret;
 }
 
-int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, int flags)
+int interpose_chown(const char *filename, uid_t owner, gid_t group)
 {
-  maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_fstatat64(fd, file, buf, flags);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.stat.ferrno = saved_errno;
-    }
-    else
-    {
-      stat_result_from_stat64(&op.data.stat.stat_result, buf);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int chown(const char *filename, uid_t owner, gid_t group)
-{
+  DEBUG("chown(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1131,8 +739,9 @@ int chown(const char *filename, uid_t owner, gid_t group)
   return ret;
 }
 
-int fchown(int filedes, uid_t owner, gid_t group)
+int interpose_fchown(int filedes, uid_t owner, gid_t group)
 {
+  DEBUG("fchown(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1153,8 +762,9 @@ int fchown(int filedes, uid_t owner, gid_t group)
   return ret;
 }
 
-int lchown(const char *pathname, uid_t owner, gid_t group)
+int interpose_lchown(const char *pathname, uid_t owner, gid_t group)
 {
+  DEBUG("lchown(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, pathname, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1175,8 +785,9 @@ int lchown(const char *pathname, uid_t owner, gid_t group)
   return ret;
 }
 
-int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
+int interpose_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
 {
+  DEBUG("fchownat(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataOwnership, .value = {.ownership = {.uid = owner, .gid = group}}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1197,8 +808,9 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
   return ret;
 }
 
-int chmod(const char *filename, mode_t mode)
+int interpose_chmod(const char *filename, mode_t mode)
 {
+  DEBUG("chmod(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1219,8 +831,9 @@ int chmod(const char *filename, mode_t mode)
   return ret;
 }
 
-int fchmod(int filedes, mode_t mode)
+int interpose_fchmod(int filedes, mode_t mode)
 {
+  DEBUG("fchmod(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1241,8 +854,9 @@ int fchmod(int filedes, mode_t mode)
   return ret;
 }
 
-int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
+int interpose_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
 {
+  DEBUG("fchmodat(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .kind = MetadataMode, .value = {.mode = mode}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1263,8 +877,9 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
   return ret;
 }
 
-int access(const char *filename, int how)
+int interpose_access(const char *filename, int how)
 {
+  DEBUG("access(...)");
   maybe_init_thread();
   struct Op op = {access_op_code, {.access = {create_path_lazy(AT_FDCWD, filename, 0), how, 0, 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1282,8 +897,9 @@ int access(const char *filename, int how)
   return ret;
 }
 
-int faccessat(int dirfd, const char *pathname, int mode, int flags)
+int interpose_faccessat(int dirfd, const char *pathname, int mode, int flags)
 {
+  DEBUG("faccessat(...)");
   maybe_init_thread();
   struct Op op = {access_op_code, {.access = {.path = create_path_lazy(dirfd, pathname, 0), .mode = mode, .flags = flags, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1301,8 +917,9 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags)
   return ret;
 }
 
-int utime(const char *filename, const struct utimbuf *times)
+int interpose_utime(const char *filename, const struct utimbuf *times)
 {
+  DEBUG("utime(...)");
   maybe_init_thread();
   struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (times)
@@ -1333,195 +950,97 @@ int utime(const char *filename, const struct utimbuf *times)
   return ret;
 }
 
-int utimes(const char *filename, const struct timeval tvp[2])
+int interpose_truncate(const char *filename, off_t length)
 {
-  maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (tvp)
-  {
-    op.data.update_metadata.value.times.is_null = false;
-    op.data.update_metadata.value.times.atime = tvp[0];
-    op.data.update_metadata.value.times.mtime = tvp[1];
-  }
-  else
-  {
-    op.data.update_metadata.value.times.is_null = true;
-  }
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_utimes(filename, tvp);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int lutimes(const char *filename, const struct timeval tvp[2])
-{
-  maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (tvp)
-  {
-    op.data.update_metadata.value.times.is_null = false;
-    op.data.update_metadata.value.times.atime = tvp[0];
-    op.data.update_metadata.value.times.mtime = tvp[1];
-  }
-  else
-  {
-    op.data.update_metadata.value.times.is_null = true;
-  }
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_lutimes(filename, tvp);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int futimes(int fd, const struct timeval tvp[2])
-{
-  maybe_init_thread();
-  struct Op op = {update_metadata_op_code, {.update_metadata = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .flags = AT_EMPTY_PATH, .kind = MetadataTimes, .value = {0}, .ferrno = 0}}, {0}, 0, 0};
-  if (tvp)
-  {
-    op.data.update_metadata.value.times.is_null = false;
-    op.data.update_metadata.value.times.atime = tvp[0];
-    op.data.update_metadata.value.times.mtime = tvp[1];
-  }
-  else
-  {
-    op.data.update_metadata.value.times.is_null = true;
-  }
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_futimes(fd, tvp);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret != 0)
-    {
-      op.data.readdir.ferrno = saved_errno;
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int truncate(const char *filename, off_t length)
-{
+  DEBUG("truncate(...)");
   maybe_init_thread();
   int ret = unwrapped_truncate(filename, length);
   return ret;
 }
 
-int truncate64(const char *name, off64_t length)
+int interpose_truncate64(const char *name, off64_t length)
 {
+  DEBUG("truncate64(...)");
   maybe_init_thread();
   int ret = unwrapped_truncate64(name, length);
   return ret;
 }
 
-int ftruncate(int fd, off_t length)
+int interpose_ftruncate(int fd, off_t length)
 {
+  DEBUG("ftruncate(...)");
   maybe_init_thread();
   int ret = unwrapped_ftruncate(fd, length);
   return ret;
 }
 
-int ftruncate64(int id, off64_t length)
+int interpose_ftruncate64(int id, off64_t length)
 {
+  DEBUG("ftruncate64(...)");
   maybe_init_thread();
   int ret = unwrapped_ftruncate64(id, length);
   return ret;
 }
 
-int mknod(const char *filename, mode_t mode, dev_t dev)
+int interpose_mknod(const char *filename, mode_t mode, dev_t dev)
 {
+  DEBUG("mknod(...)");
   maybe_init_thread();
   int ret = unwrapped_mknod(filename, mode, dev);
   return ret;
 }
 
-FILE * tmpfile()
+FILE * interpose_tmpfile()
 {
+  DEBUG("tmpfile(...)");
   maybe_init_thread();
   FILE * ret = unwrapped_tmpfile();
   return ret;
 }
 
-FILE * tmpfile64()
+char * interpose_tmpnam(char *result)
 {
-  maybe_init_thread();
-  FILE * ret = unwrapped_tmpfile64();
-  return ret;
-}
-
-char * tmpnam(char *result)
-{
+  DEBUG("tmpnam(...)");
   maybe_init_thread();
   char * ret = unwrapped_tmpnam(result);
   return ret;
 }
 
-char * tmpnam_r(char *result)
+char * interpose_tempnam(const char *dir, const char *prefix)
 {
-  maybe_init_thread();
-  char * ret = unwrapped_tmpnam_r(result);
-  return ret;
-}
-
-char * tempnam(const char *dir, const char *prefix)
-{
+  DEBUG("tempnam(...)");
   maybe_init_thread();
   char * ret = unwrapped_tempnam(dir, prefix);
   return ret;
 }
 
-char * mktemp(char *template)
+char * interpose_mktemp(char *template)
 {
+  DEBUG("mktemp(...)");
   maybe_init_thread();
   char * ret = unwrapped_mktemp(template);
   return ret;
 }
 
-int mkstemp(char *template)
+int interpose_mkstemp(char *template)
 {
+  DEBUG("mkstemp(...)");
   maybe_init_thread();
   int ret = unwrapped_mkstemp(template);
   return ret;
 }
 
-char * mkdtemp(char *template)
+char * interpose_mkdtemp(char *template)
 {
+  DEBUG("mkdtemp(...)");
   maybe_init_thread();
   char * ret = unwrapped_mkdtemp(template);
   return ret;
 }
 
-int execv(const char *filename, char * const argv[])
+int interpose_execv(const char *filename, char * const argv[])
 {
+  DEBUG("execv(...)");
   maybe_init_thread();
   size_t argc = 0;
   char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
@@ -1539,7 +1058,7 @@ int execv(const char *filename, char * const argv[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
@@ -1552,8 +1071,9 @@ int execv(const char *filename, char * const argv[])
   return ret;
 }
 
-int execl(const char *filename, const char *arg0, ...)
+int interpose_execl(const char *filename, const char *arg0, ...)
 {
+  DEBUG("execl(...)");
   maybe_init_thread();
   size_t argc = COUNT_NONNULL_VARARGS(arg0);
   char **argv = malloc((argc + 1) * (sizeof(char *)));
@@ -1580,7 +1100,7 @@ int execl(const char *filename, const char *arg0, ...)
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   free((char **) argv);
@@ -1594,8 +1114,9 @@ int execl(const char *filename, const char *arg0, ...)
   return ret;
 }
 
-int execve(const char *filename, char * const argv[], char * const env[])
+int interpose_execve(const char *filename, char * const argv[], char * const env[])
 {
+  DEBUG("execve(...)");
   maybe_init_thread();
   size_t argc = 0;
   char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
@@ -1612,7 +1133,7 @@ int execve(const char *filename, char * const argv[], char * const env[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
@@ -1625,39 +1146,9 @@ int execve(const char *filename, char * const argv[], char * const env[])
   return ret;
 }
 
-int fexecve(int fd, char * const argv[], char * const env[])
+int interpose_execle(const char *filename, const char *arg0, ...)
 {
-  maybe_init_thread();
-  size_t argc = 0;
-  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
-  size_t envc = 0;
-  char * const *updated_env = update_env_with_probe_vars(env, &envc);
-  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-    prov_log_save();
-  }
-  else
-  {
-    prov_log_save();
-  }
-  int ret = unwrapped_fexecve(fd, argv, updated_env);
-  int saved_errno = errno;
-  free((char **) updated_env);
-  if (likely(prov_log_is_enabled()))
-  {
-    assert(errno > 0);
-    op.data.exec.ferrno = saved_errno;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int execle(const char *filename, const char *arg0, ...)
-{
+  DEBUG("execle(...)");
   maybe_init_thread();
   size_t argc = COUNT_NONNULL_VARARGS(arg0) - 1;
   char **argv = malloc((argc + 1) * (sizeof(char *)));
@@ -1686,7 +1177,7 @@ int execle(const char *filename, const char *arg0, ...)
     prov_log_save();
   }
   ERROR("Not implemented; I need to figure out how to update the environment.");
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   free((char **) argv);
@@ -1700,8 +1191,9 @@ int execle(const char *filename, const char *arg0, ...)
   return ret;
 }
 
-int execvp(const char *filename, char * const argv[])
+int interpose_execvp(const char *filename, char * const argv[])
 {
+  DEBUG("execvp(...)");
   maybe_init_thread();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
@@ -1720,7 +1212,7 @@ int execvp(const char *filename, char * const argv[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
@@ -1733,8 +1225,9 @@ int execvp(const char *filename, char * const argv[])
   return ret;
 }
 
-int execlp(const char *filename, const char *arg0, ...)
+int interpose_execlp(const char *filename, const char *arg0, ...)
 {
+  DEBUG("execlp(...)");
   maybe_init_thread();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
@@ -1763,7 +1256,7 @@ int execlp(const char *filename, const char *arg0, ...)
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
+  int ret = platform_independent_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
   free((char **) argv);
@@ -1777,41 +1270,9 @@ int execlp(const char *filename, const char *arg0, ...)
   return ret;
 }
 
-int execvpe(const char *filename, char * const argv[], char * const envp[])
+pid_t interpose_fork()
 {
-  maybe_init_thread();
-  char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
-  bool found = lookup_on_path(filename, bin_path);
-  size_t argc = 0;
-  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
-  size_t envc = 0;
-  char * const *updated_env = update_env_with_probe_vars(envp, &envc);
-  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-    prov_log_save();
-  }
-  else
-  {
-    prov_log_save();
-  }
-  int ret = unwrapped_execvpe(filename, argv, updated_env);
-  int saved_errno = errno;
-  free((char **) updated_env);
-  if (likely(prov_log_is_enabled()))
-  {
-    assert(errno > 0);
-    op.data.exec.ferrno = saved_errno;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-pid_t fork()
-{
+  DEBUG("fork(...)");
   maybe_init_thread();
   struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = -1, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1847,45 +1308,9 @@ pid_t fork()
   return ret;
 }
 
-pid_t _Fork()
+pid_t interpose_vfork()
 {
-  maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = false, .task_type = TASK_PID, .task_id = 0, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-    prov_log_save();
-  }
-  else
-  {
-    prov_log_save();
-  }
-  pid_t ret = unwrapped__Fork();
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (unlikely(ret == (-1)))
-    {
-      op.data.clone.ferrno = saved_errno;
-      prov_log_record(op);
-    }
-    else
-      if (ret == 0)
-    {
-      reinit_process();
-    }
-    else
-    {
-      op.data.clone.task_id = ret;
-      prov_log_record(op);
-    }
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-pid_t vfork()
-{
+  DEBUG("vfork(...)");
   maybe_init_thread();
   struct Op op = {clone_op_code, {.clone = {.flags = 0, .run_pthread_atfork_handlers = true, .task_type = TASK_PID, .task_id = 0, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
@@ -1921,64 +1346,9 @@ pid_t vfork()
   return ret;
 }
 
-int clone(fn_ptr_int_void_ptr fn, void *stack, int flags, void *arg, ...)
+pid_t interpose_waitpid(pid_t pid, int *status_ptr, int options)
 {
-  maybe_init_thread();
-  (void) fn;
-  (void) stack;
-  (void) arg;
-  flags = flags & (~CLONE_VFORK);
-  struct Op op = {clone_op_code, {.clone = {.flags = flags, .run_pthread_atfork_handlers = false, .task_type = (flags & CLONE_THREAD) ? (TASK_TID) : (TASK_PID), .task_id = 0, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-    prov_log_save();
-    if ((flags & CLONE_THREAD) != (flags & CLONE_VM))
-    {
-      NOT_IMPLEMENTED("I conflate cloning a new thread (resulting in a process with the same PID, new TID) with sharing the memory space. If CLONE_SIGHAND is set, then Linux asserts CLONE_THREAD == CLONE_VM; If it is not set and CLONE_THREAD != CLONE_VM, by a real application, I will consider disentangling the assumptions (required to support this combination).");
-    }
-  }
-  else
-  {
-    prov_log_save();
-  }
-  size_t varargs_size = ((((((sizeof(void *)) + (sizeof(void *))) + (sizeof(int))) + ((COUNT_NONNULL_VARARGS(arg) + 1) * (sizeof(void *)))) + (sizeof(pid_t *))) + (sizeof(void *))) + (sizeof(pid_t *));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_clone, __builtin_apply_args(), varargs_size));
-  int saved_errno = errno;
-  if (unlikely(ret == (-1)))
-  {
-    if (likely(prov_log_is_enabled()))
-    {
-      op.data.clone.ferrno = saved_errno;
-      prov_log_record(op);
-    }
-  }
-  else
-    if (ret == 0)
-  {
-    if (flags & CLONE_THREAD)
-    {
-      maybe_init_thread();
-    }
-    else
-    {
-      reinit_process();
-    }
-  }
-  else
-  {
-    if (likely(prov_log_is_enabled()))
-    {
-      op.data.clone.task_id = ret;
-      prov_log_record(op);
-    }
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-pid_t waitpid(pid_t pid, int *status_ptr, int options)
-{
+  DEBUG("waitpid(...)");
   maybe_init_thread();
   int status;
   if (status_ptr == NULL)
@@ -2006,8 +1376,9 @@ pid_t waitpid(pid_t pid, int *status_ptr, int options)
   return ret;
 }
 
-pid_t wait(int *status_ptr)
+pid_t interpose_wait(int *status_ptr)
 {
+  DEBUG("wait(...)");
   maybe_init_thread();
   int status;
   if (status_ptr == NULL)
@@ -2035,8 +1406,9 @@ pid_t wait(int *status_ptr)
   return ret;
 }
 
-pid_t wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
+pid_t interpose_wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
 {
+  DEBUG("wait4(...)");
   maybe_init_thread();
   struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
@@ -2076,8 +1448,9 @@ pid_t wait4(pid_t pid, int *status_ptr, int options, struct rusage *usage)
   return ret;
 }
 
-pid_t wait3(int *status_ptr, int options, struct rusage *usage)
+pid_t interpose_wait3(int *status_ptr, int options, struct rusage *usage)
 {
+  DEBUG("wait3(...)");
   maybe_init_thread();
   struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_PID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
@@ -2117,8 +1490,9 @@ pid_t wait3(int *status_ptr, int options, struct rusage *usage)
   return ret;
 }
 
-int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+int interpose_waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
+  DEBUG("waitid(...)");
   maybe_init_thread();
   struct Op wait_op = {wait_op_code, {.wait = {.task_type = TASK_TID, .task_id = 0, .options = options, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   prov_log_try(wait_op);
@@ -2141,60 +1515,9 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
   return ret;
 }
 
-int thrd_create(thrd_t *thr, thrd_start_t func, void *arg)
+int interpose_pthread_create(pthread_t * restrict thread, const pthread_attr_t * restrict attr, void *(*start_routine)(void *), void * restrict arg)
 {
-  maybe_init_thread();
-  struct Op op = {clone_op_code, {.clone = {.flags = (((((CLONE_FILES | CLONE_FS) | CLONE_IO) | CLONE_PARENT) | CLONE_SIGHAND) | CLONE_THREAD) | CLONE_VM, .task_type = TASK_ISO_C_THREAD, .task_id = 0, .run_pthread_atfork_handlers = false, .ferrno = 0}}, {0}, 0, 0};
-  int ret = unwrapped_thrd_create(thr, func, arg);
-  int saved_errno = errno;
-  if (unlikely(ret != thrd_success))
-  {
-    if (likely(prov_log_is_enabled()))
-    {
-      op.data.clone.ferrno = saved_errno;
-      prov_log_record(op);
-    }
-  }
-  else
-  {
-    if (likely(prov_log_is_enabled()))
-    {
-      op.data.clone.task_id = ret;
-      prov_log_record(op);
-    }
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int thrd_join(thrd_t thr, int *res)
-{
-  maybe_init_thread();
-  struct Op op = {wait_op_code, {.wait = {.task_type = TASK_ISO_C_THREAD, .task_id = thr, .options = 0, .status = 0, .ferrno = 0}}, {0}, 0, 0};
-  int ret = unwrapped_thrd_join(thr, res);
-  int saved_errno = errno;
-  if (unlikely(ret != thrd_success))
-  {
-    if (likely(prov_log_is_enabled()))
-    {
-      op.data.clone.ferrno = saved_errno;
-      prov_log_record(op);
-    }
-  }
-  else
-  {
-    op.data.wait.status = *res;
-    if (likely(prov_log_is_enabled()))
-    {
-      prov_log_record(op);
-    }
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int pthread_create(pthread_t * restrict thread, const pthread_attr_t * restrict attr, void *(*start_routine)(void *), void * restrict arg)
-{
+  DEBUG("pthread_create(...)");
   maybe_init_thread();
   struct Op op = {clone_op_code, {.clone = {.flags = (((((CLONE_FILES | CLONE_FS) | CLONE_IO) | CLONE_PARENT) | CLONE_SIGHAND) | CLONE_THREAD) | CLONE_VM, .task_type = TASK_PTHREAD, .task_id = 0, .run_pthread_atfork_handlers = false, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_pthread_create(thread, attr, start_routine, arg);
@@ -2219,8 +1542,9 @@ int pthread_create(pthread_t * restrict thread, const pthread_attr_t * restrict 
   return ret;
 }
 
-int pthread_join(pthread_t thread, void **retval)
+int interpose_pthread_join(pthread_t thread, void **retval)
 {
+  DEBUG("pthread_join(...)");
   maybe_init_thread();
   struct Op op = {wait_op_code, {.wait = {.task_type = TASK_PTHREAD, .task_id = thread, .options = 0, .status = 0, .ferrno = 0}}, {0}, 0, 0};
   int ret = unwrapped_pthread_join(thread, retval);
@@ -2244,138 +1568,78 @@ int pthread_join(pthread_t thread, void **retval)
   return ret;
 }
 
-FILE * fopen64(const char *filename, const char *opentype)
-{
-  maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  FILE * ret = unwrapped_fopen64(filename, opentype);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret == NULL)
-    {
-      op.data.open.ferrno = saved_errno;
-    }
-    else
-    {
-      op.data.open.fd = fileno(ret);
-    }
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-FILE * freopen64(const char *filename, const char *opentype, FILE *stream)
-{
-  maybe_init_thread();
-  int original_fd = fileno(stream);
-  struct Op open_op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = fopen_to_flags(opentype), .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  struct Op close_op = {close_op_code, {.close = {original_fd, original_fd, 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(open_op);
-    prov_log_try(close_op);
-  }
-  FILE * ret = unwrapped_freopen64(filename, opentype, stream);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    if (ret == NULL)
-    {
-      open_op.data.open.ferrno = saved_errno;
-      close_op.data.close.ferrno = saved_errno;
-    }
-    else
-    {
-      open_op.data.open.fd = fileno(ret);
-    }
-    prov_log_record(open_op);
-    prov_log_record(close_op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int openat64(int dirfd, const char *filename, int flags, ...)
-{
-  maybe_init_thread();
-  bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    if (has_mode_arg)
-    {
-      va_list ap;
-      va_start(ap, flags);
-      op.data.open.mode = va_arg(ap, __type_mode_t);
-      va_end(ap);
-    }
-    prov_log_try(op);
-  }
-  size_t varargs_size = (((sizeof(dirfd)) + (sizeof(filename))) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_openat64, __builtin_apply_args(), varargs_size));
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.open.ferrno = (unlikely(ret == (-1))) ? (errno) : (0);
-    op.data.open.fd = ret;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int open64(const char *filename, int flags, ...)
-{
-  maybe_init_thread();
-  bool has_mode_arg = ((flags & O_CREAT) != 0) || ((flags & __O_TMPFILE) == __O_TMPFILE);
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW) ? (AT_SYMLINK_NOFOLLOW) : (0)), .flags = flags, .mode = 0, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    if (has_mode_arg)
-    {
-      va_list ap;
-      va_start(ap, flags);
-      op.data.open.mode = va_arg(ap, __type_mode_t);
-      va_end(ap);
-    }
-    prov_log_try(op);
-  }
-  size_t varargs_size = ((sizeof(filename)) + (sizeof(flags))) + ((has_mode_arg) ? (sizeof(mode_t)) : (0));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_open64, __builtin_apply_args(), varargs_size));
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.open.ferrno = (unlikely(ret == (-1))) ? (errno) : (0);
-    op.data.open.fd = ret;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
-int create64(const char *filename, mode_t mode)
-{
-  maybe_init_thread();
-  struct Op op = {open_op_code, {.open = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = (O_WRONLY | O_CREAT) | O_TRUNC, .mode = mode, .fd = -1, .ferrno = 0}}, {0}, 0, 0};
-  if (likely(prov_log_is_enabled()))
-  {
-    prov_log_try(op);
-  }
-  int ret = unwrapped_create64(filename, mode);
-  int saved_errno = errno;
-  if (likely(prov_log_is_enabled()))
-  {
-    op.data.open.ferrno = (unlikely(ret == (-1))) ? (errno) : (0);
-    op.data.open.fd = ret;
-    prov_log_record(op);
-  }
-  errno = saved_errno;
-  return ret;
-}
-
+static const struct __osx_interpose __osx_interpose_fopen __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fopen), (const void *) (&fopen)};
+static const struct __osx_interpose __osx_interpose_fclose __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fclose), (const void *) (&fclose)};
+static const struct __osx_interpose __osx_interpose_openat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_openat), (const void *) (&openat)};
+static const struct __osx_interpose __osx_interpose_open __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_open), (const void *) (&open)};
+static const struct __osx_interpose __osx_interpose_creat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_creat), (const void *) (&creat)};
+static const struct __osx_interpose __osx_interpose_close __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_close), (const void *) (&close)};
+static const struct __osx_interpose __osx_interpose_dup __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_dup), (const void *) (&dup)};
+static const struct __osx_interpose __osx_interpose_dup2 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_dup2), (const void *) (&dup2)};
+static const struct __osx_interpose __osx_interpose_fcntl __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fcntl), (const void *) (&fcntl)};
+static const struct __osx_interpose __osx_interpose_chdir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_chdir), (const void *) (&chdir)};
+static const struct __osx_interpose __osx_interpose_fchdir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fchdir), (const void *) (&fchdir)};
+static const struct __osx_interpose __osx_interpose_opendir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_opendir), (const void *) (&opendir)};
+static const struct __osx_interpose __osx_interpose_fdopendir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fdopendir), (const void *) (&fdopendir)};
+static const struct __osx_interpose __osx_interpose_readdir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_readdir), (const void *) (&readdir)};
+static const struct __osx_interpose __osx_interpose_readdir_r __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_readdir_r), (const void *) (&readdir_r)};
+static const struct __osx_interpose __osx_interpose_closedir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_closedir), (const void *) (&closedir)};
+static const struct __osx_interpose __osx_interpose_rewinddir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_rewinddir), (const void *) (&rewinddir)};
+static const struct __osx_interpose __osx_interpose_telldir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_telldir), (const void *) (&telldir)};
+static const struct __osx_interpose __osx_interpose_seekdir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_seekdir), (const void *) (&seekdir)};
+static const struct __osx_interpose __osx_interpose_scandir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_scandir), (const void *) (&scandir)};
+static const struct __osx_interpose __osx_interpose_ftw __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_ftw), (const void *) (&ftw)};
+static const struct __osx_interpose __osx_interpose_nftw __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_nftw), (const void *) (&nftw)};
+static const struct __osx_interpose __osx_interpose_link __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_link), (const void *) (&link)};
+static const struct __osx_interpose __osx_interpose_linkat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_linkat), (const void *) (&linkat)};
+static const struct __osx_interpose __osx_interpose_symlink __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_symlink), (const void *) (&symlink)};
+static const struct __osx_interpose __osx_interpose_symlinkat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_symlinkat), (const void *) (&symlinkat)};
+static const struct __osx_interpose __osx_interpose_readlink __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_readlink), (const void *) (&readlink)};
+static const struct __osx_interpose __osx_interpose_readlinkat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_readlinkat), (const void *) (&readlinkat)};
+static const struct __osx_interpose __osx_interpose_realpath __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_realpath), (const void *) (&realpath)};
+static const struct __osx_interpose __osx_interpose_unlink __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_unlink), (const void *) (&unlink)};
+static const struct __osx_interpose __osx_interpose_rmdir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_rmdir), (const void *) (&rmdir)};
+static const struct __osx_interpose __osx_interpose_remove __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_remove), (const void *) (&remove)};
+static const struct __osx_interpose __osx_interpose_rename __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_rename), (const void *) (&rename)};
+static const struct __osx_interpose __osx_interpose_mkdir __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_mkdir), (const void *) (&mkdir)};
+static const struct __osx_interpose __osx_interpose_mkdirat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_mkdirat), (const void *) (&mkdirat)};
+static const struct __osx_interpose __osx_interpose_stat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_stat), (const void *) (&stat)};
+static const struct __osx_interpose __osx_interpose_fstat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fstat), (const void *) (&fstat)};
+static const struct __osx_interpose __osx_interpose_lstat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_lstat), (const void *) (&lstat)};
+static const struct __osx_interpose __osx_interpose_fstatat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fstatat), (const void *) (&fstatat)};
+static const struct __osx_interpose __osx_interpose_chown __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_chown), (const void *) (&chown)};
+static const struct __osx_interpose __osx_interpose_fchown __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fchown), (const void *) (&fchown)};
+static const struct __osx_interpose __osx_interpose_lchown __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_lchown), (const void *) (&lchown)};
+static const struct __osx_interpose __osx_interpose_fchownat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fchownat), (const void *) (&fchownat)};
+static const struct __osx_interpose __osx_interpose_chmod __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_chmod), (const void *) (&chmod)};
+static const struct __osx_interpose __osx_interpose_fchmod __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fchmod), (const void *) (&fchmod)};
+static const struct __osx_interpose __osx_interpose_fchmodat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fchmodat), (const void *) (&fchmodat)};
+static const struct __osx_interpose __osx_interpose_access __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_access), (const void *) (&access)};
+static const struct __osx_interpose __osx_interpose_faccessat __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_faccessat), (const void *) (&faccessat)};
+static const struct __osx_interpose __osx_interpose_utime __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_utime), (const void *) (&utime)};
+static const struct __osx_interpose __osx_interpose_truncate __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_truncate), (const void *) (&truncate)};
+static const struct __osx_interpose __osx_interpose_truncate64 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_truncate64), (const void *) (&truncate64)};
+static const struct __osx_interpose __osx_interpose_ftruncate __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_ftruncate), (const void *) (&ftruncate)};
+static const struct __osx_interpose __osx_interpose_ftruncate64 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_ftruncate64), (const void *) (&ftruncate64)};
+static const struct __osx_interpose __osx_interpose_mknod __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_mknod), (const void *) (&mknod)};
+static const struct __osx_interpose __osx_interpose_tmpfile __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_tmpfile), (const void *) (&tmpfile)};
+static const struct __osx_interpose __osx_interpose_tmpnam __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_tmpnam), (const void *) (&tmpnam)};
+static const struct __osx_interpose __osx_interpose_tempnam __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_tempnam), (const void *) (&tempnam)};
+static const struct __osx_interpose __osx_interpose_mktemp __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_mktemp), (const void *) (&mktemp)};
+static const struct __osx_interpose __osx_interpose_mkstemp __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_mkstemp), (const void *) (&mkstemp)};
+static const struct __osx_interpose __osx_interpose_mkdtemp __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_mkdtemp), (const void *) (&mkdtemp)};
+static const struct __osx_interpose __osx_interpose_execv __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_execv), (const void *) (&execv)};
+static const struct __osx_interpose __osx_interpose_execl __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_execl), (const void *) (&execl)};
+static const struct __osx_interpose __osx_interpose_execve __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_execve), (const void *) (&execve)};
+static const struct __osx_interpose __osx_interpose_execle __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_execle), (const void *) (&execle)};
+static const struct __osx_interpose __osx_interpose_execvp __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_execvp), (const void *) (&execvp)};
+static const struct __osx_interpose __osx_interpose_execlp __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_execlp), (const void *) (&execlp)};
+static const struct __osx_interpose __osx_interpose_fork __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_fork), (const void *) (&fork)};
+static const struct __osx_interpose __osx_interpose_vfork __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_vfork), (const void *) (&vfork)};
+static const struct __osx_interpose __osx_interpose_waitpid __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_waitpid), (const void *) (&waitpid)};
+static const struct __osx_interpose __osx_interpose_wait __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_wait), (const void *) (&wait)};
+static const struct __osx_interpose __osx_interpose_wait4 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_wait4), (const void *) (&wait4)};
+static const struct __osx_interpose __osx_interpose_wait3 __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_wait3), (const void *) (&wait3)};
+static const struct __osx_interpose __osx_interpose_waitid __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_waitid), (const void *) (&waitid)};
+static const struct __osx_interpose __osx_interpose_pthread_create __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_pthread_create), (const void *) (&pthread_create)};
+static const struct __osx_interpose __osx_interpose_pthread_join __attribute__((used, section("__DATA, __interpose"))) = {(const void *) (&interpose_pthread_join), (const void *) (&pthread_join)};

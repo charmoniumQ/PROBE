@@ -12,6 +12,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 
 ast.show(showcoord=False)
-print(ast)
+for stmt in ast.ext:
+    print(stmt)
 c_generator = pycparser.c_generator.CGenerator()
 print(c_generator.visit(ast))

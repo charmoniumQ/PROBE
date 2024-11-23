@@ -35,7 +35,6 @@ struct stat;
 struct stat64;
 struct utimebuf;
 typedef void* OpCode;
-typedef void* fn;
 typedef void* va_list;
 struct utimbuf;
 struct dirent;
@@ -44,6 +43,7 @@ typedef void* thrd_t;
 typedef void* thrd_start_t;
 typedef void* pthread_t;
 typedef void* pthread_attr_t;
+typedef void* socklen_t;
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
@@ -78,8 +78,12 @@ FILE * fopen (const char *filename, const char *opentype) {
         }
     });
 }
-fn fopen64 = fopen;
+FILE * fopen64 (const char *filename, const char *opentype) {
+    bool linux_only = true;
+    void* copy_stmts_from = fopen;
+}
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
+    bool linux_only= true;
     void* pre_call = ({
         int original_fd = fileno(stream);
         struct Op open_op = {
@@ -120,7 +124,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         }
     });
 }
-fn freopen64 = freopen;
+void* freopen64 = freopen;
 
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
@@ -146,6 +150,7 @@ int fclose (FILE *stream) {
     });
 }
 int fcloseall(void) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             close_op_code,
@@ -191,7 +196,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                op.data.open.mode = va_arg(ap, __type_mode_t);
+    op.data.open.mode = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
             prov_log_try(op);
@@ -206,7 +211,10 @@ int openat(int dirfd, const char *filename, int flags, ...) {
     });
 }
 
-fn openat64 = openat;
+int openat64(int dirfd, const char *filename, int flags, ...) {
+    bool linux_only= true;
+    void* copy_stmts_from = openat;
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open (const char *filename, int flags, ...) {
@@ -236,7 +244,7 @@ int open (const char *filename, int flags, ...) {
             if (has_mode_arg) {
                 va_list ap;
                 va_start(ap, flags);
-                op.data.open.mode = va_arg(ap, __type_mode_t);
+    op.data.open.mode = va_arg(ap, __type_mode_t);
                 va_end(ap);
             }
             prov_log_try(op);
@@ -250,7 +258,10 @@ int open (const char *filename, int flags, ...) {
         }
     });
 }
-fn open64 = open;
+int open64 (const char *filename, int flags, ...) {
+    void* copy_stmts_from = open;
+    bool linux_only = true;
+}
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
         /**
@@ -282,7 +293,10 @@ int creat (const char *filename, mode_t mode) {
         }
     });
 }
-fn create64 = creat;
+int creat64 (const char *filename, mode_t mode) {
+    copy_stmts_from = creat;
+    bool linux_only = true;
+}
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
@@ -304,6 +318,7 @@ int close (int filedes) {
     });
 }
 int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
+    bool linux_only = true;
     void* pre_call = ({
         if (flags != 0) {
             NOT_IMPLEMENTED("I don't know how to handle close_rnage flags yet");
@@ -327,6 +342,7 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
     });
 }
 void closefrom (int lowfd) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             close_op_code,
@@ -352,7 +368,7 @@ int dup (int old) { }
 int dup2 (int old, int new) { }
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
-int dup3 (int old, int new, int flags) { }
+int dup3 (int old, int new, int flags) { bool linux_only= true;}
 
 /* TODO: fcntl */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
@@ -550,6 +566,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
     });
 }
 struct dirent64 * readdir64 (DIR *dirstream) {
+    bool linux_only= true;
     void* pre_call = ({
         int fd = try_dirfd(dirstream);
         struct Op op = {
@@ -583,6 +600,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
     });
 }
 int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) {
+    bool linux_only= true;
     void* pre_call = ({
         int fd = try_dirfd(dirstream);
         struct Op op = {
@@ -670,6 +688,7 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
     });
 }
 int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             readdir_op_code,
@@ -701,6 +720,7 @@ int scandirat(int dirfd, const char *restrict dirp,
             struct dirent ***restrict namelist,
             int (*filter)(const struct dirent *),
             int (*compar)(const struct dirent **, const struct dirent **)) {
+                bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             readdir_op_code,
@@ -729,6 +749,7 @@ int scandirat(int dirfd, const char *restrict dirp,
 
 /* https://www.gnu.org/software/libc/manual/html_node/Low_002dlevel-Directory-Access.html */
 ssize_t getdents64 (int fd, void *buffer, size_t length) {
+    bool linux_only= true; 
     void* pre_call = ({
         struct Op op = {
             readdir_op_code,
@@ -784,6 +805,7 @@ int ftw (const char *filename, __ftw_func_t func, int descriptors) {
     });
 }
 int ftw64 (const char *filename, __ftw64_func_t func, int descriptors) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             readdir_op_code,
@@ -836,6 +858,7 @@ int nftw (const char *filename, __nftw_func_t func, int descriptors, int flag) {
     });
 }
 int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int flag) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             readdir_op_code,
@@ -874,7 +897,7 @@ int symlink (const char *oldname, const char *newname) { }
 int symlinkat(const char *target, int newdirfd, const char *linkpath) { }
 ssize_t readlink (const char *filename, char *buffer, size_t size) { }
 ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size) { }
-char * canonicalize_file_name (const char *name) { }
+char * canonicalize_file_name (const char *name) {bool linux_only = true; }
 char * realpath (const char *restrict name, char *restrict resolved) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html */
@@ -922,6 +945,7 @@ int stat (const char *filename, struct stat *buf) {
     });
 }
 int stat64 (const char *filename, struct stat64 *buf) {
+    bool linux_only=true ;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
@@ -980,6 +1004,7 @@ int fstat (int filedes, struct stat *buf) {
     });
 }
 int fstat64 (int filedes, struct stat64 * restrict buf) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
@@ -1038,6 +1063,7 @@ int lstat (const char *filename, struct stat *buf) {
     });
 }
 int lstat64 (const char *filename, struct stat64 *buf) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
@@ -1069,6 +1095,7 @@ int lstat64 (const char *filename, struct stat64 *buf) {
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/statx.2.html */
 int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
@@ -1130,6 +1157,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 }
 
 int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf, int flags) {
+    bool linux_only = true;
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
@@ -1158,7 +1186,7 @@ int fstatat64 (int fd, const char * restrict file, struct stat64 * restrict buf,
         }
     });
 }
-/* fn newfstatat = fstatat; */
+/* This casuses an error: fn newfstatat = fstatat; */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
 int chown (const char *filename, uid_t owner, gid_t group) {
@@ -1479,6 +1507,8 @@ int utime (const char *filename, const struct utimbuf *times) {
     });
 }
 int utimes (const char *filename, const struct timeval tvp[2]) {
+    bool linux_only= true;
+
     void* pre_call = ({
         struct Op op = {
             update_metadata_op_code,
@@ -1514,6 +1544,7 @@ int utimes (const char *filename, const struct timeval tvp[2]) {
     });
 }
 int lutimes (const char *filename, const struct timeval tvp[2]) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             update_metadata_op_code,
@@ -1549,6 +1580,7 @@ int lutimes (const char *filename, const struct timeval tvp[2]) {
     });
 }
 int futimes (int fd, const struct timeval tvp[2]) {
+    bool linux_only= true;
     void* pre_call = ({
         struct Op op = {
             update_metadata_op_code,
@@ -1595,9 +1627,10 @@ int mknod (const char *filename, mode_t mode, dev_t dev) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Temporary-Files.html */
 FILE * tmpfile (void) { }
-FILE * tmpfile64 (void) { }
+FILE * tmpfile64 (void) { bool linux_only=true; }
 char * tmpnam (char *result) { }
-char * tmpnam_r (char *result) { }
+char * tmpnam_r (char *result) {    bool linux_only= true;
+ }
 char * tempnam (const char *dir, const char *prefix) { }
 char * mktemp (char *template) { }
 int mkstemp (char *template) { }
@@ -1635,7 +1668,7 @@ int execv (const char *filename, char *const argv[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         /*
@@ -1698,7 +1731,7 @@ int execl (const char *filename, const char *arg0, ...) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1740,7 +1773,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1751,7 +1784,10 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         }
     });
 }
+
 int fexecve (int fd, char *const argv[], char *const env[]) {
+        bool linux_only= true;
+
     void* pre_call = ({
         size_t argc = 0;
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
@@ -1830,7 +1866,7 @@ int execle (const char *filename, const char *arg0, ...) {
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**)updated_env);
@@ -1877,7 +1913,7 @@ int execvp (const char *filename, char *const argv[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1931,7 +1967,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1946,6 +1982,8 @@ int execlp (const char *filename, const char *arg0, ...) {
 
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
+        bool linux_only= true;
+
     void* pre_call = ({
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
@@ -1979,7 +2017,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         }
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = platform_independent_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
@@ -2035,6 +2073,7 @@ pid_t fork (void) {
     });
 }
 pid_t _Fork (void) {
+    bool linux_only= true;
      void* pre_call = ({
         struct Op op = {
             clone_op_code,
@@ -2162,6 +2201,7 @@ int clone(
 	  /* void *_Nullable tls, */
 	  /* pid_t *_Nullable child_tid */
 ) {
+    bool linux_only= true;
     size_t varargs_size = sizeof(void*) + sizeof(void*) + sizeof(int) + (COUNT_NONNULL_VARARGS(arg) + 1) * sizeof(void*) + sizeof(pid_t*) + sizeof(void*) + sizeof(pid_t*);
     void* pre_call = ({
         (void) fn;
@@ -2429,6 +2469,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
 
 /* https://www.gnu.org/software/libc/manual/html_node/ISO-C-Thread-Management.html */
 int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
+    bool linux_only=true;
     void* pre_call = ({
         struct Op op = {
             clone_op_code,
@@ -2462,6 +2503,8 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
 }
 
 int thrd_join (thrd_t thr, int *res) {
+        bool linux_only= true;
+
     void* pre_call = ({
         struct Op op = {
             wait_op_code,
@@ -2563,6 +2606,46 @@ int pthread_join(pthread_t thread, void **retval) {
    });
 }
 
+
+/* Docs: https://sourceware.org/glibc/manual/latest/html_node/Accepting-Connections.html */
+/* int accept (int socket, struct sockaddr *addr, socklen_t *length_ptr) { */
+/*     void* pre_call = ({ */
+/*         struct Op op = { */
+/*             /\* ../include/libprobe/prov_ops.h *\/ */
+/*             accept_op_code, */
+/*             {.accept = { */
+/*                 .fd = -1, */
+/*                 .ferrno = 0, */
+/*             }}, */
+/*             {0}, */
+/*             0, */
+/*             0, */
+/*         }; */
+/*         if (likely(prov_log_is_enabled())) { */
+/*             prov_log_try(op); */
+/*         } */
+/*     }); */
+/*     void* post_call = ({ */
+/*         if (likely(prov_log_is_enabled())) { */
+/*             if (ret == -1) { */
+/*                 op.data.accept.ferrno = saved_errno; */
+/*             } else { */
+/*                 op.data.accept.fd = ret; */
+/*                 // TODO: add fd to a list of fds that refer to sockets */
+/*                 // Later on, reads/writes to this fd may have to be recorded */
+/*             } */
+/*         } */
+/*     }); */
+/* } */
+
+/* connect (be similar to accept BUT include the port and address connecting to) */
+/* bind (be similar to accept BUT include the port and address connecting to) */
+/* read (do nothing) */
+/* write (do nothing) */
+
+/* read: test if fd is a socket and if prov_log enabled { record read ouptut } */
+/* write: test if fd is a socket and if prov_loge enabled { record write input } */
+
 /* void exit (int status) { */
 /*     void* pre_call = ({ */
 /*         struct Op op = { */
@@ -2599,7 +2682,7 @@ int pthread_join(pthread_t thread, void **retval) {
 /*     }); */
 /* } */
 
-/* fn _Exit = _exit; */
+/* We don't need this yet: fn _Exit = _exit; */
 
 /*
 ** TODO: getcwd, getwd, chroot

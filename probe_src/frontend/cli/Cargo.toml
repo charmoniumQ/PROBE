@@ -11,6 +11,7 @@ name = "probe"
 path = "src/main.rs"
 
 [dependencies]
+cfg-if = "1.0.0"
 chrono = "0.4.38"
 clap = { version = "4.5.7", features = ["cargo"] }
 color-eyre = "0.6.3"

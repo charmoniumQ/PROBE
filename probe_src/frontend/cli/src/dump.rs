@@ -420,6 +420,26 @@ impl Dump for ops::OpInternal {
 
 impl Dump for ops::Op {
     fn dump(&self) -> String {
-        self.data.dump()
+        format!(
+            "Op[ data={}, time={}, pthread_id={}, iso_c_thread_id={} ]",
+            self.data.dump(),
+            self.time.dump(),
+            self.pthread_id,
+            self.iso_c_thread_id,
+        )
+    }
+}
+
+impl Dump for ops::Timespec {
+    fn dump(&self) -> String {
+        use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
+
+        let timestamp = self.sec;
+        let nanoseconds = self.nsec as u32;
+
+        match Utc.timestamp_opt(timestamp, nanoseconds).single() {
+            Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Secs, true),
+            None => "[INVALID TIMESTAMP]".to_owned(),
+        }
     }
 }

@@ -111,48 +111,69 @@ fn main() {
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
     // the resulting bindings.
-    let bindings = bindgen::Builder::default()
-        .header_contents(
-            "wrapper",
+    use std::env;
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let mut header_contents = "
+#define _GNU_SOURCE
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <utime.h>
+#include <pthread.h>
+
+#define BORROWED
+#define OWNED
+"
+    .to_string();
+
+    if target_os == "linux" {
+        header_contents.push_str(
             "
-            #define _GNU_SOURCE
-            #include <stdbool.h>
-            #include <stddef.h>
-            #include <stdint.h>
-            #include <sys/stat.h>
-            #include <sys/types.h>
-            #include <utime.h>
-            #include <threads.h>
-            #include <pthread.h>
+// Include threads.h for Linux
+#include <threads.h>
 
-            // HACK: defining this manually instead of using <sys/resource.h> is
-            // a huge hack, but it greatly reduces the generated code complexity
-            // since in glibc all the long ints are unions over two types that
-            // both alias to long int, this is done for kernel-userland
-            // compatibility reasons that don't matter here.
-            struct rusage {
-                struct timeval ru_utime;
-                struct timeval ru_stime;
-                long int ru_maxrss;
-                long int ru_ixrss;
-                long int ru_idrss;
-                long int ru_isrss;
-                long int ru_minflt;
-                long int ru_majflt;
-                long int ru_nswap;
-                long int ru_inblock;
-                long int ru_oublock;
-                long int ru_msgsnd;
-                long int ru_msgrcv;
-                long int ru_nsignals;
-                long int ru_nvcsw;
-                long int ru_nivcsw;
-            };
+// HACK: defining this manually instead of using <sys/resource.h> is
+// a huge hack, but it greatly reduces the generated code complexity
+// since in glibc all the long ints are unions over two types that
+// both alias to long int, this is done for kernel-userland
+// compatibility reasons that don't matter here.
+struct rusage {
+    struct timeval ru_utime;
+    struct timeval ru_stime;
+    long int ru_maxrss;
+    long int ru_ixrss;
+    long int ru_idrss;
+    long int ru_isrss;
+    long int ru_minflt;
+    long int ru_majflt;
+    long int ru_nswap;
+    long int ru_inblock;
+    long int ru_oublock;
+    long int ru_msgsnd;
+    long int ru_msgrcv;
+    long int ru_nsignals;
+    long int ru_nvcsw;
+    long int ru_nivcsw;
+};
+",
+        );
+    } else if target_os == "macos" {
+        header_contents.push_str(
+            "
+        // Do not include threads.h for macOS, as it's not available
+        // Include sys/resource.h instead
+        #include <sys/resource.h>
+    
+        // Define thrd_t manually for macOS
+        typedef unsigned long thrd_t;
+        ",
+        );
+    }
 
-            #define BORROWED
-            #define OWNED
-            ",
-        )
+    let bindings = bindgen::Builder::default()
+        .header_contents("wrapper.h", &header_contents)
         // The input header we would like to generate
         // bindings for.
         .header(

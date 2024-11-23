@@ -21,7 +21,7 @@ compile-lib:
     make --directory=probe_src/libprobe all
 
 compile-cli:
-    env --chdir=probe_src/frontend cargo build --release
+    cd probe_src/frontend && cargo build --release
 
 compile-tests:
     make --directory=probe_src/tests/c all

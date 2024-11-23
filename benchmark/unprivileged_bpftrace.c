@@ -57,8 +57,16 @@ sudo chmod 0644 prov.bt
 ./unprivileged_bpftrace.exe log python -c 'print(34)'
  */
 
+#ifdef __linux__
 #define _GNU_SOURCE
 #include <linux/limits.h>
+
+#elif defined(__APPLE__)
+#include <limits.h>
+#else
+#error "Unsupported platform"
+#endif
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>

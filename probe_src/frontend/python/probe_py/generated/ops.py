@@ -8,20 +8,14 @@ AT_FDCWD: int = -100
 
 @dataclass(init=True, frozen=True)
 class Timespec:
-    sec: int
-    nsec: int
-
-
-@dataclass(init=True, frozen=True)
-class StatxTimestamp:
-    sec: int
+    sec: __darwin_time_t
     nsec: int
 
 
 @dataclass(init=True, frozen=True)
 class Timeval:
-    sec: int
-    usec: int
+    sec: __darwin_time_t
+    usec: __darwin_suseconds_t
 
 
 @dataclass(init=True, frozen=True)
@@ -42,6 +36,12 @@ class Rusage:
     nsignals: int
     nvcsw: int
     nivcsw: int
+
+
+@dataclass(init=True, frozen=True)
+class StatxTimestamp:
+    sec: int
+    nsec: int
 
 
 @dataclass(init=True, frozen=True)

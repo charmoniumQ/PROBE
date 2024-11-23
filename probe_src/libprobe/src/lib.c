@@ -1,4 +1,10 @@
 #define _GNU_SOURCE
+#ifdef __linux__
+# include "linux_defines.h"
+#elif defined(__APPLE__)
+# include "macos_defines.h"
+#endif
+
 #include <assert.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -7,7 +13,6 @@
 #include <stdio.h>
 #include <limits.h>
 #include <time.h>
-#include <linux/limits.h>
 #include <errno.h>
 #include <dlfcn.h>
 #include <sys/types.h>
@@ -15,8 +20,6 @@
 #include <stdarg.h>
 #include <sys/resource.h>
 #include <pthread.h>
-#include <malloc.h>
-#include <sys/sysmacros.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -24,7 +27,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ftw.h>
-#include <threads.h>
 #include <pthread.h>
 
 /*
@@ -38,7 +40,7 @@
 #define __type_charpp char**
 
 /*
- * Likewise, ther is some bug with pycparser unable to parse inline funciton pointers.
+ * Likewise, there is some bug with pycparser unable to parse inline function pointers.
  * So we will use a typedef alias.
  * */
 typedef int (*fn_ptr_int_void_ptr)(void*);
@@ -48,7 +50,6 @@ static void reinit_process();
 static void prov_log_disable();
 static int get_exec_epoch_safe();
 static bool __process_inited = false;
-static __thread bool __thread_inited = false;
 
 #define ENV_VAR_PREFIX "PROBE_"
 
@@ -78,6 +79,13 @@ static __thread bool __thread_inited = false;
 
 #include "lookup_on_path.c"
 
+#ifdef __APPLE__
+struct __osx_interpose {
+    const void *new_func;
+    const void *orig_func;
+};
+#endif
+
 #include "../generated/libc_hooks.c"
 
 static void check_function_pointers() {
@@ -87,13 +95,28 @@ static void check_function_pointers() {
     assert(unwrapped_faccessat);
     assert(unwrapped_mkdirat);
     assert(unwrapped_openat);
+#ifdef __linux__
     assert(unwrapped_statx);
+#endif
 }
 
 static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
 
+static void __thread_inited_key_init() {
+    pthread_key_create(&__thread_inited_key, free);
+}
 static void maybe_init_thread() {
-    if (unlikely(!__thread_inited)) {
+    DEBUG("Here 0");
+
+    bool *p_inited = (bool *)pthread_getspecific(__thread_inited_key);
+    if (p_inited == NULL) {
+        p_inited = malloc(sizeof(bool));
+        *p_inited = false;
+        pthread_setspecific(__thread_inited_key, p_inited);
+    }
+    DEBUG("Here %p", p_inited);
+
+    if (unlikely(!*p_inited)) {
         DEBUG("Acquiring mutex");
         EXPECT(== 0, pthread_mutex_lock(&init_lock));
         DEBUG("Acquired mutex");
@@ -112,7 +135,7 @@ static void maybe_init_thread() {
         }
         EXPECT(== 0, pthread_mutex_unlock(&init_lock));
         prov_log_enable();
-        __thread_inited = true;
+        *p_inited = true;
 
         if (!was_process_inited) {
             if (get_exec_epoch() == 0) {

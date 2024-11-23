@@ -1,3 +1,11 @@
+#include <inttypes.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <sys/stat.h>
+#include <assert.h>
+#include <string.h>
+
 static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
     if (likely(prov_log_is_enabled())) {
         struct Path ret = {
@@ -27,16 +35,39 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
         prov_log_disable();
+        int stat_ret;
+#ifdef __linux__
         struct statx statx_buf;
-        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
+        stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
+#else
+        struct stat stat_buf;
+        if (path != NULL) {
+            stat_ret = unwrapped_fstatat(dirfd, path, &stat_buf, flags);
+        } else {
+            stat_ret = unwrapped_fstat(dirfd, &stat_buf);
+        }
+#endif
         prov_log_enable();
         if (stat_ret == 0) {
+#ifdef __linux__
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
             ret.inode = statx_buf.stx_ino;
-            ret.mtime = statx_buf.stx_mtime;
-            ret.ctime = statx_buf.stx_ctime;
+            ret.mtime.tv_sec = statx_buf.stx_mtime.tv_sec;
+            ret.mtime.tv_nsec = statx_buf.stx_mtime.tv_nsec;
+            ret.ctime.tv_sec = statx_buf.stx_ctime.tv_sec;
+            ret.ctime.tv_nsec = statx_buf.stx_ctime.tv_nsec;
             ret.size = statx_buf.stx_size;
+#else
+            ret.device_major = major(stat_buf.st_dev);
+            ret.device_minor = minor(stat_buf.st_dev);
+            ret.inode = stat_buf.st_ino;
+            ret.mtime.tv_sec = stat_buf.st_mtimespec.tv_sec;
+            ret.mtime.tv_nsec = stat_buf.st_mtimespec.tv_nsec;
+            ret.ctime.tv_sec = stat_buf.st_ctimespec.tv_sec;
+            ret.ctime.tv_nsec = stat_buf.st_ctimespec.tv_nsec;
+            ret.size = stat_buf.st_size;
+#endif
             ret.stat_valid = true;
         } else {
             DEBUG("Stat of %d,%s is not valid", dirfd, path);
@@ -52,23 +83,23 @@ void path_to_id_string(const struct Path* path, BORROWED char* string) {
     CHECK_SNPRINTF(
         string,
         PATH_MAX,
-        "%02lx-%02lx-%016lx-%016llx-%08x-%016lx",
-        path->device_major,
-        path->device_minor,
-        path->inode,
-        path->mtime.tv_sec,
-        path->mtime.tv_nsec,
-        path->size);
+        "%02x-%02x-%016" PRIx64 "-%016" PRIx64 "-%08x-%016" PRIx64,
+        (unsigned int) path->device_major,
+        (unsigned int) path->device_minor,
+        (uint64_t) path->inode,
+        (uint64_t) path->mtime.tv_sec,
+        (unsigned int) path->mtime.tv_nsec,
+        (uint64_t) path->size);
 }
 
 struct InitProcessOp init_current_process() {
-    char const * cwd = EXPECT_NONNULL(get_current_dir_name());
+    char * cwd = EXPECT_NONNULL(getcwd(NULL, 0));
     struct InitProcessOp ret = {
         .pid = getpid(),
         .is_root = is_proc_root(),
         .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
     };
-    free((char*) cwd);
+    free(cwd);
     return ret;
 }
 
@@ -191,25 +222,39 @@ static void op_to_human_readable(char* dest, int size, struct Op* op) {
 
 
 void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat_buf) {
+#ifdef __linux__
     stat_result_buf->mask = STATX_BASIC_STATS;
+#else
+    stat_result_buf->mask = 0;
+#endif
     stat_result_buf->mode = stat_buf->st_mode;
     stat_result_buf->ino = stat_buf->st_ino;
     stat_result_buf->dev_major = major(stat_buf->st_dev);
-    stat_result_buf->dev_major = minor(stat_buf->st_dev);
+    stat_result_buf->dev_minor = minor(stat_buf->st_dev);
     stat_result_buf->nlink = stat_buf->st_nlink;
     stat_result_buf->uid = stat_buf->st_uid;
     stat_result_buf->gid = stat_buf->st_gid;
     stat_result_buf->size = stat_buf->st_size;
+#ifdef __linux__
     stat_result_buf->atime.tv_sec = stat_buf->st_atim.tv_sec;
     stat_result_buf->atime.tv_nsec = stat_buf->st_atim.tv_nsec;
     stat_result_buf->mtime.tv_sec = stat_buf->st_mtim.tv_sec;
     stat_result_buf->mtime.tv_nsec = stat_buf->st_mtim.tv_nsec;
     stat_result_buf->ctime.tv_sec = stat_buf->st_ctim.tv_sec;
     stat_result_buf->ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
+#else
+    stat_result_buf->atime.tv_sec = stat_buf->st_atimespec.tv_sec;
+    stat_result_buf->atime.tv_nsec = stat_buf->st_atimespec.tv_nsec;
+    stat_result_buf->mtime.tv_sec = stat_buf->st_mtimespec.tv_sec;
+    stat_result_buf->mtime.tv_nsec = stat_buf->st_mtimespec.tv_nsec;
+    stat_result_buf->ctime.tv_sec = stat_buf->st_ctimespec.tv_sec;
+    stat_result_buf->ctime.tv_nsec = stat_buf->st_ctimespec.tv_nsec;
+#endif
     stat_result_buf->blocks = stat_buf->st_blocks;
     stat_result_buf->blksize = stat_buf->st_blksize;
 }
 
+#ifdef __linux__
 void stat_result_from_stat64(struct StatResult* stat_result_buf, struct stat64* stat64_buf) {
     stat_result_buf->mask = STATX_BASIC_STATS;
     stat_result_buf->mode = stat64_buf->st_mode;
@@ -249,3 +294,4 @@ void stat_result_from_statx(struct StatResult* stat_result_buf, struct statx* st
     stat_result_buf->blocks = statx_buf->stx_blocks;
     stat_result_buf->blksize = statx_buf->stx_blksize;
 }
+#endif

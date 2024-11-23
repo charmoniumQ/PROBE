@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 from __future__ import annotations
+import re
+import sys
 import dataclasses
 import pycparser  # type: ignore
 import pycparser.c_generator  # type: ignore
@@ -9,9 +11,9 @@ import pathlib
 
 
 _T = typing.TypeVar("_T")
-def expect_type(typ: type[_T], data: typing.Any) -> _T:
+def expect_type(typ: type[_T], data: typing.Any, comment: typing.Any = None) -> _T:
     if not isinstance(data, typ):
-        raise TypeError(f"Expected type {typ} for {data}")
+        raise TypeError(f"Expected type {typ} for {data}: {comment}")
     return data
 
 
@@ -36,6 +38,7 @@ if typing.TYPE_CHECKING:
     class Compound(Node):
         block_items: list[Node]
     class ID(Node):
+        def __init__(self, name: str) -> None: ...
         name: str
     class Decl(Node):
         def __init__(self, name: str, quals: list[str], align: list[str], storage: list[str], funcspec: list[str], type: TypeDecl, init: Node | None, bitsize : Node | None) -> None: ...
@@ -48,7 +51,7 @@ if typing.TYPE_CHECKING:
         init: Node | None
         bitsize: Node | None
     class TypeDecl(Node):
-        def __init__(self, declname: str, quals: list[Node], align: Node | None, type: Node) -> None: ...
+        def __init__(self, declname: str | None, quals: list[Node | str], align: Node | None, type: Node) -> None: ...
         declname: str
         quals: list[Node]
         align: Node | None
@@ -160,6 +163,25 @@ void_fn_ptr = pycparser.c_ast.Typename(
 )
 
 
+def find_decl(
+        block: typing.Sequence[Node],
+        name: str,
+        comment: typing.Any,
+) -> Decl | None:
+    try:
+        relevant_stmts = [
+            stmt
+            for stmt in block
+            if isinstance(stmt, Decl) and stmt.name == name
+        ]
+        if not relevant_stmts:
+            return None
+        else:
+            return relevant_stmts[0]
+    except Exception as exc:
+        raise RuntimeError(f"Erorr while parsing {comment}") from exc
+
+
 @dataclasses.dataclass(frozen=True)
 class ParsedFunc:
     name: str
@@ -235,39 +257,79 @@ class ParsedFunc:
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
 ast = pycparser.parse_file(filename, use_cpp=True)
-orig_funcs = {
+normal_funcs: typing.Mapping[str, ParsedFunc] = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
-    if isinstance(node, pycparser.c_ast.FuncDef)
+    if isinstance(node, pycparser.c_ast.FuncDef) and find_decl(node.body.block_items or [], "copy_stmts_from", node.decl.name) is None
 }
-funcs = {
-    **orig_funcs,
+normal_and_alias_funcs: typing.Mapping[str, ParsedFunc] = {
+    **normal_funcs,
     **{
-        node.name: dataclasses.replace(orig_funcs[typing.cast(ID, node.init).name], name=node.name)
+        node.decl.name: dataclasses.replace(
+            # Parse me, but augment my statements
+            ParsedFunc.from_defn(node),
+            stmts=[
+
+                # include my statements above my alias source's
+                *node.body.block_items,
+
+                # include my alias source's statements
+                *normal_funcs[
+                    # get my alias's name
+                    expect_type(
+                        ID,
+                        expect_type(
+                            Decl,
+                            find_decl(node.body.block_items, "copy_stmts_from", node.decl.name),
+                            node.decl.name,
+                        ).init,
+                        node.decl.name,
+                    ).name
+                ].stmts,
+            ],
+        )
         for node in ast.ext
-        if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
+        if isinstance(node, pycparser.c_ast.FuncDef) and find_decl(node.body.block_items or [], "copy_stmts_from", node.decl.name) is not None
     },
 }
-# funcs = {
-#     key: val
-#     for key, val in list(funcs.items())
-# }
-func_prefix = "unwrapped_"
+if len(sys.argv) != 2:
+    raise RuntimeError("Need to pass exactly 1 arg")
+match sys.argv[1]:
+    case "Darwin":
+        compiling_for_linux = False
+    case "Linux":
+        compiling_for_linux = True
+    case _:
+        raise RuntimeError("First argument should be uname -s")
+platform_specific_funcs = {}
+for func_name, func in normal_and_alias_funcs.items():
+    linux_only_field = find_decl(func.stmts, "linux_only", func.name)
+    linux_only_field_init = None if linux_only_field is None else linux_only_field.init
+    linux_only = linux_only_field_init is not None and linux_only_field_init.name == "true" # type: ignore
+    if linux_only and compiling_for_linux:
+        platform_specific_funcs[func_name] = func
+    elif linux_only and not compiling_for_linux:
+        pass
+    else:
+        platform_specific_funcs[func_name] = func
+
+unwrapped_prefix = "unwrapped_"
+interpose_prefix = "interpose_"
 func_pointer_declarations = [
     Decl(
-        name=func_prefix + func_name,
+        name=unwrapped_prefix + func_name,
         quals=[],
         align=[],
         storage=["static"],
         funcspec=[],
         type=pycparser.c_ast.PtrDecl(
             quals=[],
-            type=dataclasses.replace(func, name=func_prefix + func.name).declaration(),
+            type=dataclasses.replace(func, name=unwrapped_prefix + func.name).declaration(),
         ),
         init=None,
         bitsize=None,
     )
-    for func_name, func in funcs.items()
+    for func_name, func in platform_specific_funcs.items()
 ]
 init_function_pointers = ParsedFunc(
     name="init_function_pointers",
@@ -277,18 +339,21 @@ init_function_pointers = ParsedFunc(
     stmts=[
         Assignment(
             op='=',
-            lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
-            rvalue=pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID(name="dlsym"),
-                args=pycparser.c_ast.ExprList(
-                    exprs=[
-                        pycparser.c_ast.ID(name="RTLD_NEXT"),
-                        pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
-                    ],
-                ),
+            lvalue=pycparser.c_ast.ID(name=unwrapped_prefix + func_name),
+            rvalue=(
+                pycparser.c_ast.FuncCall(
+                    name=pycparser.c_ast.ID(name="dlsym"),
+                    args=pycparser.c_ast.ExprList(
+                        exprs=[
+                            pycparser.c_ast.ID(name="RTLD_NEXT"),
+                            pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
+                        ],
+                    ),
+                ) if compiling_for_linux else
+                pycparser.c_ast.ID(name=func_name)
             ),
         )
-        for func_name, func in funcs.items()
+        for func_name, func in platform_specific_funcs.items()
     ],
 ).definition()
 
@@ -302,26 +367,14 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
     return lambda *args, **kwarsg: raise_(exception)
 
 
-def find_decl(
-        block: typing.Sequence[Node],
-        name: str,
-        comment: typing.Any,
-) -> Decl | None:
-    relevant_stmts = [
-        stmt
-        for stmt in block
-        if isinstance(stmt, Decl) and stmt.name == name
-    ]
-    if not relevant_stmts:
-        return None
-    elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
-    else:
-        return relevant_stmts[0]
-
-
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     pre_call_stmts = [
+                pycparser.c_ast.FuncCall(
+            name=pycparser.c_ast.ID(name="DEBUG"),
+            args=pycparser.c_ast.ExprList(exprs=[
+                pycparser.c_ast.Constant(type="string", value='"' + func.name + '(...)"'),
+            ]),
+        ),
         pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="maybe_init_thread"),
             args=pycparser.c_ast.ExprList(exprs=[]),
@@ -355,7 +408,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                     exprs=[
                         pycparser.c_ast.Cast(
                             to_type=void_fn_ptr,
-                            expr=pycparser.c_ast.ID(name=func_prefix + func.name)
+                            expr=pycparser.c_ast.ID(name=unwrapped_prefix + func.name)
                         ),
                         pycparser.c_ast.FuncCall(name=pycparser.c_ast.ID(name="__builtin_apply_args"), args=None),
                         pycparser.c_ast.ID(name="varargs_size"),
@@ -379,7 +432,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         else:
             call_expr = pycparser.c_ast.FuncCall(
                 name=pycparser.c_ast.ID(
-                    name=func_prefix + func.name,
+                    name=unwrapped_prefix + func.name,
                 ),
                 args=pycparser.c_ast.ExprList(
                     exprs=[
@@ -414,12 +467,82 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     return pre_call_stmts + call_stmts + post_call_stmts
 
 
+def gen_mac_os_struct(func_name: str) -> Decl:
+    return Decl(
+        name='__osx_interpose_' + func_name,
+        quals=['const'],
+        align=[],
+        storage=['static'],
+        funcspec=[],
+        type=TypeDecl(
+            declname='__osx_interpose_' + func_name,
+            quals=['const'],
+            align=None,
+            type=pycparser.c_ast.Struct(name='__osx_interpose', decls=None),
+        ),
+        init=pycparser.c_ast.InitList(
+            exprs=[
+                pycparser.c_ast.Cast(
+                    to_type=pycparser.c_ast.Typename(
+                        name=None,
+                        quals=['const'],
+                        align=None,
+                        type=pycparser.c_ast.PtrDecl(
+                            quals=[],
+                            type=TypeDecl(
+                                declname=None,
+                                quals=['const'],
+                                align=None,
+                                type=IdentifierType(
+                                    names=['void'],
+                                ),
+                            ),
+                        ),
+                    ),
+                    expr=pycparser.c_ast.UnaryOp(
+                        op="&",
+                        expr=ID(interpose_prefix + func_name),
+                    ),
+                ),
+                pycparser.c_ast.Cast(
+                    to_type=pycparser.c_ast.Typename(
+                        name=None,
+                        quals=['const'],
+                        align=None,
+                        type=pycparser.c_ast.PtrDecl(
+                            quals=[],
+                            type=TypeDecl(
+                                declname=None,
+                                quals=['const'],
+                                align=None,
+                                type=IdentifierType(
+                                    names=['void']
+                                ),
+                            ),
+                        ),
+                    ),
+                    expr=pycparser.c_ast.UnaryOp(
+                        op="&",
+                        expr=ID(func_name),
+                    ),
+                )
+            ]
+        ),
+        bitsize=None,
+    )
+
+
 static_args_wrapper_func_declarations = [
     dataclasses.replace(
         func,
         stmts=wrapper_func_body(func),
+        name=(func_name if compiling_for_linux else interpose_prefix + func.name),
     ).definition()
-    for _, func in funcs.items()
+    for _, func in platform_specific_funcs.items()
+]
+structs = [] if compiling_for_linux else [
+    gen_mac_os_struct(func.name)
+    for _, func in platform_specific_funcs.items()
 ]
 pathlib.Path("generated/libc_hooks.h").write_text(
     GccCGenerator().visit(
@@ -428,11 +551,17 @@ pathlib.Path("generated/libc_hooks.h").write_text(
         ])
     )
 )
-pathlib.Path("generated/libc_hooks.c").write_text(
-    GccCGenerator().visit(
-        pycparser.c_ast.FileAST(ext=[
-            init_function_pointers,
-            *static_args_wrapper_func_declarations,
-        ])
-    )
+libc_hooks = GccCGenerator().visit(
+    pycparser.c_ast.FileAST(ext=[
+        init_function_pointers,
+        *static_args_wrapper_func_declarations,
+        *structs,
+    ])
 )
+# Use regex to insert non-standard struct BS
+libc_hooks = re.sub(
+    "(__osx_interpose +[^ ]*)",
+    "\\1 __attribute__((used, section(\"__DATA, __interpose\")))",
+    libc_hooks,
+)
+pathlib.Path("generated/libc_hooks.c").write_text(libc_hooks)

@@ -7,6 +7,7 @@ use crate::transcribe::ArenaContext;
 use probe_macros::{MakeRustOp, PygenDataclass};
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
+use std::os::raw::c_ulong;
 use std::vec::Vec;
 
 /// Specialized version of [`std::convert::From`] for working with libprobe arena structs.
@@ -316,7 +317,7 @@ impl FfiFrom<C_Op> for OpInternal {
 pub struct Op {
     pub data: OpInternal,
     pub time: Timespec,
-    pub pthread_id: pthread_t,
+    pub pthread_id: u64,
     pub iso_c_thread_id: thrd_t,
 
     #[serde(serialize_with = "Op::serialize_type")]
@@ -338,7 +339,7 @@ impl FfiFrom<C_Op> for Op {
         Ok(Self {
             data: value.ffi_into(ctx)?,
             time: value.time.ffi_into(ctx)?,
-            pthread_id: value.pthread_id,
+            pthread_id: value.pthread_id as usize as u64,
             iso_c_thread_id: value.iso_c_thread_id,
 
             _type: (),

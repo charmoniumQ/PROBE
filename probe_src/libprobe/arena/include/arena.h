@@ -31,6 +31,10 @@
 
 #define __ARENA_UNLIKELY(x)     __builtin_expect(!!(x), 0)
 
+#ifndef O_PATH
+#define O_PATH 0
+#endif
+
 struct __Arena {
     size_t instantiation;
     void *base_address;

@@ -1,3 +1,11 @@
+#ifdef __APPLE__
+struct statx_timestamp {
+    int64_t tv_sec;
+    uint32_t tv_nsec;
+    int32_t __reserved;
+};
+#endif
+
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
     const char* path; /* path valid if non-null */
@@ -36,6 +44,11 @@ struct OpenOp {
     struct Path path;
     int flags;
     mode_t mode;
+    int32_t fd;
+    int ferrno;
+    /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
+};
+struct AcceptOp {
     int32_t fd;
     int ferrno;
     /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
