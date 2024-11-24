@@ -212,6 +212,26 @@ static struct ArenaDir* get_data_arena() {
     return &__data_arena;
 }
 
+char* _DEFAULT_PATH = NULL;
+
+static void init_default_path() {
+    size_t default_path_size = EXPECT(!= 0, confstr(_CS_PATH, NULL, 0));
+    default_path_size += 1;
+    // Technically +1 is not necessary, but it wont' hurt
+
+    _DEFAULT_PATH = EXPECT_NONNULL(malloc(default_path_size));
+    EXPECT(!= 0, confstr(_CS_PATH, _DEFAULT_PATH, default_path_size));
+
+    // Technically, this shouldn't be necessary, but it won't hurt.
+    _DEFAULT_PATH[default_path_size] = '\0';
+}
+static char* get_default_path() {
+    assert(_DEFAULT_PATH != NULL);
+    return _DEFAULT_PATH;
+}
+
+/*******************************************************/
+
 /**
  * Aggregate functions;
  * These functions call the init_* functions above */
@@ -220,6 +240,7 @@ static void init_process_global_state() {
     init_exec_epoch();
     init_copy_files();
     init_probe_dir();
+    init_default_path();
 }
 
 static void init_thread_global_state() {
