@@ -12,7 +12,7 @@ import rich
 from probe_py.generated.parser import parse_probe_log
 from probe_py.manual import analysis
 from probe_py.manual import util
-from probe_py.manual.remote_access import copy
+from probe_py.manual.scp import scp_with_provenance
 
 rich.traceback.install(show_locals=False)
 
@@ -215,7 +215,7 @@ context_settings=dict(
     ),
 )
 def scp(cmd: list[str]) -> None:
-    copy(cmd)
+    scp_with_provenance(cmd)
 
 if __name__ == "__main__":
     app()
