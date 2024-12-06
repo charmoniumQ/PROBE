@@ -30,7 +30,8 @@ class ProcessThatWrites(Base):
     device_minor: Mapped[int]
     host: Mapped[int]
     path: Mapped[str]
-    mtime: Mapped[int]
+    mtime_sec: Mapped[int]
+    mtime_nsec: Mapped[int]
     size: Mapped[int]
 
 
@@ -53,7 +54,8 @@ class ProcessInputs(Base):
     device_minor: Mapped[int]
     host: Mapped[int]
     path: Mapped[str]
-    mtime: Mapped[int]
+    mtime_sec: Mapped[int]
+    mtime_nsec: Mapped[int]
     size: Mapped[int]
 
 print("Tables for persistent provenance created successfully.")
