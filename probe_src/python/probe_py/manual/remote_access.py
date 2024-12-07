@@ -31,7 +31,7 @@ class Host:
     network_name: str | None
 
     # Later on, these fields may be properties that get computed based on other fields.
-    username: str
+    username: str | None
     ssh_options: list[str]
     scp_options: list[str]
 

@@ -90,38 +90,6 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
             else:
                 raise NotImplementedError(f"Unrecognized option {arg}")
         else:
-            # Define some regexp helpers.
-            # In my opinion, "spelling" the regexp this way makes it much more readable.
-            def concat(*args: str) -> str:
-                return "".join(args)
-            def optional(arg: str) -> str:
-                return f"(?:{arg})?"
-            def named_group(name: str, arg: str) -> str:
-                return f"(?:{arg})?"
-            def whole_string(arg: str) -> str:
-                return "^" + arg + "$"
-
-            # TODO: do options only apply to the host following it?
-            # E.g., does scp -J host-A host-B host-C only apply a jump-host to the host-B?
-
-            # https://superuser.com/questions/1516008/what-does-please-enter-a-username-matching-the-regular-expression-configured-vi
-            unix_username_regex = "[a-z][-a-z0-9_]*"
-            # https://stackoverflow.com/questions/11809631/fully-qualified-domain-name-validation/20204811#20204811
-            host_regex = "(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)"
-            # scp://[user@]host[:port][/path]
-            scp_url_regex = whole_string(concat(
-                "scp://",
-                optional(concat(named_group("user", unix_username_regex), "@")),
-                named_group("host", host_regex),
-                optional(concat(":", named_group("port", r"\d+"))),
-                optional(concat("/", named_group("path", ".*"))),
-            ))
-            # [user@]host[:path]
-            scp_address_regex = whole_string(concat(
-                optional(concat(named_group("user", unix_username_regex), "@")),
-                named_group("host", host_regex),
-                optional(concat(":", named_group("path", ".*"))),
-            ))
             if match := re.match(scp_url_regex, arg):
                 this_scp_options = scp_options[:]
                 this_ssh_options = ssh_options[:]
@@ -131,8 +99,13 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
                     this_ssh_options.append("-P")
                     this_ssh_options.append(match.group("port"))
                 sources.append(HostPath(
-                    Host(match.group("host"), match.group("user"), this_ssh_options, this_scp_options),
+                    Host(match.group("host"), match.group("user"), None, this_ssh_options, this_scp_options),
                     Path(match.group("path") if match.group("path") else "")
+                ))
+            elif match := re.match(scp_path_regex, arg):
+                sources.append(HostPath(
+                    Host(None, None, [], []),
+                    Path(arg)
                 ))
             elif match := re.match(scp_address_regex, arg):
                 sources.append(HostPath(
@@ -140,6 +113,44 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
                     Path(match.group("path") if match.group("path") else "")
                 ))
             else:
+                print(scp_url_regex)
+                print(scp_address_regex)
                 raise RuntimeError(f"Invalid scp argument {arg}")
         i += 1
     return sources[:-1], sources[-1]
+
+
+
+# Define some regexp helpers.
+# In my opinion, "spelling" the regexp this way makes it much more readable.
+def concat(*args: str) -> str:
+    return "".join(args)
+def optional(arg: str) -> str:
+    return f"(?:{arg})?"
+def named_group(name: str, arg: str) -> str:
+    return f"(?P<{name}>{arg})?"
+def whole_string(arg: str) -> str:
+    return re.compile("^" + arg + "$")
+
+# TODO: do options only apply to the host following it?
+# E.g., does scp -J host-A host-B host-C only apply a jump-host to the host-B?
+
+# https://superuser.com/questions/1516008/what-does-please-enter-a-username-matching-the-regular-expression-configured-vi
+unix_username_regex = "[a-z][-a-z0-9_]*"
+host_regex = r"[a-zA-Z0-9\.-]{1,63}"
+# scp://[user@]host[:port][/path]
+scp_url_regex = whole_string(concat(
+    "scp://",
+    optional(concat(named_group("user", unix_username_regex), "@")),
+    named_group("host", host_regex),
+    optional(concat(":", named_group("port", r"\d+"))),
+    optional(concat("/", named_group("path", ".*"))),
+))
+path_regex = "[^:@]*"
+scp_path_regex = whole_string(path_regex)
+# [user@]host[:path]
+scp_address_regex = whole_string(concat(
+    optional(concat(named_group("user", unix_username_regex), "@")),
+    named_group("host", host_regex),
+    optional(concat(":", named_group("path", path_regex))),
+))
