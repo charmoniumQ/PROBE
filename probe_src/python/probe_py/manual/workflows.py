@@ -235,15 +235,6 @@ process process_{id(process)} {{
                 inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
                 outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
 
-                # Skip any command that calls another script
-                flag = 0
-                for cmd in node.cmd:
-                    if cmd.startswith("sh"):
-                        flag=1
-                        break
-                if flag == 1:
-                    continue
-
                 if self.is_standard_case(node, inputs, outputs):
                     process_script = self.handle_standard_case(node, inputs, outputs)
                     self.nextflow_script.append(process_script)
