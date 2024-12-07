@@ -9,6 +9,7 @@
 **/.nextflow
 **/work
 **/.pytest_cache
+**/.idea
 
 # build directories
 **/target
