@@ -57,5 +57,3 @@ class ProcessInputs(Base):
     mtime_sec: Mapped[int]
     mtime_nsec: Mapped[int]
     size: Mapped[int]
-
-print("Tables for persistent provenance created successfully.")
