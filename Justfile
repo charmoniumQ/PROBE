@@ -41,7 +41,3 @@ test-dev: compile
     pytest probe_src --failed-first --maxfail=1
 
 pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy check-clang compile check-mypy test-dev
-
-pre-commit: fix-format-nix   fix-ruff   fix-format-rust   fix-clippy   clang-tidy compile check-mypy             test-dev
-
-on-push:    check-format-nix check-ruff check-format-rust check-clippy clang-tidy compile check-mypy check-flake test-ci

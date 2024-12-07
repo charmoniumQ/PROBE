@@ -2,9 +2,10 @@
 
 #include <stdbool.h>
 
-#define ARENA_USE_UNWRAPPED_LIBC
+#ifndef NDEBUG
 #define ARENA_PERROR
-#define unwrapped_openat openat
+#endif
+#define ARENA_USE_UNWRAPPED_LIBC
 #include "../arena/include/arena.h"
 
 /*

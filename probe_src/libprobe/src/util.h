@@ -131,7 +131,7 @@ static pid_t my_gettid(){
     ret; \
 })
 
-static OWNED char* path_join(BORROWED char* path_buf, size_t left_size, BORROWED const char* left, size_t right_size, BORROWED const char* right) {
+static OWNED char* path_join(BORROWED char* path_buf, int left_size, BORROWED const char* left, int right_size, BORROWED const char* right) {
     if (left_size == -1) {
         left_size = strlen(left);
     }
@@ -234,7 +234,7 @@ static bool is_dir(const char* dir) {
 
 static OWNED const char* dirfd_path(int dirfd) {
     static char dirfd_proc_path[PATH_MAX];
-    CHECK_SNPRINTF(dirfd_proc_path, (unsigned long) PATH_MAX, "/proc/self/fd/%d", dirfd);
+    CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fd/%d", dirfd);
     char* resolved_buffer = malloc(PATH_MAX);
     const char* ret = unwrapped_realpath(dirfd_proc_path, resolved_buffer);
     return ret;

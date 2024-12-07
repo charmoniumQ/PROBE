@@ -26,10 +26,9 @@ static __thread bool __thread_inited = false;
 
 #include "../generated/libc_hooks.h"
 
-#include "declarationss.h"
+#include "declarations.h"
 
 #include "util.h"
-
 
 #include "../include/libprobe/prov_ops.h"
 
