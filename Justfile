@@ -17,6 +17,15 @@ check-mypy:
     mypy --strict --package probe_py.generated
     mypy --strict --package probe_py.manual
 
+check-clang:
+    clang-tidy \
+        probe_src/**/*.{c,h} \
+        -- \
+        -Iprobe_src/libprobe/include \
+        -Iprobe_src/libprobe/arena/include \
+        -std=c11 \
+        -DARENA_USE_UNWRAPPED_LIBC \
+
 compile-lib:
     make --directory=probe_src/libprobe all
 
@@ -31,4 +40,4 @@ compile: compile-lib compile-cli compile-tests
 test-dev: compile
     pytest probe_src --failed-first --maxfail=1
 
-pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy compile check-mypy test-dev
+pre-commit: fix-format-nix fix-ruff fix-format-rust fix-clippy check-clang compile check-mypy test-dev

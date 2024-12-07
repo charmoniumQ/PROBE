@@ -1,3 +1,24 @@
+#pragma once
+#define _GNU_SOURCE          /* See feature_test_macros(7) */
+#include <stdio.h>
+#include <limits.h>
+#include <stdlib.h>  
+#include <string.h>  
+#include <unistd.h> 
+#include <sys/types.h> 
+#include <sys/syscall.h> 
+#include <sys/stat.h>
+#include <limits.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <stdbool.h>
+#include <assert.h> 
+#include <errno.h>
+#include <ftw.h>
+#include <dirent.h>
+#include "declarations.h"
+#include "../generated/libc_hooks.h"
+
 /*
  * OWNED/BORROWED determins who is responsible for freeing a pointer received or returned by a function-call.
  * Obviously, this is inspired by Rust.
@@ -34,7 +55,7 @@
 #endif
 
 static pid_t my_gettid(){
-    return syscall(SYS_gettid);
+    return (pid_t)syscall(SYS_gettid);
 }
 
 #define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d: ", getpid(), get_exec_epoch_safe(), my_gettid())
@@ -106,11 +127,11 @@ static pid_t my_gettid(){
 #define CHECK_SNPRINTF(s, n, ...) ({ \
     int ret = snprintf(s, n, __VA_ARGS__); \
     ASSERTF(ret > 0, "snprintf returned %d", ret); \
-    ASSERTF(ret < n, "%d-long string exceeds destination %d-long destination buffer\n", ret, n); \
+    ASSERTF(ret < n, "%d-long string exceeds destination %lu-long destination buffer\n", ret, n); \
     ret; \
 })
 
-static OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size, BORROWED const char* right) {
+static OWNED char* path_join(BORROWED char* path_buf, int left_size, BORROWED const char* left, int right_size, BORROWED const char* right) {
     if (left_size == -1) {
         left_size = strlen(left);
     }
@@ -237,15 +258,15 @@ static int fd_is_valid(int fd) {
 
 static void listdir(const char* name, int indent) {
     // https://stackoverflow.com/a/8438663
-    DIR *dir;
-    struct dirent *entry;
+    DIR *dir = NULL;
+    struct dirent *entry = NULL;
 
     if (!(dir = unwrapped_opendir(name)))
         return;
 
     while ((entry = unwrapped_readdir(dir))) {
         if (entry->d_type == DT_DIR) {
-            char path[1024];
+            char path[PATH_MAX];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
             snprintf(path, sizeof(path), "%s/%s", name, entry->d_name);
