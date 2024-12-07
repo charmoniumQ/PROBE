@@ -9,7 +9,17 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-20.04
+          #- ubuntu-22.04
+          # We can test on a Matrix of Ubuntu versions
+          # But Nix does get us pretty good reproducibility
+          # So we will test just one in CI.
+          # More full tests can be run by docker_os_matrix.py
+
+    runs-on: ${{ matrix.os  }}
 
     steps:
     - name: Checkout repository
@@ -21,5 +31,16 @@ jobs:
         extra_nix_config: |
           experimental-features = nix-command flakes
 
-    - name: Run Just in development shell
-      run: nix develop --command just on-push
+    - name: Test existence of secrets
+      run: |
+        echo -e 'CACHIX_AUTH_TOKEN length: '
+        echo ${{ secrets.CACHIX_AUTH_TOKEN }} | wc -c
+
+    - uses: cachix/cachix-action@v15
+      with:
+        name: charmonium
+        authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+    - run: nix flake check --all-systems --print-build-logs
+
+    - run: nix build --print-build-logs .#probe-bundled .#probe-py

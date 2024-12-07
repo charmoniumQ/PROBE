@@ -878,7 +878,7 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode)
 int stat(const char *filename, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .ferrno = 0, .stat_result = {0}}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -889,11 +889,11 @@ int stat(const char *filename, struct stat *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -904,7 +904,7 @@ int stat(const char *filename, struct stat *buf)
 int stat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, 0), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -915,11 +915,11 @@ int stat64(const char *filename, struct stat64 *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -930,7 +930,7 @@ int stat64(const char *filename, struct stat64 *buf)
 int fstat(int filedes, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -941,11 +941,11 @@ int fstat(int filedes, struct stat *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -956,7 +956,7 @@ int fstat(int filedes, struct stat *buf)
 int fstat64(int filedes, struct stat64 * restrict buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(filedes, "", AT_EMPTY_PATH), .flags = 0, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -967,11 +967,11 @@ int fstat64(int filedes, struct stat64 * restrict buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -982,7 +982,7 @@ int fstat64(int filedes, struct stat64 * restrict buf)
 int lstat(const char *filename, struct stat *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -993,11 +993,11 @@ int lstat(const char *filename, struct stat *buf)
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1008,7 +1008,7 @@ int lstat(const char *filename, struct stat *buf)
 int lstat64(const char *filename, struct stat64 *buf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW), .flags = AT_SYMLINK_NOFOLLOW, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1023,7 +1023,7 @@ int lstat64(const char *filename, struct stat64 *buf)
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1034,7 +1034,7 @@ int lstat64(const char *filename, struct stat64 *buf)
 int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mask, struct statx * restrict statxbuf)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1045,11 +1045,11 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      op.data.stat.statx_buf = *statxbuf;
+      stat_result_from_statx(&op.data.stat.stat_result, statxbuf);
     }
     prov_log_record(op);
   }
@@ -1060,7 +1060,7 @@ int statx(int dirfd, const char * restrict pathname, int flags, unsigned int mas
 int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(dirfd, pathname, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1071,11 +1071,11 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1086,7 +1086,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, int flags)
 {
   maybe_init_thread();
-  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .statx_buf = {0}, .ferrno = 0}}, {0}, 0, 0};
+  struct Op op = {stat_op_code, {.stat = {.path = create_path_lazy(fd, file, flags), .flags = flags, .stat_result = {0}, .ferrno = 0}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1097,11 +1097,11 @@ int fstatat64(int fd, const char * restrict file, struct stat64 * restrict buf, 
   {
     if (ret != 0)
     {
-      op.data.readdir.ferrno = saved_errno;
+      op.data.stat.ferrno = saved_errno;
     }
     else
     {
-      stat64_to_statx(&op.data.stat.statx_buf, buf);
+      stat_result_from_stat64(&op.data.stat.stat_result, buf);
     }
     prov_log_record(op);
   }
@@ -1523,8 +1523,13 @@ char * mkdtemp(char *template)
 int execv(const char *filename, char * const argv[])
 {
   maybe_init_thread();
-  putenv_probe_vars();
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
+  op.data.exec.argc = argc;
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1534,8 +1539,9 @@ int execv(const char *filename, char * const argv[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execv(filename, argv);
+  int ret = unwrapped_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
+  free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1549,8 +1555,22 @@ int execv(const char *filename, char * const argv[])
 int execl(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
-  putenv_probe_vars();
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = COUNT_NONNULL_VARARGS(arg0);
+  char **argv = malloc((argc + 1) * (sizeof(char *)));
+  va_list ap;
+  va_start(ap, arg0);
+  for (size_t i = 0; i < argc; ++i)
+  {
+    argv[i] = va_arg(ap, __type_charp);
+  }
+
+  va_end(ap);
+  argv[argc] = NULL;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1560,9 +1580,10 @@ int execl(const char *filename, const char *arg0, ...)
   {
     prov_log_save();
   }
-  size_t varargs_size = (sizeof(char *)) + ((COUNT_NONNULL_VARARGS(arg0) + 1) * (sizeof(char *)));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_execl, __builtin_apply_args(), varargs_size));
+  int ret = unwrapped_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
+  free((char **) updated_env);
+  free((char **) argv);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1576,8 +1597,12 @@ int execl(const char *filename, const char *arg0, ...)
 int execve(const char *filename, char * const argv[], char * const env[])
 {
   maybe_init_thread();
-  env = update_env_with_probe_vars(env);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(env, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1587,10 +1612,9 @@ int execve(const char *filename, char * const argv[], char * const env[])
   {
     prov_log_save();
   }
-  DEBUG("in Execve");
-  int ret = unwrapped_execve(filename, argv, env);
+  int ret = unwrapped_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
-  free((char **) env);
+  free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1604,8 +1628,12 @@ int execve(const char *filename, char * const argv[], char * const env[])
 int fexecve(int fd, char * const argv[], char * const env[])
 {
   maybe_init_thread();
-  env = update_env_with_probe_vars(env);
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(env, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(fd, "", AT_EMPTY_PATH), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1615,9 +1643,9 @@ int fexecve(int fd, char * const argv[], char * const env[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_fexecve(fd, argv, env);
+  int ret = unwrapped_fexecve(fd, argv, updated_env);
   int saved_errno = errno;
-  free((char **) env);
+  free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1631,7 +1659,23 @@ int fexecve(int fd, char * const argv[], char * const env[])
 int execle(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
-  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = COUNT_NONNULL_VARARGS(arg0) - 1;
+  char **argv = malloc((argc + 1) * (sizeof(char *)));
+  va_list ap;
+  va_start(ap, arg0);
+  for (size_t i = 0; i < argc; ++i)
+  {
+    argv[i] = va_arg(ap, __type_charp);
+  }
+
+  argv[argc] = NULL;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  char **env = va_arg(ap, __type_charpp);
+  va_end(ap);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(env, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = create_path_lazy(0, filename, 0), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1642,21 +1686,10 @@ int execle(const char *filename, const char *arg0, ...)
     prov_log_save();
   }
   ERROR("Not implemented; I need to figure out how to update the environment.");
-  size_t argc = COUNT_NONNULL_VARARGS(arg0);
-  char **arg_vec = malloc(argc * (sizeof(char *)));
-  va_list ap;
-  va_start(ap, arg0);
-  for (size_t i = 0; i < (argc - 1); ++i)
-  {
-    arg_vec[i] = va_arg(ap, __type_charp);
-  }
-
-  char **env = va_arg(ap, __type_charpp);
-  va_end(ap);
-  char * const *updated_env = update_env_with_probe_vars(env);
-  int ret = unwrapped_execve(filename, arg_vec, updated_env);
+  int ret = unwrapped_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
   free((char **) updated_env);
+  free((char **) argv);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1670,10 +1703,14 @@ int execle(const char *filename, const char *arg0, ...)
 int execvp(const char *filename, char * const argv[])
 {
   maybe_init_thread();
-  putenv_probe_vars();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1683,8 +1720,9 @@ int execvp(const char *filename, char * const argv[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvp(filename, argv);
+  int ret = unwrapped_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
+  free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1698,10 +1736,24 @@ int execvp(const char *filename, char * const argv[])
 int execlp(const char *filename, const char *arg0, ...)
 {
   maybe_init_thread();
-  putenv_probe_vars();
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = COUNT_NONNULL_VARARGS(arg0);
+  char **argv = malloc((argc + 1) * (sizeof(char *)));
+  va_list ap;
+  va_start(ap, arg0);
+  for (size_t i = 0; i < argc; ++i)
+  {
+    argv[i] = va_arg(ap, __type_charp);
+  }
+
+  argv[argc] = NULL;
+  va_end(ap);
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(environ, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1711,9 +1763,10 @@ int execlp(const char *filename, const char *arg0, ...)
   {
     prov_log_save();
   }
-  size_t varargs_size = (sizeof(char *)) + ((COUNT_NONNULL_VARARGS(arg0) + 1) * (sizeof(char *)));
-  int ret = *((int *) __builtin_apply((void (*)()) unwrapped_execlp, __builtin_apply_args(), varargs_size));
+  int ret = unwrapped_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
+  free((char **) updated_env);
+  free((char **) argv);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);
@@ -1727,10 +1780,14 @@ int execlp(const char *filename, const char *arg0, ...)
 int execvpe(const char *filename, char * const argv[], char * const envp[])
 {
   maybe_init_thread();
-  envp = update_env_with_probe_vars(envp);
   char *bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
   bool found = lookup_on_path(filename, bin_path);
-  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0}}, {0}, 0, 0};
+  size_t argc = 0;
+  char * const *copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+  size_t envc = 0;
+  char * const *updated_env = update_env_with_probe_vars(envp, &envc);
+  char * const *copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+  struct Op op = {exec_op_code, {.exec = {.path = (found) ? (create_path_lazy(0, bin_path, 0)) : (null_path), .ferrno = 0, .argc = argc, .argv = copied_argv, .envc = envc, .env = copied_updated_env}}, {0}, 0, 0};
   if (likely(prov_log_is_enabled()))
   {
     prov_log_try(op);
@@ -1740,9 +1797,9 @@ int execvpe(const char *filename, char * const argv[], char * const envp[])
   {
     prov_log_save();
   }
-  int ret = unwrapped_execvpe(filename, argv, envp);
+  int ret = unwrapped_execvpe(filename, argv, updated_env);
   int saved_errno = errno;
-  free((char **) envp);
+  free((char **) updated_env);
   if (likely(prov_log_is_enabled()))
   {
     assert(errno > 0);

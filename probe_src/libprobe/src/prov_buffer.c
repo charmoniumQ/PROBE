@@ -7,6 +7,28 @@ static void prov_log_save() {
 
 static void prov_log_record(struct Op op);
 
+bool is_read_op(struct Op op) {
+    return (op.op_code == open_op_code && (op.data.open.flags & O_RDONLY || op.data.open.flags & O_RDWR))
+        || op.op_code == exec_op_code
+        || op.op_code == readdir_op_code
+        || op.op_code == read_link_op_code;
+}
+
+bool is_mutate_op(struct Op op) {
+    return op.op_code == open_op_code && (op.data.open.flags & O_WRONLY || op.data.open.flags & O_RDWR);
+}
+
+bool is_replace_op(struct Op op) {
+    /* TODO: Double check flags here */
+    return op.op_code == open_op_code && (op.data.open.flags & O_TRUNC || op.data.open.flags & O_CREAT);
+}
+
+int copy(const struct Path* path) {
+    static char dst_path[PATH_MAX];
+    path_to_id_string(path, dst_path);
+    return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, get_inodes_dirfd(), dst_path, path->size);
+}
+
 /*
  * Call this to indicate that the process is about to do some op.
  * The values of the op that are not known before executing the call
@@ -20,6 +42,32 @@ static void prov_log_try(struct Op op) {
     }
     if (op.op_code == exec_op_code) {
         prov_log_record(op);
+    }
+
+    const struct Path* path = op_to_path(&op);
+    if (should_copy_files() && path->path && path->stat_valid) {
+        if (is_read_op(op)) {
+            DEBUG("Reading %s %d", path->path, path->inode);
+            inode_table_put_if_not_exists(&read_inodes, path);
+        } else if (is_mutate_op(op)) {
+            if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
+                DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+            } else {
+                DEBUG("Mutating, therefore copying %s %d", path->path, path->inode);
+                copy(path);
+            }
+        } else if (is_replace_op(op)) {
+            if (inode_table_contains(&read_inodes, path)) {
+                if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
+                    DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+                } else {
+                    DEBUG("Replace after read %s %d", path->path, path->inode);
+                    copy(path);
+                }
+            } else {
+                DEBUG("Mutating, but not copying %s %d since it was never read", path->path, path->inode);
+            }
+        }
     }
 }
 
@@ -50,28 +98,6 @@ static void prov_log_record(struct Op op) {
     memcpy(dest, &op, sizeof(struct Op));
 
     /* TODO: Special handling of ops that affect process state */
-
-/*
-    if (op.op_code == OpenRead || op.op_code == OpenReadWrite || op.op_code == OpenOverWrite || op.op_code == OpenWritePart || op.op_code == OpenDir) {
-        assert(op.dirfd);
-        assert(op.path);
-        assert(op.fd);
-        assert(!op.inode_triple.null);
-        fd_table_associate(op.fd, op.dirfd, op.path, op.inode_triple);
-    } else if (op.op_code == Close) {
-        fd_table_close(op.fd);
-    } else if (op.op_code == Chdir) {
-        if (op.path) {
-            assert(op.fd == null_fd);
-            fd_table_close(AT_FDCWD);
-            fd_table_associate(AT_FDCWD, AT_FDCWD, op.path, op.inode_triple);
-        } else {
-            assert(op.fd > 0);
-            fd_table_close(AT_FDCWD);
-            fd_table_dup(op.fd, AT_FDCWD);
-        }
-    }
-*/
 
     /* Freeing up virtual memory space is good in theory,
      * but it causes errors when decoding.

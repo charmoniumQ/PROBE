@@ -11,6 +11,7 @@
  * If a function-call returns a BORROWED pointer, the callee can't free it.
  * If a function-call receives a BORROWED pointer, the function can't free it.
  * */
+#include <sys/sendfile.h>
 #define OWNED
 #define BORROWED
 
@@ -159,12 +160,12 @@ extern char** environ;
 
 static const char* getenv_copy(const char* name) {
     /* Validate input */
-    assert(name != NULL);
+    assert(name);
     assert(strchr(name, '=') == NULL);
-    assert(name[0] != '\0');
+    assert(name[0]);
     assert(environ);
     size_t name_len = strlen(name);
-    for (char **ep = environ; *ep != NULL; ++ep) {
+    for (char **ep = environ; *ep; ++ep) {
         if (unlikely(strncmp(name, *ep, name_len) == 0) && likely((*ep)[name_len] == '=')) {
             return *ep + name_len + 1;
         }
@@ -226,7 +227,7 @@ static OWNED const char* dirfd_path(int dirfd) {
  * -1 is never a valid fd because it's the error value for syscalls that return fds, so we can do the same.
  */
 static int try_dirfd(BORROWED DIR* dirp) {
-    return (dirp != NULL) ? (dirfd(dirp)) : (-1);
+    return dirp ? (dirfd(dirp)) : (-1);
 }
 
 #ifndef NDEBUG
@@ -242,7 +243,7 @@ static void listdir(const char* name, int indent) {
     if (!(dir = unwrapped_opendir(name)))
         return;
 
-    while ((entry = unwrapped_readdir(dir)) != NULL) {
+    while ((entry = unwrapped_readdir(dir))) {
         if (entry->d_type == DT_DIR) {
             char path[1024];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -262,19 +263,84 @@ static void listdir(const char* name, int indent) {
 /* strtol in libc is not totally static;
  * It is defined itself as a static function, but that static code calls some dynamically loaded function.
  * This would be fine, except some older versions of glibc may not have the deynamic function. */
-unsigned long my_strtoul(const char *restrict string, char **restrict string_end, int base) {
+static unsigned long my_strtoul(const char *restrict string, char **restrict string_end, int base) {
     unsigned long accumulator = 0;
     const char* ptr = string;
     while (*ptr != '\0') {
-        if ('0' <= *ptr && *ptr < ('0' + base)) {
-            accumulator = accumulator * base + (*ptr - '0');
+        int value = 0;
+        if ('0' <= *ptr && *ptr <= '9') {
+            value = *ptr - '0';
+        } else if ('A' <= *ptr && *ptr < 'A' + base) {
+            value = *ptr - 'A' + 10;
+        } else if ('a' <= *ptr && *ptr < 'a' + base) {
+            value = *ptr - 'a' + 10;
         } else {
             return 0;
         }
+        accumulator = accumulator * base + value;
         ptr++;
     }
     if (string_end) {
         *string_end = (char*) ptr;
     }
     return accumulator;
+}
+
+/* Copy char* const argv[] into the arena.
+ * If argc argument is 0, compute argc and store there (if the size actually was zero, this is no bug).
+ * If argc argument is positive, assume that is the argc.
+ * */
+static char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * argv, size_t* argc) {
+    if (*argc == 0) {
+        /* Compute argc and store in *argc */
+        for (char * const* argv_p = argv; *argv_p; ++argv_p) {
+            (*argc)++;
+        }
+    }
+
+    char** argv_copy = arena_calloc(arena_dir, *argc + 1, sizeof(char*));
+
+    for (size_t i = 0; i < *argc; ++i) {
+        size_t length = strlen(argv[i]);
+        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
+        memcpy(argv_copy[i], argv[i], length + 1);
+        assert(!argv_copy[i][length]);
+    }
+
+    assert(!argv[*argc]);
+    argv_copy[*argc] = NULL;
+
+    return argv_copy;
+}
+
+int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path, ssize_t size) {
+    /*
+    ** Adapted from:
+    ** https://stackoverflow.com/a/2180157
+     */
+    int src_fd = unwrapped_openat(src_dirfd, src_path, O_RDONLY);
+    int dst_fd = unwrapped_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
+    int result = 0;
+    off_t copied = 0;
+    while (result == 0 && copied < size) {
+        ssize_t written = sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
+        copied += written;
+        if (written == -1) {
+            result = -1;
+        }
+    }
+
+    unwrapped_close(src_fd);
+    unwrapped_close(dst_fd);
+
+    return result;
+}
+
+int write_bytes(int dirfd, const char* path, const char* content, ssize_t size) {
+    int fd = unwrapped_openat(dirfd, path, O_RDWR | O_CREAT, 0666);
+    assert(fd > 0);
+    ssize_t ret = write(fd, content, size);
+    assert(ret == size);
+    EXPECT( == 0, unwrapped_close(fd));
+    return ret == size;
 }

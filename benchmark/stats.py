@@ -34,7 +34,7 @@ def output_features(df: pandas.DataFrame) -> None:
             },
             "op_type_counts_sum": pandas.NamedAgg(
                 "op_type_counts",
-                lambda op_type_freqs: functools.reduce(operator.add, op_type_freqs, collections.Counter()),
+                lambda op_type_counts: functools.reduce(operator.add, op_type_counts, collections.Counter()),
             ),
             "count": pandas.NamedAgg("walltime", lambda walltimes: len(walltimes)),
             "workload_kind": pandas.NamedAgg(
@@ -44,6 +44,7 @@ def output_features(df: pandas.DataFrame) -> None:
         })
         .assign(**{
             "rel_slowdown": lambda df: df["walltime_mean"] / df.loc["noprov"]["walltime_mean"],
+            "slowdown_diff": lambda df: df["walltime_mean"] - df.loc["noprov"]["walltime_mean"],
         })
         .assign(**{
             "log_rel_slowdown": lambda df: numpy.log(df["rel_slowdown"]),
@@ -52,49 +53,32 @@ def output_features(df: pandas.DataFrame) -> None:
     agged.to_pickle(output / "agged.pkl")
 
     collectors = df["collector"].unique()
-    if "strace" in collectors and "noprov" in collectors:
-        all_syscalls = collections.Counter[str]()
-        for counter in df[df["collector"] == "strace"]["op_type_counts"]:
-            all_syscalls += counter
-        syscall_groups = {
-            "socket": {"accept4", "connect", "bind", "accept"},
-            "file": {"newfstatat", "readlink", "access", "chmod", "fchmod", "mkdir", "rmdir", "mkdirat", "rename", "unlink", "link", "symlink"},
-            "fd": {"creat", "open", "openat"},
-            "exec": {"execve", "clone", "clone3", "vfork"},
-        }
-        syscall_groups["other"] = {
-            syscall
-            for syscall in all_syscalls
-            if not any(syscall in group for group in syscall_groups.values())
-        }
-        noprov = agged.loc["noprov"]
+    if "strace" in collectors:
         strace = agged.loc["strace"]
-        features_df = pandas.DataFrame({
-            "cputime_per_sec": noprov["cputime_mean"] / noprov["walltime_mean"],
-            "memory_mean": noprov["memory_mean"],
-            **{
-                group_name + "_syscalls_per_sec": strace["op_type_counts_sum"].map(lambda op_type_counts: sum(
-                    op_type_counts[syscall_name]
-                    for syscall_name in syscall_names
-                )) / (noprov["walltime_mean"] * noprov["count"])
-                for group_name, syscall_names in syscall_groups.items()
-            },
-            "n_ops_per_sec": strace["n_ops_mean"] / noprov["walltime_mean"],
-        })
-        features_df.to_pickle(output / "features_df.pkl")
+        all_syscalls = set[str]()
+        for counter in strace["op_type_counts_sum"]:
+            all_syscalls |= counter.keys()
+        benchmarks_by_features = pandas.DataFrame({
+            syscall_group: [
+                counter[syscall_group]
+                for counter in strace["op_type_counts_sum"]
+            ]
+            for syscall_group in all_syscalls
+        }).set_index(strace.index)
+        benchmarks_by_features.to_pickle(output / "benchmarks_by_features.pkl")
 
-        tmp_df = agged.reset_index().pivot(index="collector", columns="workload", values="log_rel_slowdown")
+        systems_by_benchmarks = (
+            agged
+            .reset_index()
+            .pivot(index="collector", columns="workload", values="slowdown_diff")
+        )
+        systems_by_benchmarks.to_pickle(output / "systems_by_benchmarks.pkl")
 
         assert all(
             workload0 == workload1
-            for workload0, workload1 in zip(tmp_df.columns, features_df.index)
+            for workload0, workload1 in zip(systems_by_benchmarks.columns, benchmarks_by_features.index)
         )
 
-        numpy.save(output / "systems_by_benchmarks", tmp_df.values)
-        numpy.save(output / "benchmarks_by_features", features_df.values)
-        (output / "systems.txt").write_text("\n".join(agged.index.levels[0]))
-        (output / "benchmarks.txt").write_text("\n".join(agged.index.levels[1]))
-        (output / "features.txt").write_text("\n".join(features_df.columns))
 
 @charmonium.time_block.decor()
 def performance(df: pandas.DataFrame) -> None:

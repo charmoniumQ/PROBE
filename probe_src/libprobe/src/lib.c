@@ -58,15 +58,17 @@ static __thread bool __thread_inited = false;
 
 #include "prov_enable.c"
 
+#define ARENA_USE_UNWRAPPED_LIBC
+#define ARENA_PERROR
+#include "../arena/include/arena.h"
+
 #include "util.c"
 
 /* #include "fd_table.c" */
 
 #include "../include/libprobe/prov_ops.h"
 
-#define ARENA_USE_UNWRAPPED_LIBC
-#define ARENA_PERROR
-#include "../arena/include/arena.h"
+#include "inode_table.c"
 
 #include "global_state.c"
 
@@ -113,15 +115,27 @@ static void maybe_init_thread() {
         __thread_inited = true;
 
         if (!was_process_inited) {
-            struct Op op = {
+            if (get_exec_epoch() == 0) {
+                struct Op proc_op = {
+                    init_process_op_code,
+                    {.init_process = init_current_process()},
+                    {0},
+                    0,
+                    0,
+                };
+                prov_log_try(proc_op);
+                prov_log_record(proc_op);
+            }
+
+            struct Op exec_epoch_op = {
                 init_exec_epoch_op_code,
                 {.init_exec_epoch = init_current_exec_epoch()},
                 {0},
                 0,
                 0,
             };
-            prov_log_try(op);
-            prov_log_record(op);
+            prov_log_try(exec_epoch_op);
+            prov_log_record(exec_epoch_op);
         }
 
         struct Op op = {
