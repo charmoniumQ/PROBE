@@ -130,8 +130,10 @@ Performance issues:
   - [ ] Test high mem
   - [ ] Put magic bytes in arena
 
-
 - [ ] Use lock-free implementation of InodeTable
+
+- [ ] Try to break it. Jenna has some input on this.
+  - [ ] In one terminal execute: `probe record --overwrite --no-transcribe --output .workdir/log/0/probe/ python -m http.server 54123 --directory .workdir/work/0/simple'`. In another, execute `hey -n 50000 http://localhost:54123/test'`. Notice `__arena_reinstantiate: openat: Too many open files`.
 
 Documentation:
 - [ ] Make the CLI better. You shouldn't need to give `-f` to make repeated applications work. You shouldn't need to give `--input`.

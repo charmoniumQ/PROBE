@@ -754,6 +754,18 @@ class Care(ProvCollector):
             )
 
 
+class PROBE(ProvCollector):
+    method = "lib instrm."
+    submethod = "lib instrm."
+    name = "PROBE"
+
+    nix_packages = [".#probe-pkg"]
+
+    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+        (log / "probe").mkdir()
+        return ("probe", "record", "--overwrite", "--no-transcribe", "--output", f"{log}/probe/", *cmd)
+
+
 PROV_COLLECTORS: list[ProvCollector] = [
     NoProv(),
     STrace(),
@@ -769,6 +781,7 @@ PROV_COLLECTORS: list[ProvCollector] = [
     SpadeAuditd(),
     Darshan(),
     BPFTrace(),
+    PROBE(),
 ]
 
 PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {

@@ -1256,34 +1256,34 @@ WORKLOADS: list[Workload] = [
         ),
         name="0",
     ),
-    KaggleNotebook(
-        "ldfreeman3/a-data-science-framework-to-achieve-99-accuracy",
-        "competitions/titanic",
-        replace=(
-            (
-                "from sklearn.preprocessing import Imputer , Normalizer",
-                (
-                    "from sklearn.impute import SimpleImputer as Imputer; "
-                    "from sklearn.preprocessing import Normalizer"
-                ),
-            ),
-            (
-                "from pandas.tools.plotting import scatter_matrix",
-                "from pandas.plotting import scatter_matrix",
-            ),
-            ("sns.factorplot(", "sns.catplot("),
-            (".corr()", ".corr(numeric_only=True)"),
-            (
-                "data2.set_value(index, 'Random_Predict', 0)",
-                "data2.loc[index, 'Random_Predict'] = 0",
-            ),
-            (
-                "data2.set_value(index, 'Random_Predict', 1)",
-                "data2.loc[index, 'Random_Predict'] = 1",
-            ),
-        ),
-        name="1",
-    ),
+    # KaggleNotebook(
+    #     "ldfreeman3/a-data-science-framework-to-achieve-99-accuracy",
+    #     "competitions/titanic",
+    #     replace=(
+    #         (
+    #             "from sklearn.preprocessing import Imputer , Normalizer",
+    #             (
+    #                 "from sklearn.impute import SimpleImputer as Imputer; "
+    #                 "from sklearn.preprocessing import Normalizer"
+    #             ),
+    #         ),
+    #         (
+    #             "from pandas.tools.plotting import scatter_matrix",
+    #             "from pandas.plotting import scatter_matrix",
+    #         ),
+    #         ("sns.factorplot(", "sns.catplot("),
+    #         (".corr()", ".corr(numeric_only=True)"),
+    #         (
+    #             "data2.set_value(index, 'Random_Predict', 0)",
+    #             "data2.loc[index, 'Random_Predict'] = 0",
+    #         ),
+    #         (
+    #             "data2.set_value(index, 'Random_Predict', 1)",
+    #             "data2.loc[index, 'Random_Predict'] = 1",
+    #         ),
+    #     ),
+    #     name="1",
+    # ),
     # KaggleNotebook(
     #     "yassineghouzam/titanic-top-4-with-ensemble-modeling",
     #     "competitions/titanic",
@@ -1437,12 +1437,16 @@ WORKLOAD_GROUPS: Mapping[str, list[Workload]] = {
     "working": [
         workload
         for workload in WORKLOADS
-        if workload.kind != "w/Spack" and workload.name != "Linux"
+        if workload.kind != "w/Spack" and workload.name != "Linux" and workload.kind != "lmbench"
     ],
     "fast": [
         workload
         for workload in WORKLOADS
-        if workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich"} and workload.kind not in {"spack", "http_server", "splash3"}
+        if (
+                workload.name not in {"postmark", "titanic-to", "select-tcp", "spack spack-repo.mpich", "Linux"}
+                and workload.kind not in {"w/Spack", "Linux", "http_server", "splash3"}
+                and workload.superkind not in {"Un/archive", "BLAST"}
+        )
     ],
     "superfast": [
         workload

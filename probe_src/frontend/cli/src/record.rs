@@ -24,11 +24,9 @@ pub fn record_no_transcribe(
 ) -> Result<()> {
     let output = match output {
         Some(x) => fs::canonicalize(x).wrap_err("Failed to canonicalize record directory path")?,
-        None => {
-            let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
-            output.push("probe_record");
-            output
-        }
+        None => std::env::current_dir()
+            .wrap_err("Failed to get CWD")?
+            .join("probe_record"),
     };
 
     if overwrite {

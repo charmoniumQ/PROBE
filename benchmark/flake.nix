@@ -3,10 +3,13 @@
   # Use newer Nix to apply this bugfix
   # https://github.com/NixOS/nix/pull/10467
   inputs.new-nixos.url = "github:NixOS/nixpkgs";
+
+  inputs.probe.url = "../";
   outputs = {
     self,
     nixpkgs,
     flake-utils,
+    probe,
     ...
   } @ inputs:
     flake-utils.lib.eachDefaultSystem (
@@ -113,6 +116,7 @@
                 pypkgs.scikit-learn
                 pypkgs.nbconvert
                 jupyter-contrib-nbextensions
+                pypkgs.xgboost
               ]))
             ];
           };
@@ -220,7 +224,6 @@
               rev = "master";
               hash = "sha256-HFgqYEHanlwA0FA/7kOSsmcPzcb8BLJ3lG74DV5RtBA=";
             };
-            a = "hi";
             patches = [./splash-3.diff];
             nativeBuildInputs = [pkgs.m4 pkgs.binutils];
             sourceRoot = "source/codes";
@@ -786,6 +789,7 @@
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
           };
+          probe-pkg = probe.packages.${system}.probe-bundled;
           lftp = pkgs.lftp;
           wget = pkgs.wget;
           libseccomp = pkgs.libseccomp.lib;
