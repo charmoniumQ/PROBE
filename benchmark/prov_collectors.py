@@ -12,6 +12,7 @@ from pathlib import Path
 from util import run_all, CmdArg, check_returncode, flatten1, to_str, SubprocessError, terminate_or_kill
 from typing import Callable, cast, Any
 from compound_pattern import CompoundPattern
+from probe_py.generated.parser import parse_probe_log
 
 
 # TODO: change ProvOperation.targets from str to Path
@@ -40,8 +41,25 @@ class ProvCollector:
     def __str__(self) -> str:
         return self.name
 
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
-        return ()
+    def collect(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
+        parsed_ops = parse_probe_log(log)
+        
+        operations = []
+        
+        for pid, process in parsed_ops.processes.items():
+            for exid, exec_epoch in process.exec_epochs.items():
+                for tid, thread in exec_epoch.threads.items():
+                    for op_no, op in enumerate(thread.ops):
+                        operation = ProvOperation(
+                            type=type(op).__name__,
+                            target0=op.target0,
+                            target1=getattr(op, 'target1', None), 
+                            args=[]  
+                        )
+                        operations.append(operation)
+    
+        return tuple(operations)
+
 
     @property
     def name(self) -> str:
