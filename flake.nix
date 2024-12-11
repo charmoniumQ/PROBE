@@ -205,6 +205,11 @@
                   pypkgs.mypy
                   pypkgs.ipython
 
+                  # benchmark codes
+                  pypkgs.yarl
+                  pypkgs.requests
+                  pypkgs.githubkit
+
                   # libprobe build time requirement
                   pypkgs.pycparser
                 ]))
