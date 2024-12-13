@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import pathlib
 import os
 import collections
+import json
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(IntEnum):
@@ -533,3 +534,29 @@ def color_hb_graph(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
+
+def provlog_to_process_tree(prov_log: parser.ProvLog) -> str:
+    process_tree = defaultdict(list)
+    
+    for pid, process in prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                for op_index, op in enumerate(thread.ops):
+                    op_data = op.data
+
+                    if isinstance(op_data, CloneOp) and op_data.ferrno == 0:
+                        child_pid = op_data.task_id
+                        process_tree[pid].append(child_pid)
+
+    def build_tree(pid: int) -> Dict[str, Any]:
+        return {
+            "pid": pid,
+            "children": [build_tree(child) for child in process_tree[pid]]
+        }
+    
+    root_pid = min(prov_log.processes.keys())
+    process_tree_output = build_tree(root_pid)
+
+    return json.dumps(process_tree_output, indent = 4)
+
+
