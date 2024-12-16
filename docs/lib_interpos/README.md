@@ -20,7 +20,7 @@ author:
     affiliation:
       institution: University of Illinois Urbana-Champaign
       department:
-        - Dept. of Computer Science
+        - Siebel School of Computing and Data Science
       streetaddress: 201 North Goodwin Avenue MC 258
       city: Urbana
       state: IL
@@ -44,7 +44,7 @@ author:
     affiliation:
       institution: University of Illinois Urbana-Champaign
       department:
-        - Dept. of Computer Science
+        - Siebel School of Computing and Data Science
       streetaddress: 201 North Goodwin Avenue MC 258
       city: Urbana
       state: IL
@@ -104,7 +104,7 @@ author:
     affiliation:
       institution: University of Illinois Urbana-Champaign
       department:
-        - NCSA & CS & ECE & iSchool
+        - NCSA & Siebel School of Computing and Data & School of Information Sciences
       streetaddress:  1205 W Clark St
       city: Urbana
       state: IL
@@ -116,7 +116,7 @@ author:
     affiliation:
       institution: University of Illinois Urbana-Champaign
       department:
-        - Dept. of Computer Science
+        - Siebel School of Computing and Data 
       streetaddress: 201 North Goodwin Avenue MC 258
       city: Urbana
       state: IL
