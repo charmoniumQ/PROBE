@@ -1,5 +1,5 @@
 ---
-# pandoc --template=../acm-template.tex --filter=pandoc-crossref -i README.md -o README.tex
+# pandoc --template=../acm-template.tex --filter=pandoc-crossref  --citeproc --biblatex -i README.md -o README.tex
 # latexmk -interaction=nonstopmode -shell-escape -pdf -shell-escape -emulate-aux-dir -Werror README
 # pdflatex -interaction=nonstopmode -shell-escape README
 # biber README
@@ -20,7 +20,7 @@ author:
     affiliation:
       institution: University of Illinois Urbana-Champaign
       department:
-        - Department of Computer Science
+        - Dept. of Computer Science
       streetaddress: 201 North Goodwin Avenue MC 258
       city: Urbana
       state: IL
@@ -38,13 +38,25 @@ author:
       state: Gujarat
       country: India
       postcode: 382424
+  - name: Jenna Fligor
+    #orcid: 0000-0001-5411-356X
+    email: jenna@fligor.net
+    affiliation:
+      institution: University of Illinois Urbana-Champaign
+      department:
+        - Dept. of Computer Science
+      streetaddress: 201 North Goodwin Avenue MC 258
+      city: Urbana
+      state: IL
+      country: USA
+      postcode: 61801-2302
   - name: Kyrillos Ishak
     #orcid: XXXX-XXXX-XXXX-XXXX
     #email: me@example.com
     affiliation:
       institution:  Alexandria University
       #department:
-      #  - Department
+      #  - Dept.
       #streetaddress: 100 Street
       city: Alexandria
       state: State
@@ -56,19 +68,19 @@ author:
     affiliation:
       institution: National University of Computer and Emerging Sciences 
       #department:
-      #  - Department of Computer Science
+      #  - Dept. of Computer Science
       streetaddress:  100 Street
       city: Lahore
       state: Punjab
       country: Pakistan
       #postcode: 61801-2302
   - name: Asif Zubayer Palak
-    #orcid: XXXX-XXXX-XXXX-XXXX
-    #email: me@example.com
+    orcid: 0009-0007-9519-3317
+    email: asif.zubayer.palak@g.bracu.ac.bd
     affiliation:
       institution: BRAC University
       #department:
-      #  - Department of Computer Science
+      #  - Dept. of Computer Science
       #streetaddress:  100 Street
       city: Merul Badda
       state: Dhaka
@@ -79,7 +91,7 @@ author:
     email: rmilewi@sandia.gov
     affiliation:
       department:
-        - Software Engineering and Research Department
+        - Software Eng. and Research Dept.
       institution: Sandia National Laboratories
       city: Albuquerque
       state: NM
@@ -104,7 +116,7 @@ author:
     affiliation:
       institution: University of Illinois Urbana-Champaign
       department:
-        - Department of Computer Science
+        - Dept. of Computer Science
       streetaddress: 201 North Goodwin Avenue MC 258
       city: Urbana
       state: IL
@@ -199,7 +211,7 @@ There are several design features of SLRP tracers:
    Users of shared systems (e.g., HPC) would likely not have root access.
    Non-privilege may be relaxed to **user-level**:
    SLRP should be able to implemented at a user-level as opposed to kernel-level.
-   Non-privilege implies user-level, but not the converse.
+   Non-privilege implies user-level, but user-level does not imply non-privilege.
 
 3. **Completeness**:
    The SLRP should trace as many sources of information from the host as possible, although there are some that may be too impractical to trace.
@@ -251,7 +263,7 @@ There have been several methods of collecting SLRP proposed in prior work:
 - **Library interposition**: replace a standard library with an instrumented library that emits provenance data as appropriate.
   This could use the `LD_PRELOAD` of Linux and `DYLD_INSERT_LIBRARIES` on MacOS.
 
-If non-privilege, transparency, and performance overhead less than 10-times are hard-requirements, the only possible methods are user-level debug tracing and library interposition.
+If non-privilege, transparency, no special hardware, and performance overhead less than 10-times are hard-requirements, the only possible methods are user-level debug tracing and library interposition.
 
 In user-level debug tracing, the tracer runs in a separate process than the tracee.
 Every time the tracee does a system call, control switches from the tracee to the kernel to the tracer and back and back [@fig:ptrace].
