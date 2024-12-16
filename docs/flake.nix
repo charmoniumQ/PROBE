@@ -76,6 +76,7 @@
           mweights
           nag
           natbib
+          biber
           ncctools # \usepackage{manyfoot,nccfoots}
           newtx
           oberdiek
@@ -109,6 +110,16 @@
           ;
       };
     in {
+      devShells = {
+        compile = pkgs.mkShell {
+          packages = [
+            (pkgs.texlive.combine texlivePackages)
+            pkgs.pandoc
+            pkgs.librsvg
+            pkgs.haskellPackages.pandoc-crossref
+          ];
+        };
+      };
       packages = {
         test = pkgs.texlive.combine texlivePackages;
         default = self.packages."${system}".acm-rep;
