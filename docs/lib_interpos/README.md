@@ -27,8 +27,8 @@ author:
       country: USA
       postcode: 61801-2302
   - name: Shofiya Bootwala
-    #email: me@example.com
-    #orcid:
+    email: shofiyabootwala@gmail.com
+    orcid: 0009-0004-1871-7357
     affiliation:
       institution: Gujarat Technological University
       # department:
@@ -51,8 +51,8 @@ author:
       country: USA
       postcode: 61801-2302
   - name: Kyrillos Ishak
-    #orcid: XXXX-XXXX-XXXX-XXXX
-    #email: me@example.com
+    orcid: 0009-0003-0627-1901
+    email: kyrillos.said@stud.tu-darmstadt.de
     affiliation:
       institution:  Alexandria University
       #department:
