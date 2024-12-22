@@ -25,7 +25,9 @@ import datetime
 import random
 import socket
 
+
 console = rich.console.Console(stderr=True)
+
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -280,7 +282,6 @@ def oci_image(
         )
 
 
-
 @app.command(
     context_settings=dict(
         ignore_unknown_options=True,
@@ -293,7 +294,7 @@ def ssh(
     """
     Wrap SSH and record provenance of the remote command.
     """
-    
+
     flags, destination, remote_host = parse_ssh_args(ssh_args)
 
     ssh_cmd = ["ssh"] + flags
@@ -392,7 +393,6 @@ def makefile(
     script = g.generate_makefile(dataflow_graph)
     output.write_text(script)
 
-
 @export_app.command()
 def nextflow(
         output: Annotated[
@@ -414,17 +414,7 @@ def nextflow(
     script = g.generate_workflow(dataflow_graph)
     output.write_text(script)
 
-
-
-# scp source destination
-# find the <device>-<inode>.prov on source
-# upload to destination
-# find <device>-<inode>.prov inode on source
-# augment to InodeHistory
-# transfer the file to destination
-
-
-# scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
+# Example: scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
 @app.command(
 context_settings=dict(
         ignore_unknown_options=True,
