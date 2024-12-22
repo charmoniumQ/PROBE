@@ -15,7 +15,6 @@ dynamic = ["version", "description"]
 dependencies = [
     "probe_py.generated",
     "networkx",
-    "pygraphviz",
     "pydot",
     "rich",
     "typer",

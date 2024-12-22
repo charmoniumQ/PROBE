@@ -68,10 +68,21 @@ def validate_provlog(
     cloned_processes = set[tuple[TaskType, int]]()
     opened_fds = set[int]()
     closed_fds = set[int]()
+    n_roots = 0
     for pid, process in provlog.processes.items():
         epochs = set[int]()
+        first_op = process.exec_epochs[0].threads[pid].ops[0]
+        if not isinstance(first_op.data, InitProcessOp):
+            ret.append("First op in exec_epoch 0 should be InitProcessOp")
+        else:
+            if first_op.data.is_root:
+                n_roots += 1
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             epochs.add(exec_epoch_no)
+            first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
+            first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
+            if not isinstance(first_ee_op.data, InitExecEpochOp):
+                ret.append(f"{first_ee_op_idx} in exec_epoch should be InitExecEpochOp")
             pthread_ids = {
                 op.pthread_id
                 for tid, thread in exec_epoch.threads.items()
@@ -83,10 +94,12 @@ def validate_provlog(
                 for op in thread.ops
             }
             for tid, thread in exec_epoch.threads.items():
+                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
+                first_thread_op = thread.ops[first_thread_op_idx]
+                if not isinstance(first_thread_op.data, InitThreadOp):
+                    ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
                 for op in thread.ops:
-                    if False:
-                        pass
-                    elif isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+                    if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
                         waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
                     elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
@@ -96,6 +109,13 @@ def validate_provlog(
                             cloned_processes.add((TaskType.TASK_TID, op.data.task_id))
                     elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
                         opened_fds.add(op.data.fd)
+                    elif isinstance(op.data, ExecOp):
+                        if len(op.data.argv) != op.data.argc:
+                            ret.append("argv vs argc mismatch")
+                        if len(op.data.env) != op.data.envc:
+                            ret.append("env vs envc mismatch")
+                        if not op.data.argv:
+                            ret.append("No arguments stored in exec syscall")
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
                         # Range in Python is up-to-not-including high_fd, so we add one to it.
                         closed_fds.update(range(op.data.low_fd, op.data.high_fd + 1))
@@ -117,12 +137,14 @@ def validate_provlog(
         if expected_epochs - epochs:
             ret.append(f"Missing epochs for pid={pid}: {sorted(epochs - expected_epochs)}")
     reserved_fds = {0, 1, 2}
-    if False:
+    if closed_fds - opened_fds - reserved_fds:
+        # TODO: Problem due to some programs opening /dev/pts/0 in a way that libprobe doesn't notice, but they close it in a way we do notice.
         pass
-    elif closed_fds - opened_fds - reserved_fds:
-        ret.append(f"Closed more fds than we opened: {closed_fds - reserved_fds=} {opened_fds=}")
+        #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
     elif waited_processes - cloned_processes:
         ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
+    if n_roots != 1:
+        ret.append(f"Got {n_roots} prov roots")
     return ret
 
 
@@ -307,8 +329,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
                 
                 processNode1 = ProcessNode(pid = pid, cmd=tuple(cmd_map[pid]))
                 processNode2 = ProcessNode(pid = op.task_id, cmd=tuple(cmd_map[op.task_id]))
-                dataflow_graph.add_node(processNode1, label = processNode1.cmd)
-                dataflow_graph.add_node(processNode2, label = processNode2.cmd)
+                dataflow_graph.add_node(processNode1, label = " ".join(arg for arg in processNode1.cmd))
+                dataflow_graph.add_node(processNode2, label = " ".join(arg for arg in processNode2.cmd))
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
@@ -319,7 +341,6 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
         if isinstance(next_op, WaitOp):
             if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
                 return
-    return
 
 def list_edges_from_start_node(graph: nx.DiGraph, start_node: Node) -> list[EdgeType]:
     all_edges = list(graph.edges())
@@ -333,25 +354,16 @@ def provlog_to_dataflow_graph(process_tree_prov_log: parser.ProvLog) -> nx.DiGra
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     traversed: set[int] = set()
-    cmd:list[str] = []
     cmd_map = collections.defaultdict[int, list[str]](list)
     for edge in list(nx.edges(process_graph))[::-1]:
         pid, exec_epoch_no, tid, op_index = edge[0]
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
-        if isinstance(op, OpenOp):
-            file = op.path.path.decode("utf-8")
-            if file not in cmd and file!="/dev/tty": 
-                cmd.insert(0, file)
-        elif isinstance(op, InitExecEpochOp):
-            cmd.insert(0, op.program_name.decode("utf-8"))
+        if isinstance(op, ExecOp):
             if pid == tid and exec_epoch_no == 0:
-                cmd_map[tid] = cmd
-                cmd = []
+                cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
     shared_files:set[InodeOnDevice] = set()
     traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
-    pydot_graph = nx.drawing.nx_pydot.to_pydot(dataflow_graph)
-    dot_string = pydot_graph.to_string()
-    return dot_string
+    return dataflow_graph
 
 def prov_log_get_node(prov_log: parser.ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
     return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
@@ -466,7 +478,7 @@ def validate_hb_execs(provlog: parser.ProvLog, process_graph: nx.DiGraph) -> lis
                         ret.append(f"ExecOp {node0} is followed by {node1}, whose exec epoch id should be {eid0 + 1}")
                     break
             else:
-                ret.append(f"ExecOp {node0} is not followed by an InitExecEpochOp.")
+                ret.append(f"ExecOp {node0} is not followed by an InitExecEpochOp, but by {op1}.")
     return ret
 
 
@@ -491,12 +503,11 @@ def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, ty
     graph.remove_node(node)
     return ret
 
-def digraph_to_pydot_string(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> str:
-
+def color_hb_graph(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
     label_color_map = {
-    EdgeLabels.EXEC: 'yellow',
-    EdgeLabels.FORK_JOIN: 'red',
-    EdgeLabels.PROGRAM_ORDER: 'green',
+        EdgeLabels.EXEC: 'yellow',
+        EdgeLabels.FORK_JOIN: 'red',
+        EdgeLabels.PROGRAM_ORDER: 'green',
     }
 
     for node0, node1, attrs in process_graph.edges(data=True):
@@ -522,19 +533,3 @@ def digraph_to_pydot_string(prov_log: parser.ProvLog, process_graph: nx.DiGraph)
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
-
-    pydot_graph = nx.drawing.nx_pydot.to_pydot(process_graph)
-    dot_string = typing.cast(str, pydot_graph.to_string())
-    return dot_string
-
-
-
-def construct_process_graph(process_tree_prov_log: parser.ProvLog) -> str:
-    """
-    Construct a happens-before graph from process_tree_prov_log
-
-    The graph shows the order that prov ops happen.
-    """
-
-    process_graph = provlog_to_digraph(process_tree_prov_log)
-    return digraph_to_pydot_string(process_tree_prov_log, process_graph)

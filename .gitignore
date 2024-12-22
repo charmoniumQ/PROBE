@@ -1,8 +1,15 @@
+**/result
 
 # cache directories
 **/.mypy_cache
 **/.direnv
 **/.cache
+**/.nextflow.**
+**/.vscode
+**/.nextflow
+**/work
+**/.pytest_cache
+**/.idea
 
 # build directories
 **/target
@@ -15,3 +22,4 @@
 **/desktop.ini
 
 probe_log
+dataflow_graph.pkl

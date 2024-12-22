@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css" />
+    <style>
+      /*<![CDATA[*/
+      li {
+          padding-bottom: 0.4em;
+      }
+      .small-list li {
+          padding-bottom: 0.0em;
+      }
+      .reveal h1 {
+          text-transform:none !important;
+      }
+      .reveal h2 {
+          text-transform:none !important;
+      }
+      .reveal h3 {
+          text-transform:none !important;
+      }
+      .reveal h4 {
+          text-transform:none !important;
+      }
+      .reveal table {
+          border: separate;
+      }
+      .yes {
+          background-color: rgb(0, 70, 0);
+      }
+      .mid {
+          background-color: rgb(70, 70, 0);
+      }
+      .no {
+          background-color: rgb(70, 0, 0);
+      }
+      .green-text {
+          color: rgb(170, 255, 170);
+      }
+      .yellow-text {
+          color: rgb(230, 230, 150);
+      }
+      .red-text {
+          color: rgb(255, 170, 170);
+      }
+      .reveal .slide-number {
+          font-size: 50%;
+          right: 10%;
+          bottom: 5%;
+      }
+      tr.important {
+          border-top: 1px solid;
+          font-weight: bold;
+      }
+      table td, table th {
+          border-bottom: none !important;
+      }
+      table thead {
+          border-bottom: 1px solid;
+          font-weight: bold;
+      }
+      figure.contributor {
+          display: flex;
+          flex-flow: row;
+          margin-bottom: 3vw;
+          margin-top: 3vw;
+      }
+      figure.contributor img {
+          height: 10vw;
+          width: auto;
+          margin: 0;
+      }
+      figure.contributor figcaption {
+          margin-left: 5vw;
+      }
+      /*]]*/
+    </style>
+    <title>System-level provenance tracers</title>
+  </head>
+  <body>
+    <!--
+    -- Table with highlights --
+    -- -->
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h1 style="font-weight: normal; font-size: 10vh;">PROBE4RSE: Provenance Replay/Observation Engine for Research Software Engineers</h1>
+          <p>
+            by
+            <a href="https://samgrayson.me">Samuel&nbsp;Grayson</a><img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            /><img
+              alt="Sandia 'Thunderbird' logo"
+              src="./sandia.svg"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            />,
+            <a href="https://rmmilewi.github.io/">Reed&nbsp;Milewicz</a><img
+              alt="Sandia 'Thunderbird' logo"
+              src="./sandia.svg"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            />,
+            <a href="https://danielskatz.org/">Daniel&nbsp;S.&nbsp;Katz</a><img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            />,
+            and <a href="https://mir.cs.illinois.edu/marinov/">Darko&nbsp;Marinov</a><img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 0.8em; align-content: baseline; margin-top: 0; margin-bottom: 0; margin-left: 0.4ex; margin-right: 0.4ex;"
+            />
+          </p>
+
+          <div style="display: grid; grid-template-columns: 7vw 40vw 7vw 40vw; grid-gap: 1vw; height:5vw; font-size: 2.5vw;">
+            <img
+              alt="University of Illinois 'Block I' logo"
+              src="illinois.png"
+              style="height: 100%: width: auto; margin-top: auto; margin-bottom: auto; vertical-align: middle;"
+            />
+          <span>
+            University of Illinois Urbana-Champaign
+          </span>
+            <img
+            alt="Sandia National Laboratories 'Thunderbird' logo"
+            src="sandia.svg"
+            style="height: 100%: width: auto; margin-top: auto; margin-bottom: auto; vertical-align: middle;"
+            />
+          <span>
+            Sandia National Labs
+          </span>
+        </section>
+        <section>
+          <h2>Takeaways</h2>
+          <ol>
+            <li>Provenance is useful (record/replay and more!)</li>
+            <li>Consider using <b><code>PROBE</code></b> to collect provenance.</li>
+            <li>Looking to collaborate on complex use-cases</li>
+          </ol>
+          <figure>
+            <img alt="QR code to https://github.com/charmoniumQ/PROBE" src="data:image/gif;base64,R0lGODlhhACEAJEAAAAAAP///wAAAAAAACH5BAEAAAIALAAAAACEAIQAAAL/jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8chQNf2jedIfkM8T/kJf8Gh0bYb+o60ItPofAqT04c0KgVOssoD1PrEcnvbGgbpNS+0jutabUFL5BU6nUpuh9/Nyx3cFwcX8GfA1uCmUBixyNAICIDnqAP5pTgYlZlWZTh4+NgZmHAouUlkqhl6qopnh8kXCbvoykn4qidqaZtLyQo5iQMcq/p5i+jZ5UuMLCosPMu8ujvMGF3cXIZ9GQxbusytXM1bC3qsPdqLPk6tW+49fU2dap6nzm6d7o5qGn9m3GqM1j1y/7rxy4dv3TOE4OwBbKgvXLuEA+UdhJju3cRz/84u1hMocCHGhhqTTZu3sWJIWQzrlSTI0aCgc/0qFdxmcc5Nh34CtlxC8lfPmDj90fxpkyjPmTnpGW1aE5dLoUzFjIn2smLWrFcjwuuqcJ9ErGJPerxqtevWsivHrgOr9KFatmTdaqULdycLaCObypWhgu/HnaQAkxDclp5Xw09F3pW6eARiuHJBZpS59GtQqY7RnqVYTnBlvWVHczGt8nJRzLqAQs0LOrZS0Z/jJp3qIbRJy29J66wFQjfM1L1t/5YWnPBuin8/tHaufHjzb35P8H7dNzLOxDCuO56eIWoM7yyLVz/O/QX57cw3iG/skStlvI81Dz5q3Cx1+WDX2v99XxpV9vE3l10EpheOa+Bd55mB9AGYYDb3EXeeU5gtqJqFTCVW2HEdsWfePGkRCN9qIFIoooQcZqjghfG96KF7ddmTUjwd0jifBgjaZ2NLN6KWSHgzAikbhcLBxsGOQdbIYm1ZlIhjdtEZWeSKYVVV3oRHokbklfp9mSJ162nIY5Uz7tjiiWN+WKZ54qHpooMmfjlZiLf5Jw529eFZJ4p30hcmnT552Sd43wEqIZu0yRmln5Cd6RuZsE1543NzHmYmE65VahKbmLo5xqYZWprZp1SedlufW0KHH26KFSlqfmsmmuWITsZaIYlD6elVj5s1ilKTnNWqIqx/xrjfrov/tqnloE8W26qtcy45aqjQ6iltZtT+2mCey+Kq6B7JqtnpsaWam6Sz76R57rhC/golnuyuC+O7rsaLKLLtDigjvLuGK6u6xOroo7j8iokUuf0pm2mzoPbVWY51FKxpvdvyOmmuAzPr66kTRrwwY4JyGym9J4o8rLsm5wkuygC7qh2YG7us66W0Ppofrt3+mGXHNXeQsaPeLgdxvelOamiqFNfH84YSN92ozw+WLGCwRZ889WxTBsouhAePfG+ANqc8sZ0Rujvr2Pt6evPXhWZd4ar6pnQg0RiHvDZrdtctXc/Wqv3ymw0rmTHbZNMNN+IKPwu43n0jbDbY3/7btuLMlGIY+cpcOy4Ng+39JzDBAT/MtN1Wwkx149PufS2cWKNd7uGso5fw0JGTGnjtOg9pbse9Gnv2q1fbLjTucbLcuu7XYq5x8PMqPXy2XhuOPO2Pl+3wnlW3vXv0y1scadBcci41o8khfSv5S8vLKpLprz7c6abmNT78ndceM836789///7/D8AACnCABCygAQ+IwARuoAAAOw==" style="height: 15vw"/>
+            <figcaption><a href="https://github.com/charmoniumQ/PROBE">https://github.com/charmoniumQ/PROBE</a></figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>Has this every happend to you?</h2>
+          <img
+            alt="Read based prior work; Find FAIR artifact; Run their code; FileNotFound"
+            src="https://i.imgflip.com/971i6i.jpg" />
+        </section>
+        <section>
+          <h2>What is provenance?</h2>
+          <img
+            style="height: 60%; width: auto;"
+            alt="Lab notebook"
+            src="https://upload.wikimedia.org/wikipedia/commons/0/0c/AGBell_Notebook.jpg" />
+        </section>
+        <section>
+          <h2>What is computational provenance?</h2>
+          <ol>
+            <li>Process by which a file was generated</li>
+            <li>The inputs to that process</li>
+            <li>The provenance of those inputs (recursively)</li>
+          </ol>
+          <p>Graph on processes and files</p>
+        </section>
+        <section>
+          <h2>Comp. Provenance Example</h2>
+            <div>
+              <code>curl -o data.csv http://data.com
+python script.py</code>
+            </div>
+            <img src="prov-example.svg" class="fragment" />
+        </section>
+        <section data-visibility="hidden">
+          <h2>What is it good for?</h2>
+          <ul>
+            <li class="fragment">Understanding dataflow</li>
+            <li class="fragment">Create (correct) Makefile automatically</li>
+            <li class="fragment">What runtime libraries does this app use</li>
+            <li class="fragment">Record on host / replay in Docker</li>
+            <!-- <li class="fragment">How do the intermediates of these two processes differ?</li> -->
+          </ul>
+          <p class="fragment" style="font-size: 150%; color: red; text-align: center; font-weight: bold;">All things of interest for RSE</p>
+        </section>
+        <section data-visibility="hidden">
+          <h2>Why now?</h2>
+          <ul>
+            <li class="fragment">Initial work dates to 1998 (<a href="https://www.usenix.org/legacy/publications/library/proceedings/usenix98/full_papers/vahdat/vahdat.pdf">Vahdat and Anderson</a>) at least</li>
+            <li class="fragment">Huge improvements in performance</li>
+            <li class="fragment">Containers, Singularity, eBPF, <b>Reproducibility</b></li>
+          </ul>
+        </section>
+        <section>
+          <h2>Prior works in provenance collection</h2>
+          <ul>
+            <li>
+              Workflow-level provenance
+            </li>
+            <li>Language-level provenance</li>
+            <li>Provenance standards (PASSv2, OpenLineage)</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Prior works in record/replay</h2>
+          <ul>
+            <li>
+              CDE (<a href="https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf">Guo and Engler 2011</a>),
+              Sciunit (<a href="https://doi.org/10.1109/eScience.2017.51">Ton That et al. 2017</a>),
+              RR (<a href="http://arxiv.org/abs/1705.05937">O'Callahan et al. 2017</a>),
+              CARE (<a href="https://dl.acm.org/doi/10.1145/2618137.2618138">Yves et al. 2014</a>),
+              ReproZip (<a href="https://dl.acm.org/doi/10.1145/2882903.2899401">Chirigati et al. 2016</a>)
+            </li>
+            <li>Speed</li>
+            <li>Robustness of reproducibility</li>
+            <li>Openness to downstream analysis</li>
+            <li>Reuse environment for new exe</li>
+          </ul>
+        </section>
+        <section>
+          <h2>PROBE</h2>
+          <ul>
+            <li><code>LD_PRELOAD</code> <span style="color: red">incomplete!</span> but good enough in practice</li>
+            <li>Less than 2x slowdown in most cases (improving)</li>
+            <li>No root!</li>
+            <li><code>$ probe record &lt;your-command-here&gt;</code></li>
+            <li>2 implemented and 2 planned features</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Understand dataflow in your pile of scripts</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export dataflow-graph</span></code></pre>
+          <figure class="contributor">
+            <img
+              alt="Shofiya Bootwala"
+              src="./photo-1.webp"
+              />
+            <figcaption>Contributed by Shofiya Bootwala (new grad applying for PhD)</figcaption>
+          </figure>
+        </section>
+        <section>
+          <img alt="example dataflow graph" src="dataflow-graph.png" />
+        </section>
+        <section>
+          <h2>Create container automatically</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export docker-image experiment:1.0.1</span>
+<span class="fragment">$ docker run experiment:1.0.1</span></code></pre>
+          <figure class="contributor">
+            <img
+              alt="Asif Zubayer Palak"
+              src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=lwLSWCgAAAAJ&citpid=1"
+              />
+            <figcaption>Contributed by Asif Zubayer Palak (new grad applying for PhD)</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>Create Makefile automatically (planned feature)</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh 42</span>
+<span class="fragment">$ probe export makefile</span>
+<span class="fragment">$ cat Makefile
+input.csv: generate_data.py /bin/python
+    ./generate_data.py --foo=42
+plot.png: input.csv plot.py /bin/python
+    ./plot.py
+</span></code></pre>
+          <figure class="contributor">
+            <img
+              alt="Kyrillos Ishak"
+              src="https://media.licdn.com/dms/image/v2/D4D03AQGhnGuAH8b0uQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1728493902354?e=1733961600&v=beta&t=Rpw7PAkjSrzpKiEHjn8s374wNVAejQ_2CK9S5cCkyFI"
+              />
+            <figcaption>Contributed by Kyrillos Ishak (new grad applying for PhD)</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>What libraries does cmd use? (Planned feature)</h2>
+          <pre style="font-size: 5vh;"><code><span class="fragment">$ probe record ./plot.sh</span>
+<span class="fragment">$ probe export libs
+  apt-get:
+    - name: python3
+      version: 3.12.4
+  pip:
+    - name: numpy
+      version: 2.2.4
+</span></code></pre>
+          <p class="fragment">Heuristic-based, imperfect, <b>useful</b></p>
+        </section>
+        <section>
+          <h2>Performance and portability</h2>
+          <ul>
+            <!-- <li>No standard benchmarks for system-level prov before <a href="https://dl.acm.org/doi/abs/10.1145/3641525.3663627">Grayson et al. 2023 ACM REP</a></li> -->
+            <li class="fragment">Rust record (statically-linked) + Python extras</li>
+            <!-- <li class="fragment">Less than 2x overhead on provenance benchmark suite (<a href="https://dl.acm.org/doi/abs/10.1145/3589806.3600037">Grayson et al. 2023 ACM REP</a>)</li> -->
+            <li class="fragment">Preliminary results show <code>LD_PRELOAD</code> (1.1x) faster than <code>ptrace</code> (2x)</li>
+          </ul>
+          <figure class="contributor">
+            <img
+              src="./photo-2.jpg"
+              alt="Jenna Fligor"
+              />
+            <figcaption>Python → Rust by Jenna Fligor (ugrad applying for internships)</figcaption>
+          </figure>
+          <figure class="contributor">
+            <img
+              alt="Saleha Muzammil"
+              src="https://avatars.githubusercontent.com/u/84681153?v=4"
+              />
+            <figcaption>Performance analysis by Saleha Muzammil (newgrad applying for PhD)</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>Future prov applications</h2>
+          <ul>
+            <li>Remote provenance</li>
+            <li>Compare two runs (diff of intermediate results)</li>
+            <li>Using provenance to generate Spack package</li>
+            <li>Interoperable prov representation</li>
+          </ul>
+        </section>
+        <section data-visibility="hidden">
+          <h2>Difficulty of translational CS</h2>
+          <div style="background-color: white;">
+            <img src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fdavidabramson.org%2Fwp-content%2Fuploads%2F2022%2F10%2Fimage.png&f=1&nofb=1&ipt=f5a3ce0f2b009ee5c1b83cc6ab16eddd19608d751d28b75464a6d9d3d53e3dcf&ipo=images" />
+          </div>
+        </section>
+        <section>
+          <h2>Thank you</h2>
+          <p>Please give us feedback and issues</p>
+          <figure class="contributor">
+                <img src="data:image/gif;base64,R0lGODlhhACEAJEAAAAAAP///wAAAAAAACH5BAEAAAIALAAAAACEAIQAAAL/jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8chQNf2jedIfkM8T/kJf8Gh0bYb+o60ItPofAqT04c0KgVOssoD1PrEcnvbGgbpNS+0jutabUFL5BU6nUpuh9/Nyx3cFwcX8GfA1uCmUBixyNAICIDnqAP5pTgYlZlWZTh4+NgZmHAouUlkqhl6qopnh8kXCbvoykn4qidqaZtLyQo5iQMcq/p5i+jZ5UuMLCosPMu8ujvMGF3cXIZ9GQxbusytXM1bC3qsPdqLPk6tW+49fU2dap6nzm6d7o5qGn9m3GqM1j1y/7rxy4dv3TOE4OwBbKgvXLuEA+UdhJju3cRz/84u1hMocCHGhhqTTZu3sWJIWQzrlSTI0aCgc/0qFdxmcc5Nh34CtlxC8lfPmDj90fxpkyjPmTnpGW1aE5dLoUzFjIn2smLWrFcjwuuqcJ9ErGJPerxqtevWsivHrgOr9KFatmTdaqULdycLaCObypWhgu/HnaQAkxDclp5Xw09F3pW6eARiuHJBZpS59GtQqY7RnqVYTnBlvWVHczGt8nJRzLqAQs0LOrZS0Z/jJp3qIbRJy29J66wFQjfM1L1t/5YWnPBuin8/tHaufHjzb35P8H7dNzLOxDCuO56eIWoM7yyLVz/O/QX57cw3iG/skStlvI81Dz5q3Cx1+WDX2v99XxpV9vE3l10EpheOa+Bd55mB9AGYYDb3EXeeU5gtqJqFTCVW2HEdsWfePGkRCN9qIFIoooQcZqjghfG96KF7ddmTUjwd0jifBgjaZ2NLN6KWSHgzAikbhcLBxsGOQdbIYm1ZlIhjdtEZWeSKYVVV3oRHokbklfp9mSJ162nIY5Uz7tjiiWN+WKZ54qHpooMmfjlZiLf5Jw529eFZJ4p30hcmnT552Sd43wEqIZu0yRmln5Cd6RuZsE1543NzHmYmE65VahKbmLo5xqYZWprZp1SedlufW0KHH26KFSlqfmsmmuWITsZaIYlD6elVj5s1ilKTnNWqIqx/xrjfrov/tqnloE8W26qtcy45aqjQ6iltZtT+2mCey+Kq6B7JqtnpsaWam6Sz76R57rhC/golnuyuC+O7rsaLKLLtDigjvLuGK6u6xOroo7j8iokUuf0pm2mzoPbVWY51FKxpvdvyOmmuAzPr66kTRrwwY4JyGym9J4o8rLsm5wkuygC7qh2YG7us66W0Ppofrt3+mGXHNXeQsaPeLgdxvelOamiqFNfH84YSN92ozw+WLGCwRZ889WxTBsouhAePfG+ANqc8sZ0Rujvr2Pt6evPXhWZd4ar6pnQg0RiHvDZrdtctXc/Wqv3ymw0rmTHbZNMNN+IKPwu43n0jbDbY3/7btuLMlGIY+cpcOy4Ng+39JzDBAT/MtN1Wwkx149PufS2cWKNd7uGso5fw0JGTGnjtOg9pbse9Gnv2q1fbLjTucbLcuu7XYq5x8PMqPXy2XhuOPO2Pl+3wnlW3vXv0y1scadBcci41o8khfSv5S8vLKpLprz7c6abmNT78ndceM836789///7/D8AACnCABCygAQ+IwARuoAAAOw=="/>
+                <figcaption>
+                  <a href="https://github.com/charmoniumQ/PROBE">https://github.com/charmoniumQ/PROBE</a>
+                </figcaption>
+              </figure>
+          <figure class="contributor">
+                <img src="data:image/gif;base64,R0lGODlhdAB0AJEAAAAAAP///wAAAAAAACH5BAEAAAIALAAAAAB0AHQAAAL/jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrZuCcTyTNc2MyP2DuiyzwveJsIiDfc7GJOGnHJppECjC2cTCuw9p0Ept1tlBqbZ7LfmjWGsCXIYvdVa2BA6UWwWIuFX9cXuABgh6KawU/aH9yBYp9hHZTj0uObYwFaEOPkm1ybZ6fd4GJfGiTl6Ggn6ebSZxzdWuVeqhwqrmrlKKGaqKXFJ22vLies6XMsrTFr8q4q8XMnMQ7y4C5wcJ5oq3Yrtycgd6l0Npp29+twcCy5sHm2ObhyM/K0Nj0tvOT6bTn7tq99OHyV++woGvEWN4MGCAxkes4bvHkSBiQhK7BexlrJu/wrFIQy28d/HQQBLvtI1slHKdSHZmWQFUuOdlfUqGnwZTVZDUmdg+vuZ82HPVyqHBpVHEanRjOGMXnSo9KbTmUstCoUKtKo6FQuPvnDRNenXFmGtjiXr0SdTtB2X8DwD753NuJ6K9qRLdC5HSCSnNuW7c6+zhEPx+myID2W8rCMVF+Mgt6bkczJjRl0rKzG0zWYpT45cAfQ0y4wXO94LQnFZ00tH59qar/HEvH8L/cwMW+em1bi/uH6st1xa1XArv6bZVy3nbVHtUcW8W6zz5oJzo96wsLfyzoMD1bXpdXpp8Xatfx6eVrs7nNKpAq/dHn5bqdsXF33v8uRy3tU7t/9cHV5/9Im3lmay+XfdebTdFlxsrCH4l24RstSghJ4xOKGChxnXkoVPaWchaNBpSBxy6qGH0XfezQcieLPxJdo6IqqY3DxYJJgcfjo+96KNC3p4FXnGZcejiUOK1R2G+WFVnpGkeZVkiUwSVuByT814YH1vOankXUU+yMWOIoFpW5Nk3phhaPuhWeOabuHYoYAxCpelbXOyNeVlsI04VoB6IsfnV36WZqB9Zzno2nqAmqemVmf6FiSOdxoWZWuRpjmpnGxSmt5VihpKZ2HRQUodpjQCOWaijBZ6n3sNnpYqYa3GOkd8SqJ6Ia66ynokl6zySuuSUKLo6KavvohfsaKtavDpsPopS2oGzSJJLLTWBCYfVoVu2+OpMiLLIZyjMifsquxxt6e32U7r67napvujpvNVOS+1/bRY6oX00ucsufiO92279aJ777gfBgyqvuBma+bBGsYZrJjHaSkuabuu+GjCPg5IIcbYTmxmv7DmWGHFE4ts5Zdepinkk+5uueySJ2YZ4rVUWsqygLiymzCnKS5YKc06H0p00UYfjXTSSi/NdNNOPw111FJPXQAAOw=="/>
+                <figcaption>
+                  <a href="mailto:sam@samgrayson.me">sam@samgrayson.me</a>
+                </figcaption>
+              </figure>
+
+        </section>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+    <script>
+      /*<![CDATA[*/
+      Reveal.initialize({
+          "hash":true,
+          "slideNumber":"c/t",
+          "transition":"none",
+      });
+      /*]]*/
+    </script>
+  </body>
+</html>

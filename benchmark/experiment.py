@@ -137,27 +137,27 @@ def run_experiments(
     # Extracting a minimal set of fields
     # So we don't have all ExperimentStats in memory at once
     for i, (prov_collector, workload, stats) in enumerate(result_list):
-        counter = collections.Counter(
-            op.type for op in stats.operations
-        ) if stats is not None else None
-        record = {
-            "collector": prov_collector.name,
-            "collector_method": prov_collector.method,
-            "collector_submethod": prov_collector.submethod,
-            "workload": workload.name,
-            "workload_kind": workload.kind,
-            "cputime": stats.cputime,
-            "walltime": stats.walltime,
-            "memory": stats.memory,
-            "storage": stats.provenance_size,
-            "n_ops": len(stats.operations),
-            # "n_unique_files": n_unique(itertools.chain(
-            #     (op.target0 for op in stats.operations),
-            #     (op.target1 for op in stats.operations),
-            # )),
-            "op_type_counts": counter,
-        } if stats is not None else None
-        records.append(record)
+        if stats is not None:
+            counter = collections.Counter(
+                op.type for op in stats.operations
+            )
+            records[i] = {
+                "collector": prov_collector.name,
+                "collector_method": prov_collector.method,
+                "collector_submethod": prov_collector.submethod,
+                "workload": workload.name,
+                "workload_kind": workload.kind,
+                "cputime": stats.cputime,
+                "walltime": stats.walltime,
+                "memory": stats.memory,
+                "storage": stats.provenance_size,
+                "n_ops": len(stats.operations),
+                # "n_unique_files": n_unique(itertools.chain(
+                #     (op.target0 for op in stats.operations),
+                #     (op.target1 for op in stats.operations),
+                # )),
+                "op_type_counts": counter,
+            }
     results_df = (
         pandas.DataFrame.from_records(list(filter(bool, records)))
         .assign(**{
