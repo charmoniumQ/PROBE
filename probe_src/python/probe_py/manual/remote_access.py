@@ -267,8 +267,9 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
     if not get_persistent_provenance:
         return inode_versions, inode_metadatas, {}, {}
 
+    files_to_read:list[str] = []
     # TODO: Implement this
-    proc = subprocess.run(
+    subprocess.run(
         [
             "ssh",
             *host.ssh_options,
@@ -281,7 +282,7 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
                 # cat the relevant stuff
                 *[
                     f"cat $processes_by_id/{inode}.json && echo '\0'"
-                    for inode in []
+                    for inode in files_to_read
                 ],
             ]),
         ],

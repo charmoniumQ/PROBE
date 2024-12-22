@@ -52,7 +52,7 @@ class Inode:
     device_minor: int
     inode: int
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, int | str]:
         return {
             'host': self.host,
             'device_major': self.device_major,
@@ -69,7 +69,7 @@ class Inode:
         return f"{number:012x}-{self.device_major:04x}-{self.device_minor:04x}-{self.inode:016x}"
 
     @staticmethod
-    def from_local_path(path: pathlib.Path, stat_info: os.stat_result | None = None) -> Inode:
+    def from_local_path(path: pathlib.Path, stat_info: None | os.stat_result = None) -> Inode:
         if stat_info is None:
             stat_info = os.stat(path)
         device_major = os.major(stat_info.st_dev)
@@ -101,7 +101,7 @@ class InodeVersion:
     #   Our xattr would be "true mtime" that we would maintain and can't be changed by normal tools.
     # - Cry.
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, typing.Any]:
         data = {"mtime": self.mtime, 'inode': self.inode.to_dict(), "size": self.size}
         return data
 
@@ -109,7 +109,7 @@ class InodeVersion:
         return f"{self.inode.str_id()}-{self.mtime:016x}-{self.size:016x}"
 
     @staticmethod
-    def from_local_path(path: pathlib.Path, stat_info: os.stat_result) -> InodeVersion:
+    def from_local_path(path: pathlib.Path, stat_info: os.stat_result | None) -> InodeVersion:
         if stat_info is None:
             stat_info = os.stat(path)
         mtime = int(stat_info.st_mtime * 1_000_000_000)
@@ -125,7 +125,7 @@ class InodeMetadata:
     uid: int
     gid: int
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, typing.Any]:
         return {
             "inode": self.inode.to_dict(),
             "mode": self.mode,
@@ -135,7 +135,7 @@ class InodeMetadata:
         }
 
     @staticmethod
-    def from_local_path(path: pathlib.Path, stat_info: os.stat_result) -> InodeMetadata:
+    def from_local_path(path: pathlib.Path, stat_info: os.stat_result | None) -> InodeMetadata:
         if stat_info is None:
             stat_info = os.stat(path)
         return InodeMetadata(
@@ -159,7 +159,7 @@ class Process:
     env: tuple[tuple[str, str], ...]
     wd: pathlib.Path
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, typing.Any]:
         return {
             'input_inodes': [inode_version.to_dict() for inode_version in self.input_inodes],
             'input_inode_metadatas': [metadata.to_dict() for metadata in self.input_inode_metadatas],
@@ -177,7 +177,7 @@ class Process:
 def get_prov_upstream(
         root_inode_version: list[InodeVersion],
         host: str,
-) -> tuple[typing.Mapping[int, Process], typing.Mapping[InodeVersion, int | None]]:
+) -> tuple[dict[int, Process], dict[InodeVersion, int | None]]:
     """
     This function answers: What do we need to reconstruct the provenance of root_inode_version on another host?
     The answer is a set of Process objects and a map of InodeVersion writes.
@@ -188,8 +188,8 @@ def get_prov_upstream(
     inode_version_queue.extend(root_inode_version)
 
     # Stuff we need to transfer
-    inode_version_writes = typing.Mapping[InodeVersion, int | None]()
-    process_closure = typing.Mapping[int, Process]()
+    inode_version_writes = dict[InodeVersion, int | None]()
+    process_closure = dict[int, Process]()
 
     while inode_version_queue:
         inode_version = inode_version_queue.pop()
