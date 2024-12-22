@@ -35,12 +35,13 @@ def get_local_node_name() -> str:
         return node_name.read_text()
     else:
         hostname = socket.gethostname()
-        rng = random.Random(datetime.datetime.now().timestamp() ^ hash(hostname))
+        rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
         bits_per_hex_digit = 4
         hex_digits = 8
         random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
         node_name = f"{random_number:0{hex_digits}x}.{hostname}"
-        node_name.write_text(node_name)
+        file_path = pathlib.Path(node_name)
+        file_path.write_text(node_name)
         return node_name
 
 
@@ -51,8 +52,21 @@ class Inode:
     device_minor: int
     inode: int
 
+    def to_dict(self):
+        return {
+            'host': self.host,
+            'device_major': self.device_major,
+            'device_minor': self.device_minor,
+            'inode': self.inode,
+        }
+
     def str_id(self) -> str:
-        return f"{self.host:012x}-{self.device_major:04x}-{self.device_minor:04x}-{self.inode:016x}"
+        hex_part = self.host.split('.')[0]
+        if hex_part:
+            number = int(hex_part, 16)
+        else:
+            number = 0
+        return f"{number:012x}-{self.device_major:04x}-{self.device_minor:04x}-{self.inode:016x}"
 
     @staticmethod
     def from_local_path(path: pathlib.Path, stat_info: os.StatResult | None = None) -> Inode:
@@ -87,6 +101,10 @@ class InodeVersion:
     #   Our xattr would be "true mtime" that we would maintain and can't be changed by normal tools.
     # - Cry.
 
+    def to_dict(self):
+        data = {"mtime": self.mtime, 'inode': self.inode.to_dict(), "size": self.size}
+        return data
+
     def str_id(self) -> str:
         return f"{self.inode.str_id()}-{self.mtime:016x}-{self.size:016x}"
 
@@ -106,6 +124,15 @@ class InodeMetadata:
     nlink: int
     uid: int
     gid: int
+
+    def to_dict(self):
+        return {
+            "inode": self.inode.to_dict(),
+            "mode": self.mode,
+            "nlink": self.nlink,
+            "uid": self.uid,
+            "gid": self.gid,
+        }
 
     @staticmethod
     def from_local_path(path: pathlib.Path, stat_info: os.StatInfo) -> InodeMetadata:
@@ -131,6 +158,19 @@ class Process:
     pid: int
     env: tuple[tuple[str, str], ...]
     wd: pathlib.Path
+
+    def to_dict(self):
+        return {
+            'input_inodes': [inode_version.to_dict() for inode_version in self.input_inodes],
+            'input_inode_metadatas': [metadata.to_dict() for metadata in self.input_inode_metadatas],
+            'output_inodes': [inode_version.to_dict() for inode_version in self.output_inodes],
+            'output_inode_metadatas': [metadata.to_dict() for metadata in self.output_inode_metadatas],
+            'time': self.time.isoformat(),
+            'cmd': list(self.cmd),
+            'pid': self.pid,
+            'env': [tuple(env_item) for env_item in self.env],
+            'wd': str(self.wd),
+        }
 
 
 # TODO: implement this for remote host

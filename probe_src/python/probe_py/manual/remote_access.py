@@ -1,6 +1,4 @@
 import dataclasses
-import base64
-from typing import Union, Any
 
 from probe_py.manual.persistent_provenance import (
     Inode,
@@ -129,8 +127,9 @@ def augment_provenance(
     )
     process_closure[scp_process_id] = scp_process
     process_path = PROCESSES_BY_ID / f"{str(scp_process_id)}.json"
+    os.makedirs(process_path.parent, exist_ok=True)
     with process_path.open("w") as f:
-        json.dump(scp_process, f)
+        json.dump(scp_process.to_dict(), f)
     for destination_inode_version in destination_inode_versions:
         inode_writes[destination_inode_version] = scp_process_id
 
@@ -214,8 +213,8 @@ def lookup_provenance_local(path: pathlib.Path, get_persistent_provenance: bool)
             for descendant in get_descendants(path, True)
         ]
     else:
-        inode_versions = [InodeVersion.from_local_path(path)]
-        inode_metadatas = [InodeMetadata.from_local_path(path)]
+        inode_versions = [InodeVersion.from_local_path(path, None)]
+        inode_metadatas = [InodeMetadata.from_local_path(path, None)]
     if get_persistent_provenance:
         process_map, inode_map = get_prov_upstream(inode_versions, "local")
         return inode_versions, inode_metadatas, process_map, inode_map
@@ -226,38 +225,44 @@ def lookup_provenance_local(path: pathlib.Path, get_persistent_provenance: bool)
 def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_provenance: bool) -> ProvenanceInfo:
     address = host.get_address()
     assert address is not None
+    commands = [
+        'node_name_file="${XDG_CACHE_HOME:-$HOME/.cache}/PROBE/node_name"',
+        'mkdir -p "$(dirname "$node_name_file")"',  # Ensure directory exists
+        (
+            '[ ! -f "$node_name_file" ] && '
+            'echo -n "$(tr -dc \'A-F0-9\' < /dev/urandom | head -c8).$(hostname)" > "$node_name_file"'
+        ),
+        # First field is node_name
+        'cat "$node_name_file"',
+        # Used | as the separator
+        # Second field is PWD
+        'echo -e "|$PWD|"',
+        # Find command to print file details
+        f'find {shlex.quote(str(path))} -exec stat -c "%n|%d|%i|%Y|%s|%a|%h|%u|%g|" {{}} \\;',
+    ]
+
+    full_command = "sh -c '" + "; ".join(commands) + "'"
     proc = subprocess.run(
         [
             "ssh",
             *host.ssh_options,
             address,
-            "sh", "-c", ";".join([
-                "node_name_file=${XDG_CACHE_HOME:-$HOME/.cache}/PROBE/node_name",
-                "[ ! -f $node_name_file ] && echo -n $(tr -dc 'A-F0-9' < /dev/urandom | head -c8).$(hostname) > $node_name_file",
-                # First field is node_name
-                "cat $node_name_file",
-
-                # I will use null-bytes as separators, because spaces (and even newlines) can occur in the filenames
-                # Second field will be PWD
-                'echo -e "\0$PWD\0"',
-
-                # The rest of the fields will be each of 9 entries in the following printf
-                f"find -printf '%p\0%D\0%i\0%T@\0%s\0%m\0%n\0%U\0%G\0' {shlex.quote(str(path))}"
-            ]),
+            full_command,
         ],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         check=True,
-        text=False,
+        text=True,
     )
 
-    fields = proc.stdout.split(b"\0")
+    fields = proc.stdout.split("|")
     node_name = fields[0]
     #cwd = pathlib.Path(fields[1])
     inode_metadatas = []
     inode_versions = []
-    for _child_path, device, inode, mtime, size, mode, nlink, uid, gid in itertools.batched(fields[2:], 9):
+    for _child_path, device, inode, mtime, size, mode, nlink, uid, gid in itertools.batched(fields[2:11], 10):
         inode = Inode(node_name, os.major(int(device)), os.minor(int(device)), int(inode))
-        inode_versions.append(InodeVersion(inode, int(mtime), int(size)))
+        inode_versions.append(InodeVersion(inode, int(float(mtime)), int(size)))
         inode_metadatas.append(InodeMetadata(inode, int(mode), int(nlink), int(uid), int(gid)))
 
     if not get_persistent_provenance:
@@ -271,12 +276,12 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
             address,
             "sh", "-c", ";".join([
                 "probe_data=${XDG_DATA_HOME:-$HOME/.local/share}/PROBE",
-                "process_by_id=${probe_data}/process_id_that_wrote_inode_version",
+                "processes_by_id=${probe_data}/process_id_that_wrote_inode_version",
                 "process_that_wrote=${probe_data}/processes_by_id",
 
                 # cat the relevant stuff
                 *[
-                    f"cat $process_by_id/{inode}.json && echo '\0'"
+                    f"cat $processes_by_id/{inode}.json && echo '\0'"
                     for inode in []
                 ],
             ]),
@@ -301,9 +306,7 @@ def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
     for process_id, process in augmented_process_closure.items():
         process_path = PROCESSES_BY_ID / f"{process_id}.json"
         with process_path.open("w") as f:
-            json.dump(process, f)
-
-    raise NotImplementedError()
+            json.dump(process.to_dict(), f)
 
 
 def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> None:
@@ -313,13 +316,14 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
         if inode_version not in destination_inode_versions:
             continue
         inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{inode_version.str_id()}.json"
+        os.makedirs(inode_version_path.parent, exist_ok=True)
         with inode_version_path.open("w") as f:
             json.dump(process_id if process_id is not None else None, f)
     address = dest.get_address()
     assert address is not None
     echo_commands = []
     for inode_version, process_id in augmented_inode_writes.items():
-        inode_version = str(inode_version)
+        inode_version = inode_version.str_id()
         echo_commands.append(
             f"echo {shlex.quote(json.dumps(process_id))} > \"${{process_that_wrote}}/{inode_version}.json\""
         )
@@ -327,30 +331,35 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
     for process_id, process in augmented_process_closure.items():
         process_id = str(process_id)
         echo_commands.append(
-            f"echo {shlex.quote(json.dumps(process))} > \"${{process_by_id}}/{process_id}.json\""
+            f"echo {(json.dumps(process.to_dict()))} > \"${{processes_by_id}}/{process_id}.json\""
         )
 
-    subprocess.run(
+    commands = [
+        'probe_data="$HOME/.local/share/PROBE"',
+        'mkdir -p "$(dirname "$probe_data")"',
+        'process_that_wrote="$probe_data/process_id_that_wrote_inode_version"',
+        'processes_by_id="$probe_data/processes_by_id"',
+        'mkdir -p "$process_that_wrote"',
+        'mkdir -p "$processes_by_id"',
+        'echo "probe_data: $probe_data"',
+        'echo "process_that_wrote: $process_that_wrote"',
+        'echo "processes_by_id: $processes_by_id"',
+    ]
+
+    commands.extend(echo_commands)
+    print(echo_commands)
+    full_command = "sh -c '" + "; ".join(commands) + "'"
+    proc = subprocess.run(
         [
             "ssh",
             *dest.ssh_options,
             address,
-            "sh", "-c", ";".join([
-            "probe_data=${XDG_DATA_HOME:-$HOME/.local/share}/PROBE",
-            "process_that_wrote=${probe_data}/process_id_that_wrote_inode_version",
-            "process_by_id=${probe_data}/processes_by_id",
-            # Ensure the remote directory exists
-            "mkdir -p \"$process_that_wrote\"",
-            "mkdir -p \"$process_by_id\"",
-            echo_commands,
-        ]),
+            full_command,
         ],
         capture_output=True,
         check=True,
-        text=False,
+        text=True,
     )
-
-
 
 # Notes:
 # - scp.py is the driver and remote_access.py is the library. This way, remote_access.py can be re-imported into ssh. It makes more sense to me.
