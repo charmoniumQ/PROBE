@@ -14,7 +14,6 @@ import datetime
 import json
 import os
 import shlex
-import random
 import subprocess
 import pathlib
 import yaml
@@ -115,10 +114,10 @@ def augment_provenance(
     while scp_process_id in process_closure:
         scp_process_id = generate_random_pid()
     scp_process = Process(
-        source_inode_versions,
-        source_inode_metadatas,
-        destination_inode_versions,
-        destination_inode_metadatas,
+        frozenset(source_inode_versions),
+        frozenset(source_inode_metadatas),
+        frozenset(destination_inode_versions),
+        frozenset(destination_inode_metadatas),
         time,
         tuple(cmd),
         scp_process_id,
@@ -205,11 +204,11 @@ def get_descendants(root: pathlib.Path, include_directories: bool) -> list[pathl
 def lookup_provenance_local(path: pathlib.Path, get_persistent_provenance: bool) -> ProvenanceInfo:
     if path.is_dir():
         inode_versions = [
-            InodeVersion.from_local_path(descendant)
+            InodeVersion.from_local_path(descendant, None)
             for descendant in get_descendants(path, False)
         ]
         inode_metadatas = [
-            InodeMetadata.from_local_path(descendant)
+            InodeMetadata.from_local_path(descendant, None)
             for descendant in get_descendants(path, True)
         ]
     else:
@@ -261,9 +260,9 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
     inode_metadatas = []
     inode_versions = []
     for _child_path, device, inode, mtime, size, mode, nlink, uid, gid in itertools.batched(fields[2:11], 10):
-        inode = Inode(node_name, os.major(int(device)), os.minor(int(device)), int(inode))
-        inode_versions.append(InodeVersion(inode, int(float(mtime)), int(size)))
-        inode_metadatas.append(InodeMetadata(inode, int(mode), int(nlink), int(uid), int(gid)))
+        inode_object = Inode(node_name, os.major(int(device)), os.minor(int(device)), int(inode))
+        inode_versions.append(InodeVersion(inode_object, int(float(mtime)), int(size)))
+        inode_metadatas.append(InodeMetadata(inode_object, int(mode), int(nlink), int(uid), int(gid)))
 
     if not get_persistent_provenance:
         return inode_versions, inode_metadatas, {}, {}
@@ -323,15 +322,14 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
     assert address is not None
     echo_commands = []
     for inode_version, process_id in augmented_inode_writes.items():
-        inode_version = inode_version.str_id()
+        inode_version_str_id = inode_version.str_id()
         echo_commands.append(
-            f"echo {shlex.quote(json.dumps(process_id))} > \"${{process_that_wrote}}/{inode_version}.json\""
+            f"echo {shlex.quote(json.dumps(process_id))} > \"${{process_that_wrote}}/{inode_version_str_id}.json\""
         )
 
     for process_id, process in augmented_process_closure.items():
-        process_id = str(process_id)
         echo_commands.append(
-            f"echo {(json.dumps(process.to_dict()))} > \"${{processes_by_id}}/{process_id}.json\""
+            f"echo {(json.dumps(process.to_dict()))} > \"${{processes_by_id}}/{str(process_id)}.json\""
         )
 
     commands = [
@@ -349,7 +347,7 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
     commands.extend(echo_commands)
     print(echo_commands)
     full_command = "sh -c '" + "; ".join(commands) + "'"
-    proc = subprocess.run(
+    subprocess.run(
         [
             "ssh",
             *dest.ssh_options,

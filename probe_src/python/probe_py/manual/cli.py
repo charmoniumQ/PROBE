@@ -3,7 +3,6 @@ import pathlib
 import typer
 import shutil
 import rich
-from probe_py.manual import util
 from probe_py.manual.scp import scp_with_provenance
 import rich.console
 import rich.pretty

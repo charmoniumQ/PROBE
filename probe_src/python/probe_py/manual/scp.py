@@ -24,7 +24,7 @@ def scp_with_provenance(scp_args: list[str]) -> int:
     if proc.returncode == 0:
         sources, destination = parse_scp_args(scp_args)
         for source in sources:
-            copy_provenance(source, destination, ["scp", *scp_args])
+            copy_provenance(source, destination, ("scp", *scp_args))
         return 0
     else:
         return proc.returncode
@@ -99,7 +99,7 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
                     this_ssh_options.append("-P")
                     this_ssh_options.append(match.group("port"))
                 sources.append(HostPath(
-                    Host(match.group("host"), match.group("user"), None, this_ssh_options, this_scp_options),
+                    Host(match.group("host"), match.group("user"), this_ssh_options, this_scp_options),
                     Path(match.group("path") if match.group("path") else "")
                 ))
             elif match := re.match(scp_path_regex, arg):
@@ -130,7 +130,7 @@ def optional(arg: str) -> str:
 def named_group(name: str, arg: str) -> str:
     return f"(?P<{name}>{arg})?"
 def whole_string(arg: str) -> str:
-    return re.compile("^" + arg + "$")
+    return "^" + arg + "$"
 
 # TODO: do options only apply to the host following it?
 # E.g., does scp -J host-A host-B host-C only apply a jump-host to the host-B?
