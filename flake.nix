@@ -117,10 +117,10 @@
                 python.pkgs.pydot
                 python.pkgs.rich
                 python.pkgs.typer
+                python.pkgs.sqlalchemy
                 python.pkgs.xdg-base-dirs
                 python.pkgs.pyyaml
                 python.pkgs.types-pyyaml
-                python.pkgs.sqlalchemy
               ];
               nativeCheckInputs = [
                 frontend.packages.probe-py-generated
@@ -202,10 +202,10 @@
                   pypkgs.pydot
                   pypkgs.rich
                   pypkgs.typer
+                  pypkgs.sqlalchemy
                   pypkgs.xdg-base-dirs
                   pypkgs.pyyaml
                   pypkgs.types-pyyaml
-                  pypkgs.sqlalchemy
 
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil
