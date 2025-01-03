@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -37,8 +38,9 @@ void* increment_counters(void* args) {
         printf("Thread #%ld: released lock for counter %d.\n", tid, i);
     }
 
-char filename[20];
-sprintf(filename, "/tmp/%ld.txt", tid);  // Filename without directory prefix
+#define filename_length 20
+char filename[filename_length];
+snprintf(filename, filename_length, "/tmp/%ld.txt", tid);  // Filename without directory prefix
 FILE* file = fopen(filename, "w");
 if (file != NULL) {
     fprintf(file, "Thread #%ld was here\n", tid);
@@ -103,7 +105,7 @@ int main() {
     printf("Main: checking files written by threads:\n");
     for (t = 0; t < NUM_THREADS; t++) {
         char filename[20];
-        sprintf(filename, "/tmp/%ld.txt", t);
+        snprintf(filename, filename_length, "/tmp/%ld.txt", t);
         FILE* file = fopen(filename, "r");
         if (file != NULL) {
             char buffer[50];

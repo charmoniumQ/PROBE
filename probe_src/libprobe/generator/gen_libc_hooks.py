@@ -421,15 +421,47 @@ static_args_wrapper_func_declarations = [
     ).definition()
     for _, func in funcs.items()
 ]
+
+header_includes = """
+#include <stdio.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <ftw.h>
+#include <sys/wait.h>
+#include <threads.h>
+
+typedef int (*fn_ptr_int_void_ptr)(void*);
+"""
 pathlib.Path("generated/libc_hooks.h").write_text(
-    GccCGenerator().visit(
+    header_includes
+    + GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             *func_pointer_declarations,
         ])
     )
 )
+c_includes = """
+#define _GNU_SOURCE
+#include "libc_hooks.h"
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <limits.h>
+#include <sys/types.h>
+/*
+ * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
+ * so we use some macros instead.
+ * To pycparser, these macros are defined as variable names (parsable as arguments).
+ * To GCC these macros are defined as type names.
+ * */
+#define __type_mode_t mode_t
+#define __type_charp char*
+#define __type_charpp char**
+"""
 pathlib.Path("generated/libc_hooks.c").write_text(
-    GccCGenerator().visit(
+    c_includes
+    + GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             init_function_pointers,
             *static_args_wrapper_func_declarations,

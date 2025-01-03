@@ -1,3 +1,22 @@
+#pragma once
+
+#include <linux/stat.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <utime.h>
+#include <threads.h>
+#include <pthread.h>
+
+// See note in build.rs
+#ifndef RUST_BINDGEN
+#include <sys/resource.h>
+#endif
+
+#define OWNED
+
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
     const char* path; /* path valid if non-null */

@@ -1,14 +1,9 @@
 #define _GNU_SOURCE
 #include <assert.h>
 #include <fcntl.h>
-#include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
-#include <stdio.h>
 #include <limits.h>
-#include <time.h>
 #include <linux/limits.h>
-#include <errno.h>
 #include <dlfcn.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -22,53 +17,20 @@
 #include <sys/wait.h>
 #include <utime.h>
 #include <unistd.h>
-#include <signal.h>
 #include <ftw.h>
 #include <threads.h>
 #include <pthread.h>
 
-/*
- * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
- * so we use some macros instead.
- * To pycparser, these macros are defined as variable names (parsable as arguments).
- * To GCC these macros are defined as type names.
- * */
-#define __type_mode_t mode_t
-#define __type_charp char*
-#define __type_charpp char**
-
-/*
- * Likewise, ther is some bug with pycparser unable to parse inline funciton pointers.
- * So we will use a typedef alias.
- * */
-typedef int (*fn_ptr_int_void_ptr)(void*);
-
-static void maybe_init_thread();
-static void reinit_process();
-static void prov_log_disable();
-static int get_exec_epoch_safe();
 static bool __process_inited = false;
 static __thread bool __thread_inited = false;
 
-#define ENV_VAR_PREFIX "PROBE_"
-
-#define PRIVATE_ENV_VAR_PREFIX "__PROBE_"
-
 #include "../generated/libc_hooks.h"
 
-#include "prov_enable.c"
+#include "declarations.h"
 
-#define ARENA_USE_UNWRAPPED_LIBC
-#define ARENA_PERROR
-#include "../arena/include/arena.h"
-
-#include "util.c"
-
-/* #include "fd_table.c" */
+#include "util.h"
 
 #include "../include/libprobe/prov_ops.h"
-
-#include "inode_table.c"
 
 #include "global_state.c"
 
