@@ -2,6 +2,8 @@ from typing_extensions import Annotated
 import pathlib
 import typer
 import shutil
+import rich
+from probe_py.manual.scp import scp_with_provenance
 import rich.console
 import rich.pretty
 from ..generated.parser import parse_probe_log, parse_probe_log_ctx
@@ -411,6 +413,14 @@ def nextflow(
     script = g.generate_workflow(dataflow_graph)
     output.write_text(script)
 
+# Example: scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
+@app.command(
+context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
+def scp(cmd: list[str]) -> None:
+    scp_with_provenance(cmd)
 
 if __name__ == "__main__":
     app()
