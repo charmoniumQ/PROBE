@@ -66,6 +66,28 @@ static size_t __arena_align(size_t offset, size_t alignment) {
 #define __ARENA_FNAME_LENGTH 64
 #define __ARENA_FNAME "%ld.dat"
 
+/* by defining this as inline static it should have zero runtime overhead and
+ * not produce any symbols outside this compilation unit (file). */
+inline static int msync_and_munmap(void* addr, size_t length) {
+    int ret = msync(addr, length, MS_SYNC);
+    if (ret != 0) {
+#ifdef ARENA_PERROR
+        perror("msync_and_munmap: msync");
+#endif
+        return -1;
+    }
+
+    ret = munmap(addr, length);
+    if (ret != 0) {
+#ifdef ARENA_PERROR
+        perror("msync_and_munmap: munmap");
+#endif
+        return -1;
+    }
+
+    return 0;
+}
+
 /* Instantiate a new mmap-ed file in the arena dir. */
 static int __arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
     /* Create a new mmap */
@@ -244,10 +266,10 @@ __attribute__((unused)) static int arena_destroy(struct ArenaDir* arena_dir) {
     while (current) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             if (current->arena_list[i] != NULL) {
-                int ret = munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                int ret = msync_and_munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
                 if (ret != 0) {
 #ifdef ARENA_PERROR
-                    perror("arena_create: arena_destroy");
+                    fprintf(stderr, "arena_destroy: msync and munmap failed\n");
 #endif
                     return -1;
                 }
@@ -280,10 +302,10 @@ __attribute__((unused)) static int arena_drop_after_fork(struct ArenaDir* arena_
     while (current) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             if (current->arena_list[i] != NULL) {
-                int ret = munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                int ret = msync_and_munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
                 if (ret != 0) {
 #ifdef ARENA_PERROR
-                    perror("arena_create: arena_uninstantiate_all_but_last");
+                    fprintf(stderr, "arena_drop_after_fork: msync and munmap failed\n");
 #endif
                     return -1;
                 }
@@ -307,10 +329,10 @@ __attribute__((unused)) static int arena_uninstantiate_all_but_last(struct Arena
     while (current) {
         for (size_t i = 0; i + ((size_t) is_tail) < current->next_free_slot; ++i) {
             if (current->arena_list[i] != NULL) {
-                int ret = munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
+                int ret = msync_and_munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
                 if (ret != 0) {
 #ifdef ARENA_PERROR
-                    perror("arena_create: arena_uninstantiate_all_but_last");
+                    fprintf(stderr, "arena_uninstantiate_all_but_last: msync and munmap failed\n");
 #endif
                     return -1;
                 }
