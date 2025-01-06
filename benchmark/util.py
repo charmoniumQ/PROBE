@@ -1,3 +1,4 @@
+import typing
 import itertools
 import os
 import json
@@ -11,11 +12,9 @@ import shlex
 import shutil
 import subprocess
 import urllib.request
-import warnings
 from collections.abc import Sequence, Mapping, Iterator, Iterable
 from typing import Callable, TypeVar, Any, TypeAlias, cast, Hashable
 import tqdm
-import scipy  # type: ignore
 import numpy
 
 
@@ -117,9 +116,9 @@ _V = TypeVar("_V")
 _U = TypeVar("_U")
 
 
-def shuffle(prng: random.Random, lst: Sequence[_T]) -> Sequence[_T]:
+def shuffle(seed: int, lst: Sequence[_T]) -> Sequence[_T]:
     lst2 = list(lst)
-    prng.shuffle(lst2)
+    random.Random(seed).shuffle(lst2)
     return lst2
 
 
@@ -136,6 +135,10 @@ def first(pair: tuple[_T, _V]) -> _T:
     return pair[0]
 
 
+def identity(x: _T) -> _T:
+    return x
+
+
 def groupby_dict(
         data: Iterable[_T],
         key_func: Callable[[_T], _V],
@@ -148,6 +151,7 @@ def groupby_dict(
 
 
 def confidence_interval(data: Any, confidence_level: float, seed: int = 0) -> tuple[float, float]:
+    import scipy  # type: ignore
     bootstrap = scipy.stats.bootstrap(
         [data],
         confidence_level=confidence_level,
@@ -177,7 +181,7 @@ class SubprocessError(Exception):
         stderr: str,
     ) -> None:
         self.cmd = cmd
-        self.env = env
+        self.env = {cmd_arg(key).decode(): cmd_arg(val).decode() for key, val in env.items()}
         self.cwd = cwd
         self.returncode = returncode
         self.stdout = stdout
@@ -185,7 +189,7 @@ class SubprocessError(Exception):
 
     def __str__(self) -> str:
         args = env_command(
-            env=self.env,
+            env={key: val for key, val in self.env.items()},
             cwd=self.cwd,
             clear_env=True,
             cmd=self.cmd,
@@ -286,3 +290,14 @@ def get_nix_env(packages: list[str]) -> Mapping[str, str]:
         )).stdout)
     else:
         return {}
+
+
+def raise_(exception: Exception) -> typing.NoReturn:
+    raise exception
+
+
+def dir_size(dir: pathlib.Path) -> int:
+    return sum([
+        dir_size(child) if child.is_dir() else child.stat().st_size
+        for child in dir.iterdir()
+    ])

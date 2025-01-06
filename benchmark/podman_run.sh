@@ -12,4 +12,4 @@ podman run \
     --tty \
     --volume $PWD:$PWD \
     --workdir $PWD \
-    prov-tracer-benchmark-env:c9pdwj93y3xwfmfnsxkrw1lcc7wfhn8g
+    hello-world

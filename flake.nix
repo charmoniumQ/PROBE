@@ -134,6 +134,59 @@
           in
             python.withPackages (pypkgs: [probe-py-manual]);
           default = probe-bundled;
+          mandala = python.pkgs.buildPythonPackage rec {
+            pname = "mandala";
+            version = "3.20";
+            src = pkgs.fetchFromGitHub {
+              owner = "amakelov";
+              repo = "mandala";
+              rev = "v0.2.0-alpha";
+              hash = "sha256-MunDxlF23kn8ZJM7rk++bZaN35L51w2CABL16MZXDXU=";
+            };
+            propagatedBuildInputs = [
+              python.pkgs.numpy
+              python.pkgs.pandas
+              python.pkgs.joblib
+              python.pkgs.tqdm
+              python.pkgs.pyarrow
+              python.pkgs.prettytable
+              python.pkgs.graphviz
+            ];
+            checkInputs = [
+              python.pkgs.pytest
+              python.pkgs.hypothesis
+              python.pkgs.ipython
+            ];
+            # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
+            doCheck = true;
+            pythonImportsCheck = [ "mandala" ];
+          };
+          joblib-stubs = python.pkgs.buildPythonPackage rec {
+            pname = "joblib_stubs";
+            version = "1.4.2.5.20240918";
+            pyproject = true;
+            src = pkgs.fetchPypi {
+              inherit pname version;
+              sha256 = "7434591e8144c79d0070153816c5cb3861a622069847300ca1f3e0d844840f62";
+            };
+            propagatedBuildInputs = [ python.pkgs.typing-extensions ];
+            nativeBuildInputs = [ python.pkgs.hatchling ];
+          };
+          # charmonium-time-block = python.pkgs.buildPythonPackage rec {
+          #   pname = "charmonium.time_block";
+          #   pyproject = true;
+          #   version = "0.3.4";
+          #   src = pkgs.fetchPypi {
+          #     pname = "charmonium_time_block";
+          #     inherit version;
+          #     sha256 = "5cbde16fdfc927393a473297690138c2db169e51cdfff13accbbf6ec44486968";
+          #   };
+          #   nativeBuildInputs = [python.pkgs.poetry-core];
+          #   propagatedBuildInputs = [python.pkgs.psutil];
+          #   checkInputs = [python.pkgs.pytest];
+          #   pythonImportsCheck = ["charmonium.time_block"];
+          #   nativeCheckInputs = [python.pkgs.pytestCheckHook];
+          # };
         };
         checks = {
           inherit
@@ -206,9 +259,18 @@
                   pypkgs.ipython
 
                   # benchmark codes
+                  pypkgs.pyyaml
                   pypkgs.yarl
+                  pypkgs.tqdm
+                  pypkgs.types-tqdm
+                  pypkgs.types-pyyaml
+                  pypkgs.polars
+                  pypkgs.types-psutil
                   pypkgs.requests
                   pypkgs.githubkit
+                  pypkgs.aiohttp
+                  pypkgs.aiodns
+                  packages.mandala
 
                   # libprobe build time requirement
                   pypkgs.pycparser

@@ -35,4 +35,4 @@ for i, pkg_name in enumerate(pkg_names):
             urls[pkg_name]["version_url"].append(url)
 
 
-pathlib.Path("spack_package_urls.json").write_text(json.dumps({pkg_name: dict(attrs) for pkg_name, attrs in urls.items()}))
+print(json.dumps({pkg_name: dict(attrs) for pkg_name, attrs in urls.items()}))

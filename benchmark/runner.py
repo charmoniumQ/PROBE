@@ -1,29 +1,35 @@
+#!/usr/bin/env python
 import typer
-import pathlib
-import datetime
-from typing_extensions import Annotated
-from experiment import get_results
-from workloads import WORKLOAD_GROUPS
-from prov_collectors import PROV_COLLECTOR_GROUPS
-from stats import STATS
-from util import flatten1
 import enum
+from typing_extensions import Annotated
+import experiment
+import workloads as workloads_mod
+import prov_collectors as prov_collectors_mod
+import util
+import stats
+import polars
 
 
-CollectorGroup = enum.Enum("CollectorGroup", {key: key for key in PROV_COLLECTOR_GROUPS})  # type: ignore
-WorkloadGroup = enum.Enum("WorkloadGroup", {key.lower(): key.lower() for key in WORKLOAD_GROUPS.keys() if key})  # type: ignore
-StatsNames = enum.Enum("Sats", {key: key for key in STATS.keys()})  # type: ignore
+CollectorGroup = enum.Enum(  # type: ignore
+    "CollectorGroup",
+    {key: key for key in prov_collectors_mod.PROV_COLLECTOR_GROUPS if key},
+)
+WorkloadGroup = enum.Enum(  # type: ignore
+    "WorkloadGroup",
+    {key: key for key in workloads_mod.WORKLOAD_GROUPS.keys() if key},
+)
 
 
 def main(
-        collector_groups: Annotated[list[CollectorGroup], typer.Option("--collectors", "-c")] = [CollectorGroup.noprov],
-        workload_groups: Annotated[list[WorkloadGroup], typer.Option("--workloads", "-w")] = [WorkloadGroup["fast"]],
-        stats_names: Annotated[list[StatsNames], typer.Option("--stats", "-s")] = [],
+        collectors: list[CollectorGroup] = [
+            "all"  # type: ignore
+        ],
+        workloads: list[WorkloadGroup] = [
+            "all"  # type: ignore
+        ],
         iterations: int = 1,
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
-        ignore_failures: Annotated[bool, typer.Option("--keep-going")] = False,
-        parallelism: int = 1,
 ) -> None:
     """
     Run a full matrix of these workloads in those provenance collectors.
@@ -34,39 +40,41 @@ def main(
 
     """
 
-    collectors = list(flatten1([
-        PROV_COLLECTOR_GROUPS[collector_name.value]
-        for collector_name in collector_groups
+    collector_list = list(util.flatten1([
+        prov_collectors_mod.PROV_COLLECTOR_GROUPS[collector_name.value]
+        for collector_name in collectors
     ]))
-    workloads = list(flatten1([
-        WORKLOAD_GROUPS[workload_name.value]
-        for workload_name in workload_groups
+    workload_list = list(util.flatten1([
+        workloads_mod.WORKLOAD_GROUPS[workload_name.value]
+        for workload_name in workloads
     ]))
-    stats = [
-        STATS[stats_name.value]
-        for stats_name in stats_names
-    ]
     if not collectors:
         raise ValueError("Must select some collectors")
     if not workloads:
         raise ValueError("Must select some workloads")
-    with pathlib.Path("runner.log").open("a+") as file:
-        print("Starting", datetime.datetime.now().isoformat(), file=file)
-        print(", ".join(collector_group.value for collector_group in collector_groups), file=file)
-        print(", ".join(workload_group.value for workload_group in workload_groups), file=file)
-    df = get_results(
-        collectors,
-        workloads,
+
+    iterations_df, workloads_df = stats.process_df(experiment.run_experiments(
+        collector_list,
+        workload_list,
         iterations=iterations,
-        seed=0,
-        ignore_failures=ignore_failures,
+        seed=seed,
         rerun=rerun,
-        parallelism=parallelism,
+    ))
+    failures = iterations_df.filter(polars.col("returncode") != 0).select(
+        "collector",
+        "workload_subgroup",
     )
-    with pathlib.Path("runner.log").open("a+") as file:
-        print("Done", datetime.datetime.now().isoformat(), file=file)
-    for stat in stats:
-        stat(df)
+    if not failures.is_empty():
+        for failure in failures:
+            print("Failures:")
+            print(*failure)
+    print(iterations_df.select(*[
+        col
+        for col in iterations_df.columns
+        if ("time" in col and "overhead" in col) or "subsubgroup" in col or "collector" in col
+    ]))
+    iterations_df.write_parquet("iterations.parquet")
+    workloads_df.write_parquet("workloads.parquet")
 
 
 if __name__ == "__main__":

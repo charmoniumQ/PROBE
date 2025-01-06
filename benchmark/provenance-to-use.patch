@@ -1,24 +1,3 @@
-diff --git a/readelf-mini/dwarf.c b/readelf-mini/dwarf.c
-index 22cfdae..67a92b3 100644
---- a/readelf-mini/dwarf.c
-+++ b/readelf-mini/dwarf.c
-@@ -64,1 +64,3 @@ int do_debug_loc;
--int do_wide;
-+// this symbol conflicts with readelf-mini/readelf-mini.c do_wide
-+// See https://github.com/depaul-dice/provenance-to-use/pull/4
-+int dwarf_do_wide;
-@@ -2606,1 +2606,2 @@ display_debug_lines_decoded (struct dwarf_section *section,
--              if (do_wide || strlen ((char *) directory_table[0]) < 76)
-+              // See https://github.com/depaul-dice/provenance-to-use/pull/4
-+              if (dwarf_do_wide || strlen ((char *) directory_table[0]) < 76)
-@@ -2793,1 +2793,2 @@ display_debug_lines_decoded (struct dwarf_section *section,
--              if ((fileNameLength > MAX_FILENAME_LENGTH) && (!do_wide))
-+              // See https://github.com/depaul-dice/provenance-to-use/pull/4
-+              if ((fileNameLength > MAX_FILENAME_LENGTH) && (!dwarf_do_wide))
-@@ -2807,1 +2807,2 @@ display_debug_lines_decoded (struct dwarf_section *section,
--              if (!do_wide || (fileNameLength <= MAX_FILENAME_LENGTH))
-+              // See https://github.com/depaul-dice/provenance-to-use/pull/4
-+              if (!dwarf_do_wide || (fileNameLength <= MAX_FILENAME_LENGTH))
 diff --git a/strace-4.6/cde.c b/strace-4.6/cde.c
 index 99edd2d..66b8fb3 100644
 --- a/strace-4.6/cde.c
@@ -51,19 +30,3 @@ index 99edd2d..66b8fb3 100644
 -  if (!IS_ABSPATH(newpath) && tcp->u_arg[2] != AT_FDCWD) {
 +  // See https://github.com/depaul-dice/provenance-to-use/pull/5
 +  if (!IS_ABSPATH(newpath) && ((int) tcp->u_arg[2]) != AT_FDCWD) {
-diff --git a/strace-4.6/defs.h b/strace-4.6/defs.h
-index 0af1842..6bd5484 100644
---- a/strace-4.6/defs.h
-+++ b/strace-4.6/defs.h
-@@ -37,1 +37,3 @@
--char* CDE_ROOT_NAME;
-+// See https://github.com/depaul-dice/provenance-to-use/pull/4
-+// declared here; defined in strace-4.6/cde.c
-+extern char* CDE_ROOT_NAME;
-@@ -39,2 +39,4 @@ char* CDE_ROOT_NAME;
--char* CDE_PACKAGE_DIR;
--char* CDE_ROOT_DIR;
-+// See https://github.com/depaul-dice/provenance-to-use/pull/4
-+// declared here; defined in strace-4.6/cde.c
-+extern char* CDE_PACKAGE_DIR;
-+extern char* CDE_ROOT_DIR;
