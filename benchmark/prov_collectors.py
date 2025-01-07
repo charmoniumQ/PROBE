@@ -685,6 +685,18 @@ class Care(ProvCollector):
             )
 
 
+class Probe(ProvCollector):
+    timeout_multiplier = 3
+    run_cmd = command.Command((
+        command.NixPath("github:charmoinumQ/PROBE#probe-bundled", "/bin/probe"),
+        "--output",
+        prov_log,
+    ))
+
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        return ()
+
+
 PROV_COLLECTORS: list[ProvCollector] = [
     NoProv(),
     STrace(),
@@ -693,9 +705,10 @@ PROV_COLLECTORS: list[ProvCollector] = [
     CDE(),
     RR(),
     ReproZip(),
-    Sciunit(),
+    # Sciunit(),
     # Care(),
     PTU(),
+    Probe(),
     # SpadeFuse(),
     # SpadeAuditd(),
     # Darshan(),

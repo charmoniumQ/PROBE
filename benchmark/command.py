@@ -1,10 +1,16 @@
+import datetime
 import hashlib
 import pathlib
 import typing
 import dataclasses
-import functools
 import subprocess
 import util
+import json
+from mandala.imports import Storage, op
+import mandala.model
+
+
+storage = Storage(".cache/nix_build.db")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -17,15 +23,33 @@ class Placeholder:
         return self.prefix + context[self.value] + self.postfix
 
 
-@functools.lru_cache
 def nix_build(attr: str) -> str:
+    # Cache nix build, since it is expensive
+    # Even if nothing cahnges, Nix takes ~0.3 seconds to determine that nothing changed.
+    if attr.startswith(".#"):
+        # If the flake is changed, the mandala cache is invalid
+        # Therefore, make the Nix flake and lock an argument tracked by Mandala.
+        return mandala.model.Context.current_context.storage.unwrap(_nix_build(
+            attr,
+            pathlib.Path("flake.nix").read_text(),
+            json.loads(pathlib.Path("flake.lock").read_text()),
+        ))
+    else:
+        return _nix_build(attr, "", None)
+
+
+@op
+def _nix_build(attr: str, flake_src: str, flake_lock: typing.Any) -> str:
     print(f"Nix building {attr}")
-    return subprocess.run(
+    start = datetime.datetime.now()
+    ret = subprocess.run(
         ["nix", "build", attr, "--print-out-paths", "--no-link"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout.strip()
+    print(f"Nix built {attr} in {(datetime.datetime.now() - start).total_seconds()}")
+    return ret
 
 @dataclasses.dataclass(frozen=True)
 class NixPath:
@@ -44,6 +68,11 @@ class NixPath:
             return self.expand() == other.expand()
         else:
             return False
+
+    def __getstate__(self) -> typing.Mapping[str, str]:
+        # Mandala uses joblib.hash which uses pickle to get the state of an object for hashing purposes.
+        # We want to override this to depend on the state of the Nix flake as well.
+        return {"expanded": self.expand()}
 
 
 @dataclasses.dataclass(frozen=True)

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+import datetime; start = datetime.datetime.now()
 import typer
+import pathlib
 import enum
 from typing_extensions import Annotated
 import experiment
@@ -7,7 +9,9 @@ import workloads as workloads_mod
 import prov_collectors as prov_collectors_mod
 import util
 import stats
-import polars
+from mandala.imports import Storage, Ignore
+
+imports = datetime.datetime.now()
 
 
 CollectorGroup = enum.Enum(  # type: ignore
@@ -30,6 +34,7 @@ def main(
         iterations: int = 1,
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
+        verbose: Annotated[bool, typer.Option("--verbose")] = False,
 ) -> None:
     """
     Run a full matrix of these workloads in those provenance collectors.
@@ -39,6 +44,10 @@ def main(
     want to ignore prior runs, pass `--rerun`.
 
     """
+    entry = datetime.datetime.now()
+    if verbose:
+        print(f"Finished imports in {(imports - start).total_seconds():.1f}sec")
+        print(f"Entered main in {(entry - imports).total_seconds():.1f}sec")
 
     collector_list = list(util.flatten1([
         prov_collectors_mod.PROV_COLLECTOR_GROUPS[collector_name.value]
@@ -48,33 +57,48 @@ def main(
         workloads_mod.WORKLOAD_GROUPS[workload_name.value]
         for workload_name in workloads
     ]))
-    if not collectors:
+    if not collector_list:
         raise ValueError("Must select some collectors")
-    if not workloads:
+    if not workload_list:
         raise ValueError("Must select some workloads")
 
-    iterations_df, workloads_df = stats.process_df(experiment.run_experiments(
-        collector_list,
-        workload_list,
-        iterations=iterations,
-        seed=seed,
-        rerun=rerun,
-    ))
-    failures = iterations_df.filter(polars.col("returncode") != 0).select(
-        "collector",
-        "workload_subgroup",
-    )
-    if not failures.is_empty():
-        for failure in failures:
-            print("Failures:")
-            print(*failure)
-    print(iterations_df.select(*[
-        col
-        for col in iterations_df.columns
-        if ("time" in col and "overhead" in col) or "subsubgroup" in col or "collector" in col
-    ]))
-    iterations_df.write_parquet("iterations.parquet")
-    workloads_df.write_parquet("workloads.parquet")
+    storage_file = pathlib.Path(".cache/run_experiments.db")
+    storage_file.parent.mkdir(exist_ok=True)
+    with Storage(storage_file) as storage:
+        if rerun:
+            ops = []
+            with storage:
+                ops.append(experiment.run_experiments(
+                    collector_list,
+                    workload_list,
+                    iterations=iterations,
+                    seed=seed,
+                    rerun=rerun,
+                    verbose=Ignore(verbose),
+                ))
+                ops.extend([
+                    experiment.run_experiment(collector, workload, seed ^ iteration, Ignore(False))
+                    for collector in collector_list
+                    for workload in workload_list
+                    for iteration in range(iterations)
+                ])
+            storage.drop_calls(
+                [storage.get_ref_creator(op) for op in ops],
+                delete_dependents=True,
+            )
+        iterations_df = storage.unwrap(experiment.run_experiments(
+            collector_list,
+            workload_list,
+            iterations=iterations,
+            seed=seed,
+            rerun=rerun,
+            verbose=Ignore(verbose),
+        ))
+
+    stats.process_df(iterations_df)
+
+    if verbose:
+        print(f"Finished main in {(datetime.datetime.now() - entry).total_seconds():.1f}sec")
 
 
 if __name__ == "__main__":

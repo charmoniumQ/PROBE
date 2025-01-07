@@ -6,17 +6,13 @@
     flake-utils = {
       url = "github:numtide/flake-utils";
     };
-
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
-
     advisory-db = {
       url = "github:rustsec/advisory-db";
       flake = false;
     };
-
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";

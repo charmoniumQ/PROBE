@@ -14,8 +14,10 @@ import subprocess
 import urllib.request
 from collections.abc import Sequence, Mapping, Iterator, Iterable
 from typing import Callable, TypeVar, Any, TypeAlias, cast, Hashable
+import rich
+import rich.table
 import tqdm
-import numpy
+
 
 
 def download(output: pathlib.Path, url: str) -> None:
@@ -152,6 +154,7 @@ def groupby_dict(
 
 def confidence_interval(data: Any, confidence_level: float, seed: int = 0) -> tuple[float, float]:
     import scipy  # type: ignore
+    import numpy
     bootstrap = scipy.stats.bootstrap(
         [data],
         confidence_level=confidence_level,
@@ -301,3 +304,19 @@ def dir_size(dir: pathlib.Path) -> int:
         dir_size(child) if child.is_dir() else child.stat().st_size
         for child in dir.iterdir()
     ])
+
+
+def print_rich_table(
+        title: str | None,
+        columns: typing.Sequence[str],
+        rows: typing.Sequence[typing.Sequence[typing.Any]],
+) -> rich.table.Table:
+    """Functional wrapper around rich.table.Table"""
+    table = rich.table.Table(*columns, title=title)
+    for row in rows:
+        table.add_row(*[
+            cell if isinstance(cell, str) else str(cell)
+            for cell in row
+        ])
+    rich.print(table)
+    return table

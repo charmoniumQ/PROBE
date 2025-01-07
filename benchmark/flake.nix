@@ -274,7 +274,7 @@
           # Rename to avoid conflict when merging
           apacheHttpd = renameInDrv pkgs.apacheHttpd "bin/httpd" "bin/apacheHttpd";
           miniHttpd = renameInDrv pkgs.miniHttpd "bin/httpd" "bin/miniHttpd";
-          postmark-binary = pkgs.stdenv.mkDerivation rec {
+          postmark-bin = pkgs.stdenv.mkDerivation rec {
             pname = "postmark";
             version = "1.53";
             src = pkgs.fetchzip {
@@ -510,13 +510,14 @@
                  1i export PATH:=${pkgs.blast}/bin:${pkgs.blast-bin}/bin:${pkgs.bash}/bin:$(PATH)
             ' ${blast-benchmark-orig}/Makefile > $out/Makefile
           '';
-          # Sed commands in order:
+          # Sed commands in order for blast-benchmark:
           # - Make OUTPUT overridable..
           # - Remove TIME
           # - Remove stdout and stderr redirection
           # - Add BLAST, blast-bin, and sh to path.
           #   Note that makembindex (required for idx_megablast is contained in pkgs.blast-bin but not pkgs.blast)
-          postmark-from-src = pkgs.stdenv.mkDerivation rec {
+
+          postmark = pkgs.stdenv.mkDerivation rec {
             pname = "postmark";
             version = "1.5";
             src = pkgs.fetchurl {
@@ -546,7 +547,7 @@
             buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
             patchPhase = ''
               sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
-              sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS)"/g' src/Makefile
+              sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS) -O"/g' src/Makefile
               sed -i 's=printf(buf)=printf("%s", buf)=g' src/lat_http.c
               sed -i 's=../bin/$OS/='"$out/bin/=g" scripts/config-run
               sed -i 's=../scripts/=$out/bin/=g' scripts/config-run
