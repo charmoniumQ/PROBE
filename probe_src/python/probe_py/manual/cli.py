@@ -1,7 +1,9 @@
 from typing_extensions import Annotated
 import pathlib
+import dataclasses
 import typer
 import shutil
+import json
 import rich.console
 import rich.pretty
 from ..generated.parser import parse_probe_log, parse_probe_log_ctx
@@ -320,6 +322,32 @@ def makefile(
     output = pathlib.Path("Makefile")
     script = g.generate_makefile(dataflow_graph)
     output.write_text(script)
+
+
+@export_app.command()
+def ops_jsonl(
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Export each op to a JSON line
+    """
+    stdout_console = rich.console.Console()
+    prov_log = parse_probe_log(probe_log)
+    for pid, process in prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                for i, op in enumerate(thread.ops):
+                    stdout_console.print_json(json.dumps({
+                        "pid": pid,
+                        "tid": tid,
+                        "exec_epoch_no": exec_epoch_no,
+                        "i": i,
+                        "op": dataclasses.asdict(op),
+                        "op_data_type": type(op.data).__name__,
+                    }))
 
 
 if __name__ == "__main__":

@@ -11,16 +11,17 @@ quantitative_vars = ("walltime", "user_cpu_time", "system_cpu_time", "max_memory
 too_quick_walltime = datetime.timedelta(seconds=1)
 
 
-def _aggregate_iterations(iterations: polars.DataFrame) -> polars.DataFrame:
-    def add_dummy(struct: typing.Mapping[str, float]) -> typing.Mapping[str, float]:
-        # Parquet doesn't support 0-field structs.
-        # InvalidOperationError: Unable to write struct type with no child field to Parquet. Consider adding a dummy child field.
-        # So we will add a dummy field to empty structs
-        if struct:
-            return struct
-        else:
-            {"_dummy": 0.0}
+def _add_dummy(struct: typing.Mapping[str, float]) -> typing.Mapping[str, float]:
+    # Parquet doesn't support 0-field structs.
+    # InvalidOperationError: Unable to write struct type with no child field to Parquet. Consider adding a dummy child field.
+    # So we will add a dummy field to empty structs
+    if struct:
+        return struct
+    else:
+        return {"_dummy": 0.0}
 
+
+def _aggregate_iterations(iterations: polars.DataFrame) -> polars.DataFrame:
     return iterations.group_by("collector", *workload_index).agg(
         *[
             polars.col(var).mean().alias(f"{var}_avg")
@@ -30,7 +31,7 @@ def _aggregate_iterations(iterations: polars.DataFrame) -> polars.DataFrame:
         polars.col("n_unique_files").max().alias("n_unique_files_max"),
         polars.map_groups(
             exprs="op_counts",
-            function=lambda op_countss: add_dummy({
+            function=lambda op_countss: _add_dummy({
                 op: sum(
                     # some of op_counts[op] are set to None
                     util.expect_type(int, op_counts[op]) if op_counts.get(op) else 0
@@ -107,43 +108,62 @@ def _print_diagnostics(
     _print_schema("Agged DF", agged.schema)
     _print_schema("Workloads DF", workloads.schema)
 
-    summary = agged.pivot(
-        "collector",
-        index="workload_subsubgroup",
-        values="walltime_avg",
-    )
-    print(summary.with_columns(
-        *[
-            dt_to_seconds(polars.col(col))
-            for col in summary.columns
-            if isinstance(summary.schema[col], polars.Duration)
-        ]
-    ))
 
-    failures = iterations.filter(polars.col("returncode") != 0).select(
-        "collector",
-        "workload_subsubgroup",
-    )
-    if not failures.is_empty():
-        print("Failures:", failures, sep="\n")
-    too_quick = iterations.filter(polars.col("walltime") < too_quick_walltime).select(
-        "collector",
-        "workload_subsubgroup",
-        "walltime",
-    )
-    if not too_quick.is_empty():
-        print("Too quick:", too_quick, sep="\n")
+    with polars.Config(tbl_rows=-1, tbl_cols=-1):
+
+        summary = agged.pivot(
+            "collector",
+            index="workload_subsubgroup",
+            values="walltime_avg",
+        )
+        print(summary.with_columns(
+            *[
+                dt_to_seconds(polars.col(col))
+                for col in summary.columns
+                if isinstance(summary.schema[col], polars.Duration)
+            ]
+        ))
+
+        print(agged.pivot(
+            "collector",
+            index="workload_subsubgroup",
+            values="walltime_overhead_ratio",
+        ))
+
+        print(agged.pivot(
+            "collector",
+            index="workload_subsubgroup",
+            values="walltime_overhead_diff",
+        ))
+
+        failures = iterations.filter(polars.col("returncode") != 0).select(
+            "collector",
+            "workload_subsubgroup",
+        )
+        if not failures.is_empty():
+            print("===================== Failures:", failures, sep="\n")
+
+        too_quick = iterations.filter(polars.col("walltime") < too_quick_walltime).select(
+            "collector",
+            "workload_subsubgroup",
+            "walltime",
+        )
+        if not too_quick.is_empty():
+            print("===================== Too quick:", too_quick, sep="\n")
 
 
 def _print_schema(title: str | None, schema: polars.Schema) -> None:
-    util.print_rich_table(
-        title,
-        ("Column", "DType"),
-        [
-            (name, str(dtype))
-            for name, dtype in zip(schema.names(), schema.dtypes())
-        ],
-    )
+    print(title)
+    with polars.Config(tbl_rows=-1):
+        print(polars.DataFrame({"Column": schema.names(), "Dtypes": schema.dtypes()}))
+    # util.print_rich_table(
+    #     title,
+    #     ("Column", "DType"),
+    #     [
+    #         (name, str(dtype))
+    #         for name, dtype in zip(schema.names(), schema.dtypes())
+    #     ],
+    # )
 
 
 def _save_data(
@@ -156,6 +176,10 @@ def _save_data(
         shutil.rmtree(output)
     output.mkdir()
 
+    if not iterations["op_counts"].struct.fields:
+        iterations = iterations.with_columns(
+            polars.col("op_counts").map_elements(lambda ops: [_add_dummy(op) for op in ops]),
+        )
     iterations.write_parquet(output / "iterations.parquet")
 
     agged.write_parquet(output / "agged.parquet")
@@ -176,11 +200,8 @@ def dt_to_seconds(series: polars.Expr, decimals: int = 1) -> polars.Expr:
 
 
 def process_df(iterations: polars.DataFrame) -> tuple[polars.DataFrame, polars.DataFrame]:
-    _print_schema("Iterations DF", iterations.schema)
     agged = _aggregate_iterations(iterations)
-    _print_schema("Agged DF", agged.schema)
     workloads = _get_workloads(agged)
-    _print_schema("Workload DF", workloads.schema)
     agged = _add_overhead_columns(agged, workloads)
     _print_diagnostics(iterations, agged, workloads)
     _save_data(iterations, agged, workloads)

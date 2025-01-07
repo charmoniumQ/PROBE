@@ -64,28 +64,28 @@ def main(
 
     storage_file = pathlib.Path(".cache/run_experiments.db")
     storage_file.parent.mkdir(exist_ok=True)
+    if rerun:
+        ops = []
+        with Storage(storage_file) as storage:
+            ops.append(experiment.run_experiments(
+                collector_list,
+                workload_list,
+                iterations=iterations,
+                seed=seed,
+                rerun=rerun,
+                verbose=Ignore(verbose),
+            ))
+            ops.extend([
+                experiment.run_experiment(seed ^ iteration, collector, workload, Ignore(False))
+                for collector in collector_list
+                for workload in workload_list
+                for iteration in range(iterations)
+            ])
+        storage.drop_calls(
+            [storage.get_ref_creator(op) for op in ops],
+            delete_dependents=True,
+        )
     with Storage(storage_file) as storage:
-        if rerun:
-            ops = []
-            with storage:
-                ops.append(experiment.run_experiments(
-                    collector_list,
-                    workload_list,
-                    iterations=iterations,
-                    seed=seed,
-                    rerun=rerun,
-                    verbose=Ignore(verbose),
-                ))
-                ops.extend([
-                    experiment.run_experiment(collector, workload, seed ^ iteration, Ignore(False))
-                    for collector in collector_list
-                    for workload in workload_list
-                    for iteration in range(iterations)
-                ])
-            storage.drop_calls(
-                [storage.get_ref_creator(op) for op in ops],
-                delete_dependents=True,
-            )
         iterations_df = storage.unwrap(experiment.run_experiments(
             collector_list,
             workload_list,

@@ -1,3 +1,4 @@
+import shlex
 import datetime
 import hashlib
 import pathlib
@@ -26,28 +27,36 @@ class Placeholder:
 def nix_build(attr: str) -> str:
     # Cache nix build, since it is expensive
     # Even if nothing cahnges, Nix takes ~0.3 seconds to determine that nothing changed.
-    if attr.startswith(".#"):
+    if ":" not in attr:
         # If the flake is changed, the mandala cache is invalid
         # Therefore, make the Nix flake and lock an argument tracked by Mandala.
-        return mandala.model.Context.current_context.storage.unwrap(_nix_build(
+        path = pathlib.Path(attr.partition("#")[0])
+        ret = _nix_build(
             attr,
-            pathlib.Path("flake.nix").read_text(),
-            json.loads(pathlib.Path("flake.lock").read_text()),
-        ))
+            (path / "flake.nix").read_text(),
+            json.loads((path / "flake.lock").read_text()),
+        )
     else:
-        return _nix_build(attr, "", None)
+        ret = _nix_build(attr, "", None)
+    return mandala.model.Context.current_context.storage.unwrap(ret)
 
 
 @op
 def _nix_build(attr: str, flake_src: str, flake_lock: typing.Any) -> str:
     print(f"Nix building {attr}")
     start = datetime.datetime.now()
-    ret = subprocess.run(
-        ["nix", "build", attr, "--print-out-paths", "--no-link"],
-        check=True,
+    cmd = ["nix", "build", attr, "--print-out-paths", "--no-link"]
+    proc = subprocess.run(
+        cmd,
         capture_output=True,
         text=True,
-    ).stdout.strip()
+    )
+    if proc.returncode != 0:
+        print(shlex.join(cmd))
+        print(proc.stdout)
+        print(proc.stderr)
+        raise RuntimeError("Nix build failed")
+    ret = proc.stdout.strip()
     print(f"Nix built {attr} in {(datetime.datetime.now() - start).total_seconds()}")
     return ret
 

@@ -1,5 +1,6 @@
 import dataclasses
 import warnings
+import json
 import subprocess
 import os
 import yaml
@@ -688,13 +689,28 @@ class Care(ProvCollector):
 class Probe(ProvCollector):
     timeout_multiplier = 3
     run_cmd = command.Command((
-        command.NixPath("github:charmoinumQ/PROBE#probe-bundled", "/bin/probe"),
+        command.NixPath("..#probe-bundled", "/bin/probe"),
+        "record",
         "--output",
         prov_log,
     ))
 
     def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        return ()
+        ops = list(map(json.loads, subprocess.run(
+            command.Command((
+                command.NixPath("..#probe-bundled", "/bin/probe"),
+                "export",
+                "ops-jsonl",
+                str(log),
+            )).expand({}),
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.split("\n")))
+        return tuple(
+            ProvOperation(op["op_data_type"], None, None, None)
+            for op in ops
+        )
 
 
 PROV_COLLECTORS: list[ProvCollector] = [
