@@ -39,6 +39,7 @@
           bibcop
           biblatex
           biblatex-trad
+          breakurl
           kastrup # \usepackage{binhex}
           bookmark
           booktabs
@@ -111,7 +112,7 @@
       };
     in {
       devShells = {
-        compile = pkgs.mkShell {
+        default = pkgs.mkShell {
           packages = [
             (pkgs.texlive.combine texlivePackages)
             pkgs.pandoc

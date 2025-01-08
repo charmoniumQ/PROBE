@@ -1,7 +1,7 @@
 ---
-# pandoc --template=../acm-template.tex --filter=pandoc-crossref  --citeproc --biblatex -i README.md -o README.tex
+# pandoc --template=../usenix_template.tex --filter=pandoc-crossref  --citeproc --biblatex -i README.md -o README.tex
 # latexmk -interaction=nonstopmode -shell-escape -pdf -shell-escape -emulate-aux-dir -Werror README
-# pdflatex -interaction=nonstopmode -shell-escape README
+# env TEXINPUTS=$(dirname $PWD)//: pdflatex -interaction=nonstopmode -shell-escape README
 # biber README
 from: markdown
 verbosity: INFO
@@ -54,7 +54,7 @@ author:
     orcid: 0009-0003-0627-1901
     email: kyrillos.said@stud.tu-darmstadt.de
     affiliation:
-      institution:  Alexandria University
+      institution: Alexandria University
       #department:
       #  - Dept.
       #streetaddress: 100 Street
@@ -125,31 +125,34 @@ author:
 classoption:
   - sigconf
   - screen=true
-  - review=false
+  - review=true
   - authordraft=false
   - timestamp=false
   - balance=false
   - pbalance=true
+  - anonymous=true
+  - nonacm=true
 papersize: letter
 pagestyle: plain
-lang: en-US
+lang: en-US=
 standalone: yes # setting to yes calls \maketitle
-number-sections: yes
+number-sections: yescomputational science domain assumes
 indent: no
 date: 2024-12-15
 pagestyle: plain
 papersize: letter
+abstract_only: no
 abstract: >
-  Provenance tracing is the idea of capturing the *provenance* of computational artifacts, (e.g., what version of the program wrote this file).
+  System-level provenance tracing is the idea of automatically capturing how computational artifacts came to be (e.g., what version of the program wrote this file).
+  While provenance is often discussed in the context of security, it also fills an important niche in computational science, providing data for reproducibility, incremental computation, and debugging.
+  Unlike a security administrator, computational scientists do not necessarily have root-level access to the machine on which they want to trace provenance.
   Prior work proposes recompiling with instrumentation, ptrace, and kernel-based auditing, which at best achieves two out of three desirable properties: transparency, performance, and non-privilege.
 
-  We present PROBE, a system-level provenance collector that uses library interpositioning to achieve all three.
-  We evaluate the performance of PROBE for scientific users.
+  We present PROBE, a system-level provenance tracer that uses library interpositioning to achieve all three.
+  We evaluate the performance of PROBE on system microbenchmarks and scientific applications.
+  We also discuss the completeness of the provenance that PROBE collects compared to other provenance tracers.
 ---
-<!--
-TODO: add shortauthor to template
--->
-\renewcommand{\shortauthors}{Grayson et al.}
+
 # Introduction
 
 <!--
@@ -168,11 +171,76 @@ TODO:
 
 \scriptsize
 
- ![Example provenance graph of `fig1.png`. Artifacts are ovals; processes are rectangles](./prov_example.svg){#fig:example width=40%}
+ ![Example provenance graph of `fig1.png`. Artifacts are ovals; processes are rectangles.](./prov_example.svg){#fig:example width=40%}
 
 \normalsize
 
-Provenance can be **retrospective**, documenting processes that were run, or **prospective**, specifying what processes should be run.
+Provenance has a number of use-cases discussed in prior work:
+
+1. **Reproducibility** [@chirigatiReproZipComputationalReproducibility2016].
+   Provenance could aid in _automatic_ reproducibility, automatically replaying the processes with their recorded inputs,  or _manual_ reproducibility, showing the user the commands that were used and letting them decide how to reproduce those commands in their environment.
+
+2. **Incremental computation** [@vahdatTransparentResultCaching1998].
+   Iterative development cycles from developing code, executing it, and changing the code.
+   A system like Make reads a provenance graph and determines which processes need to be re-executed.
+
+3. **Comprehension** [@muniswamy-reddyProvenanceAwareStorageSystems2006].
+   Provenance helps the user understand the flow of data in a complex set of processes, perhaps separately invoked.
+   An tool that consumes provenance can answer queries like:
+   
+   - "Where did this data file come?" Answering, "this raw data processed by this list of commands".
+   - "From what version of the script did this figure derive?" Answering with a copy of the script at the particular version which generated that output. While code is often versioned in VCS, large binary outputs like data and figures are more difficult.
+   - "Does this output use FERPA-protected data (i.e., data located /path/to/ferpa)?"
+
+4. **Differential debugging** [@muniswamy-reddyProvenanceAwareStorageSystems2006].
+   Given two outputs from two executions of similar processes with different versions of data and code or different systems, what is the earliest point that intermediate data from the processes diverges from each other?
+
+5. **Intrusion-detection and forensics** [@muniswamy-reddyProvenanceAwareStorageSystems2006]
+   Provenance-aware systems track all operations done to modify the system, providing a record of how an intruder entered a system and what they modified once they were in.
+   Setting alerts when certain modifications are observed in provenance forms the basis of intrusion detection.
+
+The first four are applicable in the domain of computational science while the last is in security.
+This work focuses on provenance tracers for computational science.
+
+These features necessitate the following design features of provenance tracers:
+
+1. **Non-privilege**:
+   A user should be able to use SLRP to trace their own processes without root-level access.
+   While appropriate for security use-cases, computational scientists would likely not have root-level access on shared systems.
+
+2. **Performance**:
+   SLRP should have a minimal performance overhead from native execution.
+   If the performance overhead is noticeable, users may selectively turn it off, resulting in provenance with gaps in the history.
+
+3. **Transparency**:
+   Users should not have to change or recompile their code to track provenance.
+
+Prior work misses at least one of these three:
+
+- eBPF, Linux Audit framework, Linux Provenance Modules/Linux Security Modules [@batesTrustworthyWholeSystemProvenance2015], and CamFlow [@pasquierPracticalWholesystemProvenance2017] use Linux kernel-level functionality violating non-privilege.
+
+- ReproZip [@chirigatiReproZipComputationalReproducibility2016] and Sciunits [@tonthatSciunitsReusableResearch2017] use ptrace, which has a significant performance overhead.
+  Record/replay tools such as RR [@ocallahanEngineeringRecordReplay2017] and CDE [@guoCDEUsingSystem2011] are similar to provenance tracers in this category.
+  Record/replay tools seek automatic reproducibility but do not satisfy the other features of provenance tracers discussed above.
+
+- PASSv2 [@muniswamy-reddyLayeringProvenanceSystems2009] requires the user to instrument their code to emit provenance data to a colelctor, violating transparency.
+
+We present a provenance tracer based on library interposition called PROBE.
+a non-privileged SLRP tracer that maintains performance and transparency.
+The rest of the work proceeds as follows:
+
+- @Sec:prior-work summarizes prior SLRP and related prior works
+- @Sec:design documents the high-level design of PROBE.
+- @Sec:implementation documents low-level implementation details of PROBE.
+- @Sec:completeness-analysis quantifies the completeness of PROBE with respect to various information sources.
+- @Sec:future-work outlines future work we would like to do on PROBE.
+- @Sec:performance-analysis outlines how we intend to analyze the performance of PROBE and related work.
+
+## Introduction {#sec:intro}
+
+Provenance can be **retrospective**, tracing computational steps that _were run_, or **prospective**, determining what computational steps _should be run_ [@zhaoApplyingVirtualData2006].
+Some programming systems permit determining prospective provenance, but it is easier to trace retrospective provenance dynamically.
+
 Provenance can be collected at several different levels
 
 <!-- TODO: write about service-level -->
@@ -186,56 +254,28 @@ Provenance can be collected at several different levels
 3. **System-level provenance**:, use operating system facilities to report the inputs and outputs that a process makes.
    System-level provenance is the least semantically aware because it does not even know dataflow, just a history of inputs and outputs, but it is the most general, because it supports any process (including any application or workflow engine) that uses watchable I/O operations [@freireProvenanceComputationalTasks2008].
 
+Operating system-level provenance tracing (henceforth **SLRP**) is the most widely applicable form of provenance tracing; install an SLRP, and all unmodified applications, programming languages, and workflow engines will be traced.
 This work focuses on system-level, retrospective provenance (SLRP).
-SLRP tracing has a number of applications:
 
-1. **Reproducibility**.
-   SLRP collects a description of how to generate each artifact, so it could inform users what commands are necessary to reproduce their work.
+SLRP has the following design features:
 
-2. **Caching subsequent re-executions**.
-   Computational science often involves an iterative process of developing code, executing it, changing the code, and repeating.
-   SLRP could inform the user what commands have to be re-run after minor changes to the code.
-   Other solutions like Make require the user to manually specify a dependency graph, which is often unsound (not all dependencies are present).
-
-3. **Comprehension**. 
-   Provenance helps the user understand and document workflows and workflow results.
-   An automated tool that consumes provenance can answer queries like "What version of the data did I use for this figure?" and "Does this workflow include FERPA-protected data?".
-
-There are several design features of SLRP tracers:
-
-1. **Transparency**:
-   The user should not have to change their code to make it work in SLRP.
-
-2. **Non-privilege**:
-   A user should be able to use SLRP to trace their own processes without root-level access.
-   Users of shared systems (e.g., HPC) would likely not have root access.
-   Non-privilege may be relaxed to **user-level**:
-   SLRP should be able to implemented at a user-level as opposed to kernel-level.
-   Non-privilege implies user-level, but user-level does not imply non-privilege.
-
-3. **Completeness**:
+- **Completeness**:
    The SLRP should trace as many sources of information from the host as possible, although there are some that may be too impractical to trace.
 
-4. **Performance**:
-   SLRP should have a minimal performance overhead from native execution.
-   If the performance overhead is noticeable, users may selectively turn it off, resulting in provenance with gaps in the history.
 
-We present PROBE, an SLRP that is a non-privileged SLRP tracer that is reasonably complete and performant.
-We will explain how it works and document the limitations to completeness.
-A complete performance analysis of PROBE and related prior work is left for future work.
+   <!-- Make and workflow engines require user to specify a dependency graph (prospective provenance) by hand, which is often unsound in practice; i.e., the user may misses some dependencies and therefore types `make clean`. -->
+   <!-- A tool could correctly determine which commands need to be re-executed based on SLRP without needing the user to specify anything. -->
 
-The rest of the work proceeds as follows:
 
-- @Sec:prior-work summarizes prior SLRP and related prior works
-- @Sec:design documents the high-level design of PROBE.
-- @Sec:implementation documents low-level implementation details of PROBE.
-- @Sec:completeness-analysis quantifies the completeness of PROBE with respect to various information sources.
-- @Sec:future-work outlines future work we would like to do on PROBE.
-- @Sec:performance-analysis outlines how we intend to analyze the performance of PROBE and related work.
+- **User-level**:
+   SLRP should be able to implemented at a user-level as opposed to kernel-level.
+   Non-privilege implies user-level, but user-level does not imply non-privilege.
+   
+- **TODO**
 
 ## Prior work {#sec:prior-work}
 
-There have been several methods of collecting SLRP proposed in prior work:
+There have been several methods of tracing SLRP proposed in prior work:
 
 <!-- TODO:
 - List every prior work for each method
@@ -305,10 +345,29 @@ Prior surveys/SoK
 - Pimentel et al. A Survey on Collecting, Managing, and Analyzing Provenance from Scripts
 - our prior 2024 ACM REP work
 
-Matrix:
-- Each row is a group of prior works
-- Each column is an SLRP collector-feature
 -->
+
+TODO: Matrix:
+
+- Each row is a group of prior works
+
+- Each column is an SLRP tracer-feature
+
+Prior works argue that library interposition is not appropriate for SLRP for the following reasons:
+
+- **Bypassable by direct system calls**
+
+- **Fragility due to variations in C libraries**
+
+- **Breaks other applications that use preloading**
+
+- **Requires rebuilding or re-linking**
+
+- **TODO**
+
+> A common technique for intercepting system calls inprocess is to use dynamic linking to interpose wrapper functions over the C library functions that make system calls. In practice, we have found that method to be insufficient, due to applications making direct system calls, and fragile, due to variations in C libraries, and applications that require their own preloading [37, 3].
+
+> An alternative implementation of whole-system provenance is interposition between system calls and libraries in user space, as in OPUS [9]. An argument in favour of such systems is that modifications to existing libraries are more likely to be adopted than modifications to the kernel. However, for this approach to work, all applications in the system need to be built against, or dynamically linked to, provenance-aware libraries, replacing existing libraries.
 
 # Concepts {#sec:design}
 
@@ -409,7 +468,11 @@ Those subcommands generally use the dataflow representation rather than the PROB
 
 # Completeness analysis  {#sec:completeness-analysis}
 
-We read the GNU C Library manual^[<https://www.gnu.org/software/libc/manual/html_node/>] and wrapped every function that appeared to do file I/O in the following chapters, with the exception of redundant functions:
+We read the GNU C Library manual^[<https://www.gnu.org/software/libc/manual/html_node/>] and wrapped every function that does file I/O or changes how paths are resolved (e.g., `chdir`) in the following chapters, with the exception of redundant functions^[
+One function, A, is redundant to another one B, if I/O through A necessitates a call through B.
+We need only wrap B to discover that I/O will occur.
+For example, we need only log file openings and closings, not individual file reads and writes.
+]:
 
 - Chapter 12. Input/Output on Streams
 - Chapter 13. Low-Level Input/Output
@@ -418,15 +481,11 @@ We read the GNU C Library manual^[<https://www.gnu.org/software/libc/manual/html
 - Chapter 16. Sockets
 - Chapter 26. Processes
 
-One function, A, is redundant to another one B, if I/O through A necessitates a call through B.
-We need only wrap B to discover that I/O will occur.
-For example, we need only log file openings and closings, not individual file reads and writes.
+Our research prototype wraps:
 
-So far, we wrapped:
-
-- file `open` and `close` familiy of functions (64-bit variants, `f*` variants, re-open, close-range, etc.)
-- changing directories (so we can determine how paths are resolved)
-- directory opens, closes, and iterations families
+- file `open` and `close` family of functions^[The "family of functions" includes 64-bit variants, `f*` variants (`fopen`), re-open, close-range]
+- `chdir` family of functions
+- directory opens, closes, and iterations families of functions
 - file `stat` and `access` families of functions
 - file `chown`, `chmod`, and `utime` families of functions
 - `exec` family of functions
