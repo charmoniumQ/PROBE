@@ -170,11 +170,11 @@ TODO:
 - size text in the SVG without raw LaTeX
 -->
 
-\scriptsize
-
- ![Example provenance graph of `fig1.png`. Artifacts are ovals; processes are rectangles.](./prov_example.svg){#fig:example width=40%}
-
-\normalsize
+\begin{figure}
+\centering
+\includesvg[width=0.5\textwidth,height=\textheight,pretex=\relscale{0.8}]{./prov_example.svg}
+\caption{Example provenance graph of \texttt{fig1.png}. Artifacts are ovals; processes are rectangles.}\label{fig:example}
+\end{figure}
 
 Provenance has a number of use-cases discussed in prior work:
 
