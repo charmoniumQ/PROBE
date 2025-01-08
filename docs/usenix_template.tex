@@ -57,8 +57,16 @@
 % to be able to draw some self-contained figs
 \usepackage{tikz}
 \usepackage{amsmath}
+\usepackage{svg}
+\newcommand{\bibliofont}{\footnotesize}
 
-\begin{document}
+\RequirePackage[
+  datamodel=acmdatamodel,
+  style=acmnumeric, % use style=acmauthoryear for publications that require it
+]{biblatex}
+$for(bibliography)$
+\addbibresource{$bibliography$}
+$endfor$
 
 %don't want date printed
 \date{}
@@ -66,14 +74,22 @@
 % make title bold and 14 pt font (Latex default is non-bold, 16 pt)
 \title{\Large \bf $title$}
 
-%for single author (just remove % characters)
-% \author{
-% $for(author)$
-% {\rm $author.name$}\\
-% $if(author.affiliation)$$author.affiliation.institution$$endif$$sep$
-% \and
-% $endfor$
-% } % end author
+$if(anonymous)$
+\author{(Anonymous)}
+$else$
+\author{
+$for(author)$
+{\rm $author.name$}\\
+$if(author.affiliation)$$author.affiliation.institution$$endif$$sep$
+\and
+$endfor$
+}
+$endif$
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\begin{document}
 
 \maketitle
 
@@ -96,6 +112,7 @@ $if(availability)$
 $availability$
 $endif$
 
+\printbibliography
 % \bibliographystyle{plain}
 % \bibliography{\jobname}
 

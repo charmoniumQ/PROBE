@@ -24,97 +24,12 @@
       nix-utils-lib = nix-utils.lib.${system};
       nix-documents-lib = nix-documents.lib.${system};
       svg2pdf = dstName: srcName: pkgs.runCommand dstName {} "${pkgs.librsvg}/bin/rsvg-convert --output=$out --format=pdf ${srcName}";
-      texlivePackages = {
-        inherit
-          (pkgs.texlive)
-          # See sec 2.1 here https://ctan.math.illinois.edu/macros/latex/contrib/acmart/acmguide.pdf
-          
-          # Also see \usepackage's in acm-template.tex
-          
-          acmart
-          amscls
-          amsfonts
-          amsmath
-          babel
-          bibcop
-          biblatex
-          biblatex-trad
-          breakurl
-          kastrup # \usepackage{binhex}
-          bookmark
-          booktabs
-          caption
-          catchfile
-          cleveref
-          cm-super
-          cmap
-          collection-luatex
-          comment
-          doclicense
-          draftwatermark
-          enumitem
-          environ
-          etoolbox
-          fancyhdr
-          fancyvrb
-          float
-          fontaxes
-          fontspec
-          geometry
-          graphics
-          hyperref
-          hyperxmp
-          ifmtarg
-          iftex
-          inconsolata
-          lacheck
-          latexmk
-          libertine
-          mdwtools
-          microtype
-          mmap
-          ms
-          mweights
-          nag
-          natbib
-          biber
-          ncctools # \usepackage{manyfoot,nccfoots}
-          newtx
-          oberdiek
-          parskip
-          pbalance
-          physics
-          # pdftex-def
-          
-          preprint
-          printlen
-          refcount
-          scheme-small
-          selnolig
-          setspace
-          soul
-          subfig
-          supertabular
-          svg
-          textcase
-          tools
-          totpages
-          transparent
-          trimspaces
-          ulem
-          upquote
-          xcolor
-          xkeyval
-          xstring
-          xurl
-          zref
-          ;
-      };
+
     in {
       devShells = {
         default = pkgs.mkShell {
           packages = [
-            (pkgs.texlive.combine texlivePackages)
+            (pkgs.texlive.combine { inherit (pkgs.texlive) scheme-full; })
             pkgs.pandoc
             pkgs.librsvg
             pkgs.haskellPackages.pandoc-crossref
@@ -122,7 +37,7 @@
         };
       };
       packages = {
-        test = pkgs.texlive.combine texlivePackages;
+        test = (pkgs.texlive.combine { inherit (pkgs.texlive) scheme-medium; });
         default = self.packages."${system}".acm-rep;
         acm-rep = nix-utils-lib.mergeDerivations {
           packageSet =
@@ -156,7 +71,7 @@
                 pandocFlagForEngine = "latexmk"; # pdfLaTeX vs LuaLaTeX vs XeLaTeX
                 FONTCONFIG_FILE = pkgs.makeFontsConf {fontDirectories = [];};
                 buildInputs = [
-                  (pkgs.texlive.combine texlivePackages)
+                  (pkgs.texlive.combine { inherit (pkgs.texlive) scheme-medium; })
                   pkgs.pandoc
                 ];
                 buildPhase = ''
