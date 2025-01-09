@@ -91,6 +91,7 @@
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set __PROBE_LIB ${libprobe}/lib \
+                --prefix PATH : ${pkgs.coreutils}/bin \
                 --prefix PATH : ${probe-py}/bin \
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
@@ -297,5 +298,6 @@
           };
         };
       }
-    );
+    )
+  ;
 }

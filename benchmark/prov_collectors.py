@@ -691,26 +691,40 @@ class Probe(ProvCollector):
     run_cmd = command.Command((
         command.NixPath("..#probe-bundled", "/bin/probe"),
         "record",
+        "--no-transcribe",
         "--output",
         prov_log,
     ))
 
     def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        ops = list(map(json.loads, subprocess.run(
-            command.Command((
-                command.NixPath("..#probe-bundled", "/bin/probe"),
-                "export",
-                "ops-jsonl",
-                str(log),
-            )).expand({}),
-            check=True,
-            text=True,
-            capture_output=True,
-        ).stdout.split("\n")))
-        return tuple(
-            ProvOperation(op["op_data_type"], None, None, None)
-            for op in ops
-        )
+        # subprocess.run(
+        #     command.Command((
+        #         command.NixPath("..#probe-bundled", "/bin/probe"),
+        #         "transcribe",
+        #         "--input",
+        #         str(log),
+        #         str(log.parent / "prov2"),
+        #     )).expand({}),
+        #     check=True,
+        #     text=True,
+        #     capture_output=True,
+        # )
+        # ops = list(map(json.loads, subprocess.run(
+        #     command.Command((
+        #         command.NixPath("..#probe-bundled", "/bin/probe"),
+        #         "export",
+        #         "ops-jsonl",
+        #         str(log.parent / "prov2"),
+        #     )).expand({}),
+        #     check=True,
+        #     text=True,
+        #     capture_output=True,
+        # ).stdout.split("\n")))
+        # return tuple(
+        #     ProvOperation(op["op_data_type"], None, None, None)
+        #     for op in ops
+        # )
+        return ()
 
 
 PROV_COLLECTORS: list[ProvCollector] = [

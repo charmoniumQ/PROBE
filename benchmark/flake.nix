@@ -12,12 +12,7 @@
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python310.override {
-          packageOverrides = self: super: {
-            xarray-einstats = noPytest super.xarray-einstats;
-            debugpy = noPytest super.debugpy;
-          };
-        };
+        python = pkgs.python312;
         noPytest = pypkg:
           pypkg.overrideAttrs (self: super: {
             pytestCheckPhase = ''true'';
@@ -206,8 +201,9 @@
           kaggle = python.withPackages (pypkgs: [
             pypkgs.kaggle
           ]);
-          notebook-env = pkgs.symlinkJoin {
-            name = "notebook-env";
+          tornado = python.pkgs.tornado;
+          kaggle-notebook-env = pkgs.symlinkJoin {
+            name = "kaggle-notebook-env";
             paths = [
               pkgs.coreutils
               pkgs.unzip
@@ -215,15 +211,90 @@
                 pypkgs.pandas
                 pypkgs.tqdm
                 pypkgs.matplotlib
-                (noPytest pypkgs.dask)
                 pypkgs.notebook
                 pypkgs.seaborn
                 pypkgs.scipy
                 pypkgs.scikit-learn
-                pypkgs.nbconvert
-                jupyter-contrib-nbextensions
+                pypkgs.xgboost
+                pypkgs.lightgbm
               ]))
             ];
+          };
+          kaggle-notebook-titanic-0 = pkgs.stdenv.mkDerivation {
+            name = "kaggle-notebook-titanic-0";
+            src = ./kaggle/titanic-tutorial.ipynb;
+            dontUnpack = true;
+            buildPhase = ''
+              cp $src tmp
+              substituteInPlace tmp \
+                --replace '"/kaggle/input/titanic/"' '"${kaggle-data-titanic}/"' \
+                --replace "'submission.csv'" "os.environ('OUTPUT') + '/submission.csv'"
+              cp tmp $out
+            '';
+          };
+          kaggle-notebook-house-prices-0 = pkgs.stdenv.mkDerivation {
+            name = "kaggle-notebook-house-prices-0";
+            src = ./kaggle/comprehensive-data-exploration-with-python.ipynb;
+            dontUnpack = true;
+            buildPhase = ''
+              cp $src tmp
+              substituteInPlace tmp \
+                --replace "../input/" "${kaggle-data-house-prices}"
+              cp tmp $out
+            '';
+          };
+          kaggle-notebook-titanic-1 = pkgs.stdenv.mkDerivation {
+            name = "kaggle-notebook-titanic-1";
+            src = ./kaggle/titanic-data-science-solutions.ipynb;
+            dontUnpack = true;
+            buildPhase = ''
+              cp $src tmp
+              substituteInPlace tmp \
+                --replace "../input/" "${kaggle-data-titanic}" \
+                --replace "'../output/" "os.environ('OUTPUT') + '"
+              cp tmp $out
+            '';
+          };
+          kaggle-notebook-house-prices-1 = pkgs.stdenv.mkDerivation {
+            name = "kaggle-notebook-house-prices-1";
+            src = ./kaggle/stacked-regressions-top-4-on-leaderboard.ipynb;
+            dontUnpack = true;
+            buildPhase = ''
+              cp $src tmp
+              substituteInPlace tmp \
+                --replace "../input/" "${kaggle-data-house-prices}" \
+                --replace "'submission.csv'" "os.environ('OUTPUT') + '/submission.csv'"
+              cp tmp $out
+            '';
+          };
+          # These are not downloadable without logging in, so I will host them here
+          kaggle-data-titanic = pkgs.stdenv.mkDerivation {
+            name = "kaggle-data-titanic";
+            src = ./kaggle/titanic.zip;
+            buildInputs = [ pkgs.unzip ];
+            unpackPhase = ''
+              mkdir source
+              unzip $src -d source
+              cd source
+            '';
+            buildPhase = ''
+              mkdir $out
+              cp -r * $out/
+            '';
+          };
+          kaggle-data-house-prices = pkgs.stdenv.mkDerivation {
+            name = "kaggle-data-house-prices";
+            src = ./kaggle/house-prices.zip;
+            buildInputs = [ pkgs.unzip ];
+            unpackPhase = ''
+              mkdir source
+              unzip $src -d source
+              cd source
+            '';
+            buildPhase = ''
+              mkdir $out
+              cp -r * $out/
+            '';
           };
           spack-env = pkgs.symlinkJoin {
             name = "spack-env";
@@ -377,24 +448,6 @@
                 PKG_CONFIG_PATH = "${pkgs.fuse}/lib/pkgconfig";
               }
           );
-          jupyter-contrib-nbextensions = python.pkgs.jupyter-contrib-nbextensions.overrideAttrs (self: super: {
-            # Yes, this was very recently broken by [1]
-            # But it was even more recently fixed by [2].
-            # But it has not yet been marked as fixed.
-            # So I will do that manually here.
-            # [1]: https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1647
-            # [2]: https://github.com/NixOS/nixpkgs/commit/ba873b2be6252a5144c9f37fae1341973ac155ae
-            meta = {broken = false;};
-            patches =
-              (({patches = [];} // super).patches)
-              ++ [
-                (pkgs.fetchpatch {
-                  name = "notebook-v7-compat.patch";
-                  url = "https://github.com/ipython-contrib/jupyter_contrib_nbextensions/commit/181e5f38f8c7e70a2e54a692f49564997f21a231.patch";
-                  hash = "sha256-WrC9npEUAk3Hou8Tp8kK+Nw+H0bEEjR3GIoUTxrZxak=";
-                })
-              ];
-          });
           pcre2-dev = pkgs.pcre2.dev.overrideAttrs (super: {
             postFixup =
               super.postFixup
@@ -542,6 +595,7 @@
             #   name = "lmbench";
             # };
             # sourceRoot = "lmbench";
+            # For some reason, this is not reliably downloadable; therefore, I will vendor a copy
             src = ./lmbench-3.0-a9.tgz;
             sourceRoot = "lmbench-3.0-a9";
             buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];

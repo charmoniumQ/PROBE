@@ -16,8 +16,11 @@ from collections.abc import Sequence, Mapping, Iterator, Iterable
 from typing import Callable, TypeVar, Any, TypeAlias, cast, Hashable
 import rich
 import rich.table
+import rich.progress
 import tqdm
 
+
+console = rich.console.Console()
 
 
 def download(output: pathlib.Path, url: str) -> None:
@@ -29,7 +32,7 @@ def download(output: pathlib.Path, url: str) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     with DownloadProgressBar(unit='B', unit_scale=True,
                              miniters=1, desc=url.split('/')[-1]) as t:
-        print(url)
+        console.print(url)
         urllib.request.urlretrieve(url, filename=output, reporthook=t.update_to)
 
 
@@ -202,7 +205,7 @@ class SubprocessError(Exception):
             try:
                 arg_str = to_str(arg)
             except Exception as exc:
-                print(f"{exc} while converting {arg!r}")
+                console.print(f"{exc} while converting {arg!r}")
                 arg_str = "<unk>"
             arg_strs.append(arg_str)
         args_joined = shlex.join(arg_strs)
@@ -318,5 +321,16 @@ def print_rich_table(
             cell if isinstance(cell, str) else str(cell)
             for cell in row
         ])
-    rich.print(table)
+    console.print(table)
     return table
+
+
+progress = rich.progress.Progress(
+    rich.progress.TextColumn("[progress.description]{task.description}"),
+    rich.progress.BarColumn(),
+    rich.progress.TaskProgressColumn(show_speed=True),
+    rich.progress.TimeElapsedColumn(),
+    rich.progress.TimeRemainingColumn(),
+    rich.progress.MofNCompleteColumn(),
+    console=console,
+)

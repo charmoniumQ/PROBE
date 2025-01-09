@@ -1,4 +1,5 @@
 from typing_extensions import Annotated
+import typing
 import pathlib
 import dataclasses
 import typer
@@ -334,6 +335,17 @@ def ops_jsonl(
     """
     Export each op to a JSON line
     """
+    def filter_nested_dict(
+            dct: typing.Mapping[typing.Any, typing.Any],
+    ) -> typing.Mapping[typing.Any, typing.Any]:
+        return {
+            key: (
+                filter_nested_dict(val) if isinstance(val, dict) else
+                val.decode(errors="surrogateescape") if isinstance(val, bytes) else
+                val
+            )
+            for key, val in dct.items()
+        }
     stdout_console = rich.console.Console()
     prov_log = parse_probe_log(probe_log)
     for pid, process in prov_log.processes.items():
@@ -345,7 +357,9 @@ def ops_jsonl(
                         "tid": tid,
                         "exec_epoch_no": exec_epoch_no,
                         "i": i,
-                        "op": dataclasses.asdict(op),
+                        "op": filter_nested_dict(
+                            dataclasses.asdict(op),
+                        ),
                         "op_data_type": type(op.data).__name__,
                     }))
 

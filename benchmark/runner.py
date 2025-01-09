@@ -46,8 +46,8 @@ def main(
     """
     entry = datetime.datetime.now()
     if verbose:
-        print(f"Finished imports in {(imports - start).total_seconds():.1f}sec")
-        print(f"Entered main in {(entry - imports).total_seconds():.1f}sec")
+        util.console.print(f"Finished imports in {(imports - start).total_seconds():.1f}sec")
+        util.console.print(f"Entered main in {(entry - imports).total_seconds():.1f}sec")
 
     collector_list = list(util.flatten1([
         prov_collectors_mod.PROV_COLLECTOR_GROUPS[collector_name.value]
@@ -67,14 +67,14 @@ def main(
     if rerun:
         ops = []
         with Storage(storage_file) as storage:
-            ops.append(experiment.run_experiments(
-                collector_list,
-                workload_list,
-                iterations=iterations,
-                seed=seed,
-                rerun=rerun,
-                verbose=Ignore(verbose),
-            ))
+            # ops.append(experiment.run_experiments(
+            #     collector_list,
+            #     workload_list,
+            #     iterations=iterations,
+            #     seed=seed,
+            #     rerun=rerun,
+            #     verbose=Ignore(verbose),
+            # ))
             ops.extend([
                 experiment.run_experiment(seed ^ iteration, collector, workload, Ignore(False))
                 for collector in collector_list
@@ -86,20 +86,29 @@ def main(
             delete_dependents=True,
         )
     with Storage(storage_file) as storage:
-        iterations_df = storage.unwrap(experiment.run_experiments(
+        # iterations_df = storage.unwrap(experiment.run_experiments(
+        #     collector_list,
+        #     workload_list,
+        #     iterations=iterations,
+        #     seed=seed,
+        #     rerun=rerun,
+        #     verbose=Ignore(verbose),
+        # ))
+        iterations_df = experiment.run_experiments(
             collector_list,
             workload_list,
             iterations=iterations,
             seed=seed,
             rerun=rerun,
-            verbose=Ignore(verbose),
-        ))
+            verbose=verbose,
+        )
 
     stats.process_df(iterations_df)
 
     if verbose:
-        print(f"Finished main in {(datetime.datetime.now() - entry).total_seconds():.1f}sec")
+        util.console.print(f"Finished main in {(datetime.datetime.now() - entry).total_seconds():.1f}sec")
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    with util.progress:
+        typer.run(main)

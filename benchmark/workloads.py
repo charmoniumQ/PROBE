@@ -37,6 +37,20 @@ def create_file_cmd(size: int, file: command.Placeholder) -> command.Command:
     ))
 
 
+def kaggle_workload(notebook_name: str) -> Workload:
+    return Workload(
+            (("app", "kaggle", notebook_name), ("data science", "")),
+            command.Command((
+                command.NixPath(".#kaggle-notebook-env", "/bin/jupyter"),
+                "nbconvert",
+                "--execute",
+                "--to=notebook",
+                command.NixPath(f".#kaggle-notebook-{notebook_name}"),
+                command.Placeholder("work_dir", postfix="/notebook.ipynb"),
+            )),
+        )
+
+
 workloads = [
     Workload(
         (("app", "blast", "tblastx"), ("cse", "multiomics")),
@@ -284,6 +298,10 @@ workloads = [
         )),
         create_file_cmd(1024, test_file),
     ),
+    kaggle_workload("titanic-0"),
+    kaggle_workload("titanic-1"),
+    kaggle_workload("house-prices-0"),
+    kaggle_workload("house-prices-1"),
 ]
 
 

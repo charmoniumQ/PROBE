@@ -31,7 +31,7 @@ class FailedProcess(Exception):
 
     def __str__(self) -> str:
         chdir = ("--chdir", str(self.proc.cwd)) if self.proc.cwd else ()
-        env_vars = tuple(f"{shlex.quote(key)}={shlex.quote(val)}" for key, val in self.proc.env.items()) + ("-",) if self.proc.env else ()
+        env_vars = tuple(f"{shlex.quote(key)}={shlex.quote(val)}" for key, val in self.proc.env.items()) + ("-",) if self.proc.env is not None else ()
         env_bin = ("env",) if chdir or env_vars else ()
         cmd = shlex.join(env_bin + chdir + env_vars + self.proc.cmd)
         return "\n".join([

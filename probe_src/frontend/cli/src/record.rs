@@ -22,13 +22,19 @@ pub fn record_no_transcribe(
     copy_files: bool,
     cmd: Vec<OsString>,
 ) -> Result<()> {
+    let cwd = PathBuf::from(".");
     let output = match output {
-        Some(x) => fs::canonicalize(x).wrap_err("Failed to canonicalize record directory path")?,
+        Some(x) => {
+            let path: &Path = x.as_ref();
+            let path_parent = path.parent().unwrap_or(&cwd);
+            let dir_name = path.file_name().unwrap();
+            fs::canonicalize(path_parent).wrap_err("Failed to canonicalize record directory path")?.join(dir_name)
+        },
         None => {
             let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
             output.push("probe_record");
             output
-        }
+        },
     };
 
     if overwrite {

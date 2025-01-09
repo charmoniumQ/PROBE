@@ -11,16 +11,6 @@ quantitative_vars = ("walltime", "user_cpu_time", "system_cpu_time", "max_memory
 too_quick_walltime = datetime.timedelta(seconds=1)
 
 
-def _add_dummy(struct: typing.Mapping[str, float]) -> typing.Mapping[str, float]:
-    # Parquet doesn't support 0-field structs.
-    # InvalidOperationError: Unable to write struct type with no child field to Parquet. Consider adding a dummy child field.
-    # So we will add a dummy field to empty structs
-    if struct:
-        return struct
-    else:
-        return {"_dummy": 0.0}
-
-
 def _aggregate_iterations(iterations: polars.DataFrame) -> polars.DataFrame:
     return iterations.group_by("collector", *workload_index).agg(
         *[
@@ -31,14 +21,14 @@ def _aggregate_iterations(iterations: polars.DataFrame) -> polars.DataFrame:
         polars.col("n_unique_files").max().alias("n_unique_files_max"),
         polars.map_groups(
             exprs="op_counts",
-            function=lambda op_countss: _add_dummy({
+            function=lambda op_countss: {
                 op: sum(
                     # some of op_counts[op] are set to None
                     util.expect_type(int, op_counts[op]) if op_counts.get(op) else 0
                     for op_counts in op_countss[0]
                 ) / len(op_countss[0])
                 for op in set(util.flatten1([op_counts.keys() for op_counts in op_countss[0]]))
-            }),
+            },
             return_dtype=polars.Int32,
         ).alias("op_counts_avg"),
     )
@@ -72,7 +62,7 @@ def _get_workloads(agged: polars.DataFrame) -> polars.DataFrame:
         strace_workloads,
         on=workload_index,
         how="outer",
-        # validate="1:1",
+        validate="1:1",
     ).drop([col + "_right" for col in workload_index])
 
 
@@ -85,7 +75,7 @@ def _add_overhead_columns(
         workloads,
         on=workload_index,
         how="outer",
-        # validate="m:1",
+        validate="m:1",
     ).select(
         *columns,
         *[
@@ -110,52 +100,56 @@ def _print_diagnostics(
 
 
     with polars.Config(tbl_rows=-1, tbl_cols=-1):
+        collectors = list(agged["collector"].unique())
 
-        summary = agged.pivot(
+        util.console.print("Absolute walltime")
+        util.console.print(dt_as_seconds(agged.pivot(
             "collector",
             index="workload_subsubgroup",
             values="walltime_avg",
-        )
-        print(summary.with_columns(
-            *[
-                dt_to_seconds(polars.col(col))
-                for col in summary.columns
-                if isinstance(summary.schema[col], polars.Duration)
-            ]
-        ))
+        )))
 
-        print(agged.pivot(
+        util.console.print("Walltime overhead ratio")
+        util.console.print(agged.pivot(
             "collector",
             index="workload_subsubgroup",
             values="walltime_overhead_ratio",
+        ).with_columns(
+            polars.col(collector).round(3)
+            for collector in collectors
         ))
 
-        print(agged.pivot(
-            "collector",
-            index="workload_subsubgroup",
-            values="walltime_overhead_diff",
-        ))
+        # util.console.print("Walltime overhead difference")
+        # util.console.print(dt_as_seconds(agged.pivot(
+        #     "collector",
+        #     index="workload_subsubgroup",
+        #     values="walltime_overhead_diff",
+        # )))
 
         failures = iterations.filter(polars.col("returncode") != 0).select(
+            "seed",
             "collector",
             "workload_subsubgroup",
         )
         if not failures.is_empty():
-            print("===================== Failures:", failures, sep="\n")
+            util.console.rule("[red]Failures:[/red]")
+            util.console.print(str(failures))
 
         too_quick = iterations.filter(polars.col("walltime") < too_quick_walltime).select(
+            "seed",
             "collector",
             "workload_subsubgroup",
             "walltime",
         )
         if not too_quick.is_empty():
-            print("===================== Too quick:", too_quick, sep="\n")
+            util.console.rule("[red]Too quick:[/red]")
+            util.console.print(str(dt_as_seconds(too_quick)))
 
 
 def _print_schema(title: str | None, schema: polars.Schema) -> None:
-    print(title)
+    util.console.print(title)
     with polars.Config(tbl_rows=-1):
-        print(polars.DataFrame({"Column": schema.names(), "Dtypes": schema.dtypes()}))
+        util.console.print(str(polars.DataFrame({"Column": schema.names(), "Dtypes": schema.dtypes()})))
     # util.print_rich_table(
     #     title,
     #     ("Column", "DType"),
@@ -176,27 +170,41 @@ def _save_data(
         shutil.rmtree(output)
     output.mkdir()
 
-    if not iterations["op_counts"].struct.fields:
-        iterations = iterations.with_columns(
-            polars.col("op_counts").map_elements(lambda ops: [_add_dummy(op) for op in ops]),
-        )
-    iterations.write_parquet(output / "iterations.parquet")
+    parquet_safe_columns(iterations).write_parquet(output / "iterations.parquet")
 
-    agged.write_parquet(output / "agged.parquet")
+    parquet_safe_columns(agged).write_parquet(output / "agged.parquet")
 
-    agged.select(
-        dt_to_seconds(polars.col(col)) if isinstance(dtype, polars.Duration) else
+    csv_safe_columns(agged.with_columns()).write_csv(output / "agged.csv")
+
+    parquet_safe_columns(workloads).write_parquet(output / "workloads.parquet")
+
+
+def dt_as_seconds(df: polars.DataFrame, decimals: int = 1) -> polars.DataFrame:
+    return df.with_columns(
+        (polars.col(col).dt.total_nanoseconds() * 1e-9).round(decimals)
+        for col, dtype in zip(df.columns, df.dtypes)
+        if isinstance(dtype, polars.Duration)
+    )
+
+
+def csv_safe_columns(df: polars.DataFrame) -> polars.DataFrame:
+    return dt_as_seconds(df).select(
         polars.col(col).cast(str) if isinstance(dtype, polars.Categorical) else
         polars.col(col)
-        for col, dtype in zip(agged.columns, agged.dtypes)
+        for col, dtype in zip(df.columns, df.dtypes)
         if not isinstance(dtype, polars.Struct)
-    ).write_csv(output / "agged.csv")
-
-    workloads.write_parquet(output / "workloads.parquet")
+    )
 
 
-def dt_to_seconds(series: polars.Expr, decimals: int = 1) -> polars.Expr:
-    return (series.dt.total_nanoseconds() * 1e-9).round(decimals)
+def parquet_safe_columns(df: polars.DataFrame) -> polars.DataFrame:
+    # Parquet doesn't support 0-field structs.
+    # InvalidOperationError: Unable to write struct type with no child field to Parquet. Consider adding a dummy child field.
+    # So we will add a dummy field to empty structs
+    return df.with_columns(
+        polars.col(col).struct.with_fields(_dummy=0)
+        for col, dtype in zip(df.columns, df.dtypes)
+        if isinstance(dtype, polars.Struct) and not df[col].struct.fields
+    )
 
 
 def process_df(iterations: polars.DataFrame) -> tuple[polars.DataFrame, polars.DataFrame]:
