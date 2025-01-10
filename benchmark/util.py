@@ -334,3 +334,18 @@ progress = rich.progress.Progress(
     rich.progress.MofNCompleteColumn(),
     console=console,
 )
+
+
+_T_contra = TypeVar("_T_contra", contravariant=True)
+
+
+class SupportsDunderLT(typing.Protocol[_T_contra]):
+    def __lt__(self, __other: _T_contra) -> bool: ...
+
+
+class SupportsDunderGT(typing.Protocol[_T_contra]):
+    def __gt__(self, __other: _T_contra) -> bool: ...
+
+
+SupportsRichComparison: typing.TypeAlias = SupportsDunderLT[typing.Any] | SupportsDunderGT[typing.Any]
+SupportsRichComparisonT = typing.TypeVar("SupportsRichComparisonT", bound=SupportsRichComparison)

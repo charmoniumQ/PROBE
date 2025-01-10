@@ -688,7 +688,7 @@ class Care(ProvCollector):
 
 
 class Probe(ProvCollector):
-    timeout_multiplier = 3
+    timeout_multiplier = 1.5
     run_cmd = command.Command((
         command.NixPath("..#probe-bundled", "/bin/probe"),
         "record",
@@ -728,11 +728,24 @@ class Probe(ProvCollector):
         return ()
 
 
+class ProbeCopy(Probe):
+    timeout_multiplier = 3
+    run_cmd = command.Command((
+        command.NixPath("..#probe-bundled", "/bin/probe"),
+        "record",
+        "--copy-files",
+        "--no-transcribe",
+        "--output",
+        prov_log,
+    ))
+
+
+
 PROV_COLLECTORS: list[ProvCollector] = [
     NoProv(),
     STrace(),
     LTrace(),
-    FSATrace(),
+    # FSATrace(),
     CDE(),
     RR(),
     ReproZip(),
@@ -740,6 +753,7 @@ PROV_COLLECTORS: list[ProvCollector] = [
     Care(),
     PTU(),
     Probe(),
+    ProbeCopy(),
     # SpadeFuse(),
     # SpadeAuditd(),
     # Darshan(),
@@ -756,6 +770,6 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
     "fast": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "reprozip"]
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "care", "probe", "ptu", "probecopy"]
     ],
 }

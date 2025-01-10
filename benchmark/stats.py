@@ -17,6 +17,10 @@ def _aggregate_iterations(iterations: polars.DataFrame) -> polars.DataFrame:
             polars.col(var).mean().alias(f"{var}_avg")
             for var in quantitative_vars
         ],
+        *[
+            polars.col(var).std().alias(f"{var}_std")
+            for var in quantitative_vars
+        ],
         polars.col("n_ops").mean().alias("n_ops_avg"),
         polars.col("n_unique_files").max().alias("n_unique_files_max"),
         polars.map_groups(
@@ -116,6 +120,14 @@ def _print_diagnostics(
             values="walltime_overhead_ratio",
         ).with_columns(
             polars.col(collector).round(3)
+            for collector in collectors
+        ))
+        util.console.print(agged.pivot(
+            "collector",
+            index="workload_subsubgroup",
+            values="walltime_overhead_ratio",
+        ).select(
+            polars.col(collector).log().mean().exp().round(3)
             for collector in collectors
         ))
 

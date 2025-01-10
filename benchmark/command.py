@@ -7,11 +7,8 @@ import dataclasses
 import subprocess
 import util
 import json
-from mandala.imports import Storage, op
+from mandala.imports import op
 import mandala.model
-
-
-storage = Storage(".cache/nix_build.db")
 
 
 @dataclasses.dataclass(frozen=True)

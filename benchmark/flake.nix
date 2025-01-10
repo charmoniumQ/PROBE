@@ -716,6 +716,54 @@
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
           };
+          nextflow = pkgs.nextflow;
+          snakemake = pkgs.snakemake;
+          transformers-python = pkgs.python312.withPackages (pypkgs: [ pypkgs.setuptools ]);
+          transformers-src = pkgs.fetchFromGitHub {
+            owner = "huggingface";
+            repo = "transformers";
+            rev = "v4.48.0";
+            hash = "sha256-jh2bMmvTC0G0kLJl7xXpsvXvBmlbZEDA88AfosoE9sA=";
+          };
+          pkg-config = pkgs.pkg-config.out;
+          tesseract-env = pkgs.symlinkJoin {
+            name = "tesseract-env";
+            paths = [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.gnugrep
+              pkgs.gnum4
+              pkgs.gnused
+              pkgs.diffutils
+              pkgs.gawk
+              pkgs.leptonica
+              pkgs.which
+              pkgs.icu.dev
+              pkgs.pango.dev
+              pkgs.cairo.dev
+              # https://tesseract-ocr.github.io/tessdoc/Compiling.html
+              pkgs.gcc
+              pkgs.autoconf
+              pkgs.automake
+              pkgs.libtool
+              pkgs.pkg-config
+              pkgs.libpng
+              pkgs.libjpeg
+              pkgs.libtiff
+              pkgs.zlib.dev
+              pkgs.libwebp
+              pkgs.giflib
+              pkgs.libarchive
+              pkgs.curl.dev
+            ];
+          };
+          tesseract-src = pkgs.fetchFromGitHub {
+            owner = "tesseract-ocr";
+            repo = "tesseract";
+            rev = "5.5.0";
+            hash = "sha256-qyckAQZs3gR1NBqWgE+COSKXhv3kPF+iHVQrt6OPi8s=";
+          };
+          rsync = pkgs.rsync;
           reprozip = python.pkgs.buildPythonApplication rec {
             pname = "reprozip";
             version = "1.2";

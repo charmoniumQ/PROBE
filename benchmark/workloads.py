@@ -3,6 +3,9 @@ import dataclasses
 import typing
 import util
 import command
+import pwd
+import grp
+import os
 
 
 @dataclasses.dataclass(frozen=True)
@@ -21,13 +24,17 @@ class Workload:
 
 env = command.NixPath(".#coreutils", "/bin/env")
 cp = command.NixPath(".#coreutils", "/bin/cp")
+rsync = command.NixPath(".#rsync", "/bin/rsync")
 make = command.NixPath(".#gnumake", "/bin/make")
 bash = command.NixPath(".#bash", "/bin/bash")
+git = command.NixPath(".#git", "/bin/git")
 mkdir = command.NixPath(".#coreutils", "/bin/mkdir")
 work_dir = command.Placeholder("work_dir")
 blast_dir = command.NixPath(".#blast-benchmark")
 blast_output = command.Placeholder("work_dir", prefix="OUTPUT=")
 test_file = command.Placeholder("work_dir", postfix="/test")
+user = pwd.getpwuid(os.getuid()).pw_name
+group = grp.getgrgid(os.getgid()).gr_name
 
 
 def kaggle_workload(notebook_name: str) -> Workload:
@@ -139,6 +146,41 @@ workloads = [
             command.NixPath(".#postmark", postfix="/bin/postmark", prefix="echo -e 'set transactions 100000\nrun\nquit\n' | "),
         )),
     ),
+    Workload(
+        (("app", "compile", "huggingface/transformers"), ("ml", "")),
+        command.Command((command.NixPath(".#transformers-python", "/bin/python"), "setup.py", "bdist_wheel")),
+        command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#transformers-src", postfix="/"), work_dir)),
+    ),
+    # Workload(
+    #     (("app", "compile", "tesseract-ocr"), ("ml", "")),
+    #     command.Command((
+    #         env,
+    #         command.NixPath(".#tesseract-env", postfix="/bin", prefix="PATH="),
+    #         command.NixPath(".#pkg-config", postfix="/share/aclocal", prefix="ACLOCAL_PATH="),
+    #         command.NixPath(".#tesseract-env", "/bin/bash"),
+    #         "-exc",
+    #         "\n".join([
+    #             # ./autogen.sh doesn't work, because pkg-config is in a non-default path
+    #             "env_path=$(dirname $(dirname $(which bash)))",
+    #             "export LIBLEPT_HEADERSDIR=$env_path/include",
+    #             "export LIBLEPT_LIBDIR=$env_path/lib",
+    #             "ls $LIBLEPT_HEADERSDIR/",
+    #             "ls $LIBLEPT_LIBDIR/",
+    #             "export PKG_CONFIG_PATH=$env_path/lib/pkgconfig",
+    #             "mkdir -p config",
+    #             "aclocal -I config",
+    #             "libtoolize -f -c",
+    #             "libtoolize --automake",
+    #             "aclocal -I config",
+    #             "autoconf -I$ACLOCAL_PATH",
+    #             "autoheader -f",
+    #             "automake --add-missing --copy --warnings=all",
+    #             "./configure --with-extra-libraries=$LIBLEPT_LIBDIR",
+    #             "make",
+    #         ]),
+    #     )),
+    #     command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#tesseract-src", postfix="/"), work_dir)),
+    # )
 ]
 
 
@@ -149,5 +191,14 @@ WORKLOAD_GROUPS = {
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][0], util.identity),
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][1], util.identity),
     "all": workloads,
-    "fast": [workload for workload in workloads if workload.labels[0][2] not in {"house-prices-1"}],
+    "fast": [
+        workload
+        for workload in workloads
+        if workload.labels[0][1] not in {"blast"} and workload.labels[0][2] not in {"house-prices-1"}
+    ],
+    "working-app": [
+        workload
+        for workload in workloads
+        if workload.labels[0][0] in {"app"} and workload.labels[0][2] not in {"house-prices-1"}
+    ],
 }
