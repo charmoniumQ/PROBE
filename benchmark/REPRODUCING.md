@@ -23,23 +23,19 @@ This installer also enables "flakes" and the "nix-command".
 If you installed Nix by another method, see [this page](https://nixos.wiki/wiki/Flakes) to enable flakes and the nix-command.
 
 ```sh
-$ git clone https://github.com/charmoniumQ/prov-tracer
-$ cd prov-tracer/benchmark
+$ git clone https://github.com/charmoniumQ/PROBE
+$ cd PROBE/benchmark
 ```
 
-Use Nix to build.
-We used `--max-jobs` to enable parallelism.
-This step takes about half an hour on a modest machine with residential internet.
+Then use Nix to activate the development; this may take ten minutes as it builds the necessary dependencies.
+This will start a _new interactive shell_ in the proper environment.
+From here, you will have all the dependencies to run the steps below.
 
 ```sh
-$ nix build --print-build-logs --max-jobs $(nproc) '.#env'
+$ nix develop
 ```
 
 ### Extra steps
-
-- One needs Kaggle credentials to run the data science notebooks. Log in to Kaggle, go to Profile, go to Account, generated an API key called "kaggle.json", download it, move it to `​~/.kaggle/kaggle.json`, `chmod 600 ~/.kaggle/kaggle.json`. Run `nix shell '.#kaggle' --command kaggle --help` and verify there are no errors.
-
-- Follow directions in [Benchexec](https://github.com/sosy-lab/benchexec/blob/main/doc/INSTALL.md) to enable cgroups. Run `result/bin/python -m benchexec.check_cgroups` and verify there are no errors.
 
 - Test `nix shell '.#rr' --command rr record result/bin/ls`. If this issues an error regarding `kernel.perf_event_paranoid`, follow its advice and confirm that resolves the error.
 
@@ -56,15 +52,15 @@ We wrote a front-end to run the scripts called `runner.py`.
 
 
 Run with `--help` for more information.
-Briefly, it takes a `--collectors`, `--workloads`, `--iterations`, and `--parallelism` arguments, which specify what to run.
+Briefly, it takes a `--collectors`, `--workloads`, and `--iterations`, which specify what to run.
 For the paper, we ran
 
 ```sh
-$ ./result/bin/python runner.py \
-    --collectors working \
-    --workloads working \
-    --iterations 3 \
-    --parallelism 1
+$ ./runner.py \
+    --collectors fast \
+    --workloads all \
+    --iterations 5 \
+    --verbose
 ```
 
 Multiple `--collectors` and `--workloads` can be given, for example,
@@ -87,7 +83,8 @@ It begins by checking for anomalies in the data, which we've automated as much a
 The notebook can be launched from our software environment by:
 
 ```sh
-env - result/bin/jupyter notebook
+cd notebooks
+jupyter notebook
 ```
 
 ## Adding new benchmark items or provenance collectors
