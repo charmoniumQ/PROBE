@@ -677,13 +677,14 @@ class Care(ProvCollector):
     ))
 
     def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        prefix = "main/rootfs"
-        with tarfile.open(name=log, mode='r') as tar_obj:
-            return tuple(
-                ProvOperation("use", pathlib.Path(member.name[len(prefix):]), None, None)
-                for member in tar_obj.getmembers()
-                if member.name.startswith(prefix)
-            )
+        return ()
+        # prefix = "main/rootfs"
+        # with tarfile.open(name=log, mode='r') as tar_obj:
+        #     return tuple(
+        #         ProvOperation("use", pathlib.Path(member.name[len(prefix):]), None, None)
+        #         for member in tar_obj.getmembers()
+        #         if member.name.startswith(prefix)
+        #     )
 
 
 class Probe(ProvCollector):
@@ -735,8 +736,8 @@ PROV_COLLECTORS: list[ProvCollector] = [
     CDE(),
     RR(),
     ReproZip(),
-    # Sciunit(),
-    # Care(),
+    Sciunit(),
+    Care(),
     PTU(),
     Probe(),
     # SpadeFuse(),

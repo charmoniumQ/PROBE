@@ -201,7 +201,10 @@ def parquet_safe_columns(df: polars.DataFrame) -> polars.DataFrame:
     # InvalidOperationError: Unable to write struct type with no child field to Parquet. Consider adding a dummy child field.
     # So we will add a dummy field to empty structs
     return df.with_columns(
-        polars.col(col).struct.with_fields(_dummy=0)
+        polars.col(col).map_elements(
+            lambda dct: {**dct, "_dummy": 1},
+            return_dtype=polars.Struct,
+        )
         for col, dtype in zip(df.columns, df.dtypes)
         if isinstance(dtype, polars.Struct) and not df[col].struct.fields
     )

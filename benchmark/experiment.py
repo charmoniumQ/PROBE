@@ -1,6 +1,6 @@
-import textwrap
 import shlex
 import datetime
+import rich.console
 import dataclasses
 import pathlib
 import tempfile
@@ -146,11 +146,11 @@ def run_experiment(
                 util.console.print(f"{proc.walltime.total_seconds():.1f}sec")
                 if proc.returncode != 0:
                     util.console.print(rich.padding.Padding(
-                        proc.stdout.decode(errors="surrogateescape"),
+                        proc.stdout.decode(errors="surrogateescape").strip(),
                         (1, 4),
                     ))
                     util.console.print(rich.padding.Padding(
-                        proc.stderr.decode(errors="surrogateescape"),
+                        proc.stderr.decode(errors="surrogateescape").strip(),
                         (1, 4),
                     ))
             return proc, ExperimentStats(seed, prov_collector, workload, proc)

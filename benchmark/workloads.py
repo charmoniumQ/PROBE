@@ -22,34 +22,60 @@ class Workload:
 env = command.NixPath(".#coreutils", "/bin/env")
 cp = command.NixPath(".#coreutils", "/bin/cp")
 make = command.NixPath(".#gnumake", "/bin/make")
+bash = command.NixPath(".#bash", "/bin/bash")
 mkdir = command.NixPath(".#coreutils", "/bin/mkdir")
 work_dir = command.Placeholder("work_dir")
 blast_dir = command.NixPath(".#blast-benchmark")
 blast_output = command.Placeholder("work_dir", prefix="OUTPUT=")
 test_file = command.Placeholder("work_dir", postfix="/test")
-def create_file_cmd(size: int, file: command.Placeholder) -> command.Command:
-    return command.Command((
-        command.NixPath(".#coreutils", "/bin/dd"),
-        "if=/dev/zero",
-        dataclasses.replace(file, prefix="of="),
-        f"bs={size}",
-        "count=1",
-    ))
 
 
 def kaggle_workload(notebook_name: str) -> Workload:
     return Workload(
             (("app", "kaggle", notebook_name), ("data science", "")),
             command.Command((
+                env,
+                blast_output,
                 command.NixPath(".#kaggle-notebook-env", "/bin/jupyter"),
                 "nbconvert",
                 "--execute",
                 "--to=notebook",
                 command.NixPath(f".#kaggle-notebook-{notebook_name}"),
+                "--output",
                 command.Placeholder("work_dir", postfix="/notebook.ipynb"),
             )),
         )
 
+
+def lmbench_workload(
+        type: str,
+        workload_name: str,
+        bin_name: str,
+        args: tuple[str | command.Placeholder, ...],
+        create_file_size: int | None = None,
+) -> Workload:
+    return Workload(
+        (("microbench", "lmbench", workload_name), ("sys", type)),
+        command.Command((
+            env,
+            "ENOUGH=1000000",
+            "TIMING_O=0",
+            "LOOP_O=0.000013",
+            command.NixPath(".#lmbench", f"/bin/{bin_name}"),
+            *args,
+            *((test_file,) if create_file_size else ())
+        )),
+        command.Command(
+            (
+                command.NixPath(".#coreutils", "/bin/dd"),
+                "if=/dev/zero",
+                dataclasses.replace(test_file, prefix="of="),
+                f"bs={create_file_size}",
+                "count=1",
+            )
+            if create_file_size else ()
+        ),
+    )
 
 workloads = [
     Workload(
@@ -81,227 +107,38 @@ workloads = [
     #     (("app", "blast", "idx_megablast"), ("cse", "multiomics")),
     #     command.Command((make, "-C", blast_dir, "idx_megablast", blast_output)),
     # ),
-    Workload(
-        (("microbench", "lmbench", "getppid"), ("sys", "syscall")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_syscall"),
-            "-N",
-            "300",
-            "null",
-        )),
-    ),
-    Workload(
-        (("microbench", "lmbench", "read"), ("sys", "file io")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_syscall"),
-            "-N",
-            "300",
-            "read",
-        )),
-    ),
-    Workload(
-        (("microbench", "lmbench", "write"), ("sys", "file io")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_syscall"),
-            "-N",
-            "300",
-            "write",
-        )),
-    ),
-    Workload(
-        (("microbench", "lmbench", "stat"), ("sys", "file io")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_syscall"),
-            "-N",
-            "300",
-            "stat",
-            test_file,
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "fstat"), ("sys", "file io")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_syscall"),
-            "-N",
-            "300",
-            "fstat",
-            test_file,
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "open/close"), ("sys", "file io")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_syscall"),
-            "-N",
-            "300",
-            "open",
-            test_file,
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "fork"), ("sys", "proc")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_proc"),
-            "-N",
-            "300",
-            "fork",
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "exec"), ("sys", "proc")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_proc"),
-            "-N",
-            "300",
-            "exec",
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "shell"), ("sys", "proc")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_proc"),
-            "-N",
-            "300",
-            "shell",
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "install-signal"), ("sys", "proc")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_sig"),
-            "-N",
-            "300",
-            "install",
-        )),
-    ),
-    Workload(
-        (("microbench", "lmbench", "catch-signal"), ("sys", "proc")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_sig"),
-            "-N",
-            "100",
-            "catch",
-        )),
-    ),
-    Workload(
-        (("microbench", "lmbench", "protection-fault"), ("sys", "proc")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_sig"),
-            "-N",
-            "100",
-            "prot",
-            test_file,
-        )),
-        create_file_cmd(8 * 1024 * 1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "select-file"), ("sys", "file io")),
-        command.Command((
-            env,
-            "--chdir",
-            work_dir,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_select"),
-            "-n",
-            "100",
-            "-N"
-            "300",
-            "file",
-        )),
-    ),
-    Workload(
-        (("microbench", "lmbench", "select-tcp"), ("sys", "net io")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_select"),
-            "-n",
-            "100",
-            "-N"
-            "300",
-            "tcp",
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "read_bandwidth"), ("sys", "file io")),
-        command.Command((
-            env,
-            command.NixPath(".#lmbench", "/bin/bw_file_rd"),
-            "-N",
-            "10",
-            "1M",
-            "io_only",
-            test_file,
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "unix_bandwidth"), ("sys", "file io")),
-        command.Command((
-            command.NixPath(".#lmbench", "/bin/bw_unix"),
-            "-N",
-            "1",
-            test_file,
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "pipe_bandwidth"), ("sys", "file io")),
-        command.Command((
-            command.NixPath(".#lmbench", "/bin/bw_unix"),
-            "-N",
-            "1",
-            test_file,
-        )),
-        create_file_cmd(1024, test_file),
-    ),
-    Workload(
-        (("microbench", "lmbench", "fs latency"), ("sys", "file io")),
-        command.Command((
-            env,
-            "ENOUGH=10000",
-            command.NixPath(".#lmbench", "/bin/lat_fs"),
-            "-N",
-            "10",
-            test_file,
-        )),
-        create_file_cmd(1024, test_file),
-    ),
+    lmbench_workload("syscall", "syscall", "lat_syscall", ("-N", "3", "null")),
+    lmbench_workload("file io", "read", "lat_syscall", ("-N", "3", "read")),
+    lmbench_workload("file io", "write", "lat_syscall", ("-N", "3", "write")),
+    lmbench_workload("file io", "stat", "lat_syscall", ("-N", "3", "stat"), 1024),
+    lmbench_workload("file io", "fstat", "lat_syscall", ("-N", "3", "fstat"), 1024),
+    lmbench_workload("file io", "open/close", "lat_syscall", ("-N", "3", "open"), 1024),
+    lmbench_workload("proc"   , "fork", "lat_proc", ("-N", "3", "fork")),
+    lmbench_workload("proc"   , "exec", "lat_proc", ("-N", "3", "exec")),
+    lmbench_workload("proc"   , "shell", "lat_proc", ("-N", "3", "shell")),
+    lmbench_workload("proc"   , "shell", "lat_proc", ("-N", "3", "procedure")),
+    lmbench_workload("proc"   , "install-signal", "lat_sig", ("-N", "3", "install")),
+    lmbench_workload("proc"   , "catch-signal", "lat_sig", ("-N", "1", "catch")),
+    lmbench_workload("proc"   , "protection-fault", "lat_sig", ("-N", "1", "prot"), 1024 * 1024 * 8),
+    lmbench_workload("file io", "select-file", "lat_select", ("-n", "100", "-N", "3", "file")),
+    lmbench_workload("net io" , "select-tcp", "lat_select", ("-n", "100", "-N", "3", "tcp")),
+    lmbench_workload("file io", "read-bandwidth", "bw_file_rd", ("-N", "1", "1M", "io_only"), 1024),
+    # Note that `bw_file_rd open2close` should be a linear combination of `bw_file_rd io_only` + `lat_syscall open`
+    lmbench_workload("file io", "pipe-read/write", "bw_pipe", ("-N", "1")),
+    # Note that bw_unix is substantially similar to bw_pipe, except both ends to read and write.
+    lmbench_workload("file io", "create/delete", "lat_fs", ("-s", "1", "-N", "1", work_dir)),
     kaggle_workload("titanic-0"),
     kaggle_workload("titanic-1"),
     kaggle_workload("house-prices-0"),
     kaggle_workload("house-prices-1"),
+    Workload(
+        (("microbench", "postmark", "postmark"), ("sys", "file io")),
+        command.Command((
+            bash,
+            "-ec",
+            command.NixPath(".#postmark", postfix="/bin/postmark", prefix="echo -e 'set transactions 100000\nrun\nquit\n' | "),
+        )),
+    ),
 ]
 
 
@@ -312,5 +149,5 @@ WORKLOAD_GROUPS = {
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][0], util.identity),
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][1], util.identity),
     "all": workloads,
-    "fast": [workload for workload in workloads if workload.labels[0][1] == "sanity"],
+    "fast": [workload for workload in workloads if workload.labels[0][2] not in {"house-prices-1"}],
 }

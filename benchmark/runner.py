@@ -66,6 +66,7 @@ def main(
     storage_file.parent.mkdir(exist_ok=True)
     if rerun:
         ops = []
+        util.console.print("Dropping calls")
         with Storage(storage_file) as storage:
             # ops.append(experiment.run_experiments(
             #     collector_list,
@@ -85,6 +86,7 @@ def main(
             [storage.get_ref_creator(op) for op in ops],
             delete_dependents=True,
         )
+        util.console.print("Done dropping calls")
     with Storage(storage_file) as storage:
         # iterations_df = storage.unwrap(experiment.run_experiments(
         #     collector_list,

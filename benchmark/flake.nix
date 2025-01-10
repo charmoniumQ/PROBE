@@ -107,7 +107,6 @@
           };
           pythonImportsCheck = [pname];
           nativeCheckInputs = [
-            python.pkgs.nose
             (python.pkgs.strict-rfc3339.overrideAttrs (_: {doCheck = false;}))
             python.pkgs.freezegun
             python.pkgs.pytz
@@ -163,7 +162,7 @@
           gcc = pkgs.gcc;
           tex = pkgs.texlive.combined.scheme-full;
           gnumake = pkgs.gnumake.out;
-          bash = pkgs.bash;
+          bash = pkgs.bash.out;
           http-python-env = pkgs.symlinkJoin {
             name = "http-python-env";
             paths = [
@@ -202,24 +201,17 @@
             pypkgs.kaggle
           ]);
           tornado = python.pkgs.tornado;
-          kaggle-notebook-env = pkgs.symlinkJoin {
-            name = "kaggle-notebook-env";
-            paths = [
-              pkgs.coreutils
-              pkgs.unzip
-              (python.withPackages (pypkgs: [
-                pypkgs.pandas
-                pypkgs.tqdm
-                pypkgs.matplotlib
-                pypkgs.notebook
-                pypkgs.seaborn
-                pypkgs.scipy
-                pypkgs.scikit-learn
-                pypkgs.xgboost
-                pypkgs.lightgbm
-              ]))
-            ];
-          };
+          kaggle-notebook-env = (python.withPackages (pypkgs: [
+            pypkgs.pandas
+            pypkgs.tqdm
+            pypkgs.matplotlib
+            pypkgs.notebook
+            pypkgs.seaborn
+            pypkgs.scipy
+            pypkgs.scikit-learn
+            pypkgs.xgboost
+            pypkgs.lightgbm
+          ]));
           kaggle-notebook-titanic-0 = pkgs.stdenv.mkDerivation {
             name = "kaggle-notebook-titanic-0";
             src = ./kaggle/titanic-tutorial.ipynb;
@@ -227,8 +219,9 @@
             buildPhase = ''
               cp $src tmp
               substituteInPlace tmp \
-                --replace '"/kaggle/input/titanic/"' '"${kaggle-data-titanic}/"' \
-                --replace "'submission.csv'" "os.environ('OUTPUT') + '/submission.csv'"
+                --replace '/kaggle/input/titanic' '${kaggle-data-titanic}' \
+                --replace "'/kaggle/input'" "'${kaggle-data-titanic}'" \
+                --replace "'submission.csv'" "os.environ['OUTPUT'] + '/submission.csv'"
               cp tmp $out
             '';
           };
@@ -239,7 +232,7 @@
             buildPhase = ''
               cp $src tmp
               substituteInPlace tmp \
-                --replace "../input/" "${kaggle-data-house-prices}"
+                --replace '../input' '${kaggle-data-house-prices}'
               cp tmp $out
             '';
           };
@@ -250,8 +243,8 @@
             buildPhase = ''
               cp $src tmp
               substituteInPlace tmp \
-                --replace "../input/" "${kaggle-data-titanic}" \
-                --replace "'../output/" "os.environ('OUTPUT') + '"
+                --replace '../input' '${kaggle-data-titanic}' \
+                --replace "'../output" "os.environ('OUTPUT') + '"
               cp tmp $out
             '';
           };
@@ -262,8 +255,10 @@
             buildPhase = ''
               cp $src tmp
               substituteInPlace tmp \
-                --replace "../input/" "${kaggle-data-house-prices}" \
-                --replace "'submission.csv'" "os.environ('OUTPUT') + '/submission.csv'"
+                --replace '../input' '${kaggle-data-house-prices}' \
+                --replace '\"ls\"' '\"${coreutils}/bin/ls\"' \
+                --replace "'submission.csv'" "os.environ['OUTPUT'] + '/submission.csv'" \
+                --replace "import numpy as np" "import numpy as np, os"
               cp tmp $out
             '';
           };
@@ -596,7 +591,7 @@
             # };
             # sourceRoot = "lmbench";
             # For some reason, this is not reliably downloadable; therefore, I will vendor a copy
-            src = ./lmbench-3.0-a9.tgz;
+            src = ./lmbench-3.0-a9;
             sourceRoot = "lmbench-3.0-a9";
             buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
             patchPhase = ''
@@ -716,7 +711,7 @@
             installTargets = "install-care";
             postInstall = ''
               install -Dm644 doc/care/man.1 $out/share/man/man1/care.1
-              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.lzop]}
+              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.lzop ]}
             '';
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
@@ -830,8 +825,7 @@
             ];
             nativeBuildInputs = [python.pkgs.pip pkgs.makeWrapper];
             nativeCheckInputs = [
-              python.pkgs.nose
-              python.pkgs.nose-exclude
+              python.pkgs.pytest
               python.pkgs.mock
               python.pkgs.requests-mock
               python.pkgs.freezegun
@@ -842,19 +836,6 @@
               sciunit-dedup
               scripter
             ];
-            checkPhase = let
-              excludedTests = [
-                "tests.test_copy.TestCopy" # copies to File.io; depends on internet
-                "tests.test_export.TestExport" # runs pip install; depends on internet
-                "tests.test_given.TestGiven"
-                "tests.test_repeat.TestRepeat"
-              ];
-              nosetestArgs = builtins.map (test: "--exclude-test=${test}") excludedTests;
-            in ''
-              runHook preCheck
-              nosetests --verbose --stop --nocapture --failure-detail ${builtins.concatStringsSep " " nosetestArgs}
-              runHook postCheck
-            '';
             dontCheck = true;
           };
         };

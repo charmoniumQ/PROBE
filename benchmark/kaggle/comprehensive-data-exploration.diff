@@ -1,0 +1,38 @@
+--- a/comprehensive-data-exploration-with-python.ipynb	2025-01-09 22:33:15.908841700 -0600
++++ b/comprehensive-data-exploration-with-python.ipynb	2025-01-09 22:34:15.487012831 -0600
+@@ -463,10 +493,10 @@
+     "_cell_guid": "4eb7a6ef-adf5-6abf-947d-c95afdc477b8",
+     "_execution_state": "idle",
+     "_uuid": "5dfee22210f5a126ea34ca6475bb4f365d41317b"
+    },
+    "outputs": [],
+    "source": [
+     "#correlation matrix\n",
+-    "corrmat = df_train.corr(numeric_only=True)\n",
++    "corrmat = df_train.corr()\n",
+     "f, ax = plt.subplots(figsize=(12, 9))\n",
+     "sns.heatmap(corrmat, vmax=.8, square=True);"
+@@ -648,10 +690,10 @@
+     "_cell_guid": "f43f72c5-5457-1f47-e8ef-502db4355086",
+     "_execution_state": "idle",
+     "_uuid": "726617e295ee6bfe26ccf277323cc68ef52dc61b"
+    },
+    "outputs": [],
+    "source": [
+     "#dealing with missing data\n",
+-    "df_train = df_train.drop((missing_data[missing_data['Total'] > 1]).index,axis=1)\n",
++    "df_train = df_train.drop((missing_data[missing_data['Total'] > 1]).index,1)\n",
+     "df_train = df_train.drop(df_train.loc[df_train['Electrical'].isnull()].index)\n",
+     "df_train.isnull().sum().max() #just checking that there's no missing data missing..."
+@@ -698,10 +743,10 @@
+     "_cell_guid": "49a133fb-b713-45bd-ca42-c1ca0eb4d3f6",
+     "_execution_state": "idle",
+     "_uuid": "09b3bc296d01936b3b6df7f3ea670499e926720e"
+    },
+    "outputs": [],
+    "source": [
+     "#standardizing data\n",
+-    "saleprice_scaled = StandardScaler().fit_transform(df_train['SalePrice'].values[:,np.newaxis]);\n",
++    "saleprice_scaled = StandardScaler().fit_transform(df_train['SalePrice'][:,np.newaxis]);\n",
+     "low_range = saleprice_scaled[saleprice_scaled[:,0].argsort()][:10]\n",
+     "high_range= saleprice_scaled[saleprice_scaled[:,0].argsort()][-10:]\n",

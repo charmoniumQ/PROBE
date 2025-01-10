@@ -57,7 +57,7 @@ def _nix_build(attr: str, flake_src: str, flake_lock: typing.Any) -> str:
         print(proc.stderr)
         raise RuntimeError("Nix build failed")
     ret = proc.stdout.strip()
-    print(f"Nix built {attr} in {(datetime.datetime.now() - start).total_seconds()}")
+    print(f"Nix built {attr} in {(datetime.datetime.now() - start).total_seconds():.1f}")
     return ret
 
 @dataclasses.dataclass(frozen=True)
