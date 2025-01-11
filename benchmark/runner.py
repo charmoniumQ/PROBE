@@ -135,6 +135,7 @@ def main(
             [storage.get_ref_creator(op) for op in ops],
             delete_dependents=True,
         )
+        storage.cleanup_refs()
         util.console.print("Done dropping calls")
     with Storage(storage_file) as storage:
         # iterations_df = storage.unwrap(experiment.run_experiments(

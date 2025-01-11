@@ -85,11 +85,11 @@ def run_experiments(
             cf = ctx.storage.cf(op)
             cf.expand_back(inplace=True, recursive=True)
             mandala.model.Context.current_context = ctx
-            if cf:
-                util.console.print(
-                    cf,
-                    cf.draw(print_dot=True, verbose=True),
-                )
+            # if cf:
+            #     util.console.print(
+            #         cf,
+            #         cf.draw(print_dot=True, verbose=True),
+            #     )
             if call:
                 util.console.print(
                     type(call).__name__,
@@ -148,11 +148,11 @@ def run_experiments(
             cf = ctx.storage.cf(op)
             cf.expand_back(inplace=True, recursive=True)
             mandala.model.Context.current_context = ctx
-            if cf:
-                util.console.print(
-                    cf,
-                    cf.draw(print_dot=True, verbose=True),
-                )
+            # if cf:
+            #     util.console.print(
+            #         cf,
+            #         cf.draw(print_dot=True, verbose=True),
+            #     )
             if call:
                 util.console.print(
                     type(call).__name__,

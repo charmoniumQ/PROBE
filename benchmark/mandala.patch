@@ -1,49 +1,206 @@
+diff -u2 a/mandala/model.py b/mandala/model.py
 --- a/mandala/model.py	1969-12-31 18:00:01.000000000 -0600
-+++ b/mandala/model.py	2025-01-11 01:38:14.958140886 -0600
-@@ -133,4 +133,5 @@
++++ b/mandala/model.py	2025-01-11 15:03:17.884311318 -0600
+@@ -133,5 +133,8 @@
  
      def _get_hashable_inputs(self, inputs: Dict[str, Ref]) -> Dict[str, Any]:
+-        return {k: v for k, v in inputs.items() if not isinstance(v.obj, _Ignore)}
++        print(8.5, list(inputs.keys()))
++        ret = {k: v for k, v in inputs.items() if not isinstance(v.obj, _Ignore)}
 +        print(9.5, list(inputs.keys()))
-         return {k: v for k, v in inputs.items() if not isinstance(v.obj, _Ignore)}
++        return ret
  
+     def get_call_history_id(self,
+@@ -143,5 +146,7 @@
+         version to get a unique id for the call history.
+         """
++        print(6.23, list(inputs.keys()))
+         hashable_inputs = self._get_hashable_inputs(inputs)
++        print(6.27, list(hashable_inputs.keys()))
+         obj = ({k: v.hid for k, v in hashable_inputs.items()}, self.name, self.version)
+         if semantic_version is not None:
+@@ -244,4 +249,5 @@
+     if history_id is None:
+         history_id = get_content_hash(uid)
++    print("72 AtomRef", "hid", history_id, "cid", uid, "cid from", repr(obj)[:100])
+     return AtomRef(cid=uid, hid=history_id, in_memory=True, obj=obj)
+ 
+diff -u2 a/mandala/storage.py b/mandala/storage.py
 --- a/mandala/storage.py	1969-12-31 18:00:01.000000000 -0600
-+++ b/mandala/storage.py	2025-01-11 01:40:32.623848605 -0600
-@@ -730,4 +730,6 @@
++++ b/mandala/storage.py	2025-01-11 14:53:17.111945058 -0600
+@@ -297,4 +297,5 @@
+     def _get_call_from_data(self, call_data: Dict[str, Any], in_memory: bool) -> Call:
+         op_name = call_data["op_name"]
++        print(6.281, list(call_data["input_hids"].keys()))
+         call = Call(
+             op=self.ops[op_name],
+@@ -571,4 +572,5 @@
+         to use.
+         """
++        print(6.2, list(inputs.keys()))
+         if not must_version:
+             semantic_version = None
+@@ -593,5 +595,8 @@
+             call_data = self.calls.get_data(call_history_id=call_hid)
+             logger.debug(f"Found call to {op.name} with hid {call_hid}.")
+-            return self._get_call_from_data(call_data, in_memory=True)
++            print(6.2758, list(call_data["input_hids"].keys()))
++            ret = self._get_call_from_data(call_data, in_memory=True)
++            print(6.29, list(ret.inputs.keys()))
++            return ret
+         ### if this fails, look up by content ID, and apply the correct history IDs
+         call_cid = op.get_call_content_id(
+@@ -601,5 +606,7 @@
+             logger.debug(f"Found call to {op.name} with cid {call_cid}.")
+             call_data = self.calls.get_data_content(cid=call_cid)
++            print(6.283, list(call_data.keys()))
+             call_prototype = self._get_call_from_data(call_data, in_memory=True)
++            print(6.299, list(call_prototype.inputs.keys()))
+             #! very important: set the hids here on both the call and the inputs
+             # and outputs
+@@ -730,4 +737,6 @@
          if not op.__structural__: logger.debug(f"Calling {op.name} with args {bound_arguments}.")
  
 +        print(5.5, list(storage_inputs.keys()))
 +
          must_version_call = self.versioned and not op.__structural__
  
-@@ -737,4 +739,7 @@
+@@ -737,4 +746,7 @@
              wrapped_inputs[k], struct_calls = self.construct(tp=storage_tps[k], val=v)
              input_calls.extend(struct_calls)
 +
-+        print(6, list(wrapped_inputs.keys())
++        print(6, list(wrapped_inputs.keys()))
 +
          if len(input_calls) > 0:
              if not op.__structural__: logger.debug(f"Collected {len(input_calls)} calls for inputs.")
-@@ -771,4 +776,5 @@
+@@ -756,4 +768,6 @@
+             must_version=must_version_call,
+         )
++        if call_option:
++            print(6.29, list(call_option.inputs.keys()))
+         tracer_option = (
+             self.cached_versioner.make_tracer() if must_version_call and not op.__structural__ else None
+@@ -765,4 +779,5 @@
+             if not op.__structural__: logger.debug(f"Call to {op.name} with hid {call_hid} already exists.")
+             main_call = call_option
++            print(6.32, list(main_call.inputs.keys()))
+             return main_call.outputs, main_call, input_calls
+ 
+@@ -771,4 +786,5 @@
              # logger.debug(f"Call to {op.name} with hid {call_hid} does not exist; executing.")
              input_hids = {k: v.hid for k, v in wrapped_inputs.items()}
-+            print(6.5, list(input_hids.keys()))
++            print(6.42, list(input_hids.keys()))
              logger.debug(f"HIDs of inputs: {input_hids}")
          # call the function
-@@ -799,4 +805,5 @@
+@@ -799,4 +815,5 @@
              kwargs.update(leftover_kwargs)
              kwargs = self.unwrap(kwargs)
 +            print(6.51, list(kwargs.keys()))
  
              if tracer_option is not None:
-@@ -1083,4 +1090,5 @@
+@@ -870,4 +887,5 @@
+                 output_calls.extend(output_calls_for_output)
+                 wrapped_outputs[k] = final
++        print(9.2, list(wrapped_inputs.keys()))
+         main_call = Call(
+             op=op,
+@@ -879,4 +897,5 @@
+             content_version=content_version,
+         )
++        print(9.9, list(main_call.inputs.keys()))
+         return main_call.outputs, main_call, input_calls + output_calls
+ 
+@@ -1077,4 +1096,5 @@
+         __config__ = {} if __config__ is None else __config__
+         kwarg_keys = set(kwargs.keys())
++        print(3.1, list(kwargs.keys()))
+         bound_arguments, storage_inputs, storage_annotations = self.parse_args(
+             sig=inspect.signature(__op__.f),
+@@ -1083,8 +1103,11 @@
              apply_defaults=True,
          )
-+        print(3, list(storage_input.keys()))
++        print(3.2, list(storage_inputs.keys()))
++        print(3.25, list(storage_annotations.keys()))
  
          storage_tps = {
-@@ -1094,4 +1102,5 @@
+             k: Type.from_annotation(annotation=v) for k, v in storage_annotations.items()
+         }
++        print(3.3, list(storage_tps.keys()))
+         res, main_call, calls = self.call_internal(
+             op=__op__,
+@@ -1094,4 +1117,5 @@
              kwarg_keys=kwarg_keys,
          )
 +        print(4, list(main_call.inputs.keys()))
          if __config__.get("save_calls", False):
              self.save_call(main_call)
+@@ -1126,3 +1150,3 @@
+     
+ 
+-from .cf import ComputationFrame
+\ No newline at end of file
++from .cf import ComputationFrame
+diff -u2 a/mandala/storage_utils.py b/mandala/storage_utils.py
+--- a/mandala/storage_utils.py	1969-12-31 18:00:01.000000000 -0600
++++ b/mandala/storage_utils.py	2025-01-11 14:54:03.783365549 -0600
+@@ -307,4 +307,6 @@
+                 "content_version": rows[0]["content_version"],
+             }
++        for hid in call_hids:
++            print(6.2754, list(res_dict[hid].keys()))
+         return [res_dict[hid] for hid in call_hids]
+ 
+@@ -315,5 +317,7 @@
+         if not self.exists(call_history_id):
+             raise ValueError(f"Call with history_id {call_history_id} does not exist")
+-        return self.mget_data([call_history_id])[0]
++        ret = self.mget_data([call_history_id])[0]
++        print(6.284, list(ret.keys()))
++        return ret
+     
+     def get_data_content(self, cid: str) -> Dict[str, Any]:
+@@ -502,4 +506,5 @@
+                     }
+             if row[2] == "in":
++                print(6.837, row[1])
+                 call_data[hid]["input_hids"][row[1]] = row[5]
+                 call_data[hid]["input_cids"][row[1]] = row[4]
+@@ -507,4 +512,6 @@
+                 call_data[hid]["output_hids"][row[1]] = row[5]
+                 call_data[hid]["output_cids"][row[1]] = row[4]
++        for hid in call_hids:
++            print(6.876765, hid, call_data[hid]["input_hids"].keys())
+         return [call_data[hid] for hid in call_hids]
+ 
+@@ -516,5 +523,7 @@
+         Get the data of a `Call` object given its history_id.
+         """
+-        return self.mget_data([call_history_id], conn=conn)[0]
++        ret = self.mget_data([call_history_id], conn=conn)[0]
++        print(6.9877, list(ret["input_hids"].keys()), call_history_id)
++        return ret
+     
+     @transaction
+@@ -632,7 +641,11 @@
+     ) -> Dict[str, Any]:
+         if self.cache.exists(call_history_id):
+-            return self.cache.get_data(call_history_id)
++            ret = self.cache.get_data(call_history_id)
++            print(6.2754, list(ret["input_hids"].keys()), call_history_id)
++            return ret
+         else:
+-            return self.persistent.get_data(call_history_id)
++            ret = self.persistent.get_data(call_history_id)
++            print(6.2755, list(ret["input_hids"].keys()), call_history_id)
++            return ret
+     
+     def get_data_content(
+diff -u2 a/mandala/utils.py b/mandala/utils.py
+--- a/mandala/utils.py	1969-12-31 18:00:01.000000000 -0600
++++ b/mandala/utils.py	2025-01-11 15:03:06.575690260 -0600
+@@ -59,4 +59,5 @@
+     if result is None:
+         raise RuntimeError("joblib.hash returned None")
++    print(8.3, "hash", repr(obj)[:100], "->", result)
+     return result
+ 
