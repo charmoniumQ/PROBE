@@ -82,15 +82,15 @@ def main(
                 for workload in workload_list
                 for iteration in range(iterations)
             ])
-        inputs = [
-            (iteration, collector, workload)
-            for collector in collector_list
-            for workload in workload_list
-            for iteration in range(iterations)
-        ]
-        for (iteration, collector, workload), op in zip(inputs, ops):
-            if verbose:
-                util.console.print("---------")
+        if verbose:
+            inputs = [
+                (iteration, collector, workload)
+                for collector in collector_list
+                for workload in workload_list
+                for iteration in range(iterations)
+            ]
+            for (iteration, collector, workload), op in zip(inputs, ops):
+                util.console.print("============", 1)
                 util.console.print(
                     iteration,
                     collector.name,
@@ -162,8 +162,9 @@ def main(
             for iteration in range(iterations)
         ]
         for iteration, collector, workload in inputs:
-            op = experiment.run_experiment(seed ^ iteration, collector, workload, Ignore(False))
-            util.console.print("............")
+            with Storage(storage_file) as storage:
+                op = experiment.run_experiment(seed ^ iteration, collector, workload, Ignore(False))
+            util.console.print("============", 4)
             util.console.print(
                 iteration,
                 collector.name,

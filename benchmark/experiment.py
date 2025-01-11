@@ -65,7 +65,7 @@ def run_experiments(
     ):
         op = run_experiment(iteration, collector, workload, verbose)
         if verbose:
-            util.console.print("=========")
+            util.console.print("============", 2)
             util.console.print(
                 iteration,
                 collector.name,
@@ -117,6 +117,56 @@ def run_experiments(
                 op,
             )
         )
+
+    if verbose:
+        for iteration, collector, workload, verbose in inputs:
+            util.console.print("============", 3)
+            util.console.print(
+                iteration,
+                collector.name,
+                workload.labels[0][-1],
+                type(verbose).__name__,
+                verbose.value, # type: ignore
+            )
+            util.console.print(
+                type(op).__name__,
+                op.hid,
+                op.cid,
+            )
+            ctx = mandala.model.Context.current_context
+            mandala.model.Context.current_context = None
+            call = ctx.storage.get_ref_creator(op)
+            mandala.model.Context.current_context = ctx
+            if call:
+                util.console.print(
+                    type(call).__name__,
+                    call.op.name,
+                    call.hid,
+                    call.cid,
+                    call.semantic_version,
+                    call.content_version,
+                )
+                for key, arg in call.inputs.items():
+                    util.console.print(
+                        "input",
+                        key,
+                        type(arg).__name__,
+                        arg.cid,
+                        arg.hid,
+                        type(arg.obj).__name__,
+                        arg,
+                    )
+                for key, arg in call.outputs.items():
+                    util.console.print(
+                        "output",
+                        key,
+                        type(arg).__name__,
+                        arg.cid,
+                        arg.hid,
+                        arg.obj,
+                        type(arg.obj).__name__,
+                        arg,
+                    )
 
     df = polars.from_dicts(
         [
