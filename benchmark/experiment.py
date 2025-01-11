@@ -83,9 +83,9 @@ def run_experiments(
             mandala.model.Context.current_context = None
             call = ctx.storage.get_ref_creator(op)
             cf = ctx.storage.cf(op)
+            cf.expand_back(inplace=True, recursive=True)
             mandala.model.Context.current_context = ctx
             if cf:
-                cf.expand_back(inplace=True, recursive=True)
                 util.console.print(
                     cf,
                     cf.draw(print_dot=True, verbose=True),
@@ -146,9 +146,9 @@ def run_experiments(
             mandala.model.Context.current_context = None
             call = ctx.storage.get_ref_creator(op)
             cf = ctx.storage.cf(op)
+            cf.expand_back(inplace=True, recursive=True)
             mandala.model.Context.current_context = ctx
             if cf:
-                cf.expand_back(inplace=True, recursive=True)
                 util.console.print(
                     cf,
                     cf.draw(print_dot=True, verbose=True),
