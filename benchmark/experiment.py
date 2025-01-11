@@ -65,16 +65,24 @@ def run_experiments(
     ):
         op = run_experiment(iteration, collector, workload, verbose)
         if verbose:
-                util.console.print("=========")
-                util.console.print(
-                    type(op).__name__,
-                    op.hid,
-                    op.cid,
-                )
-                ctx = mandala.model.Context.current_context
-                mandala.model.Context.current_context = None
-                call = ctx.storage.get_ref_creator(op)
-                mandala.model.Context.current_context = ctx
+            util.console.print("=========")
+            util.console.print(
+                iteration,
+                collector.name,
+                workload.labels[0][-1],
+                type(verbose).__name__,
+                verbose.value, # type: ignore
+            )
+            util.console.print(
+                type(op).__name__,
+                op.hid,
+                op.cid,
+            )
+            ctx = mandala.model.Context.current_context
+            mandala.model.Context.current_context = None
+            call = ctx.storage.get_ref_creator(op)
+            mandala.model.Context.current_context = ctx
+            if call:
                 util.console.print(
                     type(call).__name__,
                     call.op.name,

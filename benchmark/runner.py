@@ -82,7 +82,7 @@ def main(
                 for workload in workload_list
                 for iteration in range(iterations)
             ])
-        for op in ops:
+        for (iteration, collector, workload, verboseo), op in zip(ops):
             if verbose:
                 util.console.print(
                     type(op).__name__,
