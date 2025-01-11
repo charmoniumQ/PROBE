@@ -728,17 +728,28 @@ class Probe(ProvCollector):
         return ()
 
 
-class ProbeCopy(Probe):
+class ProbeCopyEager(Probe):
     timeout_multiplier = 3
     run_cmd = command.Command((
         command.NixPath("..#probe-bundled", "/bin/probe"),
         "record",
-        "--copy-files",
+        "--copy-files-eagerly",
         "--no-transcribe",
         "--output",
         prov_log,
     ))
 
+
+class ProbeCopyLazy(Probe):
+    timeout_multiplier = 3
+    run_cmd = command.Command((
+        command.NixPath("..#probe-bundled", "/bin/probe"),
+        "record",
+        "--copy-files-lazily",
+        "--no-transcribe",
+        "--output",
+        prov_log,
+    ))
 
 
 PROV_COLLECTORS: list[ProvCollector] = [
@@ -753,7 +764,8 @@ PROV_COLLECTORS: list[ProvCollector] = [
     Care(),
     PTU(),
     Probe(),
-    ProbeCopy(),
+    ProbeCopyEager(),
+    ProbeCopyLazy(),
     # SpadeFuse(),
     # SpadeAuditd(),
     # Darshan(),
@@ -770,6 +782,11 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
     "fast": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "care", "probe", "ptu", "probecopy"]
+        if prov_collector.name in ["noprov", "strace", "fsatrace", "care", "probe", "ptu", "probecopyeager", "probecopylazy"]
     ],
+    "probes": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name.startswith("probe")
+    ]
 }

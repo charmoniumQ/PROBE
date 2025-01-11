@@ -104,39 +104,83 @@ def _print_diagnostics(
 
 
     with polars.Config(tbl_rows=-1, tbl_cols=-1):
-        collectors = list(agged["collector"].unique())
+        collectors = sorted(
+            agged["collector"].unique(),
+            key=lambda collector: {
+                "noprov": 0,
+                "ltrace": 1,
+                "strace": 2,
+                "probe": 3,
+                "rr": 4,
+                "sciunit": 5,
+                "ptu": 6,
+                "cde": 7,
+                "reprozip": 8,
+                "care": 9,
+                "probecopyeager": 10,
+                "probecopylazy": 11,
+            }.get(collector, (99, collector)),
+        )
 
         util.console.print("Absolute walltime")
-        util.console.print(dt_as_seconds(agged.pivot(
+        absolute = dt_as_seconds(agged.pivot(
             "collector",
             index="workload_subsubgroup",
             values="walltime_avg",
-        )))
+        )).with_columns(polars.col("workload_subsubgroup").cast(str).alias("workload"))
+        util.console.print(polars.concat([
+            absolute.select(
+                polars.col("workload"),
+                *[
+                    polars.col(collector).round(1)
+                    for collector in collectors
+                ],
+            ),
+            absolute.select(
+                polars.lit("sum").alias("workload"),
+                *[
+                    polars.col(collector).sum().round(1)
+                    for collector in collectors
+                ],
+            ),
+            absolute.select(
+                polars.lit("std").alias("workload"),
+                *[
+                    polars.col(collector).std().round(1)
+                    for collector in collectors
+                ],
+            ),
+        ]))
 
+        ratio = agged.pivot(
+            "collector",
+            index="workload_subsubgroup",
+            values="walltime_overhead_ratio",
+        ).with_columns(polars.col("workload_subsubgroup").cast(str).alias("workload"))
         util.console.print("Walltime overhead ratio")
-        util.console.print(agged.pivot(
-            "collector",
-            index="workload_subsubgroup",
-            values="walltime_overhead_ratio",
-        ).with_columns(
-            polars.col(collector).round(3)
-            for collector in collectors
-        ))
-        util.console.print(agged.pivot(
-            "collector",
-            index="workload_subsubgroup",
-            values="walltime_overhead_ratio",
-        ).select(
-            polars.col(collector).log().mean().exp().round(3)
-            for collector in collectors
-        ))
-
-        # util.console.print("Walltime overhead difference")
-        # util.console.print(dt_as_seconds(agged.pivot(
-        #     "collector",
-        #     index="workload_subsubgroup",
-        #     values="walltime_overhead_diff",
-        # )))
+        util.console.print(polars.concat([
+            ratio.select(
+                polars.col("workload"),
+                *[
+                    polars.col(collector).round(2)
+                    for collector in collectors
+                ],
+            ),
+            ratio.select(
+                polars.lit("mean").alias("workload"),
+                *[
+                    polars.col(collector).log().mean().exp().round(2)
+                    for collector in collectors
+                ],
+            ),
+            ratio.select(
+                polars.lit("std").alias("workload"),
+                *[
+                    polars.col(collector).log().std().exp().round(2)
+                    for collector in collectors
+                ],
+            ),
+        ]))
 
         failures = iterations.filter(polars.col("returncode") != 0).select(
             "seed",

@@ -46,26 +46,36 @@ static void prov_log_try(struct Op op) {
 
     const struct Path* path = op_to_path(&op);
     if (should_copy_files() && path->path && path->stat_valid) {
-        if (is_read_op(op)) {
-            DEBUG("Reading %s %d", path->path, path->inode);
-            inode_table_put_if_not_exists(&read_inodes, path);
-        } else if (is_mutate_op(op)) {
-            if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
-                DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
-            } else {
-                DEBUG("Mutating, therefore copying %s %d", path->path, path->inode);
-                copy(path);
-            }
-        } else if (is_replace_op(op)) {
-            if (inode_table_contains(&read_inodes, path)) {
+        if (should_copy_files_lazily()) {
+            if (is_read_op(op)) {
+                DEBUG("Reading %s %d", path->path, path->inode);
+                inode_table_put_if_not_exists(&read_inodes, path);
+            } else if (is_mutate_op(op)) {
                 if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
                     DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
                 } else {
-                    DEBUG("Replace after read %s %d", path->path, path->inode);
+                    DEBUG("Mutating, therefore copying %s %d", path->path, path->inode);
                     copy(path);
                 }
+            } else if (is_replace_op(op)) {
+                if (inode_table_contains(&read_inodes, path)) {
+                    if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
+                        DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+                    } else {
+                        DEBUG("Replace after read %s %d", path->path, path->inode);
+                        copy(path);
+                    }
+                } else {
+                    DEBUG("Mutating, but not copying %s %d since it was never read", path->path, path->inode);
+                }
+            }
+        } else if (is_read_op(op) || is_mutate_op(op)) {
+            assert(should_copy_files_eagerly());
+            if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
+                DEBUG("Not copying %s %d because already did", path->path, path->inode);
             } else {
-                DEBUG("Mutating, but not copying %s %d since it was never read", path->path, path->inode);
+                DEBUG("Copying %s %d", path->path, path->inode);
+                copy(path);
             }
         }
     }
