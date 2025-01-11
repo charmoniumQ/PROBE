@@ -895,6 +895,7 @@
               rev = "v0.2.0-alpha";
               hash = "sha256-MunDxlF23kn8ZJM7rk++bZaN35L51w2CABL16MZXDXU=";
             };
+            patches = [ ./mandala.patch ];
             propagatedBuildInputs = [
               python.pkgs.numpy
               python.pkgs.pandas
