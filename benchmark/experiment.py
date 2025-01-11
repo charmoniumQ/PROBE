@@ -75,7 +75,6 @@ def run_experiments(
             )
             util.console.print(
                 type(op).__name__,
-                op.version
                 op.hid,
                 op.cid,
             )
