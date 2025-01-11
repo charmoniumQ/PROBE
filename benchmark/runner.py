@@ -98,7 +98,7 @@ def main(
                     call.semantic_version,
                     call.content_version,
                 )
-                for key, arg in call.input.items():
+                for key, arg in call.inputs.items():
                     util.console.print(
                         "input",
                         key,
@@ -108,7 +108,7 @@ def main(
                         type(arg.obj).__name__,
                         arg,
                     )
-                for key, arg in call.output.items():
+                for key, arg in call.outputs.items():
                     util.console.print(
                         "output",
                         key,
