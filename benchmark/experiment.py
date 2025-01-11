@@ -48,16 +48,30 @@ def run_experiments(
         util.shuffle(
             # each iteration is shuffled using a different seed
             iteration ^ seed,
-            tuple(itertools.product([iteration ^ seed], prov_collectors, workloads, [Ignore(verbose)])),
+            tuple(itertools.product(
+                [iteration ^ seed],
+                prov_collectors,
+                workloads,
+                [Ignore(verbose)],
+            )),
         )
         for iteration in range(iterations)
     ))
 
     records = []
-    for args in util.progress.track(inputs, description="Collectors x Workloads"):
+    for iteration, collector, workload, verbose in util.progress.track(inputs, description="Collectors x Workloads"):
+        record = run_experiment(iteration, collector, workload, verbose)
+        util.console.print(
+            iteration,
+            collector.name,
+            workload.labels[0][-1],
+            verbose,
+            record.hid,
+            record.cid,
+        )
         records.append(
             mandala.model.Context.current_context.storage.unwrap(
-                run_experiment(*args)
+                record
             )
         )
 
