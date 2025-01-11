@@ -75,13 +75,22 @@ def run_experiments(
             )
             util.console.print(
                 type(op).__name__,
+                op.version
                 op.hid,
                 op.cid,
             )
             ctx = mandala.model.Context.current_context
+            ctx.storage.commit()
             mandala.model.Context.current_context = None
             call = ctx.storage.get_ref_creator(op)
+            cf = ctx.storage.cf(op)
             mandala.model.Context.current_context = ctx
+            if cf:
+                cf.expand_back(inplace=True, recursive=True)
+                util.console.print(
+                    cf,
+                    cf.draw(print_dot=True, verbose=True),
+                )
             if call:
                 util.console.print(
                     type(call).__name__,
@@ -134,9 +143,17 @@ def run_experiments(
                 op.cid,
             )
             ctx = mandala.model.Context.current_context
+            ctx.storage.commit()
             mandala.model.Context.current_context = None
             call = ctx.storage.get_ref_creator(op)
+            cf = ctx.storage.cf(op)
             mandala.model.Context.current_context = ctx
+            if cf:
+                cf.expand_back(inplace=True, recursive=True)
+                util.console.print(
+                    cf,
+                    cf.draw(print_dot=True, verbose=True),
+                )
             if call:
                 util.console.print(
                     type(call).__name__,
