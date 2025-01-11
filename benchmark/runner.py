@@ -82,8 +82,20 @@ def main(
                 for workload in workload_list
                 for iteration in range(iterations)
             ])
-        for (iteration, collector, workload, verboseo), op in zip(ops):
+        inputs = [
+            (iteration, collector, workload)
+            for collector in collector_list
+            for workload in workload_list
+            for iteration in range(iterations)
+        ]
+        for (iteration, collector, workload), op in zip(inputs, ops):
             if verbose:
+                util.console.print("---------")
+                util.console.print(
+                    iteration,
+                    collector.name,
+                    workload.labels[0][-1],
+                )
                 util.console.print(
                     type(op).__name__,
                     op.hid,
