@@ -71,10 +71,10 @@ def run_experiments(
                     op.hid,
                     op.cid,
                 )
-                st = mandala.model.Context.current_context.storage
-                mandala.model.Context.current_context.storage = None
-                call = st.get_ref_creator(op)
-                mandala.model.Context.current_context.storage = st
+                ctx = mandala.model.Context.current_context
+                mandala.model.Context.current_context = None
+                call = ctx.storage.get_ref_creator(op)
+                mandala.model.Context.current_context = ctx
                 util.console.print(
                     type(call).__name__,
                     call.op.name,
