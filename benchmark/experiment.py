@@ -63,53 +63,9 @@ def run_experiments(
             inputs,
             description="Collectors x Workloads"
     ):
-        record = run_experiment(iteration, collector, workload, verbose)
-        if verbose:
-            call = mandala.model.Context.current_context.storage.get_ref_creator(record)
-            util.console.print(
-                iteration,
-                collector.name,
-                workload.labels[0][-1],
-                type(verbose).__name__,
-                verbose.value, # type: ignore
-            )
-            util.console.print(
-                type(record).__name__,
-                record.hid,
-                record.cid,
-            )
-            util.console.print(
-                type(call).__name__,
-                call.op.name,
-                call.hid,
-                call.cid,
-                call.semantic_version,
-                call.content_version,
-            )
-            for key, arg in call.input.items():
-                util.console.print(
-                    "input",
-                    key,
-                    type(arg).__name__,
-                    arg.cid,
-                    arg.hid,
-                    type(arg.obj).__name__,
-                    arg,
-                )
-            for key, arg in call.output.items():
-                util.console.print(
-                    "output",
-                    key,
-                    type(arg).__name__,
-                    arg.cid,
-                    arg.hid,
-                    arg.obj,
-                    type(arg.obj).__name__,
-                    arg,
-                )
         records.append(
             mandala.model.Context.current_context.storage.unwrap(
-                record,
+                run_experiment(iteration, collector, workload, verbose),
             )
         )
 

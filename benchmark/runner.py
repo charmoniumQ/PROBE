@@ -82,6 +82,43 @@ def main(
                 for workload in workload_list
                 for iteration in range(iterations)
             ])
+        for op in ops:
+            if verbose:
+                util.console.print(
+                    type(op).__name__,
+                    op.hid,
+                    op.cid,
+                )
+                call = storage.get_ref_creator(op)
+                util.console.print(
+                    type(call).__name__,
+                    call.op.name,
+                    call.hid,
+                    call.cid,
+                    call.semantic_version,
+                    call.content_version,
+                )
+                for key, arg in call.input.items():
+                    util.console.print(
+                        "input",
+                        key,
+                        type(arg).__name__,
+                        arg.cid,
+                        arg.hid,
+                        type(arg.obj).__name__,
+                        arg,
+                    )
+                for key, arg in call.output.items():
+                    util.console.print(
+                        "output",
+                        key,
+                        type(arg).__name__,
+                        arg.cid,
+                        arg.hid,
+                        arg.obj,
+                        type(arg.obj).__name__,
+                        arg,
+                    )
         storage.drop_calls(
             [storage.get_ref_creator(op) for op in ops],
             delete_dependents=True,
