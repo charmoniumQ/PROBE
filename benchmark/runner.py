@@ -154,6 +154,58 @@ def main(
             verbose=verbose,
         )
 
+    if verbose:
+        inputs = [
+            (iteration, collector, workload)
+            for collector in collector_list
+            for workload in workload_list
+            for iteration in range(iterations)
+        ]
+        for iteration, collector, workload in inputs:
+            op = experiment.run_experiment(seed ^ iteration, collector, workload, Ignore(False))
+            util.console.print("............")
+            util.console.print(
+                iteration,
+                collector.name,
+                workload.labels[0][-1],
+            )
+            util.console.print(
+                type(op).__name__,
+                op.hid,
+                op.cid,
+            )
+            call = storage.get_ref_creator(op)
+            util.console.print(
+                type(call).__name__,
+                call.op.name,
+                call.hid,
+                call.cid,
+                call.semantic_version,
+                call.content_version,
+            )
+            for key, arg in call.inputs.items():
+                util.console.print(
+                    "input",
+                    key,
+                    type(arg).__name__,
+                    arg.cid,
+                    arg.hid,
+                    type(arg.obj).__name__,
+                    arg,
+                )
+            for key, arg in call.outputs.items():
+                util.console.print(
+                    "output",
+                    key,
+                    type(arg).__name__,
+                    arg.cid,
+                    arg.hid,
+                    arg.obj,
+                    type(arg.obj).__name__,
+                    arg,
+                )
+
+
     stats.process_df(iterations_df)
 
     if verbose:
