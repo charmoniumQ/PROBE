@@ -220,7 +220,10 @@ workloads = [
                 "env_path=$(dirname $(dirname $(which bash)))",
                 "export PKG_CONFIG_PATH=$env_path/lib/pkgconfig",
                 "sh autogen.sh",
-                "\"CPPFLAGS=-I$env_path/include -L$env_path/lib\"./configure",
+                'export CPPFLAGS="-I$env_path/include -L$env_path/lib"',
+                'export LDFLAGS="-L$env_path/lib"',
+                # Nix's FFTW doesn't have fftwf_execute
+                "./configure --disable-model-fitting",
                 "make",
             ]),
         )),
@@ -261,6 +264,7 @@ workloads = [
         command.Command((
             env,
             command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
+            command.Placeholder("work_dir", prefix="HOME="),
             *bash,
             str(this_directory / "quantum-espresso/ph-01/main.sh"),
         ))
@@ -270,6 +274,7 @@ workloads = [
         command.Command((
             env,
             command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
+            command.Placeholder("work_dir", prefix="HOME="),
             *bash,
             str(this_directory / "quantum-espresso/pw-01/main.sh"),
         ))
@@ -279,9 +284,25 @@ workloads = [
         command.Command((
             env,
             command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
+            command.NixPath(".#gnuplot", prefix="gnuplot=", postfix="/bin/gnuplot"),
+            command.Placeholder("work_dir", prefix="HOME="),
             *bash,
             str(this_directory / "quantum-espresso/pp-01/main.sh"),
         ))
+    ),
+    Workload(
+        (("app", "umap", "umap"), ("cse", "ml")),
+        command.Command((
+            command.NixPath(".#kaggle-notebook-env", "/bin/python"),
+            str(this_directory / "umap/plot_algorithms.py"),
+        )),
+    ),
+    Workload(
+        (("app", "hdbscan", "hdbscan"), ("cse", "ml")),
+        command.Command((
+            command.NixPath(".#kaggle-notebook-env", "/bin/python"),
+            str(this_directory / "hdbscan/plot_cluster_comparison.py"),
+        )),
     ),
 ]
 

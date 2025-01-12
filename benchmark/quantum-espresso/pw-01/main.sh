@@ -1,5 +1,7 @@
 set -ex
 
+cd "$(dirname -- "$0")"
+
 TMP_DIR="$PWD/tmp"
 PSEUDO_DIR="$(dirname "$PWD")/pseudo"
 

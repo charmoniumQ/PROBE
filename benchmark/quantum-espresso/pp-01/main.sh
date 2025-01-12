@@ -1,5 +1,7 @@
 set -ex
 
+cd "$(dirname -- "$0")"
+
 TMP_DIR="$PWD/tmp"
 PSEUDO_DIR="$(dirname "$PWD")/pseudo"
 
@@ -22,9 +24,9 @@ plotrho.x < "$TMP_DIR/si.plotrho.in"
 
 pp.x < "$TMP_DIR/si.pp_rho_new.in"
 
-gnuplot "$TMP_DIR/gnuplot1.in"
+"$gnuplot" "$TMP_DIR/gnuplot1.in"
 
-gnuplot "$TMP_DIR/gnuplot2.in"
+"$gnuplot" "$TMP_DIR/gnuplot2.in"
 
 pw.x < "$TMP_DIR/si.band.in"
 

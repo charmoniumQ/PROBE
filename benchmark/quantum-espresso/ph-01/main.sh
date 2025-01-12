@@ -1,7 +1,9 @@
 set -ex
 
+cd "$(dirname -- "$0")"
+
 TMP_DIR="$PWD/tmp"
-PSEUDO_DIR="$(dirname "$PWD")/pseudo"
+PSEUDO_DIR="$(dirname -- "$PWD")/pseudo"
 
 touch "$TMP_DIR"
 rm -rf "$TMP_DIR"

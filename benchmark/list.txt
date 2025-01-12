@@ -7,7 +7,9 @@
   1 build ascl
 1 http server
 3 quantum espresso
-1 joss
+2 joss
+  1 umap
+  1 hdbscan
 
 4 Run top Notebooks on Kaggle by votes
 1 Compile top Spack Packages by GitHub stars
@@ -40,22 +42,22 @@ Spack:  79438 https://github.com/tiangolo/fastapi
 Spack:  77046 https://github.com/gohugoio/hugo
 Spack:  72894 https://github.com/netdata/netdata
 ASCL: 3581 ASCL records
-ASCL:  18178 https://www.ascl.net/1806.006
-ASCL:   9994 https://www.ascl.net/1303.002
-ASCL:   9426 https://www.ascl.net/1010.064
-ASCL:   9033 https://www.ascl.net/1104.005
-ASCL:   7697 https://www.ascl.net/1304.002
+ASCL:  18178 https://www.ascl.net/1806.006 QE
+ASCL:   9994 https://www.ascl.net/1303.002 emcee
+ASCL:   9426 https://www.ascl.net/1010.064 sextractor
+ASCL:   9033 https://www.ascl.net/1104.005 galaxev
+ASCL:   7697 https://www.ascl.net/1304.002 astropy
 ASCL:   7207 https://www.ascl.net/0003.001
 ASCL:   6453 https://www.ascl.net/1010.079
 ASCL:   6166 https://www.ascl.net/2303.013
 ASCL:   6056 https://www.ascl.net/9910.005
 ASCL:   5261 https://www.ascl.net/1104.011
-JOSS:  13531 https://doi.org/10.21105/joss.01686
-JOSS:  6451 https://doi.org/10.21105/joss.00861
-JOSS:  4210 https://doi.org/10.21105/joss.03021
-JOSS:  2577 https://doi.org/10.21105/joss.03139
-JOSS:  1707 https://doi.org/10.21105/joss.00024
-JOSS:  1681 https://doi.org/10.21105/joss.00205
+JOSS:  13531 https://doi.org/10.21105/joss.01686 tidyverse
+JOSS:  6451 https://doi.org/10.21105/joss.00861 umap
+JOSS:  4210 https://doi.org/10.21105/joss.03021 seaborn
+JOSS:  2577 https://doi.org/10.21105/joss.03139 performance
+JOSS:  1707 https://doi.org/10.21105/joss.00024 corner.py
+JOSS:  1681 https://doi.org/10.21105/joss.00205 hdbscan
 JOSS:  1671 https://doi.org/10.21105/joss.00772
 JOSS:  1243 https://doi.org/10.21105/joss.01026
 JOSS:  1154 https://doi.org/10.21105/joss.02815

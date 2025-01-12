@@ -202,6 +202,9 @@
             pypkgs.scikit-learn
             pypkgs.xgboost
             pypkgs.lightgbm
+            pypkgs.numpy
+            pypkgs.umap-learn
+            pypkgs.hdbscan
           ]));
           kaggle-notebook-titanic-0 = pkgs.stdenv.mkDerivation {
             name = "kaggle-notebook-titanic-0";
@@ -700,6 +703,13 @@
               pkgs.libtool
               pkgs.fftw.dev
               pkgs.fftw.out
+              (pkgs.runCommand "fftw-renamed" {} ''
+                mkdir $out
+                cp --recursive ${pkgs.fftw.out}/* $out
+                chmod +w $out/lib
+                cp $out/lib/libfftw3.so $out/lib/libfftw3f.so
+              '')
+              pkgs.cfitsio
             ];
           };
           sextractor-src = pkgs.fetchFromGitHub {
@@ -709,6 +719,7 @@
             hash = "sha256-ssSIGA8NYpclC0MOM1r7uI2Fynqsxdh9y0KqHGVeZ5c=";
           };
           rsync = pkgs.rsync;
+          gnuplot = pkgs.gnuplot;
           reprozip = python.pkgs.buildPythonApplication rec {
             pname = "reprozip";
             version = "1.2";
