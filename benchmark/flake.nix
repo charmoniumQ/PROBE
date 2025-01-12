@@ -152,7 +152,6 @@
           glibc_bin = pkgs.glibc.bin;
           lzop = pkgs.lzop;
           lighttpd = pkgs.lighttpd;
-          hey = pkgs.hey;
           nginx = pkgs.nginx;
           curl = pkgs.curl;
           gnused = pkgs.gnused;
@@ -163,18 +162,6 @@
           tex = pkgs.texlive.combined.scheme-full;
           gnumake = pkgs.gnumake.out;
           bash = pkgs.bash.out;
-          http-python-env = pkgs.symlinkJoin {
-            name = "http-python-env";
-            paths = [
-              pkgs.bash
-              curl
-              hey
-              pkgs.psmisc
-              (pkgs.python312.withPackages (pypkgs: [
-                pypkgs.psutil
-              ]))
-            ];
-          };
           un-archive-env = pkgs.symlinkJoin {
             name = "un-archve-env";
             paths = [
@@ -201,6 +188,10 @@
             pypkgs.kaggle
           ]);
           tornado = python.pkgs.tornado;
+          fits-0 = pkgs.fetchurl {
+            url = "https://fits.gsfc.nasa.gov/samples/WFPC2u5780205r_c0fx.fits";
+            hash = "sha256-2nwPG2ZDhQhWy6EA6bPo23a4DpFYPrCIY1xBaitBYbM=";
+          };
           kaggle-notebook-env = (python.withPackages (pypkgs: [
             pypkgs.pandas
             pypkgs.tqdm
@@ -338,8 +329,7 @@
             ];
           };
           # Rename to avoid conflict when merging
-          apacheHttpd = renameInDrv pkgs.apacheHttpd "bin/httpd" "bin/apacheHttpd";
-          miniHttpd = renameInDrv pkgs.miniHttpd "bin/httpd" "bin/miniHttpd";
+          apacheHttpd = pkgs.apacheHttpd.out;
           postmark-bin = pkgs.stdenv.mkDerivation rec {
             pname = "postmark";
             version = "1.53";
@@ -443,101 +433,6 @@
                 PKG_CONFIG_PATH = "${pkgs.fuse}/lib/pkgconfig";
               }
           );
-          pcre2-dev = pkgs.pcre2.dev.overrideAttrs (super: {
-            postFixup =
-              super.postFixup
-              + ''
-                ${pkgs.gnused}/bin/sed --in-place s=/bin/sh=${pkgs.bash}/bin/bash=g $dev/bin/pcre2-config
-              '';
-          });
-          pyTimecard = python.pkgs.buildPythonPackage rec {
-            pname = "Timecard";
-            version = "3.0.0";
-            src = pkgs.fetchPypi {
-              inherit pname version;
-              sha256 = "efa3a55b6efdd548158e2693bd788d59e8b7df68e7a88fbb3692eeb0d24c876f";
-            };
-          };
-          ftpbench = python.pkgs.buildPythonApplication rec {
-            pname = "ftpbench";
-            version = "1.0";
-            # Note the version on PyPI is not Python3 :(
-            src = pkgs.fetchFromGitHub {
-              owner = "selectel";
-              repo = pname;
-              rev = "42dd3bb6a4623b628668167bcceee3210a050ada";
-              hash = "sha256-FIWwhGp6ucwFcMSeFJmnRSdCzcCEIRXViWMP4O4hjko=";
-            };
-            propagatedBuildInputs = [
-              python.pkgs.setuptools
-              python.pkgs.gevent
-              python.pkgs.dnspython
-              pyTimecard
-              python.pkgs.docopt
-            ];
-          };
-          proftpd = pkgs.stdenv.mkDerivation rec {
-            pname = "proftpd";
-            version = "1.3.8";
-            srcs = [
-              (pkgs.fetchFromGitHub {
-                owner = "proftpd";
-                repo = pname;
-                rev = "v${version}";
-                hash = "sha256-DnVUIcrE+mW4vTZzoPk+dk+2O3jEjGbGIBiVZgcvkNA=";
-                name = "proftpd";
-              })
-              (pkgs.fetchFromGitHub {
-                owner = "Castaglia";
-                repo = "proftpd-mod_vroot";
-                rev = "v0.9.11";
-                hash = "sha256-wAf7zmCr2sMH/EKNxWtUjIEoaAFenzNyfXd4sKjvHDY=";
-                name = "proftpd-mod_vroot";
-              })
-            ];
-            sourceRoot = ".";
-            postUnpack = ''
-              chmod --recursive u+w proftpd-mod_vroot
-              cp --recursive proftpd-mod_vroot proftpd/contrib/mod_vroot
-              cd proftpd
-            '';
-            buildInputs = [pkgs.libxcrypt];
-            configureFlags = ["--with-modules=mod_vroot"];
-            installPhase = ''
-              install --directory $out/bin
-              install --target-directory $out/bin proftpd ftpcount ftpdctl ftpscrub ftpshut ftptop ftpwho contrib/ftpasswd contrib/ftpquota contrib/ftpmail
-            '';
-          };
-          yafc = pkgs.stdenv.mkDerivation {
-            pname = "yafc";
-            version = "1.3.7";
-            src = pkgs.fetchFromGitHub {
-              owner = "sebastinas";
-              repo = "yafc";
-              rev = "v1.3.7";
-              hash = "sha256-kg9pxlPl7nU3ayUEmmimrgHg1uVd2mMB2Fo8fW65TiQ=";
-            };
-            # buildInputs = [ pkgs.glib.dev pkgs.gnulib.out ];
-            nativeBuildInputs = [pkgs.autoconf pkgs.automake pkgs.glib.dev pkgs.gnulib.out pkgs.pkg-config pkgs.m4 pkgs.libtool pkgs.texinfo];
-            buildInputs = [pkgs.libssh];
-            configurePhase = ''
-              glib-gettextize -f -c
-
-              # https://gitweb.gentoo.org/repo/gentoo.git/commit/?id=c13b5e88c6e9c7bd2698d844cb5ed127ed809f7e
-              rm m4/glib-gettext.m4
-
-              autoreconf -v -f -i
-
-              ./configure
-            '';
-            installPhase = ''
-              install --directory $out/bin
-              install --target-directory $out/bin yafc
-            '';
-          };
-          lftp = pkgs.lftp;
-          wget = pkgs.wget;
-          libseccomp = pkgs.libseccomp.lib;
 
           ###################
           # True benchmarks #
@@ -725,6 +620,26 @@
             rev = "v4.48.0";
             hash = "sha256-jh2bMmvTC0G0kLJl7xXpsvXvBmlbZEDA88AfosoE9sA=";
           };
+          write-file = pkgs.writeShellScriptBin "write-file" ''
+            if [ "$#" -ne 2 ];
+              echo "Usage: write-file 'text of file' file_dest.txt"
+              exit 1
+            fi
+            echo $1 > $2
+          '';
+          http-load-test = python.pkgs.buildPythonPackage rec {
+            name = "http-load-test";
+            src = ./http_load_test.py;
+            dontUnpack = true;
+            format = "other";
+            installPhase = ''
+              mkdir -p $out/bin
+              cp ${src} $out/bin/http-load-test
+              chmod +xw $out/bin/http-load-test
+              wrapProgram $out/bin/http-load-test \
+                --prefix PATH : ${pkgs.hey}/bin
+            '';
+          };
           pkg-config = pkgs.pkg-config.out;
           tesseract-env = pkgs.symlinkJoin {
             name = "tesseract-env";
@@ -765,6 +680,34 @@
             rev = "5.5.0";
             hash = "sha256-qyckAQZs3gR1NBqWgE+COSKXhv3kPF+iHVQrt6OPi8s=";
           };
+          sextractor-env = pkgs.symlinkJoin {
+            name = "sextractor-env";
+            paths = [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.gnugrep
+              pkgs.gnum4
+              pkgs.gnused
+              pkgs.diffutils
+              pkgs.gawk
+              pkgs.which
+              pkgs.gnumake
+              pkgs.findutils
+              pkgs.gcc
+              pkgs.pkg-config
+              pkgs.autoconf
+              pkgs.automake
+              pkgs.libtool
+              pkgs.fftw.dev
+              pkgs.fftw.out
+            ];
+          };
+          sextractor-src = pkgs.fetchFromGitHub {
+            owner = "astromatic";
+            repo = "sextractor";
+            rev = "2.28.0";
+            hash = "sha256-ssSIGA8NYpclC0MOM1r7uI2Fynqsxdh9y0KqHGVeZ5c=";
+          };
           rsync = pkgs.rsync;
           reprozip = python.pkgs.buildPythonApplication rec {
             pname = "reprozip";
@@ -802,6 +745,15 @@
               python.pkgs.pyelftools
             ];
             pythonImportsCheck = [pname];
+          };
+          quantum-espresso-env = pkgs.symlinkJoin {
+            name = "quantum-espresso-env";
+            paths = [
+              pkgs.coreutils
+              pkgs.bash
+              pkgs.gnused
+              pkgs.quantum-espresso
+            ];
           };
           reprounzip-docker = python.pkgs.buildPythonPackage rec {
             pname = "reprounzip-docker";

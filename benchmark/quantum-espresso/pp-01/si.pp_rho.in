@@ -1,0 +1,17 @@
+ &inputpp
+    prefix  = 'si'
+    outdir = '$TMP_DIR'
+    filplot = '$TMP_DIR/sicharge'
+    plot_num= 0
+ /
+ &plot
+    nfile = 1
+    filepp(1) = '$TMP_DIR/sicharge'
+    weight(1) = 1.0
+    iflag = 2
+    output_format = 2
+    fileout = '$TMP_DIR/si.rho.dat'
+    e1(1) =1.0, e1(2)=1.0, e1(3) = 0.0,
+    e2(1) =0.0, e2(2)=0.0, e2(3) = 1.0,
+    nx=56, ny=40
+ /

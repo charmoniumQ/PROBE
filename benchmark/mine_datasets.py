@@ -130,7 +130,7 @@ def parse_github_urls(urls: list[str]) -> tuple[list[tuple[str, str]], list[str]
 
 
 @op
-def get_spack_urls(n: int, n_sample: int = 2000) -> list[str]:
+def get_spack_urls(n: int, n_sample: int | None) -> list[str]:
     storage = mandala.model.Context.current_context.storage
     out = []
     tar = download("https://github.com/spack/spack/archive/v0.22.3.tar.gz")
@@ -148,8 +148,9 @@ def get_spack_urls(n: int, n_sample: int = 2000) -> list[str]:
     out.append(f"{len(urls)} URLs")
     github_urls, unknowns = parse_github_urls(urls)
     out.append(f"{len(github_urls)} github URLs")
-    out.append(f"sampling {n_sample}")
-    github_urls = random.Random(0).sample(github_urls, n_sample)
+    if n_sample:
+        out.append(f"sampling {n_sample}")
+        github_urls = random.Random(0).sample(github_urls, n_sample)
     stars = [
         (
             storage.unwrap(get_stars(Ignore(github), owner, repo)) or 0,
@@ -278,6 +279,6 @@ storage = Storage(
 )
 with storage:
     print("Started main")
-    print(textwrap.indent("\n".join(storage.unwrap(get_spack_urls(10, 2500))), "Spack: "))
+    print(textwrap.indent("\n".join(storage.unwrap(get_spack_urls(10, None))), "Spack: "))
     print(textwrap.indent("\n".join(storage.unwrap(get_ascl_urls(10))), "ASCL: "))
     print(textwrap.indent("\n".join(storage.unwrap(get_joss_urls(10))), "JOSS: "))

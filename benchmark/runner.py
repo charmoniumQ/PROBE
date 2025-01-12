@@ -65,12 +65,12 @@ def main(
 
     storage_file = pathlib.Path(".cache/run_experiments.db")
     storage_file.parent.mkdir(exist_ok=True)
-    collectors_str = ", ".join(collector.name for collector in collector_list)
-    workloads_str = ", ".join(workload.labels[0][-1] for workload in workload_list)
+    collectors_str = [collector.name for collector in collector_list]
+    workloads_str = [workload.labels[0][-1] for workload in workload_list]
     prompt = " ".join([
         "This operation will DELETE previous:",
-        f"{collectors_str} x {workloads_str} x {iterations} ({seed=}).",
-        "Continue?",
+        f"{collectors_str} x {workloads_str} x {list(range(iterations))} ({seed=}).",
+        "Continue?\n",
     ])
     if rerun and rich.prompt.Confirm.ask(prompt, console=util.console):
         ops = []

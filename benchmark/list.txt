@@ -1,3 +1,14 @@
+6 blast
+16 lmbench
+4 kaggle notebooks
+1 postmark
+3 builds
+  2 builds spack
+  1 build ascl
+1 http server
+3 quantum espresso
+1 joss
+
 4 Run top Notebooks on Kaggle by votes
 1 Compile top Spack Packages by GitHub stars
   Top of ASCL weighted by Crossref citations or GitHub stars
@@ -5,7 +16,6 @@
   Run top nf-core workflows
   Run top Snakemake Workflow Catalog workflows
 
-Apache
 Top of ASCL and JOSS
 A few real compiles
 SPLASH-3
@@ -15,3 +25,38 @@ Tar unarchive
 Git checkout
 Utils bash
 Utils
+
+Spack: 7994 packages
+Spack: 18661 URLs
+Spack: 5078 github URLs
+Spack:  187212 https://github.com/tensorflow/tensorflow
+Spack:  137413 https://github.com/huggingface/transformers
+Spack:  133573 https://github.com/ytdl-org/youtube-dl
+Spack:  112305 https://github.com/kubernetes/kubernetes
+Spack:  101740 https://github.com/microsoft/TypeScript
+Spack:  85135 https://github.com/neovim/neovim
+Spack:  80016 https://github.com/opencv/opencv
+Spack:  79438 https://github.com/tiangolo/fastapi
+Spack:  77046 https://github.com/gohugoio/hugo
+Spack:  72894 https://github.com/netdata/netdata
+ASCL: 3581 ASCL records
+ASCL:  18178 https://www.ascl.net/1806.006
+ASCL:   9994 https://www.ascl.net/1303.002
+ASCL:   9426 https://www.ascl.net/1010.064
+ASCL:   9033 https://www.ascl.net/1104.005
+ASCL:   7697 https://www.ascl.net/1304.002
+ASCL:   7207 https://www.ascl.net/0003.001
+ASCL:   6453 https://www.ascl.net/1010.079
+ASCL:   6166 https://www.ascl.net/2303.013
+ASCL:   6056 https://www.ascl.net/9910.005
+ASCL:   5261 https://www.ascl.net/1104.011
+JOSS:  13531 https://doi.org/10.21105/joss.01686
+JOSS:  6451 https://doi.org/10.21105/joss.00861
+JOSS:  4210 https://doi.org/10.21105/joss.03021
+JOSS:  2577 https://doi.org/10.21105/joss.03139
+JOSS:  1707 https://doi.org/10.21105/joss.00024
+JOSS:  1681 https://doi.org/10.21105/joss.00205
+JOSS:  1671 https://doi.org/10.21105/joss.00772
+JOSS:  1243 https://doi.org/10.21105/joss.01026
+JOSS:  1154 https://doi.org/10.21105/joss.02815
+JOSS:  1084 https://doi.org/10.21105/joss.00097

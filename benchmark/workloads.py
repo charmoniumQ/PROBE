@@ -1,3 +1,4 @@
+import pathlib
 import datetime
 import dataclasses
 import typing
@@ -26,7 +27,7 @@ env = command.NixPath(".#coreutils", "/bin/env")
 cp = command.NixPath(".#coreutils", "/bin/cp")
 rsync = command.NixPath(".#rsync", "/bin/rsync")
 make = command.NixPath(".#gnumake", "/bin/make")
-bash = command.NixPath(".#bash", "/bin/bash")
+bash = (command.NixPath(".#bash", "/bin/bash"), "--noprofile", "--norc", "-e", "-x")
 git = command.NixPath(".#git", "/bin/git")
 mkdir = command.NixPath(".#coreutils", "/bin/mkdir")
 work_dir = command.Placeholder("work_dir")
@@ -35,6 +36,7 @@ blast_output = command.Placeholder("work_dir", prefix="OUTPUT=")
 test_file = command.Placeholder("work_dir", postfix="/test")
 user = pwd.getpwuid(os.getuid()).pw_name
 group = grp.getgrgid(os.getgid()).gr_name
+this_directory = pathlib.Path(__file__).resolve().parent
 
 
 def kaggle_workload(
@@ -87,6 +89,28 @@ def lmbench_workload(
             if create_file_size else ()
         ),
     )
+
+
+http_port = 49284
+
+
+http_n_requests = 200000
+
+
+http_size = 4096
+
+
+apache_http_conf = '''
+ServerRoot $HTTPD_ROOT
+PidFile $HTTPD_ROOT/httpd.pid
+ErrorLog $HTTPD_ROOT/errors.log
+ServerName localhost
+Listen $PORT
+LoadModule mpm_event_module $APACHE_MODULES_PATH/mod_mpm_event.so
+LoadModule unixd_module $APACHE_MODULES_PATH/mod_unixd.so
+LoadModule authz_core_module $APACHE_MODULES_PATH/mod_authz_core.so
+DocumentRoot $SRV_ROOT
+'''
 
 workloads = [
     Workload(
@@ -145,8 +169,8 @@ workloads = [
     Workload(
         (("microbench", "postmark", "postmark"), ("sys", "file io")),
         command.Command((
-            bash,
-            "-ec",
+            *bash,
+            "-c",
             command.NixPath(".#postmark", postfix="/bin/postmark", prefix="echo -e 'set transactions 100000\nrun\nquit\n' | "),
         )),
     ),
@@ -162,7 +186,7 @@ workloads = [
             command.NixPath(".#tesseract-env", postfix="/bin", prefix="PATH="),
             command.NixPath(".#pkg-config", postfix="/share/aclocal", prefix="ACLOCAL_PATH="),
             command.NixPath(".#tesseract-env", "/bin/bash"),
-            "-exc",
+            "-c",
             "\n".join([
                 # ./autogen.sh doesn't work, because pkg-config is in a non-default path
                 "env_path=$(dirname $(dirname $(which bash)))",
@@ -184,18 +208,81 @@ workloads = [
         command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#tesseract-src", postfix="/"), work_dir)),
         timeout=datetime.timedelta(minutes=60),
     ),
-    # Workload(
-    #     (("app", "http", "apache"), ("sys", "server")),
-    #     command.Command((
-    #         command.NixPath(".#http-load-test", "/bin/http-load-test"),
-    #         command.NixPath(".#appacheHttpd", "/bin/apacheHttpd"),
-    #         "-k",
-    #         "start",
-    #         "-f",
-
-    #         "-X",
-    #     ))
-    # )
+    Workload(
+        (("app", "compile", "sextractor"), ("cse", "astro")),
+        command.Command((
+            env,
+            command.NixPath(".#sextractor-env", postfix="/bin", prefix="PATH="),
+            command.NixPath(".#sextractor-env", "/bin/bash"),
+            "-c",
+            "\n".join([
+                # ./autogen.sh doesn't work, because pkg-config is in a non-default path
+                "env_path=$(dirname $(dirname $(which bash)))",
+                "export PKG_CONFIG_PATH=$env_path/lib/pkgconfig",
+                "sh autogen.sh",
+                "\"CPPFLAGS=-I$env_path/include -L$env_path/lib\"./configure",
+                "make",
+            ]),
+        )),
+        command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#sextractor-src", postfix="/"), work_dir)),
+        timeout=datetime.timedelta(minutes=60),
+    ),
+    Workload(
+        (("app", "http", "apache"), ("sys", "server")),
+        command.Command((
+            command.NixPath(".#http-load-test", "/bin/http-load-test"),
+            str(http_n_requests),
+            f"http://localhost:{http_port}/test",
+            command.NixPath(".#apacheHttpd", "/bin/httpd"),
+            "-k",
+            "start",
+            "-f",
+            test_file,
+            "-X",
+        )),
+        command.Command((
+            env,
+            command.NixPath(".#coreutils", postfix="/bin", prefix="PATH="),
+            command.Placeholder("work_dir", postfix="", prefix="HTTPD_ROOT="),
+            command.Placeholder("work_dir", postfix="/srv", prefix="SRV_ROOT="),
+            command.NixPath(".#apacheHttpd", postfix="/modules", prefix="APACHE_MODULES_PATH="),
+            f"PORT={http_port}",
+            *bash,
+            "-c",
+            "\n".join([
+                f"echo \"{apache_http_conf}\" > $HTTPD_ROOT/test",
+                "mkdir $SRV_ROOT",
+                f"dd if=/dev/zero of=$SRV_ROOT/test.txt bs=1k count={http_size} > $SRV_ROOT/test",
+            ]),
+        )),
+    ),
+    Workload(
+        (("app", "quantum-espresso", "ph-01"), ("cse", "comp-chem")),
+        command.Command((
+            env,
+            command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
+            *bash,
+            str(this_directory / "quantum-espresso/ph-01/main.sh"),
+        ))
+    ),
+    Workload(
+        (("app", "quantum-espresso", "pw-01"), ("cse", "comp-chem")),
+        command.Command((
+            env,
+            command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
+            *bash,
+            str(this_directory / "quantum-espresso/pw-01/main.sh"),
+        ))
+    ),
+    Workload(
+        (("app", "quantum-espresso", "pp-01"), ("cse", "comp-chem")),
+        command.Command((
+            env,
+            command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
+            *bash,
+            str(this_directory / "quantum-espresso/pp-01/main.sh"),
+        ))
+    ),
 ]
 
 
