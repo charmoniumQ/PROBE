@@ -9,4 +9,7 @@ photo-2.jpg
 *.bbl
 *.bcf
 *.blg
+*.out
+*.run.xml
+*.tex
 svg-inkscape/
