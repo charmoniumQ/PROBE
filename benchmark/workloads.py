@@ -141,7 +141,7 @@ workloads = [
     kaggle_workload("titanic-0"),
     kaggle_workload("titanic-1"),
     kaggle_workload("house-prices-0"),
-    kaggle_workload("house-prices-1", datetime.timedelta(minuets=60)),
+    kaggle_workload("house-prices-1", datetime.timedelta(minutes=60)),
     Workload(
         (("microbench", "postmark", "postmark"), ("sys", "file io")),
         command.Command((
