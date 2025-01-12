@@ -204,7 +204,7 @@
             pypkgs.lightgbm
             pypkgs.numpy
             pypkgs.umap-learn
-            pypkgs.hdbscan
+            (noPytest pypkgs.hdbscan)
           ]));
           kaggle-notebook-titanic-0 = pkgs.stdenv.mkDerivation {
             name = "kaggle-notebook-titanic-0";
