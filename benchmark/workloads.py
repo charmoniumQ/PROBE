@@ -317,7 +317,7 @@ WORKLOAD_GROUPS = {
     "all-but-ph": [
         workload
         for workload in workloads
-        if workload.labels[0][-1] != "ph-01"
+        if workload.labels[0][1] != "quantum-espresso"
     ],
     "fast": [
         workload
