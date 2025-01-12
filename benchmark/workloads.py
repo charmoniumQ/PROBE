@@ -315,7 +315,7 @@ WORKLOAD_GROUPS = {
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][1], util.identity),
     "all": workloads,
     "all-but-ph": [
-        workloads
+        workload
         for workload in workloads
         if workload.labels[0][-1] != "ph-01"
     ],
