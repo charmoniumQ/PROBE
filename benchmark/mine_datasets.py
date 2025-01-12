@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import json
+import textwrap
+import requests
+import functools
 import random
 import tqdm
 import os
-import asyncio
 import typing
 import pathlib
 import yarl
@@ -11,9 +13,9 @@ import githubkit
 import tarfile
 import io
 import tempfile
-import util
 import urllib.request
 import measure_resources
+import mandala.model
 from mandala.imports import Storage, Ignore, op
 
 
@@ -49,6 +51,7 @@ def run_in_spack(spack_tar: bytes, script: str) -> typing.Any:
         return proc.stdout.decode()
 
 
+@functools.cache
 def get_github_client() -> githubkit.GitHub:
     github_pat = os.environ["GITHUB_PAT"]
     github = githubkit.GitHub(githubkit.TokenAuthStrategy(github_pat))
@@ -126,6 +129,148 @@ def parse_github_urls(urls: list[str]) -> tuple[list[tuple[str, str]], list[str]
     ], unknown
 
 
+@op
+def get_spack_urls(n: int, n_sample: int = 2000) -> list[str]:
+    storage = mandala.model.Context.current_context.storage
+    out = []
+    tar = download("https://github.com/spack/spack/archive/v0.22.3.tar.gz")
+    script = pathlib.Path("mine_spack_datasets.py").read_text()
+    packages_src = storage.unwrap(run_in_spack(tar, script))
+    packages = json.loads(packages_src)
+    out.append(f"{len(packages)} packages")
+    github = get_github_client()
+    urls = [
+        url
+        for package, url_attrs in packages.items()
+        for urls in url_attrs.values()
+        for url in urls
+    ]
+    out.append(f"{len(urls)} URLs")
+    github_urls, unknowns = parse_github_urls(urls)
+    out.append(f"{len(github_urls)} github URLs")
+    out.append(f"sampling {n_sample}")
+    github_urls = random.Random(0).sample(github_urls, n_sample)
+    stars = [
+        (
+            storage.unwrap(get_stars(Ignore(github), owner, repo)) or 0,
+            owner,
+            repo,
+        )
+        for owner, repo in tqdm.tqdm(github_urls, desc="Spack GitHub repos")
+    ]
+    for stars, owner, repo in sorted(stars, reverse=True)[:n]:
+        out.append(f"{stars: 6d} https://github.com/{owner}/{repo}")
+    return out
+
+
+@op
+def get_ascl_urls(n_urls: int) -> list[str]:
+    out = []
+    github = get_github_client()
+    storage = mandala.model.Context.current_context.storage
+    ascl = json.loads(storage.unwrap(download("https://ascl.net/code/json")).decode())
+    out.append(f"{len(ascl)} ASCL records")
+    # urls = []
+    # for record in ascl.values():
+    #     for site in record["site_list"]:
+    #         urls.append(typing.cast(str, site))
+    # out.append(f"{len(urls)} URLs")
+    # github_urls = set()
+    # for url in urls:
+    #     match parse_url(url):
+    #         case (owner, repo):
+    #             if (owner, repo) not in github_urls:
+    #                 github_urls.add((owner, repo))
+    #         case None:
+    #             pass
+    #         case str():
+    #             pass
+    #         case _:
+    #             raise TypeError
+    # out.append(f"{len(github_urls)} GitHub URLs")
+    # stars = [
+    #     (
+    #         storage.unwrap(get_stars(Ignore(github), owner, repo)) or 0,
+    #         owner,
+    #         repo,
+    #     )
+    #     for owner, repo in tqdm.tqdm(github_urls, desc="ASCL GitHub URLs")
+    # ]
+    # for stars, owner, repo in sorted(stars, reverse=True)[:n_urls]:
+    #     out.append(f"{stars: 6d} https://github.com/{owner}/{repo}")
+
+    citations = []
+    for record in tqdm.tqdm(ascl.values(), desc="ASCL ADS AB lookups"):
+        n = 0
+        for bibcode in (record["described_in"] or []):
+            if "adsabs.harvard.edu" in bibcode:
+                bibcode = (
+                    bibcode
+                    # many weird variants of this URL
+                    .replace("https://", "")
+                    .replace("http://", "")
+                    .replace("ui.adsabs.harvard.edu", "")
+                    .replace("adsabs.harvard.edu", "")
+                    .replace("/#abs/", "")
+                    .replace("/abs/", "")
+                    .replace("/", "")
+                )
+                n += storage.unwrap(get_ads_api_citation_count(bibcode))
+        citations.append((n, record["ascl_id"]))
+    for n, ascl_id in sorted(citations, reverse=True)[:n_urls]:
+        out.append(f"{n: 6d} https://www.ascl.net/{ascl_id}")
+    return out
+
+
+@op
+def get_joss_urls(n: int) -> list[str]:
+    # https://openalex.org/works?page=1&filter=primary_location.source.publisher_lineage%3Ap4310315853&view=report,api
+    results = requests.get(
+        f"https://api.openalex.org/works?page=1&filter=primary_location.source.publisher_lineage:p4310315853&sort=cited_by_count:desc&per_page={n}"
+    ).json()["results"]
+    out = []
+    for result in results:
+        count = result["cited_by_count"]
+        doi = result["doi"]
+        out.append(f"{count: 5d} {doi}")
+    return out
+
+
+
+def get_oci_citation_count(doi: str) -> int | None:
+    return json.loads(
+        download(f"https://opencitations.net/index/api/v2/citation-count/doi:{doi}").decode()
+    )[0]["count"]
+
+
+@op
+def get_ads_api_citation_count(ads_bibcode: str) -> int | None:
+    url = yarl.URL.build(
+        scheme="https",
+        host="api.adsabs.harvard.edu",
+        path="/v1/search/query",
+        query={
+            "q": "bibcode:" + ads_bibcode,
+            "fl": "citation_count",
+        },
+    )
+    resp = requests.get(
+        str(url),
+        headers={
+            "Authorization": "Bearer " + os.environ["ADS_API_KEY"],
+        },
+    )
+    try:
+        docs = json.loads(resp.text)["response"]["docs"]
+    except Exception as exc:
+        print(resp.status_code, repr(ads_bibcode), repr(url), resp.text)
+        raise exc
+    if docs:
+        return docs[0]["citation_count"]
+    else:
+        return 0
+
+
 storage_path = pathlib.Path(".cache/mine_datasets.db")
 storage_path.parent.mkdir(exist_ok=True)
 storage = Storage(
@@ -133,30 +278,6 @@ storage = Storage(
 )
 with storage:
     print("Started main")
-    spack_tar = download("https://github.com/spack/spack/archive/v0.22.3.tar.gz")
-    script = pathlib.Path("mine_spack_datasets.py").read_text()
-    spack_packages_src = storage.unwrap(run_in_spack(spack_tar, script))
-    print(spack_packages_src[:100])
-    spack_packages = json.loads(spack_packages_src)
-    github = get_github_client()
-    urls = [
-        url
-        for package, url_attrs in spack_packages.items()
-        for urls in url_attrs.values()
-        for url in urls
-    ]
-    print(f"{len(urls)} packages")
-    github_urls, unknowns = parse_github_urls(urls)
-    print(f"{len(github_urls)} github URLs")
-    print(f"{len(unknowns)} unknown URLs")
-    for unknown in unknowns:
-        print("unknown URL", unknown)
-    github_urls = random.Random(0).sample(github_urls, 800)
-    stars = [
-        (storage.unwrap(get_stars(Ignore(github), owner, repo)) or 0, owner, repo)
-        for owner, repo in tqdm.tqdm(github_urls, desc="Repos")
-    ]
-    stars = sorted(stars, reverse=True)
-
-    for stars, owner, repo in stars[:30]:
-        print(stars, owner, repo)
+    print(textwrap.indent("\n".join(storage.unwrap(get_spack_urls(10, 2500))), "Spack: "))
+    print(textwrap.indent("\n".join(storage.unwrap(get_ascl_urls(10))), "ASCL: "))
+    print(textwrap.indent("\n".join(storage.unwrap(get_joss_urls(10))), "JOSS: "))

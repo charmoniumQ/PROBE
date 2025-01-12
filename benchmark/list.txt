@@ -1,4 +1,17 @@
-Run top Notebooks on Kaggle by votes
-Compile top Spack Packages by GitHub stars
-Run top nf-core workflows
-Run top Snakemake Workflow Catalog workflows
+4 Run top Notebooks on Kaggle by votes
+1 Compile top Spack Packages by GitHub stars
+  Top of ASCL weighted by Crossref citations or GitHub stars
+  Top of JOSS by Crossref citations
+  Run top nf-core workflows
+  Run top Snakemake Workflow Catalog workflows
+
+Apache
+Top of ASCL and JOSS
+A few real compiles
+SPLASH-3
+cp
+Tar archive
+Tar unarchive
+Git checkout
+Utils bash
+Utils

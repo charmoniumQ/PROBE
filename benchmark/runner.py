@@ -7,6 +7,7 @@ from typing_extensions import Annotated
 import experiment
 import workloads as workloads_mod
 import prov_collectors as prov_collectors_mod
+import rich.prompt
 import util
 import stats
 from mandala.imports import Storage, Ignore
@@ -64,7 +65,14 @@ def main(
 
     storage_file = pathlib.Path(".cache/run_experiments.db")
     storage_file.parent.mkdir(exist_ok=True)
-    if rerun:
+    collectors_str = ", ".join(collector.name for collector in collector_list)
+    workloads_str = ", ".join(workload.labels[0][-1] for workload in workload_list)
+    prompt = " ".join([
+        "This operation will DELETE previous:",
+        f"{collectors_str} x {workloads_str} x {iterations} ({seed=}).",
+        "Continue?",
+    ])
+    if rerun and rich.prompt.Confirm.ask(prompt, console=util.console):
         ops = []
         util.console.print("Dropping calls")
         with Storage(storage_file) as storage:

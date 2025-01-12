@@ -741,6 +741,8 @@
               pkgs.icu.dev
               pkgs.pango.dev
               pkgs.cairo.dev
+              pkgs.gnumake
+              pkgs.findutils
               # https://tesseract-ocr.github.io/tessdoc/Compiling.html
               pkgs.gcc
               pkgs.autoconf

@@ -37,7 +37,10 @@ user = pwd.getpwuid(os.getuid()).pw_name
 group = grp.getgrgid(os.getgid()).gr_name
 
 
-def kaggle_workload(notebook_name: str) -> Workload:
+def kaggle_workload(
+        notebook_name: str,
+        timeout: datetime.timedelta = datetime.timedelta(minutes=15),
+) -> Workload:
     return Workload(
             (("app", "kaggle", notebook_name), ("data science", "")),
             command.Command((
@@ -51,6 +54,7 @@ def kaggle_workload(notebook_name: str) -> Workload:
                 "--output",
                 command.Placeholder("work_dir", postfix="/notebook.ipynb"),
             )),
+            timeout=timeout,
         )
 
 
@@ -137,7 +141,7 @@ workloads = [
     kaggle_workload("titanic-0"),
     kaggle_workload("titanic-1"),
     kaggle_workload("house-prices-0"),
-    kaggle_workload("house-prices-1"),
+    kaggle_workload("house-prices-1", datetime.timedelta(minuets=60)),
     Workload(
         (("microbench", "postmark", "postmark"), ("sys", "file io")),
         command.Command((
@@ -151,35 +155,46 @@ workloads = [
         command.Command((command.NixPath(".#transformers-python", "/bin/python"), "setup.py", "bdist_wheel")),
         command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#transformers-src", postfix="/"), work_dir)),
     ),
+    Workload(
+        (("app", "compile", "tesseract-ocr"), ("ml", "")),
+        command.Command((
+            env,
+            command.NixPath(".#tesseract-env", postfix="/bin", prefix="PATH="),
+            command.NixPath(".#pkg-config", postfix="/share/aclocal", prefix="ACLOCAL_PATH="),
+            command.NixPath(".#tesseract-env", "/bin/bash"),
+            "-exc",
+            "\n".join([
+                # ./autogen.sh doesn't work, because pkg-config is in a non-default path
+                "env_path=$(dirname $(dirname $(which bash)))",
+                "export LIBLEPT_HEADERSDIR=$env_path/include",
+                "export LIBLEPT_LIBDIR=$env_path/lib",
+                "export PKG_CONFIG_PATH=$env_path/lib/pkgconfig",
+                "mkdir -p config",
+                "aclocal -I config",
+                "libtoolize -f -c",
+                "libtoolize --automake",
+                "aclocal -I config",
+                "autoconf -I$ACLOCAL_PATH",
+                "autoheader -f",
+                "automake --add-missing --copy --warnings=all",
+                "./configure --with-extra-libraries=$LIBLEPT_LIBDIR",
+                "make CPPFLAGS=\"-I$env_path/include/ -I$env_path/include/leptonica\"",
+            ]),
+        )),
+        command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#tesseract-src", postfix="/"), work_dir)),
+        timeout=datetime.timedelta(minutes=60),
+    ),
     # Workload(
-    #     (("app", "compile", "tesseract-ocr"), ("ml", "")),
+    #     (("app", "http", "apache"), ("sys", "server")),
     #     command.Command((
-    #         env,
-    #         command.NixPath(".#tesseract-env", postfix="/bin", prefix="PATH="),
-    #         command.NixPath(".#pkg-config", postfix="/share/aclocal", prefix="ACLOCAL_PATH="),
-    #         command.NixPath(".#tesseract-env", "/bin/bash"),
-    #         "-exc",
-    #         "\n".join([
-    #             # ./autogen.sh doesn't work, because pkg-config is in a non-default path
-    #             "env_path=$(dirname $(dirname $(which bash)))",
-    #             "export LIBLEPT_HEADERSDIR=$env_path/include",
-    #             "export LIBLEPT_LIBDIR=$env_path/lib",
-    #             "ls $LIBLEPT_HEADERSDIR/",
-    #             "ls $LIBLEPT_LIBDIR/",
-    #             "export PKG_CONFIG_PATH=$env_path/lib/pkgconfig",
-    #             "mkdir -p config",
-    #             "aclocal -I config",
-    #             "libtoolize -f -c",
-    #             "libtoolize --automake",
-    #             "aclocal -I config",
-    #             "autoconf -I$ACLOCAL_PATH",
-    #             "autoheader -f",
-    #             "automake --add-missing --copy --warnings=all",
-    #             "./configure --with-extra-libraries=$LIBLEPT_LIBDIR",
-    #             "make",
-    #         ]),
-    #     )),
-    #     command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#tesseract-src", postfix="/"), work_dir)),
+    #         command.NixPath(".#http-load-test", "/bin/http-load-test"),
+    #         command.NixPath(".#appacheHttpd", "/bin/apacheHttpd"),
+    #         "-k",
+    #         "start",
+    #         "-f",
+
+    #         "-X",
+    #     ))
     # )
 ]
 
