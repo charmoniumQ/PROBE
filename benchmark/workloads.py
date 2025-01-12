@@ -113,10 +113,10 @@ DocumentRoot $SRV_ROOT
 '''
 
 workloads = [
-    Workload(
-        (("app", "blast", "tblastx"), ("cse", "multiomics")),
-        command.Command((make, "-C", blast_dir, "tblastx", blast_output)),
-    ),
+    # Workload(
+    #     (("app", "blast", "tblastx"), ("cse", "multiomics")),
+    #     command.Command((make, "-C", blast_dir, "tblastx", blast_output)),
+    # ),
     Workload(
         (("app", "blast", "tblastn"), ("cse", "multiomics")),
         command.Command((make, "-C", blast_dir, "tblastn", blast_output)),
