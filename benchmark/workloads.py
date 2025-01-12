@@ -314,6 +314,11 @@ WORKLOAD_GROUPS = {
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][0], util.identity),
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][1], util.identity),
     "all": workloads,
+    "all-but-ph": [
+        workloads
+        for workload in workloads
+        if workload.labels[0][-1] != "ph-01"
+    ],
     "fast": [
         workload
         for workload in workloads

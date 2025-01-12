@@ -333,6 +333,7 @@ progress = rich.progress.Progress(
     rich.progress.TimeRemainingColumn(),
     rich.progress.MofNCompleteColumn(),
     console=console,
+    speed_estimate_period=60 * 60, # in seconds
 )
 
 
