@@ -23,10 +23,24 @@ bool is_replace_op(struct Op op) {
     return op.op_code == open_op_code && (op.data.open.flags & O_TRUNC || op.data.open.flags & O_CREAT);
 }
 
-int copy(const struct Path* path) {
+int copy_to_store(const struct Path* path) {
     static char dst_path[PATH_MAX];
     path_to_id_string(path, dst_path);
-    return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, get_inodes_dirfd(), dst_path, path->size);
+    /*
+    ** We take precautions to avoid calling copy(f) if copy(f) is already called in the same process.
+    ** But it may have been already called in a different process!
+    ** Especially coreutils used in every script.
+     */
+
+    int dst_dirfd = get_inodes_dirfd();
+    int access = unwrapped_faccessat(dst_dirfd, dst_path, F_OK, 0);
+    if (access == 0) {
+        DEBUG("Already exists %s %d", path->path, path->inode);
+        return 0;
+    } else {
+        DEBUG("Copying %s %d", path->path, path->inode);
+        return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, dst_dirfd, dst_path, path->size);
+    }
 }
 
 /*
@@ -55,7 +69,7 @@ static void prov_log_try(struct Op op) {
                     DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
                 } else {
                     DEBUG("Mutating, therefore copying %s %d", path->path, path->inode);
-                    copy(path);
+                    copy_to_store(path);
                 }
             } else if (is_replace_op(op)) {
                 if (inode_table_contains(&read_inodes, path)) {
@@ -63,7 +77,7 @@ static void prov_log_try(struct Op op) {
                         DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
                     } else {
                         DEBUG("Replace after read %s %d", path->path, path->inode);
-                        copy(path);
+                        copy_to_store(path);
                     }
                 } else {
                     DEBUG("Mutating, but not copying %s %d since it was never read", path->path, path->inode);
@@ -74,8 +88,7 @@ static void prov_log_try(struct Op op) {
             if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
                 DEBUG("Not copying %s %d because already did", path->path, path->inode);
             } else {
-                DEBUG("Copying %s %d", path->path, path->inode);
-                copy(path);
+                copy_to_store(path);
             }
         }
     }
