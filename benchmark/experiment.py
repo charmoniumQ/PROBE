@@ -69,6 +69,7 @@ def run_experiments(
                 op,
             )
         )
+        mandala.model.Context.current_context.storage.commit()
 
     df = polars.from_dicts(
         [
