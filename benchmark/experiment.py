@@ -101,7 +101,7 @@ def run_experiments(
                 "walltime": record.walltime,
                 "user_cpu_time": record.user_cpu_time,
                 "system_cpu_time": record.system_cpu_time,
-                "max_memory": record.max_memory_usage,
+                "max_memory": record.max_memory,
                 "n_voluntary_context_switches": record.n_voluntary_context_switches,
                 "n_involuntary_context_switches": record.n_involuntary_context_switches,
                 "provenance_size": record.provenance_size,
