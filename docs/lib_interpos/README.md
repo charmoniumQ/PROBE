@@ -588,12 +588,18 @@ BLAST is the only real-world application in the Grayson benchmark suite, so we a
 - Projects from Astrophysics Source Code Library [@allenAstrophysicsSourceCode2012], sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose Quantum Espresso (calculates atomic properties) and SExtractor (extracts sources in an astronomical image).
 - Projects from the Journal of Open Source Software, sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose UMAP (data mining) and hdbscan (data mining).
 
+We timed benchmarks to verify that none of them finish in faster than 1 seconds, so the execution time is not dominated by program loading.
+<!--
+TODO: Loop more so we can say 3 seconds instead
+-->
+
 \begin{table*}
 \small
 \input{data_apps.tex}
+\hfill
 \input{data_synths.tex}
 \normalsize
-\caption{Performance overhead of applications in various provenance tracers as a multiple of native execution. 2.0 means that the program takes twice as long when running in the provenance tracer.}
+\caption{Walltime overhead of applications in various provenance tracers as a multiple of native execution. 2.0 means that the program takes twice as long when running in the provenance tracer.}
 \end{table*}
 
 # Discussion {#sec:discussion}

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import polars
 import pathlib
 import scipy.stats
@@ -11,6 +12,12 @@ workloads = polars.read_parquet("output/workloads.parquet")
 
 
 assert workloads["workload_subsubgroup"].n_unique() == len(workloads)
+
+
+print(agged.columns)
+
+
+polars.Config.set_tbl_rows(1000)
 
 
 app_groups = {
@@ -55,51 +62,63 @@ collectors = [
 ]
 
 
-ratio = agged.pivot(
-    "collector",
-    index="workload_subsubgroup",
-    values="walltime_overhead_ratio",
-).with_columns(polars.col("workload_subsubgroup").cast(str).alias("workload"))
-
-
-ratios = {
-    workload: ratio.filter(polars.col("workload") == workload)[0]
-    for group in [*app_groups.values(), *synth_groups.values()]
-    for workload in group
-}
-
-
 root = pathlib.Path(__file__).resolve().parent.parent
 
 
+for qty in ["walltime", "max_memory"]:
+    print(qty)
+    print(stats.dt_as_seconds(agged).select(
+        polars.col("workload_subsubgroup").alias("workload"),
+        "collector",
+        polars.concat_str(polars.col(f"{qty}_avg").round(1), polars.lit(" ±"), polars.col(f"{qty}_std").round(1)).alias(qty)
+    ).pivot(
+        "collector",
+        index="workload",
+        values=qty,
+    ))
+
+
 for file_name, group_names, groups in [("apps", "Applications", app_groups), ("synths", "Synthetic benchmarks", synth_groups)]:
-    (root / f"docs/lib_interpos/data_{file_name}.tex").write_text("\n".join([
-        r"\begin{tabular}{l" + "c" * len(collectors) + "}",
-        r"\toprule",
-        rf"\multicolumn{{{len(collectors) + 1}}}{{c}}{{\textbf{{{group_names}}}}} \\\\",
-        " & ".join(["workload", *collectors]) + " \\\\",
-        r"\midrule",
-        " \\\\\n".join([
-            " & ".join([
-                workload,
-                *[
-                    "{:.2f}".format(ratios[workload][collector][0])
-                    for collector in collectors
-                ],
-            ])
-            for group in groups.values()
-            for workload in group
-        ]) + " \\\\\n",
-        r"\midrule",
-        r"\textbf{gmean} & " + " & ".join(
-            "{:.2f}".format(scipy.stats.gmean([
-                ratios[workload][collector][0]
+    for suffix, col in [("", "walltime_overhead_ratio"), ("_mem", "max_memory_overhead_ratio"), ("_inv_ctx", "n_involuntary_context_switches_overhead_ratio"), ("_vol_ctx", "n_voluntary_context_switches_overhead_ratio")]:
+        print(col)
+        print(stats.dt_as_seconds(agged).pivot(
+            "collector",
+            index="workload_subsubgroup",
+            values=col,
+        ).select(
+            polars.col("workload_subsubgroup").alias("workload"),
+            *[
+                polars.col(collector).round(1)
+                for collector in collectors
+            ],
+        ))
+        (root / f"docs/lib_interpos/data_{file_name}{suffix}.tex").write_text("\n".join([
+            r"\begin{tabular}{l" + "c" * len(collectors) + "}",
+            r"\toprule",
+            rf"\multicolumn{{{len(collectors) + 1}}}{{c}}{{\textbf{{{group_names}}}}} \\\\",
+            " & ".join(["workload", *collectors]) + " \\\\",
+            r"\midrule",
+            " \\\\\n".join([
+                " & ".join([
+                    workload,
+                    *[
+                        "{:.2f}".format(agged.filter((polars.col("workload_subsubgroup") == workload) & (polars.col("collector") == collector))[col][0])
+                        for collector in collectors
+                    ],
+                ])
                 for group in groups.values()
                 for workload in group
-            ]))
-            for collector in collectors
-        ) + " \\\\",
-        r"\bottomrule",
-        r"\end{tabular}",
-        "",
-    ]))
+            ]) + " \\\\\n",
+            r"\midrule",
+            r"\textbf{gmean} & " + " & ".join(
+                "{:.2f}".format(scipy.stats.gmean([
+                    agged.filter((polars.col("workload_subsubgroup") == workload) & (polars.col("collector") == collector))[col][0]
+                    for group in groups.values()
+                    for workload in group
+                ]))
+                for collector in collectors
+            ) + " \\\\",
+            r"\bottomrule",
+            r"\end{tabular}",
+            "",
+        ]))
