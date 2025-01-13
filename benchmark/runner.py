@@ -105,9 +105,11 @@ def main(
         util.console.print(f"Ran experiment in {(mid - start).total_seconds():.1f}sec")
 
     stats.process_df(iterations_df)
-    if verbose: print("cleanup")
+    if verbose:
+        print("cleanup")
     storage.cleanup_refs()
-    if verbose: print("vacuum")
+    if verbose:
+        print("vacuum")
     storage.vacuum()
 
     if verbose:

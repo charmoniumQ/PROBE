@@ -66,46 +66,43 @@ def run_experiments(
     last_used_mem = process.memory_info().rss
     records = []
     br = util.fmt_bytes
-    for iteration, collector, workload, verbose in util.progress.track(
-            inputs,
-            description="Collectors x Workloads"
-    ):
-        with Storage(storage_file) as storage:
+    with Storage(storage_file) as storage:
+        for iteration, collector, workload, verbose in util.progress.track(
+                inputs,
+                description="Collectors x Workloads"
+        ):
             op = run_experiment(iteration, collector, workload, verbose)
             record = storage.unwrap(op)
             records.append(record)
-        gc.collect()
-        if verbose:
-            record_size = size(record)
-            util.console.print(
-                f"  Records: {br(size(records))} ≅ {br(record_size * len(records))} = {len(records)} x {br(record_size, 1)}",
-            )
-            util.console.print(f"  Storage: {br(size(storage))}")
-            used_mem = process.memory_info().rss
-            util.console.print(f"  Total: {br(used_mem)} (incrase of {br(used_mem - last_used_mem)} from last time, last record was {br(record_size)})")
-            for key, val in record.__dict__.items():
-                print(f"    {key}: {br(size(val))}")
-            util.console.print(f"Op cmd max memory usage: {br(record.process_resources.max_memory_usage)}")
-            util.console.print(f"Free: {br(psutil.virtual_memory().available)}")
-            last_used_mem = used_mem
+            if verbose:
+                record_size = size(record)
+                util.console.print(
+                    f"  Records: {br(size(records))} ≅ {br(record_size * len(records))} = {len(records)} x {br(record_size, 1)}",
+                )
+                util.console.print(f"  Storage: {br(size(storage))}")
+                used_mem = process.memory_info().rss
+                util.console.print(f"  Total: {br(used_mem)} (incrase of {br(used_mem - last_used_mem)} from last time, last record was {br(record_size)})")
+                util.console.print(f"  Free: {br(psutil.virtual_memory().available)}")
+                util.console.print(f"  Op cmd max memory usage: {br(record.max_memory)}")
+                last_used_mem = used_mem
 
     df = polars.from_dicts(
         [
             {
-                "collector": record.prov_collector.name,
-                "workload_group": record.workload.labels[0][0],
-                "workload_subgroup": record.workload.labels[0][1],
-                "workload_subsubgroup": record.workload.labels[0][2],
-                "workload_area": record.workload.labels[1][0],
-                "workload_subarea": record.workload.labels[1][1],
+                "collector": record.prov_collector,
+                "workload_group": record.workload_group,
+                "workload_subgroup": record.workload_subgroup,
+                "workload_subsubgroup": record.workload_subsubgroup,
+                "workload_area": record.workload_area,
+                "workload_subarea": record.workload_subarea,
                 "seed": record.seed,
-                "returncode": record.process_resources.returncode,
-                "walltime": record.process_resources.walltime,
-                "user_cpu_time": record.process_resources.user_cpu_time,
-                "system_cpu_time": record.process_resources.system_cpu_time,
-                "max_memory": record.process_resources.max_memory_usage,
-                "n_voluntary_context_switches": record.process_resources.n_voluntary_context_switches,
-                "n_involuntary_context_switches": record.process_resources.n_involuntary_context_switches,
+                "returncode": record.returncode,
+                "walltime": record.walltime,
+                "user_cpu_time": record.user_cpu_time,
+                "system_cpu_time": record.system_cpu_time,
+                "max_memory": record.max_memory_usage,
+                "n_voluntary_context_switches": record.n_voluntary_context_switches,
+                "n_involuntary_context_switches": record.n_involuntary_context_switches,
                 "provenance_size": record.provenance_size,
                 "n_ops": record.n_ops,
                 "n_unique_files": record.n_unique_files,
@@ -129,9 +126,19 @@ def run_experiments(
 @dataclasses.dataclass
 class ExperimentStats:
     seed: int
-    prov_collector: ProvCollector
-    workload: Workload
-    process_resources: measure_resources.CompletedProcess
+    prov_collector: str
+    workload_group: str
+    workload_subgroup: str
+    workload_subsubgroup: str
+    workload_area: str
+    workload_subarea: str
+    returncode: int = -1
+    walltime: datetime.timedelta = datetime.timedelta()
+    user_cpu_time: datetime.timedelta = datetime.timedelta()
+    system_cpu_time: datetime.timedelta = datetime.timedelta()
+    max_memory: int = 0
+    n_involuntary_context_switches: int = 0
+    n_voluntary_context_switches: int = 0
     provenance_size: int = 0
     n_ops: int = 0
     n_unique_files: int = 0
@@ -149,6 +156,7 @@ def run_experiment(
         util.console.rule(f"{prov_collector.name} {workload.labels[0][-1]}")
 
     setup_teardown_timeout = datetime.timedelta(seconds=30)
+    labels = (seed, prov_collector.name, workload.labels[0][0], workload.labels[0][1], workload.labels[0][2], workload.labels[1][0], workload.labels[1][1])
 
     def run_proc(
             cmd: tuple[str, ...],
@@ -181,10 +189,10 @@ def run_experiment(
                         proc.stderr.decode(errors="surrogateescape").strip(),
                         (1, 4),
                     ))
-            return proc, ExperimentStats(seed, prov_collector, workload, proc)
+            return proc, ExperimentStats(*labels, returncode=proc.returncode)
         else:
             proc = measure_resources.CompletedProcess()
-            return proc, ExperimentStats(seed, prov_collector, workload, proc)
+            return proc, ExperimentStats(*labels)
 
 
     with tempfile.TemporaryDirectory() as _tmp_dir:
@@ -235,12 +243,16 @@ def run_experiment(
         ops = prov_collector.count(prov_log, pathlib.Path(workload_cmd[0]))
 
     return ExperimentStats(
-        seed,
-        prov_collector,
-        workload,
-        workload_proc,
-        provenance_size,
-        len(ops),
-        len({op.target0 for op in ops if op.target0} | {op.target1 for op in ops if op.target1}),
-        collections.Counter(op.type for op in ops),
+        *labels,
+        returncode=workload_proc.returncode,
+        walltime=workload_proc.walltime,
+        user_cpu_time=workload_proc.user_cpu_time,
+        system_cpu_time=workload_proc.system_cpu_time,
+        max_memory=workload_proc.max_memory_usage,
+        n_involuntary_context_switches=workload_proc.n_involuntary_context_switches,
+        n_voluntary_context_switches=workload_proc.n_voluntary_context_switches,
+        provenance_size=provenance_size,
+        n_ops=len(ops),
+        n_unique_files=len({op.target0 for op in ops if op.target0} | {op.target1 for op in ops if op.target1}),
+        op_counts=collections.Counter(op.type for op in ops),
     )

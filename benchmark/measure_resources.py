@@ -94,11 +94,11 @@ def measure_resources(
     ) as p:
         try:
             stdout, stderr = p.communicate(timeout=timeout.total_seconds() if timeout is not None else None)
+            stop = datetime.datetime.now()
         except:
             p.kill()
             stdout, stderr = p.communicate()
             raise
-        stop = datetime.datetime.now()
         return CompletedProcess(
             p.returncode,
             cmd,
