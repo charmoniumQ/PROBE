@@ -32,11 +32,14 @@ class FeatureSet:
 impls = {
     "PROBE": FeatureSet(True, True, True, Bypassability.BYPASSABLE_AWARE, "libcalls", RecordsData.OPTIONAL, True, True, True),
     "ReproZip": FeatureSet(True, True, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, True, True),
-    "CDE, PTU, Sciunit, CARE": FeatureSet(True, True, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, True, False),
+    "PTU": FeatureSet(True, True, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, True, True),
+    "CDE, Sciunit, CARE": FeatureSet(True, True, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, True, False),
     "rr": FeatureSet(True, True, True, Bypassability.NOT_BYPASSABLE, "rr", RecordsData.BOTH, True, False, False),
     "strace, ltrace": FeatureSet(True, True, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.METADATA, False, False, False),
-    "Linux Audit": FeatureSet(True, False, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, False, False),
-    "eBPF/CamFlow": FeatureSet(False, False, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, False, False),
+
+    # "Kernel auditing": FeatureSet(True, False, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, False, False),
+    # "Kernel mod.": FeatureSet(False, False, True, Bypassability.NOT_BYPASSABLE, "syscalls", RecordsData.BOTH, True, False, False),
+    # "Recompiling with ins.": FeatureSet(True, True, False, Bypassability.BYPASSABLE_UNAWARE, "calls", RecordsData.BOTH, True, False, False),
 }
 
 
@@ -44,7 +47,7 @@ labels = {
     "user_space": "User",
     "no_priv": "No priv.",
     "unmod_bin": "Unmod. bin.",
-    "bypassability": "No bypass",
+    "bypassability": "Bypassable",
     "coverage": "Coverage",
     "data": "Data & metadata",
     "replay": "Replayable",
@@ -86,8 +89,8 @@ def get_latex_table() -> str:
     med_color = r"\cellcolor{Yellow}"
     feature_converters = {
         "bypassability": lambda v: {
-            Bypassability.BYPASSABLE_AWARE: bad_color,
-            Bypassability.NOT_BYPASSABLE: good_color,
+            Bypassability.BYPASSABLE_AWARE: bad_color + "no",
+            Bypassability.NOT_BYPASSABLE: good_color + "yes",
         }[v],
         "data": lambda v: {
             RecordsData.METADATA: med_color + "Metadata",
@@ -96,8 +99,8 @@ def get_latex_table() -> str:
         }[v],
     }
     bool_converter = lambda v: {
-        True: good_color,
-        False: bad_color,
+        True: good_color + "yes",
+        False: bad_color + "no",
     }[v]
     return "\n".join([
         r"\begin{tabular}{c" + "c" * len(feature_order)+ "}",

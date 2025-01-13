@@ -1,5 +1,5 @@
 prov_example.svg: prov_example.dot
-	dot prov_example.dot -Tpng -o prov_example.svg
+	dot prov_example.dot -Tsvg -o prov_example.svg
 
 feature_matrix.tex: feature_matrix.py
 	./feature_matrix.py
