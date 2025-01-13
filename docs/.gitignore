@@ -12,4 +12,5 @@ photo-2.jpg
 *.out
 *.run.xml
 *.tex
+*.svg
 svg-inkscape/

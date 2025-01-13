@@ -1,4 +1,9 @@
 strict digraph G {
+    nodesep=0.05;
+    ranksep=0.1;
+    node [fontsize=9, width=0.1, height=0.1];
+    edge [len=0.1];
+
     utilsc [shape="oval" label="utils.c"];
     utilso [shape="oval" label="utils.o"];
     mainc [shape="oval" label="main.c"];
@@ -11,7 +16,7 @@ strict digraph G {
     compile_main [shape="rect" label="gcc -c -o main.o main.c"];
     link [shape="rect" label="gcc main.o utils.o -o main"];
     runmain [shape="rect" label="./main -n data.csv fig1.png"];
-    curl [shape="rect" label="curl http://example.com/data"];
+    curl [shape="rect" label="curl http://web.com/"];
 
     utilsc -> compile_utils -> utilso;
     mainc -> compile_main -> maino;

@@ -170,7 +170,11 @@ TODO:
 
 \begin{figure}
 \centering
-\includesvg[width=0.5\textwidth,height=\textheight,pretex=\relscale{0.8}]{./prov_example.svg}
+\texttt{
+%\textbf{
+\includesvg[width=0.5\textwidth,height=\textheight,pretex=\relscale{0.65}]{./prov_example.svg}
+%}
+}
 \caption{Example provenance graph of \texttt{fig1.png}. Artifacts are ovals; processes are rectangles.}\label{fig:example}
 \end{figure}
 
@@ -256,37 +260,61 @@ Provenance has a number of use-cases discussed in prior work:
 The first four are applicable in the domain of computational science while the last is in security.
 This work focuses on provenance tracers for computational science.
 
-We define the following design properties of provenance tracers:
+We define the following "theoretical" properties of provenance tracers.
+They are theoretical in the sense that one does not need to do any experiments them to determine these properties; only study their methods and perhaps their code.
+They are enumerated in a feature matrix in \Cref{tbl:feature-matrix}.
 
-- **Unprivileged mode**:
-   A user should be able to use SLP to trace their own processes without root-level access.
-   While appropriate for security use-cases, computational scientists would likely not have root-level access on shared systems.
+- **Runs in user-space**:
+  SLP should be able to implemented at a user-space as opposed to kernel-space.
+  Kernel modifications increases the attack surface and is more difficult to maintain than user-space code.
 
-- **User-space mode**:
-   SLP should be able to implemented at a user-space as opposed to kernel-space.
-   Non-privilege implies user-space, but user-space does not imply non-privilege.
+- **No privilege required**:
+  A user should be able to use SLP to trace their own processes without accessing higher privileges than normal every time.
+  Two motivations for this property are that code running in privileged mode increases the attack surface and presents a barrier to use for non-privileged users.
+  Computational scientists would likely not have root-level access on shared systems and thus may not be able to use SLPs that require privilege to run.
+  We do not distinguish between privileges required to install versus privileges required to run, since they are equivalent by setuid.
 
-- **Completeness**:
-   The SLP should record which sources of information the process accessed.
-   For example, access to the file system, user input, network accesses, time of day should be recorded.
-   Tracing these dependencies improves reproducibility, comprehension, differential debugging, and other applications of provenance.
+- **Ability to run unmodified binaries**:
+  Users should not have to change or recompile their code to track provenance.
+
+- **Not bypassable**:
+  A tracee should not be able to read data in a way that will bypass detection by the provenance tracer.
+
+<!-- - **Coverage of many information sources**: -->
+<!--   Tracing should cover many sources of informatiion, and record whether a process accessed these sources. -->
+<!--   For example, access to the file system, user input, network accesses, time of day should be recorded. -->
+<!--   Tracing these dependencies improves reproducibility, because we would know the non-deterministic inputs, comprehension, differential debugging, and other applications of provenance. -->
+
+- **Records data and metadata**:
+  SLP tracers always record the metadata of which file was accessed.
+  Some also record the data in the file that was accessed, at the cost of higher overhead.
+  One could encompass the advantages of both groups by offering a runtime option to switch between faster/metadata-only or slower/metadata-and-data.
+
+- **Replayable**:
+  The SLP tool should export an archive that can be replayed.
+  The replay may be mediated by the SLP tool itself or by an external tool, e.g. Docker, VirtualBox, QEMU.
+  Recording data and metadata is required for replay.
+
+- **Replay supports deviations**:
+  The replay supports executing a different code path in the reconstructed environment, so long as the different code path does not access any files outside of those the original code path accessed (those are already in the reconstructed environment).
+  For example, replay the recorded execution but replace one command-line flag, environment variable, or input file.
+
+- **Constructs provenance graph**:
+  The SLP tool should construct and export a graph representation of the provenance from the observed log of provenance events.
+  Certain use-cases such as incremental computation, comprehension, differential debugging, and others require the graph representation while merely replaying does not.
+  Constructing the graph from a log of events is difficult due to concurrency in the system.
+
+<!-- Empirical properties include the following. -->
+<!-- We expect the empirical properties to vary widely depending on the tracee, so one would need to evaluate these properties on a suite of benchmarks that are representative of the intended use-case. -->
+
+<!-- - **Performance overhead on tracee**: -->
+<!--   SLP should have a minimal performance overhead from native execution. -->
+<!--   If the performance overhead is noticeable, users may selectively turn it off, resulting in provenance with gaps in the history. -->
   
-- **Overhead**:
-   SLP should have a minimal performance overhead from native execution.
-   If the performance overhead is noticeable, users may selectively turn it off, resulting in provenance with gaps in the history.
+<!-- - **Occurrences of bypass in tracee**: -->
+<!--   The circumstances by which I/O operations can bypass detection can be evaluated theoretically, empirical study can determine how often those circumstances occur in the tracee. -->
 
-- **Unmodified binaries**:
-   Users should not have to change or recompile their code to track provenance.
 
-Prior work misses at least one of these three:
-
-- eBPF, Linux Audit framework, Linux Provenance Modules/Linux Security Modules [@batesTrustworthyWholeSystemProvenance2015], and CamFlow [@pasquierPracticalWholesystemProvenance2017] use Linux kernel-level functionality violating non-privilege.
-
-- ReproZip [@chirigatiReproZipComputationalReproducibility2016] and Sciunits [@tonthatSciunitsReusableResearch2017] use ptrace, which has a significant performance overhead.
-  Record/replay tools such as RR [@ocallahanEngineeringRecordReplay2017] and CDE [@guoCDEUsingSystem2011] are similar to provenance tracers in this category.
-  Record/replay tools seek automatic reproducibility but do not satisfy the other features of provenance tracers discussed above.
-
-- PASSv2 [@muniswamy-reddyLayeringProvenanceSystems2009] requires the user to instrument their code to emit provenance data to a colelctor, violating transparency.
 
 <!--
 TODO: Discuss reproducibility options
@@ -302,7 +330,7 @@ There have been several methods of tracing SLP proposed in prior work:
 - Check on that our claims on the other constraints are correct
 -->
 
-- **Virtual machines**: running the application in a virtual machine that tracks information flow.
+- **Virtual machines**: running the tracee in a virtual machine that tracks information flow.
   This method is extremely slow; e.g., PANORAMA has 20x overhead [@yinPanoramaCapturingSystemwide2007].
 
 - **Recompiling with instrumentation**: recompile, where the compiler or libraries insert instructions that log provenance data, e.g., [@maMPIMultiplePerspective2017].
@@ -321,6 +349,68 @@ There have been several methods of tracing SLP proposed in prior work:
 
 - **Library interposition**: replace a standard library with an instrumented library that emits provenance data as appropriate.
   This could use the `LD_PRELOAD` of Linux and `DYLD_INSERT_LIBRARIES` on MacOS.
+
+<!-- TODO: Address completeness -->
+
+\begin{table}
+\caption{
+  Provenance collectors from our search results and from experience.
+  See \Cref{collection-methods} for their exact definition.
+}
+\label{tbl:tools}
+%\begin{minipage}{\columnwidth}
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+Tool                                                               & Method                       \\
+\midrule
+strace                                                             & tracing                      \\
+rr \cite{ocallahanEngineeringRecordReplay2017}                     & tracing                      \\
+ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      \\
+CARE \cite{janinCAREComprehensiveArchiver2014}                     & tracing                      \\
+Sciunit \cite{phamUsingProvenanceRepeatability2013}                & tracing                      \\
+PTU \cite{phamUsingProvenanceRepeatability2013}                    & tracing                      \\
+CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      \\
+ltrace                                                             & tracing                      \\
+SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, or compile-time   \\
+DTrace \cite{DTrace}                                               & audit                        \\
+eBPF/bpftrace                                                      & audit                        \\
+SystemTap \cite{prasadLocatingSystemProblems2005}                  & audit                        \\
+PROV-IO \cite{hanPROVIOOCentricProvenance2022}                     & lib. ins.                    \\
+OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & lib. ins.                    \\
+CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kernel ins.                  \\
+Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kernel ins.                  \\
+LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & kernel ins.                  \\
+Arnold\cite{devecseryEideticSystems2014}                           & kern ins.                    \\
+LPS \cite{daiLightweightProvenanceService2017}                     & kern ins.                    \\
+RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & tracing                      \\
+FiPS \cite{sultanaFileProvenanceSystem2013}                        & FS                           \\
+Namiki et al. \cite{namikiMethodConstructingResearch2023}          & audit                        \\
+LPROV \cite{wangLprovPracticalLibraryaware2018}                    & kernel mod., lib. ins.       \\
+S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & kernel mod.                  \\
+ProTracer \cite{maProTracerPracticalProvenance2016}                & kernel mod.                  \\
+PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & kernel ins., FS              \\
+PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & kernel ins., FS, lib. ins.   \\
+PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & kernel ins.                  \\
+Lineage FS \cite{sarLineageFileSystem}                             & kernel ins.                  \\
+RTAG \cite{jiEnablingRefinableCrossHost2018}                       & bin. ins.                    \\
+BEEP \cite{leeHighAccuracyAttack2017}                              & bin. ins.                    \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & bin., kernel, lib. ins.      \\
+RAIN \cite{jiRAINRefinableAttack2017}                              & bin. ins.                    \\
+DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & recompile ins.               \\
+MPI\cite{maMPIMultiplePerspective2017}                             & recompile ins.               \\
+LDX \cite{kwonLDXCausalityInference2016}                           & VM ins.                      \\
+Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VM ins.                      \\
+PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & audit                        \\
+\bottomrule
+\end{tabular}
+\normalsize
+\end{center}
+%\end{minipage}
+\end{table}
+\footnotetext{URSprung depends on IBM Spectrum Scale to get directory change notifications, so it is not for a \textit{generic} Linux system.}
+
 
 If non-privilege, transparency, no special hardware, and performance overhead less than 10-times are hard-requirements, the only possible methods are user-level debug tracing and library interposition.
 
@@ -366,27 +456,13 @@ Prior surveys/SoK
 
 -->
 
-TODO: Matrix:
-
-- Each row is a group of prior works
-
-- Each column is an SLP tracer-feature
-
-Prior works argue that library interposition is not appropriate for SLP for the following reasons:
-
-- **Bypassable by direct system calls**
-
-- **Fragility due to variations in C libraries**
-
-- **Breaks other applications that use preloading**
-
-- **Requires rebuilding or re-linking**
-
-- **TODO**
-
-> A common technique for intercepting system calls inprocess is to use dynamic linking to interpose wrapper functions over the C library functions that make system calls. In practice, we have found that method to be insufficient, due to applications making direct system calls, and fragile, due to variations in C libraries, and applications that require their own preloading [37, 3].
-
-> An alternative implementation of whole-system provenance is interposition between system calls and libraries in user space, as in OPUS [9]. An argument in favour of such systems is that modifications to existing libraries are more likely to be adopted than modifications to the kernel. However, for this approach to work, all applications in the system need to be built against, or dynamically linked to, provenance-aware libraries, replacing existing libraries.
+\begin{table*}
+\centering
+\footnotesize
+\input{feature_matrix.tex}
+\caption{Feature matrix of provenance collectors and the properties described above.}
+\label{tbl:feature-matrix}
+\end{table*}
 
 # Concepts {#sec:design}
 
@@ -511,6 +587,24 @@ Our research prototype wraps:
 - `exec` family of functions
 - `fork`, `clone`, `wait` families of functions
 - `pthread_create`, `pthread_join`, `thrd_create`, `thrd_join`, etc. functions
+
+# Discussion {#:sec:discussion}
+
+Prior works argue that library interposition is not appropriate for SLP for the following reasons:
+
+- **Bypassable by direct system calls**
+
+- **Fragility due to variations in C libraries**
+
+- **Breaks other applications that use preloading**
+
+- **Requires rebuilding or re-linking**
+
+- **TODO**
+
+> A common technique for intercepting system calls inprocess is to use dynamic linking to interpose wrapper functions over the C library functions that make system calls. In practice, we have found that method to be insufficient, due to applications making direct system calls, and fragile, due to variations in C libraries, and applications that require their own preloading [37, 3].
+
+> An alternative implementation of whole-system provenance is interposition between system calls and libraries in user space, as in OPUS [9]. An argument in favour of such systems is that modifications to existing libraries are more likely to be adopted than modifications to the kernel. However, for this approach to work, all applications in the system need to be built against, or dynamically linked to, provenance-aware libraries, replacing existing libraries.
 
 <!--
 - Compare theoretically and empirically with others
