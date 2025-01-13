@@ -899,6 +899,9 @@
                 pypkgs.aiohttp
                 pypkgs.aiodns
                 pypkgs.tqdm
+                pypkgs.matplotlib
+                pypkgs.seaborn
+                pypkgs.scipy
                 packages.mandala
               ]))
             ];

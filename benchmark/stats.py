@@ -106,20 +106,7 @@ def _print_diagnostics(
     with polars.Config(tbl_rows=-1, tbl_cols=-1):
         collectors = sorted(
             agged["collector"].unique(),
-            key=lambda collector: {
-                "noprov": 0,
-                "ltrace": 1,
-                "strace": 2,
-                "probe": 3,
-                "rr": 4,
-                "sciunit": 5,
-                "ptu": 6,
-                "cde": 7,
-                "reprozip": 8,
-                "care": 9,
-                "probecopyeager": 10,
-                "probecopylazy": 11,
-            }.get(collector, (99, collector)),
+            key=lambda collector: collector_order.get(collector, (99, collector)),
         )
 
         util.console.print("Absolute walltime")
@@ -273,3 +260,19 @@ def process_df(iterations: polars.DataFrame) -> tuple[polars.DataFrame, polars.D
     _print_diagnostics(iterations, agged, workloads)
     _save_data(iterations, agged, workloads)
     return iterations, workloads
+
+
+collector_order = {
+    "noprov": 0,
+    "ltrace": 1,
+    "strace": 2,
+    "probe": 3,
+    "rr": 4,
+    "sciunit": 5,
+    "ptu": 6,
+    "cde": 7,
+    "reprozip": 8,
+    "care": 9,
+    "probecopyeager": 10,
+    "probecopylazy": 11,
+}

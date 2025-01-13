@@ -160,6 +160,7 @@ This definition permits a graph representation where the artifacts and processes
 
 <!--
 TODO:
+
 - embed the graphviz in this file
 - size text in the SVG without raw LaTeX
 -->
@@ -167,11 +168,10 @@ TODO:
 \begin{figure}
 \centering
 \texttt{
-%\textbf{
 \includesvg[width=0.3\textwidth,height=\textheight,pretex=\relscale{0.7}]{./prov_example.svg}
-%}
 }
-\caption{Example provenance graph of \texttt{fig1.png}. Artifacts are ovals; processes are rectangles.}\label{fig:example}
+\caption{Example provenance graph of \texttt{fig1.png}. Artifacts are ovals; processes are rectangles.}
+\label{fig:example}
 \end{figure}
 
 Provenance data has many applications: **comprehension**, one can visualize how data flows in a pile-of-scripts, **differential debugging**, one can determine how the process behind two computational outputs differ, and, **reproducibility** one can re-execute the process from its description.
@@ -375,21 +375,23 @@ We examine the properties of these in @Tbl:feature-matrix.
 \end{table*}
 
 In user-level debug tracing, the tracer runs in a separate process than the tracee.
-Every time the tracee does a system call, control switches from the tracee to the kernel to the tracer and back and back [@Fig:ptrace].
+Every time the tracee does a system call, control switches from the tracee to the kernel to the tracer and back and back [@Fig:sequence].
 This path incurs two context switches for every system call.
 
 O'Callahan mitigates this by "inject[ing] into the recorded process a library that intercepts common system calls, performs the system call without triggering a ptrace trap, and records the results to a dedicated buffer shared with RR [the tracer program]" [@ocallahanEngineeringRecordReplay2017].
 However, there are some system calls that RR cannot handle solely in the tracee's code, and those system calls will still cause two context switches.
 
 On the other hand, in library interposition, the tracer code is part of a library dynamically loaded into the tracee's memory space.
-While this imposes restrictions on the tracer code, it eliminates the extra context switches [@Fig:lib-interpose].
+While this imposes restrictions on the tracer code, it eliminates the extra context switches [@Fig:sequence].
 
-<div id="fig:figureRef">
-
-![Sequence diagram of process with user-level debug tracing](./ptrace.svg){#fig:ptrace width=21%}
-![Sequence diagram of process with library interposition](./lib_interpose.svg){#fig:lib-interpose width=21%}
-
-</div>
+\begin{figure}
+\centering
+\includesvg[width=0.21\textwidth,height=\textheight,pretex=\relscale{0.6}]{./ptrace.svg}
+\hspace{4mm}
+\includesvg[width=0.21\textwidth,height=\textheight,pretex=\relscale{0.6}]{./lib_interpose.svg}
+\caption{Sequence diagram of process with user-level debug tracing and library interpositioning}
+\label{fig:sequence}
+\end{figure}
 
 <!--
 TODO:
@@ -536,24 +538,56 @@ TODO: Read "Tracking and Sketching Distributed Data Provenance Tanu Malik"
 
 # Empirical evaluation {#sec:evaluation}
 
-Prior provenance works do not generally use a consistent set of benchmark applications.
+We collected the benchmarks used in prior work in table [@Tbl:prior-benchmarks].
+We could not find publication discussing the recording performance of ReproZip or CDE.
+Regarding CDE, Guo and Engler state "We have heard that ptrace interposition [the method used by CDE] can cause slowdowns of 10X or more, but we have not yet performed a rigorous performance stress test" [@guoCDEUsingSystem2011].
+Between the publications which do contain benchmarks, there is no overlap.
 
 \begin{table}
 \centering
-\begin{tabular}{llp{2in}}
+\begin{tabular}{llp{1.8in}}
 \toprule
 Prov tracer                                        & Gmean              & Benchmarks used for recording                  \\
 \midrule
 RR \cite{ocallahanEngineeringRecordReplay2017}     & 1.58               & cp, compile, JavaScript, Firefox, Samba server \\
 PTU \cite{phamUsingProvenanceRepeatability2013}    & 1.25               & geospatial task, natural language task         \\
-Sciunit \cite{tonthatSciunitsReusableResearch2017} &                    & hydrology task, data science task              \\
+Sciunit \cite{tonthatSciunitsReusableResearch2017} & 1.37               & hydrology task, data science task              \\
 \end{tabular}
+\caption{Benchmarks used in publications on selected provenance tracers.}
+\label{tbl:prior-benchmarks}
 \end{table}
 
-Guo and Engler benchmark replay but not recording. Regarding performance overhead of recording, they state "We have heard that ptrace interposition [the method used by CDE] can cause slowdowns of 10X or more, but we have not yet performed a rigorous performance stress test" [@guoCDEUsingSystem2011].
+<!--
+RR (1.5 * 1.75 * 1.5 * 1.6)**(1/4)
+PTU (1.35 * 1.15)**(1/2)
+Sciunit (81/80 * 1.0 * 1.0 * 466/240 * 848/464 * 1017/551)**(1/6)
+-->
 
-We could not find publication discussing the performance of ReproZip at all.
+Grayson et al. give a representative benchmark suite based on benchmarks used in other provenance works including [@graysonBenchmarkSuitePerformance2024]:
 
+- BLAST (multiomics application) [@altschulBasicLocalAlignment1990] with a predefined set of queries [@coulourisBlastBenchmark2016]
+- Apache under synthetic load
+- lmbench (synthetic benchmark for I/O bandwidth and latency) [@mcvoyLmbenchPortableTools1996]
+- Postmark (synthetic benchmark for small file I/O) [@katcherPostMarkNewFile2005]
+- Shell utilities in a tight loop
+
+The performance of provenance tracing depends greatly on the ratio of I/O operations to other operations.
+Synthetic benchmarks that stress one subcomponent of a system (e.g., a million file reads with nothing else) will have virtually unaffected performance or significantly affected performance, depending on the subcomponent, and may not be representative of real-world performance.
+Therefore, we aggregate the synthetic benchmarks separately from the real applications.
+
+BLAST is the only real-world application in the Grayson benchmark suite, so we added the following:
+
+- Data science Jupyter notebooks from Kaggle.com, sorted by most votes. These notebooks read some data, create plots, and output a predicted dataset.
+- Projects from Astrophysics Source Code Library [@allenAstrophysicsSourceCode2012], sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose Quantum Espresso (calculates atomic properties) and SExtractor (extracts sources in an astronomical image).
+- Projects from the Journal of Open Source Software, sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose UMAP (data mining) and hdbscan (data mining).
+
+\begin{table*}
+\small
+\input{data_apps.tex}
+\input{data_synths.tex}
+\normalsize
+\caption{Performance overhead of applications in various provenance tracers as a multiple of native execution. 2.0 means that the program takes twice as long when running in the provenance tracer.}
+\end{table*}
 
 # Discussion {#sec:discussion}
 

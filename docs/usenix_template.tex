@@ -55,149 +55,55 @@
 
 % See https://github.com/jgm/pandoc/blob/main/data/templates/default.latex
 
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{usenix}
 \usepackage{amsmath}
-$if(linestretch)$
-\usepackage{setspace}
-$endif$
-
 \usepackage{calc}
 \usepackage{printlen}
-
-\usepackage[$if(fontenc)$$fontenc$$else$T1$endif$]{fontenc}
-\usepackage[utf8]{inputenc}
 \usepackage{textcomp} % provide euro and other symbols
 % \usepackage{lmodern}
-
-\usepackage{hyperref}
 \usepackage{cleveref}
-
-$if(verbatim-in-note)$
-\usepackage{fancyvrb}
-$endif$
-\usepackage{xcolor}
-\definecolor{myred}{RGB}{200,0,0}
-\definecolor{mygreen}{RGB}{0,100,0}
 \usepackage{physics}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{relsize}
+\usepackage{etoolbox}
+\usepackage{csquotes}
+\usepackage{bookmark}
+%\usepackage{xurl}
+\usepackage{svg}
+\usepackage[normalem]{ulem}
+$if(linestretch)$\usepackage{setspace}$endif$
+$if(verbatim-in-note)$\usepackage{fancyvrb}$endif$
+$if(listings)$\usepackage{listings}$endif$
+$if(verbatim-in-note)$\usepackage{fancyvrb}$endif$
 
-$if(listings)$
-\usepackage{listings}
-$endif$
+$if(highlighting-macros)$$highlighting-macros$$endif$
 
-$if(highlighting-macros)$
-$highlighting-macros$
-$endif$
-
-$if(verbatim-in-note)$
-\usepackage{fancyvrb}
-$endif$
-
-\usepackage{soul}
-
-\usepackage{microtype}
 % \usepackage{bibcop}
+
 \RequirePackage[l2tabu, orthodox]{nag}
 
-\usepackage{longtable,booktabs,array}
-% Correct order of tables after paragraph or subparagraph
-\usepackage{etoolbox}
-\makeatletter
-\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
-\makeatother
-% Allow footnotes in longtable head/foot
-\usepackage{footnotehyper}
-\makesavenoteenv{longtable}
+\usepackage{graphicx}
 
-% https://github.com/jgm/pandoc/issues/1023
-
-% \makeatletter
-% \let\oldlt\longtable
-% \let\endoldlt\endlongtable
-% \def\longtable{\@ifnextchar[\longtable@i \longtable@ii}
-% \def\longtable@i[#1]{\begin{figure}[t]
-% \onecolumn
-% \begin{minipage}{0.5\textwidth}
-% \oldlt[#1]
-% }
-% \def\longtable@ii{\begin{figure}[t]
-% \onecolumn
-% \begin{minipage}{0.5\textwidth}
-% \oldlt
-% }
-% \def\endlongtable{\endoldlt
-% \end{minipage}
-% \twocolumn
-% \end{figure}}
-% \makeatother
-
-% % switch into and out-of twocolumn mode when creating tables
-% \makeatletter
-% % copy the definition of longtable into oldlongtable:
-% \let\oldlongtable\longtable
-% % copy the definition of endlongtable into oldendlongtable:
-% \let\oldendlongtable\endlongtable
-% % if longtable is followed by '[', use the option-having version, else use the non-option-having version:
-% \def\longtable{\@ifnextchar[\longtable@i \longtable@ii}
-% % option-having beginning:
-% \def\longtable@i[#1]{\onecolumn \oldlongtable[#1]}
-% % non-option-having beginning:
-% \def\longtable@ii{\onecolumn \oldlongtable}
-% % redefine the ending of longtable:
-% \def\endlongtable{\oldendlongtable \twocolumn}
-% \makeatother
-
-%\usepackage{subcaption}
-
-\usepackage{supertabular}
-\newcommand\tcap{}
-\renewenvironment{longtable}{\begin{center}\bottomcaption{\tcap}\begin{supertabular}}{\end{supertabular}\end{center}}
-\renewcommand{\endhead}{}
-\renewcommand{\endlastfoot}{}
-
-$if(graphics)$
-\usepackage{graphicx,grffile}
-\makeatletter
-\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
-\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
-\makeatother
-% Scale images if necessary, so that they will not overflow the page
-% margins by default, and it is still possible to overwrite the defaults
-% using explicit options in \includegraphics[width, height, ...]{}
-\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
-$endif$
-
-$if(svg)$
-\usepackage{svg}
-$endif$
-
-$if(strikeout)$
-\usepackage[normalem]{ulem}
 % avoid problems with \sout in headers with hyperref:
 \pdfstringdefDisableCommands{\renewcommand{\sout}{}}
-$endif$
-
-$if(csquotes)$
-\usepackage{csquotes}
-$endif$
 
 %\setlength{\emergencystretch}{3em} % prevent overfull lines
 %\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \providecommand{\tightlist}{}
-\usepackage{enumitem}
 \setlist{topsep=0pt, leftmargin=*}
 \setitemize{noitemsep,topsep=0pt,parsep=0pt,partopsep=0pt}
-
-\usepackage{bookmark}
-\usepackage{xurl}
 
 $for(header-includes)$
 $header-includes$
 $endfor$
 
-\usepackage[dvipsnames,table]{xcolor}
-\usepackage{usenix}
-
-
 \newcommand{\bibliofont}{\footnotesize}
+
+% Gets rid of microtype warning:
 \microtypecontext{spacing=nonfrench}
 
 \RequirePackage[
