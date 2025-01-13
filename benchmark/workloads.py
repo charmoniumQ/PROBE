@@ -317,7 +317,7 @@ WORKLOAD_GROUPS = {
     "all-but-ph": [
         workload
         for workload in workloads
-        if workload.labels[0][1] not in {"quantum-espresso", "http"}
+        if workload.labels[0][1] not in {"quantum-espresso", "http"} and workload.labels[0][2] != "huggingface/transformers"
     ],
     "fast": [
         workload
