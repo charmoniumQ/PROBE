@@ -73,6 +73,7 @@ def run_experiments(
         ):
             op = run_experiment(iteration, collector, workload, verbose)
             record = storage.unwrap(op)
+            storage.commit()
             records.append(record)
             if verbose:
                 record_size = size(record)
