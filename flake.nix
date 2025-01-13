@@ -6,17 +6,13 @@
     flake-utils = {
       url = "github:numtide/flake-utils";
     };
-
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
-
     advisory-db = {
       url = "github:rustsec/advisory-db";
       flake = false;
     };
-
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -95,6 +91,7 @@
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set __PROBE_LIB ${libprobe}/lib \
+                --prefix PATH : ${pkgs.coreutils}/bin \
                 --prefix PATH : ${probe-py}/bin \
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
@@ -134,6 +131,33 @@
           in
             python.withPackages (pypkgs: [probe-py-manual]);
           default = probe-bundled;
+          # joblib-stubs = python.pkgs.buildPythonPackage rec {
+          #   pname = "joblib_stubs";
+          #   version = "1.4.2.5.20240918";
+          #   pyproject = true;
+          #   src = pkgs.fetchPypi {
+          #     inherit pname version;
+          #     sha256 = "7434591e8144c79d0070153816c5cb3861a622069847300ca1f3e0d844840f62";
+          #   };
+          #   propagatedBuildInputs = [ python.pkgs.typing-extensions ];
+          #   nativeBuildInputs = [ python.pkgs.hatchling ];
+          # };
+          # charmonium-time-block = python.pkgs.buildPythonPackage rec {
+          #   pname = "charmonium.time_block";
+          #   pyproject = true;
+          #   version = "0.3.4";
+          #   src = pkgs.fetchPypi {
+          #     pname = "charmonium_time_block";
+          #     inherit version;
+          #     sha256 = "5cbde16fdfc927393a473297690138c2db169e51cdfff13accbbf6ec44486968";
+          #   };
+          #   nativeBuildInputs = [python.pkgs.poetry-core];
+          #   propagatedBuildInputs = [python.pkgs.psutil];
+          #   checkInputs = [python.pkgs.pytest];
+          #   pythonImportsCheck = ["charmonium.time_block"];
+          #   nativeCheckInputs = [python.pkgs.pytestCheckHook];
+          # };
+          #
         };
         checks = {
           inherit
@@ -234,5 +258,6 @@
           };
         };
       }
-    );
+    )
+  ;
 }

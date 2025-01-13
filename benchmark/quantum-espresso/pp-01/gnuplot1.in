@@ -1,0 +1,19 @@
+set term png font ",18" enh size 1000,707
+set pm3d
+set palette model HSV functions gray*0.75, 1, 0.9
+set view 0,0
+#
+alat=10.2
+set xra[0:1.4142136*alat]
+set yra [0.:alat]
+set xtics out nomirror
+set ytics axis in offset -4.0,0 nomirror
+set label "r (a.u)" at 6.8,-2.2 center
+set label "r (a.u)" at -1.7,5.0 rotate by 90 center
+unset ztics
+unset key
+set colorbox
+#
+set out '$TMP_DIR/si.charge.png'
+set title "Si charge"
+splot '$TMP_DIR/si.rho.dat' u 1:2:3 w pm3d
