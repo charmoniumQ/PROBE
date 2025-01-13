@@ -902,6 +902,9 @@
                 pypkgs.matplotlib
                 pypkgs.seaborn
                 pypkgs.scipy
+                pypkgs.bitmath
+                pypkgs.pympler
+                pypkgs.psutil
                 packages.mandala
               ]))
             ];

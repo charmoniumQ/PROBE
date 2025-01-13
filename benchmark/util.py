@@ -5,6 +5,7 @@ import json
 import sys
 import dataclasses
 import random
+import bitmath
 import tempfile
 import contextlib
 import pathlib
@@ -350,3 +351,13 @@ class SupportsDunderGT(typing.Protocol[_T_contra]):
 
 SupportsRichComparison: typing.TypeAlias = SupportsDunderLT[typing.Any] | SupportsDunderGT[typing.Any]
 SupportsRichComparisonT = typing.TypeVar("SupportsRichComparisonT", bound=SupportsRichComparison)
+
+
+
+def fmt_bytes(bm: bitmath.Bitmath | int, d: int = 0) -> str:
+    if isinstance(bm, int):
+        return fmt_bytes(bitmath.Byte(bm))
+    elif isinstance(bm, bitmath.Bitmath):
+        return bm.best_prefix().format(f"{{value:.{d}f}}{{unit}}")
+    else:
+        raise TypeError(f"{bm}: {type(bm).__name__}")

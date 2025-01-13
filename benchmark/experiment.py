@@ -7,8 +7,10 @@ import tempfile
 import collections
 import itertools
 import util
-import mandala.model
-from mandala.imports import op, Ignore  # type: ignore
+import gc
+import psutil
+from pympler.asizeof import asizeof as size
+from mandala.imports import op, Ignore, Storage  # type: ignore
 import rich.progress
 from workloads import Workload
 from prov_collectors import ProvCollector
@@ -26,6 +28,7 @@ def run_experiments(
         seed: int,
         verbose: bool,
         rerun: bool,
+        storage_file: pathlib.Path,
 ) -> polars.DataFrame:
     if verbose:
         util.print_rich_table(
@@ -58,18 +61,33 @@ def run_experiments(
         for iteration in range(iterations)
     ))
 
+
+    process = psutil.Process()
+    last_used_mem = process.memory_info().rss
     records = []
+    br = util.fmt_bytes
     for iteration, collector, workload, verbose in util.progress.track(
             inputs,
             description="Collectors x Workloads"
     ):
-        op = run_experiment(iteration, collector, workload, verbose)
-        records.append(
-            mandala.model.Context.current_context.storage.unwrap(
-                op,
+        with Storage(storage_file) as storage:
+            op = run_experiment(iteration, collector, workload, verbose)
+            record = storage.unwrap(op)
+            records.append(record)
+        gc.collect()
+        if verbose:
+            record_size = size(record)
+            util.console.print(
+                f"  Records: {br(size(records))} ≅ {br(record_size * len(records))} = {len(records)} x {br(record_size, 1)}",
             )
-        )
-        mandala.model.Context.current_context.storage.commit()
+            util.console.print(f"  Storage: {br(size(storage))}")
+            used_mem = process.memory_info().rss
+            util.console.print(f"  Total: {br(used_mem)} (incrase of {br(used_mem - last_used_mem)} from last time, last record was {br(record_size)})")
+            for key, val in record.__dict__.items():
+                print(f"    {key}: {br(size(val))}")
+            util.console.print(f"Op cmd max memory usage: {br(record.process_resources.max_memory_usage)}")
+            util.console.print(f"Free: {br(psutil.virtual_memory().available)}")
+            last_used_mem = used_mem
 
     df = polars.from_dicts(
         [
