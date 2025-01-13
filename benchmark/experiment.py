@@ -82,7 +82,7 @@ def run_experiments(
                 )
                 util.console.print(f"  Storage: {br(size(storage))}")
                 used_mem = process.memory_info().rss
-                util.console.print(f"  Total: {br(used_mem)} (incrase of {br(used_mem - last_used_mem)} from last time, last record was {br(record_size)})")
+                util.console.print(f"  Total: {br(used_mem)} (incrase of {br(used_mem - last_used_mem)} from last time)")
                 util.console.print(f"  Free: {br(psutil.virtual_memory().available)}")
                 util.console.print(f"  Op cmd max memory usage: {br(record.max_memory)}")
                 last_used_mem = used_mem

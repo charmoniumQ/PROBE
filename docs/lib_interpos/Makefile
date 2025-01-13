@@ -9,8 +9,13 @@ README.tex: README.md prov_example.svg feature_matrix.tex
 
 
 README.pdf: README.tex
-	env TEXINPUTS=$$(dirname $$PWD)//: pdflatex -interaction=nonstopmode -shell-escape README
+	env TEXINPUTS=$$(dirname $$PWD)//: pdflatex -interaction=nonstopmode -shell-escape README || true
 	biber README
 	env TEXINPUTS=$$(dirname $$PWD)//: pdflatex -interaction=nonstopmode -shell-escape README
+
+re-README.pdf:
+	touch README.tex README.pdf
+	rm README.tex README.pdf
+	make README.pdf
 
 #env TEXINPUTS=$(dirname $PWD)//: latexmk -interaction=nonstopmode -shell-escape -pdf -shell-escape -emulate-aux-dir -Werror README
