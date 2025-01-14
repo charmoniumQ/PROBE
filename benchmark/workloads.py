@@ -28,7 +28,6 @@ cp = command.NixPath(".#coreutils", "/bin/cp")
 rsync = command.NixPath(".#rsync", "/bin/rsync")
 make = command.NixPath(".#gnumake", "/bin/make")
 bash = (command.NixPath(".#bash", "/bin/bash"), "--noprofile", "--norc", "-e", "-x")
-git = command.NixPath(".#git", "/bin/git")
 mkdir = command.NixPath(".#coreutils", "/bin/mkdir")
 work_dir = command.Placeholder("work_dir")
 blast_dir = command.NixPath(".#blast-benchmark")
@@ -151,15 +150,15 @@ workloads = [
     lmbench_workload("proc"   , "fork", "lat_proc", ("-N", "3", "fork")),
     lmbench_workload("proc"   , "exec", "lat_proc", ("-N", "3", "exec")),
     lmbench_workload("proc"   , "shell", "lat_proc", ("-N", "3", "shell")),
-    lmbench_workload("proc"   , "shell", "lat_proc", ("-N", "3", "procedure")),
-    lmbench_workload("proc"   , "install-signal", "lat_sig", ("-N", "3", "install")),
-    lmbench_workload("proc"   , "catch-signal", "lat_sig", ("-N", "1", "catch")),
-    lmbench_workload("proc"   , "protection-fault", "lat_sig", ("-N", "1", "prot"), 1024 * 1024 * 8),
-    lmbench_workload("file io", "select-file", "lat_select", ("-n", "100", "-N", "3", "file")),
-    lmbench_workload("net io" , "select-tcp", "lat_select", ("-n", "100", "-N", "3", "tcp")),
-    lmbench_workload("file io", "read-bandwidth", "bw_file_rd", ("-N", "1", "1M", "io_only"), 1024),
+    # lmbench_workload("proc"   , "shell", "lat_proc", ("-N", "3", "procedure")),
+    # lmbench_workload("proc"   , "install-signal", "lat_sig", ("-N", "3", "install")),
+    # lmbench_workload("proc"   , "catch-signal", "lat_sig", ("-N", "1", "catch")),
+    # lmbench_workload("proc"   , "protection-fault", "lat_sig", ("-N", "1", "prot"), 1024 * 1024 * 8),
+    # lmbench_workload("file io", "select-file", "lat_select", ("-n", "100", "-N", "3", "file")),
+    # lmbench_workload("net io" , "select-tcp", "lat_select", ("-n", "100", "-N", "3", "tcp")),
+    # lmbench_workload("file io", "read-bandwidth", "bw_file_rd", ("-N", "1", "1M", "io_only"), 1024),
     # Note that `bw_file_rd open2close` should be a linear combination of `bw_file_rd io_only` + `lat_syscall open`
-    lmbench_workload("file io", "pipe-read/write", "bw_pipe", ("-N", "1")),
+    # lmbench_workload("file io", "pipe-read/write", "bw_pipe", ("-N", "1")),
     # Note that bw_unix is substantially similar to bw_pipe, except both ends to read and write.
     lmbench_workload("file io", "create/delete", "lat_fs", ("-s", "1", "-N", "1", work_dir)),
     kaggle_workload("titanic-0"),
@@ -208,28 +207,28 @@ workloads = [
     #     command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#tesseract-src", postfix="/"), work_dir)),
     #     timeout=datetime.timedelta(minutes=60),
     # ),
-    Workload(
-        (("app", "compile", "sextractor"), ("cse", "astro")),
-        command.Command((
-            env,
-            command.NixPath(".#sextractor-env", postfix="/bin", prefix="PATH="),
-            command.NixPath(".#sextractor-env", "/bin/bash"),
-            "-c",
-            "\n".join([
-                # ./autogen.sh doesn't work, because pkg-config is in a non-default path
-                "env_path=$(dirname $(dirname $(which bash)))",
-                "export PKG_CONFIG_PATH=$env_path/lib/pkgconfig",
-                "sh autogen.sh",
-                'export CPPFLAGS="-I$env_path/include -L$env_path/lib"',
-                'export LDFLAGS="-L$env_path/lib"',
-                # Nix's FFTW doesn't have fftwf_execute
-                "./configure --disable-model-fitting",
-                "make",
-            ]),
-        )),
-        command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#sextractor-src", postfix="/"), work_dir)),
-        timeout=datetime.timedelta(minutes=60),
-    ),
+    # Workload(
+    #     (("app", "compile", "sextractor"), ("cse", "astro")),
+    #     command.Command((
+    #         env,
+    #         command.NixPath(".#sextractor-env", postfix="/bin", prefix="PATH="),
+    #         command.NixPath(".#sextractor-env", "/bin/bash"),
+    #         "-c",
+    #         "\n".join([
+    #             # ./autogen.sh doesn't work, because pkg-config is in a non-default path
+    #             "env_path=$(dirname $(dirname $(which bash)))",
+    #             "export PKG_CONFIG_PATH=$env_path/lib/pkgconfig",
+    #             "sh autogen.sh",
+    #             'export CPPFLAGS="-I$env_path/include -L$env_path/lib"',
+    #             'export LDFLAGS="-L$env_path/lib"',
+    #             # Nix's FFTW doesn't have fftwf_execute
+    #             "./configure --disable-model-fitting",
+    #             "make",
+    #         ]),
+    #     )),
+    #     command.Command((rsync, "--archive", "--chmod", "700", "--chown", f"{user}:{group}", command.NixPath(".#sextractor-src", postfix="/"), work_dir)),
+    #     timeout=datetime.timedelta(minutes=60),
+    # ),
     Workload(
         (("app", "http", "apache"), ("sys", "server")),
         command.Command((
@@ -304,6 +303,20 @@ workloads = [
             str(this_directory / "hdbscan/plot_cluster_comparison.py"),
         )),
     ),
+    Workload(
+        (("app", "astropy", "astro-pvd"), ("cse", "astro")),
+        command.Command((
+            env,
+            blast_output,
+            command.NixPath(".#astropy-env", "/bin/jupyter"),
+            "nbconvert",
+            "--execute",
+            "--to=notebook",
+            command.NixPath(".#astropy-pvd"),
+            "--output",
+            command.Placeholder("work_dir", postfix="/notebook.ipynb"),
+        )),
+    ),
 ]
 
 
@@ -314,10 +327,10 @@ WORKLOAD_GROUPS = {
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][0], util.identity),
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][1], util.identity),
     "all": workloads,
-    "all-but-ph": [
+    "run-for-usenix": [
         workload
         for workload in workloads
-        if workload.labels[0][1] not in {"quantum-espresso", "http"}
+        if workload.labels[0][-1] not in {"megablast"}
     ],
     "fast": [
         workload

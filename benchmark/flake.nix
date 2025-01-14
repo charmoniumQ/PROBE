@@ -1,12 +1,11 @@
 {
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  # Use newer Nix to apply this bugfix
-  # https://github.com/NixOS/nix/pull/10467
-  inputs.new-nixos.url = "github:NixOS/nixpkgs";
+  inputs.nixos-q-chem.url = "github:Nix-QChem/NixOS-QChem";
   outputs = {
     self,
       nixpkgs,
       flake-utils,
+      nixos-q-chem,
       ...
   } @ inputs:
     flake-utils.lib.eachDefaultSystem (
@@ -144,24 +143,14 @@
         };
       in rec {
         packages = rec {
-          nix = inputs.new-nixos.legacyPackages.${system}.nix;
+          bash = pkgs.bash.out;
+          gnumake = pkgs.gnumake.out;
+          nix = pkgs.nix;
+          which = pkgs.which;
           strace = pkgs.strace;
           fsatrace = pkgs.fsatrace;
           rr = pkgs.rr;
           coreutils = pkgs.coreutils;
-          glibc_bin = pkgs.glibc.bin;
-          lzop = pkgs.lzop;
-          lighttpd = pkgs.lighttpd;
-          nginx = pkgs.nginx;
-          curl = pkgs.curl;
-          gnused = pkgs.gnused;
-          which = pkgs.which;
-          procps = pkgs.procps;
-          hello = pkgs.hello;
-          gcc = pkgs.gcc;
-          tex = pkgs.texlive.combined.scheme-full;
-          gnumake = pkgs.gnumake.out;
-          bash = pkgs.bash.out;
           un-archive-env = pkgs.symlinkJoin {
             name = "un-archve-env";
             paths = [
@@ -187,10 +176,11 @@
           kaggle = python.withPackages (pypkgs: [
             pypkgs.kaggle
           ]);
+          bagel = nixos-q-chem.packages.${system}.bagel;
           tornado = python.pkgs.tornado;
           fits-0 = pkgs.fetchurl {
-            url = "https://fits.gsfc.nasa.gov/samples/WFPC2u5780205r_c0fx.fits";
-            hash = "sha256-2nwPG2ZDhQhWy6EA6bPo23a4DpFYPrCIY1xBaitBYbM=";
+            url = "http://www.astropy.org/astropy-data/l1448/l1448_13co.fits";
+            hash = "sha256-3k1EzShB00z+mJFasyL4PjAvE7lZnvhikHkknlOtbUk=";
           };
           kaggle-notebook-env = (python.withPackages (pypkgs: [
             pypkgs.pandas
@@ -283,6 +273,35 @@
             buildPhase = ''
               mkdir $out
               cp -r * $out/
+            '';
+          };
+          sextractor = pkgs.stdenv.mkDerivation {
+            name = "sextractor";
+            src = pkgs.fetchFromGitHub {
+              owner = "astromatic";
+              repo = "sextractor";
+              rev = "2.28.0";
+              hash = "";
+            };
+          };
+          astropy-env = python.withPackages (pypkgs: [
+            pypkgs.pvextractor
+            pypkgs.astropy
+            pypkgs.matplotlib
+            pypkgs.numpy
+            pypkgs.spectral-cube
+            pypkgs.jupyter
+            pypkgs.nbconvert
+          ]);
+          astropy-pvd = pkgs.stdenv.mkDerivation {
+            name = "astropy-pvd";
+            src = ./astropy/nb-0.ipynb;
+            dontUnpack = true;
+            buildPhase = ''
+              cp $src tmp
+              substituteInPlace tmp \
+                --replace FITS_IMAGE_PATH '\"${fits-0}\"'
+              cp tmp $out
             '';
           };
           spack-env = pkgs.symlinkJoin {

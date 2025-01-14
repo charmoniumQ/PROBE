@@ -139,9 +139,9 @@ date: 2024-12-15
 pagestyle: plain
 papersize: letter
 abstract_only: no
-abstract: >
+abstract: |
   System-level provenance tracing is the idea of automatically capturing how computational artifacts came to be, including what process created each file.
-  While provenance is often discussed in the context of security, it also fills an important role in computational science, providing data for reproducibility, incremental computation, and debugging.
+  Provenance fills an important role in computational science, providing data for reproducibility, incremental computation, and debugging.
   Prior work proposes recompiling with instrumentation, using ptrace, or configuring kernel-based auditing, which at best achieves two out of three desirable properties: accepting unmodified binaries, running in unprivilege mode, and incurring low overhead.
 
   We present PROBE, a system-level provenance tracer that uses library interposition to achieve all three.
@@ -171,7 +171,7 @@ TODO:
 \begin{figure}
 \centering
 \texttt{
-\includesvg[width=0.3\textwidth,height=\textheight,pretex=\relscale{0.7}]{./prov_example.svg}
+\includesvg[width=0.32\textwidth,height=\textheight,pretex=\relscale{0.7}]{./prov_example.svg}
 }
 \caption{Example provenance graph of \texttt{fig1.png}. Artifacts are ovals; processes are rectangles.}
 \label{fig:example}
@@ -184,7 +184,7 @@ There are other approaches for improving reproducibility such as virtualized env
 If a system can track provenance automatically, the user need only install or turn on this feature, continue their computational science experiments, and the system would keep track of how to reproduce each artifact _automatically_.
 
 One barrier to adoption is the significant performance overhead imposed by collecting provenance data.
-User-level tracing involves asking the kernel to switch over every time the tracee does a specific kind of action.
+User-level tracing involves asking the kernel to switch over every time the program being traced (henceforth, **tracee**) does a specific kind of action.
 However, context switching imposes a significant overhead.
 
 Prior provenance tracers avoid the overhead of context switching in two ways: by embedding themselves in the kernel or by embedding themselves in user code.
@@ -237,14 +237,14 @@ Provenance has a number of use-cases discussed in prior work:
 
 - **Comprehension** [@muniswamy-reddyProvenanceAwareStorageSystems2006].
    Provenance helps the user understand the flow of data in a complex set of processes, perhaps separately invoked.
-   An tool that consumes provenance can answer queries like: "Does this output depend on FERPA-protected data (i.e., data located `/path/to/ferpa`)?".
+   A tool that consumes provenance can answer queries like: "Does this output depend on FERPA-protected data (i.e., data located `/path/to/ferpa`)?".
 
 - **Differential debugging** [@muniswamy-reddyProvenanceAwareStorageSystems2006].
    Given two outputs from two executions of similar processes with different versions of data and code or different systems, what is the earliest point that intermediate data from the processes diverges from each other?
 
 - **Incremental computation** [@vahdatTransparentResultCaching1998].
    Iterative development cycles from developing code, executing it, and changing the code.
-   Make and workflow engines require user to specify a dependency graph (prospective provenance) by hand, which is often unsound in practice; i.e., the user may misses some dependencies and therefore types `make clean`.
+   Make and workflow engines require user to specify a dependency graph (prospective provenance) by hand, which is often unsound in practice; i.e., the user may miss some dependencies and therefore types `make clean`.
    A tool could correctly determine which commands need to be re-executed based on SLP without needing the user to specify anything.
 
 - **Intrusion-detection and forensics** [@muniswamy-reddyProvenanceAwareStorageSystems2006]
@@ -255,12 +255,12 @@ The first four are applicable in the domain of computational science while the l
 This work focuses on provenance tracers for computational science.
 
 We define the following "theoretical" properties of provenance tracers.
-They are theoretical in the sense that one does not need to do any experiments them to determine these properties; only study their methods and perhaps their code.
+They are theoretical in the sense that one does not need to do any experiments to determine these properties; only study their methods and perhaps their code.
 They are enumerated in a feature matrix in \Cref{tbl:feature-matrix}.
 
 - **Runs in user-space**:
-  SLP should be able to implemented at a user-space as opposed to kernel-space.
-  Kernel modifications increases the attack surface and is more difficult to maintain than user-space code.
+  SLP should run in user-space as opposed to kernel-space.
+  Kernel modifications increase the attack surface and is more difficult to maintain than user-space code.
 
 - **No privilege required**:
   A user should be able to use SLP to trace their own processes without accessing higher privileges than normal every time.
@@ -280,7 +280,7 @@ They are enumerated in a feature matrix in \Cref{tbl:feature-matrix}.
 <!--   Tracing these dependencies improves reproducibility, because we would know the non-deterministic inputs, comprehension, differential debugging, and other applications of provenance. -->
 
 - **Records data and metadata**:
-  SLP tracers always record the metadata of which file was accessed.
+  SLP tracers always record the metadata, e.g., which file was accessed.
   Some also record the data in the file that was accessed, at the cost of higher overhead.
   One could encompass the advantages of both groups by offering a runtime option to switch between faster/metadata-only or slower/metadata-and-data.
 
@@ -339,7 +339,7 @@ There have been several methods of tracing SLP proposed in prior work:
 - **Use kernel auditing frameworks**: use auditing frameworks already built in to the kernel (e.g., Linux/eBPF, Linux/auditd, Windows/ETW).
   This method is not unprivileged.
 
-- **User-level debug tracing**: use user-level debug tracing functionality provided by the OS (e.g, Linux/ptrace used by `strace`, CDE [@guoCDEUsingSystem2011], SciUnit [@phamUsingProvenanceRepeatability2013], Reprozip [@chirigatiReproZipComputationalReproducibility2016], RR [@ocallahanEngineeringRecordReplay2017]).
+- **User-level debug tracing**: use user-level debug tracing functionality provided by the OS (e.g, Linux/ptrace used by `strace`, CDE [@guoCDEUsingSystem2011], Sciunit [@phamUsingProvenanceRepeatability2013], Reprozip [@chirigatiReproZipComputationalReproducibility2016], RR [@ocallahanEngineeringRecordReplay2017]).
 
 - **Library interposition**: replace a standard library with an instrumented library that emits provenance data as appropriate.
   This could use the `LD_PRELOAD` of Linux and `DYLD_INSERT_LIBRARIES` on MacOS.
@@ -468,7 +468,7 @@ TODO: Read "Tracking and Sketching Distributed Data Provenance Tanu Malik"
 We developed applications that consume PROBE provenance to:
 
 1. demonstrate PROBE collects "enough" provenance data for practical uses
-2. motivate "always on" provenance tracers, which in turn motivates minimizing the overhead
+2. motivate pervasive use of provenance tracing (on by default), which in turn motivates minimizing the overhead
 
 Our applications include:
 
@@ -494,13 +494,13 @@ Workflows are advantageous because:
 - It may be easier for non-experts than Python
 - Workflow languages are specialized for gluing together existing components
 - The workflow structure exposes parallelism, and many engines support distributed computing
-- Many workflow engines implements incremental computation, so if one node changes, only the downstream need to be recomputed
+- Many workflow engines implement incremental computation, so if one node changes, only the downstream artifacts need to be recomputed
 
 However, it can be challenging to migrate from an _ad hoc_ process or a pile of scripts to a structured workflow.
 
 PROBE solves this problem by converting an _ad hoc_ process to a structured workflow automatically.
 Users need only execute their process once by hand in PROBE, which captures the provenance.
-Then the user asks PROBE to export an workflow that will contain the commands used to write a particular output.
+Then the user asks PROBE to export a workflow that will contain the commands used to write a particular output.
 PROBE supports generating Nextflow and Makefile workflows.
 Now, users can more easily switch to workflows and gain the benefits noted above.
 
@@ -584,8 +584,9 @@ Therefore, we separate the synthetic benchmarks separately from the real applica
 BLAST is the only real-world application in the Grayson benchmark suite, so we added the following:
 
 - Data science Jupyter notebooks from Kaggle.com, sorted by most votes. These notebooks read some data, create plots, and output a predicted dataset.
-- Projects from Astrophysics Source Code Library [@allenAstrophysicsSourceCode2012], sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose Quantum Espresso (calculates atomic properties) and SExtractor (extracts sources in an astronomical image).
+- Projects from Astrophysics Source Code Library [@allenAstrophysicsSourceCode2012], sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose Quantum Espresso (calculates electronic structure) and Astropy (generic toolbox for astronomical computations).
 - Projects from the Journal of Open Source Software, sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose UMAP (data mining) and hdbscan (data mining).
+- Projects from NixOS Quantum Chemistry repository [@kowalewskiSustainablePackagingQuantum2022]. We chose Bagel (electronic structure code) from this set.
 
 `strace` merely logs the events but does not do any processing on the events (e.g., constructing a provenance graph).
 Therefore, `strace` is close to the theoretical minimal overhead for bare user-level debug tracing.
@@ -622,7 +623,7 @@ Prior works [@ocallahanEngineeringRecordReplay2017; @pasquierPracticalWholesyste
 
 --- @ocallahanEngineeringRecordReplay2017, emphasis ours
 
-**Bypassability from direct syscalls**:
+**Bypassed by direct syscalls**:
 While it is true that library interposition is bypassable by direct system calls, those cases are rare in practice.
 Syscall numbers are different on every operating system; however, `libc` call signatures are standardized in ANSI C and, with greater specificity, in POSIX.
 Source code written to call `libc` functions can be compiled on a variety of platforms.
@@ -668,6 +669,9 @@ PROBE does not require recompilation or re-linking of binaries.
 
 # Future work {#sec:future-work}
 
+We would like to further evaluate the fidelity with which provenance tools ability to replay prior execution.
+
+We would like to develop further provenance applications.
 
 - This Docker _image_ should not be confused with a `Dockerfile`.
   A `Dockerfile` is much smaller and more convenient to send, but it does not necessarily build to a bit-wise reproducible Docker image.
@@ -680,14 +684,50 @@ PROBE does not require recompilation or re-linking of binaries.
 
 \section*{Acknowledgments}
 
+This work was partially supported by Sandia National Laboratories.
 
 \section*{Availability}
+
+1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux.
+
+   - If you don't already have Nix on your system, use the [Determinate Systems installer](https://install.determinate.systems/).
+
+   - If you already have Nix (but not NixOS), enable flakes by adding the following line to `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`:
+
+     ```
+     experimental-features = nix-command flakes
+     ```
+
+   - If you already have Nix and are running NixOS, enable flakes with by adding `nix.settings.experimental-features = [ "nix-command" "flakes" ];` to your configuration.
+
+2. Acquire the source code from an anonymized repository:
+
+   ``` sh
+   mkdir PROBE
+   cd PROBE
+   curl --output PROBE.zip https://anonymous.4open.science/api/repo/PROBE/zip
+   unzip PROBE.zip
+   rm PROBE.zip
+   ```
+
+3. Build PROBE (takes about 20 minutes if building from scratch)
+
+   ```sh
+   # This command launches a shell with PROBE added to the PATH
+   nix shell .#probe-bundled
+   ```
+
+4. In the subshell from the previous command,
+
+   ```sh
+   probe record <CMD ...>
+   ```
 
 \printbibliography
 
 \appendix
 
-# Soundness of PROBE {#sec:soundness}
+# Semantics and soundness of PROBE {#sec:soundness}
 
 The user supplies a **command**, such as `python script.py -n 42`, to PROBE.
 

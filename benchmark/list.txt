@@ -47,7 +47,7 @@ ASCL:   9994 https://www.ascl.net/1303.002 emcee
 ASCL:   9426 https://www.ascl.net/1010.064 sextractor
 ASCL:   9033 https://www.ascl.net/1104.005 galaxev
 ASCL:   7697 https://www.ascl.net/1304.002 astropy
-ASCL:   7207 https://www.ascl.net/0003.001
+ASCL:   7207 https://www.ascl.net/0003.001 gadget-2
 ASCL:   6453 https://www.ascl.net/1010.079
 ASCL:   6166 https://www.ascl.net/2303.013
 ASCL:   6056 https://www.ascl.net/9910.005
