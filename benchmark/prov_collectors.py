@@ -782,7 +782,7 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
     "run-for-usenix": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "care", "probe", "ptu", "probecopylazy", "cde", "sciunit", "rr"]
+        if prov_collector.name in ["noprov", "strace", "care", "probe", "ptu", "probecopylazy", "cde", "sciunit"]
     ],
     "probes": [
         prov_collector
