@@ -784,7 +784,8 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         for prov_collector in PROV_COLLECTORS
         # sciunit has error due to our invocation
         # rr doesn't work unless tracing is enabled
-        if prov_collector.name in ["noprov", "strace", "care", "probe", "ptu", "probecopylazy", "cde", "rr"]
+        # cde is similar to ptu
+        if prov_collector.name in ["noprov", "strace", "care", "probe", "ptu", "probecopylazy", "rr"]
     ],
     "probes": [
         prov_collector

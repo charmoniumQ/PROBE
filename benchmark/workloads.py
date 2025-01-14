@@ -164,7 +164,7 @@ workloads = [
     kaggle_workload("titanic-0"),
     kaggle_workload("titanic-1"),
     kaggle_workload("house-prices-0"),
-    # kaggle_workload("house-prices-1", datetime.timedelta(minutes=60)),
+    kaggle_workload("house-prices-1", datetime.timedelta(minutes=60)),
     Workload(
         (("microbench", "postmark", "postmark"), ("sys", "file io")),
         command.Command((
@@ -365,7 +365,7 @@ WORKLOAD_GROUPS = {
     "run-for-usenix": [
         workload
         for workload in workloads
-        if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01"}
+        if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01", "blastn", "pw-01", "house-prices-1", "umap"}
     ],
     "fast": [
         workload
