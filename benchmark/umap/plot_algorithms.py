@@ -61,23 +61,23 @@ blobs, blob_labels = datasets.make_blobs(
 )
 iris = datasets.load_iris()
 digits = datasets.load_digits(n_class=10)
-wine = datasets.load_wine()
-swissroll, swissroll_labels = datasets.make_swiss_roll(
-    n_samples=1000, noise=0.1, random_state=42
-)
-sphere = np.random.normal(size=(600, 3))
-sphere = preprocessing.normalize(sphere)
-sphere_hsv = np.array(
-    [
-        (
-            (np.arctan2(c[1], c[0]) + np.pi) / (2 * np.pi),
-            np.abs(c[2]),
-            min((c[2] + 1.1), 1.0),
-        )
-        for c in sphere
-    ]
-)
-sphere_colors = np.array([hsv_to_rgb(*c) for c in sphere_hsv])
+# wine = datasets.load_wine()
+# swissroll, swissroll_labels = datasets.make_swiss_roll(
+#     n_samples=1000, noise=0.1, random_state=42
+# )
+# sphere = np.random.normal(size=(600, 3))
+# sphere = preprocessing.normalize(sphere)
+# sphere_hsv = np.array(
+#     [
+#         (
+#             (np.arctan2(c[1], c[0]) + np.pi) / (2 * np.pi),
+#             np.abs(c[2]),
+#             min((c[2] + 1.1), 1.0),
+#         )
+#         for c in sphere
+#     ]
+# )
+# sphere_colors = np.array([hsv_to_rgb(*c) for c in sphere_hsv])
 
 reducers = [
     (manifold.TSNE, {"perplexity": 50}),

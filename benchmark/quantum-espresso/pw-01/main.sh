@@ -25,7 +25,7 @@ for diago in david ; do
         sed "s:\$diago:$diago:g" "$TMP_DIR/$el.scf.in" > "$TMP_DIR/$el.$diago.scf.in"
         pw.x < "$TMP_DIR/$el.$diago.scf.in"
 
-        sed "s:\$diago:$diago:g" "$TMP_DIR/$el.band.in" > "$TMP_DIR/$el.$diago.band.in"
-        pw.x < "$TMP_DIR/$el.$diago.band.in"
+        # sed "s:\$diago:$diago:g" "$TMP_DIR/$el.band.in" > "$TMP_DIR/$el.$diago.band.in"
+        # pw.x < "$TMP_DIR/$el.$diago.band.in"
     done
 done

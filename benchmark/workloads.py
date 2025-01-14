@@ -166,11 +166,11 @@ workloads = [
     kaggle_workload("house-prices-0"),
     kaggle_workload("house-prices-1", datetime.timedelta(minutes=60)),
     Workload(
-        (("microbench", "postmark", "postmark"), ("sys", "file io")),
+        (("microbench", "postmark", "postmark2"), ("sys", "file io")),
         command.Command((
             *bash,
             "-c",
-            command.NixPath(".#postmark", postfix="/bin/postmark", prefix="echo -e 'set transactions 500000\nrun\nquit\n' | "),
+            command.NixPath(".#postmark", postfix="/bin/postmark", prefix="echo -e 'set transactions 20000\nrun\nquit\n' | "),
         )),
     ),
     Workload(
@@ -286,7 +286,7 @@ workloads = [
         )),
     ),
     Workload(
-        (("app", "umap", "umap"), ("cse", "ml")),
+        (("app", "umap", "umap2"), ("cse", "ml")),
         command.Command((
             command.NixPath(".#kaggle-notebook-env", "/bin/python"),
             str(this_directory / "umap/plot_algorithms.py"),
