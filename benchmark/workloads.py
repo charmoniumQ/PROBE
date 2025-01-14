@@ -365,7 +365,7 @@ WORKLOAD_GROUPS = {
     "run-for-usenix": [
         workload
         for workload in workloads
-        if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01", "pw-01"}
+        if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01"}
     ],
     "fast": [
         workload

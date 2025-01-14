@@ -17,8 +17,10 @@ for file in *.in; do
 done
 
 
-for diago in david cg ppcg ; do
-    for el in si al cu ni; do
+# for diago in david cg ppcg ; do
+#     for el in si al cu ni; do
+for diago in david ; do
+    for el in si ; do
         echo "$el $diago"
         sed "s:\$diago:$diago:g" "$TMP_DIR/$el.scf.in" > "$TMP_DIR/$el.$diago.scf.in"
         pw.x < "$TMP_DIR/$el.$diago.scf.in"

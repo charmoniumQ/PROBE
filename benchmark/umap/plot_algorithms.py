@@ -93,10 +93,14 @@ test_data = [
     (iris.data, iris.target),
     (digits.data, digits.target),
     (wine.data, wine.target),
-    (swissroll, swissroll_labels),
-    (sphere, sphere_colors),
+    # (swissroll, swissroll_labels),
+    # (sphere, sphere_colors),
 ]
-dataset_names = ["Blobs", "Iris", "Digits", "Wine", "Swiss Roll", "Sphere"]
+dataset_names = [
+    "Blobs", "Iris", "Digits", "Wine",
+    # "Swiss Roll",
+    # "Sphere"
+]
 
 n_rows = len(test_data)
 n_cols = len(reducers)

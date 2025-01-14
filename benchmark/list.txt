@@ -1,3 +1,7 @@
+Rerun:
+- umap
+- quantum-espresso
+
 6 blast
 16 lmbench
 4 kaggle notebooks
