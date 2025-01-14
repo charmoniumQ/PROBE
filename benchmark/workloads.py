@@ -362,6 +362,11 @@ WORKLOAD_GROUPS = {
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][0], util.identity),
     **util.groupby_dict(workloads, lambda workload: workload.labels[1][1], util.identity),
     "all": workloads,
+    "run-for-usenix2": [
+        workload
+        for workload in workloads
+        if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01", "blastn", "pw-01", "house-prices-1", "umap", "apache"}
+    ],
     "run-for-usenix": [
         workload
         for workload in workloads
