@@ -61,7 +61,7 @@ blobs, blob_labels = datasets.make_blobs(
 )
 iris = datasets.load_iris()
 digits = datasets.load_digits(n_class=10)
-# wine = datasets.load_wine()
+wine = datasets.load_wine()
 # swissroll, swissroll_labels = datasets.make_swiss_roll(
 #     n_samples=1000, noise=0.1, random_state=42
 # )
