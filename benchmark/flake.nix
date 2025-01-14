@@ -173,11 +173,7 @@
               pkgs.lzop
             ];
           };
-          kaggle = python.withPackages (pypkgs: [
-            pypkgs.kaggle
-          ]);
           bagel = nixos-q-chem.packages.${system}.bagel;
-          tornado = python.pkgs.tornado;
           fits-0 = pkgs.fetchurl {
             url = "http://www.astropy.org/astropy-data/l1448/l1448_13co.fits";
             hash = "sha256-3k1EzShB00z+mJFasyL4PjAvE7lZnvhikHkknlOtbUk=";
@@ -304,69 +300,8 @@
               cp tmp $out
             '';
           };
-          spack-env = pkgs.symlinkJoin {
-            name = "spack-env";
-            paths = [
-              pkgs.stdenv.cc # https://ryantm.github.io/nixpkgs/stdenv/stdenv/#sec-tools-of-stdenv
-              pkgs.gfortran
-              pkgs.gfortran.cc
-              pkgs.gnupatch
-              pkgs.file
-              pkgs.lsb-release
-              pkgs.gnupg24
-              pkgs.gitMinimal
-              pkgs.coreutils
-              # TODO: Add these to the package which uses them
-              pkgs.gnumake
-              pkgs.bash
-              pkgs.gnused
-              pkgs.gnugrep
-              pkgs.gawk
-              pkgs.libnsl
-              pkgs.libxcrypt.out
-              pkgs.findutils
-              pkgs.which
-            ];
-          };
-          linux-env = pkgs.symlinkJoin {
-            name = "linux-env";
-            paths = [
-              pkgs.bison
-              pkgs.flex
-              pkgs.bc
-              pkgs.bash
-              pkgs.diffutils
-              pkgs.elfutils.dev
-              pkgs.elfutils.out
-              pkgs.openssl.dev
-              pkgs.openssl.out
-              pkgs.perl
-              pkgs.gnumake
-              pkgs.coreutils
-              pkgs.gnused
-              pkgs.stdenv.cc
-              pkgs.findutils
-              pkgs.gnugrep
-              pkgs.gawk
-            ];
-          };
           # Rename to avoid conflict when merging
           apacheHttpd = pkgs.apacheHttpd.out;
-          postmark-bin = pkgs.stdenv.mkDerivation rec {
-            pname = "postmark";
-            version = "1.53";
-            src = pkgs.fetchzip {
-              url = "http://deb.debian.org/debian/pool/main/p/postmark/postmark_${version}.orig.tar.gz";
-              hash = "sha256-Dkk2TrNQGjpaliob06xQKji/qMnGLemUxAkLvJh4HzM=";
-            };
-            installPhase = ''
-              ls -ahlt
-              mkdir --parents $out/bin $out/share/man/man1
-              cp postmark $out/bin
-              cp postmark.1 $out/share/man/man1
-            '';
-          };
-
           # parrot = pkgs.stdenv.mkDerivation rec {
           #   pname = "parrot";
           #   version = "0.9.15";
@@ -455,11 +390,6 @@
                 PKG_CONFIG_PATH = "${pkgs.fuse}/lib/pkgconfig";
               }
           );
-
-          ###################
-          # True benchmarks #
-          ###################
-
           blast-benchmark-orig = pkgs.fetchzip {
             url = "https://ftp.ncbi.nlm.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz";
             hash = "sha256-BbEGS79KXKjqr4OfI5FWD6Ki0CRmR3AFJKAIsc42log=";
@@ -593,7 +523,7 @@
           };
           git = pkgs.git;
           mercurial = pkgs.mercurial;
-          gcc_multi_bin = pkgs.gcc_multi.bin;
+          glibc_multi_bin = pkgs.glibc_multi.bin;
           ltrace-conf = pkgs.runCommand "ltrace-conf" {} ''
             cp ${./ltrace.conf} $out
           '';
@@ -896,6 +826,55 @@
             # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
             doCheck = true;
             pythonImportsCheck = [ "mandala" ];
+          };
+          all = pkgs.symlinkJoin {
+            name = "all";
+            paths = [
+              bash
+              gnumake
+              nix
+              which
+              strace
+              fsatrace
+              rr
+              coreutils
+              un-archive-env
+              # fits-0
+              kaggle-notebook-env
+              # kaggle-notebook-titanic-0
+              # kaggle-notebook-house-prices-0
+              # kaggle-notebook-titanic-1
+              # kaggle-notebook-house-prices-1
+              kaggle-data-titanic
+              kaggle-data-house-prices
+              astropy-env
+              # astropy-pvd
+              apacheHttpd
+              postmark
+              blast-benchmark
+              lmbench
+              splash3
+              git
+              mercurial
+              glibc_multi_bin
+              # ltrace-conf
+              ltrace
+              cde
+              care
+              nextflow
+              snakemake
+              transformers-python
+              transformers-src
+              http-load-test
+              pkg-config
+              rsync
+              gnuplot
+              reprozip
+              quantum-espresso-env
+              provenance-to-use
+              sciunit2
+              mandala
+            ];
           };
         };
         devShells = {

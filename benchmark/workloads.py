@@ -236,11 +236,7 @@ workloads = [
             str(http_n_requests),
             f"http://localhost:{http_port}/test",
             command.NixPath(".#apacheHttpd", "/bin/httpd"),
-            "-k",
-            "start",
-            "-f",
-            test_file,
-            "-X",
+            *("-k", "start", "-f", test_file, "-X"),
         )),
         command.Command((
             env,
@@ -317,6 +313,45 @@ workloads = [
             command.Placeholder("work_dir", postfix="/notebook.ipynb"),
         )),
     ),
+    Workload(
+        (("bench", "splash3", "ocean"), ("bench", "cpu")),
+        command.Command((
+            command.NixPath(".#splash3", "/bin/OCEAN"),
+            *("-n2050", "-p1", "-e1e-07", "-r20000", "-t28800"),
+        )),
+    ),
+    Workload(
+        (("bench", "splash3", "raytrace"), ("bench", "cpu")),
+        command.Command((
+            command.NixPath(".#splash3", "/bin/RAYTRACE"),
+            *("-a100", "-p1", "-m512", command.NixPath(".#splash3", "/inputs/raytrace/car.env")),
+        )),
+    ),
+    Workload(
+        (("bench", "splash3", "volrend"), ("bench", "cpu")),
+        command.Command((
+            command.NixPath(".#splash3", "/bin/VOLREND"),
+            "1",
+            command.Placeholder("work_dir", "/head"),
+            "128",
+        )),
+        command.Command((
+            cp,
+            command.NixPath(".#splash3", "/inputs/volrend/head.den"),
+            work_dir
+        )),
+    ),
+    Workload(
+        (("bench", "splash3", "water-nsquared"), ("bench", "cpu")),
+        command.Command((
+            env,
+            command.NixPath(".#splash3", prefix="SPLASH3="),
+            command.NixPath(".#coreutils", prefix="COREUTILS="),
+            *bash,
+            "-c",
+            "for i in $($COREUTILS/bin/seq 100); do $SPLASH3/bin/WATER-NSQUARED < $SPLASH3/inputs/water-nsquared/n512-p1; done"
+        )),
+    ),
 ]
 
 
@@ -330,7 +365,7 @@ WORKLOAD_GROUPS = {
     "run-for-usenix": [
         workload
         for workload in workloads
-        if workload.labels[0][-1] not in {"megablast"}
+        if workload.labels[0][-1] not in {"megablast", "tblastn"}
     ],
     "fast": [
         workload

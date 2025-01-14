@@ -28,8 +28,8 @@ pp.x < "$TMP_DIR/si.pp_rho_new.in"
 
 "$gnuplot" "$TMP_DIR/gnuplot2.in"
 
-pw.x < "$TMP_DIR/si.band.in"
+# pw.x < "$TMP_DIR/si.band.in"
 
-bands.x < "$TMP_DIR/si.bands.in"
+# bands.x < "$TMP_DIR/si.bands.in"
 
-plotband.x < "$TMP_DIR/si.plotband.in"
+# plotband.x < "$TMP_DIR/si.plotband.in"
