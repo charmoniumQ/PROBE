@@ -109,11 +109,11 @@ probe export --help
 
 7. **Before submitting a PR**, run `just pre-commit` which will run pre-commit checks.
 
-## Resarch reading list
+## Research reading list
 
 - [_Provenance for Computational Tasks: A Survey_ by Freire, et al. in  CiSE 2008](https://sci.utah.edu/~csilva/papers/cise2008a.pdf) for an overview of provenance in general.
 
-- [_Transparent Result Caching_ by Vahdat and Anderson in USENIX ATC 1998](https://www.usenix.org/legacy/publications/library/proceedings/usenix98/full_papers/vahdat/vahdat.pdf) for an early system-level provenance tracer in Solaris using the `/proc` fs. Linux's `/proc` fs doesn't have the same functionality. However, this paper discusses two interesting application of provenance: unmake  (query lineage information) and transparent Make (more generally, incremental computation).
+- [_Transparent Result Caching_ by Vahdat and Anderson in USENIX ATC 1998](https://www.usenix.org/legacy/publications/library/proceedings/usenix98/full_papers/vahdat/vahdat.pdf) for an early system-level provenance tracer in Solaris using the `/proc` fs. Linux's `/proc` fs doesn't have the same functionality. However, this paper discusses two interesting application of provenance: unmake  (query lineage information) and transparent Make (incremental computation without explicit dependency declaration).
 
 - [_CDE: Using System Call Interposition to Automatically Create Portable Software Packages_ by Guo and Engler in USENIX ATC 2011](https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf) for an early system-level provenance tracer. Their only application is software execution replay, but replay is quite an important application.
 

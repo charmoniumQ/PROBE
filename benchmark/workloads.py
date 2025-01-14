@@ -170,7 +170,7 @@ workloads = [
         command.Command((
             *bash,
             "-c",
-            command.NixPath(".#postmark", postfix="/bin/postmark", prefix="echo -e 'set transactions 100000\nrun\nquit\n' | "),
+            command.NixPath(".#postmark", postfix="/bin/postmark", prefix="echo -e 'set transactions 500000\nrun\nquit\n' | "),
         )),
     ),
     Workload(
@@ -255,27 +255,27 @@ workloads = [
         )),
     ),
     Workload(
-        (("app", "quantum-espresso", "ph-01"), ("cse", "comp-chem")),
+        (("app", "quantum-espresso1", "ph-01"), ("cse", "comp-chem")),
         command.Command((
             env,
             command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
             command.Placeholder("work_dir", prefix="HOME="),
             *bash,
             str(this_directory / "quantum-espresso/ph-01/main.sh"),
-        ))
+        )),
     ),
     Workload(
-        (("app", "quantum-espresso", "pw-01"), ("cse", "comp-chem")),
+        (("app", "quantum-espresso1", "pw-01"), ("cse", "comp-chem")),
         command.Command((
             env,
             command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
             command.Placeholder("work_dir", prefix="HOME="),
             *bash,
             str(this_directory / "quantum-espresso/pw-01/main.sh"),
-        ))
+        )),
     ),
     Workload(
-        (("app", "quantum-espresso", "pp-01"), ("cse", "comp-chem")),
+        (("app", "quantum-espresso1", "pp-01"), ("cse", "comp-chem")),
         command.Command((
             env,
             command.NixPath(".#quantum-espresso-env", prefix="PATH=", postfix="/bin"),
@@ -283,7 +283,7 @@ workloads = [
             command.Placeholder("work_dir", prefix="HOME="),
             *bash,
             str(this_directory / "quantum-espresso/pp-01/main.sh"),
-        ))
+        )),
     ),
     Workload(
         (("app", "umap", "umap"), ("cse", "ml")),

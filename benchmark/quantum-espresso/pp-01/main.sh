@@ -18,7 +18,7 @@ done
 
 pw.x < "$TMP_DIR/si.scf.in"
 
-pp.x < "$TMP_DIR/si.pp_rho.in"
+# pp.x < "$TMP_DIR/si.pp_rho.in"
 
 # plotrho.x < "$TMP_DIR/si.plotrho.in"
 

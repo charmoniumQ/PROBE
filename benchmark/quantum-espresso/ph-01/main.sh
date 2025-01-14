@@ -19,8 +19,8 @@ done
 echo 'si.scf.in'
 pw.x < "$TMP_DIR/si.scf.in"
 
-echo 'si.phG.in'
-ph.x < "$TMP_DIR/si.phG.in"
+# echo 'si.phG.in'
+# ph.x < "$TMP_DIR/si.phG.in"
 
 # echo 'si.phX.in'
 # ph.x < "$TMP_DIR/si.phX.in"
