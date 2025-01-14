@@ -22,7 +22,13 @@ polars.Config.set_tbl_rows(1000)
 
 app_groups = {
     "data science": ['titanic-0', 'titanic-1', 'house-prices-0', 'umap', 'hdbscan'],
-    "multi-omics": ['blastn', 'blastx', 'blastp', 'megablast', 'tblastn'],
+    "multi-omics": [
+        'blastn',
+        'blastx',
+        'blastp',
+        # 'megablast',
+        # 'tblastn',
+    ],
     # "compilation": ['sextractor'],
 }
 synth_groups = {
@@ -36,14 +42,14 @@ synth_groups = {
         'write',
         'stat',
         'read',
-        'select-file',
-        'select-tcp',
-        'protection-fault',
-        'install-signal',
-        'catch-signal',
-        'create/delete',
-        'pipe-read/write',
-        'read-bandwidth',
+        # 'select-file',
+        # 'select-tcp',
+        # 'protection-fault',
+        # 'install-signal',
+        # 'catch-signal',
+        # 'create/delete',
+        # 'pipe-read/write',
+        # 'read-bandwidth',
     ],
     "postmark": ['postmark',]
 }
@@ -58,19 +64,21 @@ collectors = sorted(
 collectors = [
     collector
     for collector in collectors
-    if "copy" not in collector
+    if "copy" not in collector and collector != "noprov"
 ]
 
 
 root = pathlib.Path(__file__).resolve().parent.parent
 
 
-for qty in ["walltime", "max_memory"]:
-    print(qty)
-    print(stats.dt_as_seconds(agged).select(
+for qty, fn in [("walltime", None), ("max_memory", lambda mem: mem / 1024 / 1024)]:
+    if fn is None:
+        fn = lambda x: x
+    util.console.rule(qty)
+    util.console.print(stats.dt_as_seconds(agged).select(
         polars.col("workload_subsubgroup").alias("workload"),
         "collector",
-        polars.concat_str(polars.col(f"{qty}_avg").round(1), polars.lit(" ±"), polars.col(f"{qty}_std").round(1)).alias(qty)
+        polars.concat_str(fn(polars.col(f"{qty}_avg")).round(1), polars.lit(" ±"), fn(polars.col(f"{qty}_std")).round(1)).alias(qty)
     ).pivot(
         "collector",
         index="workload",
@@ -79,9 +87,9 @@ for qty in ["walltime", "max_memory"]:
 
 
 for file_name, group_names, groups in [("apps", "Applications", app_groups), ("synths", "Synthetic benchmarks", synth_groups)]:
-    for suffix, col in [("", "walltime_overhead_ratio"), ("_mem", "max_memory_overhead_ratio"), ("_inv_ctx", "n_involuntary_context_switches_overhead_ratio"), ("_vol_ctx", "n_voluntary_context_switches_overhead_ratio")]:
-        print(col)
-        print(stats.dt_as_seconds(agged).pivot(
+    for suffix, col in [("", "walltime_overhead_ratio"), ("_mem", "max_memory_overhead_ratio"), ("_vol_ctx", "n_voluntary_context_switches_overhead_ratio")]:
+        util.console.rule(col)
+        util.console.print(stats.dt_as_seconds(agged).pivot(
             "collector",
             index="workload_subsubgroup",
             values=col,

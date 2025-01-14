@@ -62,3 +62,31 @@ JOSS:  1671 https://doi.org/10.21105/joss.00772
 JOSS:  1243 https://doi.org/10.21105/joss.01026
 JOSS:  1154 https://doi.org/10.21105/joss.02815
 JOSS:  1084 https://doi.org/10.21105/joss.00097
+
+
+
+- Hinsen's stack:
+  - Project-specific code
+  - Tutorials for scientific infrastructure are hypothetical to project-specific codes
+  - Benchmarks of scientific infrastructure intended to mimic patterns of project-specific code
+
+Scientific applications:
+
+- Non-HPC-scale numerical applications
+  - Sample from: WorkflowHub, Snakemake Worklow Catalog, Nf-core, UseGalaxy.eu, xSDK packages
+  - Comp chem
+  - Comp bio info
+  - Comp phys
+  - Comp astro
+  - Earth science
+  - Machine learning (non GPU side, data cleaning)
+  - Generic data analysis
+  - Lots of benchmarks here
+- Client/server programs
+  - Jupyter notebooks
+    - Sample popular Kaggle notebooks
+- Package management
+  - Spack
+  - Conda
+  - Pip
+- Benchmarks from ACM REP prior work
