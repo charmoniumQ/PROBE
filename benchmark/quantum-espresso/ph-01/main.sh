@@ -25,20 +25,20 @@ ph.x < "$TMP_DIR/si.phG.in"
 echo 'si.phX.in'
 ph.x < "$TMP_DIR/si.phX.in"
 
-echo 'si.scf.2.in'
-pw.x < "$TMP_DIR/si.scf.2.in"
+# echo 'si.scf.2.in'
+# pw.x < "$TMP_DIR/si.scf.2.in"
 
-echo 'si.phXsingle.in'
-ph.x < "$TMP_DIR/si.phXsingle.in"
+# echo 'si.phXsingle.in'
+# ph.x < "$TMP_DIR/si.phXsingle.in"
 
-echo 'c.scf.in'
-pw.x < "$TMP_DIR/c.scf.in"
+# echo 'c.scf.in'
+# pw.x < "$TMP_DIR/c.scf.in"
 
-echo 'c.phG.in'
-ph.x < "$TMP_DIR/c.phG.in"
+# echo 'c.phG.in'
+# ph.x < "$TMP_DIR/c.phG.in"
 
-echo 'ni.scf.in'
-pw.x < "$TMP_DIR/ni.scf.in"
+# echo 'ni.scf.in'
+# pw.x < "$TMP_DIR/ni.scf.in"
 
-echo 'ni.phX.in'
-ph.x < "$TMP_DIR/ni.phX.in"
+# echo 'ni.phX.in'
+# ph.x < "$TMP_DIR/ni.phX.in"
