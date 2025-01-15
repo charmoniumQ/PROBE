@@ -361,3 +361,13 @@ def fmt_bytes(bm: bitmath.Bitmath | int, d: int = 0) -> str:
         return bm.best_prefix().format(f"{{value:.{d}f}}{{unit}}")
     else:
         raise TypeError(f"{bm}: {type(bm).__name__}")
+
+
+def last_sentinel(it: Iterable[_T]) -> Iterator[tuple[bool, _T]]:
+    is_first = True
+    for elem in it:
+        if not is_first:
+            yield False, tmp
+        tmp = elem
+        is_first = False
+    yield True, tmp

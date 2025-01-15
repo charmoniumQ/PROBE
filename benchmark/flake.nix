@@ -903,6 +903,9 @@
                 pypkgs.bitmath
                 pypkgs.pympler
                 pypkgs.psutil
+                pypkgs.scikit-posthocs
+                pypkgs.matplotlib
+                pypkgs.pandas
                 packages.mandala
               ]))
             ];

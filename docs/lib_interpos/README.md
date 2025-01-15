@@ -147,7 +147,6 @@ abstract: |
   We present PROBE, a system-level provenance tracer that uses library interposition to achieve all three.
   We evaluate the performance of PROBE on system microbenchmarks and scientific applications.
   PROBE has a less than 10% overhead on real-world scientific applications compared to 20% with the best prior, unprivileged provenance tracers for unmodified binaries.
-  We also discuss the completeness of the provenance that PROBE collects compared to other provenance tracers.
 ---
 
 <!-- TODO: Update numbers in abstract -->
@@ -353,12 +352,12 @@ We did not identify any feasible library interposition provenance collectors.
 OPUS [@balakrishnanOPUSLightweightSystem2013] is one example, but we were not able to replicate it.
 It was last developed almost a decade ago, and it uses end-of-life Python 2.7 and Java 1.6.
 
-We also selected the following record/replay tools, which do not claim to be provenance tracers, but involve tracing provenance events with user-level tracing: CDE [@guoCDEUsingSystem2011], CARE [@janinCAREComprehensiveArchiver2014], and RR [@ocallahanEngineeringRecordReplay2017].
+We also selected the following record/replay tools, which do not claim to be provenance tracers, but involve tracing provenance events with user-level tracing: RR [@ocallahanEngineeringRecordReplay2017], CDE [@guoCDEUsingSystem2011] and CARE [@janinCAREComprehensiveArchiver2014].
 If they are performant enough, perhaps they could be converted to provenance tracers.
 
 Lastly, we selected `strace`.
-`strace` captures the relevant provenance events with user-level debug tracing but does not copy data nor create a graph.
-We expect `strace` to be the upper-bound on user-level debug tracing performance, because it does not do any processing on the events it observes.
+`strace` merely logs the events but does not do any processing on the events (e.g., constructing a provenance graph).
+Therefore, `strace` is close to the theoretical minimal overhead for bare user-level debug tracing.
 
 We examine the properties of these in @Tbl:feature-matrix.
 
@@ -387,7 +386,7 @@ While this imposes restrictions on the tracer code, it obviates context switchin
 \hspace{10mm}
 
 \includesvg[width=0.3\textwidth,pretex=\relscale{0.9}]{./lib_interpose.svg}
-\caption{Sequence diagram of process with user-level debug tracing (top) and library interposition (bottom)}
+\caption{Sequence diagram of process with user-level debug tracing (top) and library interposition (bottom).}
 \label{fig:sequence}
 \end{figure}
 
@@ -472,10 +471,11 @@ We developed applications that consume PROBE provenance to:
 
 Our applications include:
 
-1. Visualizing the dataflow graph
-2. Automatic Makefile or workflow conversion
-3. Exporting a OCI or Docker container for re-execution
+<!-- 1. Visualizing the dataflow graph -->
+1. Automatic Makefile or workflow conversion
+2. Exporting a OCI or Docker container for re-execution
 
+<!--
 ## Visual representations
 
 Some users may have a complex pile of scripts or spaghetti code that is difficult to analyze statically.
@@ -484,6 +484,7 @@ If they simply run their scripts in PROBE, PROBE observes their provenance and c
 TODO: Details on how we got this representation
 
 TODO: Example graph
+-->
 
 ## Automatic workflow conversion
 
@@ -570,28 +571,49 @@ Sciunit (81/80 * 1.0 * 1.0 * 466/240 * 848/464 * 1017/551)**(1/6)
 
 Grayson et al. give a representative benchmark suite based on benchmarks used in other provenance works including [@graysonBenchmarkSuitePerformance2024]:
 
-- BLAST (multiomics application) [@altschulBasicLocalAlignment1990] with a predefined set of queries [@coulourisBlastBenchmark2016]
+- BLAST (multiomics search application) [@altschulBasicLocalAlignment1990] with a predefined set of queries [@coulourisBlastBenchmark2016]
 - Apache under synthetic load
 - lmbench (synthetic benchmark for I/O bandwidth and latency) [@mcvoyLmbenchPortableTools1996]
 - Postmark (synthetic benchmark for small file I/O) [@katcherPostMarkNewFile2005]
-- Shell utilities in a tight loop
+- SPLASH-3 CPU benchmarks [@sakalisSplash3ProperlySynchronized2016]
+<!-- - Shell utilities in a tight loop -->
 
 The performance of provenance tracing depends greatly on the ratio of provenance operations to other operations.
-<!-- TODO: Give both examples -->
-Synthetic benchmarks that stress one subcomponent of a system (e.g., a million file reads with nothing else) will have virtually unaffected performance or significantly affected performance, depending on the subcomponent, and may not be representative of real-world performance.
-Therefore, we separate the synthetic benchmarks separately from the real applications in @Tbl:walltime.
+This ratio is a property of the application, not the system, and cannot be estimated from synthetic benchmarks.
+The only way to determine that ratio is to test real-world applications.
+BLAST and SPLASH-3 is the only real-world application in the Grayson benchmark suite, so we added the following:
 
-BLAST is the only real-world application in the Grayson benchmark suite, so we added the following:
+- A data science Jupyter notebooks from Kaggle.com. This notebooks read some data, create plots, and output a predicted dataset.
+<!-- - 2 projects from Astrophysics Source Code Library [@allenAstrophysicsSourceCode2012], sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose Quantum Espresso (calculates electronic structure) and Astropy (generic toolbox for astronomical computations). -->
+- 2 projects from the Journal of Open Source Software, sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose UMAP manifold leraning example (data sci.) and hdbscan clustering example (data sci.).
+<!-- - Projects from NixOS Quantum Chemistry repository [@kowalewskiSustainablePackagingQuantum2022]. We chose Bagel (electronic structure code) from this set. -->
 
-- Data science Jupyter notebooks from Kaggle.com, sorted by most votes. These notebooks read some data, create plots, and output a predicted dataset.
-- Projects from Astrophysics Source Code Library [@allenAstrophysicsSourceCode2012], sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose Quantum Espresso (calculates electronic structure) and Astropy (generic toolbox for astronomical computations).
-- Projects from the Journal of Open Source Software, sorted by citations on OpenCitations [@peroniOpenCitationsInfrastructureOrganization2020]. From this set, we chose UMAP (data mining) and hdbscan (data mining).
-- Projects from NixOS Quantum Chemistry repository [@kowalewskiSustainablePackagingQuantum2022]. We chose Bagel (electronic structure code) from this set.
+Regarding selected provenance tracers:
+- we wanted to test RR, but it requires root to install, so it does not fit our selection criteria^[RR requires the kernel configuration variable `perf_event_paranoid` to be set to a number less than `2`. On some systems, this may already be set, but on the ones we were testing (default Ubuntu 22.04), it is not.].
+- For `strace`, we filtered logging to record only those syscalls relevant for provenance to make a fair comparison between with PROBE.
+- We excluded out CDE since Provenance To Use is a close modification of CDE; adding CDE did not add much more information.
+- We excluded Sciunit since Sciunit internally uses Provenance To Use, but adds block-based deduplication; if Provenance To Use is slow, then Sciunit will be slower.
+- We included two configurations of PROBE: one that copies file data (necessary for automatic, containerized replay) and another which only captures metadata.
 
-`strace` merely logs the events but does not do any processing on the events (e.g., constructing a provenance graph).
-Therefore, `strace` is close to the theoretical minimal overhead for bare user-level debug tracing.
-Still, the overhead of `strace` is significantly worse than PROBE.
-We enable logging on those syscalls relevant for provenance to make a fair comparison between `strace` and PROBE.
+We run 5 trials of each benchmark and provenance tracer.
+For each provenance tracer and workload, we infer a log-normal distribution from every trial.
+We use the log-normal instead of normal distribution for three reasons:
+
+- **Positive skew**:
+  The right tail (slower than expected) is heavier than the left tail (faster than expected).
+  Real-world runtime data [@mytkowiczProducingWrongData2009; @suhEMPExecutionTime2017] tends to exhibit positive skew.
+  
+- **Positive-support**:
+  Normal distributions give a non-zero probability density to negative runtimes, which are not physically possible.
+  Log-normal only gives non-zero probability to positive runtimes.
+
+- **Ease of ratio distribution**:
+  We will compute the distribution of the _overhead ratio_ between provenance tracers and native execution of the same application.
+  The ratio of two normally distributed variables is a very complex distribution (see Eqn. 1 in [@hinkleyRatioTwoCorrelated1969]).
+  Contrarily, the ratio of two log-normal variables is itself log-normal.
+
+We infer the log-normal distribution using unbiased maximum-liklihood estimators (this is similar but less biased than the geometric mean).
+Lastly, we compute the distribution of the overhead ratio of each provenance tracer, presenting its expected value and standard deviation in the tables below [@Tbl:walltime].
 
 <!--
 We timed benchmarks to verify that none of them finish in faster than 1 seconds, so the execution time is not dominated by program loading.
@@ -599,21 +621,35 @@ We timed benchmarks to verify that none of them finish in faster than 1 seconds,
 Ensured application benchmarks are not too fast, but they were much longer
 
 Too slow would be too few data
--->
 
-<!--
-TODO: Loop more so we can say 3 seconds instead
+Loop more so we can say 3 seconds instead
 -->
 
 \begin{table*}
-\small
-\input{data_apps.tex}
-\hfill
-\input{data_synths.tex}
+\footnotesize
+\input{data_walltime.tex}
 \normalsize
-\caption{Walltime overhead of applications in various provenance tracers as a multiple of native execution. 2.0 means that the program takes twice as long when running in the provenance tracer.}
+\caption{Expected value of walltime overhead of applications in various provenance tracers over native execution. A value of "50\%" means that running the program in the provenance tracer takes 1.5x as long when running natively. There may be negatives numbers due to the random variation in trials; in those cases, look at the standard deviation.}
 \label{tbl:walltime}
 \end{table*}
+
+While it may be tempting to average the columns of the table, the average would not be meaningful, because that average would depend heavily on the choice of benchmarks, how many I/O heavy benchmarks are included, etc.
+Instead focus on the workload grouping (first column).
+While both configurations of PROBE can experience grater overhead in the synthetic benchmarks (syscall and synth. file I/O) than their competitors, in the real-wold applications (data sci. and multi-omics) both configurations of PROBE fare much better than their competitors.
+Note that the first two columns compare metadata-only provenance tracers while the latter three columns compare metadata-\&-data provenance tracers.
+
+<!-- Instead, we show the average within each group of related programs. -->
+<!-- To summarize the performance difference, we use the Friedman test. -->
+<!-- The Friedman test operates on a matrix of ranks, for each workload, which provenance tracer had 1st place, 2nd place, etc., which is robust to heteroscedasticity [@Fig:ranks]. -->
+
+<!-- \begin{figure*}[h] -->
+<!-- \centering -->
+<!-- \includesvg[width=0.9\textwidth]{./ranks_walltime.svg} -->
+<!-- \caption{Confidence intervals of post-hoc Nemenyi test. The number line shows where each provenance tracer's average rank (1st, 2nd, etc.) over all workloads. A black horizontal bar connects the ranks which have overlapping confidence intervals.} -->
+<!-- \label{fig:ranks} -->
+<!-- \end{figure*} -->
+
+<!-- While PROBE performs significantly better than the other provenance tracers (PTU and CARE), the difference is not statistically significant. -->
 
 # Discussion {#sec:discussion}
 
@@ -669,18 +705,29 @@ PROBE does not require recompilation or re-linking of binaries.
 
 # Future work {#sec:future-work}
 
-We would like to further evaluate the fidelity with which provenance tools ability to replay prior execution.
+Future work should do more comparisons and evaluations of state-of-the-art provenance tracers.
+Besides recording time, future work should investigate replay time.
+Not just measuring performance, future work should seek to _model_ performance theoretically.
+What factors influence the performance of provenance recording?
+Future work should also investigate the fidelity of said replay.
+For what proportion of real-world programs is the provenance tracer able to record/replay bit-wise equivalent results?
 
-We would like to develop further provenance applications.
+Aside from performance, future work should investigate applications for provenance data.
+Perhaps the adoption of provenance tracers in practice could be furthered by working with scientists to do user studies.
+It is difficult to predict the full details of problems when applying research into practice [@besseyFewBillionLines2010].
 
-- This Docker _image_ should not be confused with a `Dockerfile`.
-  A `Dockerfile` is much smaller and more convenient to send, but it does not necessarily build to a bit-wise reproducible Docker image.
+<!-- - This Docker _image_ should not be confused with a `Dockerfile`. -->
+<!--   A `Dockerfile` is much smaller and more convenient to send, but it does not necessarily build to a bit-wise reproducible Docker image. -->
 
-- Improve completeness: static binary rewriting
-- Improve performance
-- Multi-node and HPC cases
+<!-- - Improve completeness: static binary rewriting -->
+<!-- - Improve performance -->
+<!-- - Multi-node and HPC cases -->
 
 # Conclusion {#sec:conclusion}
+
+We present PROBE, a provenance tracer for unmodified binaries running in unprivileged mode with low overhead.
+While the initial evaluation of PROBE is promising, our ultimate position is not on PROBE but on library interposition.
+Despite prior work dismissing library interposition for provenance tracing [@Sec:discussion], but we show that library interposition is possible, has few of the putative downsides, and is much faster than its alternatives.
 
 \section*{Acknowledgments}
 
@@ -694,36 +741,51 @@ This work was partially supported by Sandia National Laboratories.
 
    - If you already have Nix (but not NixOS), enable flakes by adding the following line to `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`:
 
+     \small
+
      ```
      experimental-features = nix-command flakes
      ```
+
+     \normalsize
 
    - If you already have Nix and are running NixOS, enable flakes with by adding `nix.settings.experimental-features = [ "nix-command" "flakes" ];` to your configuration.
 
 2. Acquire the source code from an anonymized repository:
 
+   \small
+
    ``` sh
    mkdir PROBE
    cd PROBE
-   curl --output PROBE.zip https://anonymous.4open.science/api/repo/PROBE/zip
+   curl --output PROBE.zip \
+     https://anonymous.4open.science/api/repo/PROBE/zip
    unzip PROBE.zip
    rm PROBE.zip
    ```
+   
+   \normalsize
 
 3. Build PROBE (takes about 20 minutes if building from scratch)
 
+   \small
+
    ```sh
-   # This command launches a shell with PROBE added to the PATH
+   # Launches a shell with PROBE on the PATH
    nix shell .#probe-bundled
    ```
+   
+   \normalsize
 
 4. In the subshell from the previous command,
+
+   \small
 
    ```sh
    probe record <CMD ...>
    ```
 
-\printbibliography
+   \normalsize
 
 \appendix
 
@@ -819,3 +881,5 @@ Our research prototype wraps:
 - `exec` family of functions
 - `fork`, `clone`, `wait` families of functions
 - `pthread_create`, `pthread_join`, `thrd_create`, `thrd_join`, etc. functions
+
+\printbibliography

@@ -89,8 +89,8 @@ def get_latex_table() -> str:
     med_color = r"\cellcolor{Yellow}"
     feature_converters = {
         "bypassability": lambda v: {
-            Bypassability.BYPASSABLE_AWARE: bad_color + "no",
-            Bypassability.NOT_BYPASSABLE: good_color + "yes",
+            Bypassability.BYPASSABLE_AWARE: bad_color + "yes",
+            Bypassability.NOT_BYPASSABLE: good_color + "no",
         }[v],
         "data": lambda v: {
             RecordsData.METADATA: med_color + "Metadata",

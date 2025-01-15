@@ -263,16 +263,16 @@ def process_df(iterations: polars.DataFrame) -> tuple[polars.DataFrame, polars.D
 
 
 collector_order = {
-    "noprov": 0,
-    "ltrace": 1,
-    "strace": 2,
-    "probe": 3,
-    "rr": 4,
-    "sciunit": 5,
-    "ptu": 6,
-    "cde": 7,
-    "reprozip": 8,
-    "care": 9,
-    "probecopyeager": 10,
-    "probecopylazy": 11,
+    "noprov": (0,),
+    "ltrace": (1,),
+    "strace": (2,),
+    "probe": (3,),
+    "rr": (4,),
+    "sciunit": (5,),
+    "ptu": (6,),
+    "cde": (7,),
+    "reprozip": (8,),
+    "care": (9,),
+    "probecopyeager": (10,),
+    "probecopylazy": (11,),
 }
