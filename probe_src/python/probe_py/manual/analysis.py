@@ -47,7 +47,7 @@ class InodeOnDevice:
 @dataclass(frozen=True)
 class FileNode:
     inodeOnDevice: InodeOnDevice
-    version: (int, int)
+    version: Tuple[int, int]
     file: str
 
     @property
@@ -279,9 +279,6 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
         
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
         next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
-        # when we move to a new process which is not a child process but an independent process we empty the shared_files 
-        if edge[0][0]!=edge[1][0] and not isinstance(op, CloneOp) and not isinstance(next_op, WaitOp) and edge[1][1] == 0 and edge[1][3] == 0:
-            shared_files = set()
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
