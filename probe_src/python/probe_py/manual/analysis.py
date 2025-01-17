@@ -287,17 +287,13 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
             path_str = op.path.path.decode("utf-8")
             curr_version = (op.path.inode, op.path.mtime.sec)
             fileNode = FileNode(file, curr_version, path_str)
+            dataflow_graph.add_node(fileNode, label=fileNode.label)
+            path = pathlib.Path(op.path.path.decode("utf-8"))
+            if path not in name_map[file]:
+                name_map[file].append(path)
             if access_mode == os.O_RDONLY:
-                dataflow_graph.add_node(fileNode, label = fileNode.label)
-                path = pathlib.Path(op.path.path.decode("utf-8"))
-                if path not in name_map[file]:
-                    name_map[file].append(path)
                 dataflow_graph.add_edge(fileNode, processNode)
             elif access_mode == os.O_WRONLY:
-                dataflow_graph.add_node(fileNode, label = fileNode.label)
-                path = pathlib.Path(op.path.path.decode("utf-8"))
-                if path not in name_map[file]:
-                    name_map[file].append(path)          
                 dataflow_graph.add_edge(processNode, fileNode)
             elif access_mode == 2:
                 console.print(f"Found file {path_str} with access mode O_RDWR", style="red")
