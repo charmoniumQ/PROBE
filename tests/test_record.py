@@ -46,7 +46,7 @@ modes = [
     ["probe", "record"],
     ["probe", "record", "--debug"],
     ["probe", "record", "--copy-files-lazily"],
-    #["probe", "record", "--copy-files-eagerly"],
+    ["probe", "record", "--copy-files-eagerly"],
 ]
 
 
@@ -79,7 +79,7 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
-    if "--copy-files" in mode:
+    if any("copy-files" in arg for arg in mode):
 
         cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
         print(shlex.join(cmd))
