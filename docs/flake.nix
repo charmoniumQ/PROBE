@@ -16,7 +16,7 @@
       devShells = {
         default = pkgs.mkShell {
           packages = [
-            (pkgs.texlive.combine { inherit (pkgs.texlive) scheme-full; })
+            (pkgs.texlive.combine {inherit (pkgs.texlive) scheme-full;})
             pkgs.pandoc
             pkgs.librsvg
             pkgs.inkscape

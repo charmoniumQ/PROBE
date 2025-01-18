@@ -98,12 +98,30 @@ fn main() -> Result<()> {
                 .collect::<Vec<_>>();
 
             if copy_files_eagerly && copy_files_lazily {
-                Err(eyre!("Cannot copy files both eagerly and lazily; please discard one or both"))
+                Err(eyre!(
+                    "Cannot copy files both eagerly and lazily; please discard one or both"
+                ))
             } else {
                 if no_transcribe {
-                    record::record_no_transcribe(output, overwrite, gdb, debug, copy_files_eagerly, copy_files_lazily, cmd)
+                    record::record_no_transcribe(
+                        output,
+                        overwrite,
+                        gdb,
+                        debug,
+                        copy_files_eagerly,
+                        copy_files_lazily,
+                        cmd,
+                    )
                 } else {
-                    record::record_transcribe(output, overwrite, gdb, debug, copy_files_eagerly, copy_files_lazily, cmd)
+                    record::record_transcribe(
+                        output,
+                        overwrite,
+                        gdb,
+                        debug,
+                        copy_files_eagerly,
+                        copy_files_lazily,
+                        cmd,
+                    )
                 }
                 .wrap_err("Record command failed")
             }
