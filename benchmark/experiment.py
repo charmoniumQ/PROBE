@@ -1,335 +1,259 @@
-import os
+import shlex
+import datetime
+import rich.console
 import dataclasses
-import hashlib
-import urllib.parse
-import shutil
-import subprocess
-import sys
-import itertools
-import json
-import random
 import pathlib
+import tempfile
 import collections
-import typing
-import tqdm  # type: ignore
-import pickle
-import pandas  # type: ignore
+import itertools
+import util
+import gc
 import psutil
-import charmonium.time_block as ch_time_block
-from collections.abc import Sequence, Mapping
+from pympler.asizeof import asizeof as size
+from mandala.imports import op, Ignore, Storage  # type: ignore
+import rich.progress
 from workloads import Workload
-from prov_collectors import ProvCollector, ProvOperation
-from run_exec_wrapper import run_exec, DirMode
-from util import (
-    delete_children, move_children,
-    hardlink_children, shuffle, expect_type, to_str, merge_env_vars,
-    SubprocessError, get_nix_env,
-)
-
-
-result_bin = pathlib.Path("result").resolve() / "bin"
-result_lib = result_bin.parent / "lib"
-
-
-def get_results(
-        prov_collectors: Sequence[ProvCollector],
-        workloads: Sequence[Workload],
-        iterations: int,
-        seed: int,
-        ignore_failures: bool,
-        rerun: bool,
-        parallelism: int,
-) -> pandas.DataFrame:
-    cache_dir = pathlib.Path(".cache")
-    big_temp_dir = pathlib.Path(".workdir")
-    size = 256
-    key = (cache_dir / ("results_" + "_".join([
-        *[prov_collector.name for prov_collector in prov_collectors],
-        hashlib.sha256("".join(sorted(workload.name for workload in workloads)).encode()).hexdigest()[:10],
-        str(iterations),
-        str(size),
-        str(seed),
-    ]) + ".pkl"))
-    # If we are rerunning anything, then we can't trust the aggregated results
-    if rerun:
-        for file in cache_dir.iterdir():
-            if file.name.startswith("results_"):
-                file.unlink()
-    if key.exists():
-        with key.open("rb") as key_file:
-            return expect_type(pandas.DataFrame, pickle.load(key_file))
-    else:
-        results_df = run_experiments(
-            prov_collectors,
-            workloads,
-            cache_dir,
-            big_temp_dir,
-            iterations,
-            size,
-            seed,
-            ignore_failures,
-            rerun,
-            parallelism,
-        )
-        key.write_bytes(pickle.dumps(results_df))
-        return results_df
+from prov_collectors import ProvCollector
+import measure_resources
+# on my machine, importing polars before the others causes a segfault
+# https://github.com/NixOS/nixpkgs/issues/326230
+# TODO: Debug this
+import polars
 
 
 def run_experiments(
-        prov_collectors: Sequence[ProvCollector],
-        workloads: Sequence[Workload],
-        cache_dir: pathlib.Path,
-        big_temp_dir: pathlib.Path,
+        prov_collectors: list[ProvCollector],
+        workloads: list[Workload],
         iterations: int,
-        size: int,
         seed: int,
-        ignore_failures: bool,
+        verbose: bool,
         rerun: bool,
-        parallelism: int,
-) -> pandas.DataFrame:
-    prng = random.Random(seed)
-    # Shuffle within each iteration
-    # all iteration=0 come before iteration=1, but within each iteration, workloads and prov_collectors are shuffled differently
+        storage_file: pathlib.Path,
+) -> polars.DataFrame:
+    if verbose:
+        util.print_rich_table(
+            "run_experiments",
+            ("Variable", "Value"),
+            [
+                ("prov_collectors", f"({len(prov_collectors)}) {', '.join(collector.name for collector in prov_collectors)}"),
+                ("workloads", f"({len(workloads)}) {', '.join(workload.labels[0][2] for workload in workloads)}"),
+                ("iterations", iterations),
+                ("seed", seed),
+                ("rerun", rerun),
+            ],
+        )
+    start = datetime.datetime.now()
     inputs = list(itertools.chain.from_iterable(
-        shuffle(
-            prng,
-            tuple(itertools.product([iteration], prov_collectors, workloads)),
+        # Shuffling eliminates confounding effects of order dependency
+        # E.g., if the CPU overheats and gets throttled, then later runs will be slower
+        # We try to prevent this, but if other order effects leak through, at least we randomize the order.
+        # However, all iteration=0 come before iteration=1, so that if you stop the program before finishing all n iterations, it may be able to completely finished m < n iterations.
+        util.shuffle(
+            # each iteration is shuffled using a different seed
+            iteration ^ seed,
+            tuple(itertools.product(
+                [iteration ^ seed],
+                prov_collectors,
+                workloads,
+                [Ignore(verbose)],
+            )),
         )
         for iteration in range(iterations)
     ))
-    big_temp_dir.mkdir(exist_ok=True, parents=True)
-    temp_dir = big_temp_dir / "temp"
-    log_dir = big_temp_dir / "log"
-    artifacts_dir = big_temp_dir / "artifacts"
-    work_dir = big_temp_dir / "work"
-    temp_dir.mkdir(exist_ok=True)
-    log_dir.mkdir(exist_ok=True)
-    work_dir.mkdir(exist_ok=True)
-    assert list(inputs)
-    if parallelism == 1:
-        result_list = (
-            (prov_collector, workload, run_one_experiment_cached(
-                cache_dir, iteration, prov_collector, workload,
-                work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
-                rerun,
-            ))
-            for iteration, prov_collector, workload in tqdm.tqdm(inputs)
-        )
-    else:
-        import dask
-        import dask.diagnostics
-        dask.diagnostics.ProgressBar().register()
-        result_list = dask.compute(
-            [
-                (prov_collector, workload, dask.delayed(run_one_experiment_cached)(
-                    cache_dir, iteration, prov_collector, workload,
-                    work_dir, log_dir, temp_dir, artifacts_dir, size, ignore_failures,
-                    rerun,
-                ))
-                for iteration, prov_collector, workload in tqdm.tqdm(inputs)
-            ],
-            scheduler="processes",
-            num_workers=parallelism,
-        )[0]
 
-    records: list[dict[str, object] | None] = [None] * (len(prov_collectors) * len(workloads) * iterations)
-    # Loop through each one at a time
-    # Extracting a minimal set of fields
-    # So we don't have all ExperimentStats in memory at once
-    for i, (prov_collector, workload, stats) in enumerate(result_list):
-        if stats is not None:
-            counter = collections.Counter(
-                op.type for op in stats.operations
-            )
-            records[i] = {
-                "collector": prov_collector.name,
-                "collector_method": prov_collector.method,
-                "collector_submethod": prov_collector.submethod,
-                "workload": workload.name,
-                "workload_kind": workload.kind,
-                "cputime": stats.cputime,
-                "walltime": stats.walltime,
-                "memory": stats.memory,
-                "storage": stats.provenance_size,
-                "n_ops": len(stats.operations),
-                # "n_unique_files": n_unique(itertools.chain(
-                #     (op.target0 for op in stats.operations),
-                #     (op.target1 for op in stats.operations),
-                # )),
-                "op_type_counts": counter,
+
+    process = psutil.Process()
+    last_used_mem = process.memory_info().rss
+    records = []
+    br = util.fmt_bytes
+    with Storage(storage_file) as storage:
+        for iteration, collector, workload, verbose in util.progress.track(
+                inputs,
+                description="Collectors x Workloads"
+        ):
+            op = run_experiment(iteration, collector, workload, verbose)
+            record = storage.unwrap(op)
+            storage.commit()
+            records.append(record)
+            if verbose:
+                record_size = size(record)
+                util.console.print(
+                    f"  Records: {br(size(records))} ≅ {br(record_size * len(records))} = {len(records)} x {br(record_size, 1)}",
+                )
+                util.console.print(f"  Storage: {br(size(storage))}")
+                used_mem = process.memory_info().rss
+                util.console.print(f"  Total: {br(used_mem)} (incrase of {br(used_mem - last_used_mem)} from last time)")
+                util.console.print(f"  Free: {br(psutil.virtual_memory().available)}")
+                util.console.print(f"  Op cmd max memory usage: {br(record.max_memory)}")
+                last_used_mem = used_mem
+
+    df = polars.from_dicts(
+        [
+            {
+                "collector": record.prov_collector,
+                "workload_group": record.workload_group,
+                "workload_subgroup": record.workload_subgroup,
+                "workload_subsubgroup": record.workload_subsubgroup,
+                "workload_area": record.workload_area,
+                "workload_subarea": record.workload_subarea,
+                "seed": record.seed,
+                "returncode": record.returncode,
+                "walltime": record.walltime,
+                "user_cpu_time": record.user_cpu_time,
+                "system_cpu_time": record.system_cpu_time,
+                "max_memory": record.max_memory,
+                "n_voluntary_context_switches": record.n_voluntary_context_switches,
+                "n_involuntary_context_switches": record.n_involuntary_context_switches,
+                "provenance_size": record.provenance_size,
+                "n_ops": record.n_ops,
+                "n_unique_files": record.n_unique_files,
+                "op_counts": record.op_counts,
             }
-    results_df = (
-        pandas.DataFrame.from_records(list(filter(bool, records)))
-        .assign(**{
-            "collector": lambda df: df["collector"].astype("category"),
-            "collector_method": lambda df: df["collector_method"].astype("category"),
-            "collector_submethod": lambda df: df["collector_submethod"].astype("category"),
-            "workload": lambda df: df["workload"].astype("category"),
-            "workload_kind": lambda df: df["workload_kind"].astype("category"),
-        })
+            for record in records
+        ],
+        schema_overrides={
+            "collector": polars.Categorical,
+            "workload_group": polars.Categorical,
+            "workload_subgroup": polars.Categorical,
+            "workload_subsubgroup": polars.Categorical,
+            "workload_area": polars.Categorical,
+            "workload_subarea": polars.Categorical,
+        },
     )
-    return results_df
+    util.console.print(f"run_experiment all inputs in {(datetime.datetime.now() - start).total_seconds():.1f}")
+    return df
 
 
 @dataclasses.dataclass
 class ExperimentStats:
-    cputime: float
-    walltime: float
-    memory: int
-    provenance_size: int
-    operations: tuple[ProvOperation, ...]
+    seed: int
+    prov_collector: str
+    workload_group: str
+    workload_subgroup: str
+    workload_subsubgroup: str
+    workload_area: str
+    workload_subarea: str
+    returncode: int = -1
+    walltime: datetime.timedelta = datetime.timedelta()
+    user_cpu_time: datetime.timedelta = datetime.timedelta()
+    system_cpu_time: datetime.timedelta = datetime.timedelta()
+    max_memory: int = 0
+    n_involuntary_context_switches: int = 0
+    n_voluntary_context_switches: int = 0
+    provenance_size: int = 0
+    n_ops: int = 0
+    n_unique_files: int = 0
+    op_counts: collections.Counter[str] = dataclasses.field(default_factory=collections.Counter[str])
 
 
-def run_one_experiment_cached(
-    cache_dir: pathlib.Path,
-    iteration: int,
+@op
+def run_experiment(
+    seed: int,
     prov_collector: ProvCollector,
     workload: Workload,
-    work_dir: pathlib.Path,
-    log_dir: pathlib.Path,
-    temp_dir: pathlib.Path,
-    artifacts_dir: pathlib.Path,
-    size: int,
-    ignore_failures: bool,
-    rerun: bool,
-) -> ExperimentStats | None:
-    key = (cache_dir / ("_".join([
-        urllib.parse.quote(prov_collector.name, safe=''),
-        urllib.parse.quote(workload.name, safe=''),
-        str(iteration)
-    ]))).with_suffix(".pkl")
-    if (not rerun) and key.exists():
-        with ch_time_block.ctx(f"pickle.loads {prov_collector.name} {workload.name} {iteration}", do_gc=True):
-            with key.open("rb") as key_file:
-                return expect_type(ExperimentStats, pickle.load(key_file))
-    else:
-        delete_children(temp_dir)
-        stats = run_one_experiment(
-            iteration, prov_collector, workload, work_dir, log_dir,
-            temp_dir, artifacts_dir, size, ignore_failures,
-        )
-        if stats is not None:
-            cache_dir.mkdir(exist_ok=True, parents=True)
-            key.write_bytes(pickle.dumps(stats))
-        return stats
+    verbose: bool,
+) -> ExperimentStats:
+    if verbose:
+        util.console.rule(f"{prov_collector.name} {workload.labels[0][-1]}")
 
+    setup_teardown_timeout = datetime.timedelta(seconds=30)
+    labels = (seed, prov_collector.name, workload.labels[0][0], workload.labels[0][1], workload.labels[0][2], workload.labels[1][0], workload.labels[1][1])
 
-def run_one_experiment(
-    iteration: int,
-    prov_collector: ProvCollector,
-    workload: Workload,
-    work_dir: pathlib.Path,
-    log_dir: pathlib.Path,
-    temp_dir: pathlib.Path,
-    artifacts_dir: pathlib.Path,
-    size: int,
-    ignore_failures: bool,
-) -> ExperimentStats | None:
-    # This even works when we don't have parallelism:
-    this_process = psutil.Process()
-    parent_process = this_process.parent()
-    sibling_processes = parent_process.children()
-    worker_number = sibling_processes.index(this_process)
-
-    # This renames the relevant directories so they don't conflict with other workers
-    work_dir = work_dir / str(worker_number)
-    log_dir = log_dir / str(worker_number)
-    temp_dir = temp_dir / str(worker_number)
-
-    workload_name = "-".join([workload.superkind, workload.kind, workload.name]).lower()
-
-    with ch_time_block.ctx(f"Compiling Nix env for {prov_collector} and {workload_name}"):
-        collector_env = get_nix_env(prov_collector.nix_packages)
-        workload_env = get_nix_env(workload.nix_packages)
-
-    with ch_time_block.ctx(f"setup {workload_name}"):
-        try:
-            work_dir.mkdir(exist_ok=True, parents=True)
-            workload.setup(work_dir, workload_env)
-        except SubprocessError as exc:
-            print(str(exc))
-            return ExperimentStats(
-                cputime=0,
-                walltime=0,
-                memory=0,
-                provenance_size=0,
-                operations=(),
+    def run_proc(
+            cmd: tuple[str, ...],
+            timeout: datetime.timedelta | None,
+    ) -> tuple[measure_resources.CompletedProcess, ExperimentStats]:
+        if cmd:
+            if not cmd[0].startswith("/nix/store"):
+                raise RuntimeError(f"Subprocess binaries should be absolute (generated by Nix) not {cmd[0]}")
+            if verbose:
+                str_cmd = shlex.join(cmd).replace(
+                    str(work_dir.resolve()), "$work_dir",
+                ).replace(
+                    str(prov_log.resolve()), "$work_dir/../prov",
+                )
+                util.console.print(f"env --chdir $work_dir - {str_cmd}")
+            proc = measure_resources.measure_resources(
+                cmd,
+                cwd=work_dir,
+                env={},
+                timeout=timeout,
             )
-        log_dir.mkdir(exist_ok=True, parents=True)
-        delete_children(log_dir)
-
-    with ch_time_block.ctx(f"setup {prov_collector}"):
-        if prov_collector.requires_empty_dir:
-            (temp_dir / "old_work_dir").mkdir()
-            hardlink_children(work_dir, temp_dir / "old_work_dir")
-            delete_children(work_dir)
-            prov_collector.start(log_dir, size, work_dir, collector_env)
-            move_children(temp_dir / "old_work_dir", work_dir)
+            if verbose:
+                util.console.print(f"{proc.walltime.total_seconds():.1f}sec")
+                if proc.returncode != 0:
+                    util.console.print(rich.padding.Padding(
+                        proc.stdout.decode(errors="surrogateescape").strip(),
+                        (1, 4),
+                    ))
+                    util.console.print(rich.padding.Padding(
+                        proc.stderr.decode(errors="surrogateescape").strip(),
+                        (1, 4),
+                    ))
+            return proc, ExperimentStats(*labels, returncode=proc.returncode)
         else:
-            prov_collector.start(log_dir, size, work_dir, collector_env)
-        cmd = workload.run(work_dir)
-        # TODO: factor out custom_env
-        prog = cmd[0]
-        if isinstance(prog, pathlib.Path):
-            main_executable = prog
-        elif isinstance(prog, str):
-            _main_executable = shutil.which(str(prog), path=workload_env["PATH"])
-            if _main_executable is None:
-                raise RuntimeError(f"{prog} not found in {workload_env['PATH']}")
-            main_executable = pathlib.Path(_main_executable)
-        cmd = prov_collector.run(cmd, log_dir, size)
-        # cmd = (result_bin / "setarch", "--addr-no-randomize", *cmd)
+            proc = measure_resources.CompletedProcess()
+            return proc, ExperimentStats(*labels)
 
 
-    with ch_time_block.ctx(f"run {workload_name} in {prov_collector}"):
-        full_env = merge_env_vars(workload_env, collector_env)
-        print(cmd, full_env)
-        stats = run_exec(
-            cmd=cmd,
-            env=full_env,
-            dir_modes={
-                work_dir: DirMode.FULL_ACCESS,
-                log_dir: DirMode.FULL_ACCESS,
-                pathlib.Path(): DirMode.READ_ONLY,
-                pathlib.Path("/nix/store"): DirMode.READ_ONLY,
-            },
-            network_access=workload.network_access,
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        tmp_dir = pathlib.Path(_tmp_dir).resolve()
+        work_dir = tmp_dir / "work"
+        prov_log = tmp_dir / "prov"
+
+        work_dir.mkdir(exist_ok=True, parents=False)
+
+        if verbose:
+            util.console.print(f"work_dir={tmp_dir!s} && rm -rf $work_dir && mkdir --parents $work_dir")
+
+        context = {
+            "work_dir": str(work_dir),
+            "prov_log": str(prov_log),
+        }
+
+        proc, exp_stats = run_proc(
+            prov_collector.setup_cmd.expand(context),
+            setup_teardown_timeout,
         )
+        if proc.returncode != 0:
+            return exp_stats
 
-    prov_collector.stop(collector_env)
+        proc, exp_stats = run_proc(
+            workload.setup_cmd.expand(context),
+            setup_teardown_timeout,
+        )
+        if proc.returncode != 0:
+            return exp_stats
 
-    if not stats.success:
-        if ignore_failures:
-            return None
-        else:
-            raise SubprocessError(
-                cmd=cmd,
-                env=full_env,
-                cwd=None,
-                returncode=stats.exitcode,
-                stdout=to_str(stats.stdout),
-                stderr=to_str(stats.stderr),
-            )
-    with ch_time_block.ctx(f"parse {prov_collector}"):
-        provenance_size = 0
-        for child in log_dir.iterdir():
-            provenance_size += child.stat().st_size
-        operations = prov_collector.count(log_dir, main_executable)
-        # artifact_dir = artifacts_dir / ("_".join([
-        #     urllib.parse.quote(prov_collector.name),
-        #     workload.name,
-        #     str(iteration)
-        # ]))
-        # if artifact_dir.exists():
-        #     shutil.rmtree(artifact_dir)
-        # artifact_dir.mkdir(parents=True)
-        # move_children(log_dir, artifact_dir)
-    sys.stdout.buffer.write(stats.stdout)
-    sys.stderr.buffer.write(stats.stderr)
+        workload_cmd = workload.cmd.expand(context)
+        workload_proc, exp_stats = run_proc(
+            prov_collector.run_cmd.expand(context) + workload_cmd,
+            timeout=workload.timeout * prov_collector.timeout_multiplier if workload.timeout else None,
+        )
+        if workload_proc.returncode != 0:
+            return exp_stats
+
+        proc, exp_stats = run_proc(
+            prov_collector.teardown_cmd.expand(context),
+            setup_teardown_timeout,
+        )
+        if proc.returncode != 0:
+            return exp_stats
+
+        provenance_size = (util.dir_size(prov_log) if prov_log.is_dir() else prov_log.stat().st_size) if prov_log.exists() else 0
+        ops = prov_collector.count(prov_log, pathlib.Path(workload_cmd[0]))
+
     return ExperimentStats(
-        cputime=stats.cputime,
-        walltime=stats.walltime,
-        memory=stats.memory,
+        *labels,
+        returncode=workload_proc.returncode,
+        walltime=workload_proc.walltime,
+        user_cpu_time=workload_proc.user_cpu_time,
+        system_cpu_time=workload_proc.system_cpu_time,
+        max_memory=workload_proc.max_memory_usage,
+        n_involuntary_context_switches=workload_proc.n_involuntary_context_switches,
+        n_voluntary_context_switches=workload_proc.n_voluntary_context_switches,
         provenance_size=provenance_size,
-        operations=operations,
+        n_ops=len(ops),
+        n_unique_files=len({op.target0 for op in ops if op.target0} | {op.target1 for op in ops if op.target1}),
+        op_counts=collections.Counter(op.type for op in ops),
     )
