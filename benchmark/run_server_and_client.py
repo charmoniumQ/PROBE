@@ -5,6 +5,8 @@ import time
 import subprocess
 import sys
 import signal
+import pathlib
+sys.stderr.write(sys.executable)
 import psutil
 
 shell = "bash"
@@ -25,12 +27,10 @@ server_proc = subprocess.Popen(
 
 sleeped = False
 if check_prog is not None:
-    n_successes = 0
     for check in range(50):
         print("Check", check, "$", check_prog)
         proc = subprocess.run([shell, "-c", check_prog], check=False)
-        n_successes += int(proc.returncode == 0)
-        if n_successes > 3:
+        if proc.returncode == 0:
             break
         time.sleep(0.1)
         sleeped = True

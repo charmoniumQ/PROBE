@@ -1,9 +1,11 @@
+import typing
 import itertools
 import os
 import json
 import sys
 import dataclasses
 import random
+import bitmath
 import tempfile
 import contextlib
 import pathlib
@@ -11,12 +13,15 @@ import shlex
 import shutil
 import subprocess
 import urllib.request
-import warnings
 from collections.abc import Sequence, Mapping, Iterator, Iterable
 from typing import Callable, TypeVar, Any, TypeAlias, cast, Hashable
+import rich
+import rich.table
+import rich.progress
 import tqdm
-import scipy  # type: ignore
-import numpy
+
+
+console = rich.console.Console()
 
 
 def download(output: pathlib.Path, url: str) -> None:
@@ -28,7 +33,7 @@ def download(output: pathlib.Path, url: str) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     with DownloadProgressBar(unit='B', unit_scale=True,
                              miniters=1, desc=url.split('/')[-1]) as t:
-        print(url)
+        console.print(url)
         urllib.request.urlretrieve(url, filename=output, reporthook=t.update_to)
 
 
@@ -117,9 +122,9 @@ _V = TypeVar("_V")
 _U = TypeVar("_U")
 
 
-def shuffle(prng: random.Random, lst: Sequence[_T]) -> Sequence[_T]:
+def shuffle(seed: int, lst: Sequence[_T]) -> Sequence[_T]:
     lst2 = list(lst)
-    prng.shuffle(lst2)
+    random.Random(seed).shuffle(lst2)
     return lst2
 
 
@@ -136,6 +141,10 @@ def first(pair: tuple[_T, _V]) -> _T:
     return pair[0]
 
 
+def identity(x: _T) -> _T:
+    return x
+
+
 def groupby_dict(
         data: Iterable[_T],
         key_func: Callable[[_T], _V],
@@ -148,6 +157,8 @@ def groupby_dict(
 
 
 def confidence_interval(data: Any, confidence_level: float, seed: int = 0) -> tuple[float, float]:
+    import scipy  # type: ignore
+    import numpy
     bootstrap = scipy.stats.bootstrap(
         [data],
         confidence_level=confidence_level,
@@ -177,7 +188,7 @@ class SubprocessError(Exception):
         stderr: str,
     ) -> None:
         self.cmd = cmd
-        self.env = env
+        self.env = {cmd_arg(key).decode(): cmd_arg(val).decode() for key, val in env.items()}
         self.cwd = cwd
         self.returncode = returncode
         self.stdout = stdout
@@ -185,7 +196,7 @@ class SubprocessError(Exception):
 
     def __str__(self) -> str:
         args = env_command(
-            env=self.env,
+            env={key: val for key, val in self.env.items()},
             cwd=self.cwd,
             clear_env=True,
             cmd=self.cmd,
@@ -195,7 +206,7 @@ class SubprocessError(Exception):
             try:
                 arg_str = to_str(arg)
             except Exception as exc:
-                print(f"{exc} while converting {arg!r}")
+                console.print(f"{exc} while converting {arg!r}")
                 arg_str = "<unk>"
             arg_strs.append(arg_str)
         args_joined = shlex.join(arg_strs)
@@ -262,15 +273,11 @@ def n_unique(it: Iterable[Hashable]) -> int:
     return len(set(it))
 
 
-_system_nix_path_str = shutil.which("nix")
-if _system_nix_path_str is None:
-    _system_nix_path = pathlib.Path(__file__).resolve().parent / "result/bin/nix"
-    if not _system_nix_path.exists():
-        raise ValueError("Please add nix to the $PATH or run `nix build .#env`")
-else:
-    _system_nix_path = pathlib.Path(_system_nix_path_str)
+_system_nix_path = shutil.which("nix")
+if _system_nix_path is None:
+    raise ValueError("Please add `nix` to the $PATH")
 _project_nix_path = check_returncode(subprocess.run(
-    [str(_system_nix_path), "shell", ".#which", ".#nix", "--command", "which", "nix"],
+    [_system_nix_path, "shell", ".#which", ".#nix", "--command", "which", "nix"],
     env=cast(Mapping[str, str], {}),
     capture_output=True,
     text=True,
@@ -290,3 +297,77 @@ def get_nix_env(packages: list[str]) -> Mapping[str, str]:
         )).stdout)
     else:
         return {}
+
+
+def raise_(exception: Exception) -> typing.NoReturn:
+    raise exception
+
+
+def dir_size(dir: pathlib.Path) -> int:
+    return sum([
+        dir_size(child) if child.is_dir() else child.stat().st_size
+        for child in dir.iterdir()
+    ])
+
+
+def print_rich_table(
+        title: str | None,
+        columns: typing.Sequence[str],
+        rows: typing.Sequence[typing.Sequence[typing.Any]],
+) -> rich.table.Table:
+    """Functional wrapper around rich.table.Table"""
+    table = rich.table.Table(*columns, title=title)
+    for row in rows:
+        table.add_row(*[
+            cell if isinstance(cell, str) else str(cell)
+            for cell in row
+        ])
+    console.print(table)
+    return table
+
+
+progress = rich.progress.Progress(
+    rich.progress.TextColumn("[progress.description]{task.description}"),
+    rich.progress.BarColumn(),
+    rich.progress.TaskProgressColumn(show_speed=True),
+    rich.progress.TimeElapsedColumn(),
+    rich.progress.TimeRemainingColumn(),
+    rich.progress.MofNCompleteColumn(),
+    console=console,
+    speed_estimate_period=60 * 60, # in seconds
+)
+
+
+_T_contra = TypeVar("_T_contra", contravariant=True)
+
+
+class SupportsDunderLT(typing.Protocol[_T_contra]):
+    def __lt__(self, __other: _T_contra) -> bool: ...
+
+
+class SupportsDunderGT(typing.Protocol[_T_contra]):
+    def __gt__(self, __other: _T_contra) -> bool: ...
+
+
+SupportsRichComparison: typing.TypeAlias = SupportsDunderLT[typing.Any] | SupportsDunderGT[typing.Any]
+SupportsRichComparisonT = typing.TypeVar("SupportsRichComparisonT", bound=SupportsRichComparison)
+
+
+
+def fmt_bytes(bm: bitmath.Bitmath | int, d: int = 0) -> str:
+    if isinstance(bm, int):
+        return fmt_bytes(bitmath.Byte(bm))
+    elif isinstance(bm, bitmath.Bitmath):
+        return bm.best_prefix().format(f"{{value:.{d}f}}{{unit}}")
+    else:
+        raise TypeError(f"{bm}: {type(bm).__name__}")
+
+
+def last_sentinel(it: Iterable[_T]) -> Iterator[tuple[bool, _T]]:
+    is_first = True
+    for elem in it:
+        if not is_first:
+            yield False, tmp
+        tmp = elem
+        is_first = False
+    yield True, tmp
