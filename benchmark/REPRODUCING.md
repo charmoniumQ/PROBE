@@ -57,8 +57,8 @@ For the paper, we ran
 
 ```sh
 $ ./runner.py \
-    --collectors fast \
-    --workloads all \
+    --collectors run-for-usenix \
+    --workloads run-for-usenix \
     --iterations 5 \
     --verbose
 ```
