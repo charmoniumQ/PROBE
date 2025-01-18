@@ -3,10 +3,10 @@
   inputs.nixos-q-chem.url = "github:Nix-QChem/NixOS-QChem";
   outputs = {
     self,
-      nixpkgs,
-      flake-utils,
-      nixos-q-chem,
-      ...
+    nixpkgs,
+    flake-utils,
+    nixos-q-chem,
+    ...
   } @ inputs:
     flake-utils.lib.eachDefaultSystem (
       system: let
@@ -18,9 +18,9 @@
           });
         removePackage = drv: pkgsToRemove:
           drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {
-            name = pkgToRemove;
-            value = null;
-          })
+              name = pkgToRemove;
+              value = null;
+            })
             pkgsToRemove));
         renameInDrv = drv: oldFile: newFile:
           pkgs.runCommand "${drv.name}-renamed" {} ''
@@ -78,9 +78,9 @@
             # https://github.com/depaul-dice/sciunit/blob/4c8011ddbf4f8ca7da6b987572d6de56d70661dc/CMakeLists.txt
           ];
           installPhase = ''
-              install -d $out/bin
-              install -t $out/bin demo/vv demo/dump_blocks
-            '';
+            install -d $out/bin
+            install -t $out/bin demo/vv demo/dump_blocks
+          '';
         };
         scripter = pkgs.stdenv.mkDerivation rec {
           pname = "scripter";
@@ -93,9 +93,9 @@
           };
           nativeBuildInputs = [pkgs.cmake];
           installPhase = ''
-              install -d $out/bin
-              install -t $out/bin scripter
-            '';
+            install -d $out/bin
+            install -t $out/bin scripter
+          '';
         };
         utcdatetime = python.pkgs.buildPythonPackage rec {
           pname = "utcdatetime";
@@ -178,7 +178,7 @@
             url = "http://www.astropy.org/astropy-data/l1448/l1448_13co.fits";
             hash = "sha256-3k1EzShB00z+mJFasyL4PjAvE7lZnvhikHkknlOtbUk=";
           };
-          kaggle-notebook-env = (python.withPackages (pypkgs: [
+          kaggle-notebook-env = python.withPackages (pypkgs: [
             pypkgs.pandas
             pypkgs.tqdm
             pypkgs.matplotlib
@@ -191,7 +191,7 @@
             pypkgs.numpy
             pypkgs.umap-learn
             (noPytest pypkgs.hdbscan)
-          ]));
+          ]);
           kaggle-notebook-titanic-0 = pkgs.stdenv.mkDerivation {
             name = "kaggle-notebook-titanic-0";
             src = ./kaggle/titanic-tutorial.ipynb;
@@ -246,7 +246,7 @@
           kaggle-data-titanic = pkgs.stdenv.mkDerivation {
             name = "kaggle-data-titanic";
             src = ./kaggle/titanic.zip;
-            buildInputs = [ pkgs.unzip ];
+            buildInputs = [pkgs.unzip];
             unpackPhase = ''
               mkdir source
               unzip $src -d source
@@ -260,7 +260,7 @@
           kaggle-data-house-prices = pkgs.stdenv.mkDerivation {
             name = "kaggle-data-house-prices";
             src = ./kaggle/house-prices.zip;
-            buildInputs = [ pkgs.unzip ];
+            buildInputs = [pkgs.unzip];
             unpackPhase = ''
               mkdir source
               unzip $src -d source
@@ -437,7 +437,7 @@
               rev = "701c6c35b0270d4634fb1dc5272721340322b8ed";
               hash = "sha256-2beIRh5ovjepZwUhO8qD1pR6czsdm+Z0y2raOcD8xmk=";
             };
-            buildInputs = [ pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils ];
+            buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
             patchPhase = ''
               sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
               sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS) -O"/g' src/Makefile
@@ -555,14 +555,14 @@
             installTargets = "install-care";
             postInstall = ''
               install -Dm644 doc/care/man.1 $out/share/man/man1/care.1
-              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.lzop ]}
+              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.lzop]}
             '';
             # proot provides tests with `make -C test` however they do not run in the sandbox
             doCheck = false;
           };
           nextflow = pkgs.nextflow;
           snakemake = pkgs.snakemake;
-          transformers-python = pkgs.python312.withPackages (pypkgs: [ pypkgs.setuptools ]);
+          transformers-python = pkgs.python312.withPackages (pypkgs: [pypkgs.setuptools]);
           transformers-src = pkgs.fetchFromGitHub {
             owner = "huggingface";
             repo = "transformers";
@@ -822,7 +822,7 @@
             ];
             # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
             doCheck = true;
-            pythonImportsCheck = [ "mandala" ];
+            pythonImportsCheck = ["mandala"];
           };
           all = pkgs.symlinkJoin {
             name = "all";
