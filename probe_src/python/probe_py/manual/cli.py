@@ -425,7 +425,9 @@ def ops_jsonl(
         ] = pathlib.Path("probe_log"),
 ) -> None:
     """
-    Export each op to a JSON line
+    Export each op to a JSON line.
+
+    The format is subject to change as PROBE evolves. Use with caution!
     """
     def filter_nested_dict(
             dct: typing.Mapping[typing.Any, typing.Any],
