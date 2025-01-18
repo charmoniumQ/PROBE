@@ -125,9 +125,12 @@
               python.pkgs.rich
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
+              python.pkgs.sqlalchemy
+              python.pkgs.pyyaml
             ];
             nativeCheckInputs = [
               python.pkgs.mypy
+              python.pkgs.types-pyyaml
               pkgs.ruff
             ];
             checkPhase = ''
