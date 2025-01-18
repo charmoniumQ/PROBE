@@ -1,6 +1,0 @@
-- [ ] Change provenance_collectors.py -> PROBE to have a count() function. count() should transcribe and dump the provenance log. It should import `probe_py.generated.parser`. We should convert the Ops to ProvOperation, and return a tuple of them from count().
-- [ ] We should change stats.py -> output_features() to use the `op_type_freqs` from PROBE instead of from strace. Unlike with strace, grouping is not required.
-- [ ] We should do a linear regression from `${x}_syscalls_per_sec` to `log_rel_overhead`. Compute the R^2 and mean squared error.
-- [ ] Do a PCA on `${x}_syscalls_per_sec`. Emit a formula for the first principle component. Compute the percent of explained variance.
-- [ ] Make a plot showing each trial. Show the first principle component on the x-axis, walltime on the y-axis, each dot is one trial. Also overlay a line which is the linear regression (as a function) applied to the first principle component (assuming the other components are zero).
-- [ ] As much as possible, seek to script the answer to the previous questions, so that when we get new data, the analysis can be repeated on the new data.
