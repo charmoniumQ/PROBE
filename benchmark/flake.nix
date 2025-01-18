@@ -431,16 +431,13 @@
           lmbench = pkgs.stdenv.mkDerivation {
             pname = "lmbench";
             version = "3.0.a9";
-            # src = pkgs.fetchzip {
-            #   url = "https://sourceforge.net/projects/lmbench/files/development/lmbench-3.0-a9/lmbench-3.0-a9.tgz";
-            #   hash = "sha256-vGS9f/oy9KjYqcdG0XOUUbPJCLw7hG4WpbNFcORzL6I=";
-            #   name = "lmbench";
-            # };
-            # sourceRoot = "lmbench";
-            # For some reason, this is not reliably downloadable; therefore, I will vendor a copy
-            src = ./lmbench-3.0-a9;
-            sourceRoot = "lmbench-3.0-a9";
-            buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
+            src = pkgs.fetchFromGitHub {
+              owner = "intel";
+              repo = "lmbench";
+              rev = "701c6c35b0270d4634fb1dc5272721340322b8ed";
+              hash = "sha256-2beIRh5ovjepZwUhO8qD1pR6czsdm+Z0y2raOcD8xmk=";
+            };
+            buildInputs = [ pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils ];
             patchPhase = ''
               sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
               sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS) -O"/g' src/Makefile
