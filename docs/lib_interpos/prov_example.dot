@@ -1,0 +1,19 @@
+strict digraph G {
+    nodesep=0.05;
+    ranksep=0.2;
+    node [fontsize=9, width=0.1, height=0.1];
+    //edge [len=0.1];
+
+    mainc [shape="oval" label="main.c"];
+    main [shape="oval" label="main"];
+    datacsv [shape="oval" label="data.csv"];
+    fig1png [shape="oval" label="fig1.png"];
+
+    link [shape="rect" label="gcc main.c -o main"];
+    runmain [shape="rect" label="./main -n data.csv fig1.png"];
+    curl [shape="rect" label="curl http://web.com/"];
+
+    mainc -> link -> main;
+    curl -> datacsv;
+    {main datacsv} -> runmain -> fig1png;
+}

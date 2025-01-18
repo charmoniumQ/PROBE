@@ -1,3 +1,16 @@
 .auctex-auto/
 photo-1.webp
 photo-2.jpg
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.xcp
+*.bbl
+*.bcf
+*.blg
+*.out
+*.run.xml
+*.tex
+*.svg
+svg-inkscape/

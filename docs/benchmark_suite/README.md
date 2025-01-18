@@ -377,8 +377,7 @@ Although we could reproduce ltrace, CDE, Sciunit, and PTU on _certain_ benchmark
 
 \begin{table}
 \caption{
-  Provenance collectors from our search results and from experience.
-  See \Cref{collection-methods} for their exact definition.
+  Provenance collectors and the methods they use from [@graysonBenchmarkSuitePerformance2024]
 }
 \label{tbl:tools}
 %\begin{minipage}{\columnwidth}
@@ -386,60 +385,52 @@ Although we could reproduce ltrace, CDE, Sciunit, and PTU on _certain_ benchmark
 \footnotesize
 \begin{tabular}{lll}
 \toprule
-Tool                                                               & Method                       & Status                     \\
+Tool                                                               & Method                       \\
 \midrule
-strace                                                             & tracing                      & Reproduced                 \\
-fsatrace                                                           & tracing                      & Reproduced                 \\
-rr \cite{ocallahanEngineeringRecordReplay2017}                     & tracing                      & Reproduced                 \\
-ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      & Reproduced                 \\
-CARE \cite{janinCAREComprehensiveArchiver2014}                     & tracing                      & Reproduced                 \\
-Sciunit \cite{phamUsingProvenanceRepeatability2013}                & tracing                      & Reproduced/rejected        \\
-PTU \cite{phamUsingProvenanceRepeatability2013}                    & tracing                      & Reproduced/rejected        \\
-CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      & Reproduced/rejected        \\
-ltrace                                                             & tracing                      & Reproduced/rejected        \\
-SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, or compile-time   & Needs more time            \\
-DTrace \cite{DTrace}                                               & audit                        & Needs more time            \\
-eBPF/bpftrace                                                      & audit                        & Needs more time            \\
-SystemTap \cite{prasadLocatingSystemProblems2005}                  & audit                        & Needs more time            \\
-PROV-IO \cite{hanPROVIOOCentricProvenance2022}                     & lib. ins.                    & Needs more time            \\
-OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & lib. ins.                    & Not reproducible           \\
-CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kernel ins.                  & Requires custom kernel     \\
-Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kernel ins.                  & Requires custom kernel     \\
-LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & kernel ins.                  & Requires custom kernel     \\
-Arnold\cite{devecseryEideticSystems2014}                           & kern ins.                    & Requires custom kernel     \\
-LPS \cite{daiLightweightProvenanceService2017}                     & kern ins.                    & Requires custom kernel     \\
-RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & tracing                      & No source                  \\
-FiPS \cite{sultanaFileProvenanceSystem2013}                        & FS                           & No source                  \\
-Namiki et al. \cite{namikiMethodConstructingResearch2023}          & audit                        & No source                  \\
-LPROV \cite{wangLprovPracticalLibraryaware2018}                    & kernel mod., lib. ins.       & No source                  \\
-S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & kernel mod.                  & No source                  \\
-ProTracer \cite{maProTracerPracticalProvenance2016}                & kernel mod.                  & No source                  \\
-PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & kernel ins., FS              & No source                  \\
-PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & kernel ins., FS, lib. ins.   & No source                  \\
-PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & kernel ins.                  & No source                  \\
-Lineage FS \cite{sarLineageFileSystem}                             & kernel ins.                  & No source                  \\
-RTAG \cite{jiEnablingRefinableCrossHost2018}                       & bin. ins.                    & No source                  \\
-BEEP \cite{leeHighAccuracyAttack2017}                              & bin. ins.                    & Requires HW                \\
-libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & bin., kernel, lib. ins.      & Requires HW                \\
-RAIN \cite{jiRAINRefinableAttack2017}                              & bin. ins.                    & Requires HW                \\
-DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & compile-time ins.            & Requires HW                \\
-MPI\cite{maMPIMultiplePerspective2017}                             & compile-time ins.            & Requires recompilation     \\
-LDX \cite{kwonLDXCausalityInference2016}                           & VM ins.                      & Requires recompilation     \\
-Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VM ins.                      & VMs are too slow           \\
-PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & audit                        & VMs are too slow           \\
-ETW \cite{EventTracingWin322021}                                   & audit                        & Not for Linux              \\
-Sysmon \cite{markrussSysmonSysinternals2023}                       & audit                        & Not for Linux              \\
-TREC \cite{vahdatTransparentResultCaching1998}                     & tracing                      & Not for Linux              \\
-URSprung \cite{rupprechtImprovingReproducibilityData2020}          & audit                        & Not for Linux\footnotemark \\
-Ma et al. \cite{maAccurateLowCost2015}                             & audit                        & Not for Linux              \\
-ULTra \cite{burtonWorkloadCharacterizationUsing1998}               & tracing                      & Not for Linux              \\
+strace                                                             & tracing                      \\
+rr \cite{ocallahanEngineeringRecordReplay2017}                     & tracing                      \\
+ReproZip \cite{chirigatiReproZipComputationalReproducibility2016}  & tracing                      \\
+CARE \cite{janinCAREComprehensiveArchiver2014}                     & tracing                      \\
+Sciunit \cite{phamUsingProvenanceRepeatability2013}                & tracing                      \\
+PTU \cite{phamUsingProvenanceRepeatability2013}                    & tracing                      \\
+CDE \cite{guoCDEUsingSystem2011}                                   & tracing                      \\
+ltrace                                                             & tracing                      \\
+SPADE \cite{gehaniSPADESupportProvenance2012}                      & audit, FS, or recompile      \\
+DTrace \cite{DTrace}                                               & audit                        \\
+eBPF/bpftrace                                                      & audit                        \\
+SystemTap \cite{prasadLocatingSystemProblems2005}                  & audit                        \\
+PROV-IO \cite{hanPROVIOOCentricProvenance2022}                     & lib. interp                  \\
+OPUS \cite{balakrishnanOPUSLightweightSystem2013}                  & lib. interp                  \\
+CamFlow \cite{pasquierPracticalWholesystemProvenance2017}          & kern ins.                    \\
+Hi-Fi \cite{pohlyHiFiCollectingHighfidelity2012}                   & kern ins.                    \\
+LPM/ProvMon \cite{batesTrustworthyWholeSystemProvenance2015}       & kern ins.                    \\
+Arnold\cite{devecseryEideticSystems2014}                           & kern ins.                    \\
+LPS \cite{daiLightweightProvenanceService2017}                     & kern ins.                    \\
+RecProv \cite{jiRecProvProvenanceAwareUser2016}                    & tracing                      \\
+FiPS \cite{sultanaFileProvenanceSystem2013}                        & FS                           \\
+Namiki et al. \cite{namikiMethodConstructingResearch2023}          & audit                        \\
+LPROV \cite{wangLprovPracticalLibraryaware2018}                    & kernel mod., lib. interp     \\
+S2Logger \cite{suenS2LoggerEndtoEndData2013}                       & kernel mod.                  \\
+ProTracer \cite{maProTracerPracticalProvenance2016}                & kernel mod.                  \\
+PANDDE \cite{fadolalkarimPANDDEProvenancebasedANomaly2016}         & kernel ins., FS              \\
+PASS/Pasta \cite{muniswamy-reddyProvenanceAwareStorageSystems2006} & kernel ins., FS, lib. interp \\
+PASSv2/Lasagna \cite{muniswamy-reddyLayeringProvenanceSystems2009} & kernel ins.                  \\
+Lineage FS \cite{sarLineageFileSystem}                             & kernel ins.                  \\
+RTAG \cite{jiEnablingRefinableCrossHost2018}                       & bin. ins.                    \\
+BEEP \cite{leeHighAccuracyAttack2017}                              & bin. ins.                    \\
+libdft \cite{kemerlisLibdftPracticalDynamic2012}                   & bin., kernel, lib. interp    \\
+RAIN \cite{jiRAINRefinableAttack2017}                              & bin. ins.                    \\
+DataTracker \cite{stamatogiannakisLookingBlackBoxCapturing2015}    & recompile ins.               \\
+MPI\cite{maMPIMultiplePerspective2017}                             & recompile ins.               \\
+LDX \cite{kwonLDXCausalityInference2016}                           & VM                           \\
+Panorama \cite{yinPanoramaCapturingSystemwide2007}                 & VM                           \\
+PROV-Tracer \cite{stamatogiannakisDecouplingProvenanceCapture2015} & audit                        \\
 \bottomrule
 \end{tabular}
 \normalsize
 \end{center}
 %\end{minipage}
 \end{table}
-\footnotetext{URSprung depends on IBM Spectrum Scale to get directory change notifications, so it is not for a \textit{generic} Linux system.}
 
 <!--
 | Tool                                                  | Reason                                                          |

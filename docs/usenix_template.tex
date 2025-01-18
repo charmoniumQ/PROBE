@@ -1,0 +1,151 @@
+% https://www.usenix.org/sites/default/files/usenix2019_v3.1.tex
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Template for USENIX papers.
+%
+% History:
+%
+% - TEMPLATE for Usenix papers, specifically to meet requirements of
+%   USENIX '05. originally a template for producing IEEE-format
+%   articles using LaTeX. written by Matthew Ward, CS Department,
+%   Worcester Polytechnic Institute. adapted by David Beazley for his
+%   excellent SWIG paper in Proceedings, Tcl 96. turned into a
+%   smartass generic template by De Clarke, with thanks to both the
+%   above pioneers. Use at your own risk. Complaints to /dev/null.
+%   Make it two column with no page numbering, default is 10 point.
+%
+% - Munged by Fred Douglis <douglis@research.att.com> 10/97 to
+%   separate the .sty file from the LaTeX source template, so that
+%   people can more easily include the .sty file into an existing
+%   document. Also changed to more closely follow the style guidelines
+%   as represented by the Word sample file.
+%
+% - Note that since 2010, USENIX does not require endnotes. If you
+%   want foot of page notes, don't include the endnotes package in the
+%   usepackage command, below.
+% - This version uses the latex2e styles, not the very ancient 2.09
+%   stuff.
+%
+% - Updated July 2018: Text block size changed from 6.5" to 7"
+%
+% - Updated Dec 2018 for ATC'19:
+%
+%   * Revised text to pass HotCRP's auto-formatting check, with
+%     hotcrp.settings.submission_form.body_font_size=10pt, and
+%     hotcrp.settings.submission_form.line_height=12pt
+%
+%   * Switched from \endnote-s to \footnote-s to match Usenix's policy.
+%
+%   * \section* => \begin{abstract} ... \end{abstract}
+%
+%   * Make template self-contained in terms of bibtex entires, to allow
+%     this file to be compiled. (And changing refs style to 'plain'.)
+%
+%   * Make template self-contained in terms of figures, to
+%     allow this file to be compiled.
+%
+%   * Added packages for hyperref, embedding fonts, and improving
+%     appearance.
+%
+%   * Removed outdated text.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[letterpaper,twocolumn,10pt]{article}
+
+% See https://github.com/jgm/pandoc/blob/main/data/templates/default.latex
+
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{usenix}
+\usepackage{amsmath}
+\usepackage{calc}
+\usepackage{printlen}
+\usepackage{textcomp} % provide euro and other symbols
+% \usepackage{lmodern}
+\usepackage{cleveref}
+\usepackage{physics}
+\usepackage{enumitem}
+\usepackage{longtable}
+%\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{relsize}
+\usepackage{etoolbox}
+\usepackage{csquotes}
+\usepackage{bookmark}
+%\usepackage{xurl}
+\usepackage{svg}
+\usepackage[normalem]{ulem}
+$if(linestretch)$\usepackage{setspace}$endif$
+$if(verbatim-in-note)$\usepackage{fancyvrb}$endif$
+$if(listings)$\usepackage{listings}$endif$
+$if(verbatim-in-note)$\usepackage{fancyvrb}$endif$
+
+$if(highlighting-macros)$$highlighting-macros$$endif$
+
+% \usepackage{bibcop}
+
+\RequirePackage[l2tabu, orthodox]{nag}
+
+\usepackage{graphicx}
+
+% avoid problems with \sout in headers with hyperref:
+\pdfstringdefDisableCommands{\renewcommand{\sout}{}}
+
+%\setlength{\emergencystretch}{3em} % prevent overfull lines
+%\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\tightlist}{}
+% \setlist{topsep=0pt, leftmargin=*}
+% \setitemize{noitemsep,topsep=0pt,parsep=0pt,partopsep=0pt}
+
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+\newcommand{\bibliofont}{\footnotesize}
+
+% Gets rid of microtype warning:
+\microtypecontext{spacing=nonfrench}
+
+\RequirePackage[
+  datamodel=acmdatamodel,
+  style=acmnumeric, % use style=acmauthoryear for publications that require it
+]{biblatex}
+$for(bibliography)$
+\addbibresource{$bibliography$}
+$endfor$
+
+%don't want date printed
+\date{}
+
+% make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{\Large \textbf{$title$}}
+
+$if(anonymous)$
+\author{(Anonymous)}
+$else$
+\author{
+$for(author)$
+{\textrm{$author.name$}}\\
+$if(author.affiliation)$$author.affiliation.institution$$endif$$sep$
+\and
+$endfor$
+}
+$endif$
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+$abstract$
+\end{abstract}
+
+$if(abstract_only)$
+$else$
+
+$body$
+
+$endif$
+
+\end{document}
