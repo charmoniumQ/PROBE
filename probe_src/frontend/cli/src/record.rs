@@ -19,14 +19,23 @@ pub fn record_no_transcribe(
     overwrite: bool,
     gdb: bool,
     debug: bool,
-    copy_files: bool,
+    copy_files_eagerly: bool,
+    copy_files_lazily: bool,
     cmd: Vec<OsString>,
 ) -> Result<()> {
+    let cwd = PathBuf::from(".");
     let output = match output {
-        Some(x) => fs::canonicalize(x).wrap_err("Failed to canonicalize record directory path")?,
-        None => std::env::current_dir()
-            .wrap_err("Failed to get CWD")?
-            .join("probe_record"),
+        Some(x) => {
+            let path: &Path = x.as_ref();
+            let path_parent = path.parent().unwrap_or(&cwd);
+            let dir_name = path.file_name().unwrap();
+            fs::canonicalize(path_parent).wrap_err("Failed to canonicalize record directory path")?.join(dir_name)
+        },
+        None => {
+            let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
+            output.push("probe_record");
+            output
+        },
     };
 
     if overwrite {
@@ -43,7 +52,8 @@ pub fn record_no_transcribe(
     Recorder::new(cmd, record_dir)
         .gdb(gdb)
         .debug(debug)
-        .copy_files(copy_files)
+        .copy_files_eagerly(copy_files_eagerly)
+        .copy_files_lazily(copy_files_lazily)
         .record()?;
 
     Ok(())
@@ -55,7 +65,8 @@ pub fn record_transcribe(
     overwrite: bool,
     gdb: bool,
     debug: bool,
-    copy_files: bool,
+    copy_files_eagerly: bool,
+    copy_files_lazily: bool,
     cmd: Vec<OsString>,
 ) -> Result<()> {
     let output = match output {
@@ -78,7 +89,8 @@ pub fn record_transcribe(
     )
     .gdb(gdb)
     .debug(debug)
-    .copy_files(copy_files)
+    .copy_files_eagerly(copy_files_eagerly)
+    .copy_files_lazily(copy_files_lazily)
     .record()?;
 
     match transcribe::transcribe(&record_dir, &mut tar) {
@@ -102,7 +114,8 @@ pub fn record_transcribe(
 pub struct Recorder {
     gdb: bool,
     debug: bool,
-    copy_files: bool,
+    copy_files_eagerly: bool,
+    copy_files_lazily: bool,
 
     output: Dir,
     cmd: Vec<OsString>,
@@ -149,8 +162,10 @@ impl Recorder {
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__gdb-exec-shim")
-                .args(if self.copy_files {
-                    std::vec!["--copy-files"]
+                .args(if self.copy_files_eagerly {
+                    std::vec!["--copy-files-eagerly"]
+                } else if self.copy_files_lazily {
+                    std::vec!["--copy-files-lazily"]
                 } else {
                     std::vec![]
                 })
@@ -170,7 +185,7 @@ impl Recorder {
                 .args(self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
-                .env("__PROBE_COPY_FILES", if self.copy_files { "1" } else { "" })
+                .env("__PROBE_COPY_FILES", if self.copy_files_lazily { "lazy" } else if self.copy_files_eagerly { "eager" } else { "" } )
                 .env("__PROBE_DIR", self.output.path())
                 .env("LD_PRELOAD", ld_preload)
                 .spawn()
@@ -236,7 +251,8 @@ impl Recorder {
         Self {
             gdb: false,
             debug: false,
-            copy_files: false,
+            copy_files_eagerly: false,
+            copy_files_lazily: false,
             output,
             cmd,
         }
@@ -255,8 +271,14 @@ impl Recorder {
     }
 
     /// Set if probe should copy files needed to re-execute.
-    pub fn copy_files(mut self, copy_files: bool) -> Self {
-        self.copy_files = copy_files;
+    pub fn copy_files_eagerly(mut self, copy_files_eagerly: bool) -> Self {
+        self.copy_files_eagerly = copy_files_eagerly;
+        self
+    }
+
+    /// Set if probe should copy files needed to re-execute.
+    pub fn copy_files_lazily(mut self, copy_files_lazily: bool) -> Self {
+        self.copy_files_lazily = copy_files_lazily;
         self
     }
 }
