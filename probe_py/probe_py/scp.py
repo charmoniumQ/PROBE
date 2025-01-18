@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 import itertools
 import subprocess
-from probe_py.manual.remote_access import Host, HostPath, copy_provenance
+from probe_py.remote_access import Host, HostPath, copy_provenance
 
 
 def scp_with_provenance(scp_args: list[str]) -> int:

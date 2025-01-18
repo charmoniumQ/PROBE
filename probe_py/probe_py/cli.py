@@ -6,7 +6,7 @@ import pathlib
 import subprocess
 import shutil
 import rich
-from probe_py.manual.scp import scp_with_provenance
+from probe_py.scp import scp_with_provenance
 import os
 import typer
 import tempfile
