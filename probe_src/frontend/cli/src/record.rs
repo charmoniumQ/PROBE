@@ -29,13 +29,15 @@ pub fn record_no_transcribe(
             let path: &Path = x.as_ref();
             let path_parent = path.parent().unwrap_or(&cwd);
             let dir_name = path.file_name().unwrap();
-            fs::canonicalize(path_parent).wrap_err("Failed to canonicalize record directory path")?.join(dir_name)
-        },
+            fs::canonicalize(path_parent)
+                .wrap_err("Failed to canonicalize record directory path")?
+                .join(dir_name)
+        }
         None => {
             let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
             output.push("probe_record");
             output
-        },
+        }
     };
 
     if overwrite {
@@ -185,7 +187,16 @@ impl Recorder {
                 .args(self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
-                .env("__PROBE_COPY_FILES", if self.copy_files_lazily { "lazy" } else if self.copy_files_eagerly { "eager" } else { "" } )
+                .env(
+                    "__PROBE_COPY_FILES",
+                    if self.copy_files_lazily {
+                        "lazy"
+                    } else if self.copy_files_eagerly {
+                        "eager"
+                    } else {
+                        ""
+                    },
+                )
                 .env("__PROBE_DIR", self.output.path())
                 .env("LD_PRELOAD", ld_preload)
                 .spawn()
