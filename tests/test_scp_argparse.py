@@ -1,6 +1,6 @@
 import pathlib
-from probe_py.manual.remote_access import Host, HostPath
-from probe_py.manual.scp import parse_scp_args
+from probe_py.remote_access import Host, HostPath
+from probe_py.scp import parse_scp_args
 
 
 def test_parse_scp_args() -> None:

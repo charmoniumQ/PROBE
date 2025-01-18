@@ -1,6 +1,6 @@
 import dataclasses
 
-from probe_py.manual.persistent_provenance import (
+from probe_py.persistent_provenance import (
     Inode,
     InodeVersion,
     InodeMetadata,

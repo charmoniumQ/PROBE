@@ -8,8 +8,8 @@ from datetime import datetime
 class Base(DeclarativeBase):
     pass
 
-_engine = None
-def get_engine()->Engine:
+_engine: Engine | None = None
+def get_engine() -> Engine:
     global _engine
     if _engine is None:
         home = pathlib.Path(xdg_base_dirs.xdg_data_home())
