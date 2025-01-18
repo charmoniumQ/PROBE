@@ -429,13 +429,18 @@ def ops_jsonl(
 
     The format is subject to change as PROBE evolves. Use with caution!
     """
+
     def filter_nested_dict(
             dct: typing.Mapping[typing.Any, typing.Any],
     ) -> typing.Mapping[typing.Any, typing.Any]:
+        """Converts the bytes in a nested dict to a string"""
         return {
             key: (
+                # If dict, Recurse self
                 filter_nested_dict(val) if isinstance(val, dict) else
+                # If bytes, decode to string
                 val.decode(errors="surrogateescape") if isinstance(val, bytes) else
+                # Else, do nothing
                 val
             )
             for key, val in dct.items()
