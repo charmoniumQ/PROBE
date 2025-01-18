@@ -15,10 +15,10 @@ dynamic = ["version", "description"]
 dependencies = [
     "probe_py.generated",
     "networkx",
-    "pygraphviz",
     "pydot",
     "rich",
     "typer",
+    "xdg-base-dirs"
 ]
 
 [project.urls]
