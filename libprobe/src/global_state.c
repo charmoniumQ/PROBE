@@ -211,14 +211,16 @@ static int get_inodes_dirfd() {
 
 static __thread struct ArenaDir __op_arena = { 0 };
 static __thread struct ArenaDir __data_arena = { 0 };
+static __thread struct ArenaDir __symlink_arena = { 0 };
 static const size_t prov_log_arena_size = 64 * 1024;
 static void init_log_arena() {
     assert(!arena_is_initialized(&__op_arena));
     assert(!arena_is_initialized(&__data_arena));
     DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", __probe_dir, getpid(), get_exec_epoch(), my_gettid(), true);
     int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), NULL, my_gettid(), true, false);
-    EXPECT( == 0, arena_create(&__op_arena, thread_dirfd, "ops", prov_log_arena_size));
-    EXPECT( == 0, arena_create(&__data_arena, thread_dirfd, "data", prov_log_arena_size));
+    EXPECT( == 0, arena_create(&__op_arena     , thread_dirfd, "ops"     , prov_log_arena_size));
+    EXPECT( == 0, arena_create(&__data_arena   , thread_dirfd, "data"    , prov_log_arena_size));
+    EXPECT( == 0, arena_create(&__symlink_arena, thread_dirfd, "symlinks", prov_log_arena_size));
 }
 static struct ArenaDir* get_op_arena() {
     assert(arena_is_initialized(&__op_arena));
@@ -227,6 +229,10 @@ static struct ArenaDir* get_op_arena() {
 static struct ArenaDir* get_data_arena() {
     assert(arena_is_initialized(&__data_arena));
     return &__data_arena;
+}
+static struct ArenaDir* get_symlink_arena() {
+    assert(arena_is_initialized(&__symlink_arena));
+    return &__symlink_arena;
 }
 
 char* _DEFAULT_PATH = NULL;

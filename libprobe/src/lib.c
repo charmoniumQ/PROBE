@@ -45,6 +45,11 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 
 static void maybe_init_thread();
 static void reinit_process();
+/*
+** TODO: Remove disable/enable
+** We always call unwrapped_syscall in libprobe
+** So we don't need to disable library first.
+*/
 static void prov_log_disable();
 static int get_exec_epoch_safe();
 static bool __process_inited = false;

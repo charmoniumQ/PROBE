@@ -228,9 +228,9 @@ def file_closure(
     out_console = rich.console.Console()
     with parse_probe_log_ctx(probe_log) as prov_log:
         closure = file_closure_mod.get_file_closure(prov_log)
-        for resolved_path, maybe_path in closure:
-            if maybe_path and show_metadata:
-                out_console.print(resolved_path, maybe_path)
+        for resolved_path, path_metadata, path_copy in closure:
+            if path_metadata and show_metadata:
+                out_console.print(resolved_path, path_metadata, path_copy, path_copy.stat() if path_copy else None)
             else:
                 out_console.print(resolved_path)
 

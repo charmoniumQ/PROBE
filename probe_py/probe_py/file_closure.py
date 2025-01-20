@@ -131,7 +131,7 @@ def build_oci_image(
                 text=True,
             )
 
-        cmd = ["buildah", "rm", image_name]
+        cmd = ["buildah", "rm", container_id]
         if verbose:
             console.log(shlex.join(cmd))
         subprocess.run(
@@ -144,7 +144,7 @@ def build_oci_image(
 
 def get_file_closure(
         prov_log: ProvLog,
-) -> list[tuple[pathlib.Path, Path | None]]:
+) -> list[tuple[pathlib.Path, Path | None, pathlib.Path | None]]:
     """
     Return a list of paths read by the executable
     """
@@ -195,7 +195,21 @@ def get_file_closure(
         for dependent_dlib in dependent_dlibs:
             closure[pathlib.Path(dependent_dlib)] = None
 
-    return list(closure.items())
+    return [
+        (
+            path,
+            path_metadata,
+            prov_log.inodes.get(InodeVersionLog(
+                path_metadata.device_major,
+                path_metadata.device_minor,
+                path_metadata.inode,
+                path_metadata.mtime.sec,
+                path_metadata.mtime.nsec,
+                path_metadata.size,
+            )) if path_metadata is not None else None,
+        )
+        for path, path_metadata in closure.items()
+    ]
 
 
 def copy_file_closure(

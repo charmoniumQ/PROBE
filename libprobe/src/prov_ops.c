@@ -1,17 +1,9 @@
 static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
     if (likely(prov_log_is_enabled())) {
-        struct Path ret = {
-            dirfd - AT_FDCWD,
-            (path != NULL ? EXPECT_NONNULL(arena_strndup(get_data_arena(), path, PATH_MAX)) : NULL),
-            -1,
-            -1,
-            -1,
-            {0},
-            {0},
-            0,
-            false,
-            true,
-        };
+        struct Path ret = null_path;
+        ret.dirfd_minus_at_fdcwd = dirfd - AT_FDCWD;
+        ret.path = (path != NULL ? EXPECT_NONNULL(arena_strndup(get_data_arena(), path, PATH_MAX)) : NULL);
+        ret.dirfd_valid = true;
 
         /*
          * If path is empty string, AT_EMPTY_PATH should probably be set.
@@ -26,11 +18,12 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
         /*
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
-        prov_log_disable();
         struct statx statx_buf;
-        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
-        prov_log_enable();
+        flags = flags | AT_SYMLINK_NOFOLLOW | AT_STATX_DONT_SYNC;
+        int mask = STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE;
+        int stat_ret = unwrapped_statx(dirfd, path, flags, mask, &statx_buf);
         if (stat_ret == 0) {
+            ret.mode_and_type = statx_buf.stx_mode;
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
             ret.inode = statx_buf.stx_ino;
@@ -38,6 +31,9 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             ret.ctime = statx_buf.stx_ctime;
             ret.size = statx_buf.stx_size;
             ret.stat_valid = true;
+            if (statx_buf.stx_type & S_IFMT == S_IFLNK) {
+                link_deref(dirfd, path, &ret);
+            }
         } else {
             DEBUG("Stat of %d,%s is not valid", dirfd, path);
         }
@@ -46,6 +42,25 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
         DEBUG("prov log not enabled");
         return null_path;
     }
+}
+
+void link_deref(int dirfd, BORROWED const char* pathname, const Path* path) {
+    /* Some magic symlinks under (for example) /proc and /sys
+       report 'st_size' as zero. In that case, take PATH_MAX as
+       a "good enough" estimate. */
+    size_t symlink_size = path->size == 0 ? PATH_MAX : path->size + 1;
+    char* referent_pathname = EXPECT_NONNULL(arena_calloc(get_data_arena(), symlink_size, 1));
+    ssize_t readlink_ret = unwrapped_readlinkat(dirfd, path, referent_pathname, symlink_size);
+    assert(readlink_ret < symlink_size);
+    referent_pathname[readlink_ret] = '\0';
+    Path referent_path = create_path_lazy(dirfd, path, flags);
+    SymlinkInfo* info = EXPECT_NONNULL(arena_calloc(get_symlink_arena(), SymlinkInfo, 1));
+    /*
+    ** TODO: this path gest copied twice; once in ops and once in symlinks
+    */
+    info->src = path;
+    info->content = referent_pathname;
+    info->dst = referent_path;
 }
 
 void path_to_id_string(const struct Path* path, BORROWED char* string) {

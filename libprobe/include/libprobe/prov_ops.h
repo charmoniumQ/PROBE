@@ -1,6 +1,7 @@
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
     const char* path; /* path valid if non-null */
+    int16_t mode_and_type;
     dev_t device_major;
     dev_t device_minor;
     ino_t inode;
@@ -11,7 +12,13 @@ struct Path {
     bool dirfd_valid;
 };
 
-static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, false};
+struct SymlinkInfo {
+    const Path src;
+    const char* content;
+    const Path dst;
+}
+
+static const struct Path null_path = {-1, NULL, -1, -1, -1, -1, {0}, {0}, 0, false, false};
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 
