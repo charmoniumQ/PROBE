@@ -15,7 +15,7 @@ import rich.pretty
 from .parser import parse_probe_log, parse_probe_log_ctx
 from . import analysis
 from .workflows import MakefileGenerator, NextflowGenerator
-from . import file_closure
+from . import file_closure as file_closure_mod
 from . import graph_utils
 from .ssh_argparser import parse_ssh_args
 import enum
@@ -210,6 +210,31 @@ def debug_text(
         for ivl, path in sorted(prov_log.inodes.items()):
             out_console.print(f"device={ivl.device_major}.{ivl.device_minor} inode={ivl.inode} mtime={ivl.tv_sec}.{ivl.tv_nsec} -> {ivl.size} blob")
 
+
+@export_app.command()
+def file_closure(
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+        show_metadata: bool = typer.Option(
+            default=False,
+            help="Show captured file metadata",
+        ),
+) -> None:
+    """
+    Write a list of files read by the executable.
+    """
+    out_console = rich.console.Console()
+    with parse_probe_log_ctx(probe_log) as prov_log:
+        closure = file_closure_mod.get_file_closure(prov_log)
+        for resolved_path, maybe_path in closure:
+            if maybe_path and show_metadata:
+                out_console.print(resolved_path, maybe_path)
+            else:
+                out_console.print(resolved_path)
+
+
 @export_app.command()
 def docker_image(
         image_name: str,
@@ -217,7 +242,7 @@ def docker_image(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        verbose: bool = True,
+        verbose: bool = False,
 ) -> None:
     """Generate a docker image from a probe_log with --copy-files
 
@@ -241,7 +266,7 @@ def docker_image(
         if not prov_log.has_inodes:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
-        file_closure.build_oci_image(
+        file_closure_mod.build_oci_image(
             prov_log,
             image_name,
             True,
@@ -256,7 +281,7 @@ def oci_image(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        verbose: bool = True,
+        verbose: bool = False,
 ) -> None:
     """Generate an OCI image from a probe_log with --copy-files
 
@@ -275,7 +300,7 @@ def oci_image(
         if not prov_log.has_inodes:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
-        file_closure.build_oci_image(
+        file_closure_mod.build_oci_image(
             prov_log,
             image_name,
             False,

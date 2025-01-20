@@ -31,8 +31,10 @@ def build_oci_image(
         raise typer.Exit(code=1)
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
+        file_closure = get_file_closure(prov_log)
         copy_file_closure(
             prov_log,
+            file_closure,
             tmpdir,
             copy=True,
             verbose=verbose,
@@ -129,9 +131,76 @@ def build_oci_image(
                 text=True,
             )
 
+        cmd = ["buildah", "rm", image_name]
+        if verbose:
+            console.log(shlex.join(cmd))
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=not verbose,
+            text=True,
+        )
+
+
+def get_file_closure(
+        prov_log: ProvLog,
+) -> list[tuple[pathlib.Path, Path | None]]:
+    """
+    Return a list of paths read by the executable
+    """
+
+    closure = dict[pathlib.Path, Path | None]()
+    closure_exes = dict[pathlib.Path, Path | None]()
+    for pid, process in prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            root_pid = get_root_pid(prov_log)
+            if root_pid is None:
+                raise RuntimeError("Could not find root process; Are you sure this probe_log is valid?")
+            first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
+            if not isinstance(first_op, InitProcessOp):
+                raise RuntimeError("First op is not InitProcessOp. Are you sure this probe_log is valid?")
+            fds = {AT_FDCWD: pathlib.Path(first_op.cwd.path.decode())}
+            for tid, thread in exec_epoch.threads.items():
+                for op_no, op in enumerate(thread.ops):
+                    if isinstance(op.data, ChdirOp):
+                        path = op.data.path
+                        resolved_path = resolve_path(fds, path)
+                        fds[AT_FDCWD] = resolved_path
+                        assert resolved_path.is_absolute()
+                    elif isinstance(op.data, OpenOp):
+                        path = op.data.path
+                        if op.data.ferrno == 0:
+                            resolved_path = resolve_path(fds, path)
+                            fds[op.data.fd] = resolved_path
+                            closure[resolved_path] = path
+                    elif isinstance(op.data, ExecOp):
+                        path = op.data.path
+                        if op.data.ferrno == 0:
+                            resolved_path = resolve_path(fds, path)
+                            closure_exes[resolved_path] = path
+                    elif isinstance(op.data, CloseOp):
+                        for fd in range(op.data.low_fd, op.data.high_fd + 1):
+                            if fd in fds:
+                                del fds[fd]
+
+    shell = pathlib.Path(os.environ["SHELL"])
+    closure_exes[shell] = None
+
+    # For executables, we also have to use LDD to get the rqeuried dyn libs
+    # There is a task in tasks.md for pushing this into libprobe the same way we do for searching for executables on $PATH.
+    for resolved_path, maybe_path in closure_exes.items():
+        closure[resolved_path] = maybe_path
+        dependent_dlibs = set[str]()
+        _get_dlibs(resolved_path, dependent_dlibs)
+        for dependent_dlib in dependent_dlibs:
+            closure[pathlib.Path(dependent_dlib)] = None
+
+    return list(closure.items())
+
 
 def copy_file_closure(
         prov_log: ProvLog,
+        file_closure: list[tuple[pathlib.Path, Path | None]],
         destination: pathlib.Path,
         copy: bool,
         verbose: bool,
@@ -149,57 +218,7 @@ def copy_file_closure(
     `copy` refers to whether we should copy files from disk or symlink them.
     """
 
-    to_copy = dict[pathlib.Path, Path | None]()
-    to_copy_exes = dict[pathlib.Path, Path | None]()
-    for pid, process in prov_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            root_pid = get_root_pid(prov_log)
-            if root_pid is None:
-                console.print("Could not find root process; Are you sure this probe_log is valid?")
-                raise typer.Exit(code=1)
-            first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
-            if not isinstance(first_op, InitProcessOp):
-                console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
-                raise typer.Exit(code=1)
-            fds = {AT_FDCWD: pathlib.Path(first_op.cwd.path.decode())}
-            for tid, thread in exec_epoch.threads.items():
-                for op_no, op in enumerate(thread.ops):
-                    if isinstance(op.data, ChdirOp):
-                        path = op.data.path
-                        resolved_path = resolve_path(fds, path)
-                        fds[AT_FDCWD] = resolved_path
-                        if verbose:
-                            console.print(f"chdir {resolved_path}")
-                        assert resolved_path.is_absolute()
-                    elif isinstance(op.data, OpenOp):
-                        path = op.data.path
-                        if op.data.ferrno == 0:
-                            resolved_path = resolve_path(fds, path)
-                            fds[op.data.fd] = resolved_path
-                            to_copy[resolved_path] = path
-                    elif isinstance(op.data, ExecOp):
-                        path = op.data.path
-                        if op.data.ferrno == 0:
-                            resolved_path = resolve_path(fds, path)
-                            to_copy_exes[resolved_path] = path
-                    elif isinstance(op.data, CloseOp):
-                        for fd in range(op.data.low_fd, op.data.high_fd + 1):
-                            if fd in fds:
-                                del fds[fd]
-
-    shell = pathlib.Path(os.environ["SHELL"])
-    to_copy_exes[shell] = None
-
-    # For executables, we also have to use LDD to get the rqeuried dyn libs
-    # There is a task in tasks.md for pushing this into libprobe the same way we do for searching for executables on $PATH.
-    for resolved_path, maybe_path in to_copy_exes.items():
-        to_copy[resolved_path] = maybe_path
-        dependent_dlibs = set[str]()
-        _get_dlibs(resolved_path, dependent_dlibs)
-        for dependent_dlib in dependent_dlibs:
-            to_copy[pathlib.Path(dependent_dlib)] = None
-
-    for resolved_path, maybe_path in to_copy.items():
+    for resolved_path, maybe_path in file_closure:
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         if maybe_path is not None:

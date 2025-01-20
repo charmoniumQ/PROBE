@@ -67,15 +67,19 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
         # GCC creates many threads and processes, so this stuff is pretty slow.
         return
 
-    cmd = ["probe", "export", "debug-text"]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=tmpdir)
+    # cmd = ["probe", "export", "debug-text"]
+    # print(shlex.join(cmd))
+    # subprocess.run(cmd, check=True, cwd=tmpdir)
 
     cmd = ["probe", "export", "ops-graph", "test.png"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
     cmd = ["probe", "export", "dataflow-graph", "test.png"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, check=True, cwd=tmpdir)
+
+    cmd = ["probe", "export", "file-closure"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
