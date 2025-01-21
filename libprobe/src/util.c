@@ -66,26 +66,39 @@ static void __debug_stack_indent() {
         curr = curr->tail;
     }
 }
+static bool is_open(FILE* file) {
+    int stored_errno = errno;
+    errno = 0;
+    int ret = unwrapped_fcntl(fileno(file), F_GETFD) != -1 && errno == 0;
+    errno = stored_errno;
+    return ret;
+}
 #define DEBUG(...) ({ \
+    if (is_open(stderr)) { \
     __debug_stack_indent(); \
     __LOG_PID(); \
     __LOG_SOURCE(); \
     fprintf(stderr, __VA_ARGS__); \
     fprintf(stderr, "\n"); \
+    } \
 })
 #define ENTER(op, ...) ({ \
+    if (is_open(stderr)) { \
     __debug_stack_indent(); \
     __LOG_PID(); \
     __LOG_SOURCE(); \
     fprintf(stderr, "> %s\n", op); \
     __debug_stack_enter(op); \
+    } \
 })
 #define EXIT(op) ({ \
+    if (is_open(stderr)) { \
     __debug_stack_exit(op); \
     __debug_stack_indent(); \
     __LOG_PID(); \
     __LOG_SOURCE(); \
     fprintf(stderr, "< %s\n", op); \
+    } \
 })
 #else
 #define DEBUG(...)
