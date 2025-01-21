@@ -555,6 +555,6 @@ def provlog_to_process_tree(prov_log: parser.ProvLog) -> nx.DiGraph:
         for child_pid in children:
             if not G.has_node(child_pid):
                 G.add_node(child_pid, label=f"Process {child_pid}")
-            G.add_edge(child_pid, parent_pid)
+            G.add_edge(parent_pid, child_pid)
 
     return G
