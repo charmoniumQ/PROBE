@@ -329,7 +329,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="DEBUG"),
             args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value='"' + func.name + '(...)"'),
+                pycparser.c_ast.Constant(type="string", value='"vvv ' + func.name + '(...)"'),
             ]),
         ),
     ]
@@ -401,6 +401,20 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     else:
         call_stmts = expect_type(Compound, call_stmts_block.init).block_items
 
+    call_stmts.insert(0, pycparser.c_ast.FuncCall(
+        name=pycparser.c_ast.ID(name="DEBUG"),
+        args=pycparser.c_ast.ExprList(exprs=[
+            pycparser.c_ast.Constant(type="string", value='"vvv ' + func.name + ' calling real %p"'),
+            pycparser.c_ast.ID(name=func_prefix + func.name),
+        ]),
+    ))
+    call_stmts.append(pycparser.c_ast.FuncCall(
+        name=pycparser.c_ast.ID(name="DEBUG"),
+        args=pycparser.c_ast.ExprList(exprs=[
+            pycparser.c_ast.Constant(type="string", value='"^^^ ' + func.name + ' calling real"'),
+        ]),
+    ))
+
     save_errno = define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno"))
     restore_errno = Assignment(
         op='=',
@@ -408,6 +422,15 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         rvalue=pycparser.c_ast.ID(name="saved_errno"),
     )
 
+    post_call_stmts.append(pycparser.c_ast.FuncCall(
+        name=pycparser.c_ast.ID(name="DEBUG"),
+        args=pycparser.c_ast.ExprList(exprs=[
+            pycparser.c_ast.Constant(type="string", value='"^^^ ' + func.name + '(...)"'),
+        ]),
+    ))
+
+    # If we are doing post call operations,
+    # make sure to save/restore errno so caller doesn't know
     if post_call_stmts:
         post_call_stmts.insert(0, save_errno)
         post_call_stmts.append(restore_errno)

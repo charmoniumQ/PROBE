@@ -174,14 +174,26 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
 }
 
 fn convert_bindgen_type(ty: &syn::Type) -> MacroResult<syn::Type> {
+    let ty_str = format!("Bindgen unsupported type: {:?}", ty);
+    let error = quote_spanned! {
+        ty.span() => compile_error!(#ty_str);
+    };
     match ty {
         // single pointers are treated as recorded as null-terminated byte-strings (as CString),
         // double pointers are treated as null-terminated arrays of null-terminated byte-strings
         // (as Vec<CString>).
-        syn::Type::Ptr(inner) => Ok(match inner.elem.as_ref() {
-            syn::Type::Ptr(_inner) => parse_quote!(::std::vec::Vec<::std::ffi::CString>),
-            _ => parse_quote!(::std::ffi::CString),
-        }),
+        syn::Type::Ptr(inner) => match inner.elem.as_ref() {
+            syn::Type::Ptr(_inner) => Ok(parse_quote!(::std::vec::Vec<::std::ffi::CString>)),
+            syn::Type::Path(path) => match path.path.segments.iter().last() {
+                None => Err(error.into()),
+                Some(last_path_seg) => match last_path_seg.ident.to_string().as_str() {
+                    "c_char" => Ok(parse_quote!(::std::ffi::CString)),
+                    "C_Path" => Ok(parse_quote!(::std::boxed::Box<Path>)),
+                    _ => Err(error.into()),
+                },
+            },
+            _ => Err(error.into()),
+        },
         syn::Type::Array(inner) => {
             let mut new = inner.clone();
             new.elem = Box::new(convert_bindgen_type(&new.elem)?);
@@ -196,11 +208,7 @@ fn convert_bindgen_type(ty: &syn::Type) -> MacroResult<syn::Type> {
                 Ok(Type::Path(inner.clone()))
             }
         }
-        _ => Err(quote_spanned! {
-            ty.span() =>
-            compile_error!("Unable to convert bindgen type");
-        }
-        .into()),
+        _ => Err(error.into()),
     }
 }
 

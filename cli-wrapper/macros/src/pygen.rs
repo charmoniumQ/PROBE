@@ -144,6 +144,11 @@ fn basic_dataclass(name: String, pairs: &[(String, String)]) -> Dataclass {
 }
 
 fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
+    let msg = format!("Pygen unsupported type type: {:?}", ty);
+    let error = quote_spanned! {
+        ty.span() =>
+        compile_error!(#msg);
+    };
     match ty {
         syn::Type::Array(inner) => Ok(format!("list[{}]", convert_to_pytype(inner.elem.as_ref())?)),
         syn::Type::Path(inner) => {
@@ -222,12 +227,18 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
                     }
                 }
             })
-        }
-        _ => Err(quote_spanned! {
-            ty.span() =>
-            compile_error!("Unsupported type type");
-        }
-        .into()),
+        },
+        syn::Type::Ptr(inner) => match inner.elem.as_ref() {
+            syn::Type::Path(path) => match path.path.segments.iter().last() {
+                None => Err(error.into()),
+                Some(last_path_seg) => match last_path_seg.ident.to_string().as_str() {
+                    "C_Path" => Ok("Path".to_owned()),
+                    _ => Err(error.into()),
+                },
+            },
+            _ => Err(error.into()),
+        },
+        _ => Err(error.into()),
     }
 }
 

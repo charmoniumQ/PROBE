@@ -1,3 +1,6 @@
+struct SymlinkInfo;
+
+/* TODO: rename this PathMetadata */
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
     const char* path; /* path valid if non-null */
@@ -10,15 +13,26 @@ struct Path {
     size_t size;
     bool stat_valid;
     bool dirfd_valid;
+    const char* symlink_content;
+    const struct Path* symlink_dst;
 };
 
-struct SymlinkInfo {
-    const Path src;
-    const char* content;
-    const Path dst;
-}
+static const struct Path null_path = {
+	.dirfd_minus_at_fdcwd = -1,
+	.path = NULL,
+	.mode_and_type = -1,
+	.device_major = -1,
+	.device_minor = -1,
+	.inode = -1,
+	.mtime = {0},
+	.ctime = {0},
+	.size = 0,
+	.dirfd_valid = false,
+	.stat_valid = false,
+	.symlink_content = NULL,
+	.symlink_dst = NULL,
+};
 
-static const struct Path null_path = {-1, NULL, -1, -1, -1, -1, {0}, {0}, 0, false, false};
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 

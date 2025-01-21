@@ -138,6 +138,14 @@ int fclose (FILE *stream) {
             prov_log_try(op);
         }
     });
+    void* call = ({
+        int ret;
+        if (fileno(stream) != 2 /* Keep debug log open */) {
+            ret = unwrapped_fclose(stream);
+        } else {
+            ret = 0;
+        }
+    });
     void* post_call = ({
         if (likely(prov_log_is_enabled())) {
             op.data.close.ferrno = ret == 0 ? 0 : errno;
@@ -294,6 +302,14 @@ int close (int filedes) {
         };
         if (likely(prov_log_is_enabled())) {
             prov_log_try(op);
+        }
+    });
+    void* call = ({
+        int ret;
+        if (filedes != 2 /* keep debug log open */) {
+            ret = unwrapped_close(filedes);
+        } else {
+            ret = 0;
         }
     });
     void* post_call = ({

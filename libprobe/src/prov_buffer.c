@@ -57,6 +57,7 @@ static void prov_log_try(struct Op op) {
     if (op.op_code == exec_op_code) {
         prov_log_record(op);
     }
+    DEBUG("prov_log_try");
 
     const struct Path* path = op_to_path(&op);
     if (should_copy_files() && path->path && path->stat_valid) {
@@ -92,12 +93,14 @@ static void prov_log_try(struct Op op) {
             }
         }
     }
+    DEBUG("prov_log_try ^^^");
 }
 
 /*
  * Call this to indicate that the process did something (successful or not).
  */
 static void prov_log_record(struct Op op) {
+    DEBUG("prov_log_record vvv");
 #ifdef DEBUG_LOG
         char str[PATH_MAX * 2];
         op_to_human_readable(str, PATH_MAX * 2, &op);

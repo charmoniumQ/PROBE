@@ -1,3 +1,5 @@
+static void link_deref(int dirfd, BORROWED struct Path* path);
+
 static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
     if (likely(prov_log_is_enabled())) {
         struct Path ret = null_path;
@@ -31,8 +33,8 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             ret.ctime = statx_buf.stx_ctime;
             ret.size = statx_buf.stx_size;
             ret.stat_valid = true;
-            if (statx_buf.stx_type & S_IFMT == S_IFLNK) {
-                link_deref(dirfd, path, &ret);
+            if ((statx_buf.stx_mode & S_IFMT) == S_IFLNK) {
+                link_deref(dirfd, &ret);
             }
         } else {
             DEBUG("Stat of %d,%s is not valid", dirfd, path);
@@ -44,26 +46,23 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
     }
 }
 
-void link_deref(int dirfd, BORROWED const char* pathname, const Path* path) {
+static void link_deref(int dirfd, BORROWED struct Path* path) {
     /* Some magic symlinks under (for example) /proc and /sys
        report 'st_size' as zero. In that case, take PATH_MAX as
        a "good enough" estimate. */
-    size_t symlink_size = path->size == 0 ? PATH_MAX : path->size + 1;
-    char* referent_pathname = EXPECT_NONNULL(arena_calloc(get_data_arena(), symlink_size, 1));
-    ssize_t readlink_ret = unwrapped_readlinkat(dirfd, path, referent_pathname, symlink_size);
-    assert(readlink_ret < symlink_size);
-    referent_pathname[readlink_ret] = '\0';
-    Path referent_path = create_path_lazy(dirfd, path, flags);
-    SymlinkInfo* info = EXPECT_NONNULL(arena_calloc(get_symlink_arena(), SymlinkInfo, 1));
-    /*
-    ** TODO: this path gest copied twice; once in ops and once in symlinks
-    */
-    info->src = path;
-    info->content = referent_pathname;
-    info->dst = referent_path;
+    /* ssize_t symlink_size = path->size == 0 ? PATH_MAX : path->size + 1; */
+    /* char* content = EXPECT_NONNULL(arena_calloc(get_data_arena(), symlink_size, 1)); */
+    /* ssize_t readlink_ret = unwrapped_readlinkat(dirfd, path->path, content, symlink_size); */
+    /* assert(readlink_ret < symlink_size); */
+    /* content[readlink_ret] = '\0'; */
+    /* path->symlink_content = (const char*) content; */
+    /* struct Path symlink_dst = create_path_lazy(dirfd, content, 0); */
+    /* struct Path* symlink_dst_copy = EXPECT_NONNULL(arena_calloc(get_data_arena(), sizeof(struct Path), 1)); */
+    /* memcpy(symlink_dst_copy, &symlink_dst, sizeof(struct Path)); */
+    /* path->symlink_dst = symlink_dst_copy; */
 }
 
-void path_to_id_string(const struct Path* path, BORROWED char* string) {
+static void path_to_id_string(const struct Path* path, BORROWED char* string) {
     CHECK_SNPRINTF(
         string,
         PATH_MAX,
