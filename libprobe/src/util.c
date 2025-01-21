@@ -23,12 +23,6 @@
 #else
 #endif
 
-#define FREE free
-/* #define FREE(p) ({ \ */
-/*     DEBUG("free: %s: %p", #p, p); \ */
-/*     free(p); \ */
-/* }) */
-
 #ifndef SOURCE_VERSION
 #define SOURCE_VERSION ""
 #endif
@@ -37,19 +31,68 @@ static pid_t my_gettid(){
     return syscall(SYS_gettid);
 }
 
-#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d: ", getpid(), get_exec_epoch_safe(), my_gettid())
-
-#define __LOG_SOURCE() fprintf(stderr, SOURCE_VERSION ":" __FILE__ ":%d:%s(): ", __LINE__, __func__)
-
+/* TODO: Move this to debug_utils header */
 #ifdef DEBUG_LOG
+#define __LOG_PID() fprintf(stderr, "libprobe:pid-%d.%d.%d ", getpid(), get_exec_epoch_safe(), my_gettid())
+#define __LOG_SOURCE() fprintf(stderr, "git@" SOURCE_VERSION ":" __FILE__ ":%d:%s(): ", __LINE__, __func__)
+struct DebugStack;
+struct DebugStack {
+    char* op;
+    struct DebugStack* tail;
+};
+static __thread struct DebugStack* __debug_stack = NULL;
+static void __debug_stack_enter(char* op) {
+    if (!__debug_stack) {
+        __debug_stack = malloc(sizeof(struct DebugStack));
+    } else {
+        struct DebugStack* old_stack = __debug_stack;
+        __debug_stack = malloc(sizeof(struct DebugStack));
+        __debug_stack->tail = old_stack;
+    }
+    __debug_stack->op = strdup(op);
+}
+static void __debug_stack_exit(char* op) {
+    assert(__debug_stack);
+    assert(strcmp(__debug_stack->op, op) == 0);
+    free(__debug_stack->op);
+    struct DebugStack* old_stack = __debug_stack;
+    __debug_stack = __debug_stack->tail;
+    free(old_stack);
+}
+static void __debug_stack_indent() {
+    struct DebugStack* curr = __debug_stack;
+    while (curr) {
+        fprintf(stderr, " ");
+        curr = curr->tail;
+    }
+}
 #define DEBUG(...) ({ \
+    __debug_stack_indent(); \
     __LOG_PID(); \
     __LOG_SOURCE(); \
     fprintf(stderr, __VA_ARGS__); \
     fprintf(stderr, "\n"); \
 })
+#define ENTER(op, ...) ({ \
+    __debug_stack_indent(); \
+    __LOG_PID(); \
+    __LOG_SOURCE(); \
+    fprintf(stderr, "> %s\n", op); \
+    __debug_stack_enter(op); \
+})
+#define EXIT(op) ({ \
+    __debug_stack_exit(op); \
+    __debug_stack_indent(); \
+    __LOG_PID(); \
+    __LOG_SOURCE(); \
+    fprintf(stderr, "< %s\n", op); \
+})
 #else
 #define DEBUG(...)
+#define ENTER(op)
+#define EXIT(op)
+#define __LOG_PID()
+#define __LOG_SOURCE()
 #endif
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */

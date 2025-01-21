@@ -178,21 +178,14 @@ impl Recorder {
                 .arg(copy_files_env)
                 .arg("--args")
                 .arg(self_bin)
-                .arg("__exec")
-                .args(if self.copy_files_eagerly {
-                    std::vec!["--copy-files-eagerly"]
-                } else if self.copy_files_lazily {
-                    std::vec!["--copy-files-lazily"]
-                } else {
-                    std::vec![]
-                })
+                .arg("__gdb-exec-shim")
                 .args(&self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            /* We start `probe __exec $cmd` instead of `$cmd`
+            /* We start `probe __gdb-exec-shim $cmd` instead of `$cmd`
              * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
              * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
              * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.

@@ -33,9 +33,9 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
             ret.ctime = statx_buf.stx_ctime;
             ret.size = statx_buf.stx_size;
             ret.stat_valid = true;
-            if ((statx_buf.stx_mode & S_IFMT) == S_IFLNK) {
-                link_deref(dirfd, &ret);
-            }
+            /* if ((statx_buf.stx_mode & S_IFMT) == S_IFLNK) { */
+            /*     link_deref(dirfd, &ret); */
+            /* } */
         } else {
             DEBUG("Stat of %d,%s is not valid", dirfd, path);
         }
@@ -50,16 +50,16 @@ static void link_deref(int dirfd, BORROWED struct Path* path) {
     /* Some magic symlinks under (for example) /proc and /sys
        report 'st_size' as zero. In that case, take PATH_MAX as
        a "good enough" estimate. */
-    /* ssize_t symlink_size = path->size == 0 ? PATH_MAX : path->size + 1; */
-    /* char* content = EXPECT_NONNULL(arena_calloc(get_data_arena(), symlink_size, 1)); */
-    /* ssize_t readlink_ret = unwrapped_readlinkat(dirfd, path->path, content, symlink_size); */
-    /* assert(readlink_ret < symlink_size); */
-    /* content[readlink_ret] = '\0'; */
-    /* path->symlink_content = (const char*) content; */
-    /* struct Path symlink_dst = create_path_lazy(dirfd, content, 0); */
-    /* struct Path* symlink_dst_copy = EXPECT_NONNULL(arena_calloc(get_data_arena(), sizeof(struct Path), 1)); */
-    /* memcpy(symlink_dst_copy, &symlink_dst, sizeof(struct Path)); */
-    /* path->symlink_dst = symlink_dst_copy; */
+    ssize_t symlink_size = path->size == 0 ? PATH_MAX : path->size + 1;
+    char* content = EXPECT_NONNULL(arena_calloc(get_data_arena(), symlink_size, 1));
+    ssize_t readlink_ret = unwrapped_readlinkat(dirfd, path->path, content, symlink_size);
+    assert(readlink_ret < symlink_size);
+    content[readlink_ret] = '\0';
+    path->symlink_content = (const char*) content;
+    struct Path symlink_dst = create_path_lazy(dirfd, content, 0);
+    struct Path* symlink_dst_copy = EXPECT_NONNULL(arena_calloc(get_data_arena(), sizeof(struct Path), 1));
+    memcpy(symlink_dst_copy, &symlink_dst, sizeof(struct Path));
+    path->symlink_dst = symlink_dst_copy;
 }
 
 static void path_to_id_string(const struct Path* path, BORROWED char* string) {

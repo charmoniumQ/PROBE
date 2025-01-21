@@ -1729,6 +1729,7 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
+        DEBUG("%s, %s, %s", filename, argv[0], env[0]);
         size_t argc = 0;
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
         size_t envc = 0;
@@ -1861,13 +1862,15 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
+        DEBUG("filename = %s, argv[0] = %s", filename, argv[0]);
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         size_t argc = 0;
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* updated_env = NULL;//update_env_with_probe_vars(environ, &envc);
+        char * const* copied_updated_env = NULL;//arena_copy_argv(get_data_arena(), updated_env, &envc);
+        DEBUG("filename = %s, argv[0] = %s", filename, copied_argv[0]);
         struct Op op = {
             exec_op_code,
             {.exec = {

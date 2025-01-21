@@ -327,9 +327,9 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
         pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="DEBUG"),
+            name=pycparser.c_ast.ID(name="ENTER"),
             args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value='"vvv ' + func.name + '(...)"'),
+                pycparser.c_ast.Constant(type="string", value='"wrapped_' + func.name + '"'),
             ]),
         ),
     ]
@@ -404,14 +404,21 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     call_stmts.insert(0, pycparser.c_ast.FuncCall(
         name=pycparser.c_ast.ID(name="DEBUG"),
         args=pycparser.c_ast.ExprList(exprs=[
-            pycparser.c_ast.Constant(type="string", value='"vvv ' + func.name + ' calling real %p"'),
-            pycparser.c_ast.ID(name=func_prefix + func.name),
+            pycparser.c_ast.Constant(type="string", value='"unwrapped_' + func.name + ' = %p"'),
+            pycparser.c_ast.ID(name="unwrapped_" + func.name),
+        ]),
+    ))
+
+    call_stmts.insert(0, pycparser.c_ast.FuncCall(
+        name=pycparser.c_ast.ID(name="ENTER"),
+        args=pycparser.c_ast.ExprList(exprs=[
+            pycparser.c_ast.Constant(type="string", value='"unwrapped_' + func.name + '"'),
         ]),
     ))
     call_stmts.append(pycparser.c_ast.FuncCall(
-        name=pycparser.c_ast.ID(name="DEBUG"),
+        name=pycparser.c_ast.ID(name="EXIT"),
         args=pycparser.c_ast.ExprList(exprs=[
-            pycparser.c_ast.Constant(type="string", value='"^^^ ' + func.name + ' calling real"'),
+            pycparser.c_ast.Constant(type="string", value='"unwrapped_' + func.name + '"'),
         ]),
     ))
 
@@ -423,9 +430,9 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     )
 
     post_call_stmts.append(pycparser.c_ast.FuncCall(
-        name=pycparser.c_ast.ID(name="DEBUG"),
+        name=pycparser.c_ast.ID(name="EXIT"),
         args=pycparser.c_ast.ExprList(exprs=[
-            pycparser.c_ast.Constant(type="string", value='"^^^ ' + func.name + '(...)"'),
+            pycparser.c_ast.Constant(type="string", value='"wrapped_' + func.name + '"'),
         ]),
     ))
 

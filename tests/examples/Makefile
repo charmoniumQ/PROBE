@@ -15,6 +15,9 @@ all: $(SOURCE_FILES:.c=.exe)
 %.exe: %.c
 	gcc $(CFLAGS) -o $@ $<
 
+%.exe: %.s
+	gcc $(CFLAGS) -o $@ $<
+
 clean:
 	touch $(SOURCE_FILES:.c=.exe) && rm --force $(SOURCE_FILES:.c=.exe)
 .PHONY: clean
