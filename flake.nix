@@ -182,9 +182,9 @@
         devShells = {
           default = craneLib.devShell {
             shellHook = ''
-              pushd $(git rev-parse --show-toplevel)
+              pushd $(git rev-parse --show-toplevel) > /dev/null
               source ./setup_devshell.sh
-              popd
+              popd > /dev/null
             '';
             inputsFrom = [
               frontend.packages.probe-cli
