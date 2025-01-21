@@ -547,13 +547,14 @@ def provlog_to_process_tree(prov_log: parser.ProvLog) -> nx.DiGraph:
                         child_pid = op_data.task_id
                         process_tree[pid].append(child_pid)
 
-    G = nx.DiGraph
+    G = nx.DiGraph()
 
     for parent_pid, children in process_tree.items():
-        G.add_node(parent_pid, label=f"Process {parent_pid}")
+        if not G.has_node(parent_pid):
+            G.add_node(parent_pid, label=f"Process {parent_pid}")
         for child_pid in children:
-            G.add_node(child_pid, label=f"Process {child_pid}")
-            G.add_edge(parent_pid, child_pid)
+            if not G.has_node(child_pid):
+                G.add_node(child_pid, label=f"Process {child_pid}")
+            G.add_edge(child_pid, parent_pid)
 
     return G
-

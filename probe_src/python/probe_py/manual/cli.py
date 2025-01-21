@@ -412,23 +412,23 @@ def nextflow(
     output.write_text(script)
 
 @export_app.command()
-def provlog_to_digraph(
+def provlog_to_process_tree(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("provlog-digraph.png"),
+        ] = pathlib.Path("provlog-process-tree.png"),
         probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
 ) -> None:
     """
-    Write a digraph from probe_log.
+    Write a process tree from probe_log.
 
     Digraphs shows the clone ops of the parent process and the children.
     """
     prov_log = parse_probe_log(probe_log)
-    digraph = analysis.provlog_to_digraph(prov_log)
+    digraph = analysis.provlog_to_process_tree(prov_log)
     graph_utils.serialize_graph(digraph, output)
 
 
