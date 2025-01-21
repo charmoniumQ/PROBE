@@ -73,7 +73,7 @@ fn main() -> Result<()> {
             /* No more probe dump in Rust.
              * See `probe export debug-text` in Python.
              * */
-            Command::new("__gdb-exec-shim").hide(true).arg(
+            Command::new("__exec").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)
                     .trailing_var_arg(true)
@@ -143,7 +143,7 @@ fn main() -> Result<()> {
             .and_then(|mut tar| transcribe::transcribe(input, &mut tar))
             .wrap_err("Transcribe command failed")
         }
-        Some(("__gdb-exec-shim", sub)) => {
+        Some(("__exec", sub)) => {
             let cmd = sub
                 .get_many::<OsString>("CMD")
                 .unwrap()
