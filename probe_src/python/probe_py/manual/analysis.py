@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import pathlib
 import os
 import collections
-import json
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(IntEnum):
@@ -535,8 +534,8 @@ def color_hb_graph(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
 
-def provlog_to_process_tree(prov_log: parser.ProvLog) -> str:
-    process_tree = defaultdict(list)
+def provlog_to_process_tree(prov_log: parser.ProvLog) -> nx.DiGraph:
+    process_tree = collections.defaultdict(list)
     
     for pid, process in prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
@@ -548,15 +547,13 @@ def provlog_to_process_tree(prov_log: parser.ProvLog) -> str:
                         child_pid = op_data.task_id
                         process_tree[pid].append(child_pid)
 
-    def build_tree(pid: int) -> Dict[str, Any]:
-        return {
-            "pid": pid,
-            "children": [build_tree(child) for child in process_tree[pid]]
-        }
-    
-    root_pid = min(prov_log.processes.keys())
-    process_tree_output = build_tree(root_pid)
+    G = nx.DiGraph
 
-    return json.dumps(process_tree_output, indent = 4)
+    for parent_pid, children in process_tree.items():
+        G.add_node(parent_pid, label=f"Process {parent_pid}")
+        for child_pid in children:
+            G.add_node(child_pid, label=f"Process {child_pid}")
+            G.add_edge(parent_pid, child_pid)
 
+    return G
 
