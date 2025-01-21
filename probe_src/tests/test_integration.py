@@ -45,7 +45,8 @@ commands = [
 modes = [
     ["probe", "record"],
     ["probe", "record", "--debug"],
-    ["probe", "record", "--copy-files"],
+    ["probe", "record", "--copy-files-lazily"],
+    #["probe", "record", "--copy-files-eagerly"],
 ]
 
 
