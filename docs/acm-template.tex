@@ -51,13 +51,13 @@ $if(topmatter)$\settopmatter{$topmatter$}$endif$
 $if(publisher.received_date)$\received{$publisher.received_date$}$endif$
 $if(publisher.revised_date)$\received[revised]{$publisher.revised_date$}$endif$
 $if(publisher.accepted_date)$\received[accepted]{$publisher.accepted_date$}$endif$
-% \RequirePackage[
-%   datamodel=acmdatamodel,
-%   style=acmnumeric, % use style=acmauthoryear for publications that require it
-% ]{biblatex}
-% $for(bibliography)$
-% \addbibresource{$bibliography$.bib}
-% $endfor$
+\RequirePackage[
+  datamodel=acmdatamodel,
+  style=acmnumeric, % use style=acmauthoryear for publications that require it
+]{biblatex}
+$for(bibliography)$
+\addbibresource{$bibliography$}
+$endfor$
 
 % See https://github.com/jgm/pandoc/blob/main/data/templates/default.latex
 
@@ -151,7 +151,7 @@ $endif$
 % \def\endlongtable{\oldendlongtable \twocolumn}
 % \makeatother
 
-\usepackage{subcaption}
+%\usepackage{subcaption}
 
 \usepackage{supertabular}
 \newcommand\tcap{}
@@ -218,16 +218,19 @@ $for(include-before)$
 $include-before$
 $endfor$
 
+$if(abstract_only)$
+$else$
+
 $body$
 
 $if(acks)$\begin{acks}$acks$\end{acks}$endif$
 
-\bibliographystyle{ACM-Reference-Format}
-\bibliography{
-$for(bibliography)$
-$bibliography$$sep$,
-$endfor$
-}
+\printbibliography
+
+% \bibliographystyle{ACM-Reference-Format}
+% \bibliography{$for(bibliography)$$bibliography$$sep$,$endfor$}
+
+$endif$
 
 $for(include-after)$
 $include-after$

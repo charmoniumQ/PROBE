@@ -1,9 +1,0 @@
---- a/utcdatetime/tests/test_from_datetime.py
-+++ b/utcdatetime/tests/test_from_datetime.py
-@@ -27,3 +27,3 @@
--def test_that_from_datetime_rejets_naive_datetimes():
--    assert_raises(ValueError, lambda: utcdatetime.from_datetime(
--        datetime.datetime(2015, 10, 10, 13, 45)))
-+#def test_that_from_datetime_rejets_naive_datetimes():
-+#    assert_raises(ValueError, lambda: utcdatetime.from_datetime(
-+#        datetime.datetime(2015, 10, 10, 13, 45)))

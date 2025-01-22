@@ -1,7 +1,12 @@
+import typing
+import dataclasses
+import json
 from typing_extensions import Annotated
 import pathlib
 import typer
 import shutil
+import rich
+from probe_py.manual.scp import scp_with_provenance
 import rich.console
 import rich.pretty
 from ..generated.parser import parse_probe_log, parse_probe_log_ctx
@@ -431,6 +436,61 @@ def provlog_to_process_tree(
     digraph = analysis.provlog_to_process_tree(prov_log)
     graph_utils.serialize_graph(digraph, output)
 
+
+@export_app.command()
+def ops_jsonl(
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Export each op to a JSON line.
+
+    The format is subject to change as PROBE evolves. Use with caution!
+    """
+
+    def filter_nested_dict(
+            dct: typing.Mapping[typing.Any, typing.Any],
+    ) -> typing.Mapping[typing.Any, typing.Any]:
+        """Converts the bytes in a nested dict to a string"""
+        return {
+            key: (
+                # If dict, Recurse self
+                filter_nested_dict(val) if isinstance(val, dict) else
+                # If bytes, decode to string
+                val.decode(errors="surrogateescape") if isinstance(val, bytes) else
+                # Else, do nothing
+                val
+            )
+            for key, val in dct.items()
+        }
+    stdout_console = rich.console.Console()
+    prov_log = parse_probe_log(probe_log)
+    for pid, process in prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                for i, op in enumerate(thread.ops):
+                    stdout_console.print_json(json.dumps({
+                        "pid": pid,
+                        "tid": tid,
+                        "exec_epoch_no": exec_epoch_no,
+                        "i": i,
+                        "op": filter_nested_dict(
+                            dataclasses.asdict(op),
+                        ),
+                        "op_data_type": type(op.data).__name__,
+                    }))
+
+
+# Example: scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
+@app.command(
+context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
+def scp(cmd: list[str]) -> None:
+    scp_with_provenance(cmd)
 
 if __name__ == "__main__":
     app()

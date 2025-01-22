@@ -43,7 +43,10 @@ fn main() -> Result<()> {
                     arg!(--debug "Run in verbose & debug build of libprobe.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
-                    arg!(-c --"copy-files" "Copy files that would be needed to re-execute the program.")
+                    arg!(-e --"copy-files-eagerly" "Eagerly copy files that would be needed to re-execute the program.")
+                        .required(false)
+                        .value_parser(value_parser!(bool)),
+                    arg!(-c --"copy-files-lazily" "lazily Copy files that would be needed to re-execute the program.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
                     arg!(<CMD> ... "Command to execute under provenance.")
@@ -70,7 +73,7 @@ fn main() -> Result<()> {
             /* No more probe dump in Rust.
              * See `probe export debug-text` in Python.
              * */
-            Command::new("__gdb-exec-shim").hide(true).arg(
+            Command::new("__exec").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)
                     .trailing_var_arg(true)
@@ -86,19 +89,42 @@ fn main() -> Result<()> {
             let no_transcribe = sub.get_flag("no-transcribe");
             let gdb = sub.get_flag("gdb");
             let debug = sub.get_flag("debug");
-            let copy_files = sub.get_flag("copy-files");
+            let copy_files_eagerly = sub.get_flag("copy-files-eagerly");
+            let copy_files_lazily = sub.get_flag("copy-files-lazily");
             let cmd = sub
                 .get_many::<OsString>("CMD")
                 .unwrap()
                 .cloned()
                 .collect::<Vec<_>>();
 
-            if no_transcribe {
-                record::record_no_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
+            if copy_files_eagerly && copy_files_lazily {
+                Err(eyre!(
+                    "Cannot copy files both eagerly and lazily; please discard one or both"
+                ))
             } else {
-                record::record_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
+                if no_transcribe {
+                    record::record_no_transcribe(
+                        output,
+                        overwrite,
+                        gdb,
+                        debug,
+                        copy_files_eagerly,
+                        copy_files_lazily,
+                        cmd,
+                    )
+                } else {
+                    record::record_transcribe(
+                        output,
+                        overwrite,
+                        gdb,
+                        debug,
+                        copy_files_eagerly,
+                        copy_files_lazily,
+                        cmd,
+                    )
+                }
+                .wrap_err("Record command failed")
             }
-            .wrap_err("Record command failed")
         }
         Some(("transcribe", sub)) => {
             let overwrite = sub.get_flag("overwrite");
@@ -117,7 +143,7 @@ fn main() -> Result<()> {
             .and_then(|mut tar| transcribe::transcribe(input, &mut tar))
             .wrap_err("Transcribe command failed")
         }
-        Some(("__gdb-exec-shim", sub)) => {
+        Some(("__exec", sub)) => {
             let cmd = sub
                 .get_many::<OsString>("CMD")
                 .unwrap()

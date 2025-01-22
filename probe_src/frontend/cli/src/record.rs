@@ -19,14 +19,25 @@ pub fn record_no_transcribe(
     overwrite: bool,
     gdb: bool,
     debug: bool,
-    copy_files: bool,
+    copy_files_eagerly: bool,
+    copy_files_lazily: bool,
     cmd: Vec<OsString>,
 ) -> Result<()> {
+    let cwd = PathBuf::from(".");
     let output = match output {
-        Some(x) => fs::canonicalize(x).wrap_err("Failed to canonicalize record directory path")?,
-        None => std::env::current_dir()
-            .wrap_err("Failed to get CWD")?
-            .join("probe_record"),
+        Some(x) => {
+            let path: &Path = x.as_ref();
+            let path_parent = path.parent().unwrap_or(&cwd);
+            let dir_name = path.file_name().unwrap();
+            fs::canonicalize(path_parent)
+                .wrap_err("Failed to canonicalize record directory path")?
+                .join(dir_name)
+        }
+        None => {
+            let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
+            output.push("probe_record");
+            output
+        }
     };
 
     if overwrite {
@@ -43,7 +54,8 @@ pub fn record_no_transcribe(
     Recorder::new(cmd, record_dir)
         .gdb(gdb)
         .debug(debug)
-        .copy_files(copy_files)
+        .copy_files_eagerly(copy_files_eagerly)
+        .copy_files_lazily(copy_files_lazily)
         .record()?;
 
     Ok(())
@@ -55,7 +67,8 @@ pub fn record_transcribe(
     overwrite: bool,
     gdb: bool,
     debug: bool,
-    copy_files: bool,
+    copy_files_eagerly: bool,
+    copy_files_lazily: bool,
     cmd: Vec<OsString>,
 ) -> Result<()> {
     let output = match output {
@@ -78,7 +91,8 @@ pub fn record_transcribe(
     )
     .gdb(gdb)
     .debug(debug)
-    .copy_files(copy_files)
+    .copy_files_eagerly(copy_files_eagerly)
+    .copy_files_lazily(copy_files_lazily)
     .record()?;
 
     match transcribe::transcribe(&record_dir, &mut tar) {
@@ -102,7 +116,8 @@ pub fn record_transcribe(
 pub struct Recorder {
     gdb: bool,
     debug: bool,
-    copy_files: bool,
+    copy_files_eagerly: bool,
+    copy_files_lazily: bool,
 
     output: Dir,
     cmd: Vec<OsString>,
@@ -134,23 +149,40 @@ impl Recorder {
             ld_preload.push(&x);
         }
 
+        let self_bin =
+            std::env::current_exe().wrap_err("Failed to get path to current executable")?;
+
         let mut child = if self.gdb {
             let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");
             dir_env.push(self.output.path());
             let mut preload_env = OsString::from("--init-eval-command=set environment LD_PRELOAD=");
             preload_env.push(ld_preload);
-
-            let self_bin =
-                std::env::current_exe().wrap_err("Failed to get path to current executable")?;
+            let mut copy_files_env =
+                OsString::from("--init-eval-command=set environment __PROBE_COPY_FILES=");
+            if self.copy_files_lazily {
+                copy_files_env.push("lazy");
+            } else if self.copy_files_eagerly {
+                copy_files_env.push("eager")
+            }
+            /* Yes, "set environment a=" will work to set a to null value
+             * in the case where neither copy_file_* option is activated
+             *
+             *   gdb '--init-eval-command=set environment abcdef=' env -eval-command run -eval-command quit \
+             *     | grep abcdef
+             *
+             * */
 
             std::process::Command::new("gdb")
                 .arg(dir_env)
                 .arg(preload_env)
+                .arg(copy_files_env)
                 .arg("--args")
                 .arg(self_bin)
-                .arg("__gdb-exec-shim")
-                .args(if self.copy_files {
-                    std::vec!["--copy-files"]
+                .arg("__exec")
+                .args(if self.copy_files_eagerly {
+                    std::vec!["--copy-files-eagerly"]
+                } else if self.copy_files_lazily {
+                    std::vec!["--copy-files-lazily"]
                 } else {
                     std::vec![]
                 })
@@ -160,17 +192,27 @@ impl Recorder {
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            /* We start `env $cmd` instead of `$cmd`
+            /* We start `probe __exec $cmd` instead of `$cmd`
              * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
              * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
              * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
              * Since the root process has special quirks, it should not be user's `$cmd`.
              * */
-            std::process::Command::new("env")
+            std::process::Command::new(self_bin)
+                .arg("__exec")
                 .args(self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
-                .env("__PROBE_COPY_FILES", if self.copy_files { "1" } else { "" })
+                .env(
+                    "__PROBE_COPY_FILES",
+                    if self.copy_files_lazily {
+                        "lazy"
+                    } else if self.copy_files_eagerly {
+                        "eager"
+                    } else {
+                        ""
+                    },
+                )
                 .env("__PROBE_DIR", self.output.path())
                 .env("LD_PRELOAD", ld_preload)
                 .spawn()
@@ -236,7 +278,8 @@ impl Recorder {
         Self {
             gdb: false,
             debug: false,
-            copy_files: false,
+            copy_files_eagerly: false,
+            copy_files_lazily: false,
             output,
             cmd,
         }
@@ -255,8 +298,14 @@ impl Recorder {
     }
 
     /// Set if probe should copy files needed to re-execute.
-    pub fn copy_files(mut self, copy_files: bool) -> Self {
-        self.copy_files = copy_files;
+    pub fn copy_files_eagerly(mut self, copy_files_eagerly: bool) -> Self {
+        self.copy_files_eagerly = copy_files_eagerly;
+        self
+    }
+
+    /// Set if probe should copy files needed to re-execute.
+    pub fn copy_files_lazily(mut self, copy_files_lazily: bool) -> Self {
+        self.copy_files_lazily = copy_files_lazily;
         self
     }
 }

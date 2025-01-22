@@ -1,0 +1,27 @@
+- USENIX Workshop on the Theory and Practice of Provenance (TaPP)
+  - 3 Expressiveness Benchmarking for System-Level Provenance https://www.usenix.org/conference/tapp17/workshop-program/presentation/chan
+  - 5 Decoupling Provenance Capture and Analysis from Execution https://www.usenix.org/conference/tapp15/workshop-program/presentation/stamatogiannakis
+- eScience
+  - 1 A Method for Constructing Research Data Provenance in High-Performance Computing Systems https://doi.org/10.1109/e-Science58273.2023.10254932
+  - 2 Application of BagIt-Serialized Research Object Bundles for Packaging and Re-Execution of Computational Analyses https://doi.org/10.1109/eScience.2019.00068
+  - 22 Sciunits: Reusable Research Objects https://doi.org/10.1109/eScience.2017.51
+- Giga Science
+  - 60 Sharing interoperable workflow provenance: A review of best practices and their practical application in CWLProv https://doi.org/10.1093/gigascience/giz095
+- Data Science
+  - 119 Packaging research artefacts with RO-Crate https://doi.org/10.3233/DS-210053
+- Journal of Biomedical Semantics
+  - 7 End-to-End provenance representation for the understandability and reproducibility of scientific experiments using a semantic approach https://doi.org/10.1186/s13326-021-00253-1
+- Data Science and Engineering
+  - 37 Provenance-Aware Knowledge Representation: A Survey of Data Models and Contextualized Knowledge Graphs https://doi.org/10.1007/s41019-020-00118-0
+- Web Information Systems Engineering
+  - 8 ProvONE+: A Provenance Model for Scientific Workflows https://doi.org/10.1007/978-3-030-62008-0_30
+- VLDB
+  - 10 Improving reproducibility of data science pipelines through transparent provenance capture https://doi.org/10.14778/3415478.3415556
+- ACM Symposium on Cloud Computing (SoCC)
+  - 103 Practical whole-system provenance capture https://doi.org/10.1145/3127479.3129249
+- Procedia of CS
+  - 9 Facilitating the Reproducibility of Scientific Workflows with Execution Environment Specifications https://doi.org/10.1016/j.procs.2017.05.116
+- International Conference on Parallel Architecture and Compilation Techniques (PACT)
+  - 10 Lightweight Provenance Service for High-Performance Computing https://doi.org/10.1109/PACT.2017.14
+- International conference on the management of data (SIGMOD)
+  - 83 ReproZip: Computational Reproducibility With Ease https://dl.acm.org/doi/10.1145/2882903.2899401

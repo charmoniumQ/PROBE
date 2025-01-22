@@ -1,0 +1,9 @@
+phonons of si at X, single mode
+ &inputph
+  tr2_ph=1.0d-14,
+  prefix='silicon',
+  amass(1)=28.08,
+  outdir='$TMP_DIR/'
+  modenum=3
+ /
+1.0 0.0 0.0
