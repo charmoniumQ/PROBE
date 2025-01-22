@@ -533,3 +533,28 @@ def color_hb_graph(prov_log: parser.ProvLog, process_graph: nx.DiGraph) -> None:
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
+
+def provlog_to_process_tree(prov_log: parser.ProvLog) -> nx.DiGraph:
+    process_tree = collections.defaultdict(list)
+    
+    for pid, process in prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                for op_index, op in enumerate(thread.ops):
+                    op_data = op.data
+
+                    if isinstance(op_data, CloneOp) and op_data.ferrno == 0:
+                        child_pid = op_data.task_id
+                        process_tree[pid].append(child_pid)
+
+    G = nx.DiGraph()
+
+    for parent_pid, children in process_tree.items():
+        if not G.has_node(parent_pid):
+            G.add_node(parent_pid, label=f"Process {parent_pid}")
+        for child_pid in children:
+            if not G.has_node(child_pid):
+                G.add_node(child_pid, label=f"Process {child_pid}")
+            G.add_edge(parent_pid, child_pid)
+
+    return G
