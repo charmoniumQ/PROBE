@@ -39,7 +39,7 @@ class InodeOnDevice:
 @dataclass(frozen=True)
 class FileNode:
     inodeOnDevice: InodeOnDevice
-    version: Tuple[int, int]
+    version: tuple[int, int]
     file: str
 
     @property
@@ -250,7 +250,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
     return process_graph
 
-def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, file_version_map: dict[InodeOnDevice, int], shared_files: set[InodeOnDevice], cmd_map: dict[int, list[str]]) -> None:
+def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, cmd_map: dict[int, list[str]]) -> None:
     starting_pid = starting_node[0]
     
     starting_op = prov_log_get_node(process_tree_prov_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
@@ -501,7 +501,7 @@ def color_hb_graph(prov_log: ProvLog, process_graph: nx.DiGraph) -> None:
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
 
-def provlog_to_process_tree(prov_log: parser.ProvLog) -> nx.DiGraph:
+def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
     process_tree = collections.defaultdict(list)
     
     for pid, process in prov_log.processes.items():

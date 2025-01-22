@@ -16,7 +16,7 @@ fix-cli:
 fix: fix-nix fix-py fix-cli
 
 check-py: compile-cli
-    # dmypy == daemon mypy; much faster.
+    # dmypy == daemon mypy; much faster on subsequent iterations.
     dmypy run -- --strict --no-namespace-packages --pretty probe_py/ tests/ libprobe/generator/
 
 check-cli:
