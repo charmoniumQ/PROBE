@@ -24,8 +24,11 @@ def default_tarinfo(path: pathlib.Path | str) -> tarfile.TarInfo:
     )
 
 
-def filter_relative_to(path: pathlib.Path) -> typing.Callable[[tarfile.TarInfo], tarfile.TarInfo]:
+def filter_relative_to(
+    path: pathlib.Path,
+) -> typing.Callable[[tarfile.TarInfo], tarfile.TarInfo]:
     def filter(member: tarfile.TarInfo) -> tarfile.TarInfo:
         member_path = pathlib.Path(member.name)
         return member.replace(name=str(member_path.relative_to(path)))
+
     return filter

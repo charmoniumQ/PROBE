@@ -54,14 +54,14 @@ class Inode:
 
     def to_dict(self) -> dict[str, int | str]:
         return {
-            'host': self.host,
-            'device_major': self.device_major,
-            'device_minor': self.device_minor,
-            'inode': self.inode,
+            "host": self.host,
+            "device_major": self.device_major,
+            "device_minor": self.device_minor,
+            "inode": self.inode,
         }
 
     def str_id(self) -> str:
-        hex_part = self.host.split('.')[0]
+        hex_part = self.host.split(".")[0]
         if hex_part:
             number = int(hex_part, 16)
         else:
@@ -69,7 +69,9 @@ class Inode:
         return f"{number:012x}-{self.device_major:04x}-{self.device_minor:04x}-{self.inode:016x}"
 
     @staticmethod
-    def from_local_path(path: pathlib.Path, stat_info: None | os.stat_result = None) -> Inode:
+    def from_local_path(
+        path: pathlib.Path, stat_info: None | os.stat_result = None
+    ) -> Inode:
         if stat_info is None:
             stat_info = os.stat(path)
         device_major = os.major(stat_info.st_dev)
@@ -102,14 +104,16 @@ class InodeVersion:
     # - Cry.
 
     def to_dict(self) -> dict[str, typing.Any]:
-        data = {"mtime": self.mtime, 'inode': self.inode.to_dict(), "size": self.size}
+        data = {"mtime": self.mtime, "inode": self.inode.to_dict(), "size": self.size}
         return data
 
     def str_id(self) -> str:
         return f"{self.inode.str_id()}-{self.mtime:016x}-{self.size:016x}"
 
     @staticmethod
-    def from_local_path(path: pathlib.Path, stat_info: os.stat_result | None) -> InodeVersion:
+    def from_local_path(
+        path: pathlib.Path, stat_info: os.stat_result | None
+    ) -> InodeVersion:
         if stat_info is None:
             stat_info = os.stat(path)
         mtime = int(stat_info.st_mtime * 1_000_000_000)
@@ -135,7 +139,9 @@ class InodeMetadata:
         }
 
     @staticmethod
-    def from_local_path(path: pathlib.Path, stat_info: os.stat_result | None) -> InodeMetadata:
+    def from_local_path(
+        path: pathlib.Path, stat_info: os.stat_result | None
+    ) -> InodeMetadata:
         if stat_info is None:
             stat_info = os.stat(path)
         return InodeMetadata(
@@ -161,29 +167,39 @@ class Process:
 
     def to_dict(self) -> dict[str, typing.Any]:
         return {
-            'input_inodes': [inode_version.to_dict() for inode_version in self.input_inodes],
-            'input_inode_metadatas': [metadata.to_dict() for metadata in self.input_inode_metadatas],
-            'output_inodes': [inode_version.to_dict() for inode_version in self.output_inodes],
-            'output_inode_metadatas': [metadata.to_dict() for metadata in self.output_inode_metadatas],
-            'time': self.time.isoformat(),
-            'cmd': list(self.cmd),
-            'pid': self.pid,
-            'env': [tuple(env_item) for env_item in self.env],
-            'wd': str(self.wd),
+            "input_inodes": [
+                inode_version.to_dict() for inode_version in self.input_inodes
+            ],
+            "input_inode_metadatas": [
+                metadata.to_dict() for metadata in self.input_inode_metadatas
+            ],
+            "output_inodes": [
+                inode_version.to_dict() for inode_version in self.output_inodes
+            ],
+            "output_inode_metadatas": [
+                metadata.to_dict() for metadata in self.output_inode_metadatas
+            ],
+            "time": self.time.isoformat(),
+            "cmd": list(self.cmd),
+            "pid": self.pid,
+            "env": [tuple(env_item) for env_item in self.env],
+            "wd": str(self.wd),
         }
 
 
 # TODO: implement this for remote host
 def get_prov_upstream(
-        root_inode_version: list[InodeVersion],
-        host: str,
+    root_inode_version: list[InodeVersion],
+    host: str,
 ) -> tuple[dict[int, Process], dict[InodeVersion, int | None]]:
     """
     This function answers: What do we need to reconstruct the provenance of root_inode_version on another host?
     The answer is a set of Process objects and a map of InodeVersion writes.
     """
     if host != "local":
-        raise NotImplementedError("scp where source is remote is not implemented, because it would be hard to copy the remote prov")
+        raise NotImplementedError(
+            "scp where source is remote is not implemented, because it would be hard to copy the remote prov"
+        )
     inode_version_queue = list[InodeVersion]()
     inode_version_queue.extend(root_inode_version)
 
@@ -194,7 +210,9 @@ def get_prov_upstream(
     while inode_version_queue:
         inode_version = inode_version_queue.pop()
         if inode_version not in inode_version_writes:
-            process_id_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / inode_version.str_id()
+            process_id_path = (
+                PROCESS_ID_THAT_WROTE_INODE_VERSION / inode_version.str_id()
+            )
             if process_id_path.exists():
                 process_id = json.loads(process_id_path.read_text())
                 inode_version_writes[inode_version] = process_id

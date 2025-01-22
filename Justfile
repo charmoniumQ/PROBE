@@ -3,7 +3,7 @@ fix-nix:
 
 fix-py: compile-cli
     # fix-py depends on compile-cli for the autogen python code
-    #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
+    ruff format probe_py/ tests/ libprobe/generator/
     ruff check --fix probe_py/ tests/ libprobe/generator/
 
 fix-cli:

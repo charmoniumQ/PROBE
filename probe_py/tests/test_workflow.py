@@ -18,8 +18,8 @@ def test_dataflow_graph_to_nextflow_script() -> None:
     b_file_path.write_text("This is A.txt")
 
     dataflow_graph = nx.DiGraph()
-    A = FileNode(InodeOnDevice(0,0,0), (0, 0), "A.txt")
-    B = FileNode(InodeOnDevice(0,0,1), (0, 0), "B.txt")
+    A = FileNode(InodeOnDevice(0, 0, 0), (0, 0), "A.txt")
+    B = FileNode(InodeOnDevice(0, 0, 1), (0, 0), "B.txt")
     W = ProcessNode(0, ("cp", "A.txt", "B.txt"))
     dataflow_graph.add_nodes_from([A, B], color="red")
     dataflow_graph.add_nodes_from([W], color="blue")
@@ -53,34 +53,35 @@ workflow {
     generator = NextflowGenerator()
     script = generator.generate_workflow(dataflow_graph)
 
-    script = re.sub(r'process_\d+', 'process_*', script)
-    expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
+    script = re.sub(r"process_\d+", "process_*", script)
+    expected_script = re.sub(r"process_\d+", "process_*", expected_script)
     assert script == expected_script
 
-    A = FileNode(InodeOnDevice(0,0,0), (0, 0), "A.txt")
-    B0 = FileNode(InodeOnDevice(0,0,1), (0, 0), "B.txt")
-    B1 = FileNode(InodeOnDevice(0,0,1), (1, 0), "B.txt")
-    C = FileNode(InodeOnDevice(0,0,3), (0, 0), "C.txt")
-    W = ProcessNode(0,("cp", "A.txt", "B.txt"))
-    X = ProcessNode(1,("sed", "s/foo/bar/g", "-i", "B.txt"))
+    A = FileNode(InodeOnDevice(0, 0, 0), (0, 0), "A.txt")
+    B0 = FileNode(InodeOnDevice(0, 0, 1), (0, 0), "B.txt")
+    B1 = FileNode(InodeOnDevice(0, 0, 1), (1, 0), "B.txt")
+    C = FileNode(InodeOnDevice(0, 0, 3), (0, 0), "C.txt")
+    W = ProcessNode(0, ("cp", "A.txt", "B.txt"))
+    X = ProcessNode(1, ("sed", "s/foo/bar/g", "-i", "B.txt"))
     # Note, the filename in FileNode will not always appear in the cmd of ProcessNode!
-    Y = ProcessNode(2,("analyze", "-i", "-k"))
-
+    Y = ProcessNode(2, ("analyze", "-i", "-k"))
 
     example_dataflow_graph = nx.DiGraph()
     # FileNodes will be red and ProcessNodes will be blue in the visualization
     # Code can distinguish between the two using isinstance(node, ProcessNode) or likewise with FileNode
     example_dataflow_graph.add_nodes_from([A, B0, B1, C], color="red")
     example_dataflow_graph.add_nodes_from([W, X, Y], color="blue")
-    example_dataflow_graph.add_edges_from([
-        (A, W),
-        (W, B0),
-        (B0, X),
-        (X, B1),
-        (A, Y),
-        (B1, Y),
-        (Y, C),
-    ])
+    example_dataflow_graph.add_edges_from(
+        [
+            (A, W),
+            (W, B0),
+            (B0, X),
+            (X, B1),
+            (A, Y),
+            (B1, Y),
+            (Y, C),
+        ]
+    )
 
     expected_script = '''nextflow.enable.dsl=2
 
@@ -143,6 +144,6 @@ workflow {
 
     generator = NextflowGenerator()
     script = generator.generate_workflow(example_dataflow_graph)
-    script = re.sub(r'process_\d+', 'process_*', script)
-    expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
+    script = re.sub(r"process_\d+", "process_*", script)
+    expected_script = re.sub(r"process_\d+", "process_*", expected_script)
     assert script == expected_script

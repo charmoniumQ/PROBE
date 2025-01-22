@@ -16,35 +16,39 @@ _T = typing.TypeVar("_T")
 
 
 def as_completed_with_concurrency(
-        n: int,
-        coros: typing.Iterable[collections.abc.Awaitable[_T]],
+    n: int,
+    coros: typing.Iterable[collections.abc.Awaitable[_T]],
 ) -> typing.Iterator[asyncio.Future[_T]]:
     semaphore = asyncio.Semaphore(n)
+
     async def sem_coro(coro: collections.abc.Awaitable[_T]) -> _T:
         async with semaphore:
             return await coro
+
     return asyncio.as_completed([sem_coro(c) for c in coros])
 
 
 async def run_in_docker(
-        name: str,
-        image: str,
-        tag: str,
-        script: list[list[list[str]]],
-        test: list[list[str]],
-        capture_output: bool,
-        clean: bool,
+    name: str,
+    image: str,
+    tag: str,
+    script: list[list[list[str]]],
+    test: list[list[str]],
+    capture_output: bool,
+    clean: bool,
 ) -> tuple[str, bool, bytes, bytes]:
-    dockerfile = "\n".join([
-        f"FROM {image}:{tag}",
-        *[
-            "RUN " + " && ".join(
-                shlex.join(line).replace("double-pipe", "||")
-                for line in group
-            )
-            for group in script
-        ],
-    ])
+    dockerfile = "\n".join(
+        [
+            f"FROM {image}:{tag}",
+            *[
+                "RUN "
+                + " && ".join(
+                    shlex.join(line).replace("double-pipe", "||") for line in group
+                )
+                for group in script
+            ],
+        ]
+    )
     temp_dir = pathlib.Path(tempfile.mkdtemp())
     (temp_dir / "Dockerfile").write_text(dockerfile)
     proc = await asyncio.create_subprocess_exec(
@@ -62,11 +66,18 @@ async def run_in_docker(
     if proc.returncode != 0:
         return name, False, stdout, stderr
 
-    test_str = " && ".join(
-        shlex.join(line)
-        for line in test
-    )
-    args = ["podman", "run", "--rm", "--volume", f"{project_root}:{project_root}:ro", name, "bash", "-c", test_str]
+    test_str = " && ".join(shlex.join(line) for line in test)
+    args = [
+        "podman",
+        "run",
+        "--rm",
+        "--volume",
+        f"{project_root}:{project_root}:ro",
+        name,
+        "bash",
+        "-c",
+        test_str,
+    ]
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdin=None,
@@ -87,11 +98,17 @@ async def run_in_docker(
 
 
 images = [
-    ("ubuntu", ["24.04"], [[
-        ["apt-get", "update"],
-        ["DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "curl"],
-        ["rm", "--recursive", "--force", "/var/lib/apt/lists/*"]
-    ]]),
+    (
+        "ubuntu",
+        ["24.04"],
+        [
+            [
+                ["apt-get", "update"],
+                ["DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "curl"],
+                ["rm", "--recursive", "--force", "/var/lib/apt/lists/*"],
+            ]
+        ],
+    ),
     # ("debian", ["8.0", "unstable-slim"], [[
     #     ["apt-get", "update"],
     #     ["DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "curl"],
@@ -106,7 +123,17 @@ images = [
 script = [
     # shlex.quote("|") -> "'|'", which is wrong, so instead we will write the word pipe.
     [
-        ["curl", "--proto", "=https", "--tlsv1.2", "-sSf", "-o", "nix-installer", "-L", "https://install.determinate.systems/nix"],
+        [
+            "curl",
+            "--proto",
+            "=https",
+            "--tlsv1.2",
+            "-sSf",
+            "-o",
+            "nix-installer",
+            "-L",
+            "https://install.determinate.systems/nix",
+        ],
         ["sh", "nix-installer", "install", "linux", "--no-confirm", "--init", "none"],
     ],
     [
@@ -118,7 +145,14 @@ script = [
     [
         ["export", "USER=root"],
         [".", "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"],
-        ["nix", "build", "-L", "github:charmoniumQ/PROBE#probe-bundled", "double-pipe", "true"],
+        [
+            "nix",
+            "build",
+            "-L",
+            "github:charmoniumQ/PROBE#probe-bundled",
+            "double-pipe",
+            "true",
+        ],
     ],
 ]
 
@@ -126,25 +160,28 @@ test = [
     ["export", "USER=root"],
     [".", "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"],
     ["nix", "profile", "install", "-L", f"{project_root}#probe-bundled"],
-    ["probe", "record", "-f", "stat", "."]
+    ["probe", "record", "-f", "stat", "."],
 ]
 
 
 @pytest.mark.skip("This test takes a long time")
 async def test_docker(max_concurrency: int = 1, capture_output: bool = True) -> None:
-    results = as_completed_with_concurrency(max_concurrency, [
-        run_in_docker(
-            f"probe-{image}-{tag}",
-            image,
-            tag,
-            pre_script + script,
-            test,
-            capture_output,
-            clean=False,
-        )
-        for image, tags, pre_script in images
-        for tag in tags
-    ])
+    results = as_completed_with_concurrency(
+        max_concurrency,
+        [
+            run_in_docker(
+                f"probe-{image}-{tag}",
+                image,
+                tag,
+                pre_script + script,
+                test,
+                capture_output,
+                clean=False,
+            )
+            for image, tags, pre_script in images
+            for tag in tags
+        ],
+    )
     for result in results:
         image, success, stdout, stderr = await result
         if not success:

@@ -10,7 +10,11 @@ tmpdir = pathlib.Path(__file__).resolve().parent / "tmp"
 
 
 def bash(*cmds: str) -> list[str]:
-    return ["bash", "-c", shlex.join(cmds).replace(" and ", " && ").replace(" redirect_to ", " > ")]
+    return [
+        "bash",
+        "-c",
+        shlex.join(cmds).replace(" and ", " && ").replace(" redirect_to ", " > "),
+    ]
 
 
 commands = [
@@ -18,7 +22,7 @@ commands = [
     ["head", "../../flake.nix"],
     bash(
         "echo",
-        "#include <stdio.h>\n#include <fcntl.h>\nint main() {open(\".\", 0); printf(\"hello world\\n\"); return 0; }",
+        '#include <stdio.h>\n#include <fcntl.h>\nint main() {open(".", 0); printf("hello world\\n"); return 0; }',
         "redirect_to",
         "test.c",
         "and",
@@ -46,7 +50,7 @@ modes = [
     ["probe", "record"],
     ["probe", "record", "--debug"],
     ["probe", "record", "--copy-files-lazily"],
-    #["probe", "record", "--copy-files-eagerly"],
+    # ["probe", "record", "--copy-files-eagerly"],
 ]
 
 
@@ -60,7 +64,11 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
-    cmd = ["probe", "validate", *(["--should-have-files"] if "copy-files" in mode else [])]
+    cmd = [
+        "probe",
+        "validate",
+        *(["--should-have-files"] if "copy-files" in mode else []),
+    ]
     print(shlex.join(cmd))
 
     if any("gcc" in arg for arg in command):
@@ -80,11 +88,12 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
     if "--copy-files" in mode:
-
         cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
         print(shlex.join(cmd))
         subprocess.run(cmd, check=True, cwd=tmpdir)
-        assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
+        assert shutil.which(
+            "podman"
+        ), "podman required for this test; should be in the nix flake?"
         cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
         print(shlex.join(cmd))
         subprocess.run(cmd, check=True, cwd=tmpdir)
@@ -92,7 +101,9 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
         cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
         print(shlex.join(cmd))
         subprocess.run(cmd, check=True, cwd=tmpdir)
-        assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
+        assert shutil.which(
+            "docker"
+        ), "podman required for this test; should be in the nix flake?"
         cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
         print(shlex.join(cmd))
         subprocess.run(cmd, check=True, cwd=tmpdir)

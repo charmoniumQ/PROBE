@@ -6,13 +6,19 @@ import tarfile
 import tempfile
 import contextlib
 from . import ops
-from .ptypes import ProvLog, InodeVersionLog, ThreadProvLog, ExecEpochProvLog, ProcessProvLog
+from .ptypes import (
+    ProvLog,
+    InodeVersionLog,
+    ThreadProvLog,
+    ExecEpochProvLog,
+    ProcessProvLog,
+)
 from dataclasses import replace
 
 
 @contextlib.contextmanager
 def parse_probe_log_ctx(
-        probe_log: pathlib.Path,
+    probe_log: pathlib.Path,
 ) -> typing.Iterator[ProvLog]:
     """Parse probe log; return provenance data and inode contents"""
     with tempfile.TemporaryDirectory() as _tmpdir:
@@ -20,13 +26,16 @@ def parse_probe_log_ctx(
         with tarfile.open(probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")
         has_inodes = (tmpdir / "info" / "copy_files").exists()
-        inodes = {
-            InodeVersionLog(*[
-                int(segment, 16)
-                for segment in file.name.split("-")
-            ]): file
-            for file in (tmpdir / "inodes").iterdir()
-        } if (tmpdir / "inodes").exists() else {}
+        inodes = (
+            {
+                InodeVersionLog(
+                    *[int(segment, 16) for segment in file.name.split("-")]
+                ): file
+                for file in (tmpdir / "inodes").iterdir()
+            }
+            if (tmpdir / "inodes").exists()
+            else {}
+        )
 
         processes = {}
         for pid_dir in (tmpdir / "pids").iterdir():
@@ -39,13 +48,16 @@ def parse_probe_log_ctx(
                     tid = int(tid_file.name)
                     # read, split, comprehend, deserialize, extend
                     jsonlines = tid_file.read_text().strip().split("\n")
-                    tids[tid] = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
+                    tids[tid] = ThreadProvLog(
+                        tid, [json.loads(x, object_hook=op_hook) for x in jsonlines]
+                    )
                 epochs[epoch] = ExecEpochProvLog(epoch, tids)
             processes[pid] = ProcessProvLog(pid, epochs)
         yield ProvLog(processes, inodes, has_inodes)
 
+
 def parse_probe_log(
-        probe_log: pathlib.Path,
+    probe_log: pathlib.Path,
 ) -> ProvLog:
     """Parse probe log; return provenance data, but throw away inode contents"""
     with parse_probe_log_ctx(probe_log) as prov_log:

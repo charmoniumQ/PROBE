@@ -7,7 +7,9 @@ nonexistent_command = "eugrhuerhuliaflsd"
 
 
 def test_probe_nonexistent_command() -> None:
-    assert shutil.which(nonexistent_command) is None, "please choose a nonexistent_command"
+    assert (
+        shutil.which(nonexistent_command) is None
+    ), "please choose a nonexistent_command"
     proc = subprocess.run(
         ["probe", "record", "-f", nonexistent_command],
         capture_output=True,

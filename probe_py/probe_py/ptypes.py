@@ -12,6 +12,7 @@ class ThreadProvLog:
     tid: int
     ops: typing.Sequence[ops.Op]
 
+
 @dataclass(frozen=True)
 class ExecEpochProvLog:
     epoch: int
@@ -41,7 +42,7 @@ class InodeVersionLog:
             os.minor(s.st_dev),
             s.st_ino,
             s.st_mtime_ns // int(1e9),
-            s.st_mtime_ns %  int(1e9),
+            s.st_mtime_ns % int(1e9),
             s.st_size,
         )
 
@@ -51,6 +52,7 @@ class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
     inodes: typing.Mapping[InodeVersionLog, pathlib.Path]
     has_inodes: bool
+
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(enum.IntEnum):

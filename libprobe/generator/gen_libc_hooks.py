@@ -9,6 +9,8 @@ import pathlib
 
 
 _T = typing.TypeVar("_T")
+
+
 def expect_type(typ: type[_T], data: typing.Any) -> _T:
     if not isinstance(data, typ):
         raise TypeError(f"Expected type {typ} for {data}")
@@ -16,29 +18,52 @@ def expect_type(typ: type[_T], data: typing.Any) -> _T:
 
 
 if typing.TYPE_CHECKING:
+
     class CGenerator:
-        def _parenthesize_if(self, n: Node, condition: typing.Callable[[Node], bool]) -> str: ...
+        def _parenthesize_if(
+            self, n: Node, condition: typing.Callable[[Node], bool]
+        ) -> str: ...
         def _generate_decl(self, n: pycparser.c_ast.Node) -> str: ...
         def visit(self, n: pycparser.c_ast.Node | str | list[str]) -> str: ...
         def _visit_expr(self, n: pycparser.c_ast.Node) -> str: ...
         def _make_indent(self) -> str: ...
+
         indent_level: int
+
     class Node:
         pass
+
     class IdentifierType(Node):
         names: list[str]
+
         def __init__(self, names: list[str]) -> None: ...
+
     class Assignment(Node):
         def __init__(self, op: str, lvalue: Node, rvalue: Node): ...
+
         op: str
         lvalue: Node
         rvalue: Node
+
     class Compound(Node):
         block_items: list[Node]
+
     class ID(Node):
         name: str
+
     class Decl(Node):
-        def __init__(self, name: str, quals: list[str], align: list[str], storage: list[str], funcspec: list[str], type: TypeDecl, init: Node | None, bitsize : Node | None) -> None: ...
+        def __init__(
+            self,
+            name: str,
+            quals: list[str],
+            align: list[str],
+            storage: list[str],
+            funcspec: list[str],
+            type: TypeDecl,
+            init: Node | None,
+            bitsize: Node | None,
+        ) -> None: ...
+
         name: str
         quals: list[Node]
         align: list[Node]
@@ -47,15 +72,21 @@ if typing.TYPE_CHECKING:
         type: TypeDecl
         init: Node | None
         bitsize: Node | None
+
     class TypeDecl(Node):
-        def __init__(self, declname: str, quals: list[Node], align: Node | None, type: Node) -> None: ...
+        def __init__(
+            self, declname: str, quals: list[Node], align: Node | None, type: Node
+        ) -> None: ...
+
         declname: str
         quals: list[Node]
         align: Node | None
         type: Node
+
     class FuncDecl(Node):
         args: ParamList
         type: TypeDecl
+
     class ParamList(Node):
         params: list[Decl]
 else:
@@ -79,17 +110,21 @@ class GccCGenerator(CGenerator):
             n.rvalue,
             lambda n: isinstance(n, (Assignment, Compound)),
         )
-        return '%s %s %s' % (self.visit(n.lvalue), n.op, rval_str)
+        return "%s %s %s" % (self.visit(n.lvalue), n.op, rval_str)
 
     def visit_Decl(self, n: Decl, no_type: bool = False) -> str:
         s = n.name if no_type else self._generate_decl(n)
         if n.bitsize:
-            s += ' : ' + self.visit(n.bitsize)
+            s += " : " + self.visit(n.bitsize)
         if n.init:
-            s += ' = ' + self._parenthesize_if(n.init, lambda n: isinstance(n, (Assignment, pycparser.c_ast.Compound)))
+            s += " = " + self._parenthesize_if(
+                n.init, lambda n: isinstance(n, (Assignment, pycparser.c_ast.Compound))
+            )
         return s
 
-    def _parenthesize_if(self, n: Node, condition: typing.Callable[[Node], bool]) -> str:
+    def _parenthesize_if(
+        self, n: Node, condition: typing.Callable[[Node], bool]
+    ) -> str:
         self.indent_level += 2
         s = self._visit_expr(n)
         self.indent_level -= 2
@@ -97,7 +132,7 @@ class GccCGenerator(CGenerator):
             if isinstance(n, pycparser.c_ast.Compound):
                 return "(\n" + s + self._make_indent() + ")"
             else:
-                return '(' + s + ')'
+                return "(" + s + ")"
         else:
             return s
 
@@ -124,9 +159,9 @@ def define_var(var_type: Node, var_name: str, value: Node) -> Decl:
     )
 
 
-void = IdentifierType(names=['void'])
+void = IdentifierType(names=["void"])
 
-c_ast_int = IdentifierType(names=['int'])
+c_ast_int = IdentifierType(names=["int"])
 
 
 def ptr_type(type: Node) -> pycparser.c_ast.PtrDecl:
@@ -179,14 +214,19 @@ class ParsedFunc:
                 if isinstance(param_decl, Decl)
             ),
             return_type=expect_type(FuncDecl, decl.type).type,
-            variadic=isinstance(expect_type(FuncDecl, decl.type).args.params[-1], pycparser.c_ast.EllipsisParam),
+            variadic=isinstance(
+                expect_type(FuncDecl, decl.type).args.params[-1],
+                pycparser.c_ast.EllipsisParam,
+            ),
         )
 
     @staticmethod
     def from_defn(func_def: pycparser.c_ast.FuncDef) -> ParsedFunc:
         return dataclasses.replace(
             ParsedFunc.from_decl(func_def.decl),
-            stmts=tuple(func_def.body.block_items) if func_def.body.block_items is not None else (),
+            stmts=tuple(func_def.body.block_items)
+            if func_def.body.block_items is not None
+            else (),
         )
 
     def declaration(self) -> pycparser.c_ast.FuncDecl:
@@ -204,7 +244,8 @@ class ParsedFunc:
                         bitsize=None,
                     )
                     for param_name, param_type in self.params
-                ] + ([pycparser.c_ast.EllipsisParam()] if self.variadic else []),
+                ]
+                + ([pycparser.c_ast.EllipsisParam()] if self.variadic else []),
             ),
             type=pycparser.c_ast.TypeDecl(
                 declname=self.name,
@@ -224,7 +265,7 @@ class ParsedFunc:
                 funcspec=[],
                 type=self.declaration(),
                 init=None,
-                bitsize=None
+                bitsize=None,
             ),
             param_decls=None,
             body=pycparser.c_ast.Compound(
@@ -243,9 +284,13 @@ orig_funcs = {
 funcs = {
     **orig_funcs,
     **{
-        node.name: dataclasses.replace(orig_funcs[typing.cast(ID, node.init).name], name=node.name)
+        node.name: dataclasses.replace(
+            orig_funcs[typing.cast(ID, node.init).name], name=node.name
+        )
         for node in ast.ext
-        if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
+        if isinstance(node, Decl)
+        and isinstance(node.type, pycparser.c_ast.TypeDecl)
+        and node.type.type.names == ["fn"]
     },
 }
 # funcs = {
@@ -276,14 +321,16 @@ init_function_pointers = ParsedFunc(
     variadic=False,
     stmts=[
         Assignment(
-            op='=',
+            op="=",
             lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
             rvalue=pycparser.c_ast.FuncCall(
                 name=pycparser.c_ast.ID(name="dlsym"),
                 args=pycparser.c_ast.ExprList(
                     exprs=[
                         pycparser.c_ast.ID(name="RTLD_NEXT"),
-                        pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
+                        pycparser.c_ast.Constant(
+                            type="string", value='"' + func_name + '"'
+                        ),
                     ],
                 ),
             ),
@@ -294,6 +341,8 @@ init_function_pointers = ParsedFunc(
 
 
 T = typing.TypeVar("T")
+
+
 def raise_(exception: Exception) -> typing.NoReturn:
     raise exception
 
@@ -303,19 +352,21 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
 
 
 def find_decl(
-        block: typing.Sequence[Node],
-        name: str,
-        comment: typing.Any,
+    block: typing.Sequence[Node],
+    name: str,
+    comment: typing.Any,
 ) -> Decl | None:
     relevant_stmts = [
-        stmt
-        for stmt in block
-        if isinstance(stmt, Decl) and stmt.name == name
+        stmt for stmt in block if isinstance(stmt, Decl) and stmt.name == name
     ]
     if not relevant_stmts:
         return None
     elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
+        raise ValueError(
+            f"Multiple definitions of {name}" + " ({})".format(comment)
+            if comment
+            else ""
+        )
     else:
         return relevant_stmts[0]
 
@@ -328,9 +379,13 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         ),
         pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="DEBUG"),
-            args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value='"' + func.name + '(...)"'),
-            ]),
+            args=pycparser.c_ast.ExprList(
+                exprs=[
+                    pycparser.c_ast.Constant(
+                        type="string", value='"' + func.name + '(...)"'
+                    ),
+                ]
+            ),
         ),
     ]
     post_call_stmts = []
@@ -361,9 +416,12 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                     exprs=[
                         pycparser.c_ast.Cast(
                             to_type=void_fn_ptr,
-                            expr=pycparser.c_ast.ID(name=func_prefix + func.name)
+                            expr=pycparser.c_ast.ID(name=func_prefix + func.name),
                         ),
-                        pycparser.c_ast.FuncCall(name=pycparser.c_ast.ID(name="__builtin_apply_args"), args=None),
+                        pycparser.c_ast.FuncCall(
+                            name=pycparser.c_ast.ID(name="__builtin_apply_args"),
+                            args=None,
+                        ),
                         pycparser.c_ast.ID(name="varargs_size"),
                     ],
                 ),
@@ -371,17 +429,19 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             if is_void(func.return_type):
                 call_stmts = [uncasted_func_call]
             else:
-                call_stmts = [define_var(
-                    func.return_type,
-                    "ret",
-                    pycparser.c_ast.UnaryOp(
-                        op="*",
-                        expr=pycparser.c_ast.Cast(
-                            to_type=ptr_type(func.return_type),
-                            expr=uncasted_func_call,
+                call_stmts = [
+                    define_var(
+                        func.return_type,
+                        "ret",
+                        pycparser.c_ast.UnaryOp(
+                            op="*",
+                            expr=pycparser.c_ast.Cast(
+                                to_type=ptr_type(func.return_type),
+                                expr=uncasted_func_call,
+                            ),
                         ),
-                    ),
-                )]
+                    )
+                ]
         else:
             call_expr = pycparser.c_ast.FuncCall(
                 name=pycparser.c_ast.ID(
@@ -403,7 +463,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
 
     save_errno = define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno"))
     restore_errno = Assignment(
-        op='=',
+        op="=",
         lvalue=pycparser.c_ast.ID(name="errno"),
         rvalue=pycparser.c_ast.ID(name="saved_errno"),
     )
@@ -431,16 +491,20 @@ generated = pathlib.Path("generated")
 generated.mkdir(exist_ok=True)
 (generated / "libc_hooks.h").write_text(
     GccCGenerator().visit(
-        pycparser.c_ast.FileAST(ext=[
-            *func_pointer_declarations,
-        ])
+        pycparser.c_ast.FileAST(
+            ext=[
+                *func_pointer_declarations,
+            ]
+        )
     )
 )
 (generated / "libc_hooks.c").write_text(
     GccCGenerator().visit(
-        pycparser.c_ast.FileAST(ext=[
-            init_function_pointers,
-            *static_args_wrapper_func_declarations,
-        ])
+        pycparser.c_ast.FileAST(
+            ext=[
+                init_function_pointers,
+                *static_args_wrapper_func_declarations,
+            ]
+        )
     )
 )

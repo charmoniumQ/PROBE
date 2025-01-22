@@ -1,5 +1,5 @@
 from probe_py.analysis import ProcessNode, FileNode
-import networkx as nx # type: ignore
+import networkx as nx  # type: ignore
 import abc
 from typing import List, Set, Optional
 import pathlib
@@ -9,6 +9,7 @@ import tempfile
 import subprocess
 from filecmp import cmp
 import re
+
 """
 All the cases we should take care of:
 1- One Input, One Output [x]
@@ -22,16 +23,19 @@ All the cases we should take care of:
 9- File and Directory Structure Assumptions (Scripts that assume a specific directory structure, Commands that change the working directory (cd))
 ...
 """
+
+
 class WorkflowGenerator(abc.ABC):
     @abc.abstractmethod
     def generate_workflow(self, graph: nx.DiGraph) -> str:
         pass
 
+
 class NextflowGenerator(WorkflowGenerator):
     def __init__(self) -> None:
         self.visited: Set[ProcessNode] = set()
-        self.process_counter: dict[ProcessNode, int] = {} 
-        self.nextflow_script: list[str] = []  
+        self.process_counter: dict[ProcessNode, int] = {}
+        self.nextflow_script: list[str] = []
         self.workflow: list[str] = []
 
     def escape_filename_for_nextflow(self, filename: str) -> str:
@@ -46,19 +50,20 @@ class NextflowGenerator(WorkflowGenerator):
             if char.isalnum():  # Keep letters and numbers unchanged
                 escaped_filename.append(char)
             else:  # Replace other characters with their ASCII code in hex
-                escaped_filename.append(f'_{ord(char):02x}')
+                escaped_filename.append(f"_{ord(char):02x}")
 
         # Ensure the filename doesn't start with a number by prepending an escape code
         if escaped_filename and escaped_filename[0].isdigit():
-            escaped_filename.insert(0, '_num_')
+            escaped_filename.insert(0, "_num_")
 
-        return ''.join(escaped_filename)
+        return "".join(escaped_filename)
 
-
-    def handle_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> str:
+    def handle_standard_case(
+        self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]
+    ) -> str:
         input_files = " ".join([f'path "{file.file}"\n   ' for file in inputs])
         output_files = " ".join([f'path "{file.file}"\n   ' for file in outputs])
-        
+
         return f"""
 process process_{id(process)} {{
     input:
@@ -73,13 +78,18 @@ process process_{id(process)} {{
     \"\"\"
 }}"""
 
-
-
-    def handle_inline_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> str:
-        input_files = " ".join([f'path "{os.path.basename(file.file)}"' for file in inputs])
+    def handle_inline_case(
+        self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]
+    ) -> str:
+        input_files = " ".join(
+            [f'path "{os.path.basename(file.file)}"' for file in inputs]
+        )
         output_files = " ".join(
-            [f'path "{os.path.splitext(os.path.basename(file.file))[0]}_modified{os.path.splitext(file.file)[1]}"' for
-             file in inputs])
+            [
+                f'path "{os.path.splitext(os.path.basename(file.file))[0]}_modified{os.path.splitext(file.file)[1]}"'
+                for file in inputs
+            ]
+        )
 
         # Build inline commands for each file to perform copy, edit, and rename steps
         script_commands = []
@@ -92,14 +102,18 @@ process process_{id(process)} {{
             modified_cmd = []
             for cmd in process.cmd:
                 # Substitute all occurrences of the original filename in each command
-                cmd_modified = re.sub(r"/(?:[a-zA-Z0-9_\-./]+/)*([a-zA-Z0-9_\-]+\.txt)", temp_name, cmd)
+                cmd_modified = re.sub(
+                    r"/(?:[a-zA-Z0-9_\-./]+/)*([a-zA-Z0-9_\-]+\.txt)", temp_name, cmd
+                )
                 modified_cmd.append(cmd_modified)
 
-            script_commands.extend([
-                f'cp {file.file} {temp_name}',  # Copy to temp file
-                " ".join(modified_cmd),  # Apply inline edit with temp filename
-                f'mv {temp_name} {final_name}'  # Rename temp file to final output
-            ])
+            script_commands.extend(
+                [
+                    f"cp {file.file} {temp_name}",  # Copy to temp file
+                    " ".join(modified_cmd),  # Apply inline edit with temp filename
+                    f"mv {temp_name} {final_name}",  # Rename temp file to final output
+                ]
+            )
 
         # Join script commands with newline and indentation for Nextflow process
         script_block = "\n    ".join(script_commands)
@@ -119,9 +133,13 @@ process process_{id(process)} {{
     \"\"\"
 }}"""
 
-    def handle_dynamic_filenames(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> str:
+    def handle_dynamic_filenames(
+        self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]
+    ) -> str:
         input_files = " ".join([f'path "{file.file}"\n   ' for file in inputs])
-        output_files = " ".join([f'path "{file.file}"\n   ' for file in outputs if file.file])
+        output_files = " ".join(
+            [f'path "{file.file}"\n   ' for file in outputs if file.file]
+        )
 
         return f"""
 process process_{id(process)} {{
@@ -168,7 +186,9 @@ process process_{id(process)} {{
     \"\"\"
 }}"""
 
-    def is_inline_editing_command_sandbox(self, command: str, input_files: list[FileNode]) -> bool:
+    def is_inline_editing_command_sandbox(
+        self, command: str, input_files: list[FileNode]
+    ) -> bool:
         """
         Determine if a command modifies any of the input files in-place, even if the content remains the same.
         """
@@ -211,17 +231,27 @@ process process_{id(process)} {{
             # Return False if none of the files were modified
             return False
 
-    def is_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> bool:
+    def is_standard_case(
+        self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]
+    ) -> bool:
         return len(inputs) >= 1 and len(outputs) == 1
 
-    def is_inline_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> bool:
-        return  self.is_inline_editing_command_sandbox(' '.join(process.cmd), inputs)
+    def is_inline_case(
+        self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]
+    ) -> bool:
+        return self.is_inline_editing_command_sandbox(" ".join(process.cmd), inputs)
 
-    def is_multiple_output_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> bool:
+    def is_multiple_output_case(
+        self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]
+    ) -> bool:
         return len(inputs) >= 1 and len(outputs) >= 1
-    
-    def is_dynamic_filename_case(self, process: ProcessNode, outputs: List[FileNode]) -> bool:
-        return any("*" in file.file or "v*" in file.file for file in outputs if file.file)
+
+    def is_dynamic_filename_case(
+        self, process: ProcessNode, outputs: List[FileNode]
+    ) -> bool:
+        return any(
+            "*" in file.file or "v*" in file.file for file in outputs if file.file
+        )
 
     def is_parallel_execution(self, process: ProcessNode) -> bool:
         return len(process.cmd) > 1 and "parallel" in process.cmd
@@ -232,31 +262,43 @@ process process_{id(process)} {{
         """
         for node in self.graph.nodes:
             if isinstance(node, ProcessNode) and node not in self.visited:
-                inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
-                outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
+                inputs = [
+                    n for n in self.graph.predecessors(node) if isinstance(n, FileNode)
+                ]
+                outputs = [
+                    n for n in self.graph.successors(node) if isinstance(n, FileNode)
+                ]
 
                 if self.is_standard_case(node, inputs, outputs):
                     process_script = self.handle_standard_case(node, inputs, outputs)
                     self.nextflow_script.append(process_script)
-                    self.workflow.append(f"{self.escape_filename_for_nextflow(outputs[0].label)} = process_{id(node)}({', '.join([self.escape_filename_for_nextflow(i.label) for i in inputs])})")
-                elif self.is_multiple_output_case(node,inputs,outputs) : 
-                    raise NotImplementedError("Handling multiple outputs not implemented yet.")
+                    self.workflow.append(
+                        f"{self.escape_filename_for_nextflow(outputs[0].label)} = process_{id(node)}({', '.join([self.escape_filename_for_nextflow(i.label) for i in inputs])})"
+                    )
+                elif self.is_multiple_output_case(node, inputs, outputs):
+                    raise NotImplementedError(
+                        "Handling multiple outputs not implemented yet."
+                    )
                 elif self.is_dynamic_filename_case(node, outputs):
-                    process_script = self.handle_dynamic_filenames(node, inputs, outputs)
+                    process_script = self.handle_dynamic_filenames(
+                        node, inputs, outputs
+                    )
                 elif self.is_parallel_execution(node):
                     process_script = self.handle_parallel_execution(node)
-                elif  self.is_inline_case(node, inputs, outputs):
+                elif self.is_inline_case(node, inputs, outputs):
                     process_script = self.handle_inline_case(node, inputs, outputs)
                     self.nextflow_script.append(process_script)
-                    self.workflow.append(f"process_{id(node)}({', '.join([self.escape_filename_for_nextflow(i.label) for i in inputs])})")
+                    self.workflow.append(
+                        f"process_{id(node)}({', '.join([self.escape_filename_for_nextflow(i.label) for i in inputs])})"
+                    )
                 else:
                     process_script = self.handle_custom_shells(node)
                     self.nextflow_script.append(process_script)
                     self.workflow.append(f"process_{id(node)}()")
 
                 self.visited.add(node)
-  
-    def generate_workflow(self, graph: nx.DiGraph) -> str:  
+
+    def generate_workflow(self, graph: nx.DiGraph) -> str:
         """
         Generate the complete Nextflow workflow script from the graph.
         """
@@ -274,10 +316,11 @@ process process_{id(process)} {{
                 escaped_name = self.escape_filename_for_nextflow(node.label)
                 if node.inodeOnDevice not in filenames:
                     if pathlib.Path(node.file).exists():
-                        self.nextflow_script.append(f"  {escaped_name}=file(\"{node.file}\")")
+                        self.nextflow_script.append(
+                            f'  {escaped_name}=file("{node.file}")'
+                        )
                         filenames.add(node.inodeOnDevice)
 
-        
         for step in self.workflow:
             self.nextflow_script.append(f"  {step}")
         self.nextflow_script.append("}")
@@ -296,14 +339,19 @@ class MakefileGenerator:
         Escape special characters in a filename for Makefile.
         Replace spaces and other special characters with underscores.
         """
-        return filename.replace(" ", "_").replace("(", "_").replace(")", "_").replace(",", "_")
+        return (
+            filename.replace(" ", "_")
+            .replace("(", "_")
+            .replace(")", "_")
+            .replace(",", "_")
+        )
 
     def is_hidden_file(self, filename: str) -> bool:
         """
         Determine if a file is hidden.
         Hidden files start with '.' or '._'.
         """
-        return filename.startswith('.') or filename.startswith('._')
+        return filename.startswith(".") or filename.startswith("._")
 
     def create_experiment_folder_command(self, process: ProcessNode) -> str:
         """
@@ -312,7 +360,9 @@ class MakefileGenerator:
         folder_name = f"process_{id(ProcessNode)}"
         return f"mkdir -p {folder_name}"
 
-    def copy_input_files_command(self, process: ProcessNode, inputs: List[FileNode]) -> Optional[str]:
+    def copy_input_files_command(
+        self, process: ProcessNode, inputs: List[FileNode]
+    ) -> Optional[str]:
         """
         Generate the command to copy input files into the experiment folder.
         Returns None if there are no input files.
@@ -327,7 +377,7 @@ class MakefileGenerator:
                 continue  # Skip hidden files
             escaped_file = self.escape_filename_for_makefile(file.label)
             commands.append(f"cp {escaped_file} {folder_name}/")
-        
+
         if commands:
             return "\n\t".join(commands)
         return None
@@ -346,26 +396,32 @@ class MakefileGenerator:
             # Execute command within the folder
             return f"(cd {folder_name} && {cmd})"
 
-    def handle_process_node(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> None:
+    def handle_process_node(
+        self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]
+    ) -> None:
         """
         Generate all necessary Makefile commands for a given process node.
         Handles different cases based on presence of inputs and outputs.
         """
         # Create experiment folder
-        self.makefile_commands.append(f"# Process {id(ProcessNode)}: {' '.join(process.cmd)}")
+        self.makefile_commands.append(
+            f"# Process {id(ProcessNode)}: {' '.join(process.cmd)}"
+        )
         self.makefile_commands.append(f"\tmkdir -p process_{id(ProcessNode)}")
-        
+
         # Copy input files
         copy_inputs = self.copy_input_files_command(process, inputs)
         if copy_inputs:
-            self.makefile_commands.append(f"# Copy input files for process {id(ProcessNode)}")
+            self.makefile_commands.append(
+                f"# Copy input files for process {id(ProcessNode)}"
+            )
             self.makefile_commands.append(f"\t{copy_inputs}")
-        
+
         # Run the command
         self.makefile_commands.append(f"# Run command for process {id(ProcessNode)}")
         run_cmd = self.run_command_command(process, outputs)
         self.makefile_commands.append(f"\t{run_cmd}")
-        
+
         # No copying of output files since they are inside the folder
 
     def create_rules(self) -> None:
@@ -374,13 +430,17 @@ class MakefileGenerator:
         """
         # Ensure the output directory exists
         self.makefile_commands.append(f"\tmkdir -p {self.output_dir}\n")
-        
+
         # Traverse the graph in topological order to respect dependencies
         for node in nx.topological_sort(self.graph):
             if isinstance(node, ProcessNode):
-                inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
-                outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
-                
+                inputs = [
+                    n for n in self.graph.predecessors(node) if isinstance(n, FileNode)
+                ]
+                outputs = [
+                    n for n in self.graph.successors(node) if isinstance(n, FileNode)
+                ]
+
                 self.handle_process_node(node, inputs, outputs)
 
     def generate_makefile(self, graph: nx.DiGraph) -> str:
@@ -389,7 +449,7 @@ class MakefileGenerator:
         """
         self.graph = graph
         self.create_rules()
-        
+
         # Assemble the Makefile
         makefile = []
         makefile.append("all:")
@@ -397,5 +457,5 @@ class MakefileGenerator:
             # Ensure each command line is properly indented with a tab
             # Makefile syntax requires tabs, not spaces
             makefile.append(f"\t{command}")
-        
+
         return "\n".join(makefile)
