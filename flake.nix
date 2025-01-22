@@ -9,7 +9,6 @@
 
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     advisory-db = {
@@ -58,7 +57,7 @@
           p.rust-bin.stable.latest.default.override {
             targets = [rust-target];
           });
-        frontend = (import ./probe_src/frontend/frontend.nix) {
+        frontend = (import ./cli-wrapper/frontend.nix) {
           inherit
             system
             pkgs
@@ -71,11 +70,11 @@
         };
       in rec {
         packages = rec {
-          inherit (frontend.packages) cargoArtifacts;
+          inherit (frontend.packages) cargoArtifacts probe-cli;
           libprobe = pkgs.stdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
-            src = ./probe_src/libprobe;
+            src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
             buildInputs = [
               (pkgs.python312.withPackages (pypkgs: [
@@ -99,45 +98,49 @@
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
           };
-          probe-py-generated = frontend.packages.probe-py-generated;
-          probe-py = let
-            probe-py-manual = python.pkgs.buildPythonPackage rec {
-              pname = "probe_py.manual";
+          probe-py = python.pkgs.buildPythonPackage rec {
+            pname = "probe_py";
+            version = "0.1.0";
+            pyproject = true;
+            build-system = [
+              python.pkgs.flit-core
+            ];
+            src = pkgs.stdenv.mkDerivation {
+              src = ./probe_py;
+              pname = "probe-py-with-pygen-code";
               version = "0.1.0";
-              pyproject = true;
-              build-system = [
-                python.pkgs.flit-core
-              ];
-              src = ./probe_src/python;
-              propagatedBuildInputs = [
-                # Packages the client will need
-                frontend.packages.probe-py-generated
-                python.pkgs.networkx
-                python.pkgs.pygraphviz
-                python.pkgs.pydot
-                python.pkgs.rich
-                python.pkgs.typer
-                python.pkgs.sqlalchemy
-                python.pkgs.xdg-base-dirs
-                python.pkgs.pyyaml
-                python.pkgs.types-pyyaml
-              ];
-              nativeCheckInputs = [
-                frontend.packages.probe-py-generated
-                python.pkgs.mypy
-                pkgs.ruff
-              ];
-              checkPhase = ''
-                runHook preCheck
-                #ruff format --check probe_src # TODO: uncomment
-                ruff check .
-                python -c 'import probe_py.manual'
-                mypy --strict --package probe_py.manual
-                runHook postCheck
+              buildPhase = "true";
+              installPhase = ''
+                mkdir $out/
+                cp --recursive $src/* $out/
+                chmod 755 $out/probe_py
+                cp ${probe-cli}/resources/ops.py $out/probe_py/
               '';
             };
-          in
-            python.withPackages (pypkgs: [probe-py-manual]);
+            propagatedBuildInputs = [
+              python.pkgs.networkx
+              python.pkgs.pygraphviz
+              python.pkgs.pydot
+              python.pkgs.rich
+              python.pkgs.typer
+              python.pkgs.xdg-base-dirs
+              python.pkgs.sqlalchemy
+              python.pkgs.pyyaml
+            ];
+            nativeCheckInputs = [
+              python.pkgs.mypy
+              python.pkgs.types-pyyaml
+              pkgs.ruff
+            ];
+            checkPhase = ''
+              runHook preCheck
+              #ruff format --check probe_src # TODO: uncomment
+              ruff check .
+              python -c 'import probe_py'
+              MYPYPATH=$src/mypy_stubs:$MYPYPATH mypy --strict --package probe_py
+              runHook postCheck
+            '';
+          };
           default = probe-bundled;
         };
         checks = {
@@ -163,12 +166,12 @@
           };
           probe-integration-tests = pkgs.stdenv.mkDerivation {
             name = "probe-integration-tests";
-            src = ./probe_src/tests;
+            src = ./tests;
             nativeBuildInputs = [
               packages.probe-bundled
-              packages.probe-py
               pkgs.podman
               pkgs.docker
+              pkgs.coreutils # so we can `probe record head ...`, etc.
             ];
             buildPhase = "touch $out";
             checkPhase = ''
@@ -179,14 +182,12 @@
         devShells = {
           default = craneLib.devShell {
             shellHook = ''
-              pushd $(git rev-parse --show-toplevel)
+              pushd $(git rev-parse --show-toplevel) > /dev/null
               source ./setup_devshell.sh
-              popd
+              popd > /dev/null
             '';
             inputsFrom = [
-              frontend.packages.probe-frontend
               frontend.packages.probe-cli
-              frontend.packages.probe-macros
             ];
             packages =
               [
@@ -212,6 +213,7 @@
                   pypkgs.pytest
                   pypkgs.mypy
                   pypkgs.ipython
+                  pypkgs.xdg-base-dirs
 
                   # libprobe build time requirement
                   pypkgs.pycparser

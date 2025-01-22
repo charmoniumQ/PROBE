@@ -10,6 +10,7 @@
 **/work
 **/.pytest_cache
 **/.idea
+**/__pycache__/
 
 # build directories
 **/target
@@ -22,4 +23,4 @@
 **/desktop.ini
 
 probe_log
-dataflow_graph.pkl
+.dmypy.json

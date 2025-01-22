@@ -1,8 +1,15 @@
 **Tasks before resubmitting "performance of provenance" paper**:
 
 1. Refactor technical debt in PROBE. Already have a branch with refactoring complete, but need to sync it up, merge it, and rebase current branches onto it
-2. Implement more benchmarks.
-3. Create statistics described here: https://github.com/users/charmoniumQ/projects/1/views/1?pane=issue&itemId=94217621
+2. Fix broken benchmarks and provenance tracers
+3. Look into benchmark non-determinism: faketime, aslr, taskset, machine id, file cache rerun, clear cache.
+4. Implement more benchmarks.
+5. Create statistics described here: https://github.com/users/charmoniumQ/projects/1/views/1?pane=issue&itemId=94217621
+6. Note "actively maintained"
+7. Run SSH remotely
+8. Review:
+   - https://gernot-heiser.org/benchmarking-crimes.html
+   - https://www2.sigsoft.org/EmpiricalStandards/docs/standards?standard=Benchmarking
 
 **Tasks before writing "Measuring the level of determinism in common record/replay tools" paper**:
 
@@ -11,7 +18,7 @@
   1. In the previous benchmark suite, how many workloads are bit-wise reproducible.
   2. For each non-deterministic input, manipulate the input, how many previously bit-wise reproducible workloads are still bit-wise reproducible. This determines its "probability of this non-det input impacting output."
 3. Create a "determinism completeness table" showing whether each tool (columns) records-and-replays, stabilizes, or detects each particular non-deterministic input (rows). Validate this with an application (could be synthetic) whose output is deterministic for the "yesses" and non-deterministic for the "noes". At the end of each column, what proportion of benchmarks only depended on the "yesses" for that column?
-   - Recording-and-replaying an input := record value is unchanged from native execution, replay value uses the recorded value. 
+   - Recording-and-replaying an input := record value is unchanged from native execution, replay value uses the recorded value.
    - Stabalizing an input := changing the record and replay to have the same value.
    - Detecting an input := detecting when the program accesses a particular input (neither stabalizing nor recording-and-replaying it).
 4. Create a "portability table" whose rows are pairs <platform on which recording was done, platform on which replaying was done> and columns are whether record/replay X allows it, allows it reproducibly, or disallows it.
@@ -24,9 +31,10 @@
 
 1. Debug OCI image recording of Python
 2. Debug multiple extraneous versions appearing the dataflow graph
-3. Compute and store DFG at transcription time. Currently this is a separate command because transcription is (and must be for compatibility) implemented in Rust while DFG is implemented in Python.
-4. DFG should be based on persistent provenance
-5. Develop heuristics for converting provenance graph to a run script.
+3. Include symlinks properly in dataflow graph.
+4. Compute and store DFG at transcription time. Currently this is a separate command because transcription is (and must be for compatibility) implemented in Rust while DFG is implemented in Python.
+5. DFG should be based on persistent provenance
+6. Develop heuristics for converting provenance graph to a run script.
 
 **Tasks for user-study**:
 
