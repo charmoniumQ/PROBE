@@ -47,12 +47,12 @@ class InodeOnDevice:
 @dataclass(frozen=True)
 class FileNode:
     inodeOnDevice: InodeOnDevice
-    version: int
+    version: Tuple[int, int]
     file: str
 
     @property
     def label(self) -> str:
-        return f"{self.file} v{self.version}"
+        return f"{self.file} version(inode {self.version[0]} mtime {self.version[1]})"
 
 # type alias for a node
 Node = Tuple[int, int, int, int]
@@ -258,7 +258,7 @@ def provlog_to_digraph(process_tree_prov_log: parser.ProvLog) -> nx.DiGraph:
     add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
     return process_graph
 
-def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, file_version_map: Dict[InodeOnDevice, int], shared_files: set[InodeOnDevice], cmd_map: Dict[int, list[str]]) -> None:
+def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, cmd_map: Dict[int, list[str]]) -> None:
     starting_pid = starting_node[0]
     
     starting_op = prov_log_get_node(process_tree_prov_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
@@ -279,39 +279,22 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
         
         op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
         next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
-        # when we move to a new process which is not a child process but an independent process we empty the shared_files 
-        if edge[0][0]!=edge[1][0] and not isinstance(op, CloneOp) and not isinstance(next_op, WaitOp) and edge[1][1] == 0 and edge[1][3] == 0:
-            shared_files = set()
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
             dataflow_graph.add_node(processNode, label=processNode.cmd)
             file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
             path_str = op.path.path.decode("utf-8")
+            curr_version = (op.path.inode, op.path.mtime.sec)
+            fileNode = FileNode(file, curr_version, path_str)
+            dataflow_graph.add_node(fileNode, label=fileNode.label)
+            path = pathlib.Path(op.path.path.decode("utf-8"))
+            if path not in name_map[file]:
+                name_map[file].append(path)
             if access_mode == os.O_RDONLY:
-                curr_version = file_version_map[file]
-                fileNode = FileNode(file, curr_version, path_str)
-                dataflow_graph.add_node(fileNode, label = fileNode.label)
-                path = pathlib.Path(op.path.path.decode("utf-8"))
-                if path not in name_map[file]:
-                    name_map[file].append(path)
                 dataflow_graph.add_edge(fileNode, processNode)
             elif access_mode == os.O_WRONLY:
-                curr_version = file_version_map[file]
-                if file in shared_files:
-                    fileNode2 = FileNode(file, curr_version, path_str)
-                    dataflow_graph.add_node(fileNode2, label = fileNode2.label)
-                else:
-                    file_version_map[file] = curr_version + 1
-                    fileNode2 = FileNode(file, curr_version+1, path_str)
-                    dataflow_graph.add_node(fileNode2, label = fileNode2.label)
-                    if starting_pid == pid:
-                        # shared_files: shared_files helps us keep track of the files shared between parent and child processes. This ensures that when the children write to the file, the version of the file is not incremented multiple times
-                        shared_files.add(file)
-                path = pathlib.Path(op.path.path.decode("utf-8"))
-                if path not in name_map[file]:
-                    name_map[file].append(path)          
-                dataflow_graph.add_edge(processNode, fileNode2)
+                dataflow_graph.add_edge(processNode, fileNode)
             elif access_mode == 2:
                 console.print(f"Found file {path_str} with access mode O_RDWR", style="red")
             else:
@@ -335,7 +318,7 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: parser.ProvLog, starting_node
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
             for node in target_nodes[op.task_id]:
-                traverse_hb_for_dfgraph(process_tree_prov_log, node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
+                traverse_hb_for_dfgraph(process_tree_prov_log, node, traversed, dataflow_graph, cmd_map)
                 traversed.add(node[2])
         # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
@@ -350,7 +333,6 @@ def list_edges_from_start_node(graph: nx.DiGraph, start_node: Node) -> list[Edge
 
 def provlog_to_dataflow_graph(process_tree_prov_log: parser.ProvLog) -> nx.DiGraph:
     dataflow_graph = nx.DiGraph()
-    file_version_map = collections.defaultdict[InodeOnDevice, int](lambda: 0)
     process_graph = provlog_to_digraph(process_tree_prov_log)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     traversed: set[int] = set()
@@ -361,8 +343,7 @@ def provlog_to_dataflow_graph(process_tree_prov_log: parser.ProvLog) -> nx.DiGra
         if isinstance(op, ExecOp):
             if pid == tid and exec_epoch_no == 0:
                 cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
-    shared_files:set[InodeOnDevice] = set()
-    traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
+    traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, cmd_map)
     return dataflow_graph
 
 def prov_log_get_node(prov_log: parser.ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
