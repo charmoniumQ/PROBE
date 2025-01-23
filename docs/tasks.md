@@ -143,8 +143,11 @@ Performance issues:
 
 - [ ] Use lock-free implementation of InodeTable
 
-- [ ] Put rdtsc performance counters in libprobe to instrument startup and re-exec cost. Write them to disk somehow. Look at the results.
 
+- [ ] Try to break it.
+  - [ ] In one terminal execute: `probe record --overwrite --no-transcribe --output .workdir/log/0/probe/ python -m http.server 54123 --directory .workdir/work/0/simple'`. In another, execute `hey -n 50000 http://localhost:54123/test'`. Notice `__arena_reinstantiate: openat: Too many open files`.
+
+- [ ] Put rdtsc performance counters in libprobe to instrument startup and re-exec cost. Write them to disk somehow. Look at the results.
 
 Better UI/UX:
 

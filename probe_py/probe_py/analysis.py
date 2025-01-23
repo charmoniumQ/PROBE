@@ -26,12 +26,12 @@ class ProcessNode:
 @dataclass(frozen=True)
 class FileNode:
     inode: Inode
-    version: int
+    version: tuple[int, int]
     file: str
 
     @property
     def label(self) -> str:
-        return f"{self.file} v{self.version}"
+        return f"{self.file} version(inode {self.version[0]} mtime {self.version[1]})"
 
 # type alias for a node
 OpNode = tuple[Pid, ExecNo, Tid, int]
@@ -51,6 +51,112 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     exec_edges = list[tuple[OpNode, OpNode]]()
     nodes = list[OpNode]()
     proc_to_ops = dict[tuple[int, int, int], list[OpNode]]()
+
+
+Node: typing.TypeAlias = tuple[int, int, int, int]
+
+# type for the edges
+EdgeType: typing.TypeAlias = tuple[Node, Node]
+
+
+def validate_provlog(
+        provlog: ProvLog,
+) -> list[str]:
+    ret = list[str]()
+    waited_processes = set[tuple[TaskType, int]]()
+    cloned_processes = set[tuple[TaskType, int]]()
+    opened_fds = set[int]()
+    closed_fds = set[int]()
+    n_roots = 0
+    for pid, process in provlog.processes.items():
+        epochs = set[int]()
+        first_op = process.exec_epochs[0].threads[pid].ops[0]
+        if not isinstance(first_op.data, InitProcessOp):
+            ret.append("First op in exec_epoch 0 should be InitProcessOp")
+        else:
+            if first_op.data.is_root:
+                n_roots += 1
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            epochs.add(exec_epoch_no)
+            first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
+            first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
+            if not isinstance(first_ee_op.data, InitExecEpochOp):
+                ret.append(f"{first_ee_op_idx} in exec_epoch should be InitExecEpochOp")
+            pthread_ids = {
+                op.pthread_id
+                for tid, thread in exec_epoch.threads.items()
+                for op in thread.ops
+            }
+            iso_c_thread_ids = {
+                op.pthread_id
+                for tid, thread in exec_epoch.threads.items()
+                for op in thread.ops
+            }
+            for tid, thread in exec_epoch.threads.items():
+                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
+                first_thread_op = thread.ops[first_thread_op_idx]
+                if not isinstance(first_thread_op.data, InitThreadOp):
+                    ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
+                for op in thread.ops:
+                    if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+                        # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
+                        waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
+                    elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                        cloned_processes.add((TaskType(op.data.task_type), op.data.task_id))
+                        if op.data.task_type == TaskType.TASK_PID:
+                            # New process implicitly also creates a new thread
+                            cloned_processes.add((TaskType.TASK_TID, op.data.task_id))
+                    elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
+                        opened_fds.add(op.data.fd)
+                    elif isinstance(op.data, ExecOp):
+                        if len(op.data.argv) != op.data.argc:
+                            ret.append("argv vs argc mismatch")
+                        if len(op.data.env) != op.data.envc:
+                            ret.append("env vs envc mismatch")
+                        if not op.data.argv:
+                            ret.append("No arguments stored in exec syscall")
+                    elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
+                        # Range in Python is up-to-not-including high_fd, so we add one to it.
+                        closed_fds.update(range(op.data.low_fd, op.data.high_fd + 1))
+                    elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                        if False:
+                            pass
+                        elif op.data.task_type == TaskType.TASK_PID and op.data.task_id not in provlog.processes.keys():
+                            ret.append(f"CloneOp returned a PID {op.data.task_id} that we didn't track")
+                        elif op.data.task_type == TaskType.TASK_TID and op.data.task_id not in exec_epoch.threads.keys():
+                            ret.append(f"CloneOp returned a TID {op.data.task_id} that we didn't track")
+                        elif op.data.task_type == TaskType.TASK_PTHREAD and op.data.task_id not in pthread_ids:
+                            ret.append(f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track")
+                        elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
+                            ret.append(f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track")
+                    elif isinstance(op.data, InitProcessOp):
+                        if exec_epoch_no != 0:
+                            ret.append(f"InitProcessOp happened, but exec_epoch was not zero, was {exec_epoch_no}")
+        expected_epochs = set(range(0, max(epochs) + 1))
+        if expected_epochs - epochs:
+            ret.append(f"Missing epochs for pid={pid}: {sorted(epochs - expected_epochs)}")
+    reserved_fds = {0, 1, 2}
+    if closed_fds - opened_fds - reserved_fds:
+        # TODO: Problem due to some programs opening /dev/pts/0 in a way that libprobe doesn't notice, but they close it in a way we do notice.
+        pass
+        #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
+    elif waited_processes - cloned_processes:
+        ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
+    if n_roots != 1:
+        ret.append(f"Got {n_roots} prov roots")
+    return ret
+
+
+# TODO: Rename "digraph" to "hb_graph" in the entire project.
+# Digraph (aka "directed graph") is too vague a term; the proper name is "happens-before graph".
+# Later on, we will have a function that transforms an hb graph to file graph (both of which are digraphs)
+def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
+    # [pid, exec_epoch_no, tid, op_index]
+    program_order_edges = list[tuple[Node, Node]]()
+    fork_join_edges = list[tuple[Node, Node]]()
+    exec_edges = list[tuple[Node, Node]]()
+    nodes = list[Node]()
+    proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
@@ -157,8 +263,6 @@ def traverse_hb_for_dfgraph(
         starting_node: OpNode,
         traversed: set[int],
         dataflow_graph: DfGraph,
-        file_version_map: dict[Inode, int],
-        shared_files: set[Inode],
         cmd_map: dict[int, list[str]],
 ) -> None:
     starting_pid = starting_node[0]
@@ -181,39 +285,23 @@ def traverse_hb_for_dfgraph(
         
         op = get_op(probe_log, pid, exec_epoch_no, tid, op_index).data
         next_op = get_op(probe_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
-        # when we move to a new process which is not a child process but an independent process we empty the shared_files 
-        if edge[0][0]!=edge[1][0] and not isinstance(op, CloneOp) and not isinstance(next_op, WaitOp) and edge[1][1] == 0 and edge[1][3] == 0:
-            shared_files = set()
+
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
             dataflow_graph.add_node(processNode, label=processNode.cmd)
             file = Inode(Host.localhost(), op.path.device_major, op.path.device_minor, op.path.inode)
             path_str = op.path.path.decode("utf-8")
+            curr_version = (op.path.inode, op.path.mtime.sec)
+            fileNode = FileNode(file, curr_version, path_str)
+            dataflow_graph.add_node(fileNode, label=fileNode.label)
+            path = pathlib.Path(op.path.path.decode("utf-8"))
+            if path not in name_map[file]:
+                name_map[file].append(path)
             if access_mode == os.O_RDONLY:
-                curr_version = file_version_map[file]
-                fileNode = FileNode(file, curr_version, path_str)
-                dataflow_graph.add_node(fileNode, label = fileNode.label)
-                path = pathlib.Path(op.path.path.decode("utf-8"))
-                if path not in name_map[file]:
-                    name_map[file].append(path)
                 dataflow_graph.add_edge(fileNode, processNode)
             elif access_mode == os.O_WRONLY:
-                curr_version = file_version_map[file]
-                if file in shared_files:
-                    fileNode2 = FileNode(file, curr_version, path_str)
-                    dataflow_graph.add_node(fileNode2, label = fileNode2.label)
-                else:
-                    file_version_map[file] = curr_version + 1
-                    fileNode2 = FileNode(file, curr_version+1, path_str)
-                    dataflow_graph.add_node(fileNode2, label = fileNode2.label)
-                    if starting_pid == pid:
-                        # shared_files: shared_files helps us keep track of the files shared between parent and child processes. This ensures that when the children write to the file, the version of the file is not incremented multiple times
-                        shared_files.add(file)
-                path = pathlib.Path(op.path.path.decode("utf-8"))
-                if path not in name_map[file]:
-                    name_map[file].append(path)          
-                dataflow_graph.add_edge(processNode, fileNode2)
+                dataflow_graph.add_edge(processNode, fileNode)
             elif access_mode == 2:
                 console.print(f"Found file {path_str} with access mode O_RDWR", style="red")
             else:
@@ -237,7 +325,7 @@ def traverse_hb_for_dfgraph(
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
             for node in target_nodes[op.task_id]:
-                traverse_hb_for_dfgraph(probe_log, node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
+                traverse_hb_for_dfgraph(process_tree_prov_log, node, traversed, dataflow_graph, cmd_map)
                 traversed.add(node[2])
         # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
@@ -258,15 +346,18 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog) -> DfGraph:
         if isinstance(op, ExecOp):
             if pid.main_thread() == tid and exec_epoch_no == 0:
                 cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
-    shared_files:set[Inode] = set()
-    traverse_hb_for_dfgraph(probe_log, root_node, traversed, dataflow_graph, file_version_map, shared_files, cmd_map)
+    traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, cmd_map)
     return dataflow_graph
+
+def prov_log_get_node(prov_log: ProvLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
+    return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
+
 
 def get_op(probe_log: ProbeLog, pid: Pid, eno: ExecNo, tid: Tid, op_no: int) -> Op:
     return probe_log.processes[pid].execs[eno].threads[tid].ops[op_no]
 
 
-def validate_hb_closes(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
+def validate_hb_closes(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
     # Note that this test doesn't work if a process "intentionally" leaves a fd open for its child.
     # E.g., bash-in-pipe
     reservse_hb_graph = hb_graph.reverse()
@@ -288,6 +379,7 @@ def validate_hb_closes(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
 
 def validate_hb_waits(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     reservse_hb_graph = hb_graph.reverse()
+
     ret = list[str]()
     for node in hb_graph.nodes():
         op = get_op(probe_log, *node)
@@ -390,6 +482,17 @@ def validate_hb_graph(processes: ProbeLog, hb_graph: HbGraph) -> list[str]:
     return ret
 
 
+def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, typing.Any]]:
+    """Remove node from graph and attach its predecessors to its successors"""
+    ret = list[tuple[typing.Any, typing.Any]]()
+    for predecessor in graph.predecessors:
+        for successor in graph.successors:
+            ret.append((predecessor, successor))
+            graph.add_edge(predecessor, successor)
+    graph.remove_node(node)
+    return ret
+
+
 def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     label_color_map = {
         EdgeLabel.EXEC: 'yellow',
@@ -420,3 +523,28 @@ def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, StatOp):
             data["label"] += f"\n{op.data.path.path.decode()}"
+
+def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
+    process_tree = collections.defaultdict(list)
+    
+    for pid, process in prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                for op_index, op in enumerate(thread.ops):
+                    op_data = op.data
+
+                    if isinstance(op_data, CloneOp) and op_data.ferrno == 0:
+                        child_pid = op_data.task_id
+                        process_tree[pid].append(child_pid)
+
+    G = nx.DiGraph()
+
+    for parent_pid, children in process_tree.items():
+        if not G.has_node(parent_pid):
+            G.add_node(parent_pid, label=f"Process {parent_pid}")
+        for child_pid in children:
+            if not G.has_node(child_pid):
+                G.add_node(child_pid, label=f"Process {child_pid}")
+            G.add_edge(parent_pid, child_pid)
+
+    return G

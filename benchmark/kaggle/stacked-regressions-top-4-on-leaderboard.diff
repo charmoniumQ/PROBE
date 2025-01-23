@@ -1,0 +1,16 @@
+--- a/stacked-regressions-top-4-on-leaderboard.ipynb	2025-01-09 22:55:51.714436279 -0600
++++ b/stacked-regressions-top-4-on-leaderboard.ipynb	2025-01-09 22:55:52.077436106 -0600
+@@ -490,5 +490,5 @@
+    "source": [
+     "f, ax = plt.subplots(figsize=(15, 12))\n",
+-    "plt.xticks(rotation='90')\n",
++    "plt.xticks(rotation=90)\n",
+     "sns.barplot(x=all_data_na.index, y=all_data_na)\n",
+     "plt.xlabel('Features', fontsize=15)\n",
+@@ -519,5 +519,5 @@
+    "source": [
+     "#Correlation map to see how features are correlated with SalePrice\n",
+-    "corrmat = train.corr()\n",
++    "corrmat = train.corr(numeric_only=True)\n",
+     "plt.subplots(figsize=(12,9))\n",
+     "sns.heatmap(corrmat, vmax=0.9, square=True)"

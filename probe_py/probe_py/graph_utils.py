@@ -1,6 +1,6 @@
 import typing
 import pathlib
-import networkx
+import networkx  # type: ignore
 
 
 _Node = typing.TypeVar("_Node")

@@ -9,7 +9,6 @@
 
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     advisory-db = {
@@ -83,22 +82,22 @@
               ]))
             ];
           };
-          # probe-bundled = pkgs.stdenv.mkDerivation rec {
-          #   pname = "probe-bundled";
-          #   version = "0.1.0";
-          #   dontUnpack = true;
-          #   dontBuild = true;
-          #   nativeBuildInputs = [pkgs.makeWrapper];
-          #   installPhase = ''
-          #     mkdir $out $out/bin
-          #     makeWrapper \
-          #       ${frontend.packages.probe-cli}/bin/probe \
-          #       $out/bin/probe \
-          #       --set __PROBE_LIB ${libprobe}/lib \
-          #       --prefix PATH : ${probe-py}/bin \
-          #       --prefix PATH : ${pkgs.buildah}/bin
-          #   '';
-          # };
+          probe-bundled = pkgs.stdenv.mkDerivation rec {
+            pname = "probe-bundled";
+            version = "0.1.0";
+            dontUnpack = true;
+            dontBuild = true;
+            nativeBuildInputs = [pkgs.makeWrapper];
+            installPhase = ''
+              mkdir $out $out/bin
+              makeWrapper \
+                ${frontend.packages.probe-cli}/bin/probe \
+                $out/bin/probe \
+                --set __PROBE_LIB ${libprobe}/lib \
+                --prefix PATH : ${probe-py}/bin \
+                --prefix PATH : ${pkgs.buildah}/bin
+            '';
+          };
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
             version = "0.1.0";
@@ -125,9 +124,12 @@
               python.pkgs.rich
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
+              python.pkgs.sqlalchemy
+              python.pkgs.pyyaml
             ];
             nativeCheckInputs = [
               python.pkgs.mypy
+              python.pkgs.types-pyyaml
               pkgs.ruff
             ];
             checkPhase = ''
@@ -139,7 +141,7 @@
               runHook postCheck
             '';
           };
-          # default = probe-bundled;
+          default = probe-bundled;
         };
         checks = {
           inherit
@@ -164,12 +166,12 @@
           };
           probe-integration-tests = pkgs.stdenv.mkDerivation {
             name = "probe-integration-tests";
-            src = ./probe_src/tests;
+            src = ./tests;
             nativeBuildInputs = [
-              # packages.probe-bundled
-              packages.probe-py
+              packages.probe-bundled
               pkgs.podman
               pkgs.docker
+              pkgs.coreutils # so we can `probe record head ...`, etc.
             ];
             buildPhase = "touch $out";
             checkPhase = ''
@@ -180,9 +182,9 @@
         devShells = {
           default = craneLib.devShell {
             shellHook = ''
-              pushd $(git rev-parse --show-toplevel)
+              pushd $(git rev-parse --show-toplevel) > /dev/null
               source ./setup_devshell.sh
-              popd
+              popd > /dev/null
             '';
             inputsFrom = [
               frontend.packages.probe-cli
@@ -198,10 +200,13 @@
                 (python.withPackages (pypkgs: [
                   # probe_py.manual runtime requirements
                   pypkgs.networkx
-                  pypkgs.pygraphviz
                   pypkgs.pydot
                   pypkgs.rich
                   pypkgs.typer
+                  pypkgs.sqlalchemy
+                  pypkgs.xdg-base-dirs
+                  pypkgs.pyyaml
+                  pypkgs.types-pyyaml
 
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil
@@ -236,9 +241,8 @@
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
               ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
-            };
+          };
         };
       }
-    )
-  ;
+    );
 }

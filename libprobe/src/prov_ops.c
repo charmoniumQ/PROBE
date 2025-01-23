@@ -21,7 +21,7 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
          * Then again, this could happen in the tracee's code too...
          * TODO: Remove this once I debug myself.
          * */
-        assert(path == NULL || path[0] != '\0' || flags & AT_EMPTY_PATH);
+        //assert(path == NULL || (path[0] != '\0' || flags & AT_EMPTY_PATH));
 
         /*
          * if path == NULL, then the target is the dir specified by dirfd.
@@ -110,23 +110,6 @@ static int fopen_to_flags(BORROWED const char* fopentype) {
         NOT_IMPLEMENTED("Unknown fopentype %s", fopentype);
     }
 }
-
-/*
-static void free_op(struct Op op) {
-    switch (op.op_code) {
-        case open_op_code: free_path(op.data.open.path); break;
-        case init_process_op_code: FREE(op.data.init_process.program_name); break;
-        case exec_op_code: free_path(op.data.exec.path); break;
-        case access_op_code: free_path(op.data.access.path); break;
-        case stat_op_code: free_path(op.data.stat.path); break;
-        case read_link_op_code:
-            free_path(op.data.read_link.path);
-            FREE((char*) op.data.read_link.resolved);
-            break;
-        default:
-    }
-}
-*/
 
 static const struct Path* op_to_path(const struct Op* op) {
     switch (op->op_code) {

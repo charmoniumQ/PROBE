@@ -1,69 +1,241 @@
-import shutil
-import shlex
 import dataclasses
 import warnings
+import json
 import subprocess
 import os
 import yaml
 import tarfile
 import re
-from collections.abc import Sequence, Mapping
-from pathlib import Path
-from util import run_all, CmdArg, check_returncode, flatten1, to_str, SubprocessError, terminate_or_kill
+from collections.abc import Mapping
+import pathlib
+from util import check_returncode, flatten1
 from typing import Callable, cast, Any
 from compound_pattern import CompoundPattern
+import util
+import command
 
 
-# TODO: change ProvOperation.targets from str to Path
 @dataclasses.dataclass(frozen=True)
 class ProvOperation:
     type: str
-    target0: str | None
-    target1: str | None
+    target0: pathlib.Path | None
+    target1: pathlib.Path | None
     args: object | None
 
 
 class ProvCollector:
     @property
-    def requires_empty_dir(self) -> bool:
-        return False
-
-    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-        return None
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        return cmd
-
-    def stop(self, env: Mapping[str, str]) -> None:
-        pass
-
-    def __str__(self) -> str:
-        return self.name
-
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
-        return ()
-
-    @property
     def name(self) -> str:
         return self.__class__.__name__.lower()
+    timeout_multiplier: float = 10
+    requires_empty_dir: bool
+    run_cmd: command.Command = command.Command(())
+    setup_cmd: command.Command = command.Command(())
+    teardown_cmd: command.Command = command.Command(())
 
-    @property
-    def method(self) -> str:
-        return "None"
-
-    @property
-    def submethod(self) -> str:
-        return "None"
-
-    @property
-    def nix_packages(self) -> list[str]:
-        return []
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        return ()
 
 
 class NoProv(ProvCollector):
-    name = "noprov"
+    timeout_multiplier = 1
 
-libcalls = "-*+" + "+".join([
+
+class AbstractTracer(ProvCollector):
+    line_pattern: CompoundPattern
+    group_processors: Mapping[str, Callable[[str], object]] = {}
+    use_get_dlib_on_exe: bool
+
+    def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
+        return [op]
+
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        log_contents = log.read_text()
+        operations = []
+        def identity(obj):
+            return obj
+        if self.use_get_dlib_on_exe and is_executable_or_library(pathlib.Path(exe)):
+            for lib in get_dlibs(exe):
+                operations.append(ProvOperation("dldep", pathlib.Path(lib), None, {"source": exe}))
+        for line in log_contents.split("\n"):
+            if line.strip():
+                line = line.strip()
+                if (match := self.line_pattern.match(line)):
+                    args = match.combined_groupdict()
+                    op = args.get("op")
+                    if op is not None:
+                        operations.extend(self._filter_op(ProvOperation(
+                            op,
+                            pathlib.Path(util.expect_type(str, args.get("target0"))) if args.get("target0") else None,
+                            pathlib.Path(util.expect_type(str, args.get("target1"))) if args.get("target1") else None,
+                            {
+                                key: self.group_processors.get(key, identity)(val)
+                                for key, val in args.items()
+                                if key not in {"target0", "target1", "op"}
+                            },
+                        )))
+                else:
+                    warnings.warn("Unable to parse line: " + line)
+        return tuple(operations)
+
+
+PATH_SIZE = 4096
+prov_log = command.Placeholder("prov_log")
+work_dir = command.Placeholder("work_dir")
+env = command.NixPath(".#coreutils", "/bin/env")
+mkdir = command.NixPath(".#coreutils", "/bin/mkdir")
+
+function_name = "[a-z0-9_.]+"
+
+strace_syscalls = [
+    # File syscalls
+    "open", "openat", "openat2", "creat",
+    "close", "close_range",
+    "dup", "dup2", "dup3",
+    "link", "linkat", "symlink", "symlinkat",
+    "unlink", "unlinkat", "rmdir",
+    "rename", "renameat",
+    "mkdir", "mkdirat",
+    "fstat", "newfstatat",
+    "chown", "fchown", "lchown", "fchownat",
+    "chmod", "fchmod", "fchmodat",
+    "access", "faccessat",
+    "utime", "utimes", "futimesat", "utimensat",
+    "truncate", "ftruncate",
+    "mknod", "mknodat",
+    "readlink", "readlinkat",
+    # TODO: Track fcntl and rerun results
+
+    # sockets
+    "bind", "accept", "accept4", "connect", "socketcall", "shutdown",
+
+    # Other IPC
+    "pipe", "pipe2",
+
+    # xattr syscalls
+    "fgetxattr", "flistxattr", "fremovexattr", "fsetxattr",
+    "getxattr", "lgetxattr", "listxattr", "llistxattr",
+    "lremovexattr", "lsetxattr", "removexattr", "setxattr",
+
+    # Proc syscalls
+    "clone", "clone3", "fork", "vfork",
+    "execve", "execveat",
+    "exit", "exit_group",
+    "chroot", "fchdir", "chdir",
+]
+
+class STrace(AbstractTracer):
+    timeout_multiplier = 3
+
+    run_cmd = command.Command((
+        command.NixPath(".#strace", "/bin/strace"),
+        "--follow-forks",
+        "--trace",
+        ",".join(strace_syscalls),
+        "--output",
+        prov_log,
+        "-s",
+        str(PATH_SIZE),
+    ))
+
+    # Log line example:
+    # 5     execve("/paxoth/to/python", ...) = 0
+    line_pattern = CompoundPattern(
+        pattern=re.compile(r"^(?P<line>.*)$"),
+        name="match-all",
+        subpatterns={
+            "line": [
+                CompoundPattern(
+                    name="call",
+                    pattern=re.compile(r"^(?P<pid>\d+) +(?P<op>fname)\((?P<args>.*)(?:\) += (?P<ret>.*)| <unfinished ...>)$".replace("fname", function_name)),
+                    subpatterns={
+                        "args": [
+                            CompoundPattern(
+                                re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)", (?:(?P<between_args>[^"]*), )?"(?P<target1>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
+                                name="2-str",
+                            ),
+                            CompoundPattern(
+                                re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
+                                name="1-str",
+                            ),
+                            CompoundPattern(
+                                re.compile(r'^(?P<all_args>[^"]*)$'),
+                                name="0-str",
+                            ),
+                            # Special case for execve:
+                            CompoundPattern(
+                                re.compile(r'^"(?P<target0>[^"]*)", (?P<after_args>\[.*\].*)$'),
+                                name="execve",
+                            ),
+                            CompoundPattern(
+                                re.compile(r"^(?P<before_struct>[^{]*), \{(?P<struct>.*?)\}, (?P<after_struct>.*)$"),
+                                name="struct",
+                                subpatterns={
+                                    "struct": [
+                                        CompoundPattern(
+                                            re.compile(r'^(?:(?P<before_items>[^"]*), )?(?P<target0_key>[a-zA-Z0-9_]+)=[a-z_]*\(?"(?P<target0>[^"]*)"\)?(?:, (?P<after_items>[^"]*))?$'),
+                                            name="struct-1-str",
+                                        ),
+                                        CompoundPattern(
+                                            re.compile(r'^(?P<all_items>[^"]*)$'),
+                                            name="struct-0-str",
+                                        ),
+                                    ],
+                                }
+                            ),
+                        ],
+                    },
+                ),
+                CompoundPattern(
+                    re.compile(r"^(?P<pid>\d+) +<... (?P<op>fname) resumed>(?:, )?(?P<args>.*)\) += (?P<ret>.*)$".replace("fname", function_name)),
+                    name="resumed",
+                ),
+                CompoundPattern(
+                    re.compile(r"^(?P<pid>\d+) +\+\+\+ exited with (?P<exit_code>\d+) \+\+\+$"),
+                    name="exit",
+                ),
+                CompoundPattern(
+                    re.compile(r"^(?P<pid>\d+) +--- (?P<sig>SIG[A-Z0-9]+) \{(?P<sig_struct>.*)\} ---$"),
+                    name="signal",
+                ),
+            ],
+        },
+    )
+    use_get_dlib_on_exe = False
+    group_processors = {
+        "pid": int,
+    }
+
+
+
+ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+\(")
+
+def _get_dlibs(exe_or_dlib: pathlib.Path, found: set[pathlib.Path]) -> None:
+    env: Mapping[str, str] = {}
+    proc = subprocess.run(
+        command.Command((
+            command.NixPath(".#glibc_multi_bin", "/bin/ldd"),
+            exe_or_dlib,
+        )).expand({}),
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+    check_returncode(proc, env)
+    for match in ldd_regex.finditer(proc.stdout):
+        path = match.group("path")
+        if path is not None and path not in found:
+            found.add(pathlib.Path(path))
+            _get_dlibs(exe_or_dlib, found)
+
+
+def get_dlibs(exe_or_dlib: pathlib.Path) -> set[pathlib.Path]:
+    ret = set[pathlib.Path]()
+    _get_dlibs(exe_or_dlib, ret)
+    return ret
+
+
+ltrace_libcalls = [
     # https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html
     "fopen", "fopen64", "freopen", "freopen64",
     # https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html
@@ -141,207 +313,29 @@ libcalls = "-*+" + "+".join([
 
     # I'm pretty sure these should be here
     "clone", "chdir", "chroot", "fstatat", "dlopen", "dlclose",
-])
-
-syscalls = ",".join([
-    # File syscalls
-    "open", "openat", "openat2", "creat",
-    "close", "close_range",
-    "dup", "dup2", "dup3",
-    "link", "linkat", "symlink", "symlinkat",
-    "unlink", "unlinkat", "rmdir",
-    "rename", "renameat",
-    "mkdir", "mkdirat",
-    "fstat", "newfstatat",
-    "chown", "fchown", "lchown", "fchownat",
-    "chmod", "fchmod", "fchmodat",
-    "access", "faccessat",
-    "utime", "utimes", "futimesat", "utimensat",
-    "truncate", "ftruncate",
-    "mknod", "mknodat",
-    "readlink", "readlinkat",
-    # TODO: Track fcntl and rerun results
-
-    # sockets
-    "bind", "accept", "accept4", "connect", "socketcall", "shutdown",
-
-    # Other IPC
-    "pipe", "pipe2",
-
-    # xattr syscalls
-    "fgetxattr", "flistxattr", "fremovexattr", "fsetxattr",
-    "getxattr", "lgetxattr", "listxattr", "llistxattr",
-    "lremovexattr", "lsetxattr", "removexattr", "setxattr",
-
-    # Proc syscalls
-    "clone", "clone3", "fork", "vfork",
-    "execve", "execveat",
-    "exit", "exit_group",
-    "chroot", "fchdir", "chdir",
-])
-
-
-function_name = "[a-z0-9_.]+"
-
-
-class AbstractTracer(ProvCollector):
-    line_pattern: CompoundPattern
-    group_processors: Mapping[str, Callable[[str], object]] = {}
-    log_name: str
-    use_get_dlib_on_exe: bool
-
-    def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
-        return [op]
-
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
-        log_contents = (log / self.log_name).read_text()
-        operations = []
-        def identity(obj):
-            return obj
-        if self.use_get_dlib_on_exe and is_executable_or_library(Path(exe)):
-            for lib in get_dlibs(str(exe)):
-                operations.append(ProvOperation("dldep", lib, None, {"source": exe}))
-        for line in log_contents.split("\n"):
-            if line.strip():
-                line = line.strip()
-                if (match := self.line_pattern.match(line)):
-                    args = match.combined_groupdict()
-                    op = args.get("op")
-                    if op is not None:
-                        operations.extend(self._filter_op(ProvOperation(
-                            op,
-                            args.get("target0"),
-                            args.get("target1"),
-                            {
-                                key: self.group_processors.get(key, identity)(val)
-                                for key, val in args.items()
-                                if key not in {"target0", "target1", "op"}
-                            },
-                        )))
-                else:
-                    warnings.warn("Unable to parse line: " + line)
-        return tuple(operations)
-
-
-class STrace(AbstractTracer):
-    method = "tracing"
-    submethod = "syscalls"
-    name = "strace"
-
-    nix_packages = [".#strace"]
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        return (
-            "strace", "--follow-forks", "--trace", syscalls, "--output", log / self.log_name, "-s", f"{size}", *cmd,
-        )
-
-    # Log line example:
-    # 5     execve("/paxoth/to/python", ...) = 0
-    line_pattern = CompoundPattern(
-        pattern=re.compile(r"^(?P<line>.*)$"),
-        name="match-all",
-        subpatterns={
-            "line": [
-                CompoundPattern(
-                    name="call",
-                    pattern=re.compile(r"^(?P<pid>\d+) +(?P<op>fname)\((?P<args>.*)(?:\) += (?P<ret>.*)| <unfinished ...>)$".replace("fname", function_name)),
-                    subpatterns={
-                        "args": [
-                            CompoundPattern(
-                                re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)", (?:(?P<between_args>[^"]*), )?"(?P<target1>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
-                                name="2-str",
-                            ),
-                            CompoundPattern(
-                                re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
-                                name="1-str",
-                            ),
-                            CompoundPattern(
-                                re.compile(r'^(?P<all_args>[^"]*)$'),
-                                name="0-str",
-                            ),
-                            # Special case for execve:
-                            CompoundPattern(
-                                re.compile(r'^"(?P<target0>[^"]*)", (?P<after_args>\[.*\].*)$'),
-                                name="execve",
-                            ),
-                            CompoundPattern(
-                                re.compile(r"^(?P<before_struct>[^{]*), \{(?P<struct>.*?)\}, (?P<after_struct>.*)$"),
-                                name="struct",
-                                subpatterns={
-                                    "struct": [
-                                        CompoundPattern(
-                                            re.compile(r'^(?:(?P<before_items>[^"]*), )?(?P<target0_key>[a-zA-Z0-9_]+)=[a-z_]*\(?"(?P<target0>[^"]*)"\)?(?:, (?P<after_items>[^"]*))?$'),
-                                            name="struct-1-str",
-                                        ),
-                                        CompoundPattern(
-                                            re.compile(r'^(?P<all_items>[^"]*)$'),
-                                            name="struct-0-str",
-                                        ),
-                                    ],
-                                }
-                            ),
-                        ],
-                    },
-                ),
-                CompoundPattern(
-                    re.compile(r"^(?P<pid>\d+) +<... (?P<op>fname) resumed>(?:, )?(?P<args>.*)\) += (?P<ret>.*)$".replace("fname", function_name)),
-                    name="resumed",
-                ),
-                CompoundPattern(
-                    re.compile(r"^(?P<pid>\d+) +\+\+\+ exited with (?P<exit_code>\d+) \+\+\+$"),
-                    name="exit",
-                ),
-                CompoundPattern(
-                    re.compile(r"^(?P<pid>\d+) +--- (?P<sig>SIG[A-Z0-9]+) \{(?P<sig_struct>.*)\} ---$"),
-                    name="signal",
-                ),
-            ],
-        },
-    )
-    use_get_dlib_on_exe = False
-    group_processors = {
-        "pid": int,
-    }
-    log_name = "strace.out"
-
-
-
-ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+\(")
-
-def _get_dlibs(exe_or_dlib: str, found: set[str]) -> None:
-    env: Mapping[str, str] = {}
-    proc = subprocess.run(
-        ["ldd", exe_or_dlib],
-        text=True,
-        capture_output=True,
-        env=env,
-    )
-    check_returncode(proc, env)
-    for match in ldd_regex.finditer(proc.stdout):
-        path = match.group("path")
-        if path is not None and path not in found:
-            found.add(path)
-            _get_dlibs(exe_or_dlib, found)
-
-
-def get_dlibs(exe_or_dlib: str) -> set[str]:
-    ret = set[str]()
-    _get_dlibs(exe_or_dlib, ret)
-    return ret
+]
 
 
 class LTrace(AbstractTracer):
-    method = "tracing"
-    submethod = "libc calls"
-    name = "ltrace"
+    timeout_multiplier = 10
 
-    nix_packages = [".#ltrace", ".#glibc_bin", ".#coreutils"]
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        return (
-            "ltrace", "-f", "--config", "ltrace.conf.3", "-L", "-x", f"{libcalls}",
-            "--output", log / self.log_name, "-s", f"{size}", "--", "env", *cmd,
-        )
+    run_cmd = command.Command((
+        command.NixPath(".#ltrace", "/bin/ltrace"),
+        "-f",
+        "--config",
+        command.NixPath(".#ltrace-conf"),
+        "-L",
+        "-x",
+        "-*+" + "+".join(ltrace_libcalls),
+        "--output",
+        prov_log,
+        "-s",
+        str(PATH_SIZE),
+        "--",
+        # $ ltrace ./script.sh
+        # "./script.sh" is not an ELF file
+        command.NixPath(".#coreutils", "/bin/env"),
+    ))
 
     def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
         if op.type is not None and (op.type.startswith("fopen") or op.type.startswith("open")):
@@ -355,15 +349,14 @@ class LTrace(AbstractTracer):
         elif all([
                 op.type is not None,
                 op.type == "dlopen" or op.type.startswith("exec"),
-                op.target0 is not None and is_executable_or_library(Path(op.target0)),
+                op.target0 is not None and is_executable_or_library(pathlib.Path(op.target0)),
         ]):
             # For dlopen calls, we need to add the files dlopen(op.target0) will call
             return [
                 op,
                 *(
                     ProvOperation(type="dload_dep", target0=dlib, target1=None, args=None)
-                    for dlib in get_dlibs(cast(str, op.target0))
-                    if op.target0 is not None
+                    for dlib in (get_dlibs(op.target0) if op.target0 is not None else [])
                 ),
             ]
         else:
@@ -426,14 +419,13 @@ class LTrace(AbstractTracer):
     group_processors = {
         "pid": int,
     }
-    log_name = "ltrace.out"
 
 
 PATH_MAX = os.pathconf('/', 'PC_PATH_MAX')
 NAME_MAX = os.pathconf('/', 'PC_NAME_MAX')
 
 
-def is_executable_or_library(path: Path) -> bool:
+def is_executable_or_library(path: pathlib.Path) -> bool:
     if (
             len(path.name) < NAME_MAX and
             len(str(path)) < PATH_MAX and
@@ -452,108 +444,96 @@ def is_executable_or_library(path: Path) -> bool:
 
 
 class FSATrace(AbstractTracer):
-    method = "lib instrm."
-    submethod = "libc I/O"
-    name = "fsatrace"
-    log_name = "fsatrace.out"
+    timeout_multiplier = 2
     line_pattern = CompoundPattern(re.compile(r"^(?P<op>.)\|(?P<target0>[^|]*)(?:\|(?P<target1>.*))?$"))
     use_get_dlib_on_exe = True
 
-    nix_packages = [".#fsatrace", ".#coreutils"]
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        (log / self.log_name).write_text("")
-        return ("fsatrace", "rwmdqt", log / self.log_name, "--", "env", *cmd)
+    run_cmd = command.Command((
+        command.NixPath(".#fsatrace", "/bin/fsatrace"),
+        "rwmdqt",
+        prov_log,
+        "--",
+    ))
 
     def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
         operations = [op]
-        if op.type == "r" and op.target0 is not None and is_executable_or_library(Path(op.target0)):
+        if op.type == "r" and op.target0 is not None and is_executable_or_library(op.target0):
             for dlib in get_dlibs(op.target0):
                 operations.append(ProvOperation("l", dlib, None, None))
         return operations
 
 
 class PTU(ProvCollector):
-    method = "ptrace"
-    submethod = "syscalls"
+    timeout_multiplier = 10
+    setup_cmd = command.Command((
+        mkdir,
+        prov_log,
+    ))
+    run_cmd = command.Command((
+        command.NixPath(".#provenance-to-use", "/bin/ptu"),
+        "-o",
+        prov_log,
+    ))
 
-    nix_packages = [".#provenance-to-use", ".#coreutils"]
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        assert log.is_dir()
-        assert list(log.iterdir()) == []
-        assert not log.is_absolute(), "This logic won't work to 'un-chdir' from log if log is absolute"
-        undo_log_chdir = Path(*(len(log.parts) * [".."]))
-        assert log.exists()
-        return ("env", "--chdir", log, "ptu", "-o", ".", "env", "--chdir", undo_log_chdir, *cmd)
-
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
         root = log / "cde-root"
         return tuple(
-            ProvOperation("read", str(file.relative_to(root)), None, None)
+            ProvOperation("read", file.relative_to(root), None, None)
             for file in root.glob("**")
         )
 
 
 class CDE(ProvCollector):
-    method = "ptrace"
-    submethod = "syscalls"
+    timeout_multiplier = 10
+    run_cmd = command.Command((
+        command.NixPath(".#cde", "/bin/cde"),
+        "-o",
+        prov_log,
+    ))
 
-    nix_packages = [".#cde"]
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        assert log.is_dir()
-        assert list(log.iterdir()) == []
-        return ("cde", "-o", log, *cmd)
-
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
         root = log / "cde-root"
         return tuple(
-            ProvOperation("read", str(file.relative_to(root)), None, None)
+            ProvOperation("read", file.relative_to(root), None, None)
             for file in root.glob("**")
         )
 
 
 class RR(ProvCollector):
-    method = "ptrace"
-    submethod = "syscalls"
-    name = "rr"
+    timeout_multiplier = 5
+    setup_cmd = command.Command((mkdir, prov_log))
 
-    nix_packages = [".#rr", ".#coreutils"]
+    run_cmd = command.Command((
+        env,
+        dataclasses.replace(prov_log, prefix="_RR_TRACE_DIR="),
+        command.NixPath(".#rr", "/bin/rr"),
+        "record",
+    ))
 
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        self.log = log
-        return ("env", f"_RR_TRACE_DIR={self.log}", "rr", "record", *cmd)
-
-    def stop(self, env: Mapping[str, str]) -> None:
-        check_returncode(subprocess.run(
-            ["rr", "pack", str(self.log / "latest-trace")],
-            env=env,
-            capture_output=True,
-        ), env)
+    teardown_cmd = command.Command((
+        command.NixPath(".#rr", "/bin/rr"),
+        "pack",
+        dataclasses.replace(prov_log, postfix="/latest-trace")
+    ))
 
 
 class ReproZip(ProvCollector):
-    method = "ptrace"
-    submethod = "syscalls"
-    name = "reprozip"
+    timeout_multiplier = 5
+    setup_cmd = command.Command((
+        command.NixPath(".#reprozip", "/bin/reprozip"),
+        "usage_report",
+        "--disable",
+    ))
 
-    nix_packages = [".#reprozip"]
+    run_cmd = command.Command((
+        command.NixPath(".#reprozip", "/bin/reprozip"),
+        "trace",
+        "--dir",
+        prov_log,
+    ))
 
-    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-        check_returncode(subprocess.run(
-            ["reprozip", "usage_report", "--disable"],
-            check=False,
-            capture_output=True,
-            env=env,
-        ), env)
-        assert not (log / "reprozip").exists()
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        return ("reprozip", "trace", "--dir", log / "reprozip", *cmd)
-
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
-        config = yaml.safe_load((log / "reprozip/config.yml").read_text())
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        config = yaml.safe_load((log / "config.yml").read_text())
         def n2l(lst):
             return [] if lst is None else lst
         files = n2l(config.get("other_files")) + list(flatten1(
@@ -567,208 +547,229 @@ class ReproZip(ProvCollector):
 
 
 class Sciunit(ProvCollector):
-    method = "ptrace"
-    submethod = "syscalls"
-    name = "sciunit"
+    timeout_multiplier = 10
+    setup_cmd = command.Command((
+        env,
+        dataclasses.replace(prov_log, prefix="SCIUNIT_HOME="),
+        command.NixPath(".#sciunit2", "/bin/sciunit"),
+        "create",
+        "-f",
+        "test",
+    ))
 
-    nix_packages = [".#sciunit2", ".#coreutils"]
-    path = ""
-
-    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-        self.path = env["PATH"]
-        check_returncode(subprocess.run(
-            ["sciunit", "create", "-f", "test"],
-            check=False,
-            env={
-                **env,
-                "SCIUNIT_HOME": str(log.resolve()),
-            },
-        ), {})
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        cwd = Path().resolve()
-        return (
-            "sh",
-            "-c",
-            ";".join([
-                # sciunit puts its copy of Python on PATH before the one we need.
-                # So we will save the PATH and restore it
-                "export _PATH=$PATH",
-                f"cd {log.resolve()}",
-                f"export SCIUNIT_HOME={log.resolve()}",
-                f"sciunit exec env --chdir={cwd.resolve()} PATH=$_PATH {shlex.join(cmd)}"
-            ]),
-        )
+    run_cmd = command.Command((
+        command.NixPath(".#sciunit2", "/bin/sciunit"),
+        "exec",
+    ))
 
 
-class Darshan(ProvCollector):
-    method = "lib instrm."
-    submethod = "libc I/O"
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        raise NotImplementedError()
+# class Darshan(ProvCollector):
 
 
-class BPFTrace(ProvCollector):
-    method = "auditing"
-    submethod = "eBPF"
-    name = "bpftrace"
-    proc: subprocess.Popen[bytes] | None = None
-    proc_args: list[CmdArg] | None = None
-    proc_env: Mapping[str, str] | None = None
-
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        raise NotImplementedError()
-
-    def stop(self, env: Mapping[str, str]) -> None:
-        raise NotImplementedError()
-
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
-        raise NotImplementedError()
+# class BPFTrace(ProvCollector):
 
 
-class SpadeFuse(ProvCollector):
-    _workdir: Path | None = None
-    requires_empty_dir = True
-    method = "FS instrm."
-    submethod = "FUSE"
-    name = "SPADE+FUSE"
-    # echo -e "add reporter LinuxFUSE $PWD/test2\nadd storage Neo4j database=$PWD/spade.graph" | ./result/bin/spade control
-    # echo -e "remove reporter LinuxFUSE\nremove storage Neo4j" | ./result/bin/spade control
-    _start = "\n".join([
-        "add reporter LinuxFUSE {workdir}",
-        "add storage Neo4j database={log}/spade.graph",
-        "add analyzer CommandLine",
-    ])
-    _stop = "\n".join([
-        "remove reporter LinuxFUSE",
-        "remove storage Neo4j",
-    ])
-    _query = "\n".join([
-        "export > {log}/galileo.dot",
-        "dump all",
-    ])
+# class SpadeFuse(ProvCollector):
+#     # echo -e "add reporter LinuxFUSE $PWD/test2\nadd storage Neo4j database=$PWD/spade.graph" | ./result/bin/spade control
+#     # echo -e "remove reporter LinuxFUSE\nremove storage Neo4j" | ./result/bin/spade control
+#     _start = "\n".join([
+#         "add reporter LinuxFUSE {workdir}",
+#         "add storage Neo4j database={log}/spade.graph",
+#         "add analyzer CommandLine",
+#     ])
+#     _stop = "\n".join([
+#         "remove reporter LinuxFUSE",
+#         "remove storage Neo4j",
+#     ])
+#     _query = "\n".join([
+#         "export > {log}/galileo.dot",
+#         "dump all",
+#     ])
 
-    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-        self._workdir = workdir
-        # SPADE FUSE must start in a non-existant directory
-        self._workdir.unlink()
-        assert not self._workdir.exists()
-        subprocess.run(
-            ["spade", "start"],
-            check=True,
-            capture_output=True,
-            env=env,
-        )
+    # def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
+    #     self._workdir = workdir
+    #     # SPADE FUSE must start in a non-existant directory
+    #     self._workdir.unlink()
+    #     assert not self._workdir.exists()
+    #     subprocess.run(
+    #         ["spade", "start"],
+    #         check=True,
+    #         capture_output=True,
+    #         env=env,
+    #     )
 
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        assert self._workdir is not None
-        subprocess.run(
-            ["spade", "control"],
-            check=True,
-            capture_output=True,
-            text=True,
-            input=self._start.format(workdir=self._workdir, log=log),
-        )
-        return (
-            "env", "--chdir", self._workdir, *cmd
-        )
+    # def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
+    #     assert self._workdir is not None
+    #     subprocess.run(
+    #         ["spade", "control"],
+    #         check=True,
+    #         capture_output=True,
+    #         text=True,
+    #         input=self._start.format(workdir=self._workdir, log=log),
+    #     )
+    #     return (
+    #         "env", "--chdir", self._workdir, *cmd
+    #     )
 
-    def stop(self, env: Mapping[str, str]) -> None:
-        subprocess.run(
-            ["spade", "control"],
-            check=True,
-            capture_output=True,
-            text=True,
-            input=self._stop.format(),
-            env=env,
-        )
+    # def stop(self, env: Mapping[str, str]) -> None:
+    #     subprocess.run(
+    #         ["spade", "control"],
+    #         check=True,
+    #         capture_output=True,
+    #         text=True,
+    #         input=self._stop.format(),
+    #         env=env,
+    #     )
 
 
-class SpadeAuditd(ProvCollector):
-    method = "auditing"
-    submethod = "auditd"
-    name = "SPADE+Auditd"
+# class SpadeAuditd(ProvCollector):
 
-    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-        # https://github.com/ashish-gehani/SPADE/blob/b24daa56332e8478711bee80e5ac1f1558ff5e52/src/spade/reporter/audit/AuditControlManager.java#L57
-        syscalls = ("fileIO=false", "netIO=true", "IPC=true")
-        subprocess.run(["spade", "start"], check=True, capture_output=True, env=env)
-        subprocess.run(["spade", "control", "add", "reporter", "Audit", *syscalls], check=True, capture_output=True, env=env)
+#     def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
+#         # https://github.com/ashish-gehani/SPADE/blob/b24daa56332e8478711bee80e5ac1f1558ff5e52/src/spade/reporter/audit/AuditControlManager.java#L57
+#         syscalls = ("fileIO=false", "netIO=true", "IPC=true")
+#         subprocess.run(["spade", "start"], check=True, capture_output=True, env=env)
+#         subprocess.run(["spade", "control", "add", "reporter", "Audit", *syscalls], check=True, capture_output=True, env=env)
 
-    def stop(self, env: Mapping[str, str]) -> None:
-        subprocess.run(
-            ["spade", "stop"],
-            check=True,
-            capture_output=True,
-            env=env,
-        )
+#     def stop(self, env: Mapping[str, str]) -> None:
+#         subprocess.run(
+#             ["spade", "stop"],
+#             check=True,
+#             capture_output=True,
+#             env=env,
+#         )
 
 
-class Auditd(ProvCollector):
-    method = "auditing"
-    submethod = "auditd"
+# class Auditd(ProvCollector):
 
-    def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-        raise NotImplementedError(
-            "I want to trace specific syscalls before continuing"
-        )
+#     def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
+#         raise NotImplementedError(
+#             "I want to trace specific syscalls before continuing"
+#         )
 
-        # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/security_guide/sec-defining_audit_rules_and_controls
-        auditctl_rules = ()
+#         # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/security_guide/sec-defining_audit_rules_and_controls
+#         auditctl_rules = ()
 
-        # Run instead of return this command.  That way, the command
-        # will complete before we continue to testthe workload.  For
-        # other auditors, the command would be running _concurrently_
-        # to the workload.
-        subprocess.run(
-            run_all(
-                ("auditctl", "-D"),
-                ("auditctl", *auditctl_rules),
-            ),
-            check=True,
-            env=env,
-        )
+#         # Run instead of return this command.  That way, the command
+#         # will complete before we continue to testthe workload.  For
+#         # other auditors, the command would be running _concurrently_
+#         # to the workload.
+#         subprocess.run(
+#             run_all(
+#                 ("auditctl", "-D"),
+#                 ("auditctl", *auditctl_rules),
+#             ),
+#             check=True,
+#             env=env,
+#         )
 
-    def stop(self, env: Mapping[str, str]) -> None:
-        subprocess.run(["auditctl", "-D"], check=True, env=env)
+#     def stop(self, env: Mapping[str, str]) -> None:
+#         subprocess.run(["auditctl", "-D"], check=True, env=env)
 
 
 class Care(ProvCollector):
-    method = "tracing"
-    submethod = "syscalls"
-    name = "care"
+    timeout_multiplier = 5
+    run_cmd = command.Command((
+        command.NixPath(".#care", "/bin/care"),
+        dataclasses.replace(prov_log, prefix="--output="),
+        "--revealed-path=/tmp",
+        "--revealed-path=" + str(pathlib.Path.home()),
+        "--verbose=-1",
+    ))
 
-    nix_packages = [".#care", ".#lzop"]
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        return ()
+        # prefix = "main/rootfs"
+        # with tarfile.open(name=log, mode='r') as tar_obj:
+        #     return tuple(
+        #         ProvOperation("use", pathlib.Path(member.name[len(prefix):]), None, None)
+        #         for member in tar_obj.getmembers()
+        #         if member.name.startswith(prefix)
+        #     )
 
-    def run(self, cmd: Sequence[CmdArg], log: Path, size: int) -> Sequence[CmdArg]:
-        return ("care", f"--output={log}/main.tar", "--revealed-path=tmp", "--revealed-path=/home/benchexec", "--verbose=-1", *cmd)
 
-    def count(self, log: Path, exe: Path) -> tuple[ProvOperation, ...]:
-        prefix = "main/rootfs"
-        with tarfile.open(name=(log / "main.tar"), mode='r') as tar_obj:
-            return tuple(
-                ProvOperation("use", member.name[len(prefix):], None, None)
-                for member in tar_obj.getmembers()
-                if member.name.startswith(prefix)
-            )
+class Probe(ProvCollector):
+    timeout_multiplier = 1.5
+    run_cmd = command.Command((
+        command.NixPath("..#probe-bundled", "/bin/probe"),
+        "record",
+        "--no-transcribe",
+        "--output",
+        prov_log,
+    ))
+
+    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        # subprocess.run(
+        #     command.Command((
+        #         command.NixPath("..#probe-bundled", "/bin/probe"),
+        #         "transcribe",
+        #         "--input",
+        #         str(log),
+        #         str(log.parent / "prov2"),
+        #     )).expand({}),
+        #     check=True,
+        #     text=True,
+        #     capture_output=True,
+        # )
+        # ops = list(map(json.loads, subprocess.run(
+        #     command.Command((
+        #         command.NixPath("..#probe-bundled", "/bin/probe"),
+        #         "export",
+        #         "ops-jsonl",
+        #         str(log.parent / "prov2"),
+        #     )).expand({}),
+        #     check=True,
+        #     text=True,
+        #     capture_output=True,
+        # ).stdout.split("\n")))
+        # return tuple(
+        #     ProvOperation(op["op_data_type"], None, None, None)
+        #     for op in ops
+        # )
+        return ()
+
+
+class ProbeCopyEager(Probe):
+    timeout_multiplier = 3
+    run_cmd = command.Command((
+        command.NixPath("..#probe-bundled", "/bin/probe"),
+        "record",
+        "--copy-files-eagerly",
+        "--no-transcribe",
+        "--output",
+        prov_log,
+    ))
+
+
+class ProbeCopyLazy(Probe):
+    timeout_multiplier = 3
+    run_cmd = command.Command((
+        command.NixPath("..#probe-bundled", "/bin/probe"),
+        "record",
+        "--copy-files-lazily",
+        "--no-transcribe",
+        "--output",
+        prov_log,
+    ))
 
 
 PROV_COLLECTORS: list[ProvCollector] = [
     NoProv(),
     STrace(),
     LTrace(),
-    FSATrace(),
+    # FSATrace(),
     CDE(),
     RR(),
     ReproZip(),
     Sciunit(),
     Care(),
     PTU(),
-    SpadeFuse(),
-    SpadeAuditd(),
-    Darshan(),
-    BPFTrace(),
+    Probe(),
+    ProbeCopyEager(),
+    ProbeCopyLazy(),
+    # SpadeFuse(),
+    # SpadeAuditd(),
+    # Darshan(),
+    # BPFTrace(),
 ]
 
 PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
@@ -777,40 +778,18 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         prov_collector.name: [prov_collector]
         for prov_collector in PROV_COLLECTORS
     },
-    "superfast": [
+    "all": PROV_COLLECTORS,
+    "run-for-usenix": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "fsatrace"]
+        # sciunit has error due to our invocation
+        # rr doesn't work unless tracing is enabled
+        # cde is similar to ptu
+        if prov_collector.name in ["noprov", "strace", "care", "probe", "ptu", "probecopylazy", "rr"]
     ],
-    "fast": [
+    "probes": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "reprozip"]
-    ],
-    "finished": [
-        prov_collector
-        for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip"]
-        # ltrace
-    ],
-    "working-ltrace": [
-        prov_collector
-        for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "sciunit", "ptu", "care", "ltrace"]
-    ],
-    "old-working": [
-        prov_collector
-        for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "reprozip"]
-    ],
-    "new-working": [
-        prov_collector
-        for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["sciunit", "care"]
-    ],
-    "working": [
-        prov_collector
-        for prov_collector in PROV_COLLECTORS
-        if prov_collector.name in ["noprov", "strace", "fsatrace", "rr", "reprozip", "care"]
-    ],
+        if prov_collector.name.startswith("probe")
+    ]
 }

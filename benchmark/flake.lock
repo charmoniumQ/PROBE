@@ -5,11 +5,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1705309234,
-        "narHash": "sha256-uNRRNRKmJyCRC/8y1RqBkqWBLM034y4qN7EprSdmgyA=",
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "1ef2e671c3b0c19053962c07dbda38332dcebf26",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
         "type": "github"
       },
       "original": {
@@ -18,29 +18,46 @@
         "type": "github"
       }
     },
-    "new-nixos": {
+    "nixos-q-chem": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      },
       "locked": {
-        "lastModified": 1716219014,
-        "narHash": "sha256-ZD6X+3AL2XLlHTCNjnpngNDrolGka8KIWCcMyPuJtHM=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "d8b2cb1dceb4d3b7752fa92d003e38ddca04b19f",
+        "lastModified": 1735041046,
+        "narHash": "sha256-3PFp24Z/ySqUJt0ktDhCPYUGRxSrDs5TZuR19k+HrCE=",
+        "owner": "Nix-QChem",
+        "repo": "NixOS-QChem",
+        "rev": "0799dce2a502a6110821b8f7bd02f9f546cf7485",
         "type": "github"
       },
       "original": {
-        "owner": "NixOS",
-        "repo": "nixpkgs",
+        "owner": "Nix-QChem",
+        "repo": "NixOS-QChem",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1705303754,
-        "narHash": "sha256-loWkd7lUzSvGBU9xnva37iPB2rr5ulq1qBLT44KjzGA=",
+        "lastModified": 1734856068,
+        "narHash": "sha256-Q+CB1ajsJg4Z9HGHTBAGY1q18KpnnkmF/eCTLUY6FQ0=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "e0629618b4b419a47e2c8a3cab223e2a7f3a8f97",
+        "rev": "93ff48c9be84a76319dac293733df09bbbe3f25c",
         "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 0,
+        "narHash": "sha256-cHar1vqHOOyC7f1+tVycPoWTfKIaqkoe1Q6TnKzuti4=",
+        "path": "/nix/store/6zgbbqlr7nnfxpzkyj7fsl4fpg89jbw0-source",
+        "type": "path"
       },
       "original": {
         "id": "nixpkgs",
@@ -50,8 +67,8 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "new-nixos": "new-nixos",
-        "nixpkgs": "nixpkgs"
+        "nixos-q-chem": "nixos-q-chem",
+        "nixpkgs": "nixpkgs_2"
       }
     },
     "systems": {

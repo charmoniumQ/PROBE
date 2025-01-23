@@ -1,10 +1,6 @@
+__pycache__/
 .mypy_cache/
 .ruff_cache/
-.cache/
-.old-cache/
-.workdir/
-__pycache__/
 output/
-notebook/.ipynb_checkpoints/
-*.exe
-*.log
+.cache/
+.ipynb_checkpoints/

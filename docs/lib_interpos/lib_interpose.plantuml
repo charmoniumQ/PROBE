@@ -1,0 +1,13 @@
+@startuml
+box "Process" #LightBlue
+participant Tracee
+participant Tracer
+end box
+
+participant Kernel
+
+Tracee -> Tracer : open /foo/bar
+Tracer -> Kernel : open /foo/bar
+Kernel -> Tracer
+Tracer -> Tracee
+@enduml

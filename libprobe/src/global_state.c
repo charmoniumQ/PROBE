@@ -88,25 +88,42 @@ static int get_exec_epoch_safe() {
     return __exec_epoch;
 }
 
-static int __copy_files = -1;
+static char __copy_files = ' ';
 static const char* copy_files_env_var = PRIVATE_ENV_VAR_PREFIX "COPY_FILES";
 struct InodeTable read_inodes;
 struct InodeTable copied_or_overwritten_inodes;
 static void init_copy_files() {
-    assert(__copy_files == -1);
+    assert(__copy_files == ' ');
     const char* copy_files_str = debug_getenv(copy_files_env_var);
-    if (copy_files_str != NULL && copy_files_str[0] != 0) {
-        __copy_files = 1;
-        inode_table_init(&read_inodes);
-        inode_table_init(&copied_or_overwritten_inodes);
+    if (copy_files_str) {
+        __copy_files = copy_files_str[0];
     } else {
-        __copy_files = 0;
+        __copy_files = '\0';
     }
-    DEBUG("Is copy files? %d", __copy_files);
+    DEBUG("Copy files? %c", __copy_files);
+    switch (__copy_files) {
+        case '\0':
+            break;
+        case 'e': /* eagerly copy files */
+        case 'l': /* lazily copy files */
+            inode_table_init(&read_inodes);
+            inode_table_init(&copied_or_overwritten_inodes);
+            break;
+        default:
+            ERROR("copy_files has invalid value %c", __copy_files);
+            break;
+    }
+}
+static bool should_copy_files_eagerly() {
+    assert(__copy_files == '\0' || __copy_files == 'e' || __copy_files == 'l');
+    return __copy_files == 'e';
+}
+static bool should_copy_files_lazily() {
+    assert(__copy_files == '\0' || __copy_files == 'e' || __copy_files == 'l');
+    return __copy_files == 'l';
 }
 static bool should_copy_files() {
-    assert(__copy_files == 1 || __copy_files == 0);
-    return __copy_files;
+    return should_copy_files_eagerly() || should_copy_files_lazily();
 }
 
 static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mkdir, bool close) {
@@ -206,6 +223,26 @@ static struct ArenaDir* get_data_arena() {
     return &__data_arena;
 }
 
+char* _DEFAULT_PATH = NULL;
+
+static void init_default_path() {
+    size_t default_path_size = EXPECT(!= 0, confstr(_CS_PATH, NULL, 0));
+    default_path_size += 1;
+    // Technically +1 is not necessary, but it wont' hurt
+
+    _DEFAULT_PATH = EXPECT_NONNULL(malloc(default_path_size));
+    EXPECT(!= 0, confstr(_CS_PATH, _DEFAULT_PATH, default_path_size));
+
+    // Technically, this shouldn't be necessary, but it won't hurt.
+    _DEFAULT_PATH[default_path_size] = '\0';
+}
+static char* get_default_path() {
+    assert(_DEFAULT_PATH != NULL);
+    return _DEFAULT_PATH;
+}
+
+/*******************************************************/
+
 /**
  * Aggregate functions;
  * These functions call the init_* functions above */
@@ -214,6 +251,7 @@ static void init_process_global_state() {
     init_exec_epoch();
     init_copy_files();
     init_probe_dir();
+    init_default_path();
 }
 
 static void init_thread_global_state() {

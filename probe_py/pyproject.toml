@@ -18,10 +18,10 @@ license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dependencies = [
     "networkx",
-    "pygraphviz",
     "pydot",
     "rich",
     "typer",
+    "xdg-base-dirs"
 ]
 
 [project.urls]

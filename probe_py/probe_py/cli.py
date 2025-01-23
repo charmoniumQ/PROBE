@@ -24,7 +24,7 @@ app.add_typer(export_app, name="export")
 
 @app.command()
 def validate(
-        probe_log_path: Annotated[
+        probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -63,7 +63,7 @@ def ops_graph(
             pathlib.Path,
             typer.Argument()
         ] = pathlib.Path("ops-graph.png"),
-        probe_log_path: Annotated[
+        probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -89,7 +89,7 @@ def dataflow_graph(
             pathlib.Path,
             typer.Argument()
         ] = pathlib.Path("dataflow-graph.png"),
-        probe_log_path: Annotated[
+        probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -102,11 +102,77 @@ def dataflow_graph(
     probe_log = parser.parse_probe_log(probe_log_path)
     dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
     graph_utils.serialize_graph(dataflow_graph, output)
+    prov_log = parse_probe_log(probe_log)
+    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    graph_utils.serialize_graph(dataflow_graph, output)
+
+def get_host_name() -> int:
+    hostname = socket.gethostname()
+    rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
+    bits_per_hex_digit = 4
+    hex_digits = 8
+    random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
+    return random_number
+
+@export_app.command()
+def store_dataflow_graph(probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"))->None:
+    prov_log = parse_probe_log(probe_log)
+    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    engine = get_engine()
+    with Session(engine) as session:
+        for node in dataflow_graph.nodes():
+            if isinstance(node, ProcessNode):
+                print(node)
+                new_process = Process(process_id = int(node.pid), parent_process_id = 0, cmd = shlex.join(node.cmd), time = datetime.datetime.now())
+                session.add(new_process)
+
+        for (node1, node2) in dataflow_graph.edges():
+            if isinstance(node1, ProcessNode) and isinstance(node2, ProcessNode):
+                parent_process_id = node1.pid
+                child_process = session.get(Process, node2.pid)
+                if child_process:
+                    child_process.parent_process_id = parent_process_id
+
+            elif isinstance(node1, ProcessNode) and isinstance(node2, FileNode):
+                inode_info = node2.inodeOnDevice
+                host = get_host_name()
+                stat_info = os.stat(node2.file)
+                mtime = int(stat_info.st_mtime * 1_000_000_000)
+                size = stat_info.st_size
+                new_output_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.device_major, device_minor  = inode_info.device_minor, host = host, path = node2.file, mtime = mtime, size = size)
+                session.add(new_output_inode)
+
+            elif isinstance(node1, FileNode) and isinstance(node2, ProcessNode):
+                inode_info = node1.inodeOnDevice
+                host = get_host_name()
+                stat_info = os.stat(node1.file)
+                mtime = int(stat_info.st_mtime * 1_000_000_000)
+                size = stat_info.st_size
+                new_input_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.device_major, device_minor= inode_info.device_minor, host = host, path = node1.file, mtime=mtime, size=size)
+                session.add(new_input_inode)
+
+        root_process = None
+        for node in dataflow_graph.nodes():
+            if isinstance(node, ProcessNode):
+                pid = node.pid
+                process_record = session.get(Process, pid)
+                if process_record and process_record.parent_process_id == 0:
+                    if root_process is not None:
+                        print(f"Error: Two parent processes - {pid} and {root_process}")
+                        session.rollback()
+                        return
+                    else:
+                        root_process = pid
+
+        session.commit()
 
 
 @export_app.command()
 def debug_text(
-        probe_log_path: Annotated[
+        probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -134,10 +200,11 @@ def debug_text(
                 f"device={ino_ver.inode.device_major}.{ino_ver.inode.device_minor} inode={ino_ver.inode.inode} mtime={ino_ver.mtime_sec}.{ino_ver.mtime_nsec} -> {ino_ver.size} blob"
             )
 
+
 @export_app.command()
 def docker_image(
         image_name: str,
-        probe_log_path: Annotated[
+        probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -176,7 +243,7 @@ def docker_image(
 @export_app.command()
 def oci_image(
         image_name: str,
-        probe_log_path: Annotated[
+        probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -208,6 +275,93 @@ def oci_image(
         )
 
 
+@app.command(
+    context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
+def ssh(
+        ssh_args: list[str],
+        debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
+) -> None:
+    """
+    Wrap SSH and record provenance of the remote command.
+    """
+
+    flags, destination, remote_host = parse_ssh_args(ssh_args)
+
+    ssh_cmd = ["ssh"] + flags
+
+    libprobe = pathlib.Path(os.environ["__PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
+    if not libprobe.exists():
+        typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
+        raise typer.Abort()
+
+    # Create a temporary directory on the local machine
+    local_temp_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
+
+    # Check if remote platform matches local platform
+    remote_gcc_machine_cmd = ssh_cmd + ["gcc", "-dumpmachine"]
+    local_gcc_machine_cmd = ["gcc", "-dumpmachine"]
+
+    remote_gcc_machine = subprocess.check_output(remote_gcc_machine_cmd)
+    local_gcc_machine = subprocess.check_output(local_gcc_machine_cmd)
+
+    if remote_gcc_machine != local_gcc_machine:
+        raise NotImplementedError("Remote platform is different from local platform")
+
+    # Upload libprobe.so to the remote temporary directory
+    remote_temp_dir_cmd = ssh_cmd + [destination] + ["mktemp", "-d", "/tmp/probe_log_XXXXXX"]
+    remote_temp_dir = subprocess.check_output(remote_temp_dir_cmd).decode().strip()
+    remote_probe_dir = f"{remote_temp_dir}/probe_dir"
+
+    ssh_g = subprocess.run(ssh_cmd + [destination] + ['-G'],stdout=subprocess.PIPE)
+    ssh_g_op = ssh_g.stdout.decode().strip().splitlines()
+
+    ssh_pair = []
+    for pair in ssh_g_op:
+        ssh_pair.append(pair.split())
+
+    scp_cmd = ["scp"]
+    for option in ssh_g_op:
+        key_value = option.split(' ', 1)
+        if len(key_value) == 2:
+            key, value = key_value
+            scp_cmd.append(f"-o {key}={value}")
+
+    scp_args =[str(libprobe),f"{destination}:{remote_temp_dir}"]
+    scp_cmd.extend(scp_args)
+
+    subprocess.run(scp_cmd,check=True)
+
+    # Prepare the remote command with LD_PRELOAD and __PROBE_DIR
+    ld_preload = f"{remote_temp_dir}/{libprobe.name}"
+
+    env = ["env", f"LD_PRELOAD={ld_preload}", f"__PROBE_DIR={remote_probe_dir}"]
+    proc = subprocess.run(ssh_cmd + [destination] + env + remote_host)
+
+    # Download the provenance log from the remote machine
+
+    remote_tar_file = f"{remote_temp_dir}.tar.gz"
+    tar_cmd = ssh_cmd + [destination] + ["tar", "-czf", remote_tar_file, "-C", remote_temp_dir, "."]
+    subprocess.run(tar_cmd, check=True)
+
+    # Download the tarball to the local machine
+    local_tar_file = local_temp_dir / f"{remote_temp_dir.split('/')[-1]}.tar.gz"
+    scp_download_cmd = ["scp"] + scp_cmd[1:-2] + [f"{destination}:{remote_tar_file}", str(local_tar_file)]
+    typer.secho(f"PROBE log downloaded at: {scp_download_cmd[-1]}",fg=typer.colors.GREEN)
+    subprocess.run(scp_download_cmd, check=True)
+
+    # Clean up the remote temporary directory
+    remote_cleanup_cmd = ssh_cmd + [destination] + [f"rm -rf {remote_temp_dir}"]
+    subprocess.run(remote_cleanup_cmd, check=True)
+
+    # Clean up the local temporary directory
+    shutil.rmtree(local_temp_dir)
+
+    raise typer.Exit(proc.returncode)
+
+
 class OutputFormat(str, enum.Enum):
     makefile = "makefile"
     nextflow = "nextflow"
@@ -218,7 +372,7 @@ def makefile(
             pathlib.Path,
             typer.Argument(),
         ] = pathlib.Path("Makefile"),
-        probe_log_path: Annotated[
+        probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -233,6 +387,102 @@ def makefile(
     script = g.generate_makefile(dataflow_graph)
     output.write_text(script)
 
+@export_app.command()
+def nextflow(
+        output: Annotated[
+            pathlib.Path,
+            typer.Argument(),
+        ] = pathlib.Path("nextflow.nf"),
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Export the probe_log to a Nextflow workflow
+    """
+    prov_log = parse_probe_log(probe_log)
+    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    g = NextflowGenerator()
+    output = pathlib.Path("nextflow.nf")
+    script = g.generate_workflow(dataflow_graph)
+    output.write_text(script)
+
+@export_app.command()
+def provlog_to_process_tree(
+        output: Annotated[
+            pathlib.Path,
+            typer.Argument()
+        ] = pathlib.Path("provlog-process-tree.png"),
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Write a process tree from probe_log.
+
+    Digraphs shows the clone ops of the parent process and the children.
+    """
+    prov_log = parse_probe_log(probe_log)
+    digraph = analysis.provlog_to_process_tree(prov_log)
+    graph_utils.serialize_graph(digraph, output)
+
+
+@export_app.command()
+def ops_jsonl(
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Export each op to a JSON line.
+
+    The format is subject to change as PROBE evolves. Use with caution!
+    """
+
+    def filter_nested_dict(
+            dct: typing.Mapping[typing.Any, typing.Any],
+    ) -> typing.Mapping[typing.Any, typing.Any]:
+        """Converts the bytes in a nested dict to a string"""
+        return {
+            key: (
+                # If dict, Recurse self
+                filter_nested_dict(val) if isinstance(val, dict) else
+                # If bytes, decode to string
+                val.decode(errors="surrogateescape") if isinstance(val, bytes) else
+                # Else, do nothing
+                val
+            )
+            for key, val in dct.items()
+        }
+    stdout_console = rich.console.Console()
+    prov_log = parse_probe_log(probe_log)
+    for pid, process in prov_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+            for tid, thread in exec_epoch.threads.items():
+                for i, op in enumerate(thread.ops):
+                    stdout_console.print_json(json.dumps({
+                        "pid": pid,
+                        "tid": tid,
+                        "exec_epoch_no": exec_epoch_no,
+                        "i": i,
+                        "op": filter_nested_dict(
+                            dataclasses.asdict(op),
+                        ),
+                        "op_data_type": type(op.data).__name__,
+                    }))
+
+
+# Example: scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
+@app.command(
+context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+)
+def scp(cmd: list[str]) -> None:
+    scp_with_provenance(cmd)
 
 if __name__ == "__main__":
     app()
