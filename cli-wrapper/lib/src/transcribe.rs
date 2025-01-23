@@ -33,14 +33,14 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
     let start = SystemTime::now();
 
     let pids_out_dir = out_dir.as_ref().join("pids");
-    fs::create_dir(&pids_out_dir).wrap_err("Failed to create pids directory")?;
+    fs::create_dir(&pids_out_dir).wrap_err("Failed to create 'pids' directory")?;
 
     let ops_count = fs::read_dir(in_dir.as_ref().join("pids"))
-        .wrap_err("Error opening record directory")?
+        .wrap_err("Error opening 'pids' directory")?
         .par_bridge()
         .map(|x| {
             parse_pid(
-                x.wrap_err("Error reading DirEntry from record directory")?
+                x.wrap_err("Error reading DirEntry from 'pids' directory")?
                     .path(),
                 &pids_out_dir,
             )
@@ -50,13 +50,13 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 
     let inodes_in_dir = in_dir.as_ref().join("inodes");
     let inodes_out_dir = out_dir.as_ref().join("inodes");
-    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create inodes directory")?;
+    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create 'inodes' directory")?;
     let inode_count = fs::read_dir(inodes_in_dir.clone())
-        .wrap_err("Error opening inodes directory")?
+        .wrap_err("Error opening 'inodes' directory")?
         .par_bridge()
         .map(|inode_contents| {
             let name = inode_contents
-                .wrap_err("Error reading from inodes directory")?
+                .wrap_err("Error reading from 'inodes' directory")?
                 .file_name();
             fs::hard_link(inodes_in_dir.join(name.clone()), inodes_out_dir.join(name))
                 .wrap_err("Error hardlinking inode")?;
@@ -67,16 +67,16 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 
     let info_in_dir = in_dir.as_ref().join("info");
     let info_out_dir = out_dir.as_ref().join("info");
-    fs::create_dir(&info_out_dir).wrap_err("Failed to create info directory")?;
+    fs::create_dir(&info_out_dir).wrap_err("Failed to create 'info' directory")?;
     let info_count = fs::read_dir(info_in_dir.clone())
-        .wrap_err("Error opening info directory")?
+        .wrap_err("Error opening 'info' directory")?
         .par_bridge()
         .map(|info| {
             let name = info
-                .wrap_err("Error reading from info directory")?
+                .wrap_err("Error reading from 'info' directory")?
                 .file_name();
             fs::hard_link(info_in_dir.join(name.clone()), info_out_dir.join(name))
-                .wrap_err("Error hardlinking info")?;
+                .wrap_err("Error hardlinking 'info'")?;
             Ok(1usize)
         })
         .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
