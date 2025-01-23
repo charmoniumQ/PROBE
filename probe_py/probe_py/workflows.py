@@ -172,44 +172,46 @@ process process_{id(process)} {{
         """
         Determine if a command modifies any of the input files in-place, even if the content remains the same.
         """
+        print("DEBUG: Entering inline editing sandbox check.")
         with tempfile.TemporaryDirectory() as temp_dir:
             sandbox_files = {}
 
             # Track original modification times and create sandbox files
             original_times = {}
-            sandbox_command = command
             for input_file in input_files:
-                temp_file = os.path.join(temp_dir, os.path.basename(input_file.file))
-                shutil.copy(input_file.file, temp_file)
-                sandbox_files[input_file.file] = temp_file
+                original_file_path = input_file.file
+                if not os.path.isfile(original_file_path):
+                    # Skip directories or invalid paths
+                    print(f"WARNING: Skipping non-file input: {original_file_path}")
+                    continue
+
+                temp_file = os.path.join(temp_dir, os.path.basename(original_file_path))
+                print(f"Copying {original_file_path} to sandbox {temp_file}")
+                shutil.copy(original_file_path, temp_file)
+                sandbox_files[original_file_path] = temp_file
 
                 # Save original modification time
-                original_times[input_file.file] = os.path.getmtime(input_file.file)
-                sandbox_command = sandbox_command.replace(input_file.file, temp_file)
+                original_times[temp_file] = os.stat(temp_file).st_mtime
 
-            # Run the command in the sandbox
+            # Execute the command within the sandbox
+            sandbox_command = command
+            for original, temp in sandbox_files.items():
+                sandbox_command = sandbox_command.replace(original, temp)
+
+            print(f"Executing sandbox command: {sandbox_command}")
             try:
-                subprocess.run(sandbox_command, shell=True, check=True)
-            except subprocess.CalledProcessError:
-                print("Command failed to execute.")
+                subprocess.run(sandbox_command, shell=True, check=True, cwd=temp_dir)
+            except subprocess.CalledProcessError as e:
+                print(f"Command execution failed: {e}")
                 return False
 
-            # Check if any of the files were modified in-place
-            for original_file, sandbox_file in sandbox_files.items():
-                # Get the modified time of the sandboxed file after command execution
-                sandbox_mod_time = os.path.getmtime(sandbox_file)
-                original_mod_time = original_times[original_file]
-
-                # Compare content and modification times
-                content_modified = not cmp(original_file, sandbox_file, shallow=False)
-                time_modified = sandbox_mod_time != original_mod_time
-
-                # If either the content or modification time has changed, it's an in-place modification
-                if content_modified or time_modified:
+            # Compare modification times to determine if any files were edited
+            for temp_file, original_mtime in original_times.items():
+                if os.stat(temp_file).st_mtime != original_mtime:
+                    print(f"File {temp_file} was modified in the sandbox.")
                     return True
 
-            # Return False if none of the files were modified
-            return False
+        return False
 
     def is_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> bool:
         return len(inputs) >= 1 and len(outputs) == 1
