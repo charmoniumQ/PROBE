@@ -163,8 +163,47 @@ struct UpdateMetadataOp {
 };
 
 struct ReadLinkOp {
+    struct Path linkpath;
+    const char* referent;
+    bool truncation;
+    bool recursive_dereference;
+    int ferrno;
+};
+
+struct DupOp {
+    int old;
+    int new;
+    int flags;
+    int ferrno;
+};
+
+struct HardLinkOp {
+    struct Path old;
+    struct Path new;
+    int ferrno;
+};
+
+struct SymbolicLinkOp {
+    const char* old;
+    struct Path new;
+    int ferrno;
+};
+
+struct UnlinkOp {
     struct Path path;
-    const char* resolved;
+    int unlink_type;
+    int ferrno;
+};
+
+struct RenameOp {
+    struct Path src;
+    struct Path dst;
+    int ferrno;
+};
+
+struct MkdirOp {
+    struct Path dst;
+    mode_t mode;
     int ferrno;
 };
 
@@ -186,6 +225,12 @@ enum OpCode {
     getrusage_op_code,
     update_metadata_op_code,
     read_link_op_code,
+    dup_op_code,
+    hard_link_op_code,
+    symbolic_link_op_code,
+    unlink_op_code,
+    rename_op_code,
+    mkdir_op_code,
     LAST_OP_CODE,
 };
 
@@ -208,6 +253,12 @@ struct Op {
         struct GetRUsageOp getrusage;
         struct UpdateMetadataOp update_metadata;
         struct ReadLinkOp read_link;
+        struct DupOp dup;
+        struct HardLinkOp hard_link;
+        struct SymbolicLinkOp symbolic_link;
+        struct UnlinkOp unlink;
+        struct RenameOp rename;
+        struct MkdirOp mkdir;
     } data;
     struct timespec time;
     pthread_t pthread_id;

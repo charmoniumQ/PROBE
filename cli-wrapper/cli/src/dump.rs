@@ -383,11 +383,8 @@ impl Dump for ops::UpdateMetadataOp {
 impl Dump for ops::ReadLinkOp {
     fn dump(&self) -> String {
         format!(
-            "[ path={}, resolved='{}', errno={} ]",
-            self.path.dump(),
-            self.resolved.to_string_lossy(),
-            self.ferrno
-        )
+            "[ deprecated ]",
+         )
     }
 }
 

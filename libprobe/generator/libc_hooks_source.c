@@ -346,14 +346,97 @@ void closefrom (int lowfd) {
     });
 }
 
-/* TODO: dup family */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html */
-int dup (int old) { }
-int dup2 (int old, int new) { }
+int dup (int old) {
+    void* pre_call = ({
+        struct Op op = {
+            dup_op_code,
+            {.dup = {old, 0, 0, 0}},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+         if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.dup.ferrno = errno;
+            } else {
+                op.data.dup.new = ret;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int dup2 (int old, int new) {
+    void* pre_call = ({
+        struct Op close_op = {
+            close_op_code,
+            {.dup = {new, new, 0}},
+            {0},
+            0,
+            0,
+        };
+        struct Op dup_op = {
+            dup_op_code,
+            {.dup = {old, new, 0, 0}},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(close_op);
+            prov_log_try(dup_op);
+        }
+    });
+    void* post_call = ({
+         if (likely(prov_log_is_enabled())) {
+             if (unlikely(ret == -1)) {
+                 close_op.data.close.ferrno = errno;
+                 dup_op.data.dup.ferrno = errno;
+            }
+            prov_log_record(close_op);
+            prov_log_record(dup_op);
+        }
+    });
+}
 
-/* TODO: Search to see if there is are special values of new. */
 /* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
-int dup3 (int old, int new, int flags) { }
+int dup3 (int old, int new, int flags) {
+    void* pre_call = ({
+        struct Op close_op = {
+            close_op_code,
+            {.dup = {new, new, 0}},
+            {0},
+            0,
+            0,
+        };
+        struct Op dup_op = {
+            dup_op_code,
+            {.dup = {old, new, flags, 0}},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(close_op);
+            prov_log_try(dup_op);
+        }
+    });
+    void* post_call = ({
+         if (likely(prov_log_is_enabled())) {
+             if (unlikely(ret == -1)) {
+                 close_op.data.close.ferrno = errno;
+                 dup_op.data.dup.ferrno = errno;
+            }
+            prov_log_record(close_op);
+            prov_log_record(dup_op);
+        }
+    });
+}
 
 /* TODO: fcntl */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
@@ -862,35 +945,496 @@ int nftw64 (const char *filename, __nftw64_func_t func, int descriptors, int fla
         }
     });
 }
-/* I can't include ftw.h on some systems because it defines fstatat as extern int on Sandia machines. */
+/* I can't include ftw.h on some systems because it defines fstatat as extern int on some machines. */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html */
-int link (const char *oldname, const char *newname) { }
-int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int flags) { }
+int link (const char *oldname, const char *newname) {
+    void* pre_call = ({
+        struct Op op = {
+            hard_link_op_code,
+            {.hard_link = {
+                .old = create_path_lazy(AT_FDCWD, oldname, 0),
+                .new = create_path_lazy(AT_FDCWD, newname, 0),
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.hard_link.ferrno = saved_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            hard_link_op_code,
+            {.hard_link = {
+                .old = create_path_lazy(oldfd, oldname, flags),
+                .new = create_path_lazy(newfd, newname, flags),
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.hard_link.ferrno = saved_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
-int symlink (const char *oldname, const char *newname) { }
+int symlink (const char *oldname, const char *newname) {
+    void* pre_call = ({
+        struct Op op = {
+            symbolic_link_op_code,
+            {.symbolic_link = {
+                .old = oldname,
+                .new = create_path_lazy(AT_FDCWD, newname, 0),
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.symbolic_link.ferrno = saved_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
+/* Docs: https://www.man7.org/linux/man-pages/man2/symlink.2.html */
+int symlinkat(const char *target, int newdirfd, const char *linkpath) {
+    void* pre_call = ({
+        struct Op op = {
+            symbolic_link_op_code,
+            {.symbolic_link = {
+                .old = target,
+                .new = create_path_lazy(newdirfd, linkpath, 0),
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.symbolic_link.ferrno = saved_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
+/* TODO */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
-int symlinkat(const char *target, int newdirfd, const char *linkpath) { }
-ssize_t readlink (const char *filename, char *buffer, size_t size) { }
-ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size) { }
-char * canonicalize_file_name (const char *name) { }
-char * realpath (const char *restrict name, char *restrict resolved) { }
+ssize_t readlink (const char *filename, char *buffer, size_t size) {
+    void* pre_call = ({
+        struct Op op = {
+            read_link_op_code,
+            {.read_link = {
+                .linkpath = create_path_lazy(AT_FDCWD, filename, 0),
+                .referent = NULL,
+                .truncation = false,
+                .recursive_dereference = false,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (likely(ret != -1)) {
+                op.data.read_link.referent = arena_strndup(get_data_arena(), buffer, ret + 1);
+                ((char*)op.data.read_link.referent)[ret] = '\0';
+                // If the returned value equals bufsiz, then truncation may have occurred.
+                op.data.read_link.truncation = ((size_t) ret) == size;
+            } else {
+                op.data.read_link.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size) {
+    void* pre_call = ({
+        struct Op op = {
+            read_link_op_code,
+            {.read_link = {
+                .linkpath = create_path_lazy(dirfd, filename, 0),
+                .referent = NULL,
+                .truncation = false,
+                .recursive_dereference = false,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (likely(ret != -1)) {
+                op.data.read_link.referent = arena_strndup(get_data_arena(), buffer, ret + 1);
+                ((char*)op.data.read_link.referent)[ret] = '\0';
+                // If the returned value equals bufsiz, then truncation may have occurred.
+                op.data.read_link.truncation = ((size_t) ret) == size;
+            } else {
+                op.data.read_link.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+char * canonicalize_file_name (const char *name) {
+    void* pre_call = ({
+        struct Op op = {
+            read_link_op_code,
+            {.read_link = {
+                .linkpath = create_path_lazy(AT_FDCWD, name, 0),
+                .referent = NULL,
+                .truncation = false,
+                .recursive_dereference = true,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (likely(ret)) {
+                op.data.read_link.referent = arena_strndup(get_data_arena(), ret, PATH_MAX);
+                op.data.read_link.truncation = false;
+            } else {
+                op.data.read_link.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+char * realpath (const char *restrict name, char *restrict resolved) {
+    void* pre_call = ({
+        struct Op op = {
+            read_link_op_code,
+            {.read_link = {
+                .linkpath = create_path_lazy(AT_FDCWD, name, 0),
+                .referent = NULL,
+                .truncation = false,
+                .recursive_dereference = true,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (likely(ret)) {
+                op.data.read_link.referent = arena_strndup(get_data_arena(), ret, PATH_MAX);
+                op.data.read_link.truncation = false;
+            } else {
+                op.data.read_link.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html */
-int unlink (const char *filename) { }
-int rmdir (const char *filename) { }
-int remove (const char *filename) { }
+int unlink (const char *filename) {
+    void* pre_call = ({
+        struct Op op = {
+            unlink_op_code,
+            {.unlink = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .unlink_type = 0,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.read_link.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int rmdir (const char *filename) {
+    void* pre_call = ({
+        struct Op op = {
+            unlink_op_code,
+            {.unlink = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .unlink_type = 1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.unlink.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int remove (const char *filename) {
+    void* pre_call = ({
+        struct Op op = {
+            unlink_op_code,
+            {.unlink = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .unlink_type = 2,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.unlink.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
+/* Docs: https://www.man7.org/linux/man-pages/man2/unlink.2.html */
+int unlinkat(int dirfd, const char *pathname, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            unlink_op_code,
+            {.unlink = {
+                .path = create_path_lazy(dirfd, pathname, flags),
+                .unlink_type = 0,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.unlink.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Renaming-Files.html */
-int rename (const char *oldname, const char *newname) { }
+int rename (const char *oldname, const char *newname) {
+    void* pre_call = ({
+        struct Op op = {
+            rename_op_code,
+            {.rename = {
+                .src = create_path_lazy(AT_FDCWD, oldname, 0),
+                .dst = create_path_lazy(AT_FDCWD, newname, 0),
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.rename.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
+/* Docs: https://www.man7.org/linux/man-pages/man2/rename.2.html */
+int renameat(int olddirfd, const char *oldpath,
+           int newdirfd, const char *newpath) {
+    void* pre_call = ({
+        struct Op op = {
+            rename_op_code,
+            {.rename = {
+                .src = create_path_lazy(olddirfd, oldpath, 0),
+                .dst = create_path_lazy(newdirfd, newpath, 0),
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.rename.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int renameat2(int olddirfd, const char *oldpath,
+            int newdirfd, const char *newpath, unsigned int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            rename_op_code,
+            {.rename = {
+                .src = create_path_lazy(olddirfd, oldpath, 0),
+                .dst = create_path_lazy(newdirfd, newpath, 0),
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.rename.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-Directories.html */
-int mkdir (const char *filename, mode_t mode) { }
+int mkdir (const char *filename, mode_t mode) {
+    void* pre_call = ({
+        struct Op op = {
+            mkdir_op_code,
+            {.mkdir = {
+                .dst = create_path_lazy(AT_FDCWD, filename, 0),
+                .mode = mode,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.mkdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
-/* Docs: https://www.man7.org/linux/man-pages/man2/mkdirat.2.html  */
-int mkdirat(int dirfd, const char *pathname, mode_t mode) { }
+/* Docs: https://www.man7.org/linux/man-pages/man2/mkdirat.2.html */
+int mkdirat(int dirfd, const char *pathname, mode_t mode) {
+    void* pre_call = ({
+        struct Op op = {
+            mkdir_op_code,
+            {.mkdir = {
+                .dst = create_path_lazy(dirfd, pathname, 0),
+                .mode = mode,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            if (unlikely(ret == -1)) {
+                op.data.mkdir.ferrno = errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html */
 int stat (const char *filename, struct stat *buf) {
