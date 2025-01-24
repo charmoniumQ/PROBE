@@ -401,3 +401,195 @@ class MakefileGenerator:
             makefile.append(f"\t{command}")
         
         return "\n".join(makefile)
+
+
+class CWLGenerator(WorkflowGenerator):
+    def __init__(self) -> None:
+        self.visited: Set[ProcessNode] = set()
+        self.process_counter: dict[ProcessNode, int] = {}
+        self.cwl_steps: list[dict] = []
+        self.input_files: set[str] = set()
+
+    def escape_filename_for_cwl(self, filename: str) -> str:
+        """Escape special characters in a filename for CWL."""
+        escaped_filename = ''.join(char if char.isalnum() else '_' for char in filename)
+        if escaped_filename[0].isdigit():
+            escaped_filename = f"file_{escaped_filename}"
+        return escaped_filename
+
+    def handle_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle standard cases with input and output files."""
+        step_id = f"process_{id(process)}"
+        cwl_step = {
+            "id": step_id,
+            "run": {
+                "class": "CommandLineTool",
+                "cwlVersion": "v1.0",
+                "baseCommand": process.cmd[0],
+                "inputs": {},
+                "outputs": {},
+                "requirements": {
+                    "DockerRequirement": {"dockerPull": "ubuntu:latest"}
+                }
+            }
+        }
+
+        # Add command arguments
+        if len(process.cmd) > 1:
+            cwl_step["run"]["arguments"] = process.cmd[1:]
+
+        # Add inputs and outputs
+        for i, input_file in enumerate(inputs):
+            input_id = self.escape_filename_for_cwl(input_file.label)
+            cwl_step["run"]["inputs"][input_id] = {
+                "type": "File",
+                "inputBinding": {"position": i + 1}
+            }
+        for output_file in outputs:
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            cwl_step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return cwl_step
+
+    def handle_multiple_outputs(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle cases with one input and multiple outputs."""
+        step = self.handle_standard_case(process, inputs, outputs)
+        step_id = step["id"]
+        for i, output_file in enumerate(outputs):
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return step
+
+    def handle_multiple_inputs_outputs(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle cases with multiple inputs and multiple outputs."""
+        step = self.handle_standard_case(process, inputs, outputs)
+        return step
+
+    def handle_inline_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle inline editing commands."""
+        step_id = f"process_{id(process)}"
+        script_commands = []
+        for input_file in inputs:
+            temp_name = f"temp_{os.path.basename(input_file.file)}"
+            modified_cmd = ' '.join(process.cmd).replace(input_file.file, temp_name)
+            script_commands.append(modified_cmd)
+
+        cwl_step = {
+            "id": step_id,
+            "run": {
+                "class": "CommandLineTool",
+                "cwlVersion": "v1.0",
+                "baseCommand": ["bash", "-c"],
+                "arguments": [" && ".join(script_commands)],
+                "inputs": {},
+                "outputs": {},
+                "requirements": {
+                    "DockerRequirement": {"dockerPull": "ubuntu:latest"}
+                }
+            }
+        }
+
+        for input_file in inputs:
+            input_id = self.escape_filename_for_cwl(input_file.label)
+            cwl_step["run"]["inputs"][input_id] = {"type": "File"}
+        for output_file in outputs:
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            cwl_step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return cwl_step
+
+    def handle_no_input_command(self, process: ProcessNode, outputs: List[FileNode]) -> dict:
+        """Handle commands that don't require inputs (e.g., `ls .`)."""
+        step_id = f"process_{id(process)}"
+        cwl_step = {
+            "id": step_id,
+            "run": {
+                "class": "CommandLineTool",
+                "cwlVersion": "v1.0",
+                "baseCommand": process.cmd[0],
+                "inputs": {},  # Ensure inputs is always present
+                "outputs": {},
+                "requirements": {
+                    "DockerRequirement": {"dockerPull": "ubuntu:latest"}
+                }
+            }
+        }
+        for output_file in outputs:
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            cwl_step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return cwl_step
+
+    def handle_environment_variables(self, process: ProcessNode, env_vars: dict) -> dict:
+        """Handle environment variables in the process."""
+        env_vars_list = [f"{key}={value}" for key, value in env_vars.items()]
+        return {"EnvVarRequirement": {"envDef": env_vars_list}}
+
+    def generate_workflow(self, graph: nx.DiGraph) -> str:
+        """Generate a complete CWL workflow in YAML format."""
+        self.graph = graph
+        workflow = {
+            "cwlVersion": "v1.0",
+            "class": "Workflow",
+            "inputs": {},
+            "outputs": {},
+            "steps": {}
+        }
+
+        # Add file inputs
+        for node in self.graph.nodes:
+            if isinstance(node, FileNode) and node.file != '.':  # Ignore placeholder inputs like '.'
+                input_id = self.escape_filename_for_cwl(node.label)
+                workflow["inputs"][input_id] = {"type": "File"}
+                self.input_files.add(input_id)
+
+        # Process nodes and create steps
+        for node in self.graph.nodes:
+            if isinstance(node, ProcessNode) and node not in self.visited:
+                inputs = [
+                    n for n in self.graph.predecessors(node)
+                    if isinstance(n, FileNode) and n.file != '.'  # Exclude placeholder inputs
+                ]
+                outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
+
+                # Handle cases based on the filtered inputs
+                if len(inputs) == 0:
+                    step = self.handle_no_input_command(node, outputs)
+                elif len(inputs) == 1 and len(outputs) > 1:
+                    step = self.handle_multiple_outputs(node, inputs, outputs)
+                elif len(inputs) > 1 and len(outputs) == 1:
+                    step = self.handle_multiple_inputs_outputs(node, inputs, outputs)
+                else:
+                    step = self.handle_inline_case(node, inputs, outputs)
+
+                workflow["steps"][step["id"]] = {
+                    "run": step["run"],
+                    "in": {},
+                    "out": list(step["run"]["outputs"].keys())
+                }
+
+                # Connect inputs and outputs
+                for input_file in inputs:
+                    input_id = self.escape_filename_for_cwl(input_file.label)
+                    if input_id in self.input_files:
+                        workflow["steps"][step["id"]]["in"][input_id] = input_id
+
+                for output_file in outputs:
+                    output_id = self.escape_filename_for_cwl(output_file.label)
+                    workflow["outputs"][output_id] = {
+                        "type": "File",
+                        "outputSource": f"{step['id']}/{output_id}"
+                    }
+                self.visited.add(node)
+
+        import yaml
+        return yaml.dump(workflow, default_flow_style=False, sort_keys=False)
