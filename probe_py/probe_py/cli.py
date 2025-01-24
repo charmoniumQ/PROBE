@@ -26,6 +26,8 @@ import shlex
 import datetime
 import random
 import socket
+import networkx as nx
+import pydot
 
 
 console = rich.console.Console(stderr=True)
@@ -417,7 +419,7 @@ def nextflow(
     output.write_text(script)
 
 @export_app.command()
-def provlog_to_process_tree(
+def process_tree(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
