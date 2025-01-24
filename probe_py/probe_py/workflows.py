@@ -288,10 +288,9 @@ process process_{id(process)} {{
 
 
 class MakefileGenerator:
-    def __init__(self, output_dir: str = "experiments") -> None:
+    def __init__(self) -> None:
         self.visited: Set[ProcessNode] = set()
         self.makefile_commands: list[str] = []
-        self.output_dir = output_dir
 
     def escape_filename_for_makefile(self, filename: str) -> str:
         """
@@ -307,39 +306,29 @@ class MakefileGenerator:
         """
         return filename.startswith('.') or filename.startswith('._')
 
-    def create_experiment_folder_command(self, process: ProcessNode) -> str:
-        """
-        Generate the command to create a folder for the experiment.
-        """
-        folder_name = f"process_{id(ProcessNode)}"
-        return f"mkdir -p {folder_name}"
-
     def copy_input_files_command(self, process: ProcessNode, inputs: List[FileNode]) -> Optional[str]:
         """
-        Generate the command to copy input files into the experiment folder.
+        Generate the command to copy input files into the process folder.
         Returns None if there are no input files.
         """
-        if not inputs:
-            return None
-
-        folder_name = f"process_{id(ProcessNode)}"
+        folder_name = f"process_{id(process)}"
         commands = []
         for file in inputs:
             if self.is_hidden_file(file.label):
                 continue  # Skip hidden files
             escaped_file = self.escape_filename_for_makefile(file.label)
             commands.append(f"cp {escaped_file} {folder_name}/")
-        
+
         if commands:
             return "\n\t".join(commands)
         return None
 
     def run_command_command(self, process: ProcessNode, outputs: List[FileNode]) -> str:
         """
-        Generate the command to run the experiment's command within the experiment folder.
+        Generate the command to run the experiment's command within the process folder.
         Redirect stdout and stderr to log files if outputs are not files.
         """
-        folder_name = f"process_{id(ProcessNode)}"
+        folder_name = f"process_{id(process)}"
         cmd = " ".join(process.cmd)
         if not outputs:
             # No output files, redirect to log
@@ -353,36 +342,32 @@ class MakefileGenerator:
         Generate all necessary Makefile commands for a given process node.
         Handles different cases based on presence of inputs and outputs.
         """
-        # Create experiment folder
-        self.makefile_commands.append(f"# Process {id(ProcessNode)}: {' '.join(process.cmd)}")
-        self.makefile_commands.append(f"\tmkdir -p process_{id(ProcessNode)}")
-        
+        # Create process folder
+        folder_name = f"process_{id(process)}"
+        self.makefile_commands.append(f"# Process {id(process)}: {' '.join(process.cmd)}")
+        self.makefile_commands.append(f"\tmkdir -p {folder_name}")
+
         # Copy input files
         copy_inputs = self.copy_input_files_command(process, inputs)
         if copy_inputs:
-            self.makefile_commands.append(f"# Copy input files for process {id(ProcessNode)}")
+            self.makefile_commands.append(f"# Copy input files for process {id(process)}")
             self.makefile_commands.append(f"\t{copy_inputs}")
-        
+
         # Run the command
-        self.makefile_commands.append(f"# Run command for process {id(ProcessNode)}")
+        self.makefile_commands.append(f"# Run command for process {id(process)}")
         run_cmd = self.run_command_command(process, outputs)
         self.makefile_commands.append(f"\t{run_cmd}")
-        
-        # No copying of output files since they are inside the folder
 
     def create_rules(self) -> None:
         """
         Traverse the graph and create Makefile commands.
         """
-        # Ensure the output directory exists
-        self.makefile_commands.append(f"\tmkdir -p {self.output_dir}\n")
-        
         # Traverse the graph in topological order to respect dependencies
-        for node in nx.topological_sort(self.graph):
+        for node in self.graph.nodes:
             if isinstance(node, ProcessNode):
                 inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
                 outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
-                
+
                 self.handle_process_node(node, inputs, outputs)
 
     def generate_makefile(self, graph: nx.DiGraph) -> str:
@@ -391,15 +376,15 @@ class MakefileGenerator:
         """
         self.graph = graph
         self.create_rules()
-        
+
         # Assemble the Makefile
         makefile = []
         makefile.append("all:")
         for command in self.makefile_commands:
             # Ensure each command line is properly indented with a tab
             # Makefile syntax requires tabs, not spaces
-            makefile.append(f"\t{command}")
-        
+            makefile.append(f"{command}")
+
         return "\n".join(makefile)
 
 
