@@ -26,8 +26,6 @@ import shlex
 import datetime
 import random
 import socket
-import networkx as nx
-import pydot
 
 
 console = rich.console.Console(stderr=True)
