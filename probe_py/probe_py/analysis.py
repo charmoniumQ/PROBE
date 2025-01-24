@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import pathlib
 import os
 import collections
-from dataclasses import field, dataclass
 
 class EdgeLabels(IntEnum):
     PROGRAM_ORDER = 1
