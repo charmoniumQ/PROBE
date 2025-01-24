@@ -375,7 +375,7 @@ int dup2 (int old, int new) {
     void* pre_call = ({
         struct Op close_op = {
             close_op_code,
-            {.dup = {new, new, 0}},
+            {.close = {new, new, 0}},
             {0},
             0,
             0,
@@ -409,7 +409,7 @@ int dup3 (int old, int new, int flags) {
     void* pre_call = ({
         struct Op close_op = {
             close_op_code,
-            {.dup = {new, new, 0}},
+            {.close = {new, new, 0}},
             {0},
             0,
             0,
