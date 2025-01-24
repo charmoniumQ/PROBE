@@ -502,17 +502,7 @@ def color_hb_graph(prov_log: ProvLog, process_graph: nx.DiGraph) -> None:
             data["label"] += f"\n{op.data.path.path.decode()}"
 
 
-def provlog_to_process_tree(prov_log):
-    """
-    Build a directed graph where each node represents an ExecEpoch (rather than a whole process).
-    Edges represent either:
-      - Clone/fork events (from parent's ExecEpoch to child's initial ExecEpoch),
-      - Exec events (from old ExecEpoch to new ExecEpoch in the same process).
-
-    Node labels will show the (command, args) if this ExecEpoch was created by an exec.
-    Otherwise, for the first epoch (inherited from a parent via clone/fork),
-    you may choose a label like 'Inherited' or 'PID=<pid> E=<epoch>' etc.
-    """
+def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
     G = nx.DiGraph()
 
     def epoch_node_id(pid, epoch_no):
