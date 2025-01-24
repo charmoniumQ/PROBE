@@ -42,7 +42,7 @@ class FileVersion:
     mtime_sec: int
     mtime_nsec: int
 
-@dataclass(frozen=False)
+@dataclass(frozen=True)
 class FileNode:
     inodeOnDevice: InodeOnDevice
     version: FileVersion
@@ -51,9 +51,6 @@ class FileNode:
     @property
     def label(self) -> str:
         return f"{self.file} inode {self.inodeOnDevice.inode}"
-
-    def __hash__(self):
-        return hash((self.inodeOnDevice.inode, self.inodeOnDevice.device_major, self.inodeOnDevice.device_minor))
 
 # type alias for a node
 Node: typing.TypeAlias = tuple[int, int, int, int]
