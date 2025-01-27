@@ -1,0 +1,11 @@
+[package]
+name = "setuid_bins"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+clap = { version = "4.5.27", features = ["derive"] }
+glob = "0.3.2"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_yaml = "0.9.34"

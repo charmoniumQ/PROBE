@@ -1,16 +1,26 @@
 {
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.nixos-q-chem.url = "github:Nix-QChem/NixOS-QChem";
+  inputs.crane.url = "github:ipetkov/crane";
   outputs = {
     self,
     nixpkgs,
     flake-utils,
     nixos-q-chem,
+    crane,
     ...
   } @ inputs:
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
+        craneLib = crane.mkLib pkgs;
+        commonArgs = {
+          src = craneLib.cleanCargoSource ./setuid_bins;
+          strictDeps = true;
+        };
+        setuid-bins = craneLib.buildPackage (commonArgs // {
+          cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        });
         python = pkgs.python312;
         noPytest = pypkg:
           pypkg.overrideAttrs (self: super: {
@@ -938,7 +948,7 @@
           };
         };
         devShells = {
-          default = pkgs.mkShell {
+          default = craneLib.devShell {
             packages = [
               (python.withPackages (pypkgs: [
                 pypkgs.typer
