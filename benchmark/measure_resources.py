@@ -78,7 +78,7 @@ class CompletedProcess:
 
 
 def measure_resources(
-        cmd: tuple[str, ...],
+        cmd: typing.Sequence[str],
         env: typing.Mapping[str, str] | None = None,
         cwd: pathlib.Path | None = None,
         timeout: datetime.timedelta | None = None,
@@ -100,7 +100,7 @@ def measure_resources(
         stop = datetime.datetime.now()
         return CompletedProcess(
             p.returncode,
-            cmd,
+            tuple(cmd),
             cwd,
             env,
             stdout,

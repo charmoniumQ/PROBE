@@ -1,3 +1,4 @@
+import polars
 import typing
 import itertools
 import os
@@ -5,7 +6,7 @@ import json
 import sys
 import dataclasses
 import random
-import bitmath
+import bitmath  # type: ignore
 import tempfile
 import contextlib
 import pathlib
@@ -365,9 +366,34 @@ def fmt_bytes(bm: bitmath.Bitmath | int, d: int = 0) -> str:
 
 def last_sentinel(it: Iterable[_T]) -> Iterator[tuple[bool, _T]]:
     is_first = True
+    tmp: _T | None = None
     for elem in it:
         if not is_first:
-            yield False, tmp
+            yield False, typing.cast(_T, tmp)
         tmp = elem
         is_first = False
-    yield True, tmp
+    yield True, typing.cast(_T, tmp)
+
+
+def parquet_safe_columns(df: polars.DataFrame) -> polars.DataFrame:
+    # Parquet doesn't support 0-field structs.
+    #
+    #   InvalidOperationError: Unable to write struct type with no child field to Parquet. Consider adding a dummy child field.
+    #
+    # So we will add a dummy field to empty structs
+    return df.with_columns(
+        polars.col(col).map_elements(
+            lambda dct: {**dct, "_dummy": 1},
+            return_dtype=polars.Struct,
+        )
+        for col, dtype in zip(df.columns, df.dtypes)
+        if isinstance(dtype, polars.Struct) and not df[col].struct.fields
+    )
+
+
+def dt_as_seconds(df: polars.DataFrame, decimals: int = 1) -> polars.DataFrame:
+    return df.with_columns(
+        (polars.col(col).dt.total_nanoseconds() * 1e-9).round(decimals)
+        for col, dtype in zip(df.columns, df.dtypes)
+        if isinstance(dtype, polars.Duration)
+    )

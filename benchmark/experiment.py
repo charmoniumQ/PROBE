@@ -1,15 +1,13 @@
 import shlex
 import datetime
+import shutil
+import typing
 import rich.console
 import dataclasses
 import pathlib
-import tempfile
 import collections
 import itertools
 import util
-import gc
-import psutil
-from pympler.asizeof import asizeof as size
 from mandala.imports import op, Ignore, Storage  # type: ignore
 import rich.progress
 from workloads import Workload
@@ -28,7 +26,8 @@ def run_experiments(
         seed: int,
         verbose: bool,
         rerun: bool,
-        storage_file: pathlib.Path,
+        internal_cache: pathlib.Path,
+        parquet_output: pathlib.Path,
 ) -> polars.DataFrame:
     if verbose:
         util.print_rich_table(
@@ -42,7 +41,6 @@ def run_experiments(
                 ("rerun", rerun),
             ],
         )
-    start = datetime.datetime.now()
     inputs = list(itertools.chain.from_iterable(
         # Shuffling eliminates confounding effects of order dependency
         # E.g., if the CPU overheats and gets throttled, then later runs will be slower
@@ -62,11 +60,8 @@ def run_experiments(
     ))
 
 
-    process = psutil.Process()
-    last_used_mem = process.memory_info().rss
     records = []
-    br = util.fmt_bytes
-    with Storage(storage_file) as storage:
+    with Storage(internal_cache) as storage:
         for iteration, collector, workload, verbose in util.progress.track(
                 inputs,
                 description="Collectors x Workloads"
@@ -75,52 +70,40 @@ def run_experiments(
             record = storage.unwrap(op)
             storage.commit()
             records.append(record)
-            if verbose:
-                record_size = size(record)
-                util.console.print(
-                    f"  Records: {br(size(records))} ≅ {br(record_size * len(records))} = {len(records)} x {br(record_size, 1)}",
-                )
-                util.console.print(f"  Storage: {br(size(storage))}")
-                used_mem = process.memory_info().rss
-                util.console.print(f"  Total: {br(used_mem)} (incrase of {br(used_mem - last_used_mem)} from last time)")
-                util.console.print(f"  Free: {br(psutil.virtual_memory().available)}")
-                util.console.print(f"  Op cmd max memory usage: {br(record.max_memory)}")
-                last_used_mem = used_mem
-
-    df = polars.from_dicts(
-        [
-            {
-                "collector": record.prov_collector,
-                "workload_group": record.workload_group,
-                "workload_subgroup": record.workload_subgroup,
-                "workload_subsubgroup": record.workload_subsubgroup,
-                "workload_area": record.workload_area,
-                "workload_subarea": record.workload_subarea,
-                "seed": record.seed,
-                "returncode": record.returncode,
-                "walltime": record.walltime,
-                "user_cpu_time": record.user_cpu_time,
-                "system_cpu_time": record.system_cpu_time,
-                "max_memory": record.max_memory,
-                "n_voluntary_context_switches": record.n_voluntary_context_switches,
-                "n_involuntary_context_switches": record.n_involuntary_context_switches,
-                "provenance_size": record.provenance_size,
-                "n_ops": record.n_ops,
-                "n_unique_files": record.n_unique_files,
-                "op_counts": record.op_counts,
-            }
-            for record in records
-        ],
-        schema_overrides={
-            "collector": polars.Categorical,
-            "workload_group": polars.Categorical,
-            "workload_subgroup": polars.Categorical,
-            "workload_subsubgroup": polars.Categorical,
-            "workload_area": polars.Categorical,
-            "workload_subarea": polars.Categorical,
-        },
-    )
-    util.console.print(f"run_experiment all inputs in {(datetime.datetime.now() - start).total_seconds():.1f}")
+            df = polars.from_dicts(
+                [
+                    {
+                        "collector": record.prov_collector,
+                        "workload_group": record.workload_group,
+                        "workload_subgroup": record.workload_subgroup,
+                        "workload_subsubgroup": record.workload_subsubgroup,
+                        "workload_area": record.workload_area,
+                        "workload_subarea": record.workload_subarea,
+                        "seed": record.seed,
+                        "returncode": record.returncode,
+                        "walltime": record.walltime,
+                        "user_cpu_time": record.user_cpu_time,
+                        "system_cpu_time": record.system_cpu_time,
+                        "max_memory": record.max_memory,
+                        "n_voluntary_context_switches": record.n_voluntary_context_switches,
+                        "n_involuntary_context_switches": record.n_involuntary_context_switches,
+                        "provenance_size": record.provenance_size,
+                        "n_ops": record.n_ops,
+                        "n_unique_files": record.n_unique_files,
+                        "op_counts": record.op_counts,
+                    }
+                    for record in records
+                ],
+                schema_overrides={
+                    "collector": polars.Categorical,
+                    "workload_group": polars.Categorical,
+                    "workload_subgroup": polars.Categorical,
+                    "workload_subsubgroup": polars.Categorical,
+                    "workload_area": polars.Categorical,
+                    "workload_subarea": polars.Categorical,
+                },
+            )
+            util.parquet_safe_columns(df).write_parquet(parquet_output)
     return df
 
 
@@ -160,7 +143,7 @@ def run_experiment(
     labels = (seed, prov_collector.name, workload.labels[0][0], workload.labels[0][1], workload.labels[0][2], workload.labels[1][0], workload.labels[1][1])
 
     def run_proc(
-            cmd: tuple[str, ...],
+            cmd: typing.Sequence[str],
             timeout: datetime.timedelta | None,
     ) -> tuple[measure_resources.CompletedProcess, ExperimentStats]:
         if cmd:
@@ -170,7 +153,7 @@ def run_experiment(
                 str_cmd = shlex.join(cmd).replace(
                     str(work_dir.resolve()), "$work_dir",
                 ).replace(
-                    str(prov_log.resolve()), "$work_dir/../prov",
+                    str(prov_dir.resolve()), "$prov_dir",
                 )
                 util.console.print(f"env --chdir $work_dir - {str_cmd}")
             proc = measure_resources.measure_resources(
@@ -196,52 +179,56 @@ def run_experiment(
             return proc, ExperimentStats(*labels)
 
 
-    with tempfile.TemporaryDirectory() as _tmp_dir:
-        tmp_dir = pathlib.Path(_tmp_dir).resolve()
-        work_dir = tmp_dir / "work"
-        prov_log = tmp_dir / "prov"
+    tmp_dir = pathlib.Path("/tmp/probe-benchmark")
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+    tmp_dir.mkdir(parents=True)
 
-        work_dir.mkdir(exist_ok=True, parents=False)
+    work_dir = tmp_dir / "work"
+    prov_dir = tmp_dir / "prov"
 
-        if verbose:
-            util.console.print(f"work_dir={tmp_dir!s} && rm -rf $work_dir && mkdir --parents $work_dir")
+    prov_dir.mkdir(exist_ok=True, parents=True)
+    work_dir.mkdir(exist_ok=True, parents=False)
 
-        context = {
-            "work_dir": str(work_dir),
-            "prov_log": str(prov_log),
-        }
+    if verbose:
+        util.console.print(f"work_dir={work_dir!s} && prov_dir={prov_dir!s} && rm -rf $work_dir $prov_dir && mkdir --parents $work_dir $prov_dir")
 
-        proc, exp_stats = run_proc(
-            prov_collector.setup_cmd.expand(context),
-            setup_teardown_timeout,
-        )
-        if proc.returncode != 0:
-            return exp_stats
+    context = {
+        "work_dir": str(work_dir),
+        "prov_dir": str(prov_dir),
+    }
 
-        proc, exp_stats = run_proc(
-            workload.setup_cmd.expand(context),
-            setup_teardown_timeout,
-        )
-        if proc.returncode != 0:
-            return exp_stats
+    proc, exp_stats = run_proc(
+        prov_collector.setup_cmd.expand(context),
+        setup_teardown_timeout,
+    )
+    if proc.returncode != 0:
+        return exp_stats
 
-        workload_cmd = workload.cmd.expand(context)
-        workload_proc, exp_stats = run_proc(
-            prov_collector.run_cmd.expand(context) + workload_cmd,
-            timeout=workload.timeout * prov_collector.timeout_multiplier if workload.timeout else None,
-        )
-        if workload_proc.returncode != 0:
-            return exp_stats
+    proc, exp_stats = run_proc(
+        workload.setup_cmd.expand(context),
+        setup_teardown_timeout,
+    )
+    if proc.returncode != 0:
+        return exp_stats
 
-        proc, exp_stats = run_proc(
-            prov_collector.teardown_cmd.expand(context),
-            setup_teardown_timeout,
-        )
-        if proc.returncode != 0:
-            return exp_stats
+    workload_cmd = workload.cmd.expand(context)
+    workload_proc, exp_stats = run_proc(
+        prov_collector.run_cmd.expand(context) + workload_cmd,
+        timeout=workload.timeout * prov_collector.timeout_multiplier if workload.timeout else None,
+    )
+    if workload_proc.returncode != 0:
+        return exp_stats
 
-        provenance_size = (util.dir_size(prov_log) if prov_log.is_dir() else prov_log.stat().st_size) if prov_log.exists() else 0
-        ops = prov_collector.count(prov_log, pathlib.Path(workload_cmd[0]))
+    proc, exp_stats = run_proc(
+        prov_collector.teardown_cmd.expand(context),
+        setup_teardown_timeout,
+    )
+    if proc.returncode != 0:
+        return exp_stats
+
+    provenance_size = util.dir_size(prov_dir)
+    ops = prov_collector.count(prov_dir, pathlib.Path(workload_cmd[0]))
 
     return ExperimentStats(
         *labels,

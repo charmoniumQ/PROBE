@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import datetime
 import polars
 import pandas
 import itertools
@@ -6,16 +7,27 @@ import matplotlib.pyplot
 import pathlib
 import scipy.stats
 import util
-import stats
 import scikit_posthocs
 
 
 polars.Config.set_tbl_rows(1000)
+polars.Config.set_tbl_cols(1000)
 
 
-iterations = polars.read_parquet("output/iterations.parquet").with_columns(
-    polars.col("collector").cast(str).replace({"probe": "probe (metadata)", "probecopylazy": r"probe (metadata \& data)"})
-)
+collector_order = {
+    "noprov": (0,),
+    "ltrace": (1,),
+    "strace": (2,),
+    "probe": (3,),
+    "rr": (4,),
+    "sciunit": (5,),
+    "ptu": (6,),
+    "cde": (7,),
+    "reprozip": (8,),
+    "care": (9,),
+    "probecopyeager": (10,),
+    "probecopylazy": (11,),
+}
 
 
 workload_labels = {
@@ -26,33 +38,50 @@ workload_labels = {
     "read": ("syscall", "read"),
     "fork": ("syscall", "fork"),
     "exec": ("syscall", "exec"),
+    "fstat": ("syscall", "fstat"),
     "shell": ("system", "launch shell"),
+    "shell-cd": ("system", "shell-cd"),
+    "hello": ("system", "hello-world"),
     "create/delete": ("synth. file I/O", "create/delete files"),
     "postmark2": ("synth. file I/O", "Postmark (small file I/O)"),
     "postmark": ("synth. file I/O", "Postmark (small file I/O)"),
-    # "titanic-0": ("data sci.", "Kaggle training/inference 2"),
-    # "titanic-1": ("data sci.", "Kaggle training/inference 1"),
-    "house-prices-0": ("data sci.", "Kaggle training/inference"),
+    "titanic-0": ("data sci.", "Kaggle training/inference 2"),
+    "titanic-1": ("data sci.", "Kaggle training/inference 1"),
+    "house-prices-0": ("data sci.", "Kaggle training/inference 3"),
+    "house-prices-1": ("data sci.", "Kaggle training/inference 4"),
+    "plot-simple": ("data sci.", "Simple plot"),
+    "imports": ("data sci.", "Python imports"),
     "huggingface/transformers": ("build", "Python package"),
     "apache": ("system", "Apache server load test"),
-    "ph-01": ("comp. chem.", "Quantum-espresso wave function 0"),
-    "pw-01": ("comp. chem.", "Quantum-espresso wave function 1"),
-    "pp-01": ("comp. chem.", "Quantum-espresso wave function 2"),
-    # "sextractor": ("build", "C pkg"),
+    "ph-01": ("comp. chem.", "Quantum wave fn 0"),
+    "pw-01": ("comp. chem.", "Quantum wave fn 1"),
+    "pp-01": ("comp. chem.", "Quantum wave fn 2"),
+    "sextractor": ("build", "C pkg"),
     "blastp": ("multi-omics", "BLAST search 0"),
     "blastn": ("multi-omics", "BLAST search 1"),
     "blastx": ("multi-omics", "BLAST search 2"),
-    # "tblastn": ("multi-omics", "BLAST search 3"),
-    # "tblastx": ("multi-omics", "BLAST search 4"),
-    # "megablast": ("multi-omics", "BLAST search 5"),
+    "tblastn": ("multi-omics", "BLAST search 3"),
+    "tblastx": ("multi-omics", "BLAST search 4"),
+    "megablast": ("multi-omics", "BLAST search 5"),
     "umap2": ("data sci.", "Manifold learning example"),
     "umap": ("data sci.", "Manifold learning example"),
     "hdbscan": ("data sci.", "Clustering example"),
     "astro-pvd": ("comp. astro.", "Astronomical image analysis"),
+    "barnes": ("comp. astro.", "N-body Barnes"),
+    "fmm": ("comp. astro.", "N-body FMM"),
     "ocean": ("comp. phys.", "Ocean fluid dynamics"),
-    "raytrace": ("data visualization", "Raytracing"),
-    "volrend": ("data visualization", "Volume ray-casting"),
-    "water-nsquared": ("comp. chem.", "Molecular dynamics"),
+    "radiosity": ("graphics", "Radiosity"),
+    "raytrace": ("graphics", "Raytracing"),
+    "volrend": ("graphics", "Volume ray-casting"),
+    "water-nsquared": ("comp. chem.", "Molecular dynamics 1"),
+    "water-spatial": ("comp. chem.", "Molecular dynamics 2"),
+    "cholesky": ("numerical", "Cholesky factorization"),
+    "fft": ("numerical", "FFT"),
+    "lu": ("numerical", "LU factorization"),
+    "radix": ("numerical", "Radix sort"),
+    "rsync-linux": ("system", "copy Linux src"),
+    "tar-linux": ("system", "tar Linux src"),
+    "untar-linux": ("system", "untar Linux src"),
 }
 
 
@@ -66,29 +95,40 @@ workload_renames = {
 }
 
 
-collectors = [
-    "probe (metadata)",
-    "strace",
-    r"probe (metadata \& data)",
-    "care",
-    "ptu",
-]
-
-
 qtys = ["walltime"]
 #, "user_cpu_time", "system_cpu_time", "max_memory"]
 
 
-failures = iterations.filter(polars.col("returncode") != 0)
-if not failures.is_empty():
-    util.console.rule("Failures")
-    util.console.print(failures)
+iterations = polars.read_parquet("output/iterations.parquet").with_columns(
+    polars.col("collector").cast(str).replace({"probe": "probe (metadata)", "probecopylazy": r"probe (metadata \& data)"})
+)
 
 
 unlabelled_workloads = set(iterations["workload_subsubgroup"].unique()) - workload_labels.keys()
 if unlabelled_workloads:
     util.console.rule("Unlabelled workloads")
     util.console.print("\n".join(unlabelled_workloads))
+
+
+iterations = iterations.with_columns(
+    polars.col("workload_subsubgroup").cast(str).replace(workload_renames).alias("workload"),
+    polars.col("workload_subsubgroup").cast(str).replace(workload_to_groups).alias("group"),
+).drop("workload_subgroup", "workload_subsubgroup")
+
+
+collectors = list(iterations["collector"].unique())
+
+
+failures = iterations.filter(polars.col("returncode") != 0)
+if not failures.is_empty():
+    util.console.rule("Failures")
+    util.console.print(failures.select("group", "workload", "collector"))
+
+
+fasts = iterations.filter(polars.col("walltime") < datetime.timedelta(seconds=1))
+if not fasts.is_empty():
+    util.console.rule("Fast")
+    util.console.print(util.dt_as_seconds(fasts.select("group", "workload", "collector", "walltime"), 3))
 
 
 def log_to_mean(mean: polars.Expr, std: polars.Expr) -> polars.Expr:
@@ -99,17 +139,17 @@ def log_to_std(mean: polars.Expr, std: polars.Expr) -> polars.Expr:
     return ((std**2).exp() - 1) * (2 * mean + std**2).exp()
 
 
-log_normal_qtys = stats.dt_as_seconds(iterations).filter(
+log_normal_qtys = util.dt_as_seconds(iterations).filter(
     polars.col("returncode") == 0
-).rename(
-    {"workload_subsubgroup": "workload"}
 ).group_by(
-    "workload", "collector"
+    "group", "workload", "collector"
 ).agg(
     *util.flatten1([
         [
             polars.col(qty).log().mean().alias(f"{qty}_log_avg"),
-            polars.col(qty).log().std().alias(f"{qty}_log_std")
+            polars.col(qty).log().std().alias(f"{qty}_log_std"),
+            polars.col(qty).mean().alias(f"{qty}_avg2"),
+            polars.col(qty).std().alias(f"{qty}_std2"),
         ]
         for qty in qtys
     ]),
@@ -122,6 +162,8 @@ log_normal_qtys = stats.dt_as_seconds(iterations).filter(
                 [
                     polars.col(f"{qty}_log_avg").alias(f"noprov_{qty}_log_avg"),
                     polars.col(f"{qty}_log_std").alias(f"noprov_{qty}_log_std"),
+                    polars.col(f"{qty}_avg2").alias(f"noprov_{qty}_avg2"),
+                    polars.col(f"{qty}_std2").alias(f"noprov_{qty}_std2"),
                 ]
                 for qty in qtys
             ]),
@@ -131,8 +173,6 @@ log_normal_qtys = stats.dt_as_seconds(iterations).filter(
         validate="m:1",
     )
 ).with_columns(
-    "workload",
-    "collector",
     *util.flatten1([
         [
             # Wise words from Wikipedia, brackets theirs:
@@ -146,12 +186,12 @@ log_normal_qtys = stats.dt_as_seconds(iterations).filter(
 
             (polars.col(f"{qty}_log_avg") - polars.col(f"noprov_{qty}_log_avg")).alias(f"{qty}_log_overhead_avg"),
             (polars.col(f"{qty}_log_std")**2 + polars.col(f"noprov_{qty}_log_std")**2).sqrt().alias(f"{qty}_log_overhead_std"),
+            (polars.col(f"{qty}_avg2") / polars.col(f"noprov_{qty}_avg2")).alias(f"{qty}_overhead_avg2"),
+            (polars.col(f"{qty}_std2") / polars.col(f"noprov_{qty}_std2")).alias(f"{qty}_overhead_std2"),
         ]
         for qty in qtys
     ])
 ).with_columns(
-    "workload",
-    "collector",
     *util.flatten1([
         [
             # Again, Wiki article infobox has mean and variance (square of std.dev.)
@@ -167,10 +207,19 @@ log_normal_qtys = stats.dt_as_seconds(iterations).filter(
         ]
         for qty in qtys
     ])
-).with_columns(
-    polars.col("workload").cast(str).replace(workload_renames).alias("workload"),
-    polars.col("workload").cast(str).replace(workload_to_groups).alias("group"),
 )
+
+
+util.console.rule("Data")
+util.console.print(log_normal_qtys.select(
+    "group",
+    "workload",
+    "collector",
+    "walltime_avg2",
+    "walltime_std2",
+    "walltime_overhead_avg2",
+    "walltime_overhead_std2",
+).sort("group", "workload"))
 
 
 output = pathlib.Path(__file__).resolve().parent.parent / "docs/lib_interpos"
@@ -187,6 +236,14 @@ def color(mean: float) -> str:
         return r"\cellcolor[rgb]{1, 0.4, 0.4}"
 
 
+def get_one(df: polars.DataFrame, workload: str | None, collector: str | None) -> polars.DataFrame:
+    if workload:
+        df = df.filter(polars.col("workload") == workload)
+    if collector:
+        df = df.filter(polars.col("collector") == collector)
+    return df
+
+
 for qty in qtys:
     util.console.rule(qty)
     util.console.print(log_normal_qtys.select(
@@ -194,9 +251,9 @@ for qty in qtys:
         "workload",
         "collector",
         polars.concat_str(
-            polars.col(f"{qty}_overhead_avg").round(1),
+            polars.col(f"{qty}_overhead_avg2").round(1),
             polars.lit("  ±"),
-            polars.col(f"{qty}_overhead_std").round(1),
+            polars.coalesce(polars.col(f"{qty}_overhead_std2").round(1), polars.lit("")),
         ).alias(qty),
     ).pivot(
         "collector",
@@ -232,10 +289,10 @@ for qty in qtys:
                             workload,
                             *[
                                 (lambda mean, std: color(mean - 1) + r"\({:.0f}\%\quad \pm {:.0f}\%\)".format(mean * 100 - 100, std * 100))(
-                                    log_normal_qtys.filter((polars.col("workload") == workload) & (polars.col("collector") == collector))[0][f"{qty}_overhead_avg"][0],
-                                    log_normal_qtys.filter((polars.col("workload") == workload) & (polars.col("collector") == collector))[0][f"{qty}_overhead_std"][0],
+                                    get_one(log_normal_qtys, workload, collector)[0][f"{qty}_overhead_avg2"][0],
+                                    get_one(log_normal_qtys, workload, collector)[0][f"{qty}_overhead_std2"][0],
                                 )
-                                if not log_normal_qtys.filter((polars.col("workload") == workload) & (polars.col("collector") == collector)).is_empty()
+                                if not get_one(log_normal_qtys, workload, collector).is_empty()
                                 else "-"
                                 for collector in collectors
                             ],
@@ -273,11 +330,11 @@ for qty in qtys:
         ]))
 
     all_collectors = collectors
-    all_workloads = list(wl for wl in iterations["workload_subsubgroup"].unique() if wl in workload_labels)
+    all_workloads = list(wl for wl in iterations["workload"].unique() if wl in workload_labels)
     matrix_df = pandas.DataFrame.from_records({
         collector: [
-            stats.dt_as_seconds(iterations).filter(
-                (polars.col("workload_subsubgroup") == workload) & (polars.col("collector") == collector)
+            util.dt_as_seconds(iterations).filter(
+                (polars.col("workload") == workload) & (polars.col("collector") == collector)
             ).mean()[qty][0]
             for workload in all_workloads
         ]

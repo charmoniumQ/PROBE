@@ -178,20 +178,45 @@
             url = "http://www.astropy.org/astropy-data/l1448/l1448_13co.fits";
             hash = "sha256-3k1EzShB00z+mJFasyL4PjAvE7lZnvhikHkknlOtbUk=";
           };
-          kaggle-notebook-env = python.withPackages (pypkgs: [
-            pypkgs.pandas
-            pypkgs.tqdm
-            pypkgs.matplotlib
-            pypkgs.notebook
-            pypkgs.seaborn
-            pypkgs.scipy
-            pypkgs.scikit-learn
-            pypkgs.xgboost
-            pypkgs.lightgbm
-            pypkgs.numpy
-            pypkgs.umap-learn
-            (noPytest pypkgs.hdbscan)
-          ]);
+          podman = pkgs.stdenv.mkDerivation {
+            dontUnpack = true;
+            pname = "podman-wrapper";
+            version = "1.0";
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+            buildInputs = [ pkgs.podman ];
+            installPhase = ''
+              set -ex
+              mkdir -p $out/bin
+              cp ${pkgs.podman}/bin/podman $out/bin/podman
+              chmod +w $out/bin/podman
+              wrapProgram $out/bin/podman \
+                --set PATH ${pkgs.su.out}/bin
+              '';
+          };
+          hello = pkgs.hello;
+          bubblewrap = pkgs.bubblewrap;
+          util-linux = pkgs.util-linux.bin;
+          libfaketime = pkgs.libfaketime;
+          kaggle-notebook-env = pkgs.symlinkJoin {
+            name = "kaggle-notebook-env";
+            paths = [
+              pkgs.util-linux # umap uses joblib uses lscpu to determine # of cors
+              (python.withPackages (pypkgs: [
+                pypkgs.pandas
+                pypkgs.tqdm
+                pypkgs.matplotlib
+                pypkgs.notebook
+                pypkgs.seaborn
+                pypkgs.scipy
+                pypkgs.scikit-learn
+                pypkgs.xgboost
+                pypkgs.lightgbm
+                pypkgs.numpy
+                pypkgs.umap-learn
+                (noPytest pypkgs.hdbscan)
+              ]))
+            ];
+          };
           kaggle-notebook-titanic-0 = pkgs.stdenv.mkDerivation {
             name = "kaggle-notebook-titanic-0";
             src = ./kaggle/titanic-tutorial.ipynb;
@@ -569,12 +594,23 @@
             rev = "v4.48.0";
             hash = "sha256-jh2bMmvTC0G0kLJl7xXpsvXvBmlbZEDA88AfosoE9sA=";
           };
+          # These scripts help me avoid using bash -c
+          uncat = pkgs.writeShellScriptBin "uncat" ''
+            file="$1"
+            shift
+            cat "$file" | "$@"
+          '';
+          echo-pipe = pkgs.writeShellScriptBin "echo-pipe" ''
+            input="$1"
+            shift
+            echo "$input" | "$@"
+          '';
           write-file = pkgs.writeShellScriptBin "write-file" ''
             if [ "$#" -ne 2 ];
               echo "Usage: write-file 'text of file' file_dest.txt"
               exit 1
             fi
-            echo $1 > $2
+            echo "$1" > "$2"
           '';
           http-load-test = python.pkgs.buildPythonPackage rec {
             name = "http-load-test";
@@ -824,6 +860,33 @@
             doCheck = true;
             pythonImportsCheck = ["mandala"];
           };
+          linux-src = pkgs.fetchFromGitHub {
+            owner = "torvalds";
+            repo = "linux";
+            rev = "v6.13-rc7";
+            hash = "sha256-QARyMteJ8iR0lKF3DG7SExgtDBDvvF3xbfPeGUFbiYk=";
+          };
+          linux-src-tar = pkgs.fetchurl {
+            url = "https://github.com/torvalds/linux/archive/refs/tags/v6.13-rc7.tar.gz";
+            hash = "sha256-LuSbD9fZtVbdImyjiCsMCx9ftb0p9gQOYobZrxD5ZvA=";
+          };
+          gnutar = pkgs.gnutar;
+          quantum-espresso-scripts = pkgs.stdenv.mkDerivation {
+            name = "quantum-espresso-scripts";
+            src = ./quantum-espresso;
+            buildPhase = ''
+              mkdir $out/
+              cp --recursive $src/* $out/
+            '';
+          };
+          data-science = pkgs.stdenv.mkDerivation {
+            name = "data-science";
+            src = ./data-science;
+            buildPhase = ''
+              mkdir $out/
+              cp --recursive $src/* $out/
+            '';
+          };
           all = pkgs.symlinkJoin {
             name = "all";
             paths = [
@@ -911,3 +974,4 @@
       }
     );
 }
+# 105
