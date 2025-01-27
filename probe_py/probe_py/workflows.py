@@ -172,44 +172,46 @@ process process_{id(process)} {{
         """
         Determine if a command modifies any of the input files in-place, even if the content remains the same.
         """
+        print("DEBUG: Entering inline editing sandbox check.")
         with tempfile.TemporaryDirectory() as temp_dir:
             sandbox_files = {}
 
             # Track original modification times and create sandbox files
             original_times = {}
-            sandbox_command = command
             for input_file in input_files:
-                temp_file = os.path.join(temp_dir, os.path.basename(input_file.file))
-                shutil.copy(input_file.file, temp_file)
-                sandbox_files[input_file.file] = temp_file
+                original_file_path = input_file.file
+                if not os.path.isfile(original_file_path):
+                    # Skip directories or invalid paths
+                    print(f"WARNING: Skipping non-file input: {original_file_path}")
+                    continue
+
+                temp_file = os.path.join(temp_dir, os.path.basename(original_file_path))
+                print(f"Copying {original_file_path} to sandbox {temp_file}")
+                shutil.copy(original_file_path, temp_file)
+                sandbox_files[original_file_path] = temp_file
 
                 # Save original modification time
-                original_times[input_file.file] = os.path.getmtime(input_file.file)
-                sandbox_command = sandbox_command.replace(input_file.file, temp_file)
+                original_times[temp_file] = os.stat(temp_file).st_mtime
 
-            # Run the command in the sandbox
+            # Execute the command within the sandbox
+            sandbox_command = command
+            for original, temp in sandbox_files.items():
+                sandbox_command = sandbox_command.replace(original, temp)
+
+            print(f"Executing sandbox command: {sandbox_command}")
             try:
-                subprocess.run(sandbox_command, shell=True, check=True)
-            except subprocess.CalledProcessError:
-                print("Command failed to execute.")
+                subprocess.run(sandbox_command, shell=True, check=True, cwd=temp_dir)
+            except subprocess.CalledProcessError as e:
+                print(f"Command execution failed: {e}")
                 return False
 
-            # Check if any of the files were modified in-place
-            for original_file, sandbox_file in sandbox_files.items():
-                # Get the modified time of the sandboxed file after command execution
-                sandbox_mod_time = os.path.getmtime(sandbox_file)
-                original_mod_time = original_times[original_file]
-
-                # Compare content and modification times
-                content_modified = not cmp(original_file, sandbox_file, shallow=False)
-                time_modified = sandbox_mod_time != original_mod_time
-
-                # If either the content or modification time has changed, it's an in-place modification
-                if content_modified or time_modified:
+            # Compare modification times to determine if any files were edited
+            for temp_file, original_mtime in original_times.items():
+                if os.stat(temp_file).st_mtime != original_mtime:
+                    print(f"File {temp_file} was modified in the sandbox.")
                     return True
 
-            # Return False if none of the files were modified
-            return False
+        return False
 
     def is_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> bool:
         return len(inputs) >= 1 and len(outputs) == 1
@@ -286,10 +288,9 @@ process process_{id(process)} {{
 
 
 class MakefileGenerator:
-    def __init__(self, output_dir: str = "experiments") -> None:
+    def __init__(self) -> None:
         self.visited: Set[ProcessNode] = set()
         self.makefile_commands: list[str] = []
-        self.output_dir = output_dir
 
     def escape_filename_for_makefile(self, filename: str) -> str:
         """
@@ -305,39 +306,29 @@ class MakefileGenerator:
         """
         return filename.startswith('.') or filename.startswith('._')
 
-    def create_experiment_folder_command(self, process: ProcessNode) -> str:
-        """
-        Generate the command to create a folder for the experiment.
-        """
-        folder_name = f"process_{id(ProcessNode)}"
-        return f"mkdir -p {folder_name}"
-
     def copy_input_files_command(self, process: ProcessNode, inputs: List[FileNode]) -> Optional[str]:
         """
-        Generate the command to copy input files into the experiment folder.
+        Generate the command to copy input files into the process folder.
         Returns None if there are no input files.
         """
-        if not inputs:
-            return None
-
-        folder_name = f"process_{id(ProcessNode)}"
+        folder_name = f"process_{id(process)}"
         commands = []
         for file in inputs:
             if self.is_hidden_file(file.label):
                 continue  # Skip hidden files
             escaped_file = self.escape_filename_for_makefile(file.label)
             commands.append(f"cp {escaped_file} {folder_name}/")
-        
+
         if commands:
             return "\n\t".join(commands)
         return None
 
     def run_command_command(self, process: ProcessNode, outputs: List[FileNode]) -> str:
         """
-        Generate the command to run the experiment's command within the experiment folder.
+        Generate the command to run the experiment's command within the process folder.
         Redirect stdout and stderr to log files if outputs are not files.
         """
-        folder_name = f"process_{id(ProcessNode)}"
+        folder_name = f"process_{id(process)}"
         cmd = " ".join(process.cmd)
         if not outputs:
             # No output files, redirect to log
@@ -351,36 +342,32 @@ class MakefileGenerator:
         Generate all necessary Makefile commands for a given process node.
         Handles different cases based on presence of inputs and outputs.
         """
-        # Create experiment folder
-        self.makefile_commands.append(f"# Process {id(ProcessNode)}: {' '.join(process.cmd)}")
-        self.makefile_commands.append(f"\tmkdir -p process_{id(ProcessNode)}")
-        
+        # Create process folder
+        folder_name = f"process_{id(process)}"
+        self.makefile_commands.append(f"# Process {id(process)}: {' '.join(process.cmd)}")
+        self.makefile_commands.append(f"\tmkdir -p {folder_name}")
+
         # Copy input files
         copy_inputs = self.copy_input_files_command(process, inputs)
         if copy_inputs:
-            self.makefile_commands.append(f"# Copy input files for process {id(ProcessNode)}")
+            self.makefile_commands.append(f"# Copy input files for process {id(process)}")
             self.makefile_commands.append(f"\t{copy_inputs}")
-        
+
         # Run the command
-        self.makefile_commands.append(f"# Run command for process {id(ProcessNode)}")
+        self.makefile_commands.append(f"# Run command for process {id(process)}")
         run_cmd = self.run_command_command(process, outputs)
         self.makefile_commands.append(f"\t{run_cmd}")
-        
-        # No copying of output files since they are inside the folder
 
     def create_rules(self) -> None:
         """
         Traverse the graph and create Makefile commands.
         """
-        # Ensure the output directory exists
-        self.makefile_commands.append(f"\tmkdir -p {self.output_dir}\n")
-        
         # Traverse the graph in topological order to respect dependencies
-        for node in nx.topological_sort(self.graph):
+        for node in self.graph.nodes:
             if isinstance(node, ProcessNode):
                 inputs = [n for n in self.graph.predecessors(node) if isinstance(n, FileNode)]
                 outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
-                
+
                 self.handle_process_node(node, inputs, outputs)
 
     def generate_makefile(self, graph: nx.DiGraph) -> str:
@@ -389,13 +376,205 @@ class MakefileGenerator:
         """
         self.graph = graph
         self.create_rules()
-        
+
         # Assemble the Makefile
         makefile = []
         makefile.append("all:")
         for command in self.makefile_commands:
             # Ensure each command line is properly indented with a tab
             # Makefile syntax requires tabs, not spaces
-            makefile.append(f"\t{command}")
-        
+            makefile.append(f"{command}")
+
         return "\n".join(makefile)
+
+
+class CWLGenerator(WorkflowGenerator):
+    def __init__(self) -> None:
+        self.visited: Set[ProcessNode] = set()
+        self.process_counter: dict[ProcessNode, int] = {}
+        self.cwl_steps: list[dict] = []
+        self.input_files: set[str] = set()
+
+    def escape_filename_for_cwl(self, filename: str) -> str:
+        """Escape special characters in a filename for CWL."""
+        escaped_filename = ''.join(char if char.isalnum() else '_' for char in filename)
+        if escaped_filename[0].isdigit():
+            escaped_filename = f"file_{escaped_filename}"
+        return escaped_filename
+
+    def handle_standard_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle standard cases with input and output files."""
+        step_id = f"process_{id(process)}"
+        cwl_step = {
+            "id": step_id,
+            "run": {
+                "class": "CommandLineTool",
+                "cwlVersion": "v1.0",
+                "baseCommand": process.cmd[0],
+                "inputs": {},
+                "outputs": {},
+                "requirements": {
+                    "DockerRequirement": {"dockerPull": "ubuntu:latest"}
+                }
+            }
+        }
+
+        # Add command arguments
+        if len(process.cmd) > 1:
+            cwl_step["run"]["arguments"] = process.cmd[1:]
+
+        # Add inputs and outputs
+        for i, input_file in enumerate(inputs):
+            input_id = self.escape_filename_for_cwl(input_file.label)
+            cwl_step["run"]["inputs"][input_id] = {
+                "type": "File",
+                "inputBinding": {"position": i + 1}
+            }
+        for output_file in outputs:
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            cwl_step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return cwl_step
+
+    def handle_multiple_outputs(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle cases with one input and multiple outputs."""
+        step = self.handle_standard_case(process, inputs, outputs)
+        step_id = step["id"]
+        for i, output_file in enumerate(outputs):
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return step
+
+    def handle_multiple_inputs_outputs(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle cases with multiple inputs and multiple outputs."""
+        step = self.handle_standard_case(process, inputs, outputs)
+        return step
+
+    def handle_inline_case(self, process: ProcessNode, inputs: List[FileNode], outputs: List[FileNode]) -> dict:
+        """Handle inline editing commands."""
+        step_id = f"process_{id(process)}"
+        script_commands = []
+        for input_file in inputs:
+            temp_name = f"temp_{os.path.basename(input_file.file)}"
+            modified_cmd = ' '.join(process.cmd).replace(input_file.file, temp_name)
+            script_commands.append(modified_cmd)
+
+        cwl_step = {
+            "id": step_id,
+            "run": {
+                "class": "CommandLineTool",
+                "cwlVersion": "v1.0",
+                "baseCommand": ["bash", "-c"],
+                "arguments": [" && ".join(script_commands)],
+                "inputs": {},
+                "outputs": {},
+                "requirements": {
+                    "DockerRequirement": {"dockerPull": "ubuntu:latest"}
+                }
+            }
+        }
+
+        for input_file in inputs:
+            input_id = self.escape_filename_for_cwl(input_file.label)
+            cwl_step["run"]["inputs"][input_id] = {"type": "File"}
+        for output_file in outputs:
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            cwl_step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return cwl_step
+
+    def handle_no_input_command(self, process: ProcessNode, outputs: List[FileNode]) -> dict:
+        """Handle commands that don't require inputs (e.g., `ls .`)."""
+        step_id = f"process_{id(process)}"
+        cwl_step = {
+            "id": step_id,
+            "run": {
+                "class": "CommandLineTool",
+                "cwlVersion": "v1.0",
+                "baseCommand": process.cmd[0],
+                "inputs": {},  # Ensure inputs is always present
+                "outputs": {},
+                "requirements": {
+                    "DockerRequirement": {"dockerPull": "ubuntu:latest"}
+                }
+            }
+        }
+        for output_file in outputs:
+            output_id = self.escape_filename_for_cwl(output_file.label)
+            cwl_step["run"]["outputs"][output_id] = {
+                "type": "File",
+                "outputBinding": {"glob": os.path.basename(output_file.file)}
+            }
+        return cwl_step
+
+    def handle_environment_variables(self, process: ProcessNode, env_vars: dict) -> dict:
+        """Handle environment variables in the process."""
+        env_vars_list = [f"{key}={value}" for key, value in env_vars.items()]
+        return {"EnvVarRequirement": {"envDef": env_vars_list}}
+
+    def generate_workflow(self, graph: nx.DiGraph) -> str:
+        """Generate a complete CWL workflow in YAML format."""
+        self.graph = graph
+        workflow = {
+            "cwlVersion": "v1.0",
+            "class": "Workflow",
+            "inputs": {},
+            "outputs": {},
+            "steps": {}
+        }
+
+        # Add file inputs
+        for node in self.graph.nodes:
+            if isinstance(node, FileNode) and node.file != '.':  # Ignore placeholder inputs like '.'
+                input_id = self.escape_filename_for_cwl(node.label)
+                workflow["inputs"][input_id] = {"type": "File"}
+                self.input_files.add(input_id)
+
+        # Process nodes and create steps
+        for node in self.graph.nodes:
+            if isinstance(node, ProcessNode) and node not in self.visited:
+                inputs = [
+                    n for n in self.graph.predecessors(node)
+                    if isinstance(n, FileNode) and n.file != '.'  # Exclude placeholder inputs
+                ]
+                outputs = [n for n in self.graph.successors(node) if isinstance(n, FileNode)]
+
+                # Handle cases based on the filtered inputs
+                if len(inputs) == 0:
+                    step = self.handle_no_input_command(node, outputs)
+                elif len(inputs) == 1 and len(outputs) > 1:
+                    step = self.handle_multiple_outputs(node, inputs, outputs)
+                elif len(inputs) > 1 and len(outputs) == 1:
+                    step = self.handle_multiple_inputs_outputs(node, inputs, outputs)
+                else:
+                    step = self.handle_inline_case(node, inputs, outputs)
+
+                workflow["steps"][step["id"]] = {
+                    "run": step["run"],
+                    "in": {},
+                    "out": list(step["run"]["outputs"].keys())
+                }
+
+                # Connect inputs and outputs
+                for input_file in inputs:
+                    input_id = self.escape_filename_for_cwl(input_file.label)
+                    if input_id in self.input_files:
+                        workflow["steps"][step["id"]]["in"][input_id] = input_id
+
+                for output_file in outputs:
+                    output_id = self.escape_filename_for_cwl(output_file.label)
+                    workflow["outputs"][output_id] = {
+                        "type": "File",
+                        "outputSource": f"{step['id']}/{output_id}"
+                    }
+                self.visited.add(node)
+
+        import yaml
+        return yaml.dump(workflow, default_flow_style=False, sort_keys=False)

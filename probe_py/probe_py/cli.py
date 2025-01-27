@@ -14,7 +14,7 @@ import rich.console
 import rich.pretty
 from .parser import parse_probe_log, parse_probe_log_ctx
 from . import analysis
-from .workflows import MakefileGenerator, NextflowGenerator
+from .workflows import MakefileGenerator, NextflowGenerator, CWLGenerator
 from . import file_closure
 from . import graph_utils
 from .ssh_argparser import parse_ssh_args
@@ -414,6 +414,26 @@ def nextflow(
     g = NextflowGenerator()
     output = pathlib.Path("nextflow.nf")
     script = g.generate_workflow(dataflow_graph)
+    output.write_text(script)
+
+@export_app.command()
+def cwl(
+        output: Annotated[
+            pathlib.Path,
+            typer.Argument(),
+        ] = pathlib.Path("workflow.cwl"),
+        probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="Output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Export the probe_log to a CWL workflow
+    """
+    prov_log = parse_probe_log(probe_log)
+    dataflow_g = analysis.provlog_to_dataflow_graph(prov_log)
+    g = CWLGenerator()
+    script = g.generate_workflow(dataflow_g)
     output.write_text(script)
 
 @export_app.command()
