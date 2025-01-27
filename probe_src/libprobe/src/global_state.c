@@ -115,14 +115,12 @@ static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mk
         CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
     }
     if (mkdir) {
-        DEBUG("mkdir %s/%s", dirfd_path(my_dirfd), name ? name : buffer);
         int mkdir_ret = unwrapped_mkdirat(my_dirfd, name ? name : buffer, 0777);
         if (mkdir_ret != 0) {
             int saved_errno = errno;
 #ifndef NDEBUG
             listdir(dirfd_path(my_dirfd), 2);
 #endif
-            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(my_dirfd), child, strerror(saved_errno));
         }
     }
     int sub_dirfd = unwrapped_openat(my_dirfd, name ? name : buffer, O_RDONLY | O_DIRECTORY);
@@ -132,12 +130,10 @@ static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mk
         listdir(dirfd_path(my_dirfd), 2);
 #endif
         DEBUG("dirfd=%d buffer=\"%s\"", my_dirfd, name ? name : buffer);
-        ERROR("Cannot openat %s/%ld (did we do mkdir? %d): %s", dirfd_path(my_dirfd), child, mkdir, strerror(saved_errno));
     }
     if (close) {
         EXPECT(== 0, unwrapped_close(my_dirfd));
     }
-    DEBUG("%s/%s -> fd %d", dirfd_path(my_dirfd), name ? name : buffer, sub_dirfd);
     return sub_dirfd;
 }
 
@@ -196,7 +192,11 @@ static __thread struct ArenaDir __op_arena = { 0 };
 static __thread struct ArenaDir __data_arena = { 0 };
 static const size_t prov_log_arena_size = 64 * 1024;
 static void init_log_arena() {
+    DEBUG("I AM IN INIT LOG ARENA");
+    DEBUG("__op_arena address: %p", (void*)&__op_arena);
+    DEBUG("__data_arena address: %p", (void*)&__data_arena);
     assert(!arena_is_initialized(&__op_arena));
+      DEBUG("FIRST ASSERTION PASSED");
     assert(!arena_is_initialized(&__data_arena));
     DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", __probe_dir, getpid(), get_exec_epoch(), my_gettid(), true);
     int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), NULL, my_gettid(), true, false);

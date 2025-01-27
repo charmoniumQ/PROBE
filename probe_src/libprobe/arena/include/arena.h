@@ -332,6 +332,11 @@ __attribute__((unused)) static int arena_uninstantiate_all_but_last(struct Arena
 }
 
 __attribute__((unused)) static bool arena_is_initialized(struct ArenaDir* arena_dir) {
+    // DEBUG(" I AM IN ARENA IS INITIALIZED");
+    // if (arena_dir == NULL)
+    // {
+    //     DEBUG('ARENA DIR IS NULL');
+    // }
     assert(
         (arena_dir->__tail == NULL) == (arena_dir->__next_instantiation == 0)
     );

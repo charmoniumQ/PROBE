@@ -93,10 +93,11 @@
           '';
 
           # Use system clang for macOS
-          preConfigure = lib.optionalString (pkgs.stdenv.isDarwin) ''
-            export CC=/usr/bin/clang
-            export CXX=/usr/bin/clang++
-          '';
+preConfigure = lib.optionalString (pkgs.stdenv.isDarwin) ''
+  export CC=${pkgs.gcc}/bin/gcc
+  export CXX=${pkgs.gcc}/bin/g++
+'';
+
         };
 
         probe-bundled = pkgs.stdenv.mkDerivation rec {

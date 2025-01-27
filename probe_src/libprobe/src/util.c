@@ -231,7 +231,7 @@ static OWNED const char* dirfd_path(int dirfd) {
     const char* ret = unwrapped_realpath(dirfd_proc_path, resolved_buffer);
     return ret;
 #else
-    NOT_IMPLEMENTED("dirfd_path is not implemented on macOS");
+    // NOT_IMPLEMENTED("dirfd_path is not implemented on macOS");
     return NULL;
 #endif
 }
