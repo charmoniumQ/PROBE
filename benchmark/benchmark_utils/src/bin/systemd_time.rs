@@ -1,9 +1,7 @@
-use clap::Parser;
-use stacked_errors::{anyhow, Result, StackableErr};
-
 use benchmark_utils::cgroups;
-use benchmark_utils::privs;
 use benchmark_utils::util;
+use clap::Parser;
+use stacked_errors::{anyhow, Error, StackableErr};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -16,39 +14,41 @@ struct Command {
     output: String,
 
     /// Executable to time
-    #[arg()]
     exe: std::path::PathBuf,
 
-    /// Command to run in the benchmark sandbox
+    /// Arguments to exe
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     args: Vec<String>,
 }
 
-fn main() -> Result<()> {
-    privs::initially_reduce_privileges();
+fn main() -> std::process::ExitCode {
+    util::replace_err_with(244, || {
+        let current_cgroup = cgroups::Cgroup::current().stack()?;
 
-    let current_cgroup = cgroups::Cgroup::current().stack()?;
+        let command = Command::parse();
 
-    let command = Command::parse();
+        let pre_rusage = current_cgroup.get_rusage().stack()?;
 
-    privs::with_escalated_privileges(|| current_cgroup.reset_counters().stack())?;
+        let mut run_cmd = std::process::Command::new(command.exe);
+        run_cmd.args(command.args);
+        let ret = run_cmd
+            .status()
+            .map_err(Error::from_err)
+            .context(anyhow!("Error launching {:?}", run_cmd))
+            .stack();
 
-    let pre_rusage = current_cgroup.get_rusage().stack()?;
+        let usage = current_cgroup.get_rusage().stack()? - pre_rusage;
 
-    let mut run_benchmark = std::process::Command::new(command.exe);
-    run_benchmark.args(command.args);
-    let ret = util::check_cmd(run_benchmark, false).stack();
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&command.output)
+            .context(anyhow!("{:?}", command.output))
+            .stack()?;
 
-    let usage = current_cgroup.get_rusage().stack()? - pre_rusage;
+        serde_yaml::to_writer(file, &usage).stack()?;
 
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(command.output.clone())
-        .context(anyhow!("{:?}", command.output))
-        .stack()?;
-    serde_yaml::to_writer(file, &usage).stack()?;
-
-    ret
+        ret
+    })
 }

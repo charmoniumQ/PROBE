@@ -1,7 +1,7 @@
+use crate::privs;
+use crate::util;
 use serde::{Deserialize, Serialize};
-use stacked_errors::{anyhow, Error, Result, StackableErr};
-
-use crate::util::{eprintln_error, write_to_file};
+use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct SysConfig {
@@ -11,14 +11,14 @@ pub struct SysConfig {
     /// cache and swap-backed pages equally; lower values signify more expensive
     /// swap IO, higher values indicates cheaper.
     ///
-    /// https://docs.kernel.org/admin-guide/sysctl/vm.html#swappiness
+    /// See [docs.kernel.org](https://docs.kernel.org/admin-guide/sysctl/vm.html#swappiness)
     swappiness: u8,
 
     /// Determines which capacities are needed to access perf event counters/tracers.
     ///
     /// RR-debugger requires this to be at most 1.
     ///
-    /// https://docs.kernel.org/admin-guide/sysctl/kernel.html#perf-event-paranoid
+    /// See [docs.kernel.org](https://docs.kernel.org/admin-guide/sysctl/kernel.html#perf-event-paranoid)
     perf_event_paranoid: u8,
 
     cpus: std::collections::BTreeMap<Cpu, CpuConfig>,
@@ -28,7 +28,7 @@ pub struct SysConfig {
 struct CpuConfig {
     /// The scaling governor currently attached to this policy.
     ///
-    /// https://docs.kernel.org/admin-guide/pm/cpufreq.html#policy-interface-in-sysfs
+    /// See [docs.kernel.org](https://docs.kernel.org/admin-guide/pm/cpufreq.html#policy-interface-in-sysfs)
     cpufreq_scaling_governor: Option<String>,
 
     /// Whether or not to deploy tasks to this CPU.
@@ -39,12 +39,12 @@ struct CpuConfig {
 }
 
 impl SysConfig {
+    /// Create a config appropriate for benchmarking.
     pub fn benchmarking_config(cpu: Cpu) -> Result<SysConfig> {
         Ok(SysConfig {
             swappiness: 1,
             perf_event_paranoid: 1,
-            cpus: std::collections::BTreeMap::from_iter(
-                std::iter::once((
+            cpus: std::iter::once((
                     cpu,
                     CpuConfig {
                         cpufreq_scaling_governor: Some("performance".to_string()),
@@ -62,22 +62,24 @@ impl SysConfig {
                             },
                         )
                     },
-                )),
-            ),
+                ))
+                .collect(),
         })
     }
 
-    pub fn temporarily_change_config<F, T>(&self, func: F) -> Result<T>
+    /// Temporarily set this config, run func, and unset.
+    pub fn temporarily_set<F, T>(&self, func: F) -> Result<T>
     where
         F: FnOnce() -> Result<T>,
     {
-        let old_config = SysConfig::read()?;
-        self.set()?;
+        let old_config = SysConfig::read().stack()?;
+        self.set().stack()?;
         let ret = func();
-        old_config.set()?;
+        old_config.set().stack()?;
         ret
     }
 
+    /// Read current config of system.
     pub fn read() -> Result<SysConfig> {
         Ok(SysConfig {
             swappiness: std::fs::read_to_string(SWAPPINESS)
@@ -94,7 +96,8 @@ impl SysConfig {
                 .parse()
                 .context(PERF_EVENT_PARANOID)
                 .stack()?,
-            cpus: iter_cpus()?
+            cpus: iter_cpus()
+                .stack()?
                 .iter()
                 .map(|(cpu_id, path)| {
                     Ok((
@@ -117,82 +120,94 @@ impl SysConfig {
                         },
                     ))
                 })
-                .collect::<Result<Vec<_>>>()?
+                .collect::<Result<Vec<_>>>()
+                .stack()?
                 .into_iter()
                 .collect(),
         })
     }
 
+    /// Set this config on the system.
     pub fn set(&self) -> Result<()> {
-        if !nix::unistd::geteuid().is_root() {
-            return Err(anyhow!(
-                "Need more privilege; I am only {:?}",
-                nix::unistd::geteuid()
-            ));
-        }
-        eprintln_error(write_to_file(SWAPPINESS.to_owned(), self.swappiness.to_string()).stack());
-        eprintln_error(
-            write_to_file(
-                PERF_EVENT_PARANOID.to_owned(),
-                self.perf_event_paranoid.to_string(),
-            )
-            .stack(),
-        );
-        // Set online
-        for (cpu_id, cpu_config) in self.cpus.iter() {
-            let cpu_online_path = format!("{}{}/{}", CPU_PATH, cpu_id, CPU_ONLINE);
-            if let Some(state) = cpu_config.online {
-                eprintln_error(
-                    write_to_file(cpu_online_path.clone(), state.to_string())
-                        .context(cpu_online_path.clone())
-                        .stack(),
+        let cpu_path = std::path::PathBuf::from(CPU_PATH);
+        privs::with_escalated_privileges(|| {
+            if !nix::unistd::geteuid().is_root() {
+                bail!(
+                    "Need more privilege; I am only {:?}",
+                    nix::unistd::geteuid()
                 );
             }
-            let is_cpu_online = cpu_config.online.unwrap_or_else(|| {
-                std::fs::read_to_string(cpu_online_path)
-                    .unwrap_or("0".to_owned())
-                    .trim()
-                    .parse::<u8>()
-                    .unwrap_or(0)
-            }) == 1;
-            // Set scaling gov, if CPU is online
-            let freq_scaling_path = format!("{}{}/{}", CPU_PATH, cpu_id, CPU_FREQ_SCALING_GOVERNOR);
-            if is_cpu_online {
-                if let Some(state) = &cpu_config.cpufreq_scaling_governor {
-                    eprintln_error(
-                        write_to_file(freq_scaling_path.clone(), state.clone())
-                            .context(freq_scaling_path)
+            util::eprintln_error(
+                util::write_to_file(SWAPPINESS, &self.swappiness.to_string()).stack(),
+            );
+            util::eprintln_error(
+                util::write_to_file(
+                    PERF_EVENT_PARANOID,
+                    &self.perf_event_paranoid.to_string(),
+                )
+                .stack(),
+            );
+            // Set online
+            for (cpu_id, cpu_config) in &self.cpus {
+                let this_cpu_path = cpu_path.join("cpu".to_owned() + &cpu_id.to_string());
+                let cpu_online_path = this_cpu_path.join(CPU_ONLINE);
+                if let Some(state) = cpu_config.online {
+                    util::eprintln_error(
+                        util::write_to_file(&cpu_online_path, &state.to_string())
+                            .context(anyhow!("{cpu_online_path:?}"))
                             .stack(),
                     );
                 }
+                let is_cpu_online = cpu_config.online.unwrap_or_else(|| {
+                    std::fs::read_to_string(cpu_online_path)
+                        .unwrap_or("0".to_owned())
+                        .trim()
+                        .parse::<u8>()
+                        .unwrap_or(0)
+                }) == 1;
+                // Set scaling gov, if CPU is online
+                let freq_scaling_path = this_cpu_path.join(CPU_FREQ_SCALING_GOVERNOR);
+                if is_cpu_online {
+                    if let Some(state) = &cpu_config.cpufreq_scaling_governor {
+                        util::eprintln_error(
+                            util::write_to_file(&freq_scaling_path, state)
+                                .context(anyhow!("{freq_scaling_path:?}"))
+                                .stack(),
+                        );
+                    }
+                }
             }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 }
 
+/// Iterate over CPUs in the Sisyphus (sysfs).
 pub fn iter_cpus() -> Result<Vec<(Cpu, std::path::PathBuf)>> {
     Ok(glob::glob(&(CPU_PATH.to_owned() + "*"))
         .map_err(Error::from_err)?
         .map(|alleged_path| {
-            let path = alleged_path.map_err(Error::from_err)?;
+            let path = alleged_path.map_err(Error::from_err).stack()?;
             let file_name = path
                 .file_name()
-                .ok_or(anyhow!("{:?} does not have file name", path))?
+                .ok_or(anyhow!("{:?} does not have file name", path))
+                .stack()?
                 .to_str()
-                .ok_or(anyhow!("File name of {:?} not decodable", path))?;
+                .ok_or(anyhow!("File name of {:?} not decodable", path))
+                .stack()?;
             Ok(file_name[3..].parse().ok().map(|cpu_id| (cpu_id, path)))
         })
-        .collect::<Result<Vec<Option<_>>>>()?
+        .collect::<Result<Vec<Option<_>>>>()
+        .stack()?
         .into_iter()
         .flatten()
         .collect())
 }
 
 fn get_smt_sibling_cpus(cpu: Cpu) -> Result<Vec<Cpu>> {
-    let path = CPU_PATH.to_owned() + &cpu.to_string() + "/" + SMT_SIBLINGS_LIST;
-    Ok(std::fs::read_to_string(path.clone())
-        .context(path)
+    let path = std::path::PathBuf::from(CPU_PATH).join("cpu".to_owned() + &cpu.to_string()).join(SMT_SIBLINGS_LIST);
+    Ok(std::fs::read_to_string(&path)
+        .context(anyhow!("{path:?}"))
         .stack()?
         .split(',')
         .map(|part| {
@@ -200,7 +215,8 @@ fn get_smt_sibling_cpus(cpu: Cpu) -> Result<Vec<Cpu>> {
                 .parse::<Cpu>()
                 .map_err(|_| anyhow!("{} not parsable", part))
         })
-        .collect::<Result<Vec<Cpu>>>()?
+        .collect::<Result<Vec<Cpu>>>()
+        .stack()?
         .into_iter()
         .filter(|sibling_cpu| *sibling_cpu != cpu)
         .collect())
@@ -208,20 +224,22 @@ fn get_smt_sibling_cpus(cpu: Cpu) -> Result<Vec<Cpu>> {
 
 const SWAPPINESS: &str = "/proc/sys/vm/swappiness";
 const PERF_EVENT_PARANOID: &str = "/proc/sys/kernel/perf_event_paranoid";
-const CPU_PATH: &str = "/sys/devices/system/cpu/cpu";
+const CPU_PATH: &str = "/sys/devices/system/cpu/";
 const CPU_FREQ_SCALING_GOVERNOR: &str = "cpufreq/scaling_governor";
 const CPU_ONLINE: &str = "online";
 const SMT_SIBLINGS_LIST: &str = "topology/thread_siblings_list";
 
+#[must_use]
 pub fn pick_cpu() -> Cpu {
     eprintln!("TODO: Pick CPU smartly");
     3
 }
 
+/// Bring CPU offline and online.
 pub fn reboot_cpu(cpu: Cpu) -> Result<()> {
-    let path = format!("{}{}/{}", CPU_PATH, cpu, CPU_ONLINE);
-    write_to_file(path.to_string(), 0.to_string()).stack()?;
-    write_to_file(path.to_string(), 1.to_string()).stack()?;
+    let path = std::path::PathBuf::from(CPU_PATH).join("cpu".to_owned() + &cpu.to_string()).join(CPU_ONLINE);
+    util::write_to_file(&path, "0").stack()?;
+    util::write_to_file(&path, "1").stack()?;
     Ok(())
 }
 

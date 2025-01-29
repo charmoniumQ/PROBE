@@ -14,3 +14,4 @@ rlimit = "0.10.2"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_yaml = "0.9.34"
 stacked_errors = "0.7.0"
+which = "7.0.1"

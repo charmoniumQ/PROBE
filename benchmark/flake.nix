@@ -21,8 +21,8 @@
         benchmark-utils = craneLib.buildPackage (commonArgs // {
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
           propagatedBuildInputs = [
-            pkgs.cpuset
-            pkgs.util-linux
+            # Client for Systemd (systemctl and systemd-run)
+            pkgs.systemdMinimal
           ];
         });
         python = pkgs.python312;

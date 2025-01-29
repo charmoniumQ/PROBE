@@ -1,6 +1,5 @@
 use clap::Parser;
-use stacked_errors::{anyhow, Result, StackableErr};
-use std::path::PathBuf;
+use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
 
 use benchmark_utils::privs;
 use benchmark_utils::sys_config;
@@ -9,7 +8,7 @@ use benchmark_utils::util;
 #[derive(Parser, Debug)]
 #[command(
     version = "0.1.0",
-    about = "Steps to stabalize the benchmarking of the given command",
+    about = "Set configuration in /sys and /proc FS to stabalize the benchmarking of the given command",
     long_about = "
 
 The following changes are made to the /sys and /proc FS, and the original state
@@ -25,21 +24,14 @@ wrong, you can always reboot as none of these changes are persistent:
 
 - Enables perf event paranoid. This is needed for RR to operate.
 
-- Turns CPU
- frequency scaling on performance.
-
-- Turns power-saving off.
+- Turns CPU frequency scaling on performance (as opposed to power-saving or
+  balanced configuration).
 
 - Optionally, sync & drop the FS cache.
 
 The following actions affect the spawned process:
 
 - Sets process priority.
-
-- Drops privileges. Nearly all of the changes in this section and the previous
-  require privileges. This binary should be setuid and owned by root. We will
-  drop privileges before executing the command under test. Please read the
-  source code to ensure we aren't going to do anything malicious or wrong.
 
 "
 )]
@@ -53,7 +45,7 @@ struct Command {
     /// we want to persistently remember the original state even if this program
     /// gets killed.
     #[arg(long, default_value = "pre_benchmark_config.yaml")]
-    config_path: std::path::PathBuf,
+    config: std::path::PathBuf,
 
     /// Whether to sync and drop the file cache.
     #[arg(long, default_value_t = false)]
@@ -63,104 +55,71 @@ struct Command {
     #[arg(long)]
     prio: Option<i32>,
 
-    /// Executable to run
-    exe: std::path::PathBuf,
+    /// Executable to run while the benchmark configuration is applied
+    exe: String,
 
-    /// Arguments passed to exe
+    /// Arguments passed to executable
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     args: Vec<String>,
 }
 
-fn main() -> Result<()> {
-    privs::initially_reduce_privileges();
+fn main() -> std::process::ExitCode {
+    util::replace_err_with(244, || {
+        privs::initially_reduce_privileges().stack()?;
 
-    // Check stuff before starting
-    let setpriv_path = PathBuf::from(SETPRIV_PATH);
-    privs::verify_safe_to_run_as_root(&setpriv_path)?;
+        let command = Command::parse();
 
-    let command = Command::parse();
+        store_or_apply_stored_config(&command.config).stack()?;
 
-    // Store current config
-    // OR
-    // Read config from config file
-    // The system will be returned to this state after completion
-    if !command.config_path.exists() {
-        let orig_config = sys_config::SysConfig::read().stack()?;
-        let file = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(command.config_path.clone())
-            .context(anyhow!("{:?}", command.config_path))
-            .stack()?;
-        serde_yaml::to_writer(file, &orig_config).stack()?;
-    } else {
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .open(command.config_path.clone())
-            .stack()?;
-        let orig_config: sys_config::SysConfig = serde_yaml::from_reader(file).stack()?;
-        // Reset to this known state.
-        // If the rest of it crashes terrbily, at least we reset yours system to the state specified by the file.
-        privs::with_escalated_privileges(|| orig_config.set().stack())?;
-    }
+        // Last unprivileged setup
+        let cpu = sys_config::pick_cpu();
+        let benchmark_config = sys_config::SysConfig::benchmarking_config(cpu).stack()?;
 
-    // Last unprivileged setup
-    let cpu = sys_config::pick_cpu();
-    let benchmark_config = sys_config::SysConfig::benchmarking_config(cpu).stack()?;
-    let ruid = nix::unistd::getuid();
-    let rgid = nix::unistd::getgid();
-    assert!(!ruid.is_root(), "If Real UID is root, then I don't know who to de-escalate privileges to. Please run this binary as your user, but owned by root and setuid.");
+        privs::verify_not_root().stack()?;
 
-    // Escalate privs
-    privs::with_escalated_privileges(|| {
-        // Verify Effective and Real UID is root, because cset will fail otherwise
-        // We need root Effective ID, so our writes-to-files will succeed.
-        // We need root Real ID so children (e.g., cset) will have privileged capabilities
-        if !nix::unistd::geteuid().is_root() {
-            return Err(anyhow!("Privilege escalation did not succeed"));
-        }
+        // Escalate privs
+        privs::with_escalated_privileges(|| {
+            // Verify Effective and Real UID is root, because cset will fail otherwise
+            // We need root Effective ID, so our writes-to-files will succeed.
+            // We need root Real ID so children (e.g., cset) will have privileged capabilities
+            privs::verify_root().stack()?;
 
-        // Upgrade process priority (aka nice) and io priority
-        change_priority(command.prio, command.prio).stack()?;
+            // Upgrade process priority (aka nice) and io priority
+            change_priority(command.prio, command.prio).stack()?;
+
+            // Dropping cache should be close to the end.
+            if command.drop_file_cache {
+                drop_file_cache().stack()?;
+            }
+
+            // Rebooting the CPU forces kernel threads to move to another core, at least temporarily
+            sys_config::reboot_cpu(cpu).stack()?;
+
+            Ok(())
+        })
+        .stack()?;
 
         // Change config using /proc and /sys
-        // Don't worry, the enclosing function changes it back after this callback is done.
-        benchmark_config
-            .temporarily_change_config(|| {
-                sys_config::reboot_cpu(cpu).stack()?;
-
-                // Dropping cache should be close to the end.
-                if command.drop_file_cache {
-                    drop_file_cache().stack()?;
-                }
-
-                // We want to de-escalate before running user-code.
-                // Apparently, we aren't supposed to use su for that anymore
-                // http://jdebp.info/FGA/dont-abuse-su-for-dropping-privileges.html
-                // We don't need to manipulate env. vars. since we never truly logged in as root, just escalated with setuid.
-                let mut main_cmd = std::process::Command::new(setpriv_path);
-                main_cmd.args([
-                    &format!("--reuid={}", ruid),
-                    &format!("--regid={}", rgid),
-                    "--clear-groups",
-                    // For good measure
-                    "--inh-caps=-all",
-                ]);
-                main_cmd.arg(command.exe);
+        // Don't worry, the enclosing function changes it back after this callback is done, win, loose, or draw.
+        // Also this will acquire its own privileges.
+        let cmd_ret = benchmark_config
+            .temporarily_set(|| {
+                let mut main_cmd = std::process::Command::new(command.exe);
                 main_cmd.args(command.args);
-
-                util::check_cmd(main_cmd, false).stack()
+                main_cmd
+                    .status()
+                    .map_err(Error::from_err)
+                    .context(anyhow!("Error launching {:?}", main_cmd))
+                    .stack()
             })
-            .stack()
+            .stack();
+
+        // Pretty much useless, since nothing important happens below here.
+        // But good practice to explicitly, permanently drop privs when we don't need the anymore.
+        privs::permanently_drop_privileges().stack()?;
+
+        cmd_ret
     })
-    .stack()?;
-
-    // Pretty much useless, since nothing important happens below here.
-    // But good practice to explicitly, permanently drop privs when we don't need the anymore.
-    privs::permanently_drop_privileges();
-
-    Ok(())
 }
 
 fn change_priority(prio: Option<i32>, ioprio: Option<i32>) -> Result<()> {
@@ -172,9 +131,9 @@ fn change_priority(prio: Option<i32>, ioprio: Option<i32>) -> Result<()> {
     if let Some(real_prio) = prio {
         let ret1 = unsafe { libc::setpriority(libc::PRIO_PROCESS, 0, real_prio) };
         if ret1 != 0 {
-            return Err(anyhow!("setpriority returned errno {:?}", unsafe {
+            bail!("setpriority returned errno {:?}", unsafe {
                 *libc::__errno_location()
-            }));
+            });
         }
     }
     if let Some(real_ioprio) = ioprio {
@@ -194,9 +153,9 @@ fn change_priority(prio: Option<i32>, ioprio: Option<i32>) -> Result<()> {
         const IOPRIO_WHO_PGRP: i32 = 2;
         let ret2 = unsafe { libc::syscall(libc::SYS_ioprio_set, IOPRIO_WHO_PGRP, 0, real_ioprio) };
         if ret2 != 0 {
-            return Err(anyhow!("setpriority returned errno {:?}", unsafe {
+            bail!("setpriority returned errno {:?}", unsafe {
                 *libc::__errno_location()
-            }));
+            });
         }
     }
     Ok(())
@@ -204,10 +163,36 @@ fn change_priority(prio: Option<i32>, ioprio: Option<i32>) -> Result<()> {
 
 fn drop_file_cache() -> Result<()> {
     nix::unistd::sync();
-    util::write_to_file("/proc/sys/vm/drop_caches".to_string(), "3".to_string())?;
+    util::write_to_file("/proc/sys/vm/drop_caches", "3").stack()?;
     Ok(())
 }
 
-// Hardcoding paths to the binaries we execute because we have setuid
-const SETPRIV_PATH: &str =
-    "/nix/store/ndqpb82si5a7znlb4wa84sjncl4mvgqm-util-linux-2.39.4-bin/bin/setpriv";
+fn store_or_apply_stored_config(
+    config_path: &std::path::PathBuf,
+) -> Result<()> {
+    // Store current config
+    // OR
+    // Read config from config file
+    // The system will be returned to this state after completion
+    if config_path.exists() {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(config_path)
+            .stack()?;
+        let orig_config: sys_config::SysConfig = serde_yaml::from_reader(file).stack()?;
+        // Reset to this known state.
+        // If the rest of it crashes terrbily, at least we reset yours system to the state specified by the file.
+        orig_config.set().stack()?;
+    } else {
+        let orig_config = sys_config::SysConfig::read().stack()?;
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(config_path)
+            .context(anyhow!("{:?}", config_path))
+            .stack()?;
+        serde_yaml::to_writer(file, &orig_config).stack()?;
+    }
+    Ok(())
+}
