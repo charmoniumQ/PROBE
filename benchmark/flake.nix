@@ -15,11 +15,15 @@
         pkgs = nixpkgs.legacyPackages.${system};
         craneLib = crane.mkLib pkgs;
         commonArgs = {
-          src = craneLib.cleanCargoSource ./setuid_bins;
+          src = craneLib.cleanCargoSource ./benchmark_utils;
           strictDeps = true;
         };
-        setuid-bins = craneLib.buildPackage (commonArgs // {
+        benchmark-utils = craneLib.buildPackage (commonArgs // {
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+          propagatedBuildInputs = [
+            pkgs.cpuset
+            pkgs.util-linux
+          ];
         });
         python = pkgs.python312;
         noPytest = pypkg:
@@ -206,6 +210,8 @@
           hello = pkgs.hello;
           bubblewrap = pkgs.bubblewrap;
           util-linux = pkgs.util-linux.bin;
+          cpuset = pkgs.cpuset;
+          systemd = pkgs.systemdMinimal.out;
           libfaketime = pkgs.libfaketime;
           kaggle-notebook-env = pkgs.symlinkJoin {
             name = "kaggle-notebook-env";

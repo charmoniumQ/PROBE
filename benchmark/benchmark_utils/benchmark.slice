@@ -1,0 +1,13 @@
+[Unit]
+Description=Slice dedicated to benchmarking programs
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html
+CPUAccounting=yes
+MemoryAccounting=yes
+MemorySwapMax=0
+MemoryZSwapMax=0
+
+# Access is granted when the checked IP address matches an entry in the IPAddressAllow= list.
+# Otherwise, access is denied when the checked IP address matches an entry in the IPAddressDeny= list.
+# Otherwise, access is granted.
+IPAddressAllow=localhost
+IPAddressDeny=any
