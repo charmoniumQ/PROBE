@@ -1,5 +1,4 @@
 use clap::Parser;
-use itertools::Itertools;
 use stacked_errors::{anyhow, Error, Result, StackableErr};
 use std::collections::btree_set::BTreeSet;
 use std::path::PathBuf;
@@ -31,7 +30,8 @@ If your system does not have Systemd:
    call [sched_setaffinity]. sched_setaffinity is how [taskset] works.
 
 4. Lastly, consider benchmarking without CPU shielding. Your results will likely
-   contain more variance, but it may be good enough.
+   contain more variance, but it may be good enough. Consider using bin/limit.rs
+   (in this crate) to set the resource limits.
 
 [cpuset]: https://github.com/SUSE/cpuset
 [cpuset tutorial]: https://sources.debian.org/data/main/c/cpuset/1.6-4.1/doc/tutorial.html
@@ -112,30 +112,30 @@ fn main() -> std::process::ExitCode {
 
             find_or_create_slice(&systemctl_path, benchmark_slice).stack()?;
 
-            restrict_slice(
-                &systemctl_path,
-                other_slices,
-                &shielded_cpus,
-                || {
-                    configure_benchmark_slice(
-                        &systemctl_path,
-                        benchmark_slice,
-                        &shielded_cpus,
-                        command.mem_bytes,
-                        command.swap_mem_bytes,
-                        command.enable_internet,
-                    ).stack()?;
+            restrict_slice(&systemctl_path, other_slices, &shielded_cpus, || {
+                configure_benchmark_slice(
+                    &systemctl_path,
+                    benchmark_slice,
+                    &shielded_cpus,
+                    command.mem_bytes,
+                    command.swap_mem_bytes,
+                    command.enable_internet,
+                )
+                .stack()?;
 
-                    run_in_slice(
-                        &systemd_run_path,
-                        benchmark_slice,
-                        &real_exe,
-                        &command.args,
-                        command.clear_env,
-                        command.nice,
-                    ).stack()
-                }).stack()
-        }).stack()?;
+                run_in_slice(
+                    &systemd_run_path,
+                    benchmark_slice,
+                    &real_exe,
+                    &command.args,
+                    command.clear_env,
+                    command.nice,
+                )
+                .stack()
+            })
+            .stack()
+        })
+        .stack()?;
 
         // Pretty much useless, since nothing important happens below here.
         // But good practice to explicitly, permanently drop privs when we don't need the anymore.
@@ -146,7 +146,10 @@ fn main() -> std::process::ExitCode {
 }
 
 fn cpus_to_list(cpus: &BTreeSet<sys_config::Cpu>) -> String {
-    cpus.iter().map(std::string::ToString::to_string).join(",")
+    cpus.iter()
+        .map(std::string::ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn restrict_slice<F, T>(
@@ -170,76 +173,72 @@ where
         .filter(|cpu| !shielded_cpus.contains(cpu))
         .collect::<BTreeSet<sys_config::Cpu>>();
 
-    util::check_cmd(
-        std::process::Command::new(systemctl_path)
-        .args([
-            "set-property",
-            "--runtime",
-            "*.slice",
-            &format!("AllowedCPUs={}", cpus_to_list(&unshielded_cpus)),
-        ])
-    ).context(slice.to_string()).stack()?;
+    util::check_cmd(std::process::Command::new(systemctl_path).args([
+        "set-property",
+        "--runtime",
+        "*.slice",
+        &format!("AllowedCPUs={}", cpus_to_list(&unshielded_cpus)),
+    ]))
+    .context(slice.to_string())
+    .stack()?;
 
     let ret = func();
 
-    util::check_cmd(
-        std::process::Command::new(systemctl_path)
-        .args([
-            "set-property",
-            "--runtime",
-            "*.slice",
-            &format!("AllowedCPUs={}", cpus_to_list(&all_cpus)),
-        ])
-    ).context(slice.to_string()).stack()?;
+    util::check_cmd(std::process::Command::new(systemctl_path).args([
+        "set-property",
+        "--runtime",
+        "*.slice",
+        &format!("AllowedCPUs={}", cpus_to_list(&all_cpus)),
+    ]))
+    .context(slice.to_string())
+    .stack()?;
 
     ret
 }
 
-
-fn find_or_create_slice(
-    systemctl_path: &std::path::PathBuf,
-    slice: &str,
-) -> Result<()> {
+fn find_or_create_slice(systemctl_path: &std::path::PathBuf, slice: &str) -> Result<()> {
     find_slice(systemctl_path, slice)
         .or_else(|_| {
             eprintln!("Slice {slice} not found. I will create it now.");
             create_slice(systemctl_path, slice)
-                .context(anyhow!("
+                .context(anyhow!(
+                    "
 Did not find {slice} and unable to create.
 This could be because you are using NixOS or your /etc/systemd/system is immutable.
 In any case, please create a slice called {slice} with a Description, no other configuration.
 
 1. For NixOS, There is a benchmark.nix you can use in the root of this Rust crate.
-2. For others, you may find the source-code of benchmark.slice embedded in this repo."))
+2. For others, you may find the source-code of benchmark.slice embedded in this repo."
+                ))
                 .stack()
         })
         .and_then(|()| {
             find_slice(systemctl_path, slice)
-                .context(anyhow!("{slice} not found; I tried to create it, but it is still not found."))
+                .context(anyhow!(
+                    "{slice} not found; I tried to create it, but it is still not found."
+                ))
                 .stack()
         })
 }
 
-fn find_slice(
-    systemctl_path: &std::path::PathBuf,
-    slice: &str,
-) -> Result<()> {
-    util::check_cmd(std::process::Command::new(systemctl_path).args(["list-unit-files", "benchmark.slice"]))
-        .context(slice.to_string())
-        .stack()
+fn find_slice(systemctl_path: &std::path::PathBuf, slice: &str) -> Result<()> {
+    util::check_cmd(
+        std::process::Command::new(systemctl_path).args(["list-unit-files", "benchmark.slice"]),
+    )
+    .context(slice.to_string())
+    .stack()
 }
 
-fn create_slice(
-    systemctl_path: &std::path::PathBuf,
-    slice: &str,
-) -> Result<()> {
+fn create_slice(systemctl_path: &std::path::PathBuf, slice: &str) -> Result<()> {
     let slice_src = "[Unit]
 Description=Slice dedicated to benchmarking programs
 # https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html
 ";
 
     let slice_path = std::path::PathBuf::from("/etc/systemd/system/").join(slice);
-    util::write_to_file(&slice_path, slice_src).context(slice.to_string()).stack()?;
+    util::write_to_file(&slice_path, slice_src)
+        .context(slice.to_string())
+        .stack()?;
 
     util::check_cmd(std::process::Command::new(systemctl_path).args(["daemon-reload"])).stack()
 }
@@ -262,7 +261,8 @@ fn configure_benchmark_slice(
     // doesn't seem to prevent me from systemd-run-ing a process here.
     //
     // [Cgroups V2 documentation]: https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#memory-interface-files
-    util::check_cmd(std::process::Command::new(systemctl_path).args(["stop", "benchmark.slice"])).stack()?;
+    util::check_cmd(std::process::Command::new(systemctl_path).args(["stop", "benchmark.slice"]))
+        .stack()?;
 
     let mut configure_benchmark_slice = std::process::Command::new(systemctl_path);
     configure_benchmark_slice.args([
@@ -321,8 +321,7 @@ fn run_in_slice(
         run_benchmark.arg(format!("--nice={value}"));
     }
     if !clear_env {
-        run_benchmark
-            .args(std::env::vars().map(|(key, val)| format!("--setenv={key}={val}")));
+        run_benchmark.args(std::env::vars().map(|(key, val)| format!("--setenv={key}={val}")));
     }
     run_benchmark.arg(exe);
     run_benchmark.args(args);

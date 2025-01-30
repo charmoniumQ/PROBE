@@ -42,16 +42,22 @@ fn main() -> std::process::ExitCode {
 
 fn apply_limits(cpu_seconds: Option<u64>, mem_bytes: Option<u64>) -> Result<()> {
     if let Some(real_cpu_seconds) = cpu_seconds {
-        rlimit::Resource::CPU
-            .set(real_cpu_seconds, real_cpu_seconds + real_cpu_seconds / 10)
-            .map_err(Error::from_err)
-            .stack()?;
+        nix::sys::resource::setrlimit(
+            nix::sys::resource::Resource::RLIMIT_CPU,
+            real_cpu_seconds,
+            real_cpu_seconds + real_cpu_seconds / 10,
+        )
+        .map_err(Error::from_err)
+        .stack()?;
     }
     if let Some(real_mem_bytes) = mem_bytes {
-        rlimit::Resource::AS
-            .set(real_mem_bytes, real_mem_bytes)
-            .map_err(Error::from_err)
-            .stack()?;
+        nix::sys::resource::setrlimit(
+            nix::sys::resource::Resource::RLIMIT_AS,
+            real_mem_bytes,
+            real_mem_bytes,
+        )
+        .map_err(Error::from_err)
+        .stack()?;
     }
     Ok(())
 }

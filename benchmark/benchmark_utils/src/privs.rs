@@ -17,16 +17,12 @@
  * [Setuid Demystified by Chen, Wagner, and Dean]: <https://people.eecs.berkeley.edu/~daw/papers/setuid-usenix02.pdf>
  * */
 
-use nix::unistd::{ResGid, ResUid, getresgid, getresuid, setresgid, setresuid};
+use nix::unistd::{getresgid, getresuid, setresgid, setresuid, ResGid, ResUid};
 use stacked_errors::{bail, Error, Result, StackableErr};
 
 /// Call at the beginning of main to reduce privileges temporarily, by moving
 /// effective UID/GID to the saved UID/GID.
 pub fn initially_reduce_privileges() -> Result<()> {
-    use once::assert_has_not_been_called;
-
-    assert_has_not_been_called!();
-
     // De-esclate group
     let group = getresgid().map_err(Error::from_err).stack()?;
     setresgid(group.real, group.real, GID_MINUS_ONE)

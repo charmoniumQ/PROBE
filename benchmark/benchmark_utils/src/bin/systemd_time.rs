@@ -6,7 +6,8 @@ use stacked_errors::{anyhow, Error, StackableErr};
 #[derive(Parser, Debug)]
 #[command(
     version = "0.1.0",
-    about = "Times the given command using the current cgroup"
+    about = "Times the given command using the current cgroup",
+    long_about = "If your system does not have cgroupsv2, consider using getrusage (Crate Nix)."
 )]
 struct Command {
     /// Path to write resource utilization to
@@ -47,7 +48,7 @@ fn main() -> std::process::ExitCode {
             .context(anyhow!("{:?}", command.output))
             .stack()?;
 
-        serde_yaml::to_writer(file, &usage).stack()?;
+        serde_json::to_writer(file, &usage).stack()?;
 
         ret
     })

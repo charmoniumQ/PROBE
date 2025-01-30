@@ -45,14 +45,17 @@ impl SysConfig {
             swappiness: 1,
             perf_event_paranoid: 1,
             cpus: std::iter::once((
-                    cpu,
-                    CpuConfig {
-                        cpufreq_scaling_governor: Some("performance".to_string()),
-                        online: Some(1),
-                    },
-                ))
-                .chain(get_smt_sibling_cpus(cpu).stack()?.iter().map(
-                    |sibling_cpu| {
+                cpu,
+                CpuConfig {
+                    cpufreq_scaling_governor: Some("performance".to_string()),
+                    online: Some(1),
+                },
+            ))
+            .chain(
+                get_smt_sibling_cpus(cpu)
+                    .stack()?
+                    .iter()
+                    .map(|sibling_cpu| {
                         (
                             // Disable sibling hypercores/SMT
                             *sibling_cpu,
@@ -61,9 +64,9 @@ impl SysConfig {
                                 online: Some(0),
                             },
                         )
-                    },
-                ))
-                .collect(),
+                    }),
+            )
+            .collect(),
         })
     }
 
@@ -141,11 +144,8 @@ impl SysConfig {
                 util::write_to_file(SWAPPINESS, &self.swappiness.to_string()).stack(),
             );
             util::eprintln_error(
-                util::write_to_file(
-                    PERF_EVENT_PARANOID,
-                    &self.perf_event_paranoid.to_string(),
-                )
-                .stack(),
+                util::write_to_file(PERF_EVENT_PARANOID, &self.perf_event_paranoid.to_string())
+                    .stack(),
             );
             // Set online
             for (cpu_id, cpu_config) in &self.cpus {
@@ -184,28 +184,37 @@ impl SysConfig {
 
 /// Iterate over CPUs in the Sisyphus (sysfs).
 pub fn iter_cpus() -> Result<Vec<(Cpu, std::path::PathBuf)>> {
-    Ok(glob::glob(&(CPU_PATH.to_owned() + "*"))
-        .map_err(Error::from_err)?
-        .map(|alleged_path| {
-            let path = alleged_path.map_err(Error::from_err).stack()?;
-            let file_name = path
-                .file_name()
-                .ok_or(anyhow!("{:?} does not have file name", path))
-                .stack()?
-                .to_str()
-                .ok_or(anyhow!("File name of {:?} not decodable", path))
-                .stack()?;
-            Ok(file_name[3..].parse().ok().map(|cpu_id| (cpu_id, path)))
+    let cpu_path = std::path::PathBuf::from(CPU_PATH);
+    std::fs::read_dir(&cpu_path)
+        .map_err(Error::from_err)
+        .context(anyhow!("read_dir({:?}) failed", cpu_path))
+        .stack()?
+        .map(|maybe_dirent| {
+            let dirent = maybe_dirent.map_err(Error::from_err)?;
+            Ok((
+                dirent.path(),
+                dirent
+                    .file_name()
+                    .into_string()
+                    .map_err(|err| anyhow!("Failed to decode {:?} {:?}", dirent.path(), err))
+                    .stack()?,
+            ))
         })
-        .collect::<Result<Vec<Option<_>>>>()
+        .collect::<Result<Vec<_>>>()
+        .context("Failed while getting dirent paths")
         .stack()?
         .into_iter()
-        .flatten()
-        .collect())
+        .filter(|(_, file_name)| file_name.starts_with("cpu"))
+        .map(|(path, file_name)| Ok((file_name.parse().map_err(Error::from_err).stack()?, path)))
+        .collect::<Result<Vec<_>>>()
+        .context("Failed while parsing cpu file name to int")
+        .stack()
 }
 
 fn get_smt_sibling_cpus(cpu: Cpu) -> Result<Vec<Cpu>> {
-    let path = std::path::PathBuf::from(CPU_PATH).join("cpu".to_owned() + &cpu.to_string()).join(SMT_SIBLINGS_LIST);
+    let path = std::path::PathBuf::from(CPU_PATH)
+        .join("cpu".to_owned() + &cpu.to_string())
+        .join(SMT_SIBLINGS_LIST);
     Ok(std::fs::read_to_string(&path)
         .context(anyhow!("{path:?}"))
         .stack()?
@@ -237,7 +246,9 @@ pub fn pick_cpu() -> Cpu {
 
 /// Bring CPU offline and online.
 pub fn reboot_cpu(cpu: Cpu) -> Result<()> {
-    let path = std::path::PathBuf::from(CPU_PATH).join("cpu".to_owned() + &cpu.to_string()).join(CPU_ONLINE);
+    let path = std::path::PathBuf::from(CPU_PATH)
+        .join("cpu".to_owned() + &cpu.to_string())
+        .join(CPU_ONLINE);
     util::write_to_file(&path, "0").stack()?;
     util::write_to_file(&path, "1").stack()?;
     Ok(())

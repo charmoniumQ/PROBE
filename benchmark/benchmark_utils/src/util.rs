@@ -11,7 +11,10 @@ pub fn eprintln_error<T>(result: Result<T>) -> Option<T> {
     }
 }
 
-pub fn write_to_file<P: AsRef<std::path::Path> + std::fmt::Debug>(path: P, content: &str) -> Result<()> {
+pub fn write_to_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
+    path: P,
+    content: &str,
+) -> Result<()> {
     if path.as_ref().exists() {
         let is_already_written = {
             let mut file = std::fs::OpenOptions::new()

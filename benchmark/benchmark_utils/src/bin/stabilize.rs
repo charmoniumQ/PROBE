@@ -167,19 +167,15 @@ fn drop_file_cache() -> Result<()> {
     Ok(())
 }
 
-fn store_or_apply_stored_config(
-    config_path: &std::path::PathBuf,
-) -> Result<()> {
-    // Store current config
-    // OR
-    // Read config from config file
-    // The system will be returned to this state after completion
+/// Read config from config file, if exists.
+/// Otherwise, record config to file.
+fn store_or_apply_stored_config(config_path: &std::path::PathBuf) -> Result<()> {
     if config_path.exists() {
         let file = std::fs::OpenOptions::new()
             .read(true)
             .open(config_path)
             .stack()?;
-        let orig_config: sys_config::SysConfig = serde_yaml::from_reader(file).stack()?;
+        let orig_config: sys_config::SysConfig = serde_json::from_reader(file).stack()?;
         // Reset to this known state.
         // If the rest of it crashes terrbily, at least we reset yours system to the state specified by the file.
         orig_config.set().stack()?;
@@ -192,7 +188,7 @@ fn store_or_apply_stored_config(
             .open(config_path)
             .context(anyhow!("{:?}", config_path))
             .stack()?;
-        serde_yaml::to_writer(file, &orig_config).stack()?;
+        serde_json::to_writer(file, &orig_config).stack()?;
     }
     Ok(())
 }
