@@ -15,11 +15,8 @@ struct Command {
     output: String,
 
     /// Executable to time
-    exe: std::path::PathBuf,
-
-    /// Arguments to exe
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<String>,
+    cmd: Vec<String>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -28,17 +25,17 @@ fn main() -> std::process::ExitCode {
 
         let command = Command::parse();
 
-        let pre_rusage = current_cgroup.get_rusage().stack()?;
+        let pre_rusage = current_cgroup.get_rusage(None).stack()?;
 
-        let mut run_cmd = std::process::Command::new(command.exe);
-        run_cmd.args(command.args);
+        let mut run_cmd = std::process::Command::new(&command.cmd[0]);
+        run_cmd.args(&command.cmd[1..]);
         let ret = run_cmd
             .status()
             .map_err(Error::from_err)
             .context(anyhow!("Error launching {:?}", run_cmd))
-            .stack();
+            .stack()?;
 
-        let usage = current_cgroup.get_rusage().stack()? - pre_rusage;
+        let usage = current_cgroup.get_rusage(Some(ret)).stack()? - pre_rusage;
 
         let file = std::fs::OpenOptions::new()
             .write(true)
@@ -50,6 +47,6 @@ fn main() -> std::process::ExitCode {
 
         serde_json::to_writer(file, &usage).stack()?;
 
-        ret
+        Ok(ret)
     })
 }

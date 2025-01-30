@@ -42,7 +42,7 @@ If your system does not have Systemd:
 )]
 struct Command {
     /// CPUs to reserve
-    #[arg(long, value_delimiter = ',')]
+    #[arg(long, value_delimiter = ',', required = true)]
     cpus: Vec<sys_config::Cpu>,
 
     /// Whether to enable access to the external internet
@@ -71,11 +71,8 @@ struct Command {
     clear_env: bool,
 
     /// Executable to launch on the shielded CPUs
-    exe: String,
-
-    /// Arguments for executable
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<String>,
+    cmd: Vec<String>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -90,13 +87,13 @@ fn main() -> std::process::ExitCode {
 
         let command = Command::parse();
 
-        let real_exe = if command.exe.starts_with('/') {
-            PathBuf::from(command.exe)
+        let real_exe = if command.cmd[0].starts_with('/') {
+            PathBuf::from(&command.cmd[0])
         } else {
-            which::which(&command.exe)
+            which::which(&command.cmd[0])
                 .context(anyhow!(
                     "Could not find {:?} on $PATH {:?}",
-                    command.exe,
+                    &command.cmd[0],
                     std::env::var("PATH").unwrap_or_default(),
                 ))
                 .stack()?
@@ -127,7 +124,7 @@ fn main() -> std::process::ExitCode {
                     &systemd_run_path,
                     benchmark_slice,
                     &real_exe,
-                    &command.args,
+                    &command.cmd[1..],
                     command.clear_env,
                     command.nice,
                 )
@@ -293,7 +290,7 @@ fn run_in_slice(
     systemd_run_path: &std::path::PathBuf,
     slice: &str,
     exe: &std::path::PathBuf,
-    args: &std::vec::Vec<String>,
+    args: &[String],
     clear_env: bool,
     nice: Option<i8>,
 ) -> Result<std::process::ExitStatus> {

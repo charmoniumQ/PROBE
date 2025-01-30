@@ -21,11 +21,13 @@ pub fn write_to_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
                 .read(true)
                 .open(path.as_ref())
                 .map_err(Error::from_err)
+                .context(anyhow!("{path:?}"))
                 .stack()?;
             let mut buffer = vec![0; content.len()];
             let read_bytes = file
                 .read(&mut buffer[..])
                 .map_err(Error::from_err)
+                .context(anyhow!("{path:?}"))
                 .stack()?;
             read_bytes == buffer.len() && buffer == content.as_bytes()
         };
@@ -34,9 +36,11 @@ pub fn write_to_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
                 .write(true)
                 .open(path.as_ref())
                 .map_err(Error::from_err)
+                .context(anyhow!("{path:?}"))
                 .stack()?;
             file.write_all(content.as_bytes())
                 .map_err(Error::from_err)
+                .context(anyhow!("{path:?}"))
                 .stack()?;
             //file.sync_all().map_err(Error::from_err).stack()?;
         }

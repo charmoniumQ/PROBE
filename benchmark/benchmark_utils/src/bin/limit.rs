@@ -17,12 +17,8 @@ struct Command {
     mem_bytes: Option<u64>,
 
     /// Executable to run with resource limits
-    #[arg(long)]
-    exe: std::path::PathBuf,
-
-    /// Arguments to executable
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<String>,
+    cmd: Vec<String>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -31,8 +27,8 @@ fn main() -> std::process::ExitCode {
 
         apply_limits(command.cpu_seconds, command.mem_bytes).stack()?;
 
-        let mut cmd = std::process::Command::new(command.exe);
-        cmd.args(command.args);
+        let mut cmd = std::process::Command::new(&command.cmd[0]);
+        cmd.args(&command.cmd[1..]);
 
         cmd.status()
             .context(anyhow!("Executing cmd {:?}", cmd))

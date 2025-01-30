@@ -40,33 +40,51 @@ struct CpuConfig {
 
 impl SysConfig {
     /// Create a config appropriate for benchmarking.
-    pub fn benchmarking_config(cpu: Cpu) -> Result<SysConfig> {
+    pub fn benchmarking_config(cpus: &[Cpu]) -> Result<SysConfig> {
         Ok(SysConfig {
             swappiness: 1,
             perf_event_paranoid: 1,
-            cpus: std::iter::once((
-                cpu,
-                CpuConfig {
-                    cpufreq_scaling_governor: Some("performance".to_string()),
-                    online: Some(1),
-                },
-            ))
-            .chain(
-                get_smt_sibling_cpus(cpu)
-                    .stack()?
+            cpus: cpus
                     .iter()
-                    .map(|sibling_cpu| {
-                        (
-                            // Disable sibling hypercores/SMT
-                            *sibling_cpu,
-                            CpuConfig {
-                                cpufreq_scaling_governor: Some("performance".to_string()),
-                                online: Some(0),
-                            },
-                        )
-                    }),
-            )
-            .collect(),
+                    .map(|cpu| (
+                        *cpu,
+                        CpuConfig {
+                            cpufreq_scaling_governor: Some("performance".to_string()),
+                            online: Some(1),
+                        },
+                    ))
+                    .chain(
+                        cpus
+                            .iter()
+                            .map(|cpu| {
+                                Ok(get_smt_sibling_cpus(*cpu)
+                                   .stack()?
+                                   .iter()
+                                   .inspect(|sibling_cpu| {
+                                       if cpus.contains(sibling_cpu) {
+                                           eprintln!("You selected two CPUs from the same SMT group. This has less predictable performance.");
+                                       }
+                                   })
+                                   .filter(|sibling_cpu| cpus.contains(sibling_cpu))
+                                   .map(|sibling_cpu| {
+                                       (
+                                           // Disable sibling hypercores/SMT
+                                           *sibling_cpu,
+                                           CpuConfig {
+                                               cpufreq_scaling_governor: None,
+                                               online: Some(0),
+                                           },
+                                       )
+                                   })
+                                   .collect::<Vec<(u16, CpuConfig)>>()
+                                )
+                            })
+                            .collect::<Result<Vec<Vec<(u16, CpuConfig)>>>>()
+                            .stack()?
+                            .into_iter()
+                            .flat_map(std::iter::IntoIterator::into_iter)
+                    )
+                    .collect::<std::collections::BTreeMap<u16, CpuConfig>>()
         })
     }
 
@@ -109,11 +127,11 @@ impl SysConfig {
                             cpufreq_scaling_governor: std::fs::read_to_string(
                                 path.join(CPU_FREQ_SCALING_GOVERNOR),
                             )
-                            .ok()
-                            .map(|value| value.trim().parse())
-                            .transpose()
-                            .context(CPU_ONLINE)
-                            .stack()?,
+                                .ok()
+                                .map(|value| value.trim().parse())
+                                .transpose()
+                                .context(CPU_ONLINE)
+                                .stack()?,
                             online: std::fs::read_to_string(path.join(CPU_ONLINE))
                                 .ok()
                                 .map(|value| value.trim().parse())
@@ -204,8 +222,8 @@ pub fn iter_cpus() -> Result<Vec<(Cpu, std::path::PathBuf)>> {
         .context("Failed while getting dirent paths")
         .stack()?
         .into_iter()
-        .filter(|(_, file_name)| file_name.starts_with("cpu"))
-        .map(|(path, file_name)| Ok((file_name.parse().map_err(Error::from_err).stack()?, path)))
+        .filter(|(_, file_name)| file_name.starts_with("cpu") && file_name.chars().nth(3).is_some_and(|c| c.is_ascii_digit()))
+        .map(|(path, file_name)| Ok((file_name[3..].parse().map_err(Error::from_err).context(file_name).stack()?, path)))
         .collect::<Result<Vec<_>>>()
         .context("Failed while parsing cpu file name to int")
         .stack()
@@ -216,19 +234,19 @@ fn get_smt_sibling_cpus(cpu: Cpu) -> Result<Vec<Cpu>> {
         .join("cpu".to_owned() + &cpu.to_string())
         .join(SMT_SIBLINGS_LIST);
     Ok(std::fs::read_to_string(&path)
-        .context(anyhow!("{path:?}"))
-        .stack()?
-        .split(',')
-        .map(|part| {
-            part.trim()
-                .parse::<Cpu>()
-                .map_err(|_| anyhow!("{} not parsable", part))
-        })
-        .collect::<Result<Vec<Cpu>>>()
-        .stack()?
-        .into_iter()
-        .filter(|sibling_cpu| *sibling_cpu != cpu)
-        .collect())
+       .context(anyhow!("{path:?}"))
+       .stack()?
+       .split(',')
+       .map(|part| {
+           part.trim()
+               .parse::<Cpu>()
+               .map_err(|_| anyhow!("{} not parsable", part))
+       })
+       .collect::<Result<Vec<Cpu>>>()
+       .stack()?
+       .into_iter()
+       .filter(|sibling_cpu| *sibling_cpu != cpu)
+       .collect())
 }
 
 const SWAPPINESS: &str = "/proc/sys/vm/swappiness";
@@ -237,12 +255,6 @@ const CPU_PATH: &str = "/sys/devices/system/cpu/";
 const CPU_FREQ_SCALING_GOVERNOR: &str = "cpufreq/scaling_governor";
 const CPU_ONLINE: &str = "online";
 const SMT_SIBLINGS_LIST: &str = "topology/thread_siblings_list";
-
-#[must_use]
-pub fn pick_cpu() -> Cpu {
-    eprintln!("TODO: Pick CPU smartly");
-    3
-}
 
 /// Bring CPU offline and online.
 pub fn reboot_cpu(cpu: Cpu) -> Result<()> {

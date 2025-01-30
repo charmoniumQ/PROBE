@@ -11,6 +11,8 @@ pub struct Rusage {
     cpu_system_us: u64,
     peak_memory_usage: u64,
     walltime_us: u64,
+    returncode: i32,
+    signal: i32,
 }
 
 impl std::ops::Sub for Rusage {
@@ -22,6 +24,8 @@ impl std::ops::Sub for Rusage {
             cpu_system_us: self.cpu_system_us - rhs.cpu_system_us,
             peak_memory_usage: rhs.peak_memory_usage,
             walltime_us: self.walltime_us - rhs.walltime_us,
+            returncode: rhs.returncode,
+            signal: rhs.signal,
         }
     }
 }
@@ -60,7 +64,9 @@ impl Cgroup {
     }
 
     /// Get resource usage of Cgroup since counter reset.
-    pub fn get_rusage(&self) -> Result<Rusage> {
+    pub fn get_rusage(&self, maybe_status: Option<std::process::ExitStatus>) -> Result<Rusage> {
+        use std::os::unix::process::ExitStatusExt;
+
         let mut memory_peak_path = self.path.clone();
         memory_peak_path.push(MEMORY_PEAK);
 
@@ -96,6 +102,8 @@ impl Cgroup {
                 .context(anyhow!("{:?}", memory_peak_path))
                 .stack()?,
             walltime_us: u64::try_from(walltime_us).context(walltime_us).stack()?,
+            returncode: maybe_status.map_or(0, |status| status.code().unwrap_or(0)),
+            signal: maybe_status.map_or(0, |status| status.signal().unwrap_or(0)),
         })
     }
 }

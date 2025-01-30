@@ -25,7 +25,7 @@ use stacked_errors::{bail, Error, Result, StackableErr};
 pub fn initially_reduce_privileges() -> Result<()> {
     // De-esclate group
     let group = getresgid().map_err(Error::from_err).stack()?;
-    setresgid(group.real, group.real, GID_MINUS_ONE)
+    setresgid(group.real, group.real, group.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresgid().map_err(Error::from_err).stack()?
@@ -43,7 +43,7 @@ pub fn initially_reduce_privileges() -> Result<()> {
     if user.real == user.effective {
         bail!("Is this binary setuid and owned by another user?");
     }
-    setresuid(user.real, user.real, UID_MINUS_ONE)
+    setresuid(user.real, user.real, user.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresuid().map_err(Error::from_err).stack()?
@@ -67,7 +67,7 @@ where
 {
     // Escalate user first
     let user = getresuid().map_err(Error::from_err).stack()?;
-    setresuid(UID_MINUS_ONE, user.saved, UID_MINUS_ONE)
+    setresuid(user.real, user.saved, user.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresuid().map_err(Error::from_err).stack()?
@@ -82,7 +82,7 @@ where
 
     // Esclate group
     let group = getresgid().map_err(Error::from_err).stack()?;
-    setresgid(GID_MINUS_ONE, group.saved, GID_MINUS_ONE)
+    setresgid(group.real, group.saved, group.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresgid().map_err(Error::from_err).stack()?
@@ -98,13 +98,13 @@ where
     let ret = func();
 
     // De-esclate group
-    setresgid(GID_MINUS_ONE, group.real, GID_MINUS_ONE)
+    setresgid(group.real, group.effective, group.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresgid().map_err(Error::from_err).stack()?
         != (ResGid {
             real: group.real,
-            effective: group.real,
+            effective: group.effective,
             saved: group.saved,
         })
     {
@@ -112,13 +112,13 @@ where
     }
 
     // De-escalate user first
-    setresuid(UID_MINUS_ONE, user.real, UID_MINUS_ONE)
+    setresuid(user.real, user.effective, user.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresuid().map_err(Error::from_err).stack()?
         != (ResUid {
             real: user.real,
-            effective: user.real,
+            effective: user.effective,
             saved: user.saved,
         })
     {
@@ -193,12 +193,3 @@ pub fn verify_not_root() -> Result<()> {
     }
     Ok(())
 }
-
-// This looks sus, but POSIX technically defines Uid as unsigned, so the are unsigned in libc.
-// However the same POSIX also says -1 has special meaning in setresuid.
-// -1 should get converted to the 2s complement, 0xFFFF...
-#[allow(clippy::cast_sign_loss)]
-const UID_MINUS_ONE: nix::unistd::Uid = nix::unistd::Uid::from_raw((-1_i32) as u32);
-
-#[allow(clippy::cast_sign_loss)]
-const GID_MINUS_ONE: nix::unistd::Gid = nix::unistd::Gid::from_raw((-1_i32) as u32);

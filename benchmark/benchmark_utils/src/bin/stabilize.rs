@@ -44,7 +44,7 @@ struct Command {
     /// We use a file, rather than storing the old configuration in RAM, because
     /// we want to persistently remember the original state even if this program
     /// gets killed.
-    #[arg(long, default_value = "pre_benchmark_config.yaml")]
+    #[arg(long, default_value = "pre_benchmark_config.json")]
     config: std::path::PathBuf,
 
     /// Whether to sync and drop the file cache.
@@ -55,12 +55,13 @@ struct Command {
     #[arg(long)]
     prio: Option<i32>,
 
-    /// Executable to run while the benchmark configuration is applied
-    exe: String,
+    /// CPUs to configure for benchmarking
+    #[arg(long, value_delimiter = ',', required = true)]
+    cpus: Vec<sys_config::Cpu>,
 
-    /// Arguments passed to executable
+    /// Executable to run while the benchmark configuration is applied
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<String>,
+    cmd: Vec<String>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -72,8 +73,7 @@ fn main() -> std::process::ExitCode {
         store_or_apply_stored_config(&command.config).stack()?;
 
         // Last unprivileged setup
-        let cpu = sys_config::pick_cpu();
-        let benchmark_config = sys_config::SysConfig::benchmarking_config(cpu).stack()?;
+        let benchmark_config = sys_config::SysConfig::benchmarking_config(&command.cpus).stack()?;
 
         privs::verify_not_root().stack()?;
 
@@ -89,11 +89,15 @@ fn main() -> std::process::ExitCode {
 
             // Dropping cache should be close to the end.
             if command.drop_file_cache {
+                // privs::with_propagated_escalated_privileges(||
                 drop_file_cache().stack()?;
+                // )?;
             }
 
             // Rebooting the CPU forces kernel threads to move to another core, at least temporarily
-            sys_config::reboot_cpu(cpu).stack()?;
+            for cpu in &command.cpus {
+                sys_config::reboot_cpu(*cpu).stack()?;
+            }
 
             Ok(())
         })
@@ -104,8 +108,8 @@ fn main() -> std::process::ExitCode {
         // Also this will acquire its own privileges.
         let cmd_ret = benchmark_config
             .temporarily_set(|| {
-                let mut main_cmd = std::process::Command::new(command.exe);
-                main_cmd.args(command.args);
+                let mut main_cmd = std::process::Command::new(&command.cmd[0]);
+                main_cmd.args(&command.cmd[1..]);
                 main_cmd
                     .status()
                     .map_err(Error::from_err)
@@ -162,9 +166,19 @@ fn change_priority(prio: Option<i32>, ioprio: Option<i32>) -> Result<()> {
 }
 
 fn drop_file_cache() -> Result<()> {
+    use std::io::Write;
     nix::unistd::sync();
-    util::write_to_file("/proc/sys/vm/drop_caches", "3").stack()?;
-    Ok(())
+    let path = std::path::PathBuf::from("/proc/sys/vm/drop_caches");
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .map_err(Error::from_err)
+        .context(anyhow!("{:?}", &path))
+        .stack()?;
+    file.write_all("3".as_bytes())
+        .map_err(Error::from_err)
+        .context(anyhow!("{:?}", &path))
+        .stack()
 }
 
 /// Read config from config file, if exists.
@@ -175,7 +189,7 @@ fn store_or_apply_stored_config(config_path: &std::path::PathBuf) -> Result<()> 
             .read(true)
             .open(config_path)
             .stack()?;
-        let orig_config: sys_config::SysConfig = serde_json::from_reader(file).stack()?;
+        let orig_config: sys_config::SysConfig = serde_json::from_reader(file).stack().context(anyhow!("Config {:?} is invalid; consider removing", config_path))?;
         // Reset to this known state.
         // If the rest of it crashes terrbily, at least we reset yours system to the state specified by the file.
         orig_config.set().stack()?;
