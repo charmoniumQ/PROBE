@@ -82,6 +82,8 @@ workload_labels = {
     "rsync-linux": ("system", "copy Linux src"),
     "tar-linux": ("system", "tar Linux src"),
     "untar-linux": ("system", "untar Linux src"),
+    "1-small-hello": ("system", "noop"),
+    "true": ("system", "bash noop"),
 }
 
 

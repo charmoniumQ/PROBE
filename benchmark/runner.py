@@ -1,6 +1,11 @@
 #!/usr/bin/env python
+from __future__ import annotations
 import datetime; start = datetime.datetime.now()
+import dataclasses
+import pathlib
+import subprocess
 import typer
+import json
 import shutil
 import pathlib
 import enum
@@ -11,6 +16,7 @@ import prov_collectors as prov_collectors_mod
 import rich.prompt
 import util
 from mandala.imports import Storage, Ignore  # type: ignore
+import command
 
 imports = datetime.datetime.now()
 
@@ -33,11 +39,13 @@ def main(
             "all"  # type: ignore
         ],
         iterations: int = 1,
+        warmups: int = 1,
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
         verbose: Annotated[bool, typer.Option("--verbose")] = False,
         parquet_output: pathlib.Path = pathlib.Path("output/iterations.parquet"),
         internal_cache: pathlib.Path = pathlib.Path(".cache/run_experiments.db"),
+        machine_info: pathlib.Path = pathlib.Path("output/machine_info.json"),
 ) -> None:
     """
     Run a full matrix of these workloads in those provenance collectors.
@@ -54,6 +62,16 @@ def main(
 
     if verbose:
         util.console.print(f"Finished imports in {(imports - start).total_seconds():.1f}sec")
+
+    internal_cache.parent.mkdir(exist_ok=True)
+    with Storage(internal_cache) as storage:
+        minfo = MachineInfo.create()
+        machine_info.write_text(json.dumps({
+            str(minfo.machine_id): dataclasses.asdict(minfo)
+        }))
+
+    if verbose:
+        util.console.print(f"Machine ID = {minfo.machine_id:08x}")
 
     collector_list = list(util.flatten1([
         prov_collectors_mod.PROV_COLLECTOR_GROUPS[collector_name.value]
@@ -83,18 +101,15 @@ def main(
     internal_cache.parent.mkdir(exist_ok=True)
     parquet_output.parent.mkdir(exist_ok=True)
     if rerun and rich.prompt.Confirm.ask(prompt, console=util.console):
-        ops = []
         util.console.print("Dropping calls")
-        with Storage(internal_cache) as storage:
-            ops.extend([
-                experiment.run_experiment(seed ^ iteration, collector, workload, Ignore(False))
-                for collector in collector_list
-                for workload in workload_list
-                for iteration in range(iterations)
-            ])
-        storage.drop_calls(
-            [storage.get_ref_creator(op) for op in ops],
-            delete_dependents=True,
+        experiment.drop_calls(
+            internal_cache,
+            seed,
+            iterations,
+            collector_list,
+            workload_list,
+            warmups,
+            minfo.machine_id,
         )
         util.console.print("Done dropping calls")
 
@@ -105,10 +120,11 @@ def main(
         workload_list,
         iterations=iterations,
         seed=seed,
-        rerun=rerun,
         verbose=verbose,
         internal_cache=internal_cache,
         parquet_output=parquet_output,
+        total_warmups=warmups,
+        machine_id=minfo.machine_id,
     )
     storage = Storage(internal_cache)
 
@@ -122,6 +138,29 @@ def main(
     if verbose:
         end = datetime.datetime.now()
         util.console.print(f"Wrapped up experiment in in {(end - mid).total_seconds():.1f}sec")
+
+
+@dataclasses.dataclass
+class MachineInfo:
+    machine_id: int
+    lshw: str
+    uname: str
+
+    @staticmethod
+    def create() -> MachineInfo:
+        return MachineInfo(
+            int(pathlib.Path("/etc/machine-id").read_text(), base=16) & (1 << 32 - 1),
+            subprocess.run(
+                [command.nix_build(".#lshw") + "/bin/lshw"],
+                capture_output=True,
+                check=True,
+            ).stdout.decode(errors="surrogatescape"),
+            subprocess.run(
+                [command.nix_build(".#coreutils") + "/bin/uname"],
+                capture_output=True,
+                check=True,
+            ).stdout.decode(errors="surrogatescape"),
+        )
 
 
 if __name__ == "__main__":

@@ -216,6 +216,20 @@ workloads = [
             repeat(bin_repetitions * 10, "true"),
         ),
     ),
+    Workload(
+        (("bench", "utils", "small-hello"), ("sys", "proc")),
+        cmd(
+            env,
+            nix_env_path([".#coreutils", ".#small-hello"]),
+            *bash,
+            "-c",
+            repeat(bin_repetitions // 10, "small-hello"),
+        ),
+    ),
+    Workload(
+        (("bench", "utils", "1-small-hello"), ("sys", "proc")),
+        cmd(nix_path(".#small-hello", "/bin/small-hello")),
+    ),
 
     # lmbench_workload("proc"   , "shell", "lat_proc", ("-N", "3", "procedure")),
     # lmbench_workload("proc"   , "install-signal", "lat_sig", ("-N", "3", "install")),
@@ -580,9 +594,15 @@ WORKLOAD_GROUPS = {
         if workload.labels[0][2] not in {
                 "house-prices-1",  # too long
                 "water-spatial", # too long or short (not easy to callibrate)
+                "sextractor", # Stalls out for some reason
                 "ph-01", # too long
                 "barnes", # never worked
                 "tblastx", # too long
+                "rsync-linux", # somehow this is really slow and fails in Bubblewrap
+                "megablast", # not super long, but still longer than I'd like
+                "blastx", # ditto
+                "blastp",
+                "blastn",
         }
     ],
 }

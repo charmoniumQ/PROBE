@@ -187,6 +187,18 @@
               pkgs.lzop
             ];
           };
+          lshw = pkgs.lshw;
+          small-hello = pkgs.stdenv.mkDerivation {
+            name = "small-hello";
+            src = ./small-hello;
+            buildPhase = ''
+              mkdir --parents $out/bin
+              nasm -f bin -o $out/bin/small-hello main.nasm
+              chmod +x $out/bin/small-hello
+            '';
+            nativeBuildInputs = [ pkgs.nasm ];
+            installPhase = "true";
+          };
           bagel = nixos-q-chem.packages.${system}.bagel;
           fits-0 = pkgs.fetchurl {
             url = "http://www.astropy.org/astropy-data/l1448/l1448_13co.fits";
@@ -526,13 +538,13 @@
             };
             a = "hi";
             patches = [./splash-3.diff];
-            nativeBuildInputs = [pkgs.m4 pkgs.binutils];
+            nativeBuildInputs = [pkgs.m4 pkgs.binutils pkgs.gnused];
             sourceRoot = "source/codes";
             buildPhase = ''
-              ${pkgs.gnused}/bin/sed --in-place s=inputs/car.geo=$out/inputs/raytrace/car.geo=g apps/raytrace/inputs/car.env
-              ${pkgs.gnused}/bin/sed --in-place s=inputs/car.rl=car.rl=g apps/raytrace/inputs/car.env
-              ${pkgs.gnused}/bin/sed --in-place s=random.in=$out/inputs/water-nsquared/random.in=g apps/water-nsquared/initia.c.in
-              ${pkgs.gnused}/bin/sed --in-place s=random.in=$out/inputs/water-spatial/random.in=g apps/water-spatial/initia.c.in
+              sed --in-place s=inputs/car.geo=$out/inputs/raytrace/car.geo=g apps/raytrace/inputs/car.env
+              sed --in-place s=inputs/car.rl=car.rl=g apps/raytrace/inputs/car.env
+              sed --in-place s=random.in=$out/inputs/water-nsquared/random.in=g apps/water-nsquared/initia.c.in
+              sed --in-place s=random.in=$out/inputs/water-spatial/random.in=g apps/water-spatial/initia.c.in
               make all
             '';
             installPhase = ''
