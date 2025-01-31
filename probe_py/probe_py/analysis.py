@@ -528,7 +528,7 @@ def color_hb_graph(prov_log: ProvLog, process_graph: nx.DiGraph) -> None:
 def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
     G = nx.DiGraph()
 
-    def epoch_node_id(pid, epoch_no):
+    def epoch_node_id(pid: int, epoch_no: int) -> str:
         return f"pid{pid}_epoch{epoch_no}"
 
     for pid, process in prov_log.processes.items():

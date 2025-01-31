@@ -2,7 +2,7 @@ import typing
 import pathlib
 import networkx  # type: ignore
 from typing import Optional
-import pydot
+import pydot  # type: ignore
 
 
 _Node = typing.TypeVar("_Node")
