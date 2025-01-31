@@ -193,8 +193,10 @@ static __thread struct ArenaDir* __data_arena = NULL;
 static const size_t prov_log_arena_size = 64 * 1024;
 static void init_log_arena() {
     DEBUG("I AM IN INIT LOG ARENA");
-    __op_arena = calloc(1, sizeof(__op_arena));
-    __data_arena = calloc(1, sizeof(__data_arena));
+    DEBUG("__op_arena %p", __op_arena);
+    __op_arena = calloc(1, sizeof(struct ArenaDir));
+    DEBUG("Here2")
+    __data_arena = calloc(1, sizeof(struct ArenaDir));
     DEBUG("__op_arena address: %p", __op_arena);
     DEBUG("__data_arena address: %p", __data_arena);
     assert(!arena_is_initialized(__op_arena));
@@ -207,11 +209,11 @@ static void init_log_arena() {
 }
 static struct ArenaDir* get_op_arena() {
     assert(arena_is_initialized(__op_arena));
-    return &__op_arena;
+    return __op_arena;
 }
 static struct ArenaDir* get_data_arena() {
     assert(arena_is_initialized(__data_arena));
-    return &__data_arena;
+    return __data_arena;
 }
 
 /**
