@@ -2,11 +2,16 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-static __thread int test2 = 54;
+struct Test {
+    int integer;
+};
+
+static __thread struct Test test2 = { 42 };
+
 int interpose_creat(const char *pathname, mode_t mode) {
-  printf("interposed %d\n", test2);
+  printf("interposed %d\n", test2.integer);
   printf("pointer %p\n", (void*)&test2);
-  test2 += 1;
+  test2.integer += 1;
   return 0;
 }
 static struct __osx_interpose { const void* replacement; const void* replacee; };

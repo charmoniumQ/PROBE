@@ -25,7 +25,9 @@ main(void)
                  exit(EXIT_SUCCESS);
              default:
                  creat("test2.txt", 0644);
-                 wait(pid);
+                 int status;
+                 waitpid(pid, &status, 0);
+                 printf("Child exit status: %d\n", status);
                  exit(EXIT_SUCCESS);
          }
 }
