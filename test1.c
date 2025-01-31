@@ -1,11 +1,11 @@
-
 #include <stdio.h>
 #include <sys/stat.h>
- #include <fcntl.h>
+#include <fcntl.h>
 
 static __thread int test2 = 54;
 int interpose_creat(const char *pathname, mode_t mode) {
   printf("interposed %d\n", test2);
+  printf("pointer %p\n", (void*)&test2);
   test2 += 1;
   return 0;
 }
