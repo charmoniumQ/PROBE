@@ -69,6 +69,8 @@ def run_experiments(
                 inputs,
                 description="Collectors x Workloads"
         ):
+            if collector.name == "noprovstable" and workload.labels[0][-1] in {"pw-01", "pp-01"}:
+                continue
             for op in run_experiment_warmups(iteration, collector, workload, total_warmups, machine_id, Ignore(verbose)):
                 record = storage.unwrap(op)
                 storage.commit()

@@ -227,6 +227,16 @@ workloads = [
         ),
     ),
     Workload(
+        (("bench", "utils", "python noop"), ("sys", "proc")),
+        cmd(
+            env,
+            nix_env_path([".#coreutils", ".#kaggle-notebook-env"]),
+            *bash,
+            "-c",
+            repeat(bin_repetitions // 10, "python -c ''"),
+        ),
+    ),
+    Workload(
         (("bench", "utils", "1-small-hello"), ("sys", "proc")),
         cmd(nix_path(".#small-hello", "/bin/small-hello")),
     ),
@@ -392,6 +402,8 @@ workloads = [
     Workload(
         (("app", "data-sci", "imports"), ("cse", "ml")),
         cmd(
+            env,
+            combine("HOME=", work_dir),
             nix_path(".#kaggle-notebook-env", "/bin/python"),
             "-c",
             "\n".join([
@@ -406,7 +418,7 @@ workloads = [
                 "import numpy",
                 "import umap",
                 "import hdbscan",
-            ])
+            ]),
         ),
     ),
     Workload(
