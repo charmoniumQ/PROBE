@@ -1,6 +1,8 @@
 import typing
 import pathlib
 import networkx  # type: ignore
+from typing import Optional
+import pydot
 
 
 _Node = typing.TypeVar("_Node")
@@ -22,6 +24,34 @@ def serialize_graph(
         pydot_graph.write_raw(output)
     else:
         pydot_graph.write_png(output)
+
+def serialize_graph_proc_tree(
+    graph: DiGraph[_Node],
+    output: pathlib.Path,
+    same_rank_groups: Optional[list[list[str]]] = None,
+) -> None:
+    """
+    Serialize a DiGraph to .dot or .png, optionally forcing certain node groups
+    to share the same rank.
+    """
+    pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph)
+    pydot_graph.set("rankdir", "TB")
+
+    if same_rank_groups:
+        for idx, group in enumerate(same_rank_groups):
+            subg = pydot.Subgraph('', rank='same')
+
+            for node_id in group:
+                existing_nodes = pydot_graph.get_node(node_id)
+                if existing_nodes:
+                    subg.add_node(existing_nodes[0])
+
+            pydot_graph.add_subgraph(subg)
+
+    if output.suffix == ".dot":
+        pydot_graph.write_raw(str(output))
+    else:
+        pydot_graph.write_png(str(output))
 
 
 def relax_node(graph: DiGraph[_Node], node: _Node) -> list[tuple[_Node, _Node]]:

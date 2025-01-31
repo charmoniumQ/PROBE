@@ -569,13 +569,13 @@ def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
                             child_node_id = epoch_node_id(child_pid, child_epoch)
 
                             if G.has_node(child_node_id):
-                                G.add_edge(parent_node_id, child_node_id, label="clone")
+                                G.add_edge(parent_node_id, child_node_id, label="clone", constraint="true")
 
                     if isinstance(op_data, ExecOp):
                         new_epoch_no = exec_epoch_no + 1
                         new_node_id = epoch_node_id(pid, new_epoch_no)
 
                         if G.has_node(new_node_id):
-                            G.add_edge(parent_node_id, new_node_id, label="exec")
+                            G.add_edge(parent_node_id, new_node_id, label="exec", constraint="false")
 
     return G
