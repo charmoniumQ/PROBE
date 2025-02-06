@@ -1,3 +1,12 @@
+https://www.benchcouncil.org/benchmarks.html#hpcai
+
+- BOINC
+  - https://en.wikipedia.org/wiki/Folding%40home
+  - https://www.boincstats.com/page/projectPopularity
+  - https://easyperf.net/blog/2019/08/02/Perf-measurement-environment-on-Linux
+  - https://boinc.berkeley.edu/chart_list.php
+
+
 - Matenvo
 - https://openbenchmarking.org/suites
 - https://en.wikipedia.org/wiki/Berkeley_Open_Infrastructure_for_Network_Computing

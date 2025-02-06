@@ -189,7 +189,9 @@ fn store_or_apply_stored_config(config_path: &std::path::PathBuf) -> Result<()> 
             .read(true)
             .open(config_path)
             .stack()?;
-        let orig_config: sys_config::SysConfig = serde_json::from_reader(file).stack().context(anyhow!("Config {:?} is invalid; consider removing", config_path))?;
+        let orig_config: sys_config::SysConfig = serde_json::from_reader(file).stack().context(
+            anyhow!("Config {:?} is invalid; consider removing", config_path),
+        )?;
         // Reset to this known state.
         // If the rest of it crashes terrbily, at least we reset yours system to the state specified by the file.
         orig_config.set().stack()?;

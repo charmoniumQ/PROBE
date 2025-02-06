@@ -23,7 +23,10 @@
           propagatedBuildInputs = [
             # Client for Systemd (systemctl and systemd-run)
             pkgs.systemdMinimal
+            pkgs.audit.bin
           ];
+          NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
+          NIX_AUDIT_PATH = pkgs.audit.bin;
         });
         python = pkgs.python312;
         noPytest = pypkg:
@@ -223,7 +226,6 @@
           bubblewrap = pkgs.bubblewrap;
           util-linux = pkgs.util-linux.bin;
           cpuset = pkgs.cpuset;
-          systemd = pkgs.systemdMinimal.out;
           libfaketime = pkgs.libfaketime;
           kaggle-notebook-env = pkgs.symlinkJoin {
             name = "kaggle-notebook-env";
@@ -628,6 +630,13 @@
             shift
             cat "$file" | "$@"
           '';
+          repeat = pkgs.writeShellScriptBin "repeat" ''
+            n="$1"
+            shift
+            for i in $(${coreutils}/bin/seq "$n"); do
+              "$@"
+            done
+          '';
           echo-pipe = pkgs.writeShellScriptBin "echo-pipe" ''
             input="$1"
             shift
@@ -995,8 +1004,13 @@
                 pypkgs.matplotlib
                 pypkgs.pandas
                 packages.mandala
+                pypkgs.dbus-next
               ]))
             ];
+            shellHook = ''
+              export NIX_SYSTEMD_PATH=${pkgs.systemdMinimal};
+              export NIX_AUDIT_PATH=${pkgs.audit.bin};
+            '';
           };
         };
       }

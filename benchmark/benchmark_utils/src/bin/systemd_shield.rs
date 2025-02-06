@@ -79,10 +79,10 @@ fn main() -> std::process::ExitCode {
     util::replace_err_with(244, || {
         privs::initially_reduce_privileges().stack()?;
 
-        let systemctl_path = PathBuf::from(SYSTEMCTL_PATH);
+        let systemctl_path = PathBuf::from(NIX_SYSTEMD_PATH.to_owned() + "/bin/systemctl");
         privs::verify_safe_to_run_as_root(&systemctl_path).stack()?;
 
-        let systemd_run_path = PathBuf::from(SYSTEMD_RUN_PATH);
+        let systemd_run_path = PathBuf::from(NIX_SYSTEMD_PATH.to_owned() + "/bin/systemd-run");
         privs::verify_safe_to_run_as_root(&systemd_run_path).stack()?;
 
         let command = Command::parse();
@@ -233,7 +233,7 @@ Description=Slice dedicated to benchmarking programs
 ";
 
     let slice_path = std::path::PathBuf::from("/etc/systemd/system/").join(slice);
-    util::write_to_file(&slice_path, slice_src)
+    util::write_to_file_truncate(&slice_path, slice_src)
         .context(slice.to_string())
         .stack()?;
 
@@ -329,7 +329,4 @@ fn run_in_slice(
         .stack()
 }
 
-const SYSTEMCTL_PATH: &str =
-    "/nix/store/3zykdvv4pvs0k11z0bgc96wfjnjjzm4p-systemd-minimal-256.8/bin/systemctl";
-const SYSTEMD_RUN_PATH: &str =
-    "/nix/store/3zykdvv4pvs0k11z0bgc96wfjnjjzm4p-systemd-minimal-256.8/bin/systemd-run";
+const NIX_SYSTEMD_PATH: &str = env!("NIX_SYSTEMD_PATH");

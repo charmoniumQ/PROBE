@@ -42,7 +42,7 @@ def main(
         warmups: int = 1,
         seed: int = 0,
         rerun: Annotated[bool, typer.Option("--rerun")] = False,
-        verbose: Annotated[bool, typer.Option("--verbose")] = False,
+        quiet: Annotated[bool, typer.Option("--quiet")] = False,
         parquet_output: pathlib.Path = pathlib.Path("output/iterations.parquet"),
         internal_cache: pathlib.Path = pathlib.Path(".cache/run_experiments.db"),
         machine_info: pathlib.Path = pathlib.Path("output/machine_info.json"),
@@ -60,12 +60,15 @@ def main(
     import sys
     sys.excepthook = sys.__excepthook__
 
+    verbose = not quiet
+
     if verbose:
         util.console.print(f"Finished imports in {(imports - start).total_seconds():.1f}sec")
 
     internal_cache.parent.mkdir(exist_ok=True)
     with Storage(internal_cache) as storage:
         minfo = MachineInfo.create()
+        machine_info.parent.mkdir(exist_ok=True)
         machine_info.write_text(json.dumps({
             str(minfo.machine_id): dataclasses.asdict(minfo)
         }))
@@ -86,10 +89,7 @@ def main(
     if not workload_list:
         raise ValueError("Must select some workloads")
 
-    output = pathlib.Path("output")
-    if output.exists():
-        shutil.rmtree(output)
-    output.mkdir()
+    parquet_output.parent.mkdir(exist_ok=True)
 
     collectors_str = [collector.name for collector in collector_list]
     workloads_str = [workload.labels[0][-1] for workload in workload_list]

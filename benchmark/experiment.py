@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
+import asyncio
 import textwrap
-import subprocess
 import shlex
 import datetime
 import shutil
@@ -11,6 +11,8 @@ import dataclasses
 import pathlib
 import collections
 import itertools
+import dbus_watcher
+import dbus_next
 import util
 from mandala.imports import op, Ignore, Storage  # type: ignore
 import rich.progress
@@ -71,40 +73,40 @@ def run_experiments(
         ):
             if collector.name == "noprovstable" and workload.labels[0][-1] in {"pw-01", "pp-01"}:
                 continue
-            for op in run_experiment_warmups(iteration, collector, workload, total_warmups, machine_id, Ignore(verbose)):
-                record = storage.unwrap(op)
-                storage.commit()
-                records.append(record)
-                df = polars.from_dicts(
-                    [
-                        {
-                            "collector": record.prov_collector,
-                            "workload_group": record.workload_group,
-                            "workload_subgroup": record.workload_subgroup,
-                            "workload_subsubgroup": record.workload_subsubgroup,
-                            "seed": record.seed,
-                            "returncode": record.returncode,
-                            "walltime": record.walltime,
-                            "user_cpu_time": record.user_cpu_time,
-                            "system_cpu_time": record.system_cpu_time,
-                            "max_memory": record.max_memory,
-                            "provenance_size": record.provenance_size,
-                            "n_ops": record.n_ops,
-                            "n_unique_files": record.n_unique_files,
-                            "op_counts": record.op_counts,
-                            "warmup": record.warmups,
-                            "machine_id": record.machine_id,
-                        }
+            op = run_experiment_warmups(iteration, collector, workload, total_warmups, machine_id, Ignore(verbose))
+            t_records = storage.unwrap(op)
+            storage.commit()
+            records.extend(t_records)
+            df = polars.from_dicts(
+                [
+                    {
+                        "collector": record.prov_collector,
+                        "workload_group": record.workload_group,
+                        "workload_subgroup": record.workload_subgroup,
+                        "workload_subsubgroup": record.workload_subsubgroup,
+                        "seed": record.seed,
+                        "returncode": record.returncode,
+                        "walltime": record.walltime,
+                        "user_cpu_time": record.user_cpu_time,
+                        "system_cpu_time": record.system_cpu_time,
+                        "max_memory": record.max_memory,
+                        "provenance_size": record.provenance_size,
+                        "n_ops": record.n_ops,
+                        "n_unique_files": record.n_unique_files,
+                        "op_counts": record.op_counts,
+                        "n_warmups": record.warmups,
+                        "machine_id": record.machine_id,
+                    }
                     for record in records
-                    ],
-                    schema_overrides={
-                        "collector": polars.Categorical,
-                        "workload_group": polars.Categorical,
-                        "workload_subgroup": polars.Categorical,
-                        "workload_subsubgroup": polars.Categorical,
-                    },
-                )
-                util.parquet_safe_columns(df).write_parquet(parquet_output)
+                ],
+                schema_overrides={
+                    "collector": polars.Categorical,
+                    "workload_group": polars.Categorical,
+                    "workload_subgroup": polars.Categorical,
+                    "workload_subsubgroup": polars.Categorical,
+                },
+            )
+            util.parquet_safe_columns(df).write_parquet(parquet_output)
     return df
 
 
@@ -114,14 +116,13 @@ def drop_calls(
         iterations: int,
         collectors: list[ProvCollector],
         workloads: list[Workload],
-        warmups: int,
+        total_warmups: int,
         machine_id: int,
 ) -> None:
     ops = []
     with Storage(internal_cache) as storage:
         ops.extend([
-            run_experiment(seed + iteration, collector, workload, warmup, machine_id, Ignore(False))
-            for warmup in range(warmups)
+            run_experiment_warmups(seed + iteration, collector, workload, total_warmups, machine_id, Ignore(False))
             for collector in collectors
             for workload in workloads
             for iteration in range(iterations)
@@ -164,6 +165,7 @@ class ExperimentStats:
     machine_id: int = 0
 
 
+@op
 def run_experiment_warmups(
     seed: int,
     prov_collector: ProvCollector,
@@ -171,18 +173,19 @@ def run_experiment_warmups(
     total_warmups: int,
     machine_id: int,
     verbose: bool,
-) -> typing.Iterator[ExperimentStats]:
+) -> list[ExperimentStats]:
+    ret = []
     for warmup in range(total_warmups):
-        yield run_experiment(
+        ret.append(run_experiment(
             seed,
             prov_collector,
             workload,
-            verbose,
             warmup,
             machine_id,
-        )
+            verbose,
+        ))
+    return ret
 
-@op
 def run_experiment(
     seed: int,
     prov_collector: ProvCollector,
@@ -288,7 +291,7 @@ def run_experiment(
 
 setuid_benchmark_utils = pathlib.Path().resolve() / "benchmark_utils"
 benchmark_utils = pathlib.Path().resolve() / "benchmark_utils/target/debug"
-def run(
+async def run(
         cmd: list[str],
         work_dir: pathlib.Path,
         tmp_dir: pathlib.Path,
@@ -327,19 +330,35 @@ def run(
     str_command = shlex.join(command)
     if verbose:
         util.console.print(str_command)
-    proc = subprocess.run(
-        command,
-        capture_output=True,
-        cwd=work_dir,
-        env={},
-        check=False,
+
+    suspend_event = dbus_watcher.DbusWatcher(
+        dbus_next.BusType.SYSTEM,
+        "org.freedesktop.login1",
+        "/org/freedesktop/login1",
+        "org.freedesktop.login1.Manager",
+        "prepare_for_sleep",
     )
+
+    async with suspend_event:
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=work_dir,
+            env={},
+            check=False,
+        )
+        stdout, stderr = await proc.communicate()
+        returncode = await proc.wait()
+    if suspend_event.signals:
+        raise RuntimeError("System tried to suspend during benchmarking")
+
     resources = typing.cast(Resources, Resources(**{
         **(json.loads(resource_json.read_text()) if resource_json.exists() else {}),
-        "stdout": proc.stdout,
-        "stderr": proc.stderr,
+        "stdout": stdout,
+        "stderr": stderr,
     }))
-    if proc.returncode != 0:
+    if returncode != 0:
         if not verbose:
             # If verbose, we already printed this.
             # If not verbose, we should do so now.

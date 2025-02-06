@@ -23,7 +23,11 @@ def nix_build(attr: str) -> str:
         )
     else:
         ret = _cached_nix_build(attr, "", None)
-    return mandala.model.Context.current_context.storage.unwrap(ret)
+    ctx = mandala.model.Context.current_context
+    if ctx is None:
+        return ret
+    else:
+        return ctx.storage.unwrap(ret)
 
 
 @op

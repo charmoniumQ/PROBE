@@ -127,11 +127,11 @@ impl SysConfig {
                             cpufreq_scaling_governor: std::fs::read_to_string(
                                 path.join(CPU_FREQ_SCALING_GOVERNOR),
                             )
-                                .ok()
-                                .map(|value| value.trim().parse())
-                                .transpose()
-                                .context(CPU_ONLINE)
-                                .stack()?,
+                            .ok()
+                            .map(|value| value.trim().parse())
+                            .transpose()
+                            .context(CPU_ONLINE)
+                            .stack()?,
                             online: std::fs::read_to_string(path.join(CPU_ONLINE))
                                 .ok()
                                 .map(|value| value.trim().parse())
@@ -159,10 +159,10 @@ impl SysConfig {
                 );
             }
             util::eprintln_error(
-                util::write_to_file(SWAPPINESS, &self.swappiness.to_string()).stack(),
+                util::write_to_sys_file(SWAPPINESS, &self.swappiness.to_string()).stack(),
             );
             util::eprintln_error(
-                util::write_to_file(PERF_EVENT_PARANOID, &self.perf_event_paranoid.to_string())
+                util::write_to_sys_file(PERF_EVENT_PARANOID, &self.perf_event_paranoid.to_string())
                     .stack(),
             );
             // Set online
@@ -171,7 +171,7 @@ impl SysConfig {
                 let cpu_online_path = this_cpu_path.join(CPU_ONLINE);
                 if let Some(state) = cpu_config.online {
                     util::eprintln_error(
-                        util::write_to_file(&cpu_online_path, &state.to_string())
+                        util::write_to_sys_file(&cpu_online_path, &state.to_string())
                             .context(anyhow!("{cpu_online_path:?}"))
                             .stack(),
                     );
@@ -188,7 +188,7 @@ impl SysConfig {
                 if is_cpu_online {
                     if let Some(state) = &cpu_config.cpufreq_scaling_governor {
                         util::eprintln_error(
-                            util::write_to_file(&freq_scaling_path, state)
+                            util::write_to_sys_file(&freq_scaling_path, state)
                                 .context(anyhow!("{freq_scaling_path:?}"))
                                 .stack(),
                         );
@@ -222,8 +222,20 @@ pub fn iter_cpus() -> Result<Vec<(Cpu, std::path::PathBuf)>> {
         .context("Failed while getting dirent paths")
         .stack()?
         .into_iter()
-        .filter(|(_, file_name)| file_name.starts_with("cpu") && file_name.chars().nth(3).is_some_and(|c| c.is_ascii_digit()))
-        .map(|(path, file_name)| Ok((file_name[3..].parse().map_err(Error::from_err).context(file_name).stack()?, path)))
+        .filter(|(_, file_name)| {
+            file_name.starts_with("cpu")
+                && file_name.chars().nth(3).is_some_and(|c| c.is_ascii_digit())
+        })
+        .map(|(path, file_name)| {
+            Ok((
+                file_name[3..]
+                    .parse()
+                    .map_err(Error::from_err)
+                    .context(file_name)
+                    .stack()?,
+                path,
+            ))
+        })
         .collect::<Result<Vec<_>>>()
         .context("Failed while parsing cpu file name to int")
         .stack()
@@ -234,19 +246,19 @@ fn get_smt_sibling_cpus(cpu: Cpu) -> Result<Vec<Cpu>> {
         .join("cpu".to_owned() + &cpu.to_string())
         .join(SMT_SIBLINGS_LIST);
     Ok(std::fs::read_to_string(&path)
-       .context(anyhow!("{path:?}"))
-       .stack()?
-       .split(',')
-       .map(|part| {
-           part.trim()
-               .parse::<Cpu>()
-               .map_err(|_| anyhow!("{} not parsable", part))
-       })
-       .collect::<Result<Vec<Cpu>>>()
-       .stack()?
-       .into_iter()
-       .filter(|sibling_cpu| *sibling_cpu != cpu)
-       .collect())
+        .context(anyhow!("{path:?}"))
+        .stack()?
+        .split(',')
+        .map(|part| {
+            part.trim()
+                .parse::<Cpu>()
+                .map_err(|_| anyhow!("{} not parsable", part))
+        })
+        .collect::<Result<Vec<Cpu>>>()
+        .stack()?
+        .into_iter()
+        .filter(|sibling_cpu| *sibling_cpu != cpu)
+        .collect())
 }
 
 const SWAPPINESS: &str = "/proc/sys/vm/swappiness";
@@ -261,8 +273,8 @@ pub fn reboot_cpu(cpu: Cpu) -> Result<()> {
     let path = std::path::PathBuf::from(CPU_PATH)
         .join("cpu".to_owned() + &cpu.to_string())
         .join(CPU_ONLINE);
-    util::write_to_file(&path, "0").stack()?;
-    util::write_to_file(&path, "1").stack()?;
+    util::write_to_sys_file(&path, "0").stack()?;
+    util::write_to_sys_file(&path, "1").stack()?;
     Ok(())
 }
 

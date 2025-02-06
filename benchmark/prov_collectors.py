@@ -635,31 +635,13 @@ class Sciunit(ProvCollector):
 #         )
 
 
-# class Auditd(ProvCollector):
-
-#     def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-#         raise NotImplementedError(
-#             "I want to trace specific syscalls before continuing"
-#         )
-
-#         # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/security_guide/sec-defining_audit_rules_and_controls
-#         auditctl_rules = ()
-
-#         # Run instead of return this command.  That way, the command
-#         # will complete before we continue to testthe workload.  For
-#         # other auditors, the command would be running _concurrently_
-#         # to the workload.
-#         subprocess.run(
-#             run_all(
-#                 ("auditctl", "-D"),
-#                 ("auditctl", *auditctl_rules),
-#             ),
-#             check=True,
-#             env=env,
-#         )
-
-#     def stop(self, env: Mapping[str, str]) -> None:
-#         subprocess.run(["auditctl", "-D"], check=True, env=env)
+class LinuxAudit(ProvCollector):
+    timeout_multiplier = 1
+    run_cmd = cmd(
+        str(project_root / "benchmark_utils/audit"),
+        prov_log,
+        combine("--directories=/nix/store/,", work_dir),
+    )
 
 
 class Care(ProvCollector):
@@ -756,18 +738,18 @@ class NoProvStable(NoProv):
 
 
 podman_img = "debian:bookworm-20250113-slim"
+podman = shutil.which("podman")
 class Podman(NoProv):
     setup_cmd = cmd(
-        nix_path(".#podman", "/bin/podman"),
+        podman,
         "image",
         "pull",
         podman_img,
     )
     run_cmd = cmd(
-        nix_path(".#podman", "/bin/podman"),
+        podman,
         "run",
         combine("--volume=", work_dir, ":", work_dir),
-        combine("--volume=", prov_dir, ":", prov_dir),
         "--volume=/nix/store:/nix/store:ro",
         "--rm",
         podman_img,
@@ -800,12 +782,13 @@ PROV_COLLECTORS: list[ProvCollector] = [
     Probe(),
     ProbeCopyEager(),
     ProbeCopyLazy(),
+    RustAuditWrapper(),
     # SpadeFuse(),
     # SpadeAuditd(),
     # Darshan(),
     # BPFTrace(),
     NoProvStable(),
-    # Podman(),
+    Podman(),
     # Podman requires newuidmap to be on the $PATH and have setuid.
     # Nix can put newuidmap on the path, but it can't do setuid for you.
     Bubblewrap(),

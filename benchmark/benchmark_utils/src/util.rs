@@ -1,5 +1,5 @@
 use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
-use std::io::{Read, Write};
+use std::io::Write;
 
 pub fn eprintln_error<T>(result: Result<T>) -> Option<T> {
     match result {
@@ -11,43 +11,45 @@ pub fn eprintln_error<T>(result: Result<T>) -> Option<T> {
     }
 }
 
-pub fn write_to_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
+/// This function writes to a file, e.g., sysfs or procs.
+pub fn write_to_sys_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
     path: P,
     content: &str,
 ) -> Result<()> {
     if path.as_ref().exists() {
-        let is_already_written = {
-            let mut file = std::fs::OpenOptions::new()
-                .read(true)
-                .open(path.as_ref())
-                .map_err(Error::from_err)
-                .context(anyhow!("{path:?}"))
-                .stack()?;
-            let mut buffer = vec![0; content.len()];
-            let read_bytes = file
-                .read(&mut buffer[..])
-                .map_err(Error::from_err)
-                .context(anyhow!("{path:?}"))
-                .stack()?;
-            read_bytes == buffer.len() && buffer == content.as_bytes()
-        };
-        if !is_already_written {
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .open(path.as_ref())
-                .map_err(Error::from_err)
-                .context(anyhow!("{path:?}"))
-                .stack()?;
-            file.write_all(content.as_bytes())
-                .map_err(Error::from_err)
-                .context(anyhow!("{path:?}"))
-                .stack()?;
-            //file.sync_all().map_err(Error::from_err).stack()?;
-        }
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(path.as_ref())
+            .map_err(Error::from_err)
+            .context(anyhow!("{path:?}"))
+            .stack()?;
+        file.write_all(content.as_bytes())
+            .map_err(Error::from_err)
+            .context(anyhow!("{path:?}"))
+            .stack()?;
         Ok(())
     } else {
         bail!("File {:?} does not exist", path)
     }
+}
+
+pub fn write_to_file_truncate<P: AsRef<std::path::Path> + std::fmt::Debug>(
+    path: P,
+    content: &str,
+) -> Result<()> {
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path.as_ref())
+        .map_err(Error::from_err)
+        .context(anyhow!("{path:?}"))
+        .stack()?;
+    file.write_all(content.as_bytes())
+        .map_err(Error::from_err)
+        .context(anyhow!("{path:?}"))
+        .stack()?;
+    Ok(())
 }
 
 pub fn check_cmd(cmd: &mut std::process::Command) -> Result<()> {

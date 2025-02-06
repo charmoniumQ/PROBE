@@ -67,12 +67,12 @@ where
 {
     // Escalate user first
     let user = getresuid().map_err(Error::from_err).stack()?;
-    setresuid(user.real, user.saved, user.saved)
+    setresuid(user.saved, user.saved, user.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresuid().map_err(Error::from_err).stack()?
         != (ResUid {
-            real: user.real,
+            real: user.saved,
             effective: user.saved,
             saved: user.saved,
         })
@@ -82,12 +82,12 @@ where
 
     // Esclate group
     let group = getresgid().map_err(Error::from_err).stack()?;
-    setresgid(group.real, group.saved, group.saved)
+    setresgid(group.saved, group.saved, group.saved)
         .map_err(Error::from_err)
         .stack()?;
     if getresgid().map_err(Error::from_err).stack()?
         != (ResGid {
-            real: group.real,
+            real: group.saved,
             effective: group.saved,
             saved: group.saved,
         })
@@ -166,14 +166,34 @@ pub fn permanently_drop_privileges() -> Result<()> {
     Ok(())
 }
 
-pub fn verify_safe_to_run_as_root(path: &std::path::PathBuf) -> Result<()> {
+pub fn verify_safe_to_run_as_root<P: AsRef<std::path::Path> + std::fmt::Debug>(
+    path: P,
+) -> Result<()> {
     use std::os::unix::fs::MetadataExt;
-    if !path.exists() {
+    if !path.as_ref().exists() {
         bail!("{:?} does not exist; try building with Nix?", path);
     }
-    let metadata = std::fs::metadata(path).map_err(Error::from_err).stack()?;
+    let metadata = std::fs::metadata(path.as_ref())
+        .map_err(Error::from_err)
+        .stack()?;
     if metadata.uid() != 0 || metadata.gid() != 0 || metadata.mode() & 0o002 != 0 {
-        bail!("We will run {:?} as root, so it should be owned by root, root-group, and not world-writable", path);
+        bail!("We will run {:?} as root, so it should be owned by root, root-group, and not world-writable", path.as_ref());
+    }
+    Ok(())
+}
+
+pub fn verify_confidential_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
+    path: P,
+) -> Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    if !path.as_ref().exists() {
+        bail!("{:?} does not exist; try building with Nix?", path);
+    }
+    let metadata = std::fs::metadata(path.as_ref())
+        .map_err(Error::from_err)
+        .stack()?;
+    if metadata.uid() != 0 || metadata.gid() != 0 || metadata.mode() & 0o002 != 0 {
+        bail!("We will run {:?} as root, so it should be owned by root, root-group, and not world-writable", path.as_ref());
     }
     Ok(())
 }

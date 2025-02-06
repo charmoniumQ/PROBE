@@ -65,6 +65,7 @@ make = nix_path(".#gnumake", "/bin/make")
 mkdir = nix_path(".#coreutils", "/bin/mkdir")
 work_dir = var("work_dir")
 blast_dir = nix(".#blast-benchmark")
+repeat = nix_path(".#repeat", "/bin/repeat")
 user = pwd.getpwuid(os.getuid()).pw_name
 group = grp.getgrgid(os.getgid()).gr_name
 bin_repetitions = 50000
@@ -97,7 +98,7 @@ def lmbench_workload(
         bin_name: str,
         args: tuple[str | command.Combo | command.Variable | command.NixAttr, ...],
         create_file_size: int | None = None,
-        enough: int = 1000000,
+        enough: int = 3000000,
 ) -> Workload:
     return Workload(
         (("microbench", "lmbench", workload_name), ("sys", type)),
@@ -120,14 +121,10 @@ def lmbench_workload(
     )
 
 
-def repeat(n: int, shell_script: str) -> str:
-    return f"for i in $(seq {n}); do {shell_script}; done"
-
-
 http_port = 49284
 
 
-http_n_requests = 200000
+http_n_requests = 2000000
 
 
 http_size = 4096
@@ -189,51 +186,43 @@ workloads = [
     Workload(
         (("bench", "utils", "hello"), ("sys", "proc")),
         cmd(
-            env,
-            nix_env_path([".#hello", ".#coreutils"]),
-            *bash,
-            "-c",
-            repeat(bin_repetitions // 5, "hello"),
+            repeat,
+            str(bin_repetitions),
+            nix_path(".#hello", "/bin/hello"),
         ),
     ),
     Workload(
         (("bench", "utils", "ls"), ("sys", "proc")),
         cmd(
-            env,
-            nix_env_path([".#coreutils"]),
-            *bash,
-            "-c",
-            repeat(bin_repetitions // 10, "ls"),
+            repeat,
+            str(bin_repetitions // 10),
+            nix_path(".#coreutils", "/bin/ls"),
         ),
     ),
     Workload(
         (("bench", "utils", "true"), ("sys", "proc")),
         cmd(
-            env,
-            nix_env_path([".#coreutils"]),
-            *bash,
-            "-c",
-            repeat(bin_repetitions * 10, "true"),
+            repeat,
+            str(bin_repetitions * 10),
+            nix_path(".#coreutils", "/bin/true")
         ),
     ),
     Workload(
         (("bench", "utils", "small-hello"), ("sys", "proc")),
         cmd(
-            env,
-            nix_env_path([".#coreutils", ".#small-hello"]),
-            *bash,
-            "-c",
-            repeat(bin_repetitions // 10, "small-hello"),
+            repeat,
+            str(bin_repetitions // 10),
+            nix_path(".#small-hello", "/bin/small-hello"),
         ),
     ),
     Workload(
         (("bench", "utils", "python noop"), ("sys", "proc")),
         cmd(
-            env,
-            nix_env_path([".#coreutils", ".#kaggle-notebook-env"]),
-            *bash,
+            repeat,
+            str(bin_repetitions // 10),
+            nix_path(".#kaggle-notebook-env", "/bin/python"),
             "-c",
-            repeat(bin_repetitions // 10, "python -c ''"),
+            "",
         ),
     ),
     Workload(
@@ -388,6 +377,8 @@ workloads = [
     Workload(
         (("app", "data-sci", "hdbscan"), ("cse", "ml")),
         cmd(
+            env,
+            combine("HOME=", work_dir),
             nix_path(".#kaggle-notebook-env", "/bin/python"),
             nix_path(".#data-science", "/hdbscan_plot_cluster_comparison.py"),
         ),
@@ -505,12 +496,11 @@ workloads = [
     Workload(
         (("bench", "splash3", "cholesky"), ("bench", "cpu")),
         cmd(
-            env,
-            nix_env_path([".#coreutils"]),
-            combine("SPLASH=", nix(".#splash3")),
-            *bash,
-            "-c",
-            repeat(100, "$SPLASH/bin/CHOLESKY < $SPLASH/inputs/cholesky/tk15.O"),
+            repeat,
+            "100",
+            nix_path(".#echo-pipe", "/bin/echo-pipe"),
+            nix_path(".#splash3", "/inputs/cholesky/tk15.O"),
+            nix_path(".#splash3", "/bin/CHOLESKY"),
         ),
     ),
     Workload(
@@ -553,13 +543,13 @@ workloads = [
             nix_env_path([".#coreutils"]),
             *bash,
             "-c",
-            repeat(100000, "cd $OUTPUT/test0; true; cd $OUTPUT/test1"),
+            "for i in $(seq 100000); do cd $OUTPUT/test0; true; cd $OUTPUT/test1; done",
         ),
         cmd(
             mkdir,
             combine(var("work_dir"), "/test0"),
             combine(var("work_dir"), "/test1"),
-        )
+        ),
     ),
     Workload(
         (("bench", "tar", "tar-linux"), ("bench", "io")),
@@ -574,12 +564,22 @@ workloads = [
     Workload(
         (("bench", "tar", "untar-linux"), ("bench", "io")),
         cmd(
+            repeat,
+            "100",
             nix_path(".#gnutar", "/bin/tar"),
             combine("--directory=", var("work_dir")),
             "--extract",
             combine("--file=", nix(".#linux-src-tar")),
         ),
     ),
+    Workload(
+        (("test", "test", "failing",), ("a", "b")),
+        cmd(
+            *bash,
+            "-c",
+            "false",
+        ),
+    )
 ]
 
 
@@ -615,6 +615,7 @@ WORKLOAD_GROUPS = {
                 "blastx", # ditto
                 "blastp",
                 "blastn",
+                "tblastn",
         }
     ],
 }
