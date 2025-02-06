@@ -2,9 +2,11 @@
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.nixos-q-chem.url = "github:Nix-QChem/NixOS-QChem";
   inputs.crane.url = "github:ipetkov/crane";
+  inputs.nixpkgs2.url = "nixpkgs/nixos-unstable";
   outputs = {
     self,
     nixpkgs,
+    nixpkgs2,
     flake-utils,
     nixos-q-chem,
     crane,
@@ -24,13 +26,13 @@
             # Client for Systemd (systemctl and systemd-run)
             pkgs.systemdMinimalbin
             pkgs.audit.bin
-            pkgs.bpftrace
+            nixpkgs2.legacyPackages.${system}.bpftrace
             pkgs.util-linux.bin
           ];
           NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
           NIX_AUDIT_PATH = pkgs.audit.bin;
           NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
-          NIX_BPFTRACE_PATH = pkgs.bpftrace;
+          NIX_BPFTRACE_PATH = nixpkgs2.legacyPackages.${system}.bpftrace;
         });
         python = pkgs.python312;
         noPytest = pypkg:
@@ -1015,7 +1017,7 @@
               export NIX_SYSTEMD_PATH=${pkgs.systemdMinimal};
               export NIX_AUDIT_PATH=${pkgs.audit.bin};
               export NIX_UTIL_LINUX_PATH=${pkgs.util-linux.bin};
-              export NIX_BPFTRACE_PATH=${pkgs.bpftrace};
+              export NIX_BPFTRACE_PATH=${nixpkgs2.legacyPackages.${system}.bpftrace};
             '';
           };
         };

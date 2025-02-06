@@ -47,7 +47,7 @@ fn main() -> std::process::ExitCode {
 
         util::write_to_file_truncate(&command.log_file, "").stack()?;
 
-        let bpftrace_proc = privs::with_escalated_privileges(|| {
+        let mut bpftrace_proc = privs::with_escalated_privileges(|| {
             let bpftrace_file = tmp_dir.path().to_owned().join("log");
 
             util::write_to_file_truncate(&bpftrace_file, BPFTRACE_SOURCE).stack()?;
@@ -55,22 +55,37 @@ fn main() -> std::process::ExitCode {
             let mut bpftrace_cmd = std::process::Command::new(bpftrace);
             bpftrace_cmd.args([
                 "-B".into(),
-                "full".into(),
+                "line".into(),
                 "-f".into(),
-                "json".into(),
+                "json".into(), /* TODO: For some reason, text doesn't work */
+                // "-d".into(),
+                // "all".into(),
+                "-p".into(),
+                (&cmd_proc.id().to_string()).into(),
                 "-o".into(),
                 Into::<std::ffi::OsString>::into(&command.log_file),
                 Into::<std::ffi::OsString>::into(&bpftrace_file),
                 (&cmd_proc.id().to_string()).into(),
             ]);
-            let bpftrace_proc = bpftrace_cmd.spawn().map_err(Error::from_err).stack()?;
+            // Adding some extra because JSON takes up some space
+            bpftrace_cmd.env("BPFTRACE_MAX_STRLEN", (100 + libc::PATH_MAX).to_string());
+            let mut bpftrace_proc = bpftrace_cmd.spawn().map_err(Error::from_err).stack()?;
 
-            while std::fs::read_to_string(&command.log_file)
+            let mut counter = 0;
+            let counter_max = 1_000_000;
+            while !std::fs::read_to_string(&command.log_file)
                 .map_err(Error::from_err)
                 .stack()?
                 .contains("launch_pid")
             {
                 nix::sched::sched_yield().map_err(Error::from_err).stack()?;
+                if counter > counter_max {
+                    bail!("bpftrace not launched within {counter_max}");
+                }
+                if let Some(status) = bpftrace_proc.try_wait().map_err(Error::from_err).stack()? {
+                    bail!("bpftrace exited unexpectedly with {:?}", status);
+                }
+                counter += 1;
             }
 
             Ok(bpftrace_proc)
@@ -82,9 +97,10 @@ fn main() -> std::process::ExitCode {
         while !std::fs::read_to_string(format!("/proc/{signed_pid}/wchan"))
             .map_err(Error::from_err)
             .stack()?
-            .starts_with("do_signal_stop") {
-                nix::sched::sched_yield().map_err(Error::from_err).stack()?;
-            }
+            .starts_with("do_signal_stop")
+        {
+            nix::sched::sched_yield().map_err(Error::from_err).stack()?;
+        }
         nix::sys::signal::kill(
             nix::unistd::Pid::from_raw(signed_pid),
             nix::sys::signal::Signal::SIGCONT,
@@ -94,18 +110,7 @@ fn main() -> std::process::ExitCode {
 
         let cmd_status = cmd_proc.wait().map_err(Error::from_err).stack();
 
-        privs::with_escalated_privileges(|| {
-            #[allow(clippy::cast_possible_wrap)]
-            let signed_pid = bpftrace_proc.id() as i32;
-            nix::sys::signal::kill(
-                nix::unistd::Pid::from_raw(signed_pid),
-                nix::sys::signal::Signal::SIGTERM,
-            )
-            .map_err(Error::from_err)
-            .stack()?;
-            Ok(())
-        })
-        .stack()?;
+        bpftrace_proc.wait().map_err(Error::from_err).stack()?;
 
         privs::permanently_drop_privileges().stack()?;
 

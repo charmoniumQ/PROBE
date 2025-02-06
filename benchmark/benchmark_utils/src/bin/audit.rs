@@ -133,11 +133,14 @@ where
             println!("NOT writing log events to log_file; instead, they will show up on stderr. This is how --debug works.");
             auditd_cmd.arg("-f");
         }
-        let auditd_proc = auditd_cmd.spawn().stack()?;
+        let mut auditd_proc = auditd_cmd.spawn().stack()?;
 
         while !is_auditd_running(&auditctl).stack()? {
             if debug {
                 println!("auditd is not running yet; looping.");
+            }
+            if let Some(status) = auditd_proc.try_wait().map_err(Error::from_err).stack()? {
+                bail!("Auditd unexpectedly exited with {status:?}");
             }
             nix::sched::sched_yield().map_err(Error::from_err).stack()?;
         }

@@ -1,7 +1,7 @@
 /*
  * Run me with:
  *
- *     sudo env - BPFTRACE_STRLEN=200 result/bin/bpftrace prov.bt $pid
+ *     sudo env - result/bin/bpftrace prov.bt -p $pid $pid
  *
  * where $pid is the process you want to trace.
  */
@@ -11,6 +11,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 BEGIN {
+  if ($1 == 0) {
+    printf("Please provide an argument of the pid to trace\n");
+    exit();
+  }
   @pids[$1] = 1;
   @main_pid[$1] = 1;
   printf("%d %d %d launch_pid %d\n", pid, tid, nsecs, $1);
