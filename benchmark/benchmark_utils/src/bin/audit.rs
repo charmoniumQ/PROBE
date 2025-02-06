@@ -1,11 +1,11 @@
 use benchmark_utils::{privs, util};
 use clap::Parser;
-use stacked_errors::{anyhow, Error, Result, StackableErr, bail};
+use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
 
 #[derive(Parser, Debug)]
 #[command(
     version = "0.1.0",
-    about = "Limits total CPU time and memory usage of a process"
+    about = "Temporarily turns on auditd to observe the running of command"
 )]
 struct Command {
     /// Soft limit on CPU seconds.

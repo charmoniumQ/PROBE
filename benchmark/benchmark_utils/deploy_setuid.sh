@@ -13,7 +13,7 @@ if [ -z "$run" ]; then
     echo "cd $PWD"
 fi
 
-setuid_bins="stabilize systemd_shield audit"
+setuid_bins="stabilize systemd_shield audit ebpf_trace_prov"
 for setuid_bin in $setuid_bins; do
     # I solemnly swear that $setuid_bin does not contain a space, dollar, quote, or other weird character.
     # In exchange, I won't need to put apostrophes around '$setuid_bin'.

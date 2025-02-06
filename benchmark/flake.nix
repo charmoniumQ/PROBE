@@ -22,11 +22,15 @@
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
           propagatedBuildInputs = [
             # Client for Systemd (systemctl and systemd-run)
-            pkgs.systemdMinimal
+            pkgs.systemdMinimalbin
             pkgs.audit.bin
+            pkgs.bpftrace
+            pkgs.util-linux.bin
           ];
           NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
           NIX_AUDIT_PATH = pkgs.audit.bin;
+          NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
+          NIX_BPFTRACE_PATH = pkgs.bpftrace;
         });
         python = pkgs.python312;
         noPytest = pypkg:
@@ -1010,6 +1014,8 @@
             shellHook = ''
               export NIX_SYSTEMD_PATH=${pkgs.systemdMinimal};
               export NIX_AUDIT_PATH=${pkgs.audit.bin};
+              export NIX_UTIL_LINUX_PATH=${pkgs.util-linux.bin};
+              export NIX_BPFTRACE_PATH=${pkgs.bpftrace};
             '';
           };
         };
