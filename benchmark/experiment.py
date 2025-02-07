@@ -174,19 +174,51 @@ def run_experiment_warmups(
     machine_id: int,
     verbose: bool,
 ) -> list[ExperimentStats]:
-    ret = []
-    for warmup in range(total_warmups):
-        ret.append(run_experiment(
-            seed,
-            prov_collector,
-            workload,
-            warmup,
-            machine_id,
-            verbose,
-        ))
-    return ret
+    return asyncio.run(async_run_experiment_warmups(
+        seed,
+        prov_collector,
+        workload,
+        total_warmups,
+        machine_id,
+        verbose,
+    ))
 
-def run_experiment(
+
+async def async_run_experiment_warmups(
+    seed: int,
+    prov_collector: ProvCollector,
+    workload: Workload,
+    total_warmups: int,
+    machine_id: int,
+    verbose: bool,
+) -> list[ExperimentStats]:
+    # If ACPI suspend detected during any run, we should redo all.
+    # We use async so we can listen to acpi events while the process is running
+    while True:
+        suspend_event = dbus_watcher.DbusWatcher(
+            dbus_next.BusType.SYSTEM,
+            "org.freedesktop.login1",
+            "/org/freedesktop/login1",
+            "org.freedesktop.login1.Manager",
+            "prepare_for_sleep",
+        )
+        async with suspend_event:
+            ret = []
+            for warmup in range(total_warmups):
+                ret.append(await run_experiment(
+                    seed,
+                    prov_collector,
+                    workload,
+                    warmup,
+                    machine_id,
+                    verbose,
+                ))
+        if suspend_event.signals:
+            util.console.print("[yellow]System suspended during benchmarking; re-doing")
+        else:
+            return ret
+
+async def run_experiment(
     seed: int,
     prov_collector: ProvCollector,
     workload: Workload,
@@ -194,6 +226,11 @@ def run_experiment(
     machine_id: int,
     verbose: bool,
 ) -> ExperimentStats:
+    # 1. Setup collector
+    # 2. setup benchmark
+    # 3. prov collect benchmark
+    # 4. teardown benchmark
+    # 5. teardown collector
     if verbose:
         util.console.rule(f"{prov_collector.name} {workload.labels[0][-1]}")
 
@@ -230,7 +267,7 @@ def run_experiment(
         "prov_dir": str(prov_dir),
     }
 
-    proc = run(
+    proc = await run(
         prov_collector.setup_cmd.expand(context),
         work_dir,
         tmp_dir,
@@ -240,7 +277,7 @@ def run_experiment(
     if proc.returncode != 0:
         return stats
 
-    proc = run(
+    proc = await run(
         workload.setup_cmd.expand(context),
         work_dir,
         tmp_dir,
@@ -251,7 +288,7 @@ def run_experiment(
         return stats
 
     workload_cmd = workload.cmd.expand(context)
-    workload_proc = run(
+    workload_proc = await run(
         prov_collector.run_cmd.expand(context) + workload_cmd,
         work_dir,
         tmp_dir,
@@ -261,7 +298,7 @@ def run_experiment(
         clear_cache=warmups == 0,
     )
 
-    proc = run(
+    proc = await run(
         prov_collector.teardown_cmd.expand(context),
         work_dir,
         tmp_dir,
@@ -331,27 +368,15 @@ async def run(
     if verbose:
         util.console.print(str_command)
 
-    suspend_event = dbus_watcher.DbusWatcher(
-        dbus_next.BusType.SYSTEM,
-        "org.freedesktop.login1",
-        "/org/freedesktop/login1",
-        "org.freedesktop.login1.Manager",
-        "prepare_for_sleep",
+    proc = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=work_dir,
+        env={},
     )
-
-    async with suspend_event:
-        proc = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=work_dir,
-            env={},
-            check=False,
-        )
-        stdout, stderr = await proc.communicate()
-        returncode = await proc.wait()
-    if suspend_event.signals:
-        raise RuntimeError("System tried to suspend during benchmarking")
+    stdout, stderr = await proc.communicate()
+    returncode = await proc.wait()
 
     resources = typing.cast(Resources, Resources(**{
         **(json.loads(resource_json.read_text()) if resource_json.exists() else {}),

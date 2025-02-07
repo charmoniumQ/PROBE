@@ -1,6 +1,8 @@
+import abc
 import dataclasses
 import warnings
 import subprocess
+import shutil
 import os
 import yaml
 import re
@@ -20,6 +22,7 @@ prov_log = combine(var("prov_dir"), "/log")
 work_dir = var("work_dir")
 env = nix_path(".#coreutils", "/bin/env")
 common_parent = var("common_parent")
+benchmark_root = pathlib.Path(__name__).resolve().parent
 
 
 @dataclasses.dataclass(frozen=True)
@@ -34,11 +37,22 @@ class ProvCollector:
     @property
     def name(self) -> str:
         return self.__class__.__name__.lower()
-    timeout_multiplier: float = 10
-    requires_empty_dir: bool
-    run_cmd: command.Command = cmd()
-    setup_cmd: command.Command = cmd()
-    teardown_cmd: command.Command = cmd()
+
+    @property
+    def timeout_multiplier(self) -> float:
+        return 10
+
+    @property
+    def run_cmd(self) -> command.Command:
+        return cmd()
+
+    @property
+    def setup_cmd(self) -> command.Command:
+        return cmd()
+
+    @property
+    def teardown_cmd(self) -> command.Command:
+        return cmd()
 
     def count(self, prov_dir: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
         return ()
@@ -638,7 +652,7 @@ class Sciunit(ProvCollector):
 class LinuxAudit(ProvCollector):
     timeout_multiplier = 1
     run_cmd = cmd(
-        str(project_root / "benchmark_utils/audit"),
+        str(benchmark_root / "benchmark_utils/audit"),
         prov_log,
         combine("--directories=/nix/store/,", work_dir),
     )
@@ -740,20 +754,31 @@ class NoProvStable(NoProv):
 podman_img = "debian:bookworm-20250113-slim"
 podman = shutil.which("podman")
 class Podman(NoProv):
-    setup_cmd = cmd(
-        podman,
-        "image",
-        "pull",
-        podman_img,
-    )
-    run_cmd = cmd(
-        podman,
-        "run",
-        combine("--volume=", work_dir, ":", work_dir),
-        "--volume=/nix/store:/nix/store:ro",
-        "--rm",
-        podman_img,
-    )
+    @property
+    def setup_cmd(self) -> command.Command:
+        if podman:
+            return cmd(
+                podman,
+                "image",
+                "pull",
+                podman_img,
+            )
+        else:
+            raise RuntimeError("Podman does not exist on this system. Remove from benchmark set")
+
+    @property
+    def run_cmd(self) -> command.Command:
+        if podman:
+            return cmd(
+                podman,
+                "run",
+                combine("--volume=", work_dir, ":", work_dir),
+                "--volume=/nix/store:/nix/store:ro",
+                "--rm",
+                podman_img,
+            )
+        else:
+            raise RuntimeError("Podman does not exist on this system. Remove from benchmark set")
 
 
 class Bubblewrap(NoProv):
@@ -782,13 +807,13 @@ PROV_COLLECTORS: list[ProvCollector] = [
     Probe(),
     ProbeCopyEager(),
     ProbeCopyLazy(),
-    RustAuditWrapper(),
+    LinuxAudit(),
     # SpadeFuse(),
     # SpadeAuditd(),
     # Darshan(),
     # BPFTrace(),
     NoProvStable(),
-    Podman(),
+    *([Podman()] if podman else []),
     # Podman requires newuidmap to be on the $PATH and have setuid.
     # Nix can put newuidmap on the path, but it can't do setuid for you.
     Bubblewrap(),

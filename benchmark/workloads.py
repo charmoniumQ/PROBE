@@ -68,7 +68,7 @@ blast_dir = nix(".#blast-benchmark")
 repeat = nix_path(".#repeat", "/bin/repeat")
 user = pwd.getpwuid(os.getuid()).pw_name
 group = grp.getgrgid(os.getgid()).gr_name
-bin_repetitions = 50000
+bin_repetitions = 1000
 
 
 def kaggle_workload(
@@ -187,7 +187,7 @@ workloads = [
         (("bench", "utils", "hello"), ("sys", "proc")),
         cmd(
             repeat,
-            str(bin_repetitions),
+            str(bin_repetitions * 30),
             nix_path(".#hello", "/bin/hello"),
         ),
     ),
@@ -195,7 +195,7 @@ workloads = [
         (("bench", "utils", "ls"), ("sys", "proc")),
         cmd(
             repeat,
-            str(bin_repetitions // 10),
+            str(bin_repetitions * 20),
             nix_path(".#coreutils", "/bin/ls"),
         ),
     ),
@@ -203,7 +203,7 @@ workloads = [
         (("bench", "utils", "true"), ("sys", "proc")),
         cmd(
             repeat,
-            str(bin_repetitions * 10),
+            str(bin_repetitions * 20),
             nix_path(".#coreutils", "/bin/true")
         ),
     ),
@@ -211,7 +211,7 @@ workloads = [
         (("bench", "utils", "small-hello"), ("sys", "proc")),
         cmd(
             repeat,
-            str(bin_repetitions // 10),
+            str(bin_repetitions * 100),
             nix_path(".#small-hello", "/bin/small-hello"),
         ),
     ),
@@ -219,8 +219,18 @@ workloads = [
         (("bench", "utils", "python noop"), ("sys", "proc")),
         cmd(
             repeat,
-            str(bin_repetitions // 10),
+            str(bin_repetitions // 2),
             nix_path(".#kaggle-notebook-env", "/bin/python"),
+            "-c",
+            "",
+        ),
+    ),
+    Workload(
+        (("bench", "utils", "bash noop"), ("sys", "proc")),
+        cmd(
+            repeat,
+            str(bin_repetitions * 20),
+            nix_path(".#bash", "/bin/bash"),
             "-c",
             "",
         ),
@@ -497,8 +507,8 @@ workloads = [
         (("bench", "splash3", "cholesky"), ("bench", "cpu")),
         cmd(
             repeat,
-            "100",
-            nix_path(".#echo-pipe", "/bin/echo-pipe"),
+            "300",
+            nix_path(".#uncat", "/bin/uncat"),
             nix_path(".#splash3", "/inputs/cholesky/tk15.O"),
             nix_path(".#splash3", "/bin/CHOLESKY"),
         ),
@@ -554,7 +564,7 @@ workloads = [
     Workload(
         (("bench", "tar", "tar-linux"), ("bench", "io")),
         cmd(
-            nix_path(".#gnutar", "/bin/tar"),
+            nix_path(".#un-archive-env", "/bin/tar"),
             "--create",
             combine("--file=", var("work_dir"), "/test.tar"),
             combine("--directory=", nix(".#linux-src")),
@@ -565,8 +575,8 @@ workloads = [
         (("bench", "tar", "untar-linux"), ("bench", "io")),
         cmd(
             repeat,
-            "100",
-            nix_path(".#gnutar", "/bin/tar"),
+            "1000",
+            nix_path(".#un-archive-env", "/bin/tar"),
             combine("--directory=", var("work_dir")),
             "--extract",
             combine("--file=", nix(".#linux-src-tar")),

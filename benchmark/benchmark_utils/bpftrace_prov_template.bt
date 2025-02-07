@@ -1,0 +1,11 @@
+tracepoint:syscalls:sys_exit_@syscall
+{
+  $task = (struct task_struct *)curtask;
+  if (@tracked_pids[$task->real_parent->pid]) {
+    // This could be the first syscall
+    @tracked_pids[pid] = 1;
+  }
+  if (@tracked_pids[pid]) {
+    printf("%d,%d,%d,%d,%d,%d\n", pid, tid, nsecs, __syscall_nr, errno, args.ret);
+  }
+}

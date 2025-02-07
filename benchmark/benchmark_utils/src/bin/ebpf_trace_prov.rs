@@ -1,5 +1,6 @@
 use benchmark_utils::{privs, util};
 use clap::Parser;
+use serde::Deserialize;
 use stacked_errors::{anyhow, bail, Error, StackableErr};
 
 #[derive(Parser, Debug)]
@@ -50,7 +51,8 @@ fn main() -> std::process::ExitCode {
         let mut bpftrace_proc = privs::with_escalated_privileges(|| {
             let bpftrace_file = tmp_dir.path().to_owned().join("log");
 
-            util::write_to_file_truncate(&bpftrace_file, BPFTRACE_SOURCE).stack()?;
+            let bpftrace_source = create_bpftrace_source();
+            util::write_to_file_truncate(&bpftrace_file, &bpftrace_source).stack()?;
 
             let mut bpftrace_cmd = std::process::Command::new(bpftrace);
             bpftrace_cmd.args([
@@ -120,3 +122,112 @@ fn main() -> std::process::ExitCode {
 
 const NIX_BPFTRACE_PATH: &str = env!("NIX_BPFTRACE_PATH");
 const BPFTRACE_SOURCE: &str = include_str!("../../bpftrace_prov.bt");
+const SYSCALL_INFOS: &str = include_str!("../../syscalls.yaml");
+
+#[derive(Deserialize)]
+struct SyscallInfo {
+    name: String,
+    args: Vec<SyscallArgs>,
+}
+
+#[derive(Deserialize)]
+struct SyscallArgs {
+    name: String,
+    #[serde(rename = "type")]
+    type_: SyscallType,
+}
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SyscallType {
+    Literal(String),
+    Struct(Vec<StructMember>),
+}
+#[derive(Deserialize)]
+struct StructMember {
+    name: String,
+    #[serde(rename = "type")]
+    type_: String,
+}
+
+fn create_bpftrace_source() -> String {
+    let syscall_infos: Vec<SyscallInfo> = serde_yaml::from_str(SYSCALL_INFOS).unwrap();
+    std::iter::once(BPFTRACE_SOURCE.to_owned())
+        .chain(
+            syscall_infos
+                .iter()
+                .flat_map(|s| create_enter_hook(s).into_iter()),
+        )
+        .collect::<Vec<String>>()
+        .into_iter()
+        .chain(create_exit_hooks(&syscall_infos))
+        .collect()
+}
+
+fn create_enter_hook(syscall_info: &SyscallInfo) -> Vec<String> {
+    [
+        "tracepoint:syscalls:sys_enter_".to_owned(),
+        syscall_info.name.clone(),
+        "\n{\n".to_owned(),
+        "  if (@track_pids[pid]) {\n".to_owned(),
+        "    printf(\"%d,%d,%d,syscall_enter,%d".to_owned(),
+    ]
+    .into_iter()
+    .chain(syscall_info.args.iter().map(|arg| {
+        match &arg.type_ {
+            SyscallType::Literal(type_) => ",".to_owned() + printf_code(type_),
+            SyscallType::Struct(struct_members) => struct_members
+                .iter()
+                .map(|member| ",".to_owned() + printf_code(&member.type_))
+                .collect(),
+        }
+    }))
+    .chain(["\\n\", pid, tid, nsecs, args->__syscall_nr".to_owned()])
+    .chain(syscall_info.args.iter().map(|arg| {
+        match &arg.type_ {
+            SyscallType::Literal(type_) => {
+                if type_ == "char*" {
+                    format!(", str(args->{})", arg.name).to_owned()
+                } else {
+                    format!(", args->{}", arg.name).to_owned()
+                }
+            }
+            SyscallType::Struct(struct_members) => struct_members
+                .iter()
+                .map(|member| {
+                    if member.type_ == "char*" {
+                        format!(", str(args->{}->{})", arg.name, member.name).to_owned()
+                    } else {
+                        format!(", args->{}->{}", arg.name, member.name).to_owned()
+                    }
+                })
+                .collect(),
+        }
+    }))
+    .chain([
+        ");\n".to_owned(),
+         "  }\n".to_owned(),
+        "}\n\n\n".to_owned(),
+    ])
+    .collect()
+}
+
+fn create_exit_hooks(syscall_infos: &[SyscallInfo]) -> Vec<String> {
+    syscall_infos.iter().map(|syscall_info| format!("tracepoint:syscalls:sys_exit_{},\n", syscall_info.name)).chain([
+        "\n{\n".to_owned(),
+        "  if (@track_pids[pid]) {\n".to_owned(),
+        "    printf(\"%d,%d,%d,syscall_exit,%d,%d\\n\", pid, tid, nsecs, args->__syscall_nr, args->ret);\n".to_owned(),
+        "  }\n".to_owned(),
+        "}\n\n\n".to_owned(),
+    ]).collect()
+}
+
+fn printf_code(type_: &str) -> &str {
+    match type_ {
+        "int" => "%d",
+        "unsigned int" => "%u",
+        "u64" => "%lu",
+        "char*" => "%s",
+        "mode_t" => "%03o",
+        _ => panic!("{type_} is not defined"),
+    }
+}

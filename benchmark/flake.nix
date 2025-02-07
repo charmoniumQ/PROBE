@@ -634,7 +634,7 @@
           uncat = pkgs.writeShellScriptBin "uncat" ''
             file="$1"
             shift
-            cat "$file" | "$@"
+            ${coreutils}/bin/cat "$file" | "$@"
           '';
           repeat = pkgs.writeShellScriptBin "repeat" ''
             n="$1"
@@ -913,7 +913,6 @@
             url = "https://github.com/torvalds/linux/archive/refs/tags/v6.13-rc7.tar.gz";
             hash = "sha256-LuSbD9fZtVbdImyjiCsMCx9ftb0p9gQOYobZrxD5ZvA=";
           };
-          gnutar = pkgs.gnutar;
           quantum-espresso-scripts = pkgs.stdenv.mkDerivation {
             name = "quantum-espresso-scripts";
             src = ./quantum-espresso;

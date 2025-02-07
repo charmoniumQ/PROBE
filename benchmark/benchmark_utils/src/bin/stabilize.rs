@@ -89,9 +89,7 @@ fn main() -> std::process::ExitCode {
 
             // Dropping cache should be close to the end.
             if command.drop_file_cache {
-                // privs::with_propagated_escalated_privileges(||
                 drop_file_cache().stack()?;
-                // )?;
             }
 
             // Rebooting the CPU forces kernel threads to move to another core, at least temporarily

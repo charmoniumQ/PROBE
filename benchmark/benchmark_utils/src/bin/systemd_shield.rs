@@ -104,6 +104,11 @@ fn main() -> std::process::ExitCode {
         let other_slices = "*.slice";
         let benchmark_slice = "benchmark.slice";
 
+        let user = nix::unistd::getuid();
+        let group = nix::unistd::getgid();
+
+        // TODO: Change this to Drop, so it will still get cleaned up if process is interrupted
+        // Also ensure benchmark.slice is stopped at the end and empty at the beginning
         let benchmark_ret = privs::with_escalated_privileges(|| {
             privs::verify_root().stack()?;
 
@@ -127,6 +132,8 @@ fn main() -> std::process::ExitCode {
                     &command.cmd[1..],
                     command.clear_env,
                     command.nice,
+                    user,
+                    group,
                 )
                 .stack()
             })
@@ -286,6 +293,7 @@ fn configure_benchmark_slice(
     util::check_cmd(&mut configure_benchmark_slice).stack()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_in_slice(
     systemd_run_path: &std::path::PathBuf,
     slice: &str,
@@ -293,10 +301,10 @@ fn run_in_slice(
     args: &[String],
     clear_env: bool,
     nice: Option<i8>,
+    user: nix::unistd::Uid,
+    group: nix::unistd::Gid,
 ) -> Result<std::process::ExitStatus> {
     let mut run_benchmark = std::process::Command::new(systemd_run_path);
-    let user = nix::unistd::getuid();
-    let group = nix::unistd::getgid();
     let mut chdir_arg = std::ffi::OsString::from("--working-directory=");
     chdir_arg.push(
         std::env::current_dir()

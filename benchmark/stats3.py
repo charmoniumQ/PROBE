@@ -86,7 +86,7 @@ def renames(all_trials: polars.DataFrame) -> polars.DataFrame:
         "tar-linux": ("system", "tar Linux src"),
         "untar-linux": ("system", "untar Linux src"),
         "1-small-hello": ("system", "tiny-hello"),
-        "true": ("system", "bash noop"),
+        "true": ("system", "true"),
         "ls": ("system", "ls"),
         "python noop": ("system", "python noop"),
         "small-hello": ("system", "many-tiny-hello")
