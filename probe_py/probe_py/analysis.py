@@ -548,3 +548,17 @@ def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
             G.add_edge(parent_pid, child_pid)
 
     return G
+
+
+def get_max_parallelism(ops_graph: nx.DiGraph) -> int:
+    max_para = 0
+    root_node = [n for n in ops_graph.nodes() if ops_graph.out_degree(n) > 0 and ops_graph.in_degree(n) == 0][0]
+    parallel_processes = []
+    for idx, nodes in enumerate(nx.bfs_layers(ops_graph, [root_node])):
+        if len(nodes) > max_para:
+            parallel_processes = []
+            for node in nodes:
+                parallel_processes.append(node[0])
+        max_para = max(max_para, len(nodes))
+    print(f"Parallel processes are: {parallel_processes}")
+    return max_para
