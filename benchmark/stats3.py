@@ -1,5 +1,8 @@
 #!/usr/bin/env python
+import datetime; time_start = datetime.datetime.now()
 import typer
+import operator
+import functools
 import typing
 import datetime
 import polars
@@ -10,6 +13,11 @@ import pathlib
 import scipy.stats
 import util
 import scikit_posthocs
+import numpy
+import workloads
+
+time_after_imports = datetime.datetime.now()
+print(f"Time from imports {(time_after_imports - time_start).total_seconds():.1f}")
 
 
 polars.Config.set_tbl_rows(1000)
@@ -85,11 +93,14 @@ def renames(all_trials: polars.DataFrame) -> polars.DataFrame:
         "rsync-linux": ("system", "copy Linux src"),
         "tar-linux": ("system", "tar Linux src"),
         "untar-linux": ("system", "untar Linux src"),
-        "1-small-hello": ("system", "tiny-hello"),
+        "1-small-hello": ("small-calib", "1-small-hello"),
+        "1-cp": ("small-calib", "1-cp"),
         "true": ("system", "true"),
         "ls": ("system", "ls"),
         "python noop": ("system", "python noop"),
-        "small-hello": ("system", "many-tiny-hello")
+        "small-hello": ("big-calib", "small-hello"),
+        "failing": ("system", "failing-test"),
+        "bash noop": ("system", "bash-noop"),
     }
     workload_to_groups = {
         workload_name: group
@@ -109,43 +120,242 @@ def renames(all_trials: polars.DataFrame) -> polars.DataFrame:
         polars.col("collector").cast(str).replace({"probe": "probe (metadata)", "probecopylazy": r"probe (metadata \& data)"}),
         polars.col("workload_subsubgroup").cast(str).replace(workload_renames).alias("workload"),
         polars.col("workload_subsubgroup").cast(str).replace(workload_to_groups).alias("group"),
-        (polars.col("user_cpu_time") + polars.col("system_cpu_time")).alias("cpu_time")
+        (polars.col("user_cpu_time") + polars.col("system_cpu_time")).alias("cpu_time"),
+    ).with_columns(
+        polars.concat_str(
+            polars.col("collector"),
+            polars.lit(" "),
+            polars.col("workload"),
+        ).alias("collector_workload"),
     ).drop("workload_subgroup", "workload_subsubgroup")
 
     return all_trials
 
 
-def remove_outliers(all_trials: polars.DataFrame) -> polars.DataFrame:
-    dummy_workloads = ["failing", "tiny-hello"]
+def remove_outliers(
+        all_trials: polars.DataFrame,
+        controlled_vars: typing.Sequence[str],
+        independent_vars: typing.Sequence[str],
+) -> polars.DataFrame:
+    dummy_workloads = ["failing", "1-small-hello", "1-small-cp"]
     all_trials = all_trials.filter(~polars.col("workload").is_in(dummy_workloads))
 
     mask = polars.col("returncode") != 0
     failures = all_trials.filter(mask)
     if not failures.is_empty():
-        util.console.rule("Failures")
-        util.console.print(failures.select("group", "workload", "collector"))
+        util.console.rule(f"Failures {len(failures)}")
+        util.console.print(
+            all_trials
+            .group_by("group", "workload", "collector")
+            .agg((100 * (polars.col("returncode") == 0).sum() / polars.len()).alias("failure_prec"))
+            .filter(polars.col("failure_prec") > 0)
+            .sort("failure_prec", descending=True)
+            .select("group", "workload", "collector", polars.col("failure_prec").round(0))
+            .head(20)
+        )
 
     all_trials = all_trials.filter(~mask)
 
     mask = polars.col("walltime") < datetime.timedelta(seconds=1)
     fasts = all_trials.filter(mask)
     if not fasts.is_empty():
-        util.console.rule("Fast")
-        util.console.print(util.dt_as_seconds(fasts.select("group", "workload", "collector", "walltime"), 3))
+        util.console.rule(f"Fast {len(fasts)}")
+        util.console.print(
+            util.dt_as_seconds(fasts.select("group", "workload", "walltime"), 3)
+            .group_by("group", "workload")
+            .min()
+            .head(20)
+        )
     all_trials = all_trials.filter(~mask)
 
-    mask = polars.col("walltime") > 1.2 * polars.col("cpu_time")
-    discrepant = all_trials.filter(mask)
-    if not discrepant.is_empty():
-        util.console.rule("Walltime exceeds CPU time. Did system suspend during execution?")
-        util.console.print(util.dt_as_seconds(discrepant.select("group", "workload", "collector", "walltime", "cpu_time"), 3))
-    all_trials = all_trials.filter(~mask)
+    max_count = list((
+        all_trials
+        .group_by(*controlled_vars, *independent_vars)
+        .agg(polars.len().alias("count"))
+        .max()
+    )["count"])[0]
+    missing = (
+        all_trials
+        .group_by(*controlled_vars, *independent_vars)
+        .agg(polars.len().alias("count"))
+        .filter(polars.col("count") < max_count)
+    )
+    if not missing.is_empty():
+        util.console.rule(f"Missing values {len(missing)}")
+        util.console.print(missing.head(20))
 
     return all_trials
 
 
-def remove_dummy_workloads(avged_trials: polars.DataFrame) -> polars.DataFrame:
-    return avged_trials
+def verify_assumptions(all_trials: polars.DataFrame) -> None:
+    qty = "walltime"
+    small_calib_runs = (
+        all_trials
+        .filter(polars.col("group") == "small-calib")
+        .select("collector_workload", "collector", "workload", "n_warmups", qty)
+        # .with_columns(
+        #     polars.concat_str(
+        #         polars.col("iteration"),
+        #         polars.lit(" "),
+        #         polars.col("collector_workload")
+        #     ).alias("iteration_collector_workload")
+        # )
+        .pipe(
+            lambda small_calib_runs:
+            small_calib_runs
+            .join(
+                small_calib_runs.group_by("collector_workload").agg(polars.mean(qty).alias(f"{qty}_cw_mean")),
+                on="collector_workload",
+                how="full",
+                validate="m:1",
+            )
+            .with_columns((polars.col(qty) / polars.col(f"{qty}_cw_mean")).alias(f"{qty}_cw_z"))
+            .join(
+                small_calib_runs.group_by("workload").agg(polars.mean(qty).alias(f"{qty}_w_mean")),
+                on="workload",
+                how="full",
+                validate="m:1",
+            )
+            .with_columns((polars.col(qty) / polars.col(f"{qty}_w_mean")).alias(f"{qty}_w_z"))
+        )
+    )
+    n_warmups_ignored = None
+    for collector_workload in small_calib_runs.unique("collector_workload")["collector_workload"]:
+        tmp = numpy.abs(
+            numpy.diff(
+                small_calib_runs
+                .filter(polars.col("collector_workload") == collector_workload)
+                .sort("n_warmups")
+                ["walltime"]
+                .dt.total_microseconds()
+                .to_numpy()
+            )
+        )
+        # penalize choosing a later cutoff, unless the diff is overwhelming
+        tmp = tmp / (numpy.arange(len(tmp)) + 1)**(1/3)
+        if len(tmp):
+            n_warmups_ignored = min(n_warmups_ignored, tmp.argmax()) if n_warmups_ignored else tmp.argmax()
+    assert n_warmups_ignored is not None
+    print(f"Algorithm wants to ignore {n_warmups_ignored}")
+    n_warmups_ignored = 1
+    output = pathlib.Path("small-calib-lines.svg")
+    print(f"Verify that the results are the same after {n_warmups_ignored} for all collectors (lines) in {output}")
+    fig = matplotlib.figure.Figure()
+    ax = fig.add_subplot(1, 1, 1)
+    lines(
+        ax,
+        small_calib_runs,
+        "n_warmups",
+        f"{qty}_cw_z",
+        "collector_workload",
+    )
+    ax.set_xlabel("walltime / mean")
+    ax.set_ylabel("Z-score")
+    ymin, ymax = ax.get_ylim()
+    ax.plot(
+        (n_warmups_ignored, n_warmups_ignored),
+        (ymin, ymax),
+        linestyle="--",
+        color="gray",
+        label="Ignored workloads",
+    )
+    ax.set_ylim(ymin, ymax)
+    ax.set_xlim(0, n_warmups_ignored * 4)
+    fig.savefig(output, bbox_inches="tight")
+
+    for workload in small_calib_runs.unique("workload")["workload"]:
+        df = small_calib_runs.filter(polars.col("workload") == workload)
+        total_mean = (
+            df
+            ["walltime"]
+            .dt.total_microseconds()
+            .to_numpy()
+            [n_warmups_ignored:]
+            .mean()
+        )
+        collectors = sorted(small_calib_runs["collector"].unique())
+        normed_stddevs = numpy.array([
+            (
+                df
+                .filter(polars.col("collector") == collector)
+                ["walltime"]
+                .dt.total_microseconds()
+                .to_numpy()
+            ).std(ddof=1) / total_mean
+            for collector in collectors
+        ])
+        for i, (collector, stddev) in sorted(enumerate(zip(collectors, normed_stddevs)), lambda pair: pair[1][1]):
+            print(f"{collector: <30s}: {normed_stddevs[i]:.2f}")
+        max_diff = normed_stddevs.max() - normed_stddevs.min()
+        print(f"Max diff: {max_diff:.2f} from {collectors[normed_stddevs.argmax()]} to {collectors[normed_stddevs.argmin()]}")
+        if max_diff > 0.1:
+            print("Doesn't seem heteroskedastic")
+        else:
+            print("Seems heteroskedastic")
+
+        output = pathlib.Path(f"small-calib-histograms-{workload}.svg")
+        print(f"Verify normality (symmetric bell) and heterskedasticity (same width) in {output}")
+        fig = matplotlib.figure.Figure()
+        ax = fig.add_subplot(1, 1, 1)
+        histogram(
+            ax,
+            df,
+            f"{qty}_w_z",
+            "collector",
+            cap=5
+        )
+        ax.set_xlim(0, 4)
+        fig.legend()
+        fig.savefig(output, bbox_inches="tight")
+        output = pathlib.Path(f"small-calib-qq-{workload}.svg")
+        print(f"Verify normality (linear) and heterskedasticity (same slope) in {output}")
+        fig = matplotlib.figure.Figure()
+        ax = fig.add_subplot(1, 1, 1)
+        qq_plot(
+            ax,
+            df,
+            f"{qty}_w_z",
+            "collector",
+        )
+        fig.savefig(output, bbox_inches="tight")
+
+
+def calibrate_errors(all_trials: polars.DataFrame) -> None:
+    qty = "walltime"
+    small_calib_runs = (
+        all_trials
+        .filter(polars.col("group") == "small-calib")
+        .select("collector_workload", "collector", "workload", "n_warmups", qty)
+    )
+    big_calib_runs = (
+        all_trials
+        .filter(polars.col("group") == "big-calib")
+        .select("collector_workload", "collector", "workload", "n_warmups", qty)
+    )
+    one_run = small_calib_runs.filter(
+        (polars.col("workload") == "1-small-hello") &
+        (polars.col("collector") == "noprov")
+    )["walltime"].dt.total_microseconds().to_numpy().astype(numpy.float128)
+    many_run = big_calib_runs.filter(
+        (polars.col("workload") == "small-hello") &
+        (polars.col("collector") == "noprov")
+    )["walltime"].dt.total_microseconds().to_numpy().astype(numpy.float128)
+    # one_run                = benchmark_overhead + true_run_time
+    # many_run               = benchmarK_overhead + C * true_run_time
+    # C * one_run - many_run = (C - 1) * benchmark_overhead
+    benchmark_overhead = (workloads.calibration_ratio * one_run.mean() - many_run.mean()) / (workloads.calibration_ratio - 1)
+    print(f"{benchmark_overhead:.0f}us")
+
+    # X_observed ~ X_true + abs_noise + prop_noise * X_true
+    # where X_true is a real, abs_noise and prop_noise are centered random variables
+    # Var(X_observed) = 0 + Var(abs_noise) + Var(prop_noise) * X_true^2
+    # Var(one_run) = abs_noise + prop_noise*one_run_mean^2
+    # Var(many_run) = abs_noise + prop_noise*many_run_mean^2
+    prop_noise = (numpy.var(many_run) - numpy.var(one_run)) / (many_run.mean()**2 - one_run.mean()**2)
+    prop_noise2 = (numpy.var(many_run) - numpy.var(one_run)) / ((many_run.mean() + one_run.mean()) * (many_run.mean() - one_run.mean()))
+    print(f"{numpy.sqrt(prop_noise):.2f}us / sec, {numpy.sqrt(prop_noise2):.2f}us / sec")
+    noise = (many_run.mean()**2 * numpy.var(one_run) - one_run.mean()**2 * numpy.var(many_run)) / (many_run.mean()**2 - one_run.mean()**2)
+    print(f"{numpy.sqrt(noise):.2f}us")
 
 
 def main(
@@ -159,32 +369,123 @@ def main(
         util.console.print(f"[red]{data} does not exist!")
         raise typer.Exit(1)
 
+    time_main_start = datetime.datetime.now()
+    print(f"Time main starts {(time_main_start - time_after_imports).total_seconds():.1f}")
+
     all_trials = polars.read_parquet(data)
 
     all_trials = renames(all_trials)
 
     controlled_vars = ("group" ,"workload")
-    independent_vars = ("collector", "warmups")
+    independent_vars = ("collector", "n_warmups")
     dependent_vars = ("walltime", "user_cpu_time", "system_cpu_time", "max_memory")
 
-    all_trials = remove_outliers(all_trials)
+    verify_assumptions(all_trials)
 
-    dependent_var_stats = list(util.flatten1([
-        [
-            *lognorm_mle(var),
-            *norm_mle(var),
-        ]
-        for var in dependent_vars
-    ]))
-    avged_trials = all_trials.group_by(*independent_vars).agg(*dependent_var_stats)
+    calibrate_errors(all_trials)
+
+    all_trials = remove_outliers(all_trials, controlled_vars, independent_vars)
+
+    time_main_substance = datetime.datetime.now()
+    print(f"Time substance done {(time_main_substance - time_main_start).total_seconds():.1f}")
+
+
+    # anova(
+    #     all_trials
+    #     .pivot(
+    #         "collector",
+    #         index=("group", "workload", "n_warmups"),
+    #         values="walltime",
+    #     )
+    #     .sort("group", "workload", "n_warmups")
+    # )
+
+    dependent_var_stats = [
+        *util.flatten1([
+            [
+                *lognorm_mle(var),
+                *norm_mle(var),
+            ]
+            for var in dependent_vars
+        ]),
+        polars.len().alias("count"),
+    ]
+    dependent_var_stats_names = [
+        var.meta.output_name()
+        for var in dependent_var_stats
+    ]
+
+    avged_trials = all_trials.group_by(*controlled_vars, *independent_vars).agg(*dependent_var_stats)
 
     avged_trials = join_baseline(
         avged_trials,
         controlled_vars,
         independent_vars,
         ("noprov", 0),
-        dependent_var_stats,
+        dependent_var_stats_names,
     )
+
+    avged_trials.write_parquet(data.parent / "avged_trials.parquet")
+
+    time_main_done = datetime.datetime.now()
+    print(f"Time main done {(time_main_done - time_main_substance).total_seconds():.1f}")
+
+
+def lines(
+        ax: matplotlib.axes.Axes,
+        df: polars.DataFrame,
+        continuous_var: str,
+        dependent_var: str,
+        categorical_var: str,
+        legend: bool = True,
+) -> None:
+    for category in df.unique(categorical_var).sort(categorical_var)[categorical_var]:
+        sub_df = df.filter(polars.col(categorical_var) == category).sort(continuous_var)
+        ax.plot(
+            sub_df[continuous_var].to_numpy(),
+            sub_df[dependent_var].to_numpy(),
+            label=category,
+        )
+
+
+def histogram(
+        ax: matplotlib.axes.Axes,
+        df: polars.DataFrame,
+        population_var: str,
+        categorical_var: str,
+        cap: float,
+) -> None:
+    max = df[population_var].max()
+    for i, category in enumerate(df.unique(categorical_var).sort(categorical_var)[categorical_var]):
+        population = df.filter(polars.col(categorical_var) == category)[population_var].to_numpy()
+        kde = scipy.stats.gaussian_kde(population)
+        ts = numpy.linspace(0, max)
+        ax.plot(
+            ts,
+            numpy.clip(kde(ts), 0, cap),
+            label=category,
+            color=colors(i),
+        )
+
+
+def qq_plot(
+        ax: matplotlib.axes.Axes,
+        df: polars.DataFrame,
+        population_var: str,
+        categorical_var: str,
+) -> None:
+    for category in df.unique(categorical_var).sort(categorical_var)[categorical_var]:
+        population = df.filter(polars.col(categorical_var) == category)[population_var].to_numpy()
+        scipy.stats.norm(loc=population.mean(), scale=population.std())
+        osm = dist.ppf(osm_uniform, *sparams)
+        osr = sort(x)
+        scipy.stats.probplot(population, dist="norm", fit=True, plot=ax)
+
+
+#import matplotlib.cm
+cmap = matplotlib.cm.tab20.colors
+def colors(i: int) -> typing.Any:
+    return cmap[i % len(cmap)]
 
 
 def lognorm_mle(col: str) -> tuple[polars.Expr, polars.Expr]:
@@ -215,18 +516,20 @@ def join_baseline(
         controlled_vars: typing.Sequence[str],
         independent_vars: typing.Sequence[str],
         baseline_val_of_independent_vars: typing.Sequence[typing.Any],
-        dependent_vars: typing.Sequence[polars.Expr],
+        dependent_vars: typing.Sequence[str],
 ) -> polars.DataFrame:
-    return df.filter(
-        polars.col(var) == val
-        for var, val in zip(independent_vars, baseline_val_of_independent_vars)
-    ).select(
-        *controlled_vars,
-        [
-            var.alias(f"baseline_{var}")
-            for var in dependent_vars
-        ],
-        on="workload",
+    return df.join(
+        df.filter(functools.reduce(operator.and_, [
+            polars.col(var) == val
+            for var, val in zip(independent_vars, baseline_val_of_independent_vars)
+        ])).select(
+            *controlled_vars,
+            *[
+                polars.col(var).alias(f"baseline_{var}")
+                for var in dependent_vars
+            ],
+        ),
+        on=controlled_vars,
         how="full",
         validate="m:1",
     )
@@ -264,6 +567,34 @@ def norm_ratio(numerator: str, denominator: str, result: str) -> tuple[polars.Ex
             + polars.col(f"{denominator}_avg") * polars.col(f"{numerator}_std")
         ).alias(f"{result}_std"),
     )
+
+
+def is_different(
+        df: polars.DataFrame,
+        controlled_vars: list[str],
+        independent_vars: list[str],
+        dependent_vars: list[str],
+        normal: bool,
+        homoskedastic: bool,
+) -> None:
+    # has_replicants = df.group_by(*controlled_vars, *independent_vars).agg(polars.len().alias("count")).min() >= 2
+    n_factors = len(independent_vars)
+    n_treatments = df.n_unique(*independent_vars)
+    numpy_df = df.to_numpy()
+    assert len(numpy_df) == n_treatments
+    if n_factors == 1 and normal and homoskedastic:
+        if n_treatments == 1:
+            result = scipy.stats.ttest_ind(numpy_df[0], numpy_df[1])
+            result.statistic
+            result.pvalue
+            scikit_posthocs.posthoc_tukey(df)
+        if n_treatments > 1:
+            numpy_df = df.to_numpy()
+            assert len(numpy_df) == n_treatments
+            result = scipy.stats.f_oneway(*numpy_df)
+            result.statistic
+            result.pvalue
+            scikit_posthocs.posthoc_tukey(df)
 
 
 if False:

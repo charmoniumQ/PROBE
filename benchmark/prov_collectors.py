@@ -109,20 +109,20 @@ strace_syscalls = [
     "dup", "dup2", "dup3",
     "link", "linkat", "symlink", "symlinkat",
     "unlink", "unlinkat", "rmdir",
-    "rename", "renameat",
+    "readlink", "readlinkat",
+    "rename", "renameat", "renameat2",
     "mkdir", "mkdirat",
-    "fstat", "newfstatat",
+    "fstat", "newfstatat", "statx",
     "chown", "fchown", "lchown", "fchownat",
     "chmod", "fchmod", "fchmodat",
     "access", "faccessat",
     "utime", "utimes", "futimesat", "utimensat",
     "truncate", "ftruncate",
     "mknod", "mknodat",
-    "readlink", "readlinkat",
     "fcntl",
 
     # sockets
-    "bind", "accept", "accept4", "connect", "socketcall", "shutdown",
+    "bind", "accept", "accept4", "connect", "socket", "shutdown",
 
     # Other IPC
     "pipe", "pipe2",
@@ -573,10 +573,13 @@ class Sciunit(ProvCollector):
     )
 
 
-# class Darshan(ProvCollector):
-
-
-# class BPFTrace(ProvCollector):
+class eBPF(ProvCollector):
+    timeout_multiplier = 2
+    run_cmd = cmd(
+        str(benchmark_root / "benchmark_utils/ebpf_trace_prov"),
+        "--log-file",
+        prov_log,
+    )
 
 
 # class SpadeFuse(ProvCollector):
@@ -653,8 +656,10 @@ class LinuxAudit(ProvCollector):
     timeout_multiplier = 1
     run_cmd = cmd(
         str(benchmark_root / "benchmark_utils/audit"),
+        "--log-file",
         prov_log,
-        combine("--directories=/nix/store/,", work_dir),
+        "--directories",
+        combine("/nix/store/,", work_dir),
     )
 
 
@@ -797,7 +802,7 @@ PROV_COLLECTORS: list[ProvCollector] = [
     NoProv(),
     STrace(),
     LTrace(),
-    # FSATrace(),
+    FSATrace(),
     CDE(),
     RR(),
     ReproZip(),
@@ -808,10 +813,7 @@ PROV_COLLECTORS: list[ProvCollector] = [
     ProbeCopyEager(),
     ProbeCopyLazy(),
     LinuxAudit(),
-    # SpadeFuse(),
-    # SpadeAuditd(),
-    # Darshan(),
-    # BPFTrace(),
+    eBPF(),
     NoProvStable(),
     *([Podman()] if podman else []),
     # Podman requires newuidmap to be on the $PATH and have setuid.
@@ -829,7 +831,7 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
     "fast": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
-        if prov_collector.name not in ["ltrace"]
+        if prov_collector.name not in ["ltrace", "ebpf", "podman"]
     ],
     "run-for-usenix": [
         prov_collector

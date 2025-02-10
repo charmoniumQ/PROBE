@@ -69,6 +69,7 @@ repeat = nix_path(".#repeat", "/bin/repeat")
 user = pwd.getpwuid(os.getuid()).pw_name
 group = grp.getgrgid(os.getgid()).gr_name
 bin_repetitions = 1000
+calibration_ratio = 10000
 
 
 def kaggle_workload(
@@ -142,7 +143,7 @@ LoadModule authz_core_module $APACHE_MODULES_PATH/mod_authz_core.so
 DocumentRoot $SRV_ROOT
 '''
 
-workloads = [
+WORKLOADS = [
     Workload(
         (("app", "blast", "tblastx"), ("cse", "multiomics")),
         cmd(make, "-C", blast_dir, "tblastx", output_equals_output),
@@ -208,14 +209,6 @@ workloads = [
         ),
     ),
     Workload(
-        (("bench", "utils", "small-hello"), ("sys", "proc")),
-        cmd(
-            repeat,
-            str(bin_repetitions * 100),
-            nix_path(".#small-hello", "/bin/small-hello"),
-        ),
-    ),
-    Workload(
         (("bench", "utils", "python noop"), ("sys", "proc")),
         cmd(
             repeat,
@@ -236,8 +229,46 @@ workloads = [
         ),
     ),
     Workload(
-        (("bench", "utils", "1-small-hello"), ("sys", "proc")),
+        (("bench", "big-calib", "small-hello"), ("sys", "proc")),
+        cmd(
+            repeat,
+            str(calibration_ratio),
+            nix_path(".#small-hello", "/bin/small-hello"),
+        ),
+    ),
+    # The point of hello & cp is to measure
+    # I don't think we actually need cp to be in big calib, since we already have hello
+    # Workload(
+    #     (("bench", "big-calib", "cp"), ("sys", "proc")),
+    #     cmd(
+    #         repeat,
+    #         str(calibration_ratio),
+    #         nix_path(".#coreutils", "/bin/cp"),
+    #         combine(var("work_dir"), "/test0"),
+    #         combine(var("work_dir"), "/test1"),
+    #     ),
+    #     cmd(
+    #         nix_path(".#write-file", "/bin/write-file"),
+    #         "hello world",
+    #         combine(var("work_dir"), "/test0"),
+    #     ),
+    # ),
+    Workload(
+        (("bench", "small-calib", "1-small-hello"), ("sys", "proc")),
         cmd(nix_path(".#small-hello", "/bin/small-hello")),
+    ),
+    Workload(
+        (("bench", "small-calib", "1-cp"), ("sys", "proc")),
+        cmd(
+            nix_path(".#coreutils", "/bin/cp"),
+            combine(var("work_dir"), "/test0"),
+            combine(var("work_dir"), "/test1"),
+        ),
+        cmd(
+            nix_path(".#write-file", "/bin/write-file"),
+            "hello world",
+            combine(var("work_dir"), "/test0"),
+        ),
     ),
 
     # lmbench_workload("proc"   , "shell", "lat_proc", ("-N", "3", "procedure")),
@@ -594,25 +625,25 @@ workloads = [
 
 
 WORKLOAD_GROUPS = {
-    **util.groupby_dict(workloads, lambda workload: workload.labels[0][0], util.identity),
-    **util.groupby_dict(workloads, lambda workload: workload.labels[0][1], util.identity),
-    **util.groupby_dict(workloads, lambda workload: workload.labels[0][2], util.identity),
-    **util.groupby_dict(workloads, lambda workload: workload.labels[1][0], util.identity),
-    **util.groupby_dict(workloads, lambda workload: workload.labels[1][1], util.identity),
-    "all": workloads,
+    **util.groupby_dict(WORKLOADS, lambda workload: workload.labels[0][0], util.identity),
+    **util.groupby_dict(WORKLOADS, lambda workload: workload.labels[0][1], util.identity),
+    **util.groupby_dict(WORKLOADS, lambda workload: workload.labels[0][2], util.identity),
+    **util.groupby_dict(WORKLOADS, lambda workload: workload.labels[1][0], util.identity),
+    **util.groupby_dict(WORKLOADS, lambda workload: workload.labels[1][1], util.identity),
+    "all": WORKLOADS,
     "run-for-usenix2": [
         workload
-        for workload in workloads
+        for workload in WORKLOADS
         if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01", "blastn", "pw-01", "house-prices-1", "umap", "apache"}
     ],
     "run-for-usenix": [
         workload
-        for workload in workloads
+        for workload in WORKLOADS
         if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01", "blastn", "pw-01", "house-prices-1", "umap"}
     ],
     "fast": [
         workload
-        for workload in workloads
+        for workload in WORKLOADS
         if workload.labels[0][2] not in {
                 "house-prices-1",  # too long
                 "water-spatial", # too long or short (not easy to callibrate)
@@ -626,6 +657,7 @@ WORKLOAD_GROUPS = {
                 "blastp",
                 "blastn",
                 "tblastn",
+                "untar-linux", # broken
         }
     ],
 }

@@ -1,6 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////
-// Initialize
-///////////////////////////////////////////////////////////////////////////////
+// On initialization needs to mark the main pid
 
 BEGIN {
   if ($1 == 0) {
@@ -12,10 +10,7 @@ BEGIN {
   printf("%d,%d,%d,launch_pid,%d\n", pid, tid, nsecs, $1);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Propagate only to children processes
-///////////////////////////////////////////////////////////////////////////////
-
+// On forked tasks, we may need to add this to the list of tracked pids
 tracepoint:sched:sched_process_fork {
   if (@track_pids[pid]) {
       printf("%d,%d,%d,sched_process_fork,%d\n", pid, tid, nsecs, args->child_pid);
@@ -23,10 +18,18 @@ tracepoint:sched:sched_process_fork {
   }
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Exit on exit of child
-///////////////////////////////////////////////////////////////////////////////
+// On exec'ed tasks, we didn't get a good look at the argv and envp
+tracepoint:sched:sched_process_exec {
+  if (@track_pids[pid]) {
+      printf("%d,%d,%d,sched_process_exec,%d\n", pid, tid, nsecs, args->pid);
+      cat("/proc/%d/cmdline", pid);
+      printf("\n");
+      cat("/proc/%d/environ", pid);
+      printf("\n");
+  }
+}
 
+// On exit of child, we may need to exit ourselves
 tracepoint:sched:sched_process_exit {
   if (@track_pids[pid]) {
     printf("%d,%d,%d,sched_process_exit\n", pid, tid, nsecs);

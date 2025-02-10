@@ -24,8 +24,8 @@ impl std::ops::Sub for Rusage {
             cpu_system_us: self.cpu_system_us - rhs.cpu_system_us,
             peak_memory_usage: rhs.peak_memory_usage,
             walltime_us: self.walltime_us - rhs.walltime_us,
-            returncode: rhs.returncode,
-            signal: rhs.signal,
+            returncode: self.returncode,
+            signal: self.signal,
         }
     }
 }

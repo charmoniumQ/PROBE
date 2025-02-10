@@ -649,7 +649,7 @@
             echo "$input" | "$@"
           '';
           write-file = pkgs.writeShellScriptBin "write-file" ''
-            if [ "$#" -ne 2 ];
+            if [ "$#" -ne 2 ]; then
               echo "Usage: write-file 'text of file' file_dest.txt"
               exit 1
             fi

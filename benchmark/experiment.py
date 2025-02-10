@@ -14,10 +14,9 @@ import itertools
 import dbus_watcher
 import dbus_next
 import util
+from workloads import WORKLOADS, Workload
+from prov_collectors import PROV_COLLECTORS, ProvCollector
 from mandala.imports import op, Ignore, Storage  # type: ignore
-import rich.progress
-from workloads import Workload
-from prov_collectors import ProvCollector
 # on my machine, importing polars before the others causes a segfault
 # https://github.com/NixOS/nixpkgs/issues/326230
 # TODO: Debug this
@@ -34,6 +33,7 @@ def run_experiments(
         parquet_output: pathlib.Path,
         total_warmups: int,
         machine_id: int,
+        orig_df: polars.DataFrame | None,
 ) -> polars.DataFrame:
     if verbose:
         util.print_rich_table(
@@ -77,7 +77,7 @@ def run_experiments(
             t_records = storage.unwrap(op)
             storage.commit()
             records.extend(t_records)
-            df = polars.from_dicts(
+            df = util.parquet_safe_columns(polars.from_dicts(
                 [
                     {
                         "collector": record.prov_collector,
@@ -96,17 +96,60 @@ def run_experiments(
                         "op_counts": record.op_counts,
                         "n_warmups": record.warmups,
                         "machine_id": record.machine_id,
+                        "iteration": iteration,
                     }
                     for record in records
                 ],
                 schema_overrides={
-                    "collector": polars.Categorical,
-                    "workload_group": polars.Categorical,
-                    "workload_subgroup": polars.Categorical,
-                    "workload_subsubgroup": polars.Categorical,
+                    "collector": polars.Enum(sorted({
+                        collector.name
+                        for collector in PROV_COLLECTORS
+                    })),
+                    "workload_group": polars.Enum(sorted({
+                        workload.labels[0][0]
+                        for workload in WORKLOADS
+                    })),
+                    "workload_subgroup": polars.Enum(sorted({
+                        workload.labels[0][1]
+                        for workload in WORKLOADS
+                    })),
+                    "workload_subsubgroup": polars.Enum(sorted({
+                        workload.labels[0][2]
+                        for workload in WORKLOADS
+                    })),
                 },
-            )
-            util.parquet_safe_columns(df).write_parquet(parquet_output)
+            ))
+            if orig_df is not None:
+                new_op_count_fields = {
+                    field.name
+                    for field in util.expect_type(polars.Struct, df.schema["op_counts"]).fields
+                }
+                orig_op_count_fields = {
+                    field.name
+                    for field in util.expect_type(polars.Struct, orig_df.schema["op_counts"]).fields
+                }
+                combined_op_count_fields = sorted(new_op_count_fields | orig_op_count_fields)
+                orig_df = orig_df.with_columns(
+                    polars.struct(
+                        polars.col("op_counts").struct.field(field) if field in orig_op_count_fields else polars.lit(0, dtype=polars.Int64).alias(field)
+                        for field in combined_op_count_fields
+                    ).alias("op_counts")
+                )
+                df = df.with_columns(
+                    polars.struct(
+                        polars.col("op_counts").struct.field(field) if field in new_op_count_fields else polars.lit(0, dtype=polars.Int64).alias(field)
+                        for field in combined_op_count_fields
+                    ).alias("op_counts")
+                )
+                for key in (orig_df.schema.keys() | df.schema.keys()):
+                    print(
+                        key,
+                        orig_df.schema.get(key) == df.schema.get(key),
+                        orig_df.schema.get(key),
+                        df.schema.get(key),
+                    )
+                df = polars.concat((orig_df, df))
+            df.write_parquet(parquet_output)
     return df
 
 
@@ -232,7 +275,7 @@ async def run_experiment(
     # 4. teardown benchmark
     # 5. teardown collector
     if verbose:
-        util.console.rule(f"{prov_collector.name} {workload.labels[0][-1]}")
+        util.console.rule(f"{prov_collector.name} {workload.labels[0][-1]} {warmups}")
 
     setup_teardown_timeout = datetime.timedelta(seconds=10)
 

@@ -6,7 +6,7 @@ import pathlib
 import subprocess
 import typer
 import json
-import shutil
+import polars
 import pathlib
 import enum
 from typing_extensions import Annotated
@@ -46,6 +46,7 @@ def main(
         parquet_output: pathlib.Path = pathlib.Path("output/iterations.parquet"),
         internal_cache: pathlib.Path = pathlib.Path(".cache/run_experiments.db"),
         machine_info: pathlib.Path = pathlib.Path("output/machine_info.json"),
+        append: bool = False,
 ) -> None:
     """
     Run a full matrix of these workloads in those provenance collectors.
@@ -113,6 +114,11 @@ def main(
         )
         util.console.print("Done dropping calls")
 
+    if append:
+        orig_df = polars.read_parquet(parquet_output)
+    else:
+        orig_df = None
+
     exp_start = datetime.datetime.now()
 
     experiment.run_experiments(
@@ -125,6 +131,7 @@ def main(
         parquet_output=parquet_output,
         total_warmups=warmups,
         machine_id=minfo.machine_id,
+        orig_df=orig_df,
     )
     storage = Storage(internal_cache)
 

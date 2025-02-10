@@ -13,6 +13,10 @@ struct Command {
     #[arg(long)]
     log_file: std::path::PathBuf,
 
+    /// Print the generated bpftrace source
+    #[arg(long)]
+    print_bpftrace: bool,
+
     /// Executable to run with resource limits
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     cmd: Vec<String>,
@@ -39,6 +43,10 @@ fn main() -> std::process::ExitCode {
         let command = Command::parse();
 
         let mut cmd = std::process::Command::new(start_stopped);
+        // Start env because bpftrace tracks the first exec after bpftrace starts up
+        // We want to track the orignal program
+        // so we launch this one first basically
+        cmd.arg("env");
         cmd.args(&command.cmd);
         let mut cmd_proc = cmd.spawn().map_err(Error::from_err).stack()?;
 
@@ -53,6 +61,9 @@ fn main() -> std::process::ExitCode {
 
             let bpftrace_source = create_bpftrace_source();
             util::write_to_file_truncate(&bpftrace_file, &bpftrace_source).stack()?;
+            if command.print_bpftrace {
+                eprintln!("{bpftrace_source}");
+            }
 
             let mut bpftrace_cmd = std::process::Command::new(bpftrace);
             bpftrace_cmd.args([
@@ -74,15 +85,17 @@ fn main() -> std::process::ExitCode {
             let mut bpftrace_proc = bpftrace_cmd.spawn().map_err(Error::from_err).stack()?;
 
             let mut counter = 0;
-            let counter_max = 1_000_000;
+            let counter_max = 100;
+            let duration = std::time::Duration::from_millis(50);
             while !std::fs::read_to_string(&command.log_file)
                 .map_err(Error::from_err)
                 .stack()?
                 .contains("launch_pid")
             {
+                std::thread::sleep(duration);
                 nix::sched::sched_yield().map_err(Error::from_err).stack()?;
                 if counter > counter_max {
-                    bail!("bpftrace not launched within {counter_max}");
+                    bail!("bpftrace not launched within {counter_max} x {duration:?}");
                 }
                 if let Some(status) = bpftrace_proc.try_wait().map_err(Error::from_err).stack()? {
                     bail!("bpftrace exited unexpectedly with {:?}", status);
@@ -203,11 +216,7 @@ fn create_enter_hook(syscall_info: &SyscallInfo) -> Vec<String> {
                 .collect(),
         }
     }))
-    .chain([
-        ");\n".to_owned(),
-         "  }\n".to_owned(),
-        "}\n\n\n".to_owned(),
-    ])
+    .chain([");\n".to_owned(), "  }\n".to_owned(), "}\n\n\n".to_owned()])
     .collect()
 }
 
@@ -223,10 +232,11 @@ fn create_exit_hooks(syscall_infos: &[SyscallInfo]) -> Vec<String> {
 
 fn printf_code(type_: &str) -> &str {
     match type_ {
-        "int" => "%d",
+        "int" | "uid_t" | "gid_t" => "%d",
         "unsigned int" => "%u",
         "u64" => "%lu",
         "char*" => "%s",
+        "char**" | "ptr" => "%p",
         "mode_t" => "%03o",
         _ => panic!("{type_} is not defined"),
     }

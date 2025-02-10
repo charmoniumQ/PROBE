@@ -67,6 +67,289 @@
       name: newfd
     - type: int
       name: flags
+- name: link
+  args:
+    - type: char*
+      name: oldname
+    - type: char*
+      name: newname
+- name: linkat
+  args:
+    - type: int
+      name: olddfd
+    - type: char*
+      name: oldname
+    - type: int
+      name: newdfd
+    - type: char*
+      name: newname
+    - type: int
+      name: flags
+- name: symlink
+  args:
+    - type: char*
+      name: oldname
+    - type: char*
+      name: newname
+- name: symlinkat
+  args:
+    - type: char*
+      name: oldname
+    - type: int
+      name: newdfd
+    - type: char*
+      name: newname
+- name: unlink
+  args:
+    - type: char*
+      name: pathname
+- name: unlinkat
+  args:
+    - type: int
+      name: dfd
+    - type: char*
+      name: pathname
+- name: readlink
+  args:
+    - type: char*
+      name: path
+    - type: ptr
+      name: buf
+- name: readlinkat
+  args:
+    - type: int
+      name: dfd
+    - type: char*
+      name: pathname
+    - type: ptr
+      name: buf
+- name: rename
+  args:
+    - type: char*
+      name: oldname
+    - type: char*
+      name: newname
+- name: renameat
+  args:
+    - type: int
+      name: olddfd
+    - type: char*
+      name: oldname
+    - type: int
+      name: newdfd
+    - type: char*
+      name: newname
+- name: renameat2
+  args:
+    - type: int
+      name: olddfd
+    - type: char*
+      name: oldname
+    - type: int
+      name: newdfd
+    - type: char*
+      name: newname
+    - type: unsigned int
+      name: flags
+- name: mkdir
+  args:
+    - type: char*
+      name: pathname
+    - type: mode_t
+      name: mode
+- name: mkdirat
+  args:
+    - type: int
+      name: dfd
+    - type: char*
+      name: pathname
+    - type: mode_t
+      name: mode
+- name: newfstat
+  args:
+    - type: unsigned int
+      name: fd
+- name: newfstatat
+  args:
+    - type: unsigned int
+      name: dfd
+    - type: char*
+      name: filename
+    - type: int
+      name: flag
+- name: chown
+  args:
+    - type: char*
+      name: filename
+    - type: uid_t
+      name: user
+    - type: gid_t
+      name: group
+- name: fchown
+  args:
+    - type: unsigned int
+      name: fd
+    - type: uid_t
+      name: user
+    - type: gid_t
+      name: group
+- name: fchownat
+  args:
+    - type: unsigned int
+      name: dfd
+    - type: char*
+      name: filename
+    - type: uid_t
+      name: user
+    - type: gid_t
+      name: group
+- name: lchown
+  args:
+    - type: char*
+      name: filename
+    - type: uid_t
+      name: user
+    - type: gid_t
+      name: group
+- name: chmod
+  args:
+    - type: char*
+      name: filename
+    - type: mode_t
+      name: mode
+- name: fchmod
+  args:
+    - type: unsigned int
+      name: fd
+    - type: mode_t
+      name: mode
+- name: fchmodat
+  args:
+    - type: unsigned int
+      name: dfd
+    - type: char*
+      name: filename
+    - type: mode_t
+      name: mode
+- name: fchmodat2
+  args:
+    - type: unsigned int
+      name: dfd
+    - type: char*
+      name: filename
+    - type: mode_t
+      name: mode
+    - type: unsigned int
+      name: flags
+- name: access
+  args:
+    - type: char*
+      name: filename
+    - type: int
+      name: mode
+- name: faccessat
+  args:
+    - type: int
+      name: dfd
+    - type: char*
+      name: filename
+    - type: int
+      name: mode
+- name: faccessat2
+  args:
+    - type: int
+      name: dfd
+    - type: char*
+      name: filename
+    - type: int
+      name: mode
+    - type: int
+      name: flags
+- name: utime
+  args:
+    - type: char*
+      name: filename
+- name: utimes
+  args:
+    - type: char*
+      name: filename
+- name: futimesat
+  args:
+    - type: int
+      name: dfd
+    - type: char*
+      name: filename
+- name: utimensat
+  args:
+    - type: int
+      name: dfd
+    - type: char*
+      name: filename
+    - type: int
+      name: flags
+- name: truncate
+  args:
+    - type: char*
+      name: path
+- name: ftruncate
+  args:
+    - type: int
+      name: fd
+- name: mknod
+  args: []
+- name: mknodat
+  args: []
+- name: fcntl
+  args: []
+
+# Socket stuff
+
+- name: bind
+  args: []
+- name: accept
+  args: []
+- name: accept4
+  args: []
+- name: connect
+  args: []
+- name: socket
+  args: []
+- name: shutdown
+  args: []
+
+# Pipe IPC
+
+- name: pipe
+  args: []
+- name: pipe2
+  args: []
+
+# xattr syscalls
+
+- name: fgetxattr
+  args: []
+- name: flistxattr
+  args: []
+- name: fremovexattr
+  args: []
+- name: fsetxattr
+  args: []
+- name: getxattr
+  args: []
+- name: lgetxattr
+  args: []
+- name: listxattr
+  args: []
+- name: llistxattr
+  args: []
+- name: lremovexattr
+  args: []
+- name: lsetxattr
+  args: []
+- name: removexattr
+  args: []
+- name: setxattr
+  args: []
 
 # Proc syscalls
 
@@ -90,3 +373,39 @@
         - type: u64
           name: flags
       name: uargs
+- name: fork
+  args: []
+- name: vfork
+  args: []
+- name: execve
+  args:
+    - type: char*
+      name: filename
+- name: execveat
+  args:
+    - type: int
+      name: fd
+    - type: char*
+      name: filename
+    - type: int
+      name: flags
+- name: exit
+  args:
+    - type: int
+      name: error_code
+- name: exit
+  args:
+    - type: int
+      name: error_code
+- name: chroot
+  args:
+    - type: char*
+      name: filename
+- name: chdir
+  args:
+    - type: char*
+      name: filename
+- name: fchdir
+  args:
+    - type: unsigned int
+      name: fd

@@ -6,7 +6,7 @@ else
     run=
 fi
 
-cargo build
+cargo build --release
 if [ -z "$run" ]; then
     echo "Please execute the following commands, some of which use sudo:"
     echo
