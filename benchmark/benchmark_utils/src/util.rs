@@ -1,3 +1,4 @@
+use num_traits::{Bounded, NumCast};
 use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
 use std::io::Write;
 
@@ -119,4 +120,16 @@ where
             std::process::ExitCode::from(err_exit_code)
         }
     }
+}
+
+pub fn checked_cast<F: NumCast, I: Bounded + PartialOrd + NumCast>(from: F) -> Option<I> {
+    let min = I::min_value();
+    let max = I::max_value();
+
+    if let Some(val) = I::from(from) {
+        if min <= val && val <= max {
+            return Some(val);
+        }
+    }
+    None
 }

@@ -55,6 +55,10 @@ fn main() -> std::process::ExitCode {
 }
 
 #[allow(clippy::similar_names)]
+/* For uid/gid, root_uid/root_gid.
+ * I bet you didn't know you can't ignore/allow this on a single line:
+ * https://github.com/rust-lang/rust-clippy/issues/9514
+ * */
 fn audit<'a, F, T, P, I>(debug: bool, directories: I, log_file: P, func: F) -> Result<T>
 where
     F: FnOnce() -> Result<T>,

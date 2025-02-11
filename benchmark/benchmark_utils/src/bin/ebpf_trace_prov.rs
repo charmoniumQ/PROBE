@@ -17,6 +17,14 @@ struct Command {
     #[arg(long)]
     print_bpftrace: bool,
 
+    /// Timeout for waiting for eBPF to launch in seconds
+    #[arg(long, default_value_t = 4.0)]
+    ebpf_timeout: f64,
+
+    /// Print the generated bpftrace source
+    #[arg(long)]
+    verbose: bool,
+
     /// Executable to run with resource limits
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     cmd: Vec<String>,
@@ -32,7 +40,11 @@ fn main() -> std::process::ExitCode {
             .parent()
             .ok_or(anyhow!("Current exe has no parent"))
             .stack()?
-            .join("target/debug/start_stopped");
+            .join(if cfg!(debug_assertions) {
+                "target/debug/start_stopped"
+            } else {
+                "target/release/start_stopped"
+            });
         if !start_stopped.exists() {
             bail!("{start_stopped:?} does not exist. Please run `cargo build`");
         }
@@ -43,6 +55,9 @@ fn main() -> std::process::ExitCode {
         let command = Command::parse();
 
         let mut cmd = std::process::Command::new(start_stopped);
+        if command.verbose {
+            cmd.arg("--verbose");
+        }
         // Start env because bpftrace tracks the first exec after bpftrace starts up
         // We want to track the orignal program
         // so we launch this one first basically
@@ -67,12 +82,12 @@ fn main() -> std::process::ExitCode {
 
             let mut bpftrace_cmd = std::process::Command::new(bpftrace);
             bpftrace_cmd.args([
-                "-B".into(),
-                "line".into(),
-                "-f".into(),
-                "json".into(), /* TODO: For some reason, text doesn't work */
-                // "-d".into(),
-                // "all".into(),
+                "-B", "line", "-f", "json", /* TODO: For some reason, text doesn't work */
+            ]);
+            if command.verbose {
+                bpftrace_cmd.args(["-d", "all"]);
+            }
+            bpftrace_cmd.args([
                 "-p".into(),
                 (&cmd_proc.id().to_string()).into(),
                 "-o".into(),
@@ -84,23 +99,38 @@ fn main() -> std::process::ExitCode {
             bpftrace_cmd.env("BPFTRACE_MAX_STRLEN", (100 + libc::PATH_MAX).to_string());
             let mut bpftrace_proc = bpftrace_cmd.spawn().map_err(Error::from_err).stack()?;
 
-            let mut counter = 0;
-            let counter_max = 100;
-            let duration = std::time::Duration::from_millis(50);
-            while !std::fs::read_to_string(&command.log_file)
-                .map_err(Error::from_err)
-                .stack()?
-                .contains("launch_pid")
-            {
-                std::thread::sleep(duration);
-                nix::sched::sched_yield().map_err(Error::from_err).stack()?;
-                if counter > counter_max {
-                    bail!("bpftrace not launched within {counter_max} x {duration:?}");
+            assert!(0.0 < command.ebpf_timeout);
+            let timeout = std::time::Duration::from_secs_f64(command.ebpf_timeout);
+            let iterations_f = timeout.div_duration_f64(SLEEP_DURATION).ceil();
+            let iterations: u16 = util::checked_cast(iterations_f).unwrap_or_else(|| {
+                panic!("Could not convert {timeout:?} / {SLEEP_DURATION:?} = {iterations_f} to int")
+            });
+            let mut started = false;
+            for iter in 0..iterations {
+                if command.verbose {
+                    println!(
+                        "{iter}: {:?}",
+                        std::fs::read_to_string(&command.log_file)
+                            .map_err(Error::from_err)
+                            .stack()?
+                    );
                 }
+                if std::fs::read_to_string(&command.log_file)
+                    .map_err(Error::from_err)
+                    .stack()?
+                    .contains("launch_pid")
+                {
+                    started = true;
+                    break;
+                }
+                std::thread::sleep(SLEEP_DURATION);
+                nix::sched::sched_yield().map_err(Error::from_err).stack()?;
                 if let Some(status) = bpftrace_proc.try_wait().map_err(Error::from_err).stack()? {
                     bail!("bpftrace exited unexpectedly with {:?}", status);
                 }
-                counter += 1;
+            }
+            if !started {
+                bail!("bpftrace not launched within {timeout:?}");
             }
 
             Ok(bpftrace_proc)
@@ -241,3 +271,5 @@ fn printf_code(type_: &str) -> &str {
         _ => panic!("{type_} is not defined"),
     }
 }
+
+const SLEEP_DURATION: std::time::Duration = std::time::Duration::from_millis(100);

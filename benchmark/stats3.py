@@ -6,13 +6,12 @@ import functools
 import typing
 import datetime
 import polars
-import pandas
 import itertools
 import matplotlib.pyplot
 import pathlib
-import scipy.stats
+import scipy.stats  # type: ignore
 import util
-import scikit_posthocs
+import scikit_posthocs  # type: ignore
 import numpy
 import workloads
 
@@ -117,7 +116,7 @@ def renames(all_trials: polars.DataFrame) -> polars.DataFrame:
         util.console.print("\n".join(unlabelled_workloads))
 
     all_trials = all_trials.with_columns(
-        polars.col("collector").cast(str).replace({"probe": "probe (metadata)", "probecopylazy": r"probe (metadata \& data)"}),
+        polars.col("collector").cast(str).replace({"probe": "probe (metadata)", "probecopylazy": r"probe (metadata & data)"}),
         polars.col("workload_subsubgroup").cast(str).replace(workload_renames).alias("workload"),
         polars.col("workload_subsubgroup").cast(str).replace(workload_to_groups).alias("group"),
         (polars.col("user_cpu_time") + polars.col("system_cpu_time")).alias("cpu_time"),
@@ -217,6 +216,7 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
                 validate="m:1",
             )
             .with_columns((polars.col(qty) / polars.col(f"{qty}_w_mean")).alias(f"{qty}_w_z"))
+            .with_columns(polars.col(f"{qty}_w_z").log().alias(f"{qty}_w_z_log"))
         )
     )
     n_warmups_ignored = None
@@ -260,7 +260,8 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
         label="Ignored workloads",
     )
     ax.set_ylim(ymin, ymax)
-    ax.set_xlim(0, n_warmups_ignored * 4)
+    ax.set_xlim(0, n_warmups_ignored * 6)
+    ax.set_xticks(range(0, n_warmups_ignored * 6))
     fig.savefig(output, bbox_inches="tight")
 
     for workload in small_calib_runs.unique("workload")["workload"]:
@@ -274,27 +275,34 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
             .mean()
         )
         collectors = sorted(small_calib_runs["collector"].unique())
-        normed_stddevs = numpy.array([
+        data = [
             (
                 df
                 .filter(polars.col("collector") == collector)
                 ["walltime"]
                 .dt.total_microseconds()
                 .to_numpy()
-            ).std(ddof=1) / total_mean
+            )
             for collector in collectors
+        ]
+        normed_stddevs = numpy.array([
+            row.std(ddof=1) / total_mean
+            for row in data
         ])
-        for i, (collector, stddev) in sorted(enumerate(zip(collectors, normed_stddevs)), lambda pair: pair[1][1]):
+        assert normed_stddevs.shape[0] == len(collectors)
+        for i, (collector, stddev) in enumerate(sorted(zip(collectors, normed_stddevs), key=lambda pair: pair[1])):
             print(f"{collector: <30s}: {normed_stddevs[i]:.2f}")
         max_diff = normed_stddevs.max() - normed_stddevs.min()
         print(f"Max diff: {max_diff:.2f} from {collectors[normed_stddevs.argmax()]} to {collectors[normed_stddevs.argmin()]}")
         if max_diff > 0.1:
-            print("Doesn't seem heteroskedastic")
+            print("Doesn't seem homoscedastic")
         else:
-            print("Seems heteroskedastic")
+            print("Seems homoscedastic")
+
+        print(f"Levene's test for homoscedastic (small means not homoscedastic): {scipy.stats.levene(*data).pvalue:.1e}")
 
         output = pathlib.Path(f"small-calib-histograms-{workload}.svg")
-        print(f"Verify normality (symmetric bell) and heterskedasticity (same width) in {output}")
+        print(f"Verify normality (symmetric bell) and heterscedasticity (same width) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
         histogram(
@@ -308,7 +316,7 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
         fig.legend()
         fig.savefig(output, bbox_inches="tight")
         output = pathlib.Path(f"small-calib-qq-{workload}.svg")
-        print(f"Verify normality (linear) and heterskedasticity (same slope) in {output}")
+        print(f"Verify normality (linear) and homoscedasticity (same slope) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
         qq_plot(
@@ -317,7 +325,27 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
             f"{qty}_w_z",
             "collector",
         )
+        fig.legend()
         fig.savefig(output, bbox_inches="tight")
+
+        output = pathlib.Path(f"small-calib-histograms-{workload}-log.svg")
+        print(f"Verify normality (symmetric bell) and heterscedasticity (same width) in {output}")
+        fig = matplotlib.figure.Figure()
+        ax = fig.add_subplot(1, 1, 1)
+        qq_plot(
+            ax,
+            df,
+            f"{qty}_w_z_log",
+            "collector",
+        )
+        fig.legend()
+        fig.savefig(output, bbox_inches="tight")
+        for i, collector in enumerate(df.unique("collector").sort("collector")["collector"]):
+            population = df.filter(polars.col("collector") == collector)["walltime"].to_numpy().astype(numpy.float128)
+            p_value = scipy.stats.shapiro(population)[1]
+            p_value2 = scipy.stats.shapiro(numpy.log(population))[1]
+            p_value3 = scipy.stats.shapiro(numpy.log(numpy.log(population)))[1]
+            print(f"P-value {collector} {workload} is normal = {p_value:.1e}, log-normal = {p_value2:.1e}, loglog-normal = {p_value3:.1e}")
 
 
 def calibrate_errors(all_trials: polars.DataFrame) -> None:
@@ -344,18 +372,108 @@ def calibrate_errors(all_trials: polars.DataFrame) -> None:
     # many_run               = benchmarK_overhead + C * true_run_time
     # C * one_run - many_run = (C - 1) * benchmark_overhead
     benchmark_overhead = (workloads.calibration_ratio * one_run.mean() - many_run.mean()) / (workloads.calibration_ratio - 1)
-    print(f"{benchmark_overhead:.0f}us")
+    print(f"Overhead = {benchmark_overhead:.0f}us")
 
     # X_observed ~ X_true + abs_noise + prop_noise * X_true
     # where X_true is a real, abs_noise and prop_noise are centered random variables
     # Var(X_observed) = 0 + Var(abs_noise) + Var(prop_noise) * X_true^2
     # Var(one_run) = abs_noise + prop_noise*one_run_mean^2
     # Var(many_run) = abs_noise + prop_noise*many_run_mean^2
+
+    # Var(one_run) - Var(many_run) = prop_noise*(one_run_mean^2 - many_run_mean^2)
     prop_noise = (numpy.var(many_run) - numpy.var(one_run)) / (many_run.mean()**2 - one_run.mean()**2)
-    prop_noise2 = (numpy.var(many_run) - numpy.var(one_run)) / ((many_run.mean() + one_run.mean()) * (many_run.mean() - one_run.mean()))
-    print(f"{numpy.sqrt(prop_noise):.2f}us / sec, {numpy.sqrt(prop_noise2):.2f}us / sec")
+    print(f"Relative noise = {numpy.sqrt(prop_noise):.3f}")
+
+    # many_run_mean^2*Var(one_run) - one_run_mean^2*Var(many_run) = (many_run_mean^2 - one_run_mean^2)*abs_noise
     noise = (many_run.mean()**2 * numpy.var(one_run) - one_run.mean()**2 * numpy.var(many_run)) / (many_run.mean()**2 - one_run.mean()**2)
-    print(f"{numpy.sqrt(noise):.2f}us")
+    print(f"Absolute noise (stddev) = {numpy.sqrt(noise):.2f}us")
+
+def show_collector_workload_matrix(
+        all_trials: polars.DataFrame,
+        n_warmups_ignored: int = 1,
+) -> None:
+    controlled_vars = ("workload",)
+    independent_vars = ("collector",)
+    dependent_vars = ("walltime", "user_cpu_time", "system_cpu_time", "max_memory")
+
+    dependent_var_stats = [
+        *util.flatten1([
+            [
+                *lognorm_mle(var),
+                *norm_mle(var),
+            ]
+            for var in dependent_vars
+        ]),
+        polars.len().alias("count"),
+    ]
+    dependent_var_stats_names = [
+        var.meta.output_name()
+        for var in dependent_var_stats
+    ]
+
+    avged_trials = (
+        all_trials
+        .group_by(*controlled_vars, *independent_vars)
+        .agg(*dependent_var_stats)
+        .pipe(lambda avged_trials: join_baseline(
+            avged_trials,
+            controlled_vars,
+            independent_vars,
+            ("noprov", 0),
+            dependent_var_stats_names,
+        ))
+        .with_columns(*util.flatten1([
+            lognorm_ratio(var, f"baseline_{var}", f"ratio_{var}")
+            for var in dependent_vars
+        ]))
+    )
+    collectors = list(avged_trials.unique("collector").sort("collector")["collector"])
+    workloads = list(avged_trials.unique("workload").sort("workload")["workload"])
+    for var in dependent_vars:
+        collectors = sorted(
+            collectors,
+            key=lambda collector: avged_trials.filter(polars.col("collector") == collector)[f"ratio_{var}_avg"].to_numpy().mean(),
+        )
+        workloads = sorted(
+            workloads,
+            key=lambda workload: avged_trials.filter(polars.col("workload") == workload)[f"ratio_{var}_avg"].to_numpy().mean(),
+        )
+        fig = matplotlib.figure.Figure(figsize=(len(workloads) * 2, len(collectors) * 2))
+        ax = fig.add_subplot(1, 1, 1)
+        im = ax.imshow(
+            avged_trials
+            .pivot(
+                on="collector",
+                index="workload",
+                values=f"ratio_{var}_avg",
+            )
+            .select(collectors)
+            .to_numpy(),
+        )
+        ax.set_xticks(range(len(collectors)), collectors, rotation=90)
+        ax.set_yticks(range(len(workloads)), workloads)
+        fig.colorbar(im)
+        text = (
+            avged_trials
+            .with_columns(
+                polars.concat_str(
+                    ((polars.col(f"ratio_{var}_avg").exp() - 1.0) * 100).round(0).cast(int),
+                    # polars.lit(" ±"),
+                    # polars.col(f"ratio_{var}_std").exp().round(0).astype(int),
+                ).alias(f"ratio_{var}_text")
+            )
+            .pivot(
+                on="collector",
+                index="workload",
+                values=f"ratio_{var}_text",
+            )
+            .select(collectors)
+            .to_numpy()
+        )
+        for i, collector in enumerate(collectors):
+            for j, workload in enumerate(workloads):
+                ax.text(i, j, text[j, i], ha="center", va="center", color="white", fontsize=10)
+        fig.savefig(f"matrix_{var}.svg", bbox_inches="tight")
 
 
 def main(
@@ -399,6 +517,11 @@ def main(
     #     )
     #     .sort("group", "workload", "n_warmups")
     # )
+
+    show_collector_workload_matrix(
+        all_trials,
+        n_warmups_ignored=1,
+    )
 
     dependent_var_stats = [
         *util.flatten1([
@@ -455,11 +578,11 @@ def histogram(
         categorical_var: str,
         cap: float,
 ) -> None:
-    max = df[population_var].max()
+    max = typing.cast(float | int, df[population_var].max())
     for i, category in enumerate(df.unique(categorical_var).sort(categorical_var)[categorical_var]):
         population = df.filter(polars.col(categorical_var) == category)[population_var].to_numpy()
         kde = scipy.stats.gaussian_kde(population)
-        ts = numpy.linspace(0, max)
+        ts = numpy.linspace(0, max, int(max * 30))
         ax.plot(
             ts,
             numpy.clip(kde(ts), 0, cap),
@@ -474,16 +597,14 @@ def qq_plot(
         population_var: str,
         categorical_var: str,
 ) -> None:
-    for category in df.unique(categorical_var).sort(categorical_var)[categorical_var]:
+    for i, category in enumerate(sorted(df.unique(categorical_var).sort(categorical_var)[categorical_var])):
         population = df.filter(polars.col(categorical_var) == category)[population_var].to_numpy()
-        scipy.stats.norm(loc=population.mean(), scale=population.std())
-        osm = dist.ppf(osm_uniform, *sparams)
-        osr = sort(x)
-        scipy.stats.probplot(population, dist="norm", fit=True, plot=ax)
+        population = (population - population.mean()) / population.std()
+        (osm, osr), (slope, intercept, r) = scipy.stats.probplot(population, dist="norm", fit=True, plot=None)
+        ax.plot(osm, osr, label=category, color=colors(i))
 
 
-#import matplotlib.cm
-cmap = matplotlib.cm.tab20.colors
+cmap = matplotlib.cm.tab20.colors  # type: ignore
 def colors(i: int) -> typing.Any:
     return cmap[i % len(cmap)]
 
@@ -575,14 +696,14 @@ def is_different(
         independent_vars: list[str],
         dependent_vars: list[str],
         normal: bool,
-        homoskedastic: bool,
+        homoscedastic: bool,
 ) -> None:
     # has_replicants = df.group_by(*controlled_vars, *independent_vars).agg(polars.len().alias("count")).min() >= 2
     n_factors = len(independent_vars)
     n_treatments = df.n_unique(*independent_vars)
     numpy_df = df.to_numpy()
     assert len(numpy_df) == n_treatments
-    if n_factors == 1 and normal and homoskedastic:
+    if n_factors == 1 and normal and homoscedastic:
         if n_treatments == 1:
             result = scipy.stats.ttest_ind(numpy_df[0], numpy_df[1])
             result.statistic
