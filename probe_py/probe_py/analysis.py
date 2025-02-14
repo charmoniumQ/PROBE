@@ -553,7 +553,7 @@ def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
 def get_max_parallelism(ops_graph: nx.DiGraph) -> int:
     max_para = 0
     root_node = [n for n in ops_graph.nodes() if ops_graph.out_degree(n) > 0 and ops_graph.in_degree(n) == 0][0]
-    parallel_processes = []
+    parallel_processes:list[int] = []
     for idx, nodes in enumerate(nx.bfs_layers(ops_graph, [root_node])):
         if len(nodes) > max_para:
             parallel_processes = []

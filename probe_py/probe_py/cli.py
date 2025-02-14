@@ -500,7 +500,7 @@ def get_max_parallelism(
         ] = pathlib.Path("probe_log")
 ) -> None:
     """
-      get max parallelism
+      Get the maximum number of processes that can run in parallel.
     """
     prov_log = parse_probe_log(probe_log)
     process_graph = analysis.provlog_to_digraph(prov_log)
