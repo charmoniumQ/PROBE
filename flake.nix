@@ -219,7 +219,6 @@ preConfigure = lib.optionalString (pkgs.stdenv.isDarwin) ''
               pythonPackages.ipython
               pythonPackages.pycparser
             ]))
-            pkgs.buildah
             pkgs.which
             pkgs.gnumake
             pkgs.gcc
