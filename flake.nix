@@ -233,6 +233,8 @@ preConfigure = lib.optionalString (pkgs.stdenv.isDarwin) ''
             pkgs.podman
           ] ++ lib.optional (system != "i686-linux") pkgs.nextflow
             ++ lib.optional (system != "aarch64-darwin") pkgs.gdb
+            # see: https://github.com/NixOS/nixpkgs/issues/353393
+            ++ lib.optional (system != "x86_64-darwin") pkgs.buildah
             ++ lib.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot
             ++ lib.optional (pkgs.stdenv.isDarwin) [
               frameworks.IOKit
