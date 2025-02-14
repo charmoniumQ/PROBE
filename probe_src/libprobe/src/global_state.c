@@ -188,32 +188,83 @@ static int get_inodes_dirfd() {
     return __inodes_dirfd;
 }
 
-static __thread struct ArenaDir* __op_arena = NULL;
-static __thread struct ArenaDir* __data_arena = NULL;
 static const size_t prov_log_arena_size = 64 * 1024;
-static void init_log_arena() {
-    DEBUG("I AM IN INIT LOG ARENA");
-    DEBUG("__op_arena %p", __op_arena);
-    __op_arena = calloc(1, sizeof(struct ArenaDir));
-    DEBUG("Here2")
-    __data_arena = calloc(1, sizeof(struct ArenaDir));
-    DEBUG("__op_arena address: %p", __op_arena);
-    DEBUG("__data_arena address: %p", __data_arena);
-    assert(!arena_is_initialized(__op_arena));
-      DEBUG("FIRST ASSERTION PASSED");
-    assert(!arena_is_initialized(__data_arena));
-    DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", __probe_dir, getpid(), get_exec_epoch(), my_gettid(), true);
+
+
+// for macOS
+
+typedef struct {
+    struct ArenaDir* op_arena;
+    struct ArenaDir* data_arena;
+} ThreadLocalData;
+
+void init_log_arena(ThreadLocalData* tld);
+static void ensure_process_initted() {
+    if (!__process_inited) {
+        __process_inited = true;
+
+        DEBUG("Initializing process");
+        init_function_pointers();
+        check_function_pointers();
+        init_process_global_state();
+
+        pthread_key_create(&tld_key, free);
+
+        __process_inited_done = true;
+    }
+    while (!__process_inited_done) {
+        sched_yield();
+    }
+
+    DEBUG("Process newly or already initialized");
+}
+
+static bool ensure_thread_initted() {
+    ThreadLocalData* tld = (ThreadLocalData*)pthread_getspecific(tld_key);
+
+    if (tld == NULL) {
+        DEBUG("Initializing thread-local data");
+        tld = (ThreadLocalData*)malloc(sizeof(ThreadLocalData));
+        tld->op_arena = NULL;
+        tld->data_arena = NULL;
+
+        init_log_arena(tld);
+
+        pthread_setspecific(tld_key, tld);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+static void init_log_arena(ThreadLocalData* tld) {
+    DEBUG("Initializing log arena for thread");
+
+    tld->op_arena = calloc(1, sizeof(struct ArenaDir));
+    tld->data_arena = calloc(1, sizeof(struct ArenaDir));
+
+    DEBUG("__op_arena address: %p", tld->op_arena);
+    DEBUG("__data_arena address: %p", tld->data_arena);
+
+    assert(!arena_is_initialized(tld->op_arena));
+    assert(!arena_is_initialized(tld->data_arena));
+
     int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), NULL, my_gettid(), true, false);
-    EXPECT( == 0, arena_create(__op_arena, thread_dirfd, "ops", prov_log_arena_size));
-    EXPECT( == 0, arena_create(__data_arena, thread_dirfd, "data", prov_log_arena_size));
+    EXPECT( == 0, arena_create(tld->op_arena, thread_dirfd, "ops", prov_log_arena_size));
+    EXPECT( == 0, arena_create(tld->data_arena, thread_dirfd, "data", prov_log_arena_size));
 }
-static struct ArenaDir* get_op_arena() {
-    assert(arena_is_initialized(__op_arena));
-    return __op_arena;
+struct ArenaDir* get_op_arena() {
+    ThreadLocalData* tld = (ThreadLocalData*)pthread_getspecific(tld_key);
+    assert(tld != NULL);
+    return tld->op_arena;
 }
-static struct ArenaDir* get_data_arena() {
-    assert(arena_is_initialized(__data_arena));
-    return __data_arena;
+
+struct ArenaDir* get_data_arena() {
+    ThreadLocalData* tld = (ThreadLocalData*)pthread_getspecific(tld_key);
+    assert(tld != NULL);
+    return tld->data_arena;
 }
 
 /**

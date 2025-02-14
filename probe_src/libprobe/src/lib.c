@@ -50,7 +50,7 @@ static void reinit_process();
 static void prov_log_disable();
 static int get_exec_epoch_safe();
 static bool __process_inited = false;
-
+ static bool __process_inited_done= false;
 #define ENV_VAR_PREFIX "PROBE_"
 
 #define PRIVATE_ENV_VAR_PREFIX "__PROBE_"
