@@ -29,6 +29,7 @@
       "aarch64-linux" = "aarch64-unknown-linux-musl";
       "armv7l-linux" = "armv7-unknown-linux-musleabi";
       "aarch64-darwin" = "aarch64-apple-darwin"; # Added macOS support
+      "x86_64-darwin" = "x86_64-apple-darwin";
     };
   in
   flake-utils.lib.eachSystem (builtins.attrNames supportedSystems) (system:
