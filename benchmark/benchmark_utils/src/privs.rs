@@ -35,13 +35,13 @@ pub fn initially_reduce_privileges() -> Result<()> {
             saved: group.saved,
         })
     {
-        bail!("setresgid exceeded, but did not de-escalate");
+        bail!("setresgid exceeded, but did not de-escalate\n");
     }
 
     // De-escalate user first
     let user = getresuid().map_err(Error::from_err).stack()?;
     if user.real == user.effective {
-        bail!("Is this binary setuid and owned by another user?");
+        bail!("Is this binary setuid and owned by another user?\n");
     }
     setresuid(user.real, user.real, user.saved)
         .map_err(Error::from_err)
@@ -53,7 +53,7 @@ pub fn initially_reduce_privileges() -> Result<()> {
             saved: user.saved,
         })
     {
-        bail!("setresuid exceeded, but did not de-escalate");
+        bail!("setresuid exceeded, but did not de-escalate\n");
     }
 
     Ok(())
@@ -77,7 +77,7 @@ where
             saved: user.saved,
         })
     {
-        bail!("setresuid exceeded, but did not escalate");
+        bail!("setresuid exceeded, but did not escalate\n");
     }
 
     // Esclate group
@@ -92,7 +92,7 @@ where
             saved: group.saved,
         })
     {
-        bail!("setresgid exceeded, but did not escalate");
+        bail!("setresgid exceeded, but did not escalate\n");
     }
 
     let ret = func();
@@ -108,7 +108,7 @@ where
             saved: group.saved,
         })
     {
-        bail!("setresgid exceeded, but did not de-escalate");
+        bail!("setresgid exceeded, but did not de-escalate\n");
     }
 
     // De-escalate user first
@@ -122,7 +122,7 @@ where
             saved: user.saved,
         })
     {
-        bail!("setresuid exceeded, but did not de-escalate");
+        bail!("setresuid exceeded, but did not de-escalate\n");
     }
 
     ret
@@ -146,7 +146,7 @@ pub fn permanently_drop_privileges() -> Result<()> {
             saved: group.real,
         })
     {
-        bail!("setresgid exceeded, but did not de-escalate");
+        bail!("setresgid exceeded, but did not de-escalate\n");
     }
     // Drop user
     let user = getresuid().map_err(Error::from_err).stack()?;
@@ -160,7 +160,7 @@ pub fn permanently_drop_privileges() -> Result<()> {
             saved: user.real,
         })
     {
-        bail!("setresuid exceeded, but did not de-escalate");
+        bail!("setresuid exceeded, but did not de-escalate\n");
     }
 
     Ok(())
@@ -171,13 +171,13 @@ pub fn verify_safe_to_run_as_root<P: AsRef<std::path::Path> + std::fmt::Debug>(
 ) -> Result<()> {
     use std::os::unix::fs::MetadataExt;
     if !path.as_ref().exists() {
-        bail!("{:?} does not exist; try building with Nix?", path);
+        bail!("{:?} does not exist; try building with Nix?\n", path);
     }
     let metadata = std::fs::metadata(path.as_ref())
         .map_err(Error::from_err)
         .stack()?;
     if metadata.uid() != 0 || metadata.gid() != 0 || metadata.mode() & 0o002 != 0 {
-        bail!("We will run {:?} as root, so it should be owned by root, root-group, and not world-writable", path.as_ref());
+        bail!("We will run {:?} as root, so it should be owned by root, root-group, and not world-writable\n", path.as_ref());
     }
     Ok(())
 }
@@ -187,13 +187,13 @@ pub fn verify_confidential_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
 ) -> Result<()> {
     use std::os::unix::fs::MetadataExt;
     if !path.as_ref().exists() {
-        bail!("{:?} does not exist; try building with Nix?", path);
+        bail!("{:?} does not exist; try building with Nix?\n", path);
     }
     let metadata = std::fs::metadata(path.as_ref())
         .map_err(Error::from_err)
         .stack()?;
     if metadata.uid() != 0 || metadata.gid() != 0 || metadata.mode() & 0o002 != 0 {
-        bail!("We will run {:?} as root, so it should be owned by root, root-group, and not world-writable", path.as_ref());
+        bail!("We will run {:?} as root, so it should be owned by root, root-group, and not world-writable\n", path.as_ref());
     }
     Ok(())
 }
@@ -201,7 +201,7 @@ pub fn verify_confidential_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
 pub fn verify_root() -> Result<()> {
     let real_uid = nix::unistd::geteuid();
     if !real_uid.is_root() {
-        bail!("Not actually root, we are only {real_uid}");
+        bail!("Not actually root, we are only {real_uid}\n");
     }
     Ok(())
 }
@@ -209,7 +209,7 @@ pub fn verify_root() -> Result<()> {
 pub fn verify_not_root() -> Result<()> {
     let real_uid = nix::unistd::geteuid();
     if real_uid.is_root() {
-        bail!("We actually are root");
+        bail!("We actually are root\n");
     }
     Ok(())
 }

@@ -186,7 +186,7 @@ def remove_outliers(
     return all_trials
 
 
-def verify_assumptions(all_trials: polars.DataFrame) -> None:
+def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> None:
     qty = "walltime"
     small_calib_runs = (
         all_trials
@@ -238,7 +238,7 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
     assert n_warmups_ignored is not None
     print(f"Algorithm wants to ignore {n_warmups_ignored}")
     n_warmups_ignored = 1
-    output = pathlib.Path("small-calib-lines.svg")
+    output = output / "small-calib-lines.svg"
     print(f"Verify that the results are the same after {n_warmups_ignored} for all collectors (lines) in {output}")
     fig = matplotlib.figure.Figure()
     ax = fig.add_subplot(1, 1, 1)
@@ -301,7 +301,7 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
 
         print(f"Levene's test for homoscedastic (small means not homoscedastic): {scipy.stats.levene(*data).pvalue:.1e}")
 
-        output = pathlib.Path(f"small-calib-histograms-{workload}.svg")
+        output = output / f"small-calib-histograms-{workload}.svg"
         print(f"Verify normality (symmetric bell) and heterscedasticity (same width) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
@@ -315,7 +315,7 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
         ax.set_xlim(0, 4)
         fig.legend()
         fig.savefig(output, bbox_inches="tight")
-        output = pathlib.Path(f"small-calib-qq-{workload}.svg")
+        output = output / f"small-calib-qq-{workload}.svg"
         print(f"Verify normality (linear) and homoscedasticity (same slope) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
@@ -328,7 +328,7 @@ def verify_assumptions(all_trials: polars.DataFrame) -> None:
         fig.legend()
         fig.savefig(output, bbox_inches="tight")
 
-        output = pathlib.Path(f"small-calib-histograms-{workload}-log.svg")
+        output = output / f"small-calib-histograms-{workload}-log.svg"
         print(f"Verify normality (symmetric bell) and heterscedasticity (same width) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
@@ -391,6 +391,7 @@ def calibrate_errors(all_trials: polars.DataFrame) -> None:
 def show_collector_workload_matrix(
         all_trials: polars.DataFrame,
         n_warmups_ignored: int = 1,
+        output: pathlib.Path,
 ) -> None:
     controlled_vars = ("workload",)
     independent_vars = ("collector",)
@@ -473,11 +474,12 @@ def show_collector_workload_matrix(
         for i, collector in enumerate(collectors):
             for j, workload in enumerate(workloads):
                 ax.text(i, j, text[j, i], ha="center", va="center", color="white", fontsize=10)
-        fig.savefig(f"matrix_{var}.svg", bbox_inches="tight")
+        fig.savefig(output / f"matrix_{var}.svg", bbox_inches="tight")
 
 
 def main(
         data: pathlib.Path = pathlib.Path("output/iterations.parquet"),
+        output: pathlib.Path = pathlib.Path("output"),
 ) -> None:
     # Typer does rich.traceback.install
     # Undo it here
@@ -498,7 +500,7 @@ def main(
     independent_vars = ("collector", "n_warmups")
     dependent_vars = ("walltime", "user_cpu_time", "system_cpu_time", "max_memory")
 
-    verify_assumptions(all_trials)
+    verify_assumptions(all_trials, output)
 
     calibrate_errors(all_trials)
 
@@ -521,6 +523,7 @@ def main(
     show_collector_workload_matrix(
         all_trials,
         n_warmups_ignored=1,
+        output,
     )
 
     dependent_var_stats = [

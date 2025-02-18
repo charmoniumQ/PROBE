@@ -1,4 +1,4 @@
-use num_traits::{Bounded, NumCast};
+use num_traits::NumCast;
 use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
 use std::io::Write;
 
@@ -22,15 +22,15 @@ pub fn write_to_sys_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
             .write(true)
             .open(path.as_ref())
             .map_err(Error::from_err)
-            .context(anyhow!("{path:?}"))
+            .context(anyhow!("{path:?}\n"))
             .stack()?;
         file.write_all(content.as_bytes())
             .map_err(Error::from_err)
-            .context(anyhow!("{path:?}"))
+            .context(anyhow!("{path:?}\n"))
             .stack()?;
         Ok(())
     } else {
-        bail!("File {:?} does not exist", path)
+        bail!("File {:?} does not exist\n", path)
     }
 }
 
@@ -44,11 +44,11 @@ pub fn write_to_file_truncate<P: AsRef<std::path::Path> + std::fmt::Debug>(
         .truncate(true)
         .open(path.as_ref())
         .map_err(Error::from_err)
-        .context(anyhow!("{path:?}"))
+        .context(anyhow!("{path:?}\n"))
         .stack()?;
     file.write_all(content.as_bytes())
         .map_err(Error::from_err)
-        .context(anyhow!("{path:?}"))
+        .context(anyhow!("{path:?}\n"))
         .stack()?;
     Ok(())
 }
@@ -58,11 +58,11 @@ pub fn check_cmd(cmd: &mut std::process::Command) -> Result<()> {
         .stdout(std::process::Stdio::piped())
         .status()
         .map_err(Error::from_err)
-        .context(anyhow!("Error launching {:?}", cmd))
+        .context(anyhow!("Error launching {:?}\n", cmd))
         .stack()?
         .success()
     {
-        bail!("Command failed: {:?}", cmd)
+        bail!("Command failed: {:?}\n", cmd)
     }
     Ok(())
 }
@@ -122,14 +122,136 @@ where
     }
 }
 
-pub fn checked_cast<F: NumCast, I: Bounded + PartialOrd + NumCast>(from: F) -> Option<I> {
-    let min = I::min_value();
-    let max = I::max_value();
-
-    if let Some(val) = I::from(from) {
-        if min <= val && val <= max {
-            return Some(val);
+pub fn replace_err_with2<F>(err_exit_code: u8, real_main: F) -> std::process::ExitCode
+where
+    F: FnOnce() -> Result<nix::sys::wait::WaitStatus>,
+{
+    use nix::sys::wait::WaitStatus::{
+        Continued, Exited, PtraceEvent, PtraceSyscall, Signaled, StillAlive, Stopped,
+    };
+    match real_main() {
+        Ok(status) => match status {
+            Exited(_, exit_code) => {
+                eprintln!("Child exited with {exit_code}.");
+                u8::try_from(exit_code).unwrap_or_else(|err| {
+                    eprintln!(
+                        "Child exit code {exit_code} not in u8-range, using {err_exit_code}. {err:?}"
+                    );
+                    err_exit_code
+                }).into()
+            }
+            Signaled(_, exit_code, core_dump) => {
+                eprintln!("Child signaled with {exit_code}.");
+                if core_dump {
+                    eprintln!("Child's core dumped.");
+                }
+                err_exit_code.into()
+            }
+            PtraceEvent(_, sig, _) => {
+                eprintln!("Child ptraced with {sig}.");
+                err_exit_code.into()
+            }
+            PtraceSyscall(_) => {
+                eprintln!("Child got ptraced");
+                err_exit_code.into()
+            }
+            Continued(_) => {
+                eprintln!("Child got continued");
+                err_exit_code.into()
+            }
+            StillAlive => {
+                eprintln!("Child is still alive");
+                err_exit_code.into()
+            }
+            Stopped(_, _) => {
+                eprintln!("Child got stopped");
+                err_exit_code.into()
+            }
+        },
+        Err(err) => {
+            if let Ok(wrapper) = std::env::current_exe() {
+                eprintln!("Wrapper {wrapper:?} failed:\n{err:?}");
+            } else {
+                eprintln!("Wrapper program failed:\n{err:?}");
+            }
+            err_exit_code.into()
         }
     }
-    None
+}
+
+pub fn sleepy_wait<T, F>(
+    timeout: std::time::Duration,
+    sleep: std::time::Duration,
+    verbose: bool,
+    func: F,
+) -> Result<Option<T>>
+where
+    F: Fn() -> Result<Option<T>>,
+{
+    if std::time::Duration::ZERO >= timeout {
+        bail!("{timeout:?} should be positive\n");
+    }
+    if std::time::Duration::ZERO >= sleep {
+        bail!("{sleep:?} should be positive\n");
+    }
+    let iterations: u16 = <u16 as NumCast>::from(timeout.div_duration_f64(sleep).round())
+        .ok_or_else(|| anyhow!("{timeout:?} / {sleep:?} not convertable\n"))
+        .stack()?;
+    for iteration in 0..iterations {
+        let ret = func();
+        match ret {
+            Ok(Some(ret)) => return Ok(Some(ret)),
+            Ok(None) => {
+                std::thread::sleep(sleep);
+                nix::sched::sched_yield().map_err(Error::from_err).stack()?;
+                if verbose {
+                    println!("Sleeping for {sleep:?} ({iteration}th / {iterations})");
+                }
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(None)
+}
+
+/// Spawn cmd in stopped state
+pub fn spawn_stopped(mut proc: std::process::Command, verbose: bool) -> Result<nix::unistd::Pid> {
+    let parent_pid = nix::unistd::getpid();
+    match unsafe { nix::unistd::fork() }.map_err(Error::from_err)? {
+        nix::unistd::ForkResult::Parent { child } => {
+            nix::sys::wait::waitpid(child, Some(nix::sys::wait::WaitPidFlag::WSTOPPED))
+                .map_err(Error::from_err)
+                .stack()?;
+            Ok(child)
+        }
+        nix::unistd::ForkResult::Child => {
+            use std::os::unix::process::CommandExt;
+            let child_pid = nix::unistd::getpid();
+            if child_pid == parent_pid {
+                nix::unistd::write(
+                    std::io::stdout(),
+                    "after fork, child_pid == parent_pid. Something is wrong\n".as_bytes(),
+                )
+                .ok();
+                unsafe { libc::_exit(111) };
+            }
+            if verbose {
+                nix::unistd::write(std::io::stdout(), "Issuing SIGSTP\n".as_bytes()).ok();
+            }
+            if nix::sys::signal::kill(child_pid, nix::sys::signal::Signal::SIGTSTP).is_err() {
+                nix::unistd::write(
+                    std::io::stdout(),
+                    "Error issuing SIGSTP; exiting\n".as_bytes(),
+                )
+                .ok();
+                unsafe { libc::_exit(112) };
+            }
+            if verbose {
+                nix::unistd::write(std::io::stdout(), "Awoken from SIGSTP\n".as_bytes()).ok();
+            }
+            proc.exec();
+            nix::unistd::write(std::io::stdout(), "Error occurred during exec\n".as_bytes()).ok();
+            unsafe { libc::_exit(113) };
+        }
+    }
 }

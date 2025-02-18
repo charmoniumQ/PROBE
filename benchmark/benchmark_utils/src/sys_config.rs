@@ -172,7 +172,7 @@ impl SysConfig {
                 if let Some(state) = cpu_config.online {
                     util::eprintln_error(
                         util::write_to_sys_file(&cpu_online_path, &state.to_string())
-                            .context(anyhow!("{cpu_online_path:?}"))
+                            .context(anyhow!("{cpu_online_path:?}\n"))
                             .stack(),
                     );
                 }
@@ -189,7 +189,7 @@ impl SysConfig {
                     if let Some(state) = &cpu_config.cpufreq_scaling_governor {
                         util::eprintln_error(
                             util::write_to_sys_file(&freq_scaling_path, state)
-                                .context(anyhow!("{freq_scaling_path:?}"))
+                                .context(anyhow!("{freq_scaling_path:?}\n"))
                                 .stack(),
                         );
                     }
@@ -205,7 +205,7 @@ pub fn iter_cpus() -> Result<Vec<(Cpu, std::path::PathBuf)>> {
     let cpu_path = std::path::PathBuf::from(CPU_PATH);
     std::fs::read_dir(&cpu_path)
         .map_err(Error::from_err)
-        .context(anyhow!("read_dir({:?}) failed", cpu_path))
+        .context(anyhow!("read_dir({:?}) failed\n", cpu_path))
         .stack()?
         .map(|maybe_dirent| {
             let dirent = maybe_dirent.map_err(Error::from_err)?;
@@ -214,7 +214,7 @@ pub fn iter_cpus() -> Result<Vec<(Cpu, std::path::PathBuf)>> {
                 dirent
                     .file_name()
                     .into_string()
-                    .map_err(|err| anyhow!("Failed to decode {:?} {:?}", dirent.path(), err))
+                    .map_err(|err| anyhow!("Failed to decode {:?} {:?}\n", dirent.path(), err))
                     .stack()?,
             ))
         })
@@ -246,13 +246,13 @@ fn get_smt_sibling_cpus(cpu: Cpu) -> Result<Vec<Cpu>> {
         .join("cpu".to_owned() + &cpu.to_string())
         .join(SMT_SIBLINGS_LIST);
     Ok(std::fs::read_to_string(&path)
-        .context(anyhow!("{path:?}"))
+        .context(anyhow!("{path:?}\n"))
         .stack()?
         .split(',')
         .map(|part| {
             part.trim()
                 .parse::<Cpu>()
-                .map_err(|_| anyhow!("{} not parsable", part))
+                .map_err(|_| anyhow!("{} not parsable\n", part))
         })
         .collect::<Result<Vec<Cpu>>>()
         .stack()?

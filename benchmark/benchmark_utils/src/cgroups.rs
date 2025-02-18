@@ -45,7 +45,7 @@ impl Cgroup {
             .split(':')
             .last()
             .ok_or(anyhow!(
-                "Malformatted {:?} containing: {:?}",
+                "Malformatted {:?} containing: {:?}\n",
                 PROC_SELF_CGROUP,
                 proc_self_cgroup
             ))
@@ -58,7 +58,7 @@ impl Cgroup {
                 if path.exists() {
                     Ok(Cgroup { path })
                 } else {
-                    bail!("Expected cgroup path does not exist: {:?}", path)
+                    bail!("Expected cgroup path does not exist: {:?}\n", path)
                 }
             })
     }
@@ -84,12 +84,12 @@ impl Cgroup {
 
         Ok(Rusage {
             cpu_user_us: find_between(&cpu_stat, "user_usec ", "\n")
-                .ok_or(anyhow!("Expected user_usec in: {:?}", &cpu_stat))
+                .ok_or(anyhow!("Expected user_usec in: {:?}\n", &cpu_stat))
                 .stack()?
                 .parse::<u64>()
                 .stack()?,
             cpu_system_us: find_between(&cpu_stat, "system_usec ", "\n")
-                .ok_or(anyhow!("Expected system_usec in: {:?}", cpu_stat))
+                .ok_or(anyhow!("Expected system_usec in: {:?}\n", cpu_stat))
                 .stack()?
                 .parse::<u64>()
                 .stack()?,
@@ -99,7 +99,7 @@ impl Cgroup {
                 .trim()
                 .parse::<u64>()
                 .map_err(Error::from_err)
-                .context(anyhow!("{:?}", memory_peak_path))
+                .context(anyhow!("{:?}\n", memory_peak_path))
                 .stack()?,
             walltime_us: u64::try_from(walltime_us).context(walltime_us).stack()?,
             returncode: maybe_status.map_or(0, |status| status.code().unwrap_or(0)),
