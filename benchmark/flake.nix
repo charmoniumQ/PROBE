@@ -12,7 +12,10 @@
     crane,
     ...
   } @ inputs:
-    flake-utils.lib.eachDefaultSystem (
+    let
+      lib = nixpkgs.lib;
+      systems = [ "x86_64-linux" ];
+    in flake-utils.lib.eachSystem systems (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         craneLib = crane.mkLib pkgs;
