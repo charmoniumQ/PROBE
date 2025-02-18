@@ -20,25 +20,83 @@
           src = craneLib.cleanCargoSource ./benchmark_utils;
           strictDeps = true;
         };
-        benchmark-utils = craneLib.buildPackage (commonArgs // {
-          cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-          propagatedBuildInputs = [
-            # Client for Systemd (systemctl and systemd-run)
-            pkgs.systemdMinimalbin
-            pkgs.audit.bin
-            nixpkgs2.legacyPackages.${system}.bpftrace
-            pkgs.util-linux.bin
-          ];
-          NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
-          NIX_AUDIT_PATH = pkgs.audit.bin;
-          NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
-          NIX_BPFTRACE_PATH = nixpkgs2.legacyPackages.${system}.bpftrace;
-        });
+        benchmark-utils = craneLib.buildPackage (commonArgs
+          // {
+            cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+            propagatedBuildInputs = [
+              # Client for Systemd (systemctl and systemd-run)
+              pkgs.systemdMinimalbin
+              pkgs.audit.bin
+              nixpkgs2.legacyPackages.${system}.bpftrace
+              pkgs.util-linux.bin
+            ];
+            NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
+            NIX_AUDIT_PATH = pkgs.audit.bin;
+            NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
+            NIX_BPFTRACE_PATH = nixpkgs2.legacyPackages.${system}.bpftrace;
+          });
         python = pkgs.python312;
         noPytest = pypkg:
           pypkg.overrideAttrs (self: super: {
             pytestCheckPhase = ''true'';
           });
+          mandala = python.pkgs.buildPythonPackage rec {
+            pname = "mandala";
+            version = "3.20";
+            src = pkgs.fetchFromGitHub {
+              owner = "amakelov";
+              repo = "mandala";
+              rev = "v0.2.0-alpha";
+              hash = "sha256-MunDxlF23kn8ZJM7rk++bZaN35L51w2CABL16MZXDXU=";
+            };
+            propagatedBuildInputs = [
+              python.pkgs.numpy
+              python.pkgs.pandas
+              python.pkgs.joblib
+              python.pkgs.tqdm
+              python.pkgs.pyarrow
+              python.pkgs.prettytable
+              python.pkgs.graphviz
+            ];
+            checkInputs = [
+              python.pkgs.pytest
+              python.pkgs.hypothesis
+              python.pkgs.ipython
+            ];
+            # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
+            doCheck = true;
+            pythonImportsCheck = ["mandala"];
+          };
+        pythonWithPackages = (python.withPackages (pypkgs: [
+          pypkgs.typer
+          pypkgs.rich
+          pypkgs.mypy
+          pypkgs.pyyaml
+          pypkgs.ipython
+          pypkgs.yarl
+          pypkgs.tqdm
+          pypkgs.types-tqdm
+          pypkgs.types-pyyaml
+          pypkgs.polars
+          pypkgs.types-psutil
+          pypkgs.types-requests
+          pypkgs.requests
+          pypkgs.githubkit
+          pypkgs.aiohttp
+          pypkgs.aiodns
+          pypkgs.tqdm
+          pypkgs.matplotlib
+          pypkgs.seaborn
+          pypkgs.scipy
+          pypkgs.bitmath
+          pypkgs.pympler
+          pypkgs.psutil
+          pypkgs.scikit-posthocs
+          pypkgs.matplotlib
+          pypkgs.pandas
+          mandala
+          pypkgs.dbus-next
+        ]));
         removePackage = drv: pkgsToRemove:
           drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {
               name = pkgToRemove;
@@ -205,10 +263,10 @@
               nasm -f bin -o $out/bin/small-hello main.nasm
               chmod +x $out/bin/small-hello
             '';
-            nativeBuildInputs = [ pkgs.nasm ];
+            nativeBuildInputs = [pkgs.nasm];
             installPhase = "true";
           };
-          bagel = nixos-q-chem.packages.${system}.bagel;
+          # bagel = nixos-q-chem.packages.${system}.bagel;
           fits-0 = pkgs.fetchurl {
             url = "http://www.astropy.org/astropy-data/l1448/l1448_13co.fits";
             hash = "sha256-3k1EzShB00z+mJFasyL4PjAvE7lZnvhikHkknlOtbUk=";
@@ -217,8 +275,8 @@
             dontUnpack = true;
             pname = "podman-wrapper";
             version = "1.0";
-            nativeBuildInputs = [ pkgs.makeWrapper ];
-            buildInputs = [ pkgs.podman ];
+            nativeBuildInputs = [pkgs.makeWrapper];
+            buildInputs = [pkgs.podman];
             installPhase = ''
               set -ex
               mkdir -p $out/bin
@@ -226,7 +284,7 @@
               chmod +w $out/bin/podman
               wrapProgram $out/bin/podman \
                 --set PATH ${pkgs.su.out}/bin
-              '';
+            '';
           };
           hello = pkgs.hello;
           bubblewrap = pkgs.bubblewrap;
@@ -332,15 +390,6 @@
               cp -r * $out/
             '';
           };
-          sextractor = pkgs.stdenv.mkDerivation {
-            name = "sextractor";
-            src = pkgs.fetchFromGitHub {
-              owner = "astromatic";
-              repo = "sextractor";
-              rev = "2.28.0";
-              hash = "";
-            };
-          };
           astropy-env = python.withPackages (pypkgs: [
             pypkgs.pvextractor
             pypkgs.astropy
@@ -423,9 +472,8 @@
               mainSrc = pkgs.fetchFromGitHub {
                 owner = "ashish-gehani";
                 repo = "SPADE";
-                rev = "master";
-                hash = "sha256-5Cvx9Z1Jn30wEqP+X+/rPviZZKiEOjRGvd1KJfg5Www=";
-                name = "main";
+                rev = "407af45cd516ea6f718ee806c0de093f33ad9762";
+                hash = "sha256-Ot1pUSkDYa0t18+fcp4GxEcIVT1fX7QXiNMaJOpr3jo=";
               };
               neo4j = pkgs.fetchurl {
                 url = https://neo4j.com/artifact.php?name=neo4j-community-4.1.1-unix.tar.gz;
@@ -800,7 +848,7 @@
             };
             checkInputs = [python.pkgs.pip];
             doCheck = false;
-            propagatedBuildInputs = [rpaths reprounzip];
+            propagatedBuildInputs = [rpaths reprounzip python.pkgs.distutils];
             pythonImportsCheck = ["reprounzip.unpackers.docker"];
           };
           provenance-to-use = pkgs.stdenv.mkDerivation rec {
@@ -876,33 +924,6 @@
             ];
             dontCheck = true;
           };
-          mandala = python.pkgs.buildPythonPackage rec {
-            pname = "mandala";
-            version = "3.20";
-            src = pkgs.fetchFromGitHub {
-              owner = "amakelov";
-              repo = "mandala";
-              rev = "v0.2.0-alpha";
-              hash = "sha256-MunDxlF23kn8ZJM7rk++bZaN35L51w2CABL16MZXDXU=";
-            };
-            propagatedBuildInputs = [
-              python.pkgs.numpy
-              python.pkgs.pandas
-              python.pkgs.joblib
-              python.pkgs.tqdm
-              python.pkgs.pyarrow
-              python.pkgs.prettytable
-              python.pkgs.graphviz
-            ];
-            checkInputs = [
-              python.pkgs.pytest
-              python.pkgs.hypothesis
-              python.pkgs.ipython
-            ];
-            # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
-            doCheck = true;
-            pythonImportsCheck = ["mandala"];
-          };
           linux-src = pkgs.fetchFromGitHub {
             owner = "torvalds";
             repo = "linux";
@@ -929,88 +950,25 @@
               cp --recursive $src/* $out/
             '';
           };
-          all = pkgs.symlinkJoin {
-            name = "all";
-            paths = [
-              bash
-              gnumake
-              nix
-              which
-              strace
-              fsatrace
-              rr
-              coreutils
-              un-archive-env
-              # fits-0
-              kaggle-notebook-env
-              # kaggle-notebook-titanic-0
-              # kaggle-notebook-house-prices-0
-              # kaggle-notebook-titanic-1
-              # kaggle-notebook-house-prices-1
-              kaggle-data-titanic
-              kaggle-data-house-prices
-              astropy-env
-              # astropy-pvd
-              apacheHttpd
-              postmark
-              blast-benchmark
-              lmbench
-              splash3
-              git
-              mercurial
-              glibc_multi_bin
-              # ltrace-conf
-              ltrace
-              cde
-              care
-              nextflow
-              snakemake
-              transformers-python
-              transformers-src
-              http-load-test
-              pkg-config
-              rsync
-              gnuplot
-              reprozip
-              quantum-espresso-env
-              provenance-to-use
-              sciunit2
-              mandala
+        };
+        checks = packages // {
+          benchmark-py-checks = pkgs.stdenv.mkDerivation {
+            name = "benchmark-py-checks";
+            src = ./.;
+            nativeBuildInputs = [
+              pythonWithPackages # so we can `probe record head ...`, etc.
             ];
+            buildPhase = "touch $out";
+            checkPhase = ''
+              mypy *.py
+              ruff check *.py
+            '';
           };
         };
         devShells = {
           default = craneLib.devShell {
             packages = [
-              (python.withPackages (pypkgs: [
-                pypkgs.typer
-                pypkgs.rich
-                pypkgs.mypy
-                pypkgs.pyyaml
-                pypkgs.ipython
-                pypkgs.yarl
-                pypkgs.tqdm
-                pypkgs.types-tqdm
-                pypkgs.types-pyyaml
-                pypkgs.polars
-                pypkgs.types-psutil
-                pypkgs.requests
-                pypkgs.githubkit
-                pypkgs.aiohttp
-                pypkgs.aiodns
-                pypkgs.tqdm
-                pypkgs.matplotlib
-                pypkgs.seaborn
-                pypkgs.scipy
-                pypkgs.bitmath
-                pypkgs.pympler
-                pypkgs.psutil
-                pypkgs.scikit-posthocs
-                pypkgs.matplotlib
-                pypkgs.pandas
-                packages.mandala
-                pypkgs.dbus-next
-              ]))
+              pythonWithPackages
             ];
             shellHook = ''
               export NIX_SYSTEMD_PATH=${pkgs.systemdMinimal};
@@ -1023,4 +981,3 @@
       }
     );
 }
-# 105

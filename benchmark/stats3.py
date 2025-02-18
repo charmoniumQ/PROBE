@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-import datetime; time_start = datetime.datetime.now()
+# ruff: noqa: E402
+import datetime
+time_start = datetime.datetime.now()
 import typer
 import operator
 import functools
 import typing
 import datetime
 import polars
-import itertools
 import matplotlib.pyplot
 import pathlib
 import scipy.stats  # type: ignore
@@ -219,7 +220,7 @@ def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> No
             .with_columns(polars.col(f"{qty}_w_z").log().alias(f"{qty}_w_z_log"))
         )
     )
-    n_warmups_ignored = None
+    n_warmups_ignored: int | None = None
     for collector_workload in small_calib_runs.unique("collector_workload")["collector_workload"]:
         tmp = numpy.abs(
             numpy.diff(
@@ -234,7 +235,7 @@ def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> No
         # penalize choosing a later cutoff, unless the diff is overwhelming
         tmp = tmp / (numpy.arange(len(tmp)) + 1)**(1/3)
         if len(tmp):
-            n_warmups_ignored = min(n_warmups_ignored, tmp.argmax()) if n_warmups_ignored else tmp.argmax()
+            n_warmups_ignored = min(n_warmups_ignored, tmp.argmax()) if n_warmups_ignored is not None else tmp.argmax()
     assert n_warmups_ignored is not None
     print(f"Algorithm wants to ignore {n_warmups_ignored}")
     n_warmups_ignored = 1
@@ -390,7 +391,7 @@ def calibrate_errors(all_trials: polars.DataFrame) -> None:
 
 def show_collector_workload_matrix(
         all_trials: polars.DataFrame,
-        n_warmups_ignored: int = 1,
+        n_warmups_ignored: int,
         output: pathlib.Path,
 ) -> None:
     controlled_vars = ("workload",)
@@ -523,7 +524,7 @@ def main(
     show_collector_workload_matrix(
         all_trials,
         n_warmups_ignored=1,
-        output,
+        output=output,
     )
 
     dependent_var_stats = [
@@ -719,152 +720,6 @@ def is_different(
             result.statistic
             result.pvalue
             scikit_posthocs.posthoc_tukey(df)
-
-
-if False:
-    output = pathlib.Path(__file__).resolve().parent.parent / "docs/lib_interpos"
-
-
-    def color(mean: float) -> str:
-        if mean <= 1/3:
-            return ""
-        elif mean <= 2/3:
-            return r"\cellcolor[rgb]{1, 0.8, 0.8}"
-        elif mean <= 1:
-            return r"\cellcolor[rgb]{1, 0.6, 0.6}"
-        else:
-            return r"\cellcolor[rgb]{1, 0.4, 0.4}"
-
-
-    def get_one(df: polars.DataFrame, workload: str | None, collector: str | None) -> polars.DataFrame:
-        if workload:
-            df = df.filter(polars.col("workload") == workload)
-        if collector:
-            df = df.filter(polars.col("collector") == collector)
-        return df
-
-
-    for qty in qtys:
-        util.console.rule(qty)
-        util.console.print(log_normal_qtys.select(
-            "group",
-            "workload",
-            "collector",
-            polars.concat_str(
-                polars.col(f"{qty}_overhead_avg2").round(1),
-                polars.lit("  ±"),
-                polars.coalesce(polars.col(f"{qty}_overhead_std2").round(1), polars.lit("")),
-            ).alias(qty),
-        ).pivot(
-            "collector",
-            index=("group", "workload"),
-            values=qty,
-        ).sort("group", "workload"))
-
-        (output / f"data_{qty}.tex").write_text("\n".join([
-                r"\begin{tabular}{ll" + "l" * len(collectors) + "}",
-                r"\toprule",
-                " & ".join([
-                    "Group",
-                    "Workload",
-                    rf"\multicolumn{{{len(collectors)}}}{{c}}{{\textbf{{{qty.replace('_', ' ').capitalize()}}}}} \\",
-                ]) + r" \\",
-                " & ".join([
-                    "",
-                    "",
-                    r"\multicolumn{2}{c}{Metadata-only}",
-                    r"\multicolumn{3}{c}{Metadata \& data}",
-                ]) + r" \\",
-                " & ".join([
-                    "",
-                    "",
-                    *collectors,
-                ]) + r" \\",
-                r"\midrule",
-                *util.flatten1([
-                    [
-                        *[
-                            " & ".join([
-                                group,
-                                workload,
-                                *[
-                                    (lambda mean, std: color(mean - 1) + r"\({:.0f}\%\quad \pm {:.0f}\%\)".format(mean * 100 - 100, std * 100))(
-                                        get_one(log_normal_qtys, workload, collector)[0][f"{qty}_overhead_avg2"][0],
-                                        get_one(log_normal_qtys, workload, collector)[0][f"{qty}_overhead_std2"][0],
-                                    )
-                                    if not get_one(log_normal_qtys, workload, collector).is_empty()
-                                    else "-"
-                                    for collector in collectors
-                                ],
-                            ]) + r" \\"
-                            for workload in sorted(log_normal_qtys.filter(polars.col("group") == group)["workload"].unique())
-                        ],
-                        # " & ".join([
-                        #     group,
-                        #     r"\textit{avg}",
-                        #     *[
-                        #         (lambda mean, std: r"\({:.0f}\%\quad \pm {:.0f}\%\)".format(mean * 100 - 100, std * 100) if mean is not None else "-")(
-                        #             *log_normal_qtys.filter(
-                        #                 (polars.col("group") == group) & (polars.col("collector") == collector)
-                        #             ).select(
-                        #                 polars.col(f"{qty}_overhead_avg").mean().alias(f"{qty}_group_overhead_avg"),
-                        #                 (polars.col(f"{qty}_overhead_std")**2).sum().sqrt().alias(f"{qty}_group_overhead_std"),
-                        #             # ).select(
-                        #             #     log_to_mean(polars.col(f"{qty}_group_log_overhead_avg"), polars.col(f"{qty}_group_log_overhead_std")),
-                        #             #     log_to_std(polars.col(f"{qty}_group_log_overhead_avg"), polars.col(f"{qty}_group_log_overhead_std")),
-                        #             ).rows()[0]
-                        #         )
-                        #         for collector in collectors
-                        #     ],
-                        # ]) + r" \\",
-                        # r"\midrule" if not is_last else r"\bottomrule",
-                    ]
-                    for is_last, group in util.last_sentinel(sorted(set(workload_to_groups.values())))
-                    if not log_normal_qtys.filter(
-                            (polars.col("group") == group)
-                    ).is_empty()
-                ]),
-                r"\bottomrule",
-                r"\end{tabular}",
-                "",
-            ]))
-
-        all_collectors = collectors
-        all_workloads = list(wl for wl in iterations["workload"].unique() if wl in workload_labels)
-        matrix_df = pandas.DataFrame.from_records({
-            collector: [
-                util.dt_as_seconds(iterations).filter(
-                    (polars.col("workload") == workload) & (polars.col("collector") == collector)
-                ).mean()[qty][0]
-                for workload in all_workloads
-            ]
-            for collector in all_collectors
-        }, index=all_workloads)
-        p = scipy.stats.friedmanchisquare(*-matrix_df.values.T).pvalue
-        util.console.print(f"P-value: {p * 100:.2f}%")
-        (output / f"p_value_{qty}.tex").write_text(f"{p * 100:.2f}")
-        sig_matrix = scikit_posthocs.posthoc_nemenyi_friedman(-matrix_df)
-        print(sig_matrix)
-
-        if "significant" if p < 0.05 else "inconclusive":
-            print("Post-hoc:")
-            # Lower is better, so we write negative sign
-            significant = []
-            for collector_i, collector_j in itertools.product(all_collectors, repeat=2):
-                if sig_matrix.loc[collector_i, collector_j] < .05:
-                    print(f"{collector_i} < {collector_j} with {sig_matrix.loc[collector_i, collector_j] * 100:.2f}%")
-                    significant.append((collector_i, collector_j))
-
-        fig = matplotlib.pyplot.figure(figsize=(10, 2), dpi=100)
-        ax = fig.add_subplot(1, 1, 1)
-        ax.set_title(f"Critical diff. {qty} rank of provenance tracers")
-        scikit_posthocs.critical_difference_diagram(
-            matrix_df.rank(axis=1, method="average").mean(axis=0),
-            sig_matrix=sig_matrix,
-            ax=ax
-        )
-
-        fig.savefig(output / f"ranks_{qty}.svg", bbox_inches="tight")
 
 
 if __name__ == "__main__":
