@@ -20,24 +20,22 @@
         pkgs = nixpkgs.legacyPackages.${system};
         craneLib = crane.mkLib pkgs;
         commonArgs = {
-          src = craneLib.cleanCargoSource ./benchmark_utils;
+          src = ./benchmark_utils;
           strictDeps = true;
+          propagatedBuildInputs = [
+            # Client for Systemd (systemctl and systemd-run)
+            pkgs.systemdMinimal
+            pkgs.audit.bin
+            nixpkgs2.legacyPackages.${system}.bpftrace
+            pkgs.util-linux.bin
+          ];
+          NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
+          NIX_AUDIT_PATH = pkgs.audit.bin;
+          NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
+          NIX_BPFTRACE_PATH = nixpkgs2.legacyPackages.${system}.bpftrace;
         };
-        benchmark-utils = craneLib.buildPackage (commonArgs
-          // {
-            cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-            propagatedBuildInputs = [
-              # Client for Systemd (systemctl and systemd-run)
-              pkgs.systemdMinimalbin
-              pkgs.audit.bin
-              nixpkgs2.legacyPackages.${system}.bpftrace
-              pkgs.util-linux.bin
-            ];
-            NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
-            NIX_AUDIT_PATH = pkgs.audit.bin;
-            NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
-            NIX_BPFTRACE_PATH = nixpkgs2.legacyPackages.${system}.bpftrace;
-          });
+        cargoArtifacts = (craneLib.buildDepsOnly commonArgs);
+        benchmark-utils = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts; });
         python = pkgs.python312;
         noPytest = pypkg:
           pypkg.overrideAttrs (self: super: {
@@ -960,6 +958,9 @@
           # packages
           # //
           {
+            benchmark-utils = benchmark-utils;
+            benchmark-utils-clippy = craneLib.cargoClippy (commonArgs // {inherit cargoArtifacts; });
+            benchmark-utils-fmt = craneLib.cargoFmt (commonArgs // {inherit cargoArtifacts; });
             benchmark-py-checks = pkgs.stdenv.mkDerivation {
               name = "benchmark-py-checks";
               src = ./.;
