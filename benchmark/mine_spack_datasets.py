@@ -1,4 +1,4 @@
-import spack.repo  # type: ignore
+import spack.repo
 import collections
 import json
 import typing

@@ -106,11 +106,3 @@ For new provenance collectors:
 
 Note that the attribute `nix_packages`, in both cases, contains a list of strings that reference packages defined as in package outputs for the current architecture the `flake.nix`.
 Using Nix to build our software environment ensures that all architectures and POSIX platforms can reproducibly build the relevant software environments.
-
-## Command used
-
-```
-./runner.py --workloads small-calib --collectors fast   --iterations 1 --warmups 30
-./runner.py --workloads big-calib   --collectors noprov --iterations 1 --warmups 5  --append
-./runner.py --workloads fast        --collectors fast   --iterations 3 --warmups 3  --append
-```

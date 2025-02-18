@@ -5,8 +5,9 @@ import time
 import subprocess
 import sys
 import signal
-import psutil
+import pathlib
 sys.stderr.write(sys.executable)
+import psutil
 
 shell = "bash"
 

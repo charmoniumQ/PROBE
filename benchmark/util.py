@@ -1,10 +1,11 @@
-import polars
 import typing
 import itertools
 import os
+import json
+import sys
 import dataclasses
 import random
-import bitmath  # type: ignore
+import bitmath
 import tempfile
 import contextlib
 import pathlib
@@ -271,6 +272,33 @@ def all_unique(it: Iterable[Hashable]) -> bool:
 def n_unique(it: Iterable[Hashable]) -> int:
     return len(set(it))
 
+
+_system_nix_path = shutil.which("nix")
+if _system_nix_path is None:
+    raise ValueError("Please add `nix` to the $PATH")
+_project_nix_path = check_returncode(subprocess.run(
+    [_system_nix_path, "shell", ".#which", ".#nix", "--command", "which", "nix"],
+    env=cast(Mapping[str, str], {}),
+    capture_output=True,
+    text=True,
+    check=False,
+)).stdout.strip()
+NIX_BIN_PATH = pathlib.Path(_project_nix_path)
+
+
+def get_nix_env(packages: list[str]) -> Mapping[str, str]:
+    if packages:
+        return json.loads(check_returncode(subprocess.run(
+            [NIX_BIN_PATH, "shell", *packages, "--command", sys.executable, "-c", "import os, json; print(json.dumps(dict(**os.environ)))"],
+            env=cast(Mapping[str, str], {}),
+            capture_output=True,
+            text=True,
+            check=False,
+        )).stdout)
+    else:
+        return {}
+
+
 def raise_(exception: Exception) -> typing.NoReturn:
     raise exception
 
@@ -337,34 +365,9 @@ def fmt_bytes(bm: bitmath.Bitmath | int, d: int = 0) -> str:
 
 def last_sentinel(it: Iterable[_T]) -> Iterator[tuple[bool, _T]]:
     is_first = True
-    tmp: _T | None = None
     for elem in it:
         if not is_first:
-            yield False, typing.cast(_T, tmp)
+            yield False, tmp
         tmp = elem
         is_first = False
-    yield True, typing.cast(_T, tmp)
-
-
-def parquet_safe_columns(df: polars.DataFrame) -> polars.DataFrame:
-    # Parquet doesn't support 0-field structs.
-    #
-    #   InvalidOperationError: Unable to write struct type with no child field to Parquet. Consider adding a dummy child field.
-    #
-    # So we will add a dummy field to empty structs
-    return df.with_columns(
-        polars.col(col).map_elements(
-            lambda dct: {**dct, "_dummy": 1},
-            return_dtype=polars.Struct,
-        )
-        for col, dtype in zip(df.columns, df.dtypes)
-        if isinstance(dtype, polars.Struct) and not df[col].struct.fields
-    )
-
-
-def dt_as_seconds(df: polars.DataFrame, decimals: int = 1) -> polars.DataFrame:
-    return df.with_columns(
-        (polars.col(col).dt.total_nanoseconds() * 1e-9).round(decimals)
-        for col, dtype in zip(df.columns, df.dtypes)
-        if isinstance(dtype, polars.Duration)
-    )
+    yield True, tmp

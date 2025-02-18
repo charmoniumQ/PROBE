@@ -1,33 +1,35 @@
 set -ex
 
-ROOT="$(dirname -- "$0")"
+cd "$(dirname -- "$0")"
 
-OUTPUT="${OUTPUT-$PWD/tmp}"
-PSEUDO_DIR="$(dirname -- "$ROOT")/pseudo"
+TMP_DIR="$PWD/tmp"
+PSEUDO_DIR="$(dirname "$PWD")/pseudo"
 
-mkdir --parents "$OUTPUT"
+touch "$TMP_DIR"
+rm -rf "$TMP_DIR"
+mkdir --parents "$TMP_DIR"
 
-for file in "$ROOT"/*.in; do
+for file in *.in; do
     sed "
             s:\$PSEUDO_DIR:$PSEUDO_DIR:g
-            s:\$TMP_DIR:$OUTPUT:g
-        " "$file" > "$OUTPUT/$(basename "$file")"
+            s:\$TMP_DIR:$TMP_DIR:g
+        " "$file" > "$TMP_DIR/$(basename "$file")"
 done
 
-pw.x < "$OUTPUT/si.scf.in"
+pw.x < "$TMP_DIR/si.scf.in"
 
-pp.x < "$OUTPUT/si.pp_rho.in"
+# pp.x < "$TMP_DIR/si.pp_rho.in"
 
-plotrho.x < "$OUTPUT/si.plotrho.in"
+# plotrho.x < "$TMP_DIR/si.plotrho.in"
 
-pp.x < "$OUTPUT/si.pp_rho_new.in"
+# pp.x < "$TMP_DIR/si.pp_rho_new.in"
 
-"$gnuplot" "$OUTPUT/gnuplot1.in"
+# "$gnuplot" "$TMP_DIR/gnuplot1.in"
 
-"$gnuplot" "$OUTPUT/gnuplot2.in"
+# "$gnuplot" "$TMP_DIR/gnuplot2.in"
 
-# pw.x < "$OUTPUT/si.band.in"
+# pw.x < "$TMP_DIR/si.band.in"
 
-# bands.x < "$OUTPUT/si.bands.in"
+# bands.x < "$TMP_DIR/si.bands.in"
 
-# plotband.x < "$OUTPUT/si.plotband.in"
+# plotband.x < "$TMP_DIR/si.plotband.in"

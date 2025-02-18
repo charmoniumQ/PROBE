@@ -14,9 +14,9 @@ import tarfile
 import io
 import tempfile
 import urllib.request
-import measure_resources # type: ignore
-import mandala.model # type: ignore
-from mandala.imports import Storage, Ignore, op # type: ignore
+import measure_resources
+import mandala.model
+from mandala.imports import Storage, Ignore, op
 
 
 @op
@@ -30,8 +30,7 @@ def download(url: str) -> bytes:
 
 @op
 def run_in_spack(spack_tar: bytes, script: str) -> typing.Any:
-    def strip1(member: tarfile.TarInfo, path: str) -> tarfile.TarInfo:
-        return member.replace(name=str(pathlib.Path(*pathlib.Path(member.path).parts[1:])))
+    strip1 = lambda member, path: member.replace(name=pathlib.Path(*pathlib.Path(member.path).parts[1:]))
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
         with tarfile.open(
@@ -124,6 +123,10 @@ def parse_github_urls(urls: list[str]) -> tuple[list[tuple[str, str]], list[str]
             case _:
                 raise TypeError
     return sorted(dispatched), unknown
+    return [
+        (get_stars(Ignore(github), owner, repo), owner, repo)
+        for owner, repo in tqdm.tqdm(dispatched, "GitHub URLs")
+    ], unknown
 
 
 @op
@@ -156,14 +159,15 @@ def get_spack_urls(n: int, n_sample: int | None) -> list[str]:
         )
         for owner, repo in tqdm.tqdm(github_urls, desc="Spack GitHub repos")
     ]
-    for star_count, owner, repo in sorted(stars, reverse=True)[:n]:
-        out.append(f"{star_count: 6d} https://github.com/{owner}/{repo}")
+    for stars, owner, repo in sorted(stars, reverse=True)[:n]:
+        out.append(f"{stars: 6d} https://github.com/{owner}/{repo}")
     return out
 
 
 @op
 def get_ascl_urls(n_urls: int) -> list[str]:
     out = []
+    github = get_github_client()
     storage = mandala.model.Context.current_context.storage
     ascl = json.loads(storage.unwrap(download("https://ascl.net/code/json")).decode())
     out.append(f"{len(ascl)} ASCL records")

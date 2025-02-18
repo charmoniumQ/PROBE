@@ -133,4 +133,4 @@ for i_dataset, dataset in enumerate(datasets):
                  horizontalalignment='right')
         plot_num += 1
 
-plt.savefig("test.png")
+plt.show()

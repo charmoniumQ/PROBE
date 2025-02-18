@@ -1,42 +1,44 @@
 set -ex
 
-ROOT="$(dirname -- "$0")"
+cd "$(dirname -- "$0")"
 
-OUTPUT="${OUTPUT-$PWD/tmp}"
-PSEUDO_DIR="$(dirname -- "$ROOT")/pseudo"
+TMP_DIR="$PWD/tmp"
+PSEUDO_DIR="$(dirname -- "$PWD")/pseudo"
 
-mkdir --parents "$OUTPUT"
+touch "$TMP_DIR"
+rm -rf "$TMP_DIR"
+mkdir --parents "$TMP_DIR"
 
-for file in "$ROOT"/*.in; do
+for file in *.in; do
     sed "
             s:\$PSEUDO_DIR:$PSEUDO_DIR:g
-            s:\$TMP_DIR:$OUTPUT:g
-        " "$file" > "$OUTPUT/$(basename "$file")"
+            s:\$TMP_DIR:$TMP_DIR:g
+        " "$file" > "$TMP_DIR/$(basename "$file")"
 done
 
 echo 'si.scf.in'
-pw.x < "$OUTPUT/si.scf.in"
+pw.x < "$TMP_DIR/si.scf.in"
 
-echo 'si.phG.in'
-ph.x < "$OUTPUT/si.phG.in"
+# echo 'si.phG.in'
+# ph.x < "$TMP_DIR/si.phG.in"
 
 # echo 'si.phX.in'
-# ph.x < "$OUTPUT/si.phX.in"
+# ph.x < "$TMP_DIR/si.phX.in"
 
 # echo 'si.scf.2.in'
-# pw.x < "$OUTPUT/si.scf.2.in"
+# pw.x < "$TMP_DIR/si.scf.2.in"
 
 # echo 'si.phXsingle.in'
-# ph.x < "$OUTPUT/si.phXsingle.in"
+# ph.x < "$TMP_DIR/si.phXsingle.in"
 
 # echo 'c.scf.in'
-# pw.x < "$OUTPUT/c.scf.in"
+# pw.x < "$TMP_DIR/c.scf.in"
 
 # echo 'c.phG.in'
-# ph.x < "$OUTPUT/c.phG.in"
+# ph.x < "$TMP_DIR/c.phG.in"
 
 # echo 'ni.scf.in'
-# pw.x < "$OUTPUT/ni.scf.in"
+# pw.x < "$TMP_DIR/ni.scf.in"
 
 # echo 'ni.phX.in'
-# ph.x < "$OUTPUT/ni.phX.in"
+# ph.x < "$TMP_DIR/ni.phX.in"
