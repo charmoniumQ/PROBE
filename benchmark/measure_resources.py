@@ -3,7 +3,6 @@ import datetime
 import pathlib
 import textwrap
 import typing
-import resource
 import shlex
 import dataclasses
 import subprocess

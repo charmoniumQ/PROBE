@@ -6,7 +6,6 @@ import shlex
 import datetime
 import shutil
 import typing
-import rich.console
 import dataclasses
 import pathlib
 import collections
@@ -142,11 +141,13 @@ def run_experiments(
                     ).alias("op_counts")
                 )
                 for key in (orig_df.schema.keys() | df.schema.keys()):
+                    old_type = orig_df.schema.get(key)
+                    new_type = df.schema.get(key)
                     print(
                         key,
-                        orig_df.schema.get(key) == df.schema.get(key),
-                        orig_df.schema.get(key),
-                        df.schema.get(key),
+                        old_type == new_type if old_type and new_type else False,
+                        old_type,
+                        new_type,
                     )
                 df = polars.concat((orig_df, df))
             df.write_parquet(parquet_output)

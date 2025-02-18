@@ -119,11 +119,25 @@ static const struct Path* op_to_path(const struct Op* op) {
         case access_op_code: return &op->data.access.path;
         case stat_op_code: return &op->data.stat.path;
         case update_metadata_op_code: return &op->data.update_metadata.path;
-        case read_link_op_code: return &op->data.read_link.path;
+        case read_link_op_code: return &op->data.read_link.linkpath;
+        case hard_link_op_code: return &op->data.hard_link.old;
+        case symbolic_link_op_code: return &op->data.symbolic_link.new;
+        case unlink_op_code: return &op->data.unlink.path;
+        case rename_op_code: return &op->data.rename.src;
+        case mkdir_op_code: return &op->data.mkdir.dst;
         default:
             return &null_path;
     }
 }
+static const struct Path* op_to_second_path(const struct Op* op) {
+    switch (op->op_code) {
+        case hard_link_op_code: return &op->data.hard_link.new;
+        case rename_op_code: return &op->data.rename.dst;
+        default:
+            return &null_path;
+    }
+}
+
 #ifndef NDEBUG
 static BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
@@ -142,6 +156,12 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
         case wait_op_code: return "wait";
         case update_metadata_op_code: return "update_metadata";
         case read_link_op_code: return "readlink";
+        case dup_op_code: return "dup";
+        case hard_link_op_code: return "hard_link";
+        case symbolic_link_op_code: return "symbolic_link";
+        case unlink_op_code: return "unlink";
+        case rename_op_code: return "rename";
+        case mkdir_op_code: return "mkdir";
         default:
             ASSERTF(FIRST_OP_CODE < op_code && op_code < LAST_OP_CODE, "Not a valid op_code: %d", op_code);
             NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);

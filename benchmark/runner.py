@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 from __future__ import annotations
-import datetime; start = datetime.datetime.now()
+# ruff: noqa: E402
+import datetime
+start = datetime.datetime.now()
 import dataclasses
 import pathlib
 import subprocess
 import typer
 import json
 import polars
-import pathlib
 import enum
 from typing_extensions import Annotated
 import experiment
@@ -15,7 +16,7 @@ import workloads as workloads_mod
 import prov_collectors as prov_collectors_mod
 import rich.prompt
 import util
-from mandala.imports import Storage, Ignore  # type: ignore
+from mandala.imports import Storage  # type: ignore
 import command
 
 imports = datetime.datetime.now()
