@@ -43,6 +43,8 @@ jobs:
 
     - run: nix flake check --all-systems --print-build-logs
 
+    - run: nix flake check ./benchmark --all-systems --print-build-logs
+
     - run: nix build --print-build-logs .#probe-bundled
 
     # The devshell uses slightly different build process than the Nix pkg
