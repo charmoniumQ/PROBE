@@ -11,11 +11,11 @@
     nixos-q-chem,
     crane,
     ...
-  } @ inputs:
-    let
-      lib = nixpkgs.lib;
-      systems = [ "x86_64-linux" ];
-    in flake-utils.lib.eachSystem systems (
+  } @ inputs: let
+    lib = nixpkgs.lib;
+    systems = ["x86_64-linux"];
+  in
+    flake-utils.lib.eachSystem systems (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         craneLib = crane.mkLib pkgs;
@@ -43,34 +43,34 @@
           pypkg.overrideAttrs (self: super: {
             pytestCheckPhase = ''true'';
           });
-          mandala = python.pkgs.buildPythonPackage rec {
-            pname = "mandala";
-            version = "3.20";
-            src = pkgs.fetchFromGitHub {
-              owner = "amakelov";
-              repo = "mandala";
-              rev = "v0.2.0-alpha";
-              hash = "sha256-MunDxlF23kn8ZJM7rk++bZaN35L51w2CABL16MZXDXU=";
-            };
-            propagatedBuildInputs = [
-              python.pkgs.numpy
-              python.pkgs.pandas
-              python.pkgs.joblib
-              python.pkgs.tqdm
-              python.pkgs.pyarrow
-              python.pkgs.prettytable
-              python.pkgs.graphviz
-            ];
-            checkInputs = [
-              python.pkgs.pytest
-              python.pkgs.hypothesis
-              python.pkgs.ipython
-            ];
-            # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
-            doCheck = true;
-            pythonImportsCheck = ["mandala"];
+        mandala = python.pkgs.buildPythonPackage rec {
+          pname = "mandala";
+          version = "3.20";
+          src = pkgs.fetchFromGitHub {
+            owner = "amakelov";
+            repo = "mandala";
+            rev = "v0.2.0-alpha";
+            hash = "sha256-MunDxlF23kn8ZJM7rk++bZaN35L51w2CABL16MZXDXU=";
           };
-        pythonWithPackages = (python.withPackages (pypkgs: [
+          propagatedBuildInputs = [
+            python.pkgs.numpy
+            python.pkgs.pandas
+            python.pkgs.joblib
+            python.pkgs.tqdm
+            python.pkgs.pyarrow
+            python.pkgs.prettytable
+            python.pkgs.graphviz
+          ];
+          checkInputs = [
+            python.pkgs.pytest
+            python.pkgs.hypothesis
+            python.pkgs.ipython
+          ];
+          # Check tries to manipulate cgroups and /sys which will not work inside the Nix sandbox
+          doCheck = true;
+          pythonImportsCheck = ["mandala"];
+        };
+        pythonWithPackages = python.withPackages (pypkgs: [
           pypkgs.typer
           pypkgs.rich
           pypkgs.mypy
@@ -99,7 +99,7 @@
           pypkgs.pandas
           mandala
           pypkgs.dbus-next
-        ]));
+        ]);
         removePackage = drv: pkgsToRemove:
           drv.override (builtins.listToAttrs (builtins.map (pkgToRemove: {
               name = pkgToRemove;
@@ -954,20 +954,22 @@
             '';
           };
         };
-        checks = packages // {
-          benchmark-py-checks = pkgs.stdenv.mkDerivation {
-            name = "benchmark-py-checks";
-            src = ./.;
-            nativeBuildInputs = [
-              pythonWithPackages # so we can `probe record head ...`, etc.
-            ];
-            buildPhase = "touch $out";
-            checkPhase = ''
-              mypy *.py
-              ruff check *.py
-            '';
+        checks =
+          packages
+          // {
+            benchmark-py-checks = pkgs.stdenv.mkDerivation {
+              name = "benchmark-py-checks";
+              src = ./.;
+              nativeBuildInputs = [
+                pythonWithPackages # so we can `probe record head ...`, etc.
+              ];
+              buildPhase = "touch $out";
+              checkPhase = ''
+                mypy *.py
+                ruff check *.py
+              '';
+            };
           };
-        };
         devShells = {
           default = craneLib.devShell {
             packages = [
