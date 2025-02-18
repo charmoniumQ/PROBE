@@ -62,9 +62,9 @@ blobs, blob_labels = datasets.make_blobs(
 iris = datasets.load_iris()
 digits = datasets.load_digits(n_class=10)
 wine = datasets.load_wine()
-# swissroll, swissroll_labels = datasets.make_swiss_roll(
-#     n_samples=1000, noise=0.1, random_state=42
-# )
+swissroll, swissroll_labels = datasets.make_swiss_roll(
+    n_samples=1000, noise=0.1, random_state=42
+)
 # sphere = np.random.normal(size=(600, 3))
 # sphere = preprocessing.normalize(sphere)
 # sphere_hsv = np.array(
@@ -81,7 +81,9 @@ wine = datasets.load_wine()
 
 reducers = [
     (manifold.TSNE, {"perplexity": 50}),
+    # Original authors commented out this line:
     # (manifold.LocallyLinearEmbedding, {'n_neighbors':10, 'method':'hessian'}),
+    # It seems to cause a crash due to singular input matrix
     (manifold.Isomap, {"n_neighbors": 30}),
     (manifold.MDS, {}),
     (decomposition.PCA, {}),
@@ -93,12 +95,12 @@ test_data = [
     (iris.data, iris.target),
     (digits.data, digits.target),
     (wine.data, wine.target),
-    # (swissroll, swissroll_labels),
+    (swissroll, swissroll_labels),
     # (sphere, sphere_colors),
 ]
 dataset_names = [
     "Blobs", "Iris", "Digits", "Wine",
-    # "Swiss Roll",
+    "Swiss Roll",
     # "Sphere"
 ]
 
@@ -142,3 +144,4 @@ for i in range(n_cols):
 
 plt.tight_layout()
 # plt.show()
+plt.savefig("test.png")

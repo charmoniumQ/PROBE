@@ -1,10 +1,9 @@
 import dataclasses
 import warnings
-import json
 import subprocess
+import shutil
 import os
 import yaml
-import tarfile
 import re
 from collections.abc import Mapping
 import pathlib
@@ -13,6 +12,16 @@ from typing import Callable, cast, Any
 from compound_pattern import CompoundPattern
 import util
 import command
+from workloads import nix_path, cmd, nix, var, combine
+
+
+PATH_SIZE = 4096
+prov_dir = var("prov_dir")
+prov_log = combine(var("prov_dir"), "/log")
+work_dir = var("work_dir")
+env = nix_path(".#coreutils", "/bin/env")
+common_parent = var("common_parent")
+benchmark_root = pathlib.Path(__name__).resolve().parent
 
 
 @dataclasses.dataclass(frozen=True)
@@ -27,13 +36,24 @@ class ProvCollector:
     @property
     def name(self) -> str:
         return self.__class__.__name__.lower()
-    timeout_multiplier: float = 10
-    requires_empty_dir: bool
-    run_cmd: command.Command = command.Command(())
-    setup_cmd: command.Command = command.Command(())
-    teardown_cmd: command.Command = command.Command(())
 
-    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+    @property
+    def timeout_multiplier(self) -> float:
+        return 10
+
+    @property
+    def run_cmd(self) -> command.Command:
+        return cmd()
+
+    @property
+    def setup_cmd(self) -> command.Command:
+        return cmd()
+
+    @property
+    def teardown_cmd(self) -> command.Command:
+        return cmd()
+
+    def count(self, prov_dir: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
         return ()
 
 
@@ -49,8 +69,8 @@ class AbstractTracer(ProvCollector):
     def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
         return [op]
 
-    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        log_contents = log.read_text()
+    def count(self, prov_dir: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        log_contents = (prov_dir / "log").read_text()
         operations = []
         def identity(obj):
             return obj
@@ -79,12 +99,6 @@ class AbstractTracer(ProvCollector):
         return tuple(operations)
 
 
-PATH_SIZE = 4096
-prov_log = command.Placeholder("prov_log")
-work_dir = command.Placeholder("work_dir")
-env = command.NixPath(".#coreutils", "/bin/env")
-mkdir = command.NixPath(".#coreutils", "/bin/mkdir")
-
 function_name = "[a-z0-9_.]+"
 
 strace_syscalls = [
@@ -94,20 +108,20 @@ strace_syscalls = [
     "dup", "dup2", "dup3",
     "link", "linkat", "symlink", "symlinkat",
     "unlink", "unlinkat", "rmdir",
-    "rename", "renameat",
+    "readlink", "readlinkat",
+    "rename", "renameat", "renameat2",
     "mkdir", "mkdirat",
-    "fstat", "newfstatat",
+    "fstat", "newfstatat", "statx",
     "chown", "fchown", "lchown", "fchownat",
     "chmod", "fchmod", "fchmodat",
     "access", "faccessat",
     "utime", "utimes", "futimesat", "utimensat",
     "truncate", "ftruncate",
     "mknod", "mknodat",
-    "readlink", "readlinkat",
-    # TODO: Track fcntl and rerun results
+    "fcntl",
 
     # sockets
-    "bind", "accept", "accept4", "connect", "socketcall", "shutdown",
+    "bind", "accept", "accept4", "connect", "socket", "shutdown",
 
     # Other IPC
     "pipe", "pipe2",
@@ -127,8 +141,8 @@ strace_syscalls = [
 class STrace(AbstractTracer):
     timeout_multiplier = 3
 
-    run_cmd = command.Command((
-        command.NixPath(".#strace", "/bin/strace"),
+    run_cmd = cmd(
+        nix_path(".#strace", "/bin/strace"),
         "--follow-forks",
         "--trace",
         ",".join(strace_syscalls),
@@ -136,7 +150,7 @@ class STrace(AbstractTracer):
         prov_log,
         "-s",
         str(PATH_SIZE),
-    ))
+    )
 
     # Log line example:
     # 5     execve("/paxoth/to/python", ...) = 0
@@ -213,10 +227,10 @@ ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+\(")
 def _get_dlibs(exe_or_dlib: pathlib.Path, found: set[pathlib.Path]) -> None:
     env: Mapping[str, str] = {}
     proc = subprocess.run(
-        command.Command((
-            command.NixPath(".#glibc_multi_bin", "/bin/ldd"),
+        [
+            nix_path(".#glibc_multi_bin", "/bin/ldd").expand({}),
             exe_or_dlib,
-        )).expand({}),
+        ],
         text=True,
         capture_output=True,
         env=env,
@@ -319,11 +333,11 @@ ltrace_libcalls = [
 class LTrace(AbstractTracer):
     timeout_multiplier = 10
 
-    run_cmd = command.Command((
-        command.NixPath(".#ltrace", "/bin/ltrace"),
+    run_cmd = cmd(
+        nix_path(".#ltrace", "/bin/ltrace"),
         "-f",
         "--config",
-        command.NixPath(".#ltrace-conf"),
+        nix(".#ltrace-conf"),
         "-L",
         "-x",
         "-*+" + "+".join(ltrace_libcalls),
@@ -334,8 +348,8 @@ class LTrace(AbstractTracer):
         "--",
         # $ ltrace ./script.sh
         # "./script.sh" is not an ELF file
-        command.NixPath(".#coreutils", "/bin/env"),
-    ))
+        nix_path(".#coreutils", "/bin/env"),
+    )
 
     def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
         if op.type is not None and (op.type.startswith("fopen") or op.type.startswith("open")):
@@ -448,12 +462,12 @@ class FSATrace(AbstractTracer):
     line_pattern = CompoundPattern(re.compile(r"^(?P<op>.)\|(?P<target0>[^|]*)(?:\|(?P<target1>.*))?$"))
     use_get_dlib_on_exe = True
 
-    run_cmd = command.Command((
-        command.NixPath(".#fsatrace", "/bin/fsatrace"),
+    run_cmd = cmd(
+        nix_path(".#fsatrace", "/bin/fsatrace"),
         "rwmdqt",
         prov_log,
         "--",
-    ))
+    )
 
     def _filter_op(self, op: ProvOperation) -> list[ProvOperation]:
         operations = [op]
@@ -465,18 +479,14 @@ class FSATrace(AbstractTracer):
 
 class PTU(ProvCollector):
     timeout_multiplier = 10
-    setup_cmd = command.Command((
-        mkdir,
-        prov_log,
-    ))
-    run_cmd = command.Command((
-        command.NixPath(".#provenance-to-use", "/bin/ptu"),
+    run_cmd = cmd(
+        nix_path(".#provenance-to-use", "/bin/ptu"),
         "-o",
-        prov_log,
-    ))
+        prov_dir,
+    )
 
-    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        root = log / "cde-root"
+    def count(self, prov_dir: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        root = prov_dir / "cde-root"
         return tuple(
             ProvOperation("read", file.relative_to(root), None, None)
             for file in root.glob("**")
@@ -485,14 +495,14 @@ class PTU(ProvCollector):
 
 class CDE(ProvCollector):
     timeout_multiplier = 10
-    run_cmd = command.Command((
-        command.NixPath(".#cde", "/bin/cde"),
+    run_cmd = cmd(
+        nix_path(".#cde", "/bin/cde"),
         "-o",
-        prov_log,
-    ))
+        prov_dir,
+    )
 
-    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        root = log / "cde-root"
+    def count(self, prov_dir: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        root = prov_dir / "cde-root"
         return tuple(
             ProvOperation("read", file.relative_to(root), None, None)
             for file in root.glob("**")
@@ -501,39 +511,38 @@ class CDE(ProvCollector):
 
 class RR(ProvCollector):
     timeout_multiplier = 5
-    setup_cmd = command.Command((mkdir, prov_log))
 
-    run_cmd = command.Command((
+    run_cmd = cmd(
         env,
-        dataclasses.replace(prov_log, prefix="_RR_TRACE_DIR="),
-        command.NixPath(".#rr", "/bin/rr"),
+        combine("_RR_TRACE_DIR=", prov_dir),
+        nix_path(".#rr", "/bin/rr"),
         "record",
-    ))
+    )
 
-    teardown_cmd = command.Command((
-        command.NixPath(".#rr", "/bin/rr"),
+    teardown_cmd = cmd(
+        nix_path(".#rr", "/bin/rr"),
         "pack",
-        dataclasses.replace(prov_log, postfix="/latest-trace")
-    ))
+        combine(prov_dir, "/latest-trace"),
+    )
 
 
 class ReproZip(ProvCollector):
     timeout_multiplier = 5
-    setup_cmd = command.Command((
-        command.NixPath(".#reprozip", "/bin/reprozip"),
+    setup_cmd = cmd(
+        nix_path(".#reprozip", "/bin/reprozip"),
         "usage_report",
         "--disable",
-    ))
+    )
 
-    run_cmd = command.Command((
-        command.NixPath(".#reprozip", "/bin/reprozip"),
+    run_cmd = cmd(
+        nix_path(".#reprozip", "/bin/reprozip"),
         "trace",
         "--dir",
         prov_log,
-    ))
+    )
 
-    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        config = yaml.safe_load((log / "config.yml").read_text())
+    def count(self, prov_dir: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+        config = yaml.safe_load((prov_dir / "log" / "config.yml").read_text())
         def n2l(lst):
             return [] if lst is None else lst
         files = n2l(config.get("other_files")) + list(flatten1(
@@ -548,25 +557,28 @@ class ReproZip(ProvCollector):
 
 class Sciunit(ProvCollector):
     timeout_multiplier = 10
-    setup_cmd = command.Command((
+    setup_cmd = cmd(
         env,
-        dataclasses.replace(prov_log, prefix="SCIUNIT_HOME="),
-        command.NixPath(".#sciunit2", "/bin/sciunit"),
+        combine("SCIUNIT_HOME=", prov_dir),
+        nix_path(".#sciunit2", "/bin/sciunit"),
         "create",
         "-f",
         "test",
-    ))
+    )
 
-    run_cmd = command.Command((
-        command.NixPath(".#sciunit2", "/bin/sciunit"),
+    run_cmd = cmd(
+        nix_path(".#sciunit2", "/bin/sciunit"),
         "exec",
-    ))
+    )
 
 
-# class Darshan(ProvCollector):
-
-
-# class BPFTrace(ProvCollector):
+class eBPF(ProvCollector):
+    timeout_multiplier = 2
+    run_cmd = cmd(
+        str(benchmark_root / "benchmark_utils/ebpf_trace_prov"),
+        "--log-file",
+        prov_log,
+    )
 
 
 # class SpadeFuse(ProvCollector):
@@ -639,124 +651,157 @@ class Sciunit(ProvCollector):
 #         )
 
 
-# class Auditd(ProvCollector):
-
-#     def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
-#         raise NotImplementedError(
-#             "I want to trace specific syscalls before continuing"
-#         )
-
-#         # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/security_guide/sec-defining_audit_rules_and_controls
-#         auditctl_rules = ()
-
-#         # Run instead of return this command.  That way, the command
-#         # will complete before we continue to testthe workload.  For
-#         # other auditors, the command would be running _concurrently_
-#         # to the workload.
-#         subprocess.run(
-#             run_all(
-#                 ("auditctl", "-D"),
-#                 ("auditctl", *auditctl_rules),
-#             ),
-#             check=True,
-#             env=env,
-#         )
-
-#     def stop(self, env: Mapping[str, str]) -> None:
-#         subprocess.run(["auditctl", "-D"], check=True, env=env)
+class LinuxAudit(ProvCollector):
+    timeout_multiplier = 1
+    run_cmd = cmd(
+        str(benchmark_root / "benchmark_utils/audit"),
+        "--log-file",
+        prov_log,
+        "--directories",
+        combine("/nix/store/,", work_dir),
+    )
 
 
 class Care(ProvCollector):
     timeout_multiplier = 5
-    run_cmd = command.Command((
-        command.NixPath(".#care", "/bin/care"),
-        dataclasses.replace(prov_log, prefix="--output="),
+    run_cmd = cmd(
+        nix_path(".#care", "/bin/care"),
+        combine("--output=", prov_dir, "/log.tar.xz"),
         "--revealed-path=/tmp",
         "--revealed-path=" + str(pathlib.Path.home()),
         "--verbose=-1",
-    ))
+    )
 
-    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        return ()
-        # prefix = "main/rootfs"
-        # with tarfile.open(name=log, mode='r') as tar_obj:
-        #     return tuple(
-        #         ProvOperation("use", pathlib.Path(member.name[len(prefix):]), None, None)
-        #         for member in tar_obj.getmembers()
-        #         if member.name.startswith(prefix)
-        #     )
+    # def count(self, pr: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+    #     prefix = "main/rootfs"
+    #     with tarfile.open(name=log, mode='r') as tar_obj:
+    #         return tuple(
+    #             ProvOperation("use", pathlib.Path(member.name[len(prefix):]), None, None)
+    #             for member in tar_obj.getmembers()
+    #             if member.name.startswith(prefix)
+    #         )
 
 
 class Probe(ProvCollector):
     timeout_multiplier = 1.5
-    run_cmd = command.Command((
-        command.NixPath("..#probe-bundled", "/bin/probe"),
+    run_cmd = cmd(
+        nix_path("..#probe-bundled", "/bin/probe"),
         "record",
         "--no-transcribe",
         "--output",
         prov_log,
-    ))
+    )
 
-    def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
-        # subprocess.run(
-        #     command.Command((
-        #         command.NixPath("..#probe-bundled", "/bin/probe"),
-        #         "transcribe",
-        #         "--input",
-        #         str(log),
-        #         str(log.parent / "prov2"),
-        #     )).expand({}),
-        #     check=True,
-        #     text=True,
-        #     capture_output=True,
-        # )
-        # ops = list(map(json.loads, subprocess.run(
-        #     command.Command((
-        #         command.NixPath("..#probe-bundled", "/bin/probe"),
-        #         "export",
-        #         "ops-jsonl",
-        #         str(log.parent / "prov2"),
-        #     )).expand({}),
-        #     check=True,
-        #     text=True,
-        #     capture_output=True,
-        # ).stdout.split("\n")))
-        # return tuple(
-        #     ProvOperation(op["op_data_type"], None, None, None)
-        #     for op in ops
-        # )
-        return ()
+    # def count(self, log: pathlib.Path, exe: pathlib.Path) -> tuple[ProvOperation, ...]:
+    #     subprocess.run(
+    #         [
+    #             nix_path("..#probe-bundled", "/bin/probe").expand(),
+    #             "transcribe",
+    #             "--input",
+    #             str(log),
+    #             str(log.parent / "prov2"),
+    #         ],
+    #         check=True,
+    #         text=True,
+    #         capture_output=True,
+    #     )
+    #     ops = list(map(json.loads, subprocess.run(
+    #         [
+    #             nix_path("..#probe-bundled", "/bin/probe").expand(),
+    #             "export",
+    #             "ops-jsonl",
+    #             str(log.parent / "prov2"),
+    #         ],
+    #         check=True,
+    #         text=True,
+    #         capture_output=True,
+    #     ).stdout.split("\n")))
+    #     return tuple(
+    #         ProvOperation(op["op_data_type"], None, None, None)
+    #         for op in ops
+    #     )
 
 
 class ProbeCopyEager(Probe):
     timeout_multiplier = 3
-    run_cmd = command.Command((
-        command.NixPath("..#probe-bundled", "/bin/probe"),
+    run_cmd = cmd(
+        nix_path("..#probe-bundled", "/bin/probe"),
         "record",
         "--copy-files-eagerly",
         "--no-transcribe",
         "--output",
         prov_log,
-    ))
+    )
 
 
 class ProbeCopyLazy(Probe):
     timeout_multiplier = 3
-    run_cmd = command.Command((
-        command.NixPath("..#probe-bundled", "/bin/probe"),
+    run_cmd = cmd(
+        nix_path("..#probe-bundled", "/bin/probe"),
         "record",
         "--copy-files-lazily",
         "--no-transcribe",
         "--output",
         prov_log,
-    ))
+    )
+
+
+class NoProvStable(NoProv):
+    run_cmd = cmd(
+        nix_path(".#util-linux", "/bin/setarch"),
+        "--addr-no-randomize",
+        nix_path(".#libfaketime", "/bin/faketime"),
+        "2025-01-01 00:00:00",
+    )
+
+
+podman_img = "debian:bookworm-20250113-slim"
+podman = shutil.which("podman")
+class Podman(NoProv):
+    @property
+    def setup_cmd(self) -> command.Command:
+        if podman:
+            return cmd(
+                podman,
+                "image",
+                "pull",
+                podman_img,
+            )
+        else:
+            raise RuntimeError("Podman does not exist on this system. Remove from benchmark set")
+
+    @property
+    def run_cmd(self) -> command.Command:
+        if podman:
+            return cmd(
+                podman,
+                "run",
+                combine("--volume=", work_dir, ":", work_dir),
+                "--volume=/nix/store:/nix/store:ro",
+                "--rm",
+                podman_img,
+            )
+        else:
+            raise RuntimeError("Podman does not exist on this system. Remove from benchmark set")
+
+
+class Bubblewrap(NoProv):
+    run_cmd = cmd(
+        nix_path(".#bubblewrap", "/bin/bwrap"),
+        "--unshare-pid",
+        "--unshare-net",
+        "--proc", "/proc",
+        "--tmpfs", "/tmp",
+        "--ro-bind", "/nix/store", "/nix/store",
+        "--bind", work_dir, work_dir,
+    )
 
 
 PROV_COLLECTORS: list[ProvCollector] = [
     NoProv(),
     STrace(),
     LTrace(),
-    # FSATrace(),
+    FSATrace(),
     CDE(),
     RR(),
     ReproZip(),
@@ -766,10 +811,13 @@ PROV_COLLECTORS: list[ProvCollector] = [
     Probe(),
     ProbeCopyEager(),
     ProbeCopyLazy(),
-    # SpadeFuse(),
-    # SpadeAuditd(),
-    # Darshan(),
-    # BPFTrace(),
+    LinuxAudit(),
+    eBPF(),
+    NoProvStable(),
+    *([Podman()] if podman else []),
+    # Podman requires newuidmap to be on the $PATH and have setuid.
+    # Nix can put newuidmap on the path, but it can't do setuid for you.
+    Bubblewrap(),
 ]
 
 PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
@@ -779,6 +827,11 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         for prov_collector in PROV_COLLECTORS
     },
     "all": PROV_COLLECTORS,
+    "fast": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name not in ["ltrace", "ebpf", "podman"]
+    ],
     "run-for-usenix": [
         prov_collector
         for prov_collector in PROV_COLLECTORS
@@ -791,5 +844,10 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         prov_collector
         for prov_collector in PROV_COLLECTORS
         if prov_collector.name.startswith("probe")
-    ]
+    ],
+    "noprovs": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name in {"noprov", "noprovstable", "podman", "bubblewrap"}
+    ],
 }

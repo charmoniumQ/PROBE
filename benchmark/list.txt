@@ -1,9 +1,29 @@
-Rerun:
-- umap
-- quantum-espresso
+https://www.benchcouncil.org/benchmarks.html#hpcai
+
+- BOINC
+  - https://en.wikipedia.org/wiki/Folding%40home
+  - https://www.boincstats.com/page/projectPopularity
+  - https://easyperf.net/blog/2019/08/02/Perf-measurement-environment-on-Linux
+  - https://boinc.berkeley.edu/chart_list.php
+
+
+- Matenvo
+- https://openbenchmarking.org/suites
+- https://en.wikipedia.org/wiki/Berkeley_Open_Infrastructure_for_Network_Computing
+- https://en.wikipedia.org/wiki/Folding%40home
+- https://www.benchcouncil.org/benchmarks.html
+
+It's not actually apt #3; it's apt #1 that you applied for.
+There are a few people in front of you.
+One person has been approved.
+Me: I would like to know when we will know if the apartment is taken or if we can put the deposit down (ready now).
+I'm kind of new here, let me talk to my boss and call you back today.
+I know you've called and left a message for us before.
+Thank you for your patience.
+
 
 6 blast
-16 lmbench
+10 lmbench
 4 kaggle notebooks
 1 postmark
 3 builds
