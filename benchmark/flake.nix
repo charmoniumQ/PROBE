@@ -955,8 +955,11 @@
           };
         };
         checks =
-          packages
-          // {
+          # Uncomment to check all packages;
+          # Checking all packages exhausts the disk space on GitHub runner
+          # packages
+          # //
+          {
             benchmark-py-checks = pkgs.stdenv.mkDerivation {
               name = "benchmark-py-checks";
               src = ./.;
