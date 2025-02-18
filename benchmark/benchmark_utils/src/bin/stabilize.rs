@@ -130,6 +130,15 @@ fn change_priority(prio: Option<i32>, ioprio: Option<i32>) -> Result<()> {
     //   A child created by fork(2) inherits its parent's nice value.  The
     //   nice value is preserved across execve(2).
     //
+    // Also (same source):
+    //
+    //   According to POSIX, the nice value is a per-process setting.
+    //   However, under the current Linux/NPTL implementation of POSIX
+    //   threads, the nice value is a per-thread attribute: different
+    //   threads in the same process can have different nice values.
+    //   Portable applications should avoid relying on the Linux behavior,
+    //   which may be made standards conformant in the future.
+
     if let Some(real_prio) = prio {
         let ret1 = unsafe { libc::setpriority(libc::PRIO_PROCESS, 0, real_prio) };
         if ret1 != 0 {

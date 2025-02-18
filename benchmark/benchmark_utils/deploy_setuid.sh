@@ -20,8 +20,8 @@ if [ -z "$run" ]; then
 fi
 
 if [ -z "$run" ]; then
-    echo "sudo chown root target/{release,debug}/$setuid_bins"
-    echo "sudo chmod 6750 target/{release,debug}/$setuid_bins"
+    echo "sudo chown root target/{release,debug}/{stabilize,systemd_shield,audit,ebpf_trace_prov}"
+    echo "sudo chmod 6750 target/{release,debug}/{stabilize,systemd_shield,audit,ebpf_trace_prov}"
 else
     set -x
     sudo chown root target/{release,debug}/{stabilize,systemd_shield,audit,ebpf_trace_prov}
