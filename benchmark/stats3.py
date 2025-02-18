@@ -235,7 +235,7 @@ def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> No
         # penalize choosing a later cutoff, unless the diff is overwhelming
         tmp = tmp / (numpy.arange(len(tmp)) + 1)**(1/3)
         if len(tmp):
-            n_warmups_ignored = min(n_warmups_ignored, tmp.argmax()) if n_warmups_ignored is not None else tmp.argmax()
+            n_warmups_ignored = min(n_warmups_ignored, tmp.argmax()) if n_warmups_ignored else tmp.argmax()
     assert n_warmups_ignored is not None
     print(f"Algorithm wants to ignore {n_warmups_ignored}")
     n_warmups_ignored = 1
