@@ -34,8 +34,8 @@
           NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
           NIX_BPFTRACE_PATH = nixpkgs2.legacyPackages.${system}.bpftrace;
         };
-        cargoArtifacts = (craneLib.buildDepsOnly commonArgs);
-        benchmark-utils = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts; });
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        benchmark-utils = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
         python = pkgs.python312;
         noPytest = pypkg:
           pypkg.overrideAttrs (self: super: {
@@ -958,9 +958,9 @@
           # packages
           # //
           {
-            benchmark-utils = benchmark-utils;
-            benchmark-utils-clippy = craneLib.cargoClippy (commonArgs // {inherit cargoArtifacts; });
-            benchmark-utils-fmt = craneLib.cargoFmt (commonArgs // {inherit cargoArtifacts; });
+            inherit benchmark-utils;
+            benchmark-utils-clippy = craneLib.cargoClippy (commonArgs // {inherit cargoArtifacts;});
+            benchmark-utils-fmt = craneLib.cargoFmt (commonArgs // {inherit cargoArtifacts;});
             benchmark-py-checks = pkgs.stdenv.mkDerivation {
               name = "benchmark-py-checks";
               src = ./.;
