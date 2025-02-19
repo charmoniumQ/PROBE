@@ -13,26 +13,28 @@
     ...
   } @ inputs: let
     lib = nixpkgs.lib;
-    systems = ["x86_64-linux"];
+    systems = [
+      "x86_64-linux"
+      "aarch64-darwin"
+    ];
   in
     flake-utils.lib.eachSystem systems (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
+        isLinux = lib.strings.hasSuffix "-linux" system;
         craneLib = crane.mkLib pkgs;
         commonArgs = {
           src = ./benchmark_utils;
           strictDeps = true;
-          propagatedBuildInputs = [
+          propagatedBuildInputs = if isLinux then [
             # Client for Systemd (systemctl and systemd-run)
             pkgs.systemdMinimal
             pkgs.audit.bin
             nixpkgs2.legacyPackages.${system}.bpftrace
-            pkgs.util-linux.bin
-          ];
-          NIX_SYSTEMD_PATH = pkgs.systemdMinimal;
-          NIX_AUDIT_PATH = pkgs.audit.bin;
-          NIX_UTIL_LINUX_PATH = pkgs.util-linux.bin;
-          NIX_BPFTRACE_PATH = nixpkgs2.legacyPackages.${system}.bpftrace;
+          ] else [ ];
+          NIX_SYSTEMD_PATH = lib.strings.optionalString isLinux pkgs.systemdMinimal;
+          NIX_AUDIT_PATH = lib.strings.optionalString isLinux pkgs.audit.bin;
+          NIX_BPFTRACE_PATH = lib.strings.optionalString isLinux nixpkgs2.legacyPackages.${system}.bpftrace;
         };
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
         benchmark-utils = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
@@ -229,9 +231,6 @@
           gnumake = pkgs.gnumake.out;
           nix = pkgs.nix;
           which = pkgs.which;
-          strace = pkgs.strace;
-          fsatrace = pkgs.fsatrace;
-          rr = pkgs.rr;
           coreutils = pkgs.coreutils;
           un-archive-env = pkgs.symlinkJoin {
             name = "un-archve-env";
@@ -255,7 +254,6 @@
               pkgs.lzop
             ];
           };
-          lshw = pkgs.lshw;
           small-hello = pkgs.stdenv.mkDerivation {
             name = "small-hello";
             src = ./small-hello;
@@ -272,25 +270,8 @@
             url = "http://www.astropy.org/astropy-data/l1448/l1448_13co.fits";
             hash = "sha256-3k1EzShB00z+mJFasyL4PjAvE7lZnvhikHkknlOtbUk=";
           };
-          podman = pkgs.stdenv.mkDerivation {
-            dontUnpack = true;
-            pname = "podman-wrapper";
-            version = "1.0";
-            nativeBuildInputs = [pkgs.makeWrapper];
-            buildInputs = [pkgs.podman];
-            installPhase = ''
-              set -ex
-              mkdir -p $out/bin
-              cp ${pkgs.podman}/bin/podman $out/bin/podman
-              chmod +w $out/bin/podman
-              wrapProgram $out/bin/podman \
-                --set PATH ${pkgs.su.out}/bin
-            '';
-          };
           hello = pkgs.hello;
-          bubblewrap = pkgs.bubblewrap;
           util-linux = pkgs.util-linux.bin;
-          cpuset = pkgs.cpuset;
           libfaketime = pkgs.libfaketime;
           kaggle-notebook-env = pkgs.symlinkJoin {
             name = "kaggle-notebook-env";
@@ -500,28 +481,6 @@
                 PKG_CONFIG_PATH = "${pkgs.fuse}/lib/pkgconfig";
               }
           );
-          blast-benchmark-orig = pkgs.fetchzip {
-            url = "https://ftp.ncbi.nlm.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz";
-            hash = "sha256-BbEGS79KXKjqr4OfI5FWD6Ki0CRmR3AFJKAIsc42log=";
-          };
-          blast-benchmark = pkgs.runCommand "blast-benchmark-modified" {} ''
-            mkdir $out
-            cp -r ${blast-benchmark-orig}/* $out
-            rm $out/Makefile
-            sed '
-                 s/OUTPUT=/OUTPUT?=/;
-                 s/TIME=.*//;
-                 s/[12]>[^ ][^ ]*//g;
-                 1i export PATH:=${pkgs.blast}/bin:${pkgs.blast-bin}/bin:${pkgs.bash}/bin:$(PATH)
-            ' ${blast-benchmark-orig}/Makefile > $out/Makefile
-          '';
-          # Sed commands in order for blast-benchmark:
-          # - Make OUTPUT overridable..
-          # - Remove TIME
-          # - Remove stdout and stderr redirection
-          # - Add BLAST, blast-bin, and sh to path.
-          #   Note that makembindex (required for idx_megablast is contained in pkgs.blast-bin but not pkgs.blast)
-
           postmark = pkgs.stdenv.mkDerivation rec {
             pname = "postmark";
             version = "1.5";
@@ -538,52 +497,6 @@
               install postmark $out/bin
             '';
           };
-          lmbench = pkgs.stdenv.mkDerivation {
-            pname = "lmbench";
-            version = "3.0.a9";
-            src = pkgs.fetchFromGitHub {
-              owner = "intel";
-              repo = "lmbench";
-              rev = "701c6c35b0270d4634fb1dc5272721340322b8ed";
-              hash = "sha256-2beIRh5ovjepZwUhO8qD1pR6czsdm+Z0y2raOcD8xmk=";
-            };
-            buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
-            patchPhase = ''
-              sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
-              sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS) -O"/g' src/Makefile
-              sed -i 's=printf(buf)=printf("%s", buf)=g' src/lat_http.c
-              sed -i 's=../bin/$OS/='"$out/bin/=g" scripts/config-run
-              sed -i 's=../scripts/=$out/bin/=g' scripts/config-run
-              sed -i 's|C=.*|C=lmbench-config|g' scripts/config-run
-            '';
-            # A shell array containing additional arguments passed to make. You must use this instead of makeFlags if the arguments contain spaces
-            preBuild = ''
-              mkdir $out
-              makeFlagsArray+=(
-                CFLAGS="-O3 -I${pkgs.libtirpc.dev}/include/tirpc"
-                LDFLAGS="-L${pkgs.libtirpc.dev}/lib -ltirpc"
-                --trace
-                               )
-            '';
-            installPhase = ''
-              ls -ahlt bin/
-              ./scripts/os
-              ./scripts/gnu-os
-              mkdir --parents $out/bin
-              cp bin/x86_64-linux-gnu/* $out/bin
-              cp scripts/{config-run,version,config} $out/bin
-            '';
-          };
-          lmbench-debug = lmbench.overrideAttrs (super: {
-            preBuild = ''
-              mkdir $out
-              makeFlagsArray+=(
-                CFLAGS="-Og -I${pkgs.libtirpc.dev}/include/tirpc -D_DEBUG=1"
-                LDFLAGS="-L${pkgs.libtirpc.dev}/lib -ltirpc"
-                --trace
-              )
-            '';
-          });
           splash3 = pkgs.stdenv.mkDerivation rec {
             pname = "splash";
             version = "3";
@@ -630,46 +543,9 @@
           };
           git = pkgs.git;
           mercurial = pkgs.mercurial;
-          glibc_multi_bin = pkgs.glibc_multi.bin;
           ltrace-conf = pkgs.runCommand "ltrace-conf" {} ''
             cp ${./ltrace.conf} $out
           '';
-          ltrace = pkgs.ltrace.overrideAttrs (super: {
-            patches = super.patches ++ [./ltrace.patch];
-          });
-          cde = pkgs.cde.overrideAttrs (super: {
-            patches = [./cde.patch];
-          });
-          care = pkgs.stdenv.mkDerivation rec {
-            pname = "care";
-            version = "5.4.0";
-            src = pkgs.fetchFromGitHub {
-              repo = "proot";
-              owner = "proot-me";
-              rev = "v${version}";
-              sha256 = "sha256-Z9Y7ccWp5KEVuo9xfHcgo58XqYVdFo7ck1jH7cnT2KA=";
-            };
-            postPatch = ''
-              substituteInPlace src/GNUmakefile \
-                --replace /bin/echo ${pkgs.coreutils}/bin/echo
-              # our cross machinery defines $CC and co just right
-              sed -i /CROSS_COMPILE/d src/GNUmakefile
-            '';
-            buildInputs = [pkgs.ncurses pkgs.talloc pkgs.uthash pkgs.libarchive];
-            nativeBuildInputs = [pkgs.pkg-config pkgs.docutils pkgs.makeWrapper];
-            makeFlags = ["-C src" "care"];
-            postBuild = ''
-              make -C doc care/man.1
-            '';
-            installFlags = ["PREFIX=${placeholder "out"}"];
-            installTargets = "install-care";
-            postInstall = ''
-              install -Dm644 doc/care/man.1 $out/share/man/man1/care.1
-              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.lzop]}
-            '';
-            # proot provides tests with `make -C test` however they do not run in the sandbox
-            doCheck = false;
-          };
           nextflow = pkgs.nextflow;
           snakemake = pkgs.snakemake;
           transformers-python = pkgs.python312.withPackages (pypkgs: [pypkgs.setuptools]);
@@ -831,15 +707,6 @@
             ];
             pythonImportsCheck = [pname];
           };
-          quantum-espresso-env = pkgs.symlinkJoin {
-            name = "quantum-espresso-env";
-            paths = [
-              pkgs.coreutils
-              pkgs.bash
-              pkgs.gnused
-              pkgs.quantum-espresso
-            ];
-          };
           reprounzip-docker = python.pkgs.buildPythonPackage rec {
             pname = "reprounzip-docker";
             version = "1.2";
@@ -951,12 +818,136 @@
               cp --recursive $src/* $out/
             '';
           };
+        } // lib.attrsets.optionalAttrs isLinux rec {
+          strace = pkgs.strace;
+          fsatrace = pkgs.fsatrace;
+          rr = pkgs.rr;
+          lshw = pkgs.lshw;
+          podman = pkgs.podman;
+          bubblewrap = pkgs.bubblewrap;
+          glibc_multi_bin = pkgs.glibc_multi.bin;
+          ltrace = pkgs.ltrace.overrideAttrs (super: {
+            patches = super.patches ++ [./ltrace.patch];
+          });
+          cde = pkgs.cde.overrideAttrs (super: {
+            patches = [./cde.patch];
+          });
+          care = pkgs.stdenv.mkDerivation rec {
+            pname = "care";
+            version = "5.4.0";
+            src = pkgs.fetchFromGitHub {
+              repo = "proot";
+              owner = "proot-me";
+              rev = "v${version}";
+              sha256 = "sha256-Z9Y7ccWp5KEVuo9xfHcgo58XqYVdFo7ck1jH7cnT2KA=";
+            };
+            postPatch = ''
+              substituteInPlace src/GNUmakefile \
+                --replace /bin/echo ${pkgs.coreutils}/bin/echo
+              # our cross machinery defines $CC and co just right
+              sed -i /CROSS_COMPILE/d src/GNUmakefile
+            '';
+            buildInputs = [pkgs.ncurses pkgs.talloc pkgs.uthash pkgs.libarchive];
+            nativeBuildInputs = [pkgs.pkg-config pkgs.docutils pkgs.makeWrapper];
+            makeFlags = ["-C src" "care"];
+            postBuild = ''
+              make -C doc care/man.1
+            '';
+            installFlags = ["PREFIX=${placeholder "out"}"];
+            installTargets = "install-care";
+            postInstall = ''
+              install -Dm644 doc/care/man.1 $out/share/man/man1/care.1
+              wrapProgram $out/bin/care --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.lzop]}
+            '';
+            # proot provides tests with `make -C test` however they do not run in the sandbox
+            doCheck = false;
+          };
+
+          # Eventually, BLAST should be fixed to not be Linux-specific
+          # https://github.com/NixOS/nixpkgs/pull/61430#issuecomment-571678809
+          blast-benchmark-orig = pkgs.fetchzip {
+            url = "https://ftp.ncbi.nlm.nih.gov/blast/demo/benchmark/benchmark2013.tar.gz";
+            hash = "sha256-BbEGS79KXKjqr4OfI5FWD6Ki0CRmR3AFJKAIsc42log=";
+          };
+          # Sed commands in order for blast-benchmark:
+          # - Make OUTPUT overridable..
+          # - Remove TIME
+          # - Remove stdout and stderr redirection
+          # - Add BLAST, blast-bin, and sh to path.
+          #   Note that makembindex (required for idx_megablast is contained in pkgs.blast-bin but not pkgs.blast)
+          blast-benchmark = pkgs.runCommand "blast-benchmark-modified" {} ''
+            mkdir $out
+            cp -r ${blast-benchmark-orig}/* $out
+            rm $out/Makefile
+            sed '
+                 s/OUTPUT=/OUTPUT?=/;
+                 s/TIME=.*//;
+                 s/[12]>[^ ][^ ]*//g;
+                 1i export PATH:=${pkgs.blast}/bin:${pkgs.blast-bin}/bin:${pkgs.bash}/bin:$(PATH)
+            ' ${blast-benchmark-orig}/Makefile > $out/Makefile
+          '';
+          lmbench = pkgs.stdenv.mkDerivation {
+            pname = "lmbench";
+            version = "3.0.a9";
+            src = pkgs.fetchFromGitHub {
+              owner = "intel";
+              repo = "lmbench";
+              rev = "701c6c35b0270d4634fb1dc5272721340322b8ed";
+              hash = "sha256-2beIRh5ovjepZwUhO8qD1pR6czsdm+Z0y2raOcD8xmk=";
+            };
+            buildInputs = [pkgs.libtirpc.dev pkgs.coreutils pkgs.findutils];
+            patchPhase = ''
+              sed -i 's=/bin/rm=rm=g' src/Makefile Makefile
+              sed -i 's/CFLAGS=-O/CFLAGS="$(CFLAGS) -O"/g' src/Makefile
+              sed -i 's=printf(buf)=printf("%s", buf)=g' src/lat_http.c
+              sed -i 's=../bin/$OS/='"$out/bin/=g" scripts/config-run
+              sed -i 's=../scripts/=$out/bin/=g' scripts/config-run
+              sed -i 's|C=.*|C=lmbench-config|g' scripts/config-run
+            '';
+            # A shell array containing additional arguments passed to make. You must use this instead of makeFlags if the arguments contain spaces
+            preBuild = ''
+              mkdir $out
+              makeFlagsArray+=(
+                CFLAGS="-O3 -I${pkgs.libtirpc.dev}/include/tirpc"
+                LDFLAGS="-L${pkgs.libtirpc.dev}/lib -ltirpc"
+                --trace
+                               )
+            '';
+            installPhase = ''
+              ls -ahlt bin/
+              ./scripts/os
+              ./scripts/gnu-os
+              mkdir --parents $out/bin
+              cp bin/x86_64-linux-gnu/* $out/bin
+              cp scripts/{config-run,version,config} $out/bin
+            '';
+          };
+          lmbench-debug = lmbench.overrideAttrs (super: {
+            preBuild = ''
+              mkdir $out
+              makeFlagsArray+=(
+                CFLAGS="-Og -I${pkgs.libtirpc.dev}/include/tirpc -D_DEBUG=1"
+                LDFLAGS="-L${pkgs.libtirpc.dev}/lib -ltirpc"
+                --trace
+              )
+            '';
+          });
+        } // lib.attrsets.optionalAttrs (lib.strings.hasPrefix "x86_64-" system) {
+          quantum-espresso-env = pkgs.symlinkJoin {
+            name = "quantum-espresso-env";
+            paths = [
+              pkgs.coreutils
+              pkgs.bash
+              pkgs.gnused
+              pkgs.quantum-espresso
+            ];
+          };
         };
         checks =
           # Uncomment to check all packages;
           # Checking all packages exhausts the disk space on GitHub runner
-          # packages
-          # //
+          packages
+          //
           {
             inherit benchmark-utils;
             benchmark-utils-clippy = craneLib.cargoClippy (commonArgs // {inherit cargoArtifacts;});
@@ -980,10 +971,9 @@
               pythonWithPackages
             ];
             shellHook = ''
-              export NIX_SYSTEMD_PATH=${pkgs.systemdMinimal};
-              export NIX_AUDIT_PATH=${pkgs.audit.bin};
-              export NIX_UTIL_LINUX_PATH=${pkgs.util-linux.bin};
-              export NIX_BPFTRACE_PATH=${nixpkgs2.legacyPackages.${system}.bpftrace};
+              export NIX_SYSTEMD_PATH=${lib.strings.optionalString isLinux pkgs.systemdMinimal};
+              export NIX_AUDIT_PATH=${lib.strings.optionalString isLinux pkgs.audit.bin};
+              export NIX_BPFTRACE_PATH=${lib.strings.optionalString isLinux nixpkgs2.legacyPackages.${system}.bpftrace};
             '';
           };
         };

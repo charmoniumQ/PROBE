@@ -11,8 +11,8 @@ use stacked_errors::{anyhow, Error, StackableErr};
 )]
 struct Command {
     /// Path to write resource utilization to
-    #[arg(long)]
-    output: String,
+    #[arg(long, default_value = "time.json")]
+    output: std::path::PathBuf,
 
     /// Executable to time
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]

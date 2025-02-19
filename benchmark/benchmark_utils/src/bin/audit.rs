@@ -9,7 +9,7 @@ use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
 )]
 struct Command {
     /// Soft limit on CPU seconds.
-    #[arg(long)]
+    #[arg(long, default_value = "audit.log")]
     log_file: std::path::PathBuf,
 
     /// Directories in which to watch all operations
@@ -31,7 +31,18 @@ fn main() -> std::process::ExitCode {
 
         let command = Command::parse();
 
+        #[allow(clippy::const_is_empty)]
+        if NIX_AUDIT_PATH.is_empty() {
+            bail!("Could not find NIX_AUDIT_PATH in env vars at build time");
+        }
+        let auditd = std::path::PathBuf::from(NIX_AUDIT_PATH.to_owned() + "/bin/auditd");
+        privs::verify_safe_to_run_as_root(&auditd).stack()?;
+        let auditctl = std::path::PathBuf::from(NIX_AUDIT_PATH.to_owned() + "/bin/auditctl");
+        privs::verify_safe_to_run_as_root(&auditctl).stack()?;
+
         let status = audit(
+            &auditd,
+            &auditctl,
             command.debug,
             command.directories.iter(),
             &command.log_file,
@@ -39,7 +50,7 @@ fn main() -> std::process::ExitCode {
                 let mut cmd = std::process::Command::new(&command.cmd[0]);
                 cmd.args(&command.cmd[1..]);
                 if command.debug {
-                    println!("Command {cmd:?}\n");
+                    eprintln!("Command {cmd:?}\n");
                 }
                 cmd.status()
                     .context(anyhow!("Executing cmd {:?}", cmd))
@@ -59,7 +70,14 @@ fn main() -> std::process::ExitCode {
  * I bet you didn't know you can't ignore/allow this on a single line:
  * https://github.com/rust-lang/rust-clippy/issues/9514
  * */
-fn audit<'a, F, T, P, I>(debug: bool, directories: I, log_file: P, func: F) -> Result<T>
+fn audit<'a, F, T, P, I>(
+    auditd: &std::path::PathBuf,
+    auditctl: &std::path::PathBuf,
+    debug: bool,
+    directories: I,
+    log_file: P,
+    func: F,
+) -> Result<T>
 where
     F: FnOnce() -> Result<T>,
     P: AsRef<std::path::Path>,
@@ -78,11 +96,6 @@ where
     let log_file = std::path::absolute(log_file)
         .map_err(Error::from_err)
         .stack()?;
-
-    let auditd = std::path::PathBuf::from(NIX_AUDIT_PATH.to_owned() + "/bin/auditd");
-    privs::verify_safe_to_run_as_root(&auditd).stack()?;
-    let auditctl = std::path::PathBuf::from(NIX_AUDIT_PATH.to_owned() + "/bin/auditctl");
-    privs::verify_safe_to_run_as_root(&auditctl).stack()?;
 
     let tmp_dir = tempdir::TempDir::new("auditd")
         .map_err(Error::from_err)
@@ -107,58 +120,53 @@ where
     util::write_to_file_truncate(&conf_path, &auditd_config).stack()?;
 
     if debug {
-        println!("\nConfig:\n{}\n", &auditd_config);
+        eprintln!("\nConfig:\n{}\n", &auditd_config);
     }
 
     let mut audit_proc = privs::with_escalated_privileges(|| {
-        apply_auditd_rules(&auditctl, debug, &rules).stack()?;
+        apply_auditd_rules(auditctl, debug, &rules).stack()?;
 
-        if is_auditd_running(&auditctl).stack()? {
+        if is_auditd_running(auditctl).stack()? {
             bail!("Auditd is already running. Try `sudo systemctl disable audit.service` or `sudo pkill auditd`");
         }
 
         nix::unistd::chown(tmp_dir.path(), Some(root_uid), Some(root_gid)).map_err(Error::from_err).stack()?;
+        nix::unistd::chown(&conf_path    , Some(root_uid), Some(root_gid)).map_err(Error::from_err).stack()?;
+        nix::unistd::chown(&tmp_log_file , Some(root_uid), Some(root_gid)).map_err(Error::from_err).stack()?;
 
-        nix::unistd::chown(&conf_path, Some(root_uid), Some(root_gid)).map_err(Error::from_err).stack()?;
-
-        nix::unistd::chown(&tmp_log_file, Some(root_uid), Some(root_gid)).map_err(Error::from_err).stack()?;
-
-        let mut reset_proc = std::process::Command::new(&auditctl);
+        let mut reset_proc = std::process::Command::new(auditctl);
         reset_proc.args(["-e", "1", "-f", "1", "--reset-lost"]);
+        if !debug {
+            reset_proc.stdout(std::process::Stdio::null());
+            reset_proc.stderr(std::process::Stdio::null());
+        }
         util::check_cmd(&mut reset_proc).stack()?;
 
-        let mut auditd_cmd = std::process::Command::new(&auditd);
+        let mut auditd_cmd = std::process::Command::new(auditd);
         auditd_cmd.args([
             Into::<std::ffi::OsString>::into("-n"),
             Into::<std::ffi::OsString>::into("-c"),
             (&tmp_dir.path()).into(),
         ]);
         if debug {
-            println!("NOT writing log events to log_file; instead, they will show up on stderr. This is how --debug works.");
+            eprintln!("NOT writing log events to log_file; instead, they will show up on stderr. This is how --debug works.");
             auditd_cmd.arg("-f");
         }
-        let mut auditd_proc = auditd_cmd.spawn().stack()?;
+        let auditd_proc = std::cell::RefCell::new(auditd_cmd.spawn().stack()?);
 
-        while !is_auditd_running(&auditctl).stack()? {
-            if debug {
-                println!("auditd is not running yet; looping.");
+        util::sleepy_wait(TIMEOUT, SLEEP_DURATION, debug, || -> Result<Option<()>> {
+            if is_auditd_running(auditctl).stack()? {
+                Ok(Some(()))
+            } else if let Some(status) = auditd_proc.borrow_mut().try_wait().map_err(Error::from_err).stack()? {
+                Err(anyhow!("auditd unexpectedly exited with {status:?}"))
+            } else {
+                Ok(None)
             }
-            if let Some(status) = auditd_proc.try_wait().map_err(Error::from_err).stack()? {
-                bail!("Auditd unexpectedly exited with {status:?}");
-            }
-            nix::sched::sched_yield().map_err(Error::from_err).stack()?;
-        }
-
-        Ok(auditd_proc)
+        }).stack()?;
+        Ok(auditd_proc.into_inner())
     }).stack()?;
 
-    if debug {
-        println!();
-    }
     let ret = func();
-    if debug {
-        println!();
-    }
 
     privs::with_escalated_privileges(|| {
         #[allow(clippy::cast_possible_wrap)]
@@ -179,13 +187,11 @@ where
             .map_err(Error::from_err)
             .stack()?;
 
-        std::os::unix::fs::chown(&log_file, Some(uid.into()), Some(gid.into()))
+        nix::unistd::chown(&log_file, Some(uid), Some(gid))
             .map_err(Error::from_err)
             .stack()?;
 
-        std::fs::remove_dir_all(&tmp_dir)
-            .map_err(Error::from_err)
-            .stack()?;
+        tmp_dir.close().map_err(Error::from_err).stack()?;
 
         Ok(())
     })
@@ -204,8 +210,8 @@ fn is_auditd_running<P: AsRef<std::path::Path>>(auditctl: P) -> Result<bool> {
         bail!("{check_proc:?} failed.\n{stdout:?}\n{stderr:?}");
     }
     match stdout.find("pid") {
-        None => bail!("{check_proc:?} does not contain 'pid'.\n{stdout:?}\n{stderr:?}"),
-        Some(idx) => Ok(stdout.chars().nth(idx + 4) != Some('0')),
+        None => Ok(false),
+        Some(idx) => Ok(stdout.chars().nth(idx + 4 /* cut of 'pid' */) != Some('0')),
     }
 }
 
@@ -268,7 +274,7 @@ fn apply_auditd_rules<P: AsRef<std::ffi::OsStr>>(
     let mut audit_reset = std::process::Command::new(&auditctl);
     audit_reset.args(["-D"]);
     if debug {
-        println!("Auditd reset: {audit_reset:?}");
+        eprintln!("Auditd reset: {audit_reset:?}");
     }
     util::check_cmd(&mut audit_reset).stack()?;
 
@@ -276,7 +282,7 @@ fn apply_auditd_rules<P: AsRef<std::ffi::OsStr>>(
         let mut audit_rule = std::process::Command::new(&auditctl);
         audit_rule.args(rule);
         if debug {
-            println!("Auditd rule: {audit_rule:?}");
+            eprintln!("Auditd rule: {audit_rule:?}");
         }
         util::check_cmd(&mut audit_rule).stack()?;
     }
@@ -285,11 +291,11 @@ fn apply_auditd_rules<P: AsRef<std::ffi::OsStr>>(
         let mut audit_list = std::process::Command::new(&auditctl);
         audit_list.arg("-l");
         if debug {
-            println!("Auditd list: {audit_list:?}");
+            eprintln!("Auditd list: {audit_list:?}");
         }
         let audit_list_status = audit_list.status().context(anyhow!("")).stack()?;
         if !audit_list_status.success() {
-            println!("Auditd list failed: {audit_list_status:?}");
+            eprintln!("Auditd list failed: {audit_list_status:?}");
         }
     }
 
@@ -304,3 +310,6 @@ log_format = ENRICHED
 space_left = 100
 space_left_action = suspend
 ";
+
+const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const SLEEP_DURATION: std::time::Duration = std::time::Duration::from_millis(100);

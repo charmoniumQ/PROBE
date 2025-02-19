@@ -1,7 +1,7 @@
 use benchmark_utils::{privs, util};
 use clap::Parser;
 use serde::Deserialize;
-use stacked_errors::{anyhow, Error, StackableErr};
+use stacked_errors::{anyhow, bail, Error, StackableErr};
 
 /*
  * Debug me with:
@@ -21,7 +21,7 @@ use stacked_errors::{anyhow, Error, StackableErr};
 )]
 struct Command {
     /// Soft limit on CPU seconds.
-    #[arg(long)]
+    #[arg(long, default_value = "ebpf.log")]
     log_file: std::path::PathBuf,
 
     /// Print the generated bpftrace source to stderr
@@ -44,6 +44,11 @@ struct Command {
 fn main() -> std::process::ExitCode {
     util::replace_err_with2(244, || {
         privs::initially_reduce_privileges().stack()?;
+
+        #[allow(clippy::const_is_empty)]
+        if NIX_BPFTRACE_PATH.is_empty() {
+            bail!("Could not find NIX_BPFTRACE_PATH in env vars at build time");
+        }
 
         let bpftrace = std::path::PathBuf::from(NIX_BPFTRACE_PATH.to_owned()).join("bin/bpftrace");
         privs::verify_safe_to_run_as_root(&bpftrace).stack()?;
@@ -85,7 +90,7 @@ fn main() -> std::process::ExitCode {
         bpftrace_cmd.stdin(std::process::Stdio::piped());
 
         if command.verbose {
-            println!("{bpftrace_cmd:?}");
+            eprintln!("{bpftrace_cmd:?}");
         }
 
         let mut bpftrace_proc = privs::with_escalated_privileges(|| {
@@ -105,7 +110,7 @@ fn main() -> std::process::ExitCode {
                         Ok(Some(()))
                     } else {
                         if command.verbose {
-                            println!("{contents:?}");
+                            eprintln!("{contents:?}");
                         }
                         Ok(None)
                     }
@@ -125,6 +130,8 @@ fn main() -> std::process::ExitCode {
         let cmd_status = nix::sys::wait::waitpid(cmd_proc, None);
 
         bpftrace_proc.wait().map_err(Error::from_err).stack()?;
+
+        dir.close().map_err(Error::from_err).stack()?;
 
         cmd_status.map_err(Error::from_err).stack()
     })

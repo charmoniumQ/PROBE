@@ -1,5 +1,5 @@
 use clap::Parser;
-use stacked_errors::{anyhow, Error, Result, StackableErr};
+use stacked_errors::{anyhow, bail, Error, Result, StackableErr};
 use std::collections::btree_set::BTreeSet;
 use std::path::PathBuf;
 
@@ -78,6 +78,11 @@ struct Command {
 fn main() -> std::process::ExitCode {
     util::replace_err_with(244, || {
         privs::initially_reduce_privileges().stack()?;
+
+        #[allow(clippy::const_is_empty)]
+        if NIX_SYSTEMD_PATH.is_empty() {
+            bail!("Could not find NIX_SYSTEMD_PATH in env vars at build time");
+        }
 
         let systemctl_path = PathBuf::from(NIX_SYSTEMD_PATH.to_owned() + "/bin/systemctl");
         privs::verify_safe_to_run_as_root(&systemctl_path).stack()?;

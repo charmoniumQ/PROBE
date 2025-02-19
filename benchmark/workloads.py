@@ -624,6 +624,27 @@ WORKLOADS = [
 ]
 
 
+fast = [
+    workload
+        for workload in WORKLOADS
+        if workload.labels[0][2] not in {
+                "house-prices-1",  # too long
+                "water-spatial", # too long or short (not easy to callibrate)
+                "sextractor", # Stalls out for some reason
+                "ph-01", # too long
+                "barnes", # never worked
+                "tblastx", # too long
+                "rsync-linux", # somehow this is really slow and fails in Bubblewrap
+                "megablast", # not super long, but still longer than I'd like
+                "blastx", # ditto
+                "blastp",
+                "blastn",
+                "tblastn",
+                "untar-linux", # broken
+        }
+]
+
+
 WORKLOAD_GROUPS = {
     **util.groupby_dict(WORKLOADS, lambda workload: workload.labels[0][0], util.identity),
     **util.groupby_dict(WORKLOADS, lambda workload: workload.labels[0][1], util.identity),
@@ -641,23 +662,13 @@ WORKLOAD_GROUPS = {
         for workload in WORKLOADS
         if workload.labels[0][-1] not in {"megablast", "tblastn", "blastx", "pp-01", "blastn", "pw-01", "house-prices-1", "umap"}
     ],
-    "fast": [
+    "fast": fast,
+    "macos": [
         workload
-        for workload in WORKLOADS
-        if workload.labels[0][2] not in {
-                "house-prices-1",  # too long
-                "water-spatial", # too long or short (not easy to callibrate)
-                "sextractor", # Stalls out for some reason
-                "ph-01", # too long
-                "barnes", # never worked
-                "tblastx", # too long
-                "rsync-linux", # somehow this is really slow and fails in Bubblewrap
-                "megablast", # not super long, but still longer than I'd like
-                "blastx", # ditto
-                "blastp",
-                "blastn",
-                "tblastn",
-                "untar-linux", # broken
+        for workload in fast
+        if workload.labels[0][1] not in {
+                "blast",
+                "lmbench",
         }
     ],
 }

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import sys
 import json
 import asyncio
 import textwrap
@@ -387,13 +388,13 @@ async def run(
     resource_json = tmp_dir / "time.json"
     # TODO: Choose this smartly
     cpus = [3]
-    command = [
-            str(setuid_benchmark_utils / "systemd_shield"),
-            f"--cpus={','.join(map(str, cpus))}",
-            *([
-                f"--cpu-seconds={int(timeout.total_seconds() * len(cpus)) + 1}"
-            ] if timeout is not None else []),
-            # "--mem_bytes=",
+    linux_cmd_prefix = [
+        str(setuid_benchmark_utils / "systemd_shield"),
+        f"--cpus={','.join(map(str, cpus))}",
+        *([
+            f"--cpu-seconds={int(timeout.total_seconds() * len(cpus)) + 1}"
+        ] if timeout is not None else []),
+        # "--mem_bytes=",
             "--swap-mem-bytes=0",
             "--nice=-20",
             "--clear-env",
@@ -403,11 +404,14 @@ async def run(
             f"--cpus={','.join(map(str, cpus))}",
             *(["--drop-file-cache"] if clear_cache else []),
             "--",
-            str(benchmark_utils / "systemd_time"),
+            str(benchmark_utils / "cgroupv2_time"),
             f"--output={resource_json!s}",
             "--",
-            *cmd,
-        ]
+    ]
+    if sys.platform in {"linux", "linux2"}:
+        command = linux_cmd_prefix + cmd
+    else:
+        command = cmd
     str_command = shlex.join(command)
     if verbose:
         util.console.print(str_command)

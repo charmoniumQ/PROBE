@@ -832,6 +832,11 @@ PROV_COLLECTOR_GROUPS: Mapping[str, list[ProvCollector]] = {
         for prov_collector in PROV_COLLECTORS
         if prov_collector.name not in ["ltrace", "ebpf", "podman"]
     ],
+    "macos": [
+        prov_collector
+        for prov_collector in PROV_COLLECTORS
+        if prov_collector.name not in ["ltrace", "ebpf", "podman", "strace", "fsatrace", "rr", "bubblewrap", "cde"]
+    ],
     "run-for-usenix": [
         prov_collector
         for prov_collector in PROV_COLLECTORS

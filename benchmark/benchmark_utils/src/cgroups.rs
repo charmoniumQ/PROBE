@@ -102,7 +102,7 @@ impl Cgroup {
                 .context(anyhow!("{:?}\n", memory_peak_path))
                 .stack()?,
             walltime_us: u64::try_from(walltime_us).context(walltime_us).stack()?,
-            returncode: maybe_status.map_or(0, |status| status.code().unwrap_or(0)),
+            returncode: maybe_status.map_or(0, |status| status.code().unwrap_or(127)),
             signal: maybe_status.map_or(0, |status| status.signal().unwrap_or(0)),
         })
     }
