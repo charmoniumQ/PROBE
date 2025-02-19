@@ -1,4 +1,6 @@
+import sys
 import measure_resources
+import shlex
 import hashlib
 import pathlib
 import typing
@@ -36,7 +38,12 @@ def _cached_nix_build(attr: str, flake_src: str, flake_lock: typing.Any) -> str:
     cmd = ["nix", "build", attr, "--print-out-paths", "--no-link"]
     proc = measure_resources.measure_resources(cmd)
     print(f"Done in {proc.walltime.total_seconds():.1f}sec")
-    proc.raise_for_error()
+    if proc.returncode != 0:
+        print("Command failed")
+        print(shlex.join(cmd))
+        sys.stdout.buffer.write(proc.stdout)
+        sys.stderr.buffer.write(proc.stderr)
+        proc.raise_for_error()
     ret = proc.stdout.decode().strip()
     return ret
 

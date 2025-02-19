@@ -15,7 +15,9 @@
     lib = nixpkgs.lib;
     systems = [
       "x86_64-linux"
+      "aarch64-linux"
       "aarch64-darwin"
+      "x86_64-darwin"
     ];
   in
     flake-utils.lib.eachSystem systems (
@@ -825,12 +827,8 @@
           lshw = pkgs.lshw;
           podman = pkgs.podman;
           bubblewrap = pkgs.bubblewrap;
-          glibc_multi_bin = pkgs.glibc_multi.bin;
           ltrace = pkgs.ltrace.overrideAttrs (super: {
             patches = super.patches ++ [./ltrace.patch];
-          });
-          cde = pkgs.cde.overrideAttrs (super: {
-            patches = [./cde.patch];
           });
           care = pkgs.stdenv.mkDerivation rec {
             pname = "care";
@@ -932,7 +930,11 @@
               )
             '';
           });
-        } // lib.attrsets.optionalAttrs (lib.strings.hasPrefix "x86_64-" system) {
+        } // lib.attrsets.optionalAttrs (system == "x86_64-linux") {
+          cde = pkgs.cde.overrideAttrs (super: {
+            patches = [./cde.patch];
+          });
+          glibc_multi_bin = pkgs.glibc_multi.bin;
           quantum-espresso-env = pkgs.symlinkJoin {
             name = "quantum-espresso-env";
             paths = [
