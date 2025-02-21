@@ -3,7 +3,6 @@ import networkx as nx  # type: ignore
 from .ptypes import TaskType, ProvLog
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
-from .parser import parse_probe_log
 from collections import deque
 from enum import IntEnum
 import rich
@@ -551,7 +550,7 @@ def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
 
     return G
 
-def get_max_parallelism_latest(graph: nx.DiGraph, prov_log: ProvLog):
+def get_max_parallelism_latest(graph: nx.DiGraph, prov_log: ProvLog) -> int:
     visited = set()
     # counter is set to 1 to include the main parent process
     counter = 1 
