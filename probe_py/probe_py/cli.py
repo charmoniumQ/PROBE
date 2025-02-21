@@ -492,21 +492,6 @@ context_settings=dict(
 def scp(cmd: list[str]) -> None:
     scp_with_provenance(cmd)
 
-@app.command()
-def get_max_parallelism(
-        probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log")
-) -> None:
-    """
-      Get the maximum number of processes that can run in parallel.
-    """
-    prov_log = parse_probe_log(probe_log)
-    process_graph = analysis.provlog_to_digraph(prov_log)
-    max_para = analysis.get_max_parallelism(process_graph)
-    print(max_para)
-
 if __name__ == "__main__":
     app()
 
