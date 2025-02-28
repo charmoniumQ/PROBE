@@ -222,14 +222,14 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
             elif op_data.task_type == TaskType.TASK_PID:
                 # Spawning a thread links to the current PID and exec epoch
                 target = (op_data.task_id, 0, op_data.task_id)
-                dest = first(*target)
-                if dest is not None:
-                    fork_join_edges.append((node, dest))
+                targetNode = first(*target)
+                if targetNode is not None:
+                    fork_join_edges.append((node, targetNode))
             elif op_data.task_type == TaskType.TASK_TID:
                 target = (pid, exid, op_data.task_id)
-                dest = first(*target)
-                if dest is not None:
-                    fork_join_edges.append((node, dest))
+                targetNode = first(*target)
+                if targetNode is not None:
+                    fork_join_edges.append((node, targetNode))
             elif op_data.task_type == TaskType.TASK_PTHREAD:
                 for dest in get_first_pthread(pid, exid, op_data.task_id):
                     fork_join_edges.append((node, dest))
@@ -250,9 +250,9 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
         elif isinstance(op_data, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, exid + 1, pid
-            dest = first(*target)
-            if dest is not None:
-                exec_edges.append((node, dest))
+            targetNode = first(*target)
+            if targetNode is not None:
+                exec_edges.append((node, targetNode))
 
     process_graph = nx.DiGraph()
     for node in nodes:
