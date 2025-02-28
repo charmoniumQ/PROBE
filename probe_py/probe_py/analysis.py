@@ -148,7 +148,8 @@ def validate_provlog(
 # TODO: Rename "digraph" to "hb_graph" in the entire project.
 # Digraph (aka "directed graph") is too vague a term; the proper name is "happens-before graph".
 # Later on, we will have a function that transforms an hb graph to file graph (both of which are digraphs)
-def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
+def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool) -> nx.DiGraph:
+    proc_ops = [ExecOp, CloneOp, WaitOp]
     # [pid, exec_epoch_no, tid, op_index]
     program_order_edges = list[tuple[Node, Node]]()
     fork_join_edges = list[tuple[Node, Node]]()
@@ -159,7 +160,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             # to find the last executing epoch of the process
-            last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
+            
             # Reduce each thread to the ops we actually care about
             for tid, thread in exec_epoch.threads.items():
                 context = (pid, exec_epoch_no, tid)
@@ -167,18 +168,29 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 # Filter just the ops we are interested in
                 op_index = 0
                 for op_index, op in enumerate(thread.ops):
+                    if only_proc_ops and not isinstance(op.data, tuple(proc_ops)):
+                        continue
                     ops.append((*context, op_index))
                 # Add just those ops to the graph
                 nodes.extend(ops)
                 program_order_edges.extend(zip(ops[:-1], ops[1:])) 
                 # Store these so we can hook up forks/joins between threads
+                print(context)
+                print(ops)
                 proc_to_ops[context] = ops
-
+            if(len(ops)!=0):
+                last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
     # Define helper functions
     def first(pid: int, exid: int, tid: int) -> Node:
+        print("here in first")
+        print(proc_to_ops[(pid, exid, tid)])
+        if(len(proc_to_ops[(pid, exid, tid)])==0):
+            return Node((pid, exid, tid, 0))
         return proc_to_ops[(pid, exid, tid)][0]
 
     def last(pid: int, exid: int, tid: int) -> Node:
+        print("here in last")
+        print(proc_to_ops[(pid, exid, tid)])
         return proc_to_ops[(pid, exid, tid)][-1]
 
     def get_first_pthread(pid: int, exid: int, target_pthread_id: int) -> list[Node]:
@@ -230,8 +242,11 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 pass
             elif op_data.task_type == TaskType.TASK_PID:
                 target = (op_data.task_id, last_exec_epoch.get(op_data.task_id, 0), op_data.task_id)
+                print("what i want")
+                print(target)
                 fork_join_edges.append((last(*target), node))
             elif op_data.task_type == TaskType.TASK_TID:
+                print(op_data)
                 target = (pid, exid, op_data.task_id)
                 fork_join_edges.append((last(*target), node))
             elif op_data.ferrno == 0 and op_data.task_type == TaskType.TASK_PTHREAD:
@@ -240,6 +255,8 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
         elif isinstance(op_data, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, exid + 1, pid
+            print("what i want")
+            print(target)
             exec_edges.append((node, first(*target)))
 
     process_graph = nx.DiGraph()
