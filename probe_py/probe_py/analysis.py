@@ -179,9 +179,9 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
             if(len(ops)!=0):
                 last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
     # Define helper functions
-    def first(pid: int, exid: int, tid: int) -> Node:
+    def first(pid: int, exid: int, tid: int) -> Node | None:
         if(len(proc_to_ops[(pid, exid, tid)])==0):
-            return (pid, exid, tid, 0)
+            return None
         return proc_to_ops[(pid, exid, tid)][0]
 
     def last(pid: int, exid: int, tid: int) -> Node:
@@ -222,10 +222,14 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
             elif op_data.task_type == TaskType.TASK_PID:
                 # Spawning a thread links to the current PID and exec epoch
                 target = (op_data.task_id, 0, op_data.task_id)
-                fork_join_edges.append((node, first(*target)))
+                dest = first(*target)
+                if dest is not None:
+                    fork_join_edges.append((node, dest))
             elif op_data.task_type == TaskType.TASK_TID:
                 target = (pid, exid, op_data.task_id)
-                fork_join_edges.append((node, first(*target)))
+                dest = first(*target)
+                if dest is not None:
+                    fork_join_edges.append((node, dest))
             elif op_data.task_type == TaskType.TASK_PTHREAD:
                 for dest in get_first_pthread(pid, exid, op_data.task_id):
                     fork_join_edges.append((node, dest))
@@ -246,7 +250,9 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
         elif isinstance(op_data, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, exid + 1, pid
-            exec_edges.append((node, first(*target)))
+            dest = first(*target)
+            if dest is not None:
+                exec_edges.append((node, dest))
 
     process_graph = nx.DiGraph()
     for node in nodes:
