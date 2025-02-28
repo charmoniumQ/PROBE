@@ -175,22 +175,16 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
                 nodes.extend(ops)
                 program_order_edges.extend(zip(ops[:-1], ops[1:])) 
                 # Store these so we can hook up forks/joins between threads
-                print(context)
-                print(ops)
                 proc_to_ops[context] = ops
             if(len(ops)!=0):
                 last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
     # Define helper functions
     def first(pid: int, exid: int, tid: int) -> Node:
-        print("here in first")
-        print(proc_to_ops[(pid, exid, tid)])
         if(len(proc_to_ops[(pid, exid, tid)])==0):
             return (pid, exid, tid, 0)
         return proc_to_ops[(pid, exid, tid)][0]
 
     def last(pid: int, exid: int, tid: int) -> Node:
-        print("here in last")
-        print(proc_to_ops[(pid, exid, tid)])
         return proc_to_ops[(pid, exid, tid)][-1]
 
     def get_first_pthread(pid: int, exid: int, target_pthread_id: int) -> list[Node]:
@@ -242,11 +236,8 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
                 pass
             elif op_data.task_type == TaskType.TASK_PID:
                 target = (op_data.task_id, last_exec_epoch.get(op_data.task_id, 0), op_data.task_id)
-                print("what i want")
-                print(target)
                 fork_join_edges.append((last(*target), node))
             elif op_data.task_type == TaskType.TASK_TID:
-                print(op_data)
                 target = (pid, exid, op_data.task_id)
                 fork_join_edges.append((last(*target), node))
             elif op_data.ferrno == 0 and op_data.task_type == TaskType.TASK_PTHREAD:
@@ -255,8 +246,6 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
         elif isinstance(op_data, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, exid + 1, pid
-            print("what i want")
-            print(target)
             exec_edges.append((node, first(*target)))
 
     process_graph = nx.DiGraph()
