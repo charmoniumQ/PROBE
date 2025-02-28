@@ -3,6 +3,7 @@ import networkx as nx  # type: ignore
 from .ptypes import TaskType, ProvLog
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
+from collections import deque
 from enum import IntEnum
 import rich
 import sys
@@ -579,3 +580,43 @@ def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
                             G.add_edge(parent_node_id, new_node_id, label="exec", constraint="false")
 
     return G
+
+def get_max_parallelism_latest(graph: nx.DiGraph, prov_log: ProvLog) -> int:
+    visited = set()
+    # counter is set to 1 to include the main parent process
+    counter = 1 
+    max_counter = 1
+    start_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+    queue = deque([(start_node, None)])  # (current_node, parent_node)
+    while queue:
+        node, parent = queue.popleft()
+        if node in visited:
+            continue
+        pid, exec_epoch_no, tid, op_index = node
+        if(parent):
+            parent_pid, parent_exec_epoch_no, parent_tid, parent_op_index = parent
+            parent_op = prov_log_get_node(prov_log, parent_pid, parent_exec_epoch_no, parent_tid, parent_op_index).data
+        node_op = prov_log_get_node(prov_log, pid, exec_epoch_no, tid, op_index).data
+
+        visited.add(node)
+
+        # waitOp can be reached from the cloneOp and the last op of the child process
+        # is waitOp is reached via the cloneOp we ignore the node
+        if isinstance(node_op, WaitOp):
+            if parent and isinstance(parent_op, CloneOp):
+                visited.remove(node)
+                continue
+        # for every clone the new process runs in parallel with other so we increment the counter
+        if isinstance(node_op, CloneOp):
+            counter += 1
+            max_counter = max(counter, max_counter)
+        # for every waitOp the control comes back to the parent process so we decrement the counter
+        elif isinstance(node_op, WaitOp):
+            if node_op.task_id!=0:
+                counter -= 1
+        
+        # Add neighbors to the queue
+        for neighbor in graph.neighbors(node):
+            queue.append((neighbor, node))
+
+    return max_counter
