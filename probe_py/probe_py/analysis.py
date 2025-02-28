@@ -148,7 +148,7 @@ def validate_provlog(
 # TODO: Rename "digraph" to "hb_graph" in the entire project.
 # Digraph (aka "directed graph") is too vague a term; the proper name is "happens-before graph".
 # Later on, we will have a function that transforms an hb graph to file graph (both of which are digraphs)
-def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool) -> nx.DiGraph:
+def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False) -> nx.DiGraph:
     proc_ops = [ExecOp, CloneOp, WaitOp]
     # [pid, exec_epoch_no, tid, op_index]
     program_order_edges = list[tuple[Node, Node]]()
@@ -185,7 +185,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool) -> n
         print("here in first")
         print(proc_to_ops[(pid, exid, tid)])
         if(len(proc_to_ops[(pid, exid, tid)])==0):
-            return Node((pid, exid, tid, 0))
+            return (pid, exid, tid, 0)
         return proc_to_ops[(pid, exid, tid)][0]
 
     def last(pid: int, exid: int, tid: int) -> Node:
