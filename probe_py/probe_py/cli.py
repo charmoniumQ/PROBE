@@ -103,7 +103,7 @@ def ops_graph(
 def dataflow_graph(
         output: Annotated[
             pathlib.Path,
-            typer.Argument()
+            typer.Argument(),
         ] = pathlib.Path("dataflow-graph.png"),
         probe_log: Annotated[
             pathlib.Path,

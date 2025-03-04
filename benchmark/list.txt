@@ -13,6 +13,9 @@ https://www.benchcouncil.org/benchmarks.html#hpcai
 - https://en.wikipedia.org/wiki/Folding%40home
 - https://www.benchcouncil.org/benchmarks.html
 
+- Perlbench
+- Python bench
+
 It's not actually apt #3; it's apt #1 that you applied for.
 There are a few people in front of you.
 One person has been approved.

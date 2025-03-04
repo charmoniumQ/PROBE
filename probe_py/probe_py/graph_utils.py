@@ -1,3 +1,4 @@
+import textwrap
 import typing
 import pathlib
 import networkx  # type: ignore
@@ -19,8 +20,10 @@ def serialize_graph(
         graph: DiGraph[_Node],
         output: pathlib.Path,
 ) -> None:
-    pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph)
-    if output.suffix == "dot":
+    for _, data in graph.nodes(data=True):
+        data["label"] = textwrap.shorten(str(data["label"]), width=100)
+    pydot_graph = networkx.drawing.nx_pydot.to_pydot(networkx.relabel_nodes(graph, lambda node: str(hash(node))))
+    if output.suffix == ".dot":
         pydot_graph.write_raw(output)
     else:
         pydot_graph.write_png(output)

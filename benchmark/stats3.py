@@ -15,6 +15,8 @@ import util
 import scikit_posthocs  # type: ignore
 import numpy
 import workloads
+import sklearn.decomposition
+
 
 time_after_imports = datetime.datetime.now()
 print(f"Time from imports {(time_after_imports - time_start).total_seconds():.1f}")
@@ -187,7 +189,7 @@ def remove_outliers(
     return all_trials
 
 
-def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> None:
+def verify_assumptions(all_trials: polars.DataFrame, output_dir: pathlib.Path) -> None:
     qty = "walltime"
     small_calib_runs = (
         all_trials
@@ -239,7 +241,7 @@ def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> No
     assert n_warmups_ignored is not None
     print(f"Algorithm wants to ignore {n_warmups_ignored}")
     n_warmups_ignored = 1
-    output = output / "small-calib-lines.svg"
+    output = output_dir / "small-calib-lines.svg"
     print(f"Verify that the results are the same after {n_warmups_ignored} for all collectors (lines) in {output}")
     fig = matplotlib.figure.Figure()
     ax = fig.add_subplot(1, 1, 1)
@@ -302,7 +304,7 @@ def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> No
 
         print(f"Levene's test for homoscedastic (small means not homoscedastic): {scipy.stats.levene(*data).pvalue:.1e}")
 
-        output = output / f"small-calib-histograms-{workload}.svg"
+        output = output_dir / f"small-calib-histograms-{workload}.svg"
         print(f"Verify normality (symmetric bell) and heterscedasticity (same width) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
@@ -316,7 +318,7 @@ def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> No
         ax.set_xlim(0, 4)
         fig.legend()
         fig.savefig(output, bbox_inches="tight")
-        output = output / f"small-calib-qq-{workload}.svg"
+        output = output_dir / f"small-calib-qq-{workload}.svg"
         print(f"Verify normality (linear) and homoscedasticity (same slope) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
@@ -329,7 +331,7 @@ def verify_assumptions(all_trials: polars.DataFrame, output: pathlib.Path) -> No
         fig.legend()
         fig.savefig(output, bbox_inches="tight")
 
-        output = output / f"small-calib-histograms-{workload}-log.svg"
+        output = output_dir / f"small-calib-histograms-{workload}-log.svg"
         print(f"Verify normality (symmetric bell) and heterscedasticity (same width) in {output}")
         fig = matplotlib.figure.Figure()
         ax = fig.add_subplot(1, 1, 1)
@@ -392,7 +394,7 @@ def calibrate_errors(all_trials: polars.DataFrame) -> None:
 def show_collector_workload_matrix(
         all_trials: polars.DataFrame,
         n_warmups_ignored: int,
-        output: pathlib.Path,
+        output_dir: pathlib.Path,
 ) -> None:
     controlled_vars = ("workload",)
     independent_vars = ("collector",)
@@ -428,6 +430,10 @@ def show_collector_workload_matrix(
             lognorm_ratio(var, f"baseline_{var}", f"ratio_{var}")
             for var in dependent_vars
         ]))
+        .with_columns(
+            polars.col(f"ratio_{var}_avg").clip(-2, 10)
+            for var in dependent_vars
+        )
     )
     collectors = list(avged_trials.unique("collector").sort("collector")["collector"])
     workloads = list(avged_trials.unique("workload").sort("workload")["workload"])
@@ -459,7 +465,7 @@ def show_collector_workload_matrix(
             avged_trials
             .with_columns(
                 polars.concat_str(
-                    ((polars.col(f"ratio_{var}_avg").exp() - 1.0) * 100).round(0).cast(int),
+                    ((polars.col(f"ratio_{var}_avg").exp() - 1.0) * 100).round(0),
                     # polars.lit(" ±"),
                     # polars.col(f"ratio_{var}_std").exp().round(0).astype(int),
                 ).alias(f"ratio_{var}_text")
@@ -475,12 +481,107 @@ def show_collector_workload_matrix(
         for i, collector in enumerate(collectors):
             for j, workload in enumerate(workloads):
                 ax.text(i, j, text[j, i], ha="center", va="center", color="white", fontsize=10)
-        fig.savefig(output / f"matrix_{var}.svg", bbox_inches="tight")
+        fig.savefig(output_dir / f"matrix_{var}.svg", bbox_inches="tight")
+
+
+def get_op_counts(all_trials: polars.DataFrame) -> polars.DataFrame:
+    return (
+        all_trials
+        .filter(polars.col("collector") == "strace")
+        .select("group", "workload", polars.col("op_counts").struct.unnest())
+        .group_by("group", "workload")
+        .mean()
+        .fill_nan(0)
+        .pipe(
+            lambda df: df.select(
+                "group",
+                "workload",
+                *sorted({col for col in df.columns if col not in {"group", "workload"} and df[col].sum() > 0}),
+            )
+        )
+    )
+
+
+def plot_op_counts(
+        op_counts_df: polars.DataFrame,
+        output_dir: pathlib.Path,
+        n_dims: int = 5,
+        wiggle: float = 0.03,
+        text_offset: float = 0.02,
+        alpha_W: float = 1e-2,
+        fontsize: int = 6,
+) -> None:
+    op_count_types = sorted(set(op_counts_df.columns) - {"group", "workload"})
+    op_counts = op_counts_df.select().to_numpy()
+    n_workloads, n_op_count_types = op_counts.shape
+    nmf = sklearn.decomposition.NMF(n_components=n_dims, alpha_W=alpha_W)
+    nmf.fit(op_counts)
+    factored_op_counts = nmf.transform(op_counts)
+    assert factored_op_counts.shape == (n_workloads, n_dims)
+    assert nmf.components_.shape == (n_dims, n_op_count_types), (nmf.components_.shape, (n_dims, n_op_count_types))
+    for i in range(n_dims):
+        print(f"component {i}")
+        for comp, weight in sorted(zip(nmf.components_[i], op_count_types), reverse=True, key=lambda pair: numpy.fabs(pair[0])):
+            print(f"{comp: 5.5f} {weight}")
+
+    groups = sorted(op_counts_df.unique("group")["group"])
+    output = output_dir / "op_counts.svg"
+    fig = matplotlib.figure.Figure()
+    ax = fig.add_subplot(1, 1, 1)
+    x_scale = factored_op_counts[:, 0].max() - factored_op_counts[:, 0].min()
+    y_scale = factored_op_counts[:, 1].max() - factored_op_counts[:, 1].min()
+    ax.set_xlim(factored_op_counts[:, 0].min() - x_scale * wiggle, factored_op_counts[:, 0].max() + x_scale * wiggle)
+    ax.set_ylim(factored_op_counts[:, 1].min() - y_scale * wiggle, factored_op_counts[:, 1].max() + y_scale * wiggle)
+    # random x wiggle and y wiggle help us view points that woudl be right on top of each other
+    rand = numpy.random.default_rng(0)
+    x_wiggle = rand.normal(0, x_scale * wiggle, n_workloads)
+    y_wiggle = rand.normal(0, y_scale * wiggle, n_workloads)
+    for i in range(n_workloads):
+        group = op_counts_df["group"][i]
+        workload = op_counts_df["workload"][i]
+        ax.plot(
+            factored_op_counts[i, 0] + x_wiggle[i],
+            factored_op_counts[i, 1] + y_wiggle[i],
+            label=group,
+            color=colors(groups.index(group)),
+            marker="+",
+            linestyle="",
+        )
+        ax.text(
+            factored_op_counts[i, 0] + x_wiggle[i],
+            factored_op_counts[i, 1] + y_wiggle[i] + y_scale * text_offset,
+            workload,
+            rotation=90,
+            fontsize=fontsize,
+            color=colors(groups.index(group)),
+        )
+    legend_without_duplicates(ax)
+    fig.savefig(output, bbox_inches="tight")
+
+
+def get_times(
+        all_trials: polars.DataFrame
+        op_counts_df: polars.DataFrame,
+        output_dir: pathlib.Path,
+) -> None:
+    op_count_types = sorted(set(op_counts_df.columns) - {"group", "workload"})
+
+
+def legend_without_duplicates(ax: matplotlib.axes.Axes) -> None:
+    all_labels = set()
+    handles = []
+    labels = []
+    for handle, label in zip(*ax.get_legend_handles_labels()):
+        if label not in all_labels:
+            all_labels.add(label)
+            handles.append(handle)
+            labels.append(label)
+    ax.legend(handles, labels)
 
 
 def main(
         data: pathlib.Path = pathlib.Path("output/iterations.parquet"),
-        output: pathlib.Path = pathlib.Path("output"),
+        output_dir: pathlib.Path = pathlib.Path("output"),
 ) -> None:
     # Typer does rich.traceback.install
     # Undo it here
@@ -501,15 +602,18 @@ def main(
     independent_vars = ("collector", "n_warmups")
     dependent_vars = ("walltime", "user_cpu_time", "system_cpu_time", "max_memory")
 
-    verify_assumptions(all_trials, output)
+    verify_assumptions(all_trials, output_dir)
 
     calibrate_errors(all_trials)
 
     all_trials = remove_outliers(all_trials, controlled_vars, independent_vars)
 
-    time_main_substance = datetime.datetime.now()
-    print(f"Time substance done {(time_main_substance - time_main_start).total_seconds():.1f}")
+    time_pre_stats = datetime.datetime.now()
+    print(f"Time pre-stats done {(time_pre_stats - time_main_start).total_seconds():.1f}")
 
+    op_counts = get_op_counts(all_trials)
+
+    plot_op_counts(op_counts, output_dir)
 
     # anova(
     #     all_trials
@@ -524,7 +628,7 @@ def main(
     show_collector_workload_matrix(
         all_trials,
         n_warmups_ignored=1,
-        output=output,
+        output_dir=output_dir,
     )
 
     dependent_var_stats = [
@@ -555,7 +659,7 @@ def main(
     avged_trials.write_parquet(data.parent / "avged_trials.parquet")
 
     time_main_done = datetime.datetime.now()
-    print(f"Time main done {(time_main_done - time_main_substance).total_seconds():.1f}")
+    print(f"Time main done {(time_main_done - time_pre_stats).total_seconds():.1f}")
 
 
 def lines(

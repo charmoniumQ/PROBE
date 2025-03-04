@@ -74,6 +74,7 @@
           pypkgs.mypy
           pypkgs.pyyaml
           pypkgs.ipython
+          pypkgs.scikit-learn
           pypkgs.yarl
           pypkgs.tqdm
           pypkgs.types-tqdm
