@@ -44,6 +44,8 @@ typedef void* thrd_t;
 typedef void* thrd_start_t;
 typedef void* pthread_t;
 typedef void* pthread_attr_t;
+typedef void* Lmid_t;
+
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
