@@ -251,6 +251,131 @@ int open (const char *filename, int flags, ...) {
     });
 }
 fn open64 = open;
+
+
+/* Docs: https://man7.org/linux/man-pages/man3/dlopen.3.html */
+void *dlopen(const char *filename, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = O_RDONLY,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+                .shared_library = 1, /* Mark this as a shared library open */
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+            
+            /* Use dlwalk to find all dependencies */
+            if (filename != NULL) {
+                FileMmap file;
+                int fd = unwrapped_open(filename, O_RDONLY);
+                if (fd >= 0) {
+                    if (file_mmap_alloc(&file, fd) == 0) {
+                        /* Custom callback to log each dependency */
+                        void log_dependency(const char* dep_filename) {
+                            struct Op dep_op = {
+                                open_op_code,
+                                {.open = {
+                                    .path = create_path_lazy(AT_FDCWD, dep_filename, 0),
+                                    .flags = O_RDONLY,
+                                    .mode = 0,
+                                    .fd = -1,
+                                    .ferrno = 0,
+                                    .shared_library = 1, /* Mark as a dependency */
+                                }},
+                                {0},
+                                0,
+                                0,
+                            };
+                            prov_log_try(dep_op);
+                            prov_log_record(dep_op);
+                        }
+                        
+                        extract_dynlibs(&file, log_dependency);
+                        file_mmap_free(&file);
+                    }
+                    unwrapped_close(fd);
+                }
+            }
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            op.data.open.ferrno = (ret == NULL) ? errno : 0;
+            prov_log_record(op);
+        }
+    });
+}
+
+/* Docs: https://man7.org/linux/man-pages/man3/dlmopen.3.html */
+void *dlmopen(Lmid_t lmid, const char *filename, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename, 0),
+                .flags = O_RDONLY,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+                .shared_library = 1,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (likely(prov_log_is_enabled())) {
+            prov_log_try(op);
+            
+            /* Use dlwalk to find all dependencies */
+            if (filename != NULL) {
+                FileMmap file;
+                int fd = unwrapped_open(filename, O_RDONLY);
+                if (fd >= 0) {
+                    if (file_mmap_alloc(&file, fd) == 0) {
+                        /* Custom callback to log each dependency */
+                        void log_dependency(const char* dep_filename) {
+                            struct Op dep_op = {
+                                open_op_code,
+                                {.open = {
+                                    .path = create_path_lazy(AT_FDCWD, dep_filename, 0),
+                                    .flags = O_RDONLY,
+                                    .mode = 0,
+                                    .fd = -1,
+                                    .ferrno = 0,
+                                    .shared_library = 1, 
+                                }},
+                                {0},
+                                0,
+                                0,
+                            };
+                            prov_log_try(dep_op);
+                            prov_log_record(dep_op);
+                        }
+                        
+                        extract_dynlibs(&file, log_dependency);
+                        file_mmap_free(&file);
+                    }
+                    unwrapped_close(fd);
+                }
+            }
+        }
+    });
+    void* post_call = ({
+        if (likely(prov_log_is_enabled())) {
+            op.data.open.ferrno = (ret == NULL) ? errno : 0;
+            prov_log_record(op);
+        }
+    });
+}
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
         /**
