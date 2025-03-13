@@ -77,7 +77,7 @@
             src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
             buildInputs = [
-              (pkgs.python312.withPackages (pypkgs: [
+              (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
             ];
@@ -97,6 +97,9 @@
                 --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
+            passthru = {
+              exePath = "bin/probe";
+            };
           };
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
@@ -178,6 +181,9 @@
               pytest .
             '';
           };
+        };
+        apps = {
+          drv = packages.probe-bundled;
         };
         devShells = {
           default = craneLib.devShell {

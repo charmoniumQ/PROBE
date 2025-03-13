@@ -10,28 +10,47 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 ## Installing PROBE
 
-1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux. Append `linux --extra-conf "sandbox = false" --init none` for containers; `--no-confirm` for non-interactive systems; see [Determinate Nix Installer documentation](https://github.com/DeterminateSystems/nix-installer/blob/main/README.md) for more details.
+1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux. See [Determinate Nix Installer documentation](https://github.com/DeterminateSystems/nix-installer/blob/main/README.md) for more details.
 
    ```bash
    curl -fsSL https://install.determinate.systems/nix | sh -s -- install
+
+   # In container,
+   #curl -fsSL https://install.determinate.systems/nix | sh -s -- install linux --extra-conf "sandbox = false" --init none --no-confirm
    ```
    
-   Choose one to activate the shell: Re-log-in, run `source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh`, or `export PATH="${PATH}:/nix/var/nix/profiles/default/bin"`.
+2. Re-log-in or activate Nix in the current shell.
 
-2. To avoid a time-consuming build, add our public cache.
+   ```bash
+   export PATH="${PATH}:/nix/var/nix/profiles/default/bin"
+   ```
+
+3. Optionally, use our public binary cache to speed up the installation.
 
    ```bash
    nix profile install --accept-flake-config nixpkgs#cachix
    cachix use charmonium
    ```
 
-3. Run `nix profile install github:charmoniumQ/PROBE#probe-bundled`.
+4. Install PROBE or run PROBE without permanently installing. In the latter case, the
 
-4. Now you should be able to run `probe record [-f] [-o probe_log] <cmd...>`, e.g., `probe record ./script.py --foo bar.txt`. See below for more details.
+   ```bash
+   nix profile install github:charmoniumQ/PROBE
+   probe --help
+   
+   # Or run without installing.
+   # Nix will install PROBE into a virtual environment that is only activated in the current shell.
+   #nix run github:charmoniumQ/PROBE -- [probe args go here]
 
-5. To view the provenance, run `probe dump [-i probe_log]`. See below for more details.
+   # Use `nix store gc` to reclaim disk space consumed by the previous command's virtual environment.
+   ```
 
-6. Run `probe --help` for more details.
+5. Now you should be able to run `probe record [-f] [-o probe_log] <cmd...>`. `-f` is needed to overwrite a pre-existing `probe_log`.
+
+  ```bash
+  probe record ./script.py --foo bar.txt
+  probe export debug-text
+  ```
 
 ## What does `probe record` do?
 
