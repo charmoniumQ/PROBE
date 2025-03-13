@@ -52,6 +52,3 @@ jobs:
     # Might as well test that too
     - name: Build and test in devshell
       run: nix develop --command just compile fix check test-native
-
-    - name: Install as user
-      run: nix profile install .
