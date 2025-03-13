@@ -13,7 +13,7 @@ The provenance graph can help us re-execute the program, containerize the progra
 1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux. Append `linux --extra-conf "sandbox = false" --init none` for containers; `--no-confirm` for non-interactive systems; see [Determinate Nix Installer documentation](https://github.com/DeterminateSystems/nix-installer/blob/main/README.md) for more details.
 
    ```bash
-   curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate
+   curl -fsSL https://install.determinate.systems/nix | sh -s -- install
    ```
    
    Choose one to activate the shell: Re-log-in, run `source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh`, or `export PATH="${PATH}:/nix/var/nix/profiles/default/bin"`.
