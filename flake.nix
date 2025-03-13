@@ -94,7 +94,7 @@
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set __PROBE_LIB ${libprobe}/lib \
-                --prefix PATH : ${probe-py}/bin \
+                --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
           };
