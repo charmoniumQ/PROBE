@@ -10,26 +10,20 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 ## Installing PROBE
 
-1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux.
+1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux. Append `linux --extra-conf "sandbox = false" --init none` for containers; `--no-confirm` for non-interactive systems; see [Determinate Nix Installer documentation](https://github.com/DeterminateSystems/nix-installer/blob/main/README.md) for more details.
 
-   - If you don't already have Nix on your system, use the [Determinate Systems installer](https://install.determinate.systems/).
+   ```bash
+   curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate
+   ```
+   
+   Choose one to activate the shell: Re-log-in, run `source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh`, or `export PATH="${PATH}:/nix/var/nix/profiles/default/bin"`.
 
-   - If you already have Nix (but not NixOS), enable flakes by adding the following line to `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`:
-
-     ```
-     experimental-features = nix-command flakes
-     ```
-
-   - If you already have Nix and are running NixOS, enable flakes with by adding `nix.settings.experimental-features = [ "nix-command" "flakes" ];` to your configuration.
-
-2. If you want to avoid a time-consuming build, add our public cache.
+2. To avoid a time-consuming build, add our public cache.
 
    ```bash
    nix profile install --accept-flake-config nixpkgs#cachix
    cachix use charmonium
    ```
-
-   If you want to build from source (e.g., for security reasons), skip this step.
 
 3. Run `nix profile install github:charmoniumQ/PROBE#probe-bundled`.
 
