@@ -82,8 +82,8 @@
               ]))
             ];
           };
-          probe-bundled = pkgs.stdenv.mkDerivation rec {
-            pname = "probe-bundled";
+          probe = pkgs.stdenv.mkDerivation rec {
+            pname = "probe";
             version = "0.1.0";
             dontUnpack = true;
             dontBuild = true;
@@ -98,7 +98,7 @@
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
             passthru = {
-              exePath = "bin/probe";
+              exePath = "/bin/probe";
             };
           };
           probe-py = python.pkgs.buildPythonPackage rec {
@@ -144,7 +144,7 @@
               runHook postCheck
             '';
           };
-          default = probe-bundled;
+          default = probe;
         };
         checks = {
           inherit
@@ -171,7 +171,7 @@
             name = "probe-integration-tests";
             src = ./tests;
             nativeBuildInputs = [
-              packages.probe-bundled
+              packages.probe
               pkgs.podman
               pkgs.docker
               pkgs.coreutils # so we can `probe record head ...`, etc.
@@ -182,8 +182,11 @@
             '';
           };
         };
-        apps = {
-          drv = packages.probe-bundled;
+        apps = rec {
+          default = probe;
+          probe = flake-utils.lib.mkApp {
+            drv = packages.probe;
+          };
         };
         devShells = {
           default = craneLib.devShell {

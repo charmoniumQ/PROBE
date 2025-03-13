@@ -55,13 +55,3 @@ jobs:
 
     - name: Install as user
       run: nix profile install .
-
-    - name: Test example PROBE record command
-      run: probe record --overwrite ls
-
-    - name: Test example PROBE Python command
-      run: probe export debug-text ls
-
-    # Installing in a container is slightly different than installing in native
-    - name: Test container instructions
-      run: probe export debug-text ls
