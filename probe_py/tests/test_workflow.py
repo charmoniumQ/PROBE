@@ -1,6 +1,8 @@
 import re
 import pytest
 import pathlib
+import networkx as nx  # type: ignore
+from probe_py.analysis import FileNode, ProcessNode, InodeOnDevice, FileVersion
 from probe_py.workflows import NextflowGenerator
 from probe_py.analysis import FileNode, ProcessNode, DfGraph
 from probe_py.ptypes import Inode, Host
@@ -21,8 +23,9 @@ def test_dataflow_graph_to_nextflow_script() -> None:
     b_file_path.write_text("This is A.txt")
 
     dataflow_graph = nx.DiGraph()
-    A = FileNode(Inode(0,0,0), (0, 0), "A.txt")
-    B = FileNode(Inode(0,0,1), (0, 0), "B.txt")
+
+    A = FileNode(InodeOnDevice(0,0,0), FileVersion(0, 0), "A.txt")
+    B = FileNode(InodeOnDevice(0,0,1), FileVersion(0, 0), "B.txt")
     W = ProcessNode(0, ("cp", "A.txt", "B.txt"))
     dataflow_graph.add_nodes_from([A, B], color="red")
     dataflow_graph.add_nodes_from([W], color="blue")
@@ -60,10 +63,10 @@ workflow {
     expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
     assert script == expected_script
 
-    A = FileNode(Inode(0,0,0), (0, 0), "A.txt")
-    B0 = FileNode(Inode(0,0,1), (0, 0), "B.txt")
-    B1 = FileNode(Inode(0,0,1), (1, 0), "B.txt")
-    C = FileNode(Inode(0,0,3), (0, 0), "C.txt")
+    A = FileNode(InodeOnDevice(0,0,0), FileVersion(0, 0), "A.txt")
+    B0 = FileNode(InodeOnDevice(0,0,1), FileVersion(0, 0), "B.txt")
+    B1 = FileNode(InodeOnDevice(0,0,1), FileVersion(1, 0), "B.txt")
+    C = FileNode(InodeOnDevice(0,0,3), FileVersion(0, 0), "C.txt")
     W = ProcessNode(0,("cp", "A.txt", "B.txt"))
     X = ProcessNode(1,("sed", "s/foo/bar/g", "-i", "B.txt"))
     # Note, the filename in FileNode will not always appear in the cmd of ProcessNode!

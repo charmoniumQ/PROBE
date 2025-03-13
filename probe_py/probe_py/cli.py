@@ -409,24 +409,34 @@ def nextflow(
     output.write_text(script)
 
 @export_app.command()
-def provlog_to_process_tree(
-        output: Annotated[
-            pathlib.Path,
-            typer.Argument()
-        ] = pathlib.Path("provlog-process-tree.png"),
-        probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
+def process_tree(
+    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("provlog-process-tree.png"),
+    probe_log: Annotated[
+        pathlib.Path,
+        typer.Argument(help="output file written by `probe record -o $file`.")
+    ] = pathlib.Path("probe_log"),
 ) -> None:
     """
     Write a process tree from probe_log.
 
-    Digraphs shows the clone ops of the parent process and the children.
+    Digraph shows the clone ops of the parent process and the children.
     """
     prov_log = parse_probe_log(probe_log)
     digraph = analysis.provlog_to_process_tree(prov_log)
-    graph_utils.serialize_graph(digraph, output)
+
+    same_rank_groups = []
+    for pid, process in prov_log.processes.items():
+        group = []
+        for epoch_no in sorted(process.exec_epochs.keys()):
+            node_id = f"pid{pid}_epoch{epoch_no}"
+            if digraph.has_node(node_id):
+                group.append(node_id)
+
+        if group:
+            same_rank_groups.append(group)
+
+    graph_utils.serialize_graph_proc_tree(digraph, output, same_rank_groups=same_rank_groups)
+
 
 
 @export_app.command()

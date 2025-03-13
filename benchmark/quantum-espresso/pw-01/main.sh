@@ -1,19 +1,17 @@
 set -ex
 
-cd "$(dirname -- "$0")"
+ROOT="$(dirname -- "$0")"
 
-TMP_DIR="$PWD/tmp"
-PSEUDO_DIR="$(dirname "$PWD")/pseudo"
+OUTPUT="${OUTPUT-$PWD/tmp}"
+PSEUDO_DIR="$(dirname -- "$ROOT")/pseudo"
 
-touch "$TMP_DIR"
-rm -rf "$TMP_DIR"
-mkdir --parents "$TMP_DIR"
+mkdir --parents "$OUTPUT"
 
-for file in *.in; do
+for file in "$ROOT"/*.in; do
     sed "
             s:\$PSEUDO_DIR:$PSEUDO_DIR:g
-            s:\$TMP_DIR:$TMP_DIR:g
-        " "$file" > "$TMP_DIR/$(basename "$file")"
+            s:\$TMP_DIR:$OUTPUT:g
+        " "$file" > "$OUTPUT/$(basename "$file")"
 done
 
 
@@ -22,10 +20,10 @@ done
 for diago in david ; do
     for el in si ; do
         echo "$el $diago"
-        sed "s:\$diago:$diago:g" "$TMP_DIR/$el.scf.in" > "$TMP_DIR/$el.$diago.scf.in"
-        pw.x < "$TMP_DIR/$el.$diago.scf.in"
+        sed "s:\$diago:$diago:g" "$OUTPUT/$el.scf.in" > "$OUTPUT/$el.$diago.scf.in"
+        pw.x < "$OUTPUT/$el.$diago.scf.in"
 
-        # sed "s:\$diago:$diago:g" "$TMP_DIR/$el.band.in" > "$TMP_DIR/$el.$diago.band.in"
-        # pw.x < "$TMP_DIR/$el.$diago.band.in"
+        sed "s:\$diago:$diago:g" "$OUTPUT/$el.band.in" > "$OUTPUT/$el.$diago.band.in"
+        pw.x < "$OUTPUT/$el.$diago.band.in"
     done
 done

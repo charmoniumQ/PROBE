@@ -270,6 +270,18 @@ pub enum OpInternal {
     UpdateMetadataOp(UpdateMetadataOp),
     #[serde(untagged)]
     ReadLinkOp(ReadLinkOp),
+    #[serde(untagged)]
+    DupOp(DupOp),
+    #[serde(untagged)]
+    HardLinkOp(HardLinkOp),
+    #[serde(untagged)]
+    SymbolicLinkOp(SymbolicLinkOp),
+    #[serde(untagged)]
+    UnlinkOp(UnlinkOp),
+    #[serde(untagged)]
+    RenameOp(RenameOp),
+    #[serde(untagged)]
+    MkdirOp(MkdirOp),
 }
 
 impl FfiFrom<C_Op> for OpInternal {
@@ -307,6 +319,16 @@ impl FfiFrom<C_Op> for OpInternal {
             C_OpCode_read_link_op_code => {
                 Self::ReadLinkOp(unsafe { value.read_link }.ffi_into(ctx)?)
             }
+            C_OpCode_dup_op_code => Self::DupOp(unsafe { value.dup }.ffi_into(ctx)?),
+            C_OpCode_hard_link_op_code => {
+                Self::HardLinkOp(unsafe { value.hard_link }.ffi_into(ctx)?)
+            }
+            C_OpCode_symbolic_link_op_code => {
+                Self::SymbolicLinkOp(unsafe { value.symbolic_link }.ffi_into(ctx)?)
+            }
+            C_OpCode_unlink_op_code => Self::UnlinkOp(unsafe { value.unlink }.ffi_into(ctx)?),
+            C_OpCode_rename_op_code => Self::RenameOp(unsafe { value.rename }.ffi_into(ctx)?),
+            C_OpCode_mkdir_op_code => Self::MkdirOp(unsafe { value.mkdir }.ffi_into(ctx)?),
             _ => return Err(ProbeError::InvalidVariant(kind)),
         })
     }

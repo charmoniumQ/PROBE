@@ -4,9 +4,6 @@ use clap::{arg, command, value_parser, Command};
 use color_eyre::eyre::{eyre, Context, Result};
 use flate2::Compression;
 
-/// Output the ops from a probe log file to stdout.
-mod dump;
-
 /// Run commands under provenance and generate probe record directory.
 mod record;
 
@@ -70,9 +67,6 @@ fn main() -> Result<()> {
                         .value_parser(value_parser!(OsString)),
                 ])
                 .about("Convert PROBE records to PROBE logs."),
-            /* No more probe dump in Rust.
-             * See `probe export debug-text` in Python.
-             * */
             Command::new("__exec").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)
