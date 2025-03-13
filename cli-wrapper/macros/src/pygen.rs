@@ -234,14 +234,14 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
 pub(crate) fn pygen_write_internal(path: syn::LitStr) -> MacroResult<()> {
     let path_str = path.value();
     let path_str = match std::env::var_os(path_str) {
-        Some(x) => x,
-        None => {
-            return Err(quote_spanned! {
-                path.span() =>
-                compile_error!("Environmnet variable not defined");
+        Some(x) => {
+            if x.is_empty() {
+                return Ok(());
+            } else {
+                x
             }
-            .into())
-        }
+        },
+        None => return Ok(()),
     };
 
     let mut file = match File::create(path_str) {

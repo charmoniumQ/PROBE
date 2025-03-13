@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from __future__ import annotations
 import dataclasses
 import pycparser  # type: ignore
@@ -443,4 +441,9 @@ generated.mkdir(exist_ok=True)
             *static_args_wrapper_func_declarations,
         ])
     )
+)
+(generated / "libc_fns.csv").write_text(
+    "\n".join([
+        func_name for func_name, _ in funcs.items()
+    ])
 )
