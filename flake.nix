@@ -77,13 +77,13 @@
             src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
             buildInputs = [
-              (pkgs.python312.withPackages (pypkgs: [
+              (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
             ];
           };
-          probe-bundled = pkgs.stdenv.mkDerivation rec {
-            pname = "probe-bundled";
+          probe = pkgs.stdenv.mkDerivation rec {
+            pname = "probe";
             version = "0.1.0";
             dontUnpack = true;
             dontBuild = true;
@@ -94,9 +94,12 @@
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set __PROBE_LIB ${libprobe}/lib \
-                --prefix PATH : ${probe-py}/bin \
+                --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
+            passthru = {
+              exePath = "/bin/probe";
+            };
           };
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
@@ -141,7 +144,7 @@
               runHook postCheck
             '';
           };
-          default = probe-bundled;
+          default = probe;
         };
         checks = {
           inherit
@@ -168,7 +171,7 @@
             name = "probe-integration-tests";
             src = ./tests;
             nativeBuildInputs = [
-              packages.probe-bundled
+              packages.probe
               pkgs.podman
               pkgs.docker
               pkgs.coreutils # so we can `probe record head ...`, etc.
@@ -177,6 +180,12 @@
             checkPhase = ''
               pytest .
             '';
+          };
+        };
+        apps = rec {
+          default = probe;
+          probe = flake-utils.lib.mkApp {
+            drv = packages.probe;
           };
         };
         devShells = {

@@ -1,4 +1,6 @@
-https://www.benchcouncil.org/benchmarks.html#hpcai
+- https://www.benchcouncil.org/benchmarks.html#hpcai
+- Phoronix
+- Geekbench
 
 - BOINC
   - https://en.wikipedia.org/wiki/Folding%40home

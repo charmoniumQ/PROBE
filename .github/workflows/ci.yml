@@ -36,17 +36,19 @@ jobs:
         echo -e 'CACHIX_AUTH_TOKEN length: '
         echo ${{ secrets.CACHIX_AUTH_TOKEN }} | wc -c
 
-    - uses: cachix/cachix-action@v15
+    - name: Set up cachix
+      uses: cachix/cachix-action@v15
       with:
         name: charmonium
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-    - run: nix flake check --all-systems --print-build-logs
+    - name: Build and test in Nix flake
+      run: nix flake check --all-systems --print-build-logs
 
-    - run: nix flake check ./benchmark --all-systems --print-build-logs
-
-    - run: nix build --print-build-logs .#probe-bundled
+    - name: Check benchmark on all systems
+      run: nix flake check ./benchmark --all-systems --print-build-logs
 
     # The devshell uses slightly different build process than the Nix pkg
     # Might as well test that too
-    - run: nix develop --command just compile fix check test-native
+    - name: Build and test in devshell
+      run: nix develop --command just compile fix check test-native
