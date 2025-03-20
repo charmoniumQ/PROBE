@@ -1,8 +1,45 @@
+#pragma once
+
+#define _GNU_SOURCE
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <utime.h>
+#include <threads.h>
+#include <pthread.h>
+
+// HACK: defining this manually instead of using <sys/resource.h> is
+// a huge hack, but it greatly reduces the generated code complexity
+// since in glibc all the long ints are unions over two types that
+// both alias to long int, this is done for kernel-userland
+// compatibility reasons that don't matter here.
+struct my_rusage {
+    struct timeval ru_utime;
+    struct timeval ru_stime;
+    long int ru_maxrss;
+    long int ru_ixrss;
+    long int ru_idrss;
+    long int ru_isrss;
+    long int ru_minflt;
+    long int ru_majflt;
+    long int ru_nswap;
+    long int ru_inblock;
+    long int ru_oublock;
+    long int ru_msgsnd;
+    long int ru_msgrcv;
+    long int ru_nsignals;
+    long int ru_nvcsw;
+    long int ru_nivcsw;
+};
+
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
     const char* path; /* path valid if non-null */
-    dev_t device_major;
-    dev_t device_minor;
+    unsigned int device_major;
+    unsigned int device_minor;
     ino_t inode;
     struct statx_timestamp mtime;
     struct statx_timestamp ctime;
@@ -23,7 +60,7 @@ struct InitProcessOp {
 
 struct InitExecEpochOp {
     unsigned int epoch;
-    OWNED char* program_name;
+    char* program_name;
 };
 
 struct InitExecEpochOp init_current_exec_epoch();
@@ -131,7 +168,7 @@ struct WaitOp {
 struct GetRUsageOp {
     pid_t waitpid_arg;
     int getrusage_arg;
-    struct rusage usage;
+    struct my_rusage usage;
     int ferrno;
 };
 

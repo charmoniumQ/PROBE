@@ -359,7 +359,7 @@ def find_decl(
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     pre_call_stmts = [
         pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="maybe_init_thread"),
+            name=pycparser.c_ast.ID(name="ensure_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
         # pycparser.c_ast.FuncCall(
@@ -450,6 +450,9 @@ includes = """
 #include <sys/types.h>
 #include <sys/time.h>
 
+#include "../src/util.h"
+#include "../src/debug_logging.h"
+
 /*
  * There is some bug with pycparser unable to parse inline funciton pointers.
  * So we will use a typedef alias.
@@ -476,6 +479,8 @@ defines = """
 #include <limits.h>
 #include <limits.h>
 #include <stdarg.h>
+
+#include "libc_hooks.h"
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)` or `sizeof(type_name)`)

@@ -235,6 +235,8 @@
                 pkgs.ruff
                 pkgs.cachix
                 pkgs.podman
+
+                pkgs.maven
               ]
               # OpenJDK doesn't build on some platforms
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow

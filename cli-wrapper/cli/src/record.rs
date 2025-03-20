@@ -136,7 +136,7 @@ impl Recorder {
         .wrap_err("unable to canonicalize libprobe path")?;
         if self.debug || self.gdb {
             log::debug!("Using debug version of libprobe");
-            libprobe.push("libprobe-dbg.so");
+            libprobe.push("libprobe.dbg.so");
         } else {
             libprobe.push("libprobe.so");
         }
