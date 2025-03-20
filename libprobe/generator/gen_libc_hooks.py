@@ -480,6 +480,13 @@ defines = """
 #include <limits.h>
 #include <stdarg.h>
 
+#include "../include/libprobe/prov_ops.h"
+#include "../src/prov_utils.h"
+#include "../src/prov_buffer.h"
+#include "../src/env.h"
+#include "../src/util.h"
+#include "../src/lookup_on_path.h"
+
 #include "libc_hooks.h"
 
 /*

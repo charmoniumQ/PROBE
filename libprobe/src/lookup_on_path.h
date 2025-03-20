@@ -5,4 +5,5 @@
 #include "util.h"
 
 __attribute__((visibility("hidden")))
-bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path);
+bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path)
+    __attribute__((nonnull));

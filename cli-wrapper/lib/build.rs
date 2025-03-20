@@ -54,7 +54,7 @@ fn should_prefix(name: &str) -> bool {
             "OpCode",
             "Op",
             "StatResult",
-            "rusage",
+            "my_rusage",
             "statx_timestamp",
             "timespec",
             "timeval",

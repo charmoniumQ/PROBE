@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <sys/sendfile.h>
 
 #include "../generated/libc_hooks.h"
 #include "debug_logging.h"
@@ -68,33 +69,6 @@ void list_dir(const char* name, int indent) {
     unwrapped_closedir(dir);
 }
 
-/* Copy char* const argv[] into the arena.
- * If argc argument is 0, compute argc and store there (if the size actually was zero, this is no bug).
- * If argc argument is positive, assume that is the argc.
- * */
-char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * argv, size_t* argc) {
-    if (*argc == 0) {
-        /* Compute argc and store in *argc */
-        for (char * const* argv_p = argv; *argv_p; ++argv_p) {
-            (*argc)++;
-        }
-    }
-
-    char** argv_copy = arena_calloc(arena_dir, *argc + 1, sizeof(char*));
-
-    for (size_t i = 0; i < *argc; ++i) {
-        size_t length = strlen(argv[i]);
-        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
-        memcpy(argv_copy[i], argv[i], length + 1);
-        ASSERTF(!argv_copy[i][length], "");
-    }
-
-    ASSERTF(!argv[*argc], "");
-    argv_copy[*argc] = NULL;
-
-    return argv_copy;
-}
-
 int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path, ssize_t size) {
     /*
     ** Adapted from:
@@ -118,7 +92,7 @@ int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* ds
 }
 
 void write_bytes(int dirfd, const char* path, const char* content, ssize_t size) {
-    int fd = EXPECT(< 0, unwrapped_openat(dirfd, path, O_RDWR | O_CREAT, 0666));
+    int fd = EXPECT(> 0, unwrapped_openat(dirfd, path, O_RDWR | O_CREAT, 0666));
     ssize_t copied = 0;
     while (copied < size) {
         copied += EXPECT(> 0, write(fd, content, size));

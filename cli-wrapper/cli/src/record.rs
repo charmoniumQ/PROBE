@@ -177,6 +177,7 @@ impl Recorder {
                 .arg(dir_env)
                 .arg(preload_env)
                 .arg(copy_files_env)
+                .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__exec")
@@ -214,6 +215,7 @@ impl Recorder {
                         ""
                     },
                 )
+                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
                 .env("__PROBE_DIR", self.output.path())
                 .env("LD_PRELOAD", ld_preload)
                 .spawn()

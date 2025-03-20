@@ -2404,7 +2404,7 @@ pid_t fork (void) {
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                reinit_process();
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2446,7 +2446,7 @@ pid_t _Fork (void) {
                 prov_log_record(op);
             } else if (ret == 0) {
                 /* Success; child */
-                reinit_process();
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2520,7 +2520,7 @@ pid_t vfork (void) {
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                reinit_process();
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2596,9 +2596,9 @@ int clone(
         } else if (ret == 0) {
             /* Success; child. */
             if (flags & CLONE_THREAD) {
-                maybe_init_thread();
+                ensure_initted();
             } else {
-                reinit_process();
+                init_after_fork();
             }
         } else {
             /* Success; parent */
@@ -2775,7 +2775,7 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
                 wait_op.data.wait.task_id = ret;
                 wait_op.data.wait.status = *status_ptr;
                 if (usage) {
-                    memcpy(&getrusage_op.data.getrusage.usage, usage, sizeof(struct rusage));
+                    copy_rusage(&getrusage_op.data.getrusage.usage, usage);
                 }
             }
             prov_log_record(wait_op);

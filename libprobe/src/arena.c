@@ -56,9 +56,9 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t capaci
     /* Create a new mmap */
     char fname_buffer [ARENA_FNAME_LENGTH];
     snprintf(fname_buffer, ARENA_FNAME_LENGTH, "%ld.dat", arena_dir->__next_instantiation);
-    int fd = EXPECT(< 0, unwrapped_openat(arena_dir->__dirfd, fname_buffer, O_RDWR | O_CREAT, 0666));
+    int fd = EXPECT(> 0, unwrapped_openat(arena_dir->__dirfd, fname_buffer, O_RDWR | O_CREAT, 0666));
 
-    EXPECT( != 0, unwrapped_ftruncate(fd, capacity));
+    EXPECT(== 0, unwrapped_ftruncate(fd, capacity));
 
     void* base_address = mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     ASSERTF(base_address != MAP_FAILED, "");
@@ -129,7 +129,7 @@ void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size)
 
 void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size_t capacity) {
     EXPECT(== 0, unwrapped_mkdirat(parent_dirfd, name, 0777));
-    int dirfd = EXPECT(< 0, unwrapped_openat(parent_dirfd, name, O_RDONLY | O_DIRECTORY | O_PATH));
+    int dirfd = EXPECT(> 0, unwrapped_openat(parent_dirfd, name, O_RDONLY | O_DIRECTORY | O_PATH));
 
     /* O_DIRECTORY fails if name is not a directory */
     /* O_PATH means the resulting fd cannot be read/written to. It can be used as the dirfd to *at() syscall functions. */

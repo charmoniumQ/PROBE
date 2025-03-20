@@ -2,7 +2,7 @@
 
 #define _GNU_SOURCE
 
-#include <sys/sendfile.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,28 +57,36 @@
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 
 __attribute__((visibility("hidden")))
-bool is_dir(const char* dir);
+bool is_dir(const char* dir)
+__attribute__((nonnull));
 
 __attribute__((visibility("hidden")))
-OWNED const char* dirfd_path(int dirfd);
+OWNED const char* dirfd_path(int dirfd)
+    __attribute__((returns_nonnull));
 
 __attribute__((visibility("hidden")))
-OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size, BORROWED const char* right);
+OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size, BORROWED const char* right)
+    __attribute__((nonnull(3, 5), returns_nonnull));
 
 __attribute__((visibility("hidden")))
 int fd_is_valid(int fd);
 
 __attribute__((visibility("hidden")))
-void list_dir(const char* name, int indent);
+void list_dir(const char* name, int indent)
+    __attribute__((nonnull));
 
 __attribute__((visibility("hidden")))
-int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path, ssize_t size);
+int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path, ssize_t size)
+    __attribute__((nonnull));
 
 __attribute__((visibility("hidden")))
-void write_bytes(int dirfd, const char* path, const char* content, ssize_t size);
+void write_bytes(int dirfd, const char* path, const char* content, ssize_t size)
+    __attribute__((nonnull));
 
 __attribute__((visibility("hidden")))
-unsigned char mylog2(unsigned int val);
+unsigned char mylog2(unsigned int val)
+    __attribute__((pure));
 
 __attribute__((visibility("hidden")))
-unsigned char next_pow2_at_least(unsigned char min_pow2, unsigned int val);
+unsigned char next_pow2_at_least(unsigned char min_pow2, unsigned int val)
+    __attribute__((pure));

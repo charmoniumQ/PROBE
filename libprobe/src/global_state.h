@@ -92,3 +92,6 @@ extern const char* get_default_path();
 
 __attribute__((visibility("hidden")))
 void ensure_initted();
+
+__attribute__((visibility("hidden")))
+void init_after_fork();

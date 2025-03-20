@@ -17,7 +17,6 @@ void printenv() {
 
 const char* getenv_copy(const char* name) {
     /* Validate input */
-    ASSERTF(name, "");
     ASSERTF(strchr(name, '=') == NULL, "");
     ASSERTF(name[0], "");
     ASSERTF(environ, "");
@@ -34,7 +33,8 @@ const char* getenv_copy(const char* name) {
 }
 
 /*
- * TODO: Test this
+ * TODO: Test this. If this is not true, we should setenv(var, val) for var, val in PROBE_VARS
+ * This has a better chance of propagating PROBE monitoring if exec is somehow bypassed (e.g., raw syscall).
  *
  * Somehow, calling glibc's getenv here doesn't work (???) for the case `bash -c 'bash -c echo'` with libprobe.
  * In that case, the following code trips up:
@@ -51,7 +51,6 @@ const char* getenv_copy(const char* name) {
  * I think it has something to do with libc's assumptions about library loading
  *
  */
-
 
 char* const* update_env_with_probe_vars(char* const* user_env, size_t* updated_env_size) {
     /* Define env vars we care about */
@@ -132,4 +131,27 @@ char* const* update_env_with_probe_vars(char* const* user_env, size_t* updated_e
     updated_env[*updated_env_size] = NULL;
 
     return updated_env;
+}
+
+char* const* arena_copy_argv(struct ArenaDir* arena_dir, char * const * argv, size_t* argc) {
+    if (*argc == 0) {
+        /* Compute argc and store in *argc */
+        for (char * const* argv_p = argv; *argv_p; ++argv_p) {
+            (*argc)++;
+        }
+    }
+
+    char** argv_copy = arena_calloc(arena_dir, *argc + 1, sizeof(char*));
+
+    for (size_t i = 0; i < *argc; ++i) {
+        size_t length = strlen(argv[i]);
+        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
+        memcpy(argv_copy[i], argv[i], length + 1);
+        ASSERTF(!argv_copy[i][length], "");
+    }
+
+    ASSERTF(!argv[*argc], "");
+    argv_copy[*argc] = NULL;
+
+    return argv_copy;
 }

@@ -11,6 +11,15 @@ SOURCE_FILES := $(wildcard src/*.c) $(GENERATED_SOURCE_FILES)
 HEADER_FILES := $(wildcard src/*.h) $(GENERATED_HEADER_FILES)
 ALL_TARGETS := build/libprobe.dbg.so build/libprobe.so
 
+all: build/libprobe.so build/libprobe.dbg.so
+.PHONY: all
+
+build/libprobe.so: $(addprefix build/,$(SOURCE_FILES:.c=.o))
+	$(CC) -flto    -fpic -shared -o $@ $^
+
+build/libprobe.dbg.so: $(addprefix build/,$(SOURCE_FILES:.c=.dbg.o))
+	$(CC) -fno-lto -fPIC -shared -o $@ $^
+
 build/%.o: %.c $(HEADER_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -c $(CFLAGS) $(OPTCFLAGS) -o $@ $<
@@ -18,14 +27,6 @@ build/%.o: %.c $(HEADER_FILES)
 build/%.dbg.o: %.c $(HEADER_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -c $(CFLAGS) $(DBGCFLAGS) -o $@ $<
-
-build/libprobe.so: $(addprefix build/,$(SOURCE_FILES:.c=.o))
-	$(CC) -flto -fpic -shared -o $@ $^
-
-build/libprobe.dbg.so: $(addprefix build/,$(SOURCE_FILES:.c=.dbg.o))
-	$(CC) -fPIC -shared -o $@ $^
-
-all: build/libprobe.so build/libprobe.dbg.so
 
 $(GENERATED_FILES): $(wildcard generator/*)
 	mkdir --parents generated/
