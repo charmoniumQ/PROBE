@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
-dir="$(realpath "$(dirname "$(dirname "$0")")")"
-libprobe="$dir/build/libprobe.dbg.so"
+set -ex
+
+proj_root="$(dirname "$(dirname "$(dirname "$(realpath "$0")")")")"
+
+libprobe="$proj_root/libprobe/build/libprobe.dbg.so"
 
 if [ ! -f "$libprobe" ]; then
     echo "Need to build libprobe first; try 'just compile'"
@@ -12,7 +15,9 @@ readelf --all "$libprobe"  | grep 'Type:'
 
 readelf --all "$libprobe" | grep 'NEEDED'
 
-nm --dynamic ../build/libprobe.dbg.so
+nm --dynamic --defined-only "$libprobe"
+
+nm --dynamic --undefined-only "$libprobe"
 
 export __PROBE_DIR=/tmp/probe/test
 if [ -e "$__PROBE_DIR" ]; then
@@ -20,7 +25,25 @@ if [ -e "$__PROBE_DIR" ]; then
 fi
 mkdir --parents "$__PROBE_DIR"
 
-exe=/home/sam/box/PROBE/tests/examples/simple.exe
-args=Makefile
+exe="$proj_root/tests/examples/simple.exe"
+args="$proj_root/README.md"
 
-gdb --eval-command="set environment LD_PRELOAD $libprobe" --eval-command="run" --args "$exe" $args
+LD_DEBUG=all LD_PRELOAD=$libprobe "$exe" $args
+
+rm --recursive --force "$__PROBE_DIR"
+mkdir --parents "$__PROBE_DIR"
+libprobe="$(dirname "$libprobe")/libprobe.so"
+
+LD_PRELOAD=$libprobe "$exe" $args
+
+# if ! LD_DEBUG=all LD_PRELOAD=$libprobe "$exe" $args; then
+#     gdb \
+#         --quiet \
+#         --eval-command="set environment LD_PRELOAD $libprobe" \
+#         --eval-command="set environment LD_DEBUG all" \
+#         --eval-command="run" \
+#         --eval-command="backtrace" \
+#         --eval-command="quit" \
+#         --args "$exe" $args
+#     exit 1
+# fi

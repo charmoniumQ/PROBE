@@ -11,6 +11,7 @@ def test_probe_nonexistent_command() -> None:
     proc = subprocess.run(
         ["probe", "record", "-f", nonexistent_command],
         capture_output=True,
+        timeout=40,
         check=False,
     )
     # Rust wrapper catches and warns us of segfaults.
@@ -21,6 +22,7 @@ def test_probe_empty_path() -> None:
     proc = subprocess.run(
         ["probe", "record", "-f", "env", "PATH=", nonexistent_command],
         capture_output=True,
+        timeout=40,
         check=False,
     )
     assert b"SIGSEGV" not in proc.stderr

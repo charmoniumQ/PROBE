@@ -233,7 +233,7 @@ int open (const char *filename, int flags, ...) {
         }
     });
     void* call = ({
-        int ret = unwrapped_openat(filename, flags, mode);
+        int ret = unwrapped_open(filename, flags, mode);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -435,29 +435,29 @@ int dup3 (int old, int new, int flags) {
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
 int fcntl (int filedes, int command, ...) {
     void* pre_call = ({
-            bool int_arg = command == F_DUPFD || command == F_DUPFD_CLOEXEC || command == F_SETFD || command == F_SETFL || command == F_SETOWN || command == F_SETSIG || command == F_SETLEASE || command == F_NOTIFY || command == F_SETPIPE_SZ || command == F_ADD_SEALS;
-            bool ptr_arg = command == F_SETLK || command == F_SETLKW || command == F_GETLK || command == F_OLD_SETLK || command == F_OLD_SETLKW || command == F_OLD_GETLK || command == F_GETOWN_EX || command == F_SETOWN_EX || command == F_GET_RW_HINT || command == F_SET_RW_HINT || command == F_GET_FILE_RW_HINT || command == F_SET_FILE_RW_HINT;
+            bool has_int_arg = command == F_DUPFD || command == F_DUPFD_CLOEXEC || command == F_SETFD || command == F_SETFL || command == F_SETOWN || command == F_SETSIG || command == F_SETLEASE || command == F_NOTIFY || command == F_SETPIPE_SZ || command == F_ADD_SEALS;
+            bool has_ptr_arg = command == F_SETLK || command == F_SETLKW || command == F_GETLK || command == F_OFD_SETLK || command == F_OFD_SETLKW || command == F_OFD_GETLK || command == F_GETOWN_EX || command == F_SETOWN_EX || command == F_GET_RW_HINT || command == F_SET_RW_HINT || command == F_GET_FILE_RW_HINT || command == F_SET_FILE_RW_HINT;
             /* Highlander assertion: there can only be one! */
             /* But there could be zero, as in fcntl(fd, F_GETFL) */
-            assert(!int_arg || !ptr_arg);
+            ASSERTF(!has_int_arg || !has_ptr_arg, "");
 
             int int_arg = 0;
             void* ptr_arg = NULL;
 
             va_list ap;
             va_start(ap, command);
-            if (int_arg) {
+            if (has_int_arg) {
                 int_arg = va_arg(ap, __type_int);
-            } else if (ptr_arg) {
+            } else if (has_ptr_arg) {
                 ptr_arg = va_arg(ap, __type_voidp);
             }
             va_end(ap);
         });
     void* call = ({
         int ret;
-        if (int_arg) {
+        if (has_int_arg) {
             ret = fcntl(filedes, command, int_arg);
-        } else if (ptr_arg) {
+        } else if (has_ptr_arg) {
             ret = fcntl(filedes, command, ptr_arg);
         } else {
             ret = fcntl(filedes, command);
@@ -538,7 +538,7 @@ DIR * opendir (const char *dirname) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
             op.data.open.ferrno = ret == NULL ? errno : 0;
-            op.data.open.fd = try_dirfd(ret);
+            op.data.open.fd = ret == NULL ? -1 : dirfd(ret);
             prov_log_record(op);
         }
     });
@@ -566,7 +566,7 @@ DIR * fdopendir (int fd) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
             op.data.open.ferrno = ret == NULL ? errno : 0;
-            op.data.open.fd = try_dirfd(ret);
+            op.data.open.fd = ret == NULL ? -1 : dirfd(ret);
             prov_log_record(op);
         }
     });
@@ -576,7 +576,7 @@ DIR * fdopendir (int fd) {
 /* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html */
 struct dirent * readdir (DIR *dirstream) {
     void* pre_call = ({
-        int fd = try_dirfd(dirstream);
+        int fd = dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -609,7 +609,7 @@ struct dirent * readdir (DIR *dirstream) {
 }
 int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
     void* pre_call = ({
-        int fd = try_dirfd(dirstream);
+        int fd = dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -642,7 +642,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
 }
 struct dirent64 * readdir64 (DIR *dirstream) {
     void* pre_call = ({
-        int fd = try_dirfd(dirstream);
+        int fd = dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -675,7 +675,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
 }
 int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) {
     void* pre_call = ({
-        int fd = try_dirfd(dirstream);
+        int fd = dirfd(dirstream);
         struct Op op = {
             readdir_op_code,
             {.readdir = {
@@ -708,7 +708,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
 }
 int closedir (DIR *dirstream) {
     void* pre_call = ({
-        int fd = try_dirfd(dirstream);
+        int fd = dirfd(dirstream);
         struct Op op = {
             close_op_code,
             {.close = {fd, fd, 0}},
@@ -1480,8 +1480,6 @@ int lstat (const char *filename, struct stat *buf) {
     });
 }
 
-pid_t getpid (void) { }
-
 /* Docs: https://www.man7.org/linux/man-pages/man2/statx.2.html */
 int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf) {
     void* pre_call = ({
@@ -2039,7 +2037,7 @@ int execv (const char *filename, char *const argv[]) {
          * */
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2088,7 +2086,7 @@ int execl (const char *filename, const char *arg0, ...) {
         free((char**) updated_env);
         free((char**) argv);
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2128,7 +2126,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
     void* post_call = ({
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2168,7 +2166,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
     void* post_call = ({
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2219,7 +2217,7 @@ int execle (const char *filename, const char *arg0, ...) {
         free((char**)updated_env);
         free((char**)argv);
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2264,7 +2262,7 @@ int execvp (const char *filename, char *const argv[]) {
     void* post_call = ({
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2318,7 +2316,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         free((char**) updated_env);
         free((char**) argv);
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2365,7 +2363,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* post_call = ({
         free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (LIKELY(prov_log_is_enabled())) {
-            assert(errno > 0);
+            ASSERTF(errno > 0, "exec should only return if error");
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
@@ -2406,7 +2404,7 @@ pid_t fork (void) {
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                reinit_process();
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2448,7 +2446,7 @@ pid_t _Fork (void) {
                 prov_log_record(op);
             } else if (ret == 0) {
                 /* Success; child */
-                reinit_process();
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2522,7 +2520,7 @@ pid_t vfork (void) {
                 op.data.clone.ferrno = saved_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                reinit_process();
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2598,9 +2596,9 @@ int clone(
         } else if (ret == 0) {
             /* Success; child. */
             if (flags & CLONE_THREAD) {
-                maybe_init_thread();
+                ensure_initted();
             } else {
-                reinit_process();
+                init_after_fork();
             }
         } else {
             /* Success; parent */
@@ -2777,7 +2775,7 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
                 wait_op.data.wait.task_id = ret;
                 wait_op.data.wait.status = *status_ptr;
                 if (usage) {
-                    memcpy(&getrusage_op.data.getrusage.usage, usage, sizeof(struct rusage));
+                    copy_rusage(&getrusage_op.data.getrusage.usage, usage);
                 }
             }
             prov_log_record(wait_op);

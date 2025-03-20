@@ -11,7 +11,7 @@ import pathlib
 # Intercept libc functions
 # But ignore pre_call/post_call actions
 # Don't produce ops
-ignore_actions = True
+ignore_actions = False
 
 
 _T = typing.TypeVar("_T")
@@ -476,6 +476,16 @@ defines = """
 #define _GNU_SOURCE
 
 #include <dlfcn.h>
+#include <limits.h>
+#include <limits.h>
+#include <stdarg.h>
+
+#include "../include/libprobe/prov_ops.h"
+#include "../src/prov_utils.h"
+#include "../src/prov_buffer.h"
+#include "../src/env.h"
+#include "../src/util.h"
+#include "../src/lookup_on_path.h"
 
 #include "libc_hooks.h"
 
@@ -485,9 +495,11 @@ defines = """
  * To pycparser, these macros are defined as variable names (parsable as arguments).
  * To GCC these macros are defined as type names.
  * */
-#define __type_mode_t mode_t
-#define __type_charp char*
-#define __type_charpp char**
+typedef mode_t __type_mode_t;
+typedef char* __type_charp;
+typedef char** __type_charpp;
+typedef int __type_int;
+typedef void* __type_voidp;
 """
 
 (generated / "libc_hooks.c").write_text(

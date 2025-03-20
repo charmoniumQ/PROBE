@@ -342,10 +342,10 @@ static inline void check_function_pointers() {
     ASSERTF(unwrapped_mkdirat, "");
     ASSERTF(unwrapped_openat, "");
     ASSERTF(unwrapped_statx, "");
-    ASSERTF(unwrapped_getpid, "");
 
     // assert that function pointerse are callable
-    EXPECT( > 0, unwrapped_getpid());
+    struct statx buf;
+    EXPECT(== 0, unwrapped_statx(AT_FDCWD, ".", 0, STATX_BASIC_STATS, &buf));
 }
 
 /*
@@ -353,7 +353,7 @@ static inline void check_function_pointers() {
  * E.g., exec_epoch will be wrong.
  * Therefore, we will reset all the things and call init again.
  */
-static inline void reinit_after_fork() {
+void init_after_fork() {
     DEBUG("Re-initializing process");
 
     // New TID/PID to detect
@@ -404,6 +404,7 @@ __thread bool thread_inited = false;
 pthread_mutex_t epoch_init_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void ensure_initted() {
+    DEBUG("Ensure initted");
     bool was_epoch_inited = false;
     if (UNLIKELY(!thread_inited)) {
         DEBUG("Initializing thread");
@@ -429,7 +430,7 @@ void ensure_initted() {
                 pthread_atfork(
                     NULL,
                     NULL,
-                    &reinit_after_fork
+                    &init_after_fork
                 )
             );
             epoch_inited = true;

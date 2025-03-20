@@ -6,6 +6,7 @@
 # Subsequently, note whether the machine exploded.
 # If not, then PROBE does not interfere with ASAN.
 
+CC ?= gcc
 CFLAGS ?= -Wall -Wextra -Og -g
 
 SOURCE_FILES := $(wildcard *.c)
@@ -13,7 +14,7 @@ SOURCE_FILES := $(wildcard *.c)
 all: $(SOURCE_FILES:.c=.exe)
 
 %.exe: %.c
-	gcc $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $<
 
 clean:
 	touch $(SOURCE_FILES:.c=.exe) && rm --force $(SOURCE_FILES:.c=.exe)
