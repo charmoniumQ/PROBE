@@ -1,3 +1,4 @@
+import os
 import shutil
 import pytest
 import pathlib
@@ -96,3 +97,25 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
         cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
         print(shlex.join(cmd))
         subprocess.run(cmd, check=True, cwd=tmpdir)
+
+
+def test_big_env() -> None:
+    tmpdir.mkdir(exist_ok=True)
+    (tmpdir / "probe_log").unlink(missing_ok=True)
+    subprocess.run(
+        [*modes[0], *commands[2]],
+        env={
+            **os.environ,
+            "A": "B"*10000,
+        },
+        check=True,
+        cwd=tmpdir,
+    )
+
+
+def test_fail() -> None:
+    tmpdir.mkdir(exist_ok=True)
+    (tmpdir / "probe_log").unlink(missing_ok=True)
+    cmd = ["probe", "record", "false"]
+    proc = subprocess.run(cmd, check=False, cwd=tmpdir)
+    assert proc.returncode != 0

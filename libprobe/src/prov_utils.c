@@ -1,5 +1,18 @@
-static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
-    if (likely(prov_log_is_enabled())) {
+#define _GNU_SOURCE
+
+#include <sys/sysmacros.h>
+#include <sys/resource.h>
+#include <limits.h>
+
+#include "debug_logging.h"
+#include "util.h"
+#include "global_state.h"
+#include "prov_buffer.h"
+
+#include "prov_utils.h"
+
+struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
+    if (LIKELY(prov_log_is_enabled())) {
         struct Path ret = {
             dirfd - AT_FDCWD,
             (path != NULL ? EXPECT_NONNULL(arena_strndup(get_data_arena(), path, PATH_MAX)) : NULL),
@@ -26,10 +39,8 @@ static struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fl
         /*
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
-        prov_log_disable();
         struct statx statx_buf;
         int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
-        prov_log_enable();
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
@@ -52,7 +63,7 @@ void path_to_id_string(const struct Path* path, BORROWED char* string) {
     CHECK_SNPRINTF(
         string,
         PATH_MAX,
-        "%02lx-%02lx-%016lx-%016llx-%08x-%016lx",
+        "%04x-%04x-%016lx-%016lldx-%08x-%016lx",
         path->device_major,
         path->device_minor,
         path->inode,
@@ -61,34 +72,7 @@ void path_to_id_string(const struct Path* path, BORROWED char* string) {
         path->size);
 }
 
-struct InitProcessOp init_current_process() {
-    char const * cwd = EXPECT_NONNULL(get_current_dir_name());
-    struct InitProcessOp ret = {
-        .pid = getpid(),
-        .is_root = is_proc_root(),
-        .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
-    };
-    free((char*) cwd);
-    return ret;
-}
-
-struct InitExecEpochOp init_current_exec_epoch() {
-    extern char *__progname;
-    struct InitExecEpochOp ret = {
-        .epoch = get_exec_epoch(),
-        .program_name = arena_strndup(get_data_arena(), __progname, PATH_MAX),
-    };
-    return ret;
-}
-
-static struct InitThreadOp init_current_thread() {
-    struct InitThreadOp ret = {
-        .tid = my_gettid(),
-    };
-    return ret;
-}
-
-static int fopen_to_flags(BORROWED const char* fopentype) {
+int fopen_to_flags(BORROWED const char* fopentype) {
     /* Table from fopen to open is documented here:
      * https://www.man7.org/linux/man-pages/man3/fopen.3.html
      **/
@@ -111,7 +95,7 @@ static int fopen_to_flags(BORROWED const char* fopentype) {
     }
 }
 
-static const struct Path* op_to_path(const struct Op* op) {
+const struct Path* op_to_path(const struct Op* op) {
     switch (op->op_code) {
         case open_op_code: return &op->data.open.path;
         case chdir_op_code: return &op->data.chdir.path;
@@ -129,7 +113,7 @@ static const struct Path* op_to_path(const struct Op* op) {
             return &null_path;
     }
 }
-static const struct Path* op_to_second_path(const struct Op* op) {
+const struct Path* op_to_second_path(const struct Op* op) {
     switch (op->op_code) {
         case hard_link_op_code: return &op->data.hard_link.new;
         case rename_op_code: return &op->data.rename.dst;
@@ -139,7 +123,7 @@ static const struct Path* op_to_second_path(const struct Op* op) {
 }
 
 #ifndef NDEBUG
-static BORROWED const char* op_code_to_string(enum OpCode op_code) {
+BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
         case init_process_op_code: return "init_process";
         case init_exec_epoch_op_code: return "init_exec_epoch";
@@ -167,7 +151,7 @@ static BORROWED const char* op_code_to_string(enum OpCode op_code) {
             NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
-static int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
+int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
     return CHECK_SNPRINTF(
         buffer,
         buffer_length,
@@ -178,7 +162,7 @@ static int path_to_string(const struct Path* path, char* buffer, int buffer_leng
         path->dirfd_valid
     );
 }
-static void op_to_human_readable(char* dest, int size, struct Op* op) {
+void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
     strncpy(dest, op_str, size);
     size -= strlen(op_str);
@@ -230,26 +214,6 @@ void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat
     stat_result_buf->blksize = stat_buf->st_blksize;
 }
 
-void stat_result_from_stat64(struct StatResult* stat_result_buf, struct stat64* stat64_buf) {
-    stat_result_buf->mask = STATX_BASIC_STATS;
-    stat_result_buf->mode = stat64_buf->st_mode;
-    stat_result_buf->ino = stat64_buf->st_ino;
-    stat_result_buf->dev_major = major(stat64_buf->st_dev);
-    stat_result_buf->dev_major = minor(stat64_buf->st_dev);
-    stat_result_buf->nlink = stat64_buf->st_nlink;
-    stat_result_buf->uid = stat64_buf->st_uid;
-    stat_result_buf->gid = stat64_buf->st_gid;
-    stat_result_buf->size = stat64_buf->st_size;
-    stat_result_buf->atime.tv_sec = stat64_buf->st_atim.tv_sec;
-    stat_result_buf->atime.tv_nsec = stat64_buf->st_atim.tv_nsec;
-    stat_result_buf->mtime.tv_sec = stat64_buf->st_mtim.tv_sec;
-    stat_result_buf->mtime.tv_nsec = stat64_buf->st_mtim.tv_nsec;
-    stat_result_buf->ctime.tv_sec = stat64_buf->st_ctim.tv_sec;
-    stat_result_buf->ctime.tv_nsec = stat64_buf->st_ctim.tv_nsec;
-    stat_result_buf->blocks = stat64_buf->st_blocks;
-    stat_result_buf->blksize = stat64_buf->st_blksize;
-}
-
 void stat_result_from_statx(struct StatResult* stat_result_buf, struct statx* statx_buf) {
     stat_result_buf->mask = statx_buf->stx_mask;
     stat_result_buf->mode = statx_buf->stx_mode;
@@ -268,4 +232,69 @@ void stat_result_from_statx(struct StatResult* stat_result_buf, struct statx* st
     stat_result_buf->ctime.tv_nsec = statx_buf->stx_ctime.tv_nsec;
     stat_result_buf->blocks = statx_buf->stx_blocks;
     stat_result_buf->blksize = statx_buf->stx_blksize;
+}
+
+/* TODO: Use the Musl rusage as the source-of-truth, and we will all be good to memcpy */
+
+void copy_rusage(struct my_rusage* dst, struct rusage* src) {
+    dst->ru_utime = src->ru_utime;
+    dst->ru_stime = src->ru_stime;
+    dst->ru_maxrss = src->ru_maxrss;
+    dst->ru_ixrss = src->ru_ixrss;
+    dst->ru_idrss = src->ru_idrss;
+    dst->ru_isrss = src->ru_isrss;
+    dst->ru_minflt = src->ru_minflt;
+    dst->ru_majflt = src->ru_majflt;
+    dst->ru_nswap = src->ru_nswap;
+    dst->ru_inblock = src->ru_inblock;
+    dst->ru_oublock = src->ru_oublock;
+    dst->ru_msgsnd = src->ru_msgsnd;
+    dst->ru_msgrcv = src->ru_msgrcv;
+    dst->ru_nsignals = src->ru_nsignals;
+    dst->ru_nvcsw = src->ru_nvcsw;
+    dst->ru_nivcsw = src->ru_nivcsw;
+}
+
+void do_init_ops(bool was_epoch_initted) {
+    if (was_epoch_initted) {
+        if (get_exec_epoch() == 0) {
+            char const * cwd = EXPECT_NONNULL(get_current_dir_name());
+            struct Op init_process_op = {
+                init_process_op_code,
+                {.init_process = {
+                    .pid = getpid(),
+                    .is_root = is_proc_root(),
+                    .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
+                }},
+                {0},
+                0,
+                0,
+            };
+            prov_log_try(init_process_op);
+            prov_log_record(init_process_op);
+            free((char*) cwd);
+        }
+        struct Op init_exec_op = {
+            init_exec_epoch_op_code,
+            {.init_exec_epoch = {
+                .epoch = get_exec_epoch(),
+                .program_name = arena_strndup(get_data_arena(), program_invocation_name, PATH_MAX),
+            }},
+            {0},
+            0,
+            0,
+        };
+        prov_log_try(init_exec_op);
+        prov_log_record(init_exec_op);
+    }
+
+    struct Op init_thread_op = {
+        init_thread_op_code,
+        {.init_thread = {.tid = get_tid()}},
+        {0},
+        0,
+        0,
+    };
+    prov_log_try(init_thread_op);
+    prov_log_record(init_thread_op);
 }

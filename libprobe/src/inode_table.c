@@ -1,3 +1,12 @@
+#define _GNU_SOURCE
+
+#include <stddef.h>
+#include <stdlib.h>
+
+#include "debug_logging.h"
+
+#include "inode_table.h"
+
 /*
 ** Device major and minor are listed here:
 ** https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
@@ -68,19 +77,19 @@ struct IndexTable {
      * */
 };
 
-static struct IndexTable* index_table_create(size_t length) {
-    assert(length);
+static inline struct IndexTable* index_table_create(size_t length) {
+    ASSERTF(length, "");
     struct IndexTable* ret = EXPECT_NONNULL(calloc(sizeof(struct IndexTable) + (length - 1) * sizeof(struct IndexTableEntry), sizeof(char)));
     for (size_t idx = 0; idx < length; ++idx) {
-        assert(pthread_rwlock_init(&(&ret->elements + idx)->lock, NULL) == 0);
+        ASSERTF(pthread_rwlock_init(&(&ret->elements + idx)->lock, NULL) == 0, "");
     }
     ret->length = length;
     return ret;
 }
 
-static size_t index_table_get(struct IndexTable* index_table, size_t idx, size_t default_value) {
-    assert(index_table);
-    assert(idx < index_table->length);
+static inline size_t index_table_get(struct IndexTable* index_table, size_t idx, size_t default_value) {
+    ASSERTF(index_table, "");
+    ASSERTF(idx < index_table->length, "");
     struct IndexTableEntry* element = &index_table->elements + idx;
     EXPECT(== 0, pthread_rwlock_rdlock(&element->lock));
     size_t ret = element->value;
@@ -92,9 +101,9 @@ static size_t index_table_get(struct IndexTable* index_table, size_t idx, size_t
     }
 }
 
-static size_t index_table_get_default(struct IndexTable* index_table, size_t idx, size_t (*factory)(void*), void* arg) {
-    assert(index_table);
-    assert(idx < index_table->length);
+static inline size_t index_table_get_default(struct IndexTable* index_table, size_t idx, size_t (*factory)(void*), void* arg) {
+    ASSERTF(index_table, "");
+    ASSERTF(idx < index_table->length, "");
     struct IndexTableEntry* element = &index_table->elements + idx;
 
     /* Speculatively assume that the element is already occupied */
@@ -119,9 +128,9 @@ static size_t index_table_get_default(struct IndexTable* index_table, size_t idx
     return ret - 1;
 }
 
-static size_t index_table_put(struct IndexTable* index_table, size_t idx, size_t value) {
-    assert(index_table);
-    assert(idx < index_table->length);
+static inline size_t index_table_put(struct IndexTable* index_table, size_t idx, size_t value) {
+    ASSERTF(index_table, "");
+    ASSERTF(idx < index_table->length, "");
     struct IndexTableEntry* element = &index_table->elements + idx;
 
     EXPECT(== 0, pthread_rwlock_wrlock(&element->lock));
@@ -131,19 +140,15 @@ static size_t index_table_put(struct IndexTable* index_table, size_t idx, size_t
     return ret - 1;
 }
 
-/*
- * This struct "hides" the implementation from users.
- * They don't know about IndexTable or how it is implemented; just functions beginning with inode_table_*.
- * */
-struct InodeTable {
-    struct IndexTable* majors;
-};
-
-static void inode_table_init(struct InodeTable* inode_table) {
+void inode_table_init(struct InodeTable* inode_table) {
     inode_table->majors = index_table_create(DEVICE_MAJORS);
 }
 
-static bool inode_table_contains(struct InodeTable* inode_table, const struct Path* path) {
+bool inode_table_is_init(struct InodeTable* inode_table) {
+    return inode_table->majors;
+}
+
+bool inode_table_contains(struct InodeTable* inode_table, const struct Path* path) {
     struct IndexTable* minors  = (struct IndexTable*) index_table_get(inode_table->majors, path->device_major, 0);
     if (!minors) {
         return false;
@@ -171,7 +176,7 @@ static bool inode_table_contains(struct InodeTable* inode_table, const struct Pa
     return index_table_get(inodes4, (path->inode & INODES4_MASK) >> INODES4_SHIFT, false);
 }
 
-static size_t index_table_factory(void* length_voidp) {
+size_t index_table_factory(void* length_voidp) {
     return (size_t) index_table_create((size_t)length_voidp);
 }
 
@@ -179,7 +184,7 @@ static size_t index_table_factory(void* length_voidp) {
  * If not exist, put and return True
  * Else, return False
  */
-static bool inode_table_put_if_not_exists(struct InodeTable* inode_table, const struct Path* path) {
+bool inode_table_put_if_not_exists(struct InodeTable* inode_table, const struct Path* path) {
     struct IndexTable* minors    = (struct IndexTable*) index_table_get_default(inode_table->majors, path->device_major                           , &index_table_factory, (void*)DEVICE_MINORS );
     struct IndexTable* inodes0   = (struct IndexTable*) index_table_get_default(minors             , path->device_minor                           , &index_table_factory, (void*)INODES0_LENGTH);
     struct IndexTable* inodes1   = (struct IndexTable*) index_table_get_default(inodes0            , (path->inode & INODES0_MASK) >> INODES0_SHIFT, &index_table_factory, (void*)INODES1_LENGTH);
@@ -188,7 +193,7 @@ static bool inode_table_put_if_not_exists(struct InodeTable* inode_table, const 
     struct IndexTable* inodes4   = (struct IndexTable*) index_table_get_default(inodes3            , (path->inode & INODES3_MASK) >> INODES3_SHIFT, &index_table_factory, (void*)INODES4_LENGTH);
     bool                  exists    = (bool                 ) index_table_put(        inodes4            , (path->inode & INODES4_MASK) >> INODES4_SHIFT, true                                          );
     if (!exists) {
-        DEBUG("Put %p %s %d %d %d", inode_table, path->path, path->device_major, path->device_minor, path->inode);
+        DEBUG("Put %p %s %d %d %ld", inode_table, path->path, path->device_major, path->device_minor, path->inode);
     }
     return !exists;
 }
