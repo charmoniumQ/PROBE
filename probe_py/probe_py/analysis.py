@@ -1,5 +1,6 @@
 import typing
 import networkx as nx  # type: ignore
+import ast
 from .ptypes import TaskType, ProvLog
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
@@ -20,7 +21,7 @@ class EdgeLabels(IntEnum):
 @dataclass(frozen=True)
 class ProcessNode:
     pid: int
-    cmd: tuple[str,...]
+    cmd: tuple[str,...] | str
     
 @dataclass(frozen=True)
 class InodeOnDevice:
@@ -257,7 +258,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     return process_graph
 
 
-def sanitize_cmd(cmd: str) -> str:
+def sanitize_cmd(cmd: str | list[str]) -> str:
     """Sanitize the command string to remove characters that are not allowed in pydot graphviz."""
     try:
     
