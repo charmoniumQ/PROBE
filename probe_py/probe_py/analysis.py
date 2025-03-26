@@ -256,6 +256,26 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
     return process_graph
 
+
+def sanitize_cmd(cmd: str) -> str:
+    """Sanitize the command string to remove characters that are not allowed in pydot graphviz."""
+    try:
+    
+        cmd_list = ast.literal_eval(cmd) if isinstance(cmd, str) else cmd
+        if isinstance(cmd_list, list):
+            cmd_str = " ".join(map(str, cmd_list)) 
+        else:
+            cmd_str = str(cmd_list) 
+    except (ValueError, SyntaxError):
+        cmd_str = str(cmd)
+
+    with open("commands.txt", "a") as file:
+        file.write(f"{cmd_str}\n")
+
+    # Remove colons, extra quotes, and problematic characters
+    cmd_str = cmd_str.replace(":", "_").replace("'", "").replace('"', "")
+    return cmd_str
+
 def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]]) -> None:
     starting_pid = starting_node[0]
     
@@ -279,8 +299,9 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
         next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
-            processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
-            dataflow_graph.add_node(processNode, label=processNode.cmd)
+            clean_cmd = sanitize_cmd(cmd_map[pid])
+            processNode = ProcessNode(pid=pid, cmd=clean_cmd)
+            dataflow_graph.add_node(processNode, label=clean_cmd)
             file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
             path_str = op.path.path.decode("utf-8")
             curr_version = FileVersion(op.path.mtime.sec, op.path.mtime.nsec)
@@ -309,11 +330,12 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                     target_nodes[op.task_id].append(edge[1])
                     continue
             if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
-                
-                processNode1 = ProcessNode(pid = pid, cmd=tuple(cmd_map[pid]))
-                processNode2 = ProcessNode(pid = op.task_id, cmd=tuple(cmd_map[op.task_id]))
-                dataflow_graph.add_node(processNode1, label = " ".join(arg for arg in processNode1.cmd))
-                dataflow_graph.add_node(processNode2, label = " ".join(arg for arg in processNode2.cmd))
+                clean_cmd = sanitize_cmd(cmd_map[pid])
+                processNode1 = ProcessNode(pid = pid, cmd=clean_cmd)
+                clean_cmd = sanitize_cmd(cmd_map[op.task_id])
+                processNode2 = ProcessNode(pid = op.task_id, cmd=clean_cmd)
+                dataflow_graph.add_node(processNode1, label = processNode1.cmd)
+                dataflow_graph.add_node(processNode2, label = f'"{processNode2.cmd}"')
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
