@@ -258,7 +258,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     return process_graph
 
 
-def sanitize_cmd(cmd: str | list[str]) -> str:
+def sanitize_cmd(cmd: str | list[str]) -> list[str]:
     """Sanitize the command string to remove characters that are not allowed in pydot graphviz."""
     try:
     
