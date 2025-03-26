@@ -21,7 +21,7 @@ class EdgeLabels(IntEnum):
 @dataclass(frozen=True)
 class ProcessNode:
     pid: int
-    cmd: tuple[str,...] | str
+    cmd: tuple[str,...]
     
 @dataclass(frozen=True)
 class InodeOnDevice:
@@ -274,8 +274,8 @@ def sanitize_cmd(cmd: str | list[str]) -> str:
         file.write(f"{cmd_str}\n")
 
     # Remove colons, extra quotes, and problematic characters
-    cmd_str = cmd_str.replace(":", "_").replace("'", "").replace('"', "")
-    return cmd_str
+    cmd_str = cmd_str.replace(":", "_")
+    return cmd_str.split(" ")
 
 def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]]) -> None:
     starting_pid = starting_node[0]
@@ -301,8 +301,8 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
             clean_cmd = sanitize_cmd(cmd_map[pid])
-            processNode = ProcessNode(pid=pid, cmd=clean_cmd)
-            dataflow_graph.add_node(processNode, label=clean_cmd)
+            processNode = ProcessNode(pid=pid, cmd=tuple(clean_cmd))
+            dataflow_graph.add_node(processNode, label=processNode.cmd)
             file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
             path_str = op.path.path.decode("utf-8")
             curr_version = FileVersion(op.path.mtime.sec, op.path.mtime.nsec)
@@ -332,11 +332,11 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                     continue
             if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
                 clean_cmd = sanitize_cmd(cmd_map[pid])
-                processNode1 = ProcessNode(pid = pid, cmd=clean_cmd)
+                processNode1 = ProcessNode(pid = pid, cmd=tuple(clean_cmd))
                 clean_cmd = sanitize_cmd(cmd_map[op.task_id])
-                processNode2 = ProcessNode(pid = op.task_id, cmd=clean_cmd)
+                processNode2 = ProcessNode(pid = op.task_id, cmd=tuple(clean_cmd))
                 dataflow_graph.add_node(processNode1, label = processNode1.cmd)
-                dataflow_graph.add_node(processNode2, label = f'"{processNode2.cmd}"')
+                dataflow_graph.add_node(processNode2, label = processNode2.cmd)
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
