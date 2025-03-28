@@ -141,18 +141,7 @@ void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size
 
 
 /*
- * - A note on asm volatile
-
- *   Note that this address needs to be marked as "used" because storing to it has a side effect:
- *   It ends up in an arena file.
- *   Otherwise, the compiler may optimize writes to Arena if there is no corresponding read.
- *   When I split libprobe into separate modules, this WAS ACTUALLY the source of a (very confusing) bug that manifested in -O1 but not -Og.
- *
- *   Marking the whole void pointer as volatile would be too pessimistic for reads and would ban reordering/coalescing writes.
- *   Also having volatile pointers really messes with every other function that expects non-volatile and has to be modified.
- *   Although, an interface would be more foolproof if we returned volatile (no need to call sync/destroy/drop).
- *
- * - Likewise, msync is required, from [a previous issue](https://github.com/charmoniumQ/PROBE/pull/84) as well.
+ * - msync is required, from [a previous issue](https://github.com/charmoniumQ/PROBE/pull/84) as well.
  *
  *  > Without use of this call, there is no guarantee that changes are
  *    written back before munmap(2) is called. --- [man msync](https://www.man7.org/linux/man-pages/man2/msync.2.html)
@@ -164,7 +153,6 @@ void arena_destroy(struct ArenaDir* arena_dir) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
-                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
                 EXPECT(== 0, munmap(arena->base_address, arena->capacity));
                 arena = NULL;
@@ -190,7 +178,6 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 // munmap but no mysnc
-                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;
             }
@@ -205,14 +192,12 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
 }
 
 void arena_sync(struct ArenaDir* arena_dir) {
-    asm volatile("" : : "o" (arena_dir->__tail) : "memory");
     struct ArenaListElem* current = arena_dir->__tail;
     while (current) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 // msync but no mmunmap
-                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
             }
         }

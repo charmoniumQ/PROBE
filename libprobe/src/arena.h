@@ -15,11 +15,24 @@ struct ArenaDir {
 
 __attribute__((visibility("hidden")))
 void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_size)
-    __attribute__((nonnull, returns_nonnull, malloc));
+    __attribute__((nonnull, returns_nonnull /*, malloc */));
 
 __attribute__((visibility("hidden")))
 void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size)
-    __attribute__((nonnull, returns_nonnull, malloc));
+    __attribute__((nonnull, returns_nonnull /*, malloc */));
+
+/* A note on malloc attribute:
+ *
+ * > Attribute malloc indicates that a function is malloc-like, i.e., that the pointer P returned by the function cannot alias any other pointer valid when the function returns...
+ * >
+ * > --- [GCC Manual 6.4.1 Common Function Attributes](https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html)
+ *
+ * Sounds applicable, right?
+ *
+ * Nope. If we never read from the pointer returned by calloc, GCC can optimize out stores to that pointer.
+ *
+ * Implicitly, the pointer *is* read when the mmap gets synced and closed, despite not having a direct "use" of the pointer returned by arena_calloc.
+ * */
 
 __attribute__((visibility("hidden")))
 void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size_t capacity)

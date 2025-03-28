@@ -13,6 +13,7 @@
 #include "prov_buffer.h"
 
 void prov_log_save() {
+    /* TODO: ensure we call Arena save at exit/_exit */
     DEBUG("prov log save");
     arena_sync(get_op_arena());
     arena_sync(get_data_arena());
@@ -139,7 +140,7 @@ void prov_log_record(struct Op op) {
      * */
     struct Op* dest = arena_calloc(get_op_arena(), 1, sizeof(struct Op));
     memcpy(dest, &op, sizeof(struct Op));
-    arena_sync(get_op_arena());
+
     /* TODO: Special handling of ops that affect process state */
 
     /* Freeing up virtual memory space is good in theory,
