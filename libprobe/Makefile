@@ -14,10 +14,10 @@ all: $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
-	$(CC) -flto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
+	$(CC) -fno-lto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
 
 $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o)) $(MAKEFILE_LIST)
-	$(CC) -flto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
+	$(CC) -fno-lto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
 
 $(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)
