@@ -25,13 +25,9 @@ pid_t get_pid() {
     return EXPECT(== getpid(), pid);
 }
 pid_t get_pid_safe() {
-#ifdef NDEBUG
-    return pid;
-#else
     // getpid is kind of expensive (40ns per syscall)
     // but worth it for debug case
     return getpid();
-#endif
 }
 static inline void init_pid() {
     pid = EXPECT(!= pid_initial, getpid());
@@ -43,13 +39,9 @@ pid_t get_tid() {
     return EXPECT(== gettid(), tid);
 }
 pid_t get_tid_safe() {
-#ifdef NDEBUG
-    return tid;
-#else
     // gettid is kind of expensive (40ns per syscall)
     // but worth it for debug case
     return gettid();
-#endif
 
 }
 static inline void init_tid() {
@@ -181,18 +173,14 @@ static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mk
         int mkdir_ret = unwrapped_mkdirat(my_dirfd, name ? name : buffer, 0777);
         if (mkdir_ret != 0) {
             int saved_errno = errno;
-#ifndef NDEBUG
             list_dir(dirfd_path(my_dirfd), 2);
-#endif
             ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(my_dirfd), child, strerror(saved_errno));
         }
     }
     int sub_dirfd = unwrapped_openat(my_dirfd, name ? name : buffer, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (sub_dirfd == -1) {
         int saved_errno = errno;
-#ifndef NDEBUG
         list_dir(dirfd_path(my_dirfd), 2);
-#endif
         ERROR(
             "Cannot openat buffer=\"%s\", dirfd=%d, realpath=%s, child=%ld (did we do mkdir? %d), errno=%d,%s",
             name ? name : buffer,
@@ -407,11 +395,10 @@ void ensure_initted() {
     DEBUG("Ensure initted");
     bool was_epoch_inited = false;
     if (UNLIKELY(!thread_inited)) {
-        DEBUG("Initializing thread");
+        init_tid();
+        DEBUG("Initializing thread; acquiring mutex");
         // Init TID before trying to init probe_dir
         // Also, it will get included in logs
-        init_tid();
-        DEBUG("Acquiring mutex");
         EXPECT(== 0, pthread_mutex_lock(&epoch_init_lock));
         DEBUG("Acquired mutex");
         if (UNLIKELY(!epoch_inited)) {
@@ -436,6 +423,7 @@ void ensure_initted() {
             epoch_inited = true;
         }
         EXPECT(== 0, pthread_mutex_unlock(&epoch_init_lock));
+        DEBUG("Released mutex");
         // log arena required in every thread
         // Before do_init_ops
         init_log_arena();

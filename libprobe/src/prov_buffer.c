@@ -13,6 +13,7 @@
 #include "prov_buffer.h"
 
 void prov_log_save() {
+    DEBUG("prov log save");
     arena_sync(get_op_arena());
     arena_sync(get_data_arena());
 }
@@ -61,6 +62,7 @@ static int copy_to_store(const struct Path* path) {
  * We promise not to read those fields in this function.
  */
 void prov_log_try(struct Op op) {
+    ASSERTF(FIRST_OP_CODE < op.op_code && op.op_code < LAST_OP_CODE, "%d", op.op_code);
     if (op.op_code == clone_op_code && op.data.clone.flags & CLONE_VFORK) {
         DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
     }
@@ -114,6 +116,8 @@ void prov_log_try(struct Op op) {
  * Call this to indicate that the process did something (successful or not).
  */
 void prov_log_record(struct Op op) {
+    // TODO: construct op in op arena place instead of copying into arena.
+    ASSERTF(FIRST_OP_CODE < op.op_code && op.op_code < LAST_OP_CODE, "%d", op.op_code);
 #ifdef DEBUG_LOG
         char str[PATH_MAX * 2];
         op_to_human_readable(str, PATH_MAX * 2, &op);

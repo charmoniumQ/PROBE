@@ -17,7 +17,7 @@
 
 #include "arena.h"
 
-struct __Arena {
+struct Arena {
     size_t instantiation;
     void *base_address;
     uintptr_t capacity;
@@ -28,12 +28,12 @@ struct __Arena {
  * The size of the array is ARENA_LIST_BLOCK_SIZE.
  * Making this larger requires more memory, but makes there be fewer linked-list allocations. */
 #define ARENA_LIST_BLOCK_SIZE 64
-struct __ArenaListElem;
-struct __ArenaListElem {
-    struct __Arena* arena_list [ARENA_LIST_BLOCK_SIZE];
+struct ArenaListElem;
+struct ArenaListElem {
+    struct Arena* arena_list [ARENA_LIST_BLOCK_SIZE];
     /* We store next list elem so that a value of 0 with an uninitialized arena_list represnts a valid ArenaListElem */
     size_t next_free_slot;
-    struct __ArenaListElem* prev;
+    struct ArenaListElem* prev;
 };
 
 static inline size_t __arena_align(size_t offset, size_t alignment) {
@@ -42,11 +42,6 @@ static inline size_t __arena_align(size_t offset, size_t alignment) {
 }
 
 #define ARENA_CURRENT arena_dir->__tail->arena_list[arena_dir->__tail->next_free_slot - 1]
-
-static inline void msync_and_munmap(void* addr, size_t length) {
-    EXPECT(== 0, msync(addr, length, MS_SYNC));
-    EXPECT(== 0, munmap(addr, length));
-}
 
 #define ARENA_FNAME_LENGTH 64
 
@@ -68,11 +63,11 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t capaci
 
 
     if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
-        /* Out of free slots in this block.
+        /* No more free slots in this block, as we've reached block size.
          * We need to allocate a new linked-list node
          * */
-        struct __ArenaListElem* old_tail = arena_dir->__tail;
-        arena_dir->__tail = malloc(sizeof(struct __ArenaListElem));
+        struct ArenaListElem* old_tail = arena_dir->__tail;
+        arena_dir->__tail = malloc(sizeof(struct ArenaListElem));
         /* This malloc is undone by a free in arena_dir_destroy */
 
         /* We are about to use slot 0, so the next free slot would be 1 */
@@ -86,15 +81,15 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t capaci
     /* Either way, we just have to assign a new slot in the current linked-list node. */
     ARENA_CURRENT = base_address;
 
-    /* struct __Arena has to be the first thing in the __Arena, which does take up some size */
-    /* This stuff shows up in the __Arena file */
+    /* struct Arena has to be the first thing in the Arena, which does take up some size */
+    /* This stuff shows up in the Arena file */
     ARENA_CURRENT->instantiation = arena_dir->__next_instantiation;
     ARENA_CURRENT->base_address = base_address;
     ARENA_CURRENT->capacity = capacity;
-    ARENA_CURRENT->used = sizeof(struct __Arena);
+    ARENA_CURRENT->used = sizeof(struct Arena);
 
     DEBUG(
-        "arena_calloc: instantiation of %p, using %ld for __Arena, rest starts at %p\n",
+        "arena_calloc: instantiation of %p, using %ld for Arena, rest starts at %p\n",
         ARENA_CURRENT->base_address,
         ARENA_CURRENT->used,
         ARENA_CURRENT->base_address + ARENA_CURRENT->used
@@ -109,7 +104,7 @@ void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_si
     if (ARENA_CURRENT->used + padding + type_count * type_size > ARENA_CURRENT->capacity) {
         /* Current arena is too small for this allocation;
          * Let's allocate a new one. */
-        arena_reinstantiate(arena_dir, MAX(ARENA_CURRENT->capacity, type_count * type_size + sizeof(struct __Arena)));
+        arena_reinstantiate(arena_dir, MAX(ARENA_CURRENT->capacity, type_count * type_size + sizeof(struct Arena)));
         padding = 0;
         ASSERTF(ARENA_CURRENT->used + padding + type_count * type_size <= ARENA_CURRENT->capacity, "Capacitgy calculation is wrong");
     }
@@ -133,7 +128,7 @@ void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size
 
     /* O_DIRECTORY fails if name is not a directory */
     /* O_PATH means the resulting fd cannot be read/written to. It can be used as the dirfd to *at() syscall functions. */
-    struct __ArenaListElem* tail = EXPECT_NONNULL(malloc(sizeof(struct __ArenaListElem)));
+    struct ArenaListElem* tail = EXPECT_NONNULL(malloc(sizeof(struct ArenaListElem)));
     /* malloc here corresponds to free in arena_destroy */
 
     tail->next_free_slot = 0;
@@ -144,16 +139,38 @@ void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size
     arena_reinstantiate(arena_dir, capacity);
 }
 
+
+/*
+ * - A note on asm volatile
+
+ *   Note that this address needs to be marked as "used" because storing to it has a side effect:
+ *   It ends up in an arena file.
+ *   Otherwise, the compiler may optimize writes to Arena if there is no corresponding read.
+ *   When I split libprobe into separate modules, this WAS ACTUALLY the source of a (very confusing) bug that manifested in -O1 but not -Og.
+ *
+ *   Marking the whole void pointer as volatile would be too pessimistic for reads and would ban reordering/coalescing writes.
+ *   Also having volatile pointers really messes with every other function that expects non-volatile and has to be modified.
+ *   Although, an interface would be more foolproof if we returned volatile (no need to call sync/destroy/drop).
+ *
+ * - Likewise, msync is required, from [a previous issue](https://github.com/charmoniumQ/PROBE/pull/84) as well.
+ *
+ *  > Without use of this call, there is no guarantee that changes are
+ *    written back before munmap(2) is called. --- [man msync](https://www.man7.org/linux/man-pages/man2/msync.2.html)
+ */
+
 void arena_destroy(struct ArenaDir* arena_dir) {
-    struct __ArenaListElem* current = arena_dir->__tail;
+    struct ArenaListElem* current = arena_dir->__tail;
     while (current) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
-            if (current->arena_list[i] != NULL) {
-                msync_and_munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
-                current->arena_list[i] = NULL;
+            struct Arena* arena = current->arena_list[i];
+            if (arena != NULL) {
+                asm volatile("" : : "r" (arena->base_address) : "memory");
+                EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
+                EXPECT(== 0, munmap(arena->base_address, arena->capacity));
+                arena = NULL;
             }
         }
-        struct __ArenaListElem* old_current = current;
+        struct ArenaListElem* old_current = current;
         current = current->prev;
         free(old_current);
     }
@@ -167,16 +184,18 @@ void arena_destroy(struct ArenaDir* arena_dir) {
 }
 
 void arena_drop_after_fork(struct ArenaDir* arena_dir) {
-    struct __ArenaListElem* current = arena_dir->__tail;
+    struct ArenaListElem* current = arena_dir->__tail;
     while (current) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
-            if (current->arena_list[i] != NULL) {
+            struct Arena* arena = current->arena_list[i];
+            if (arena != NULL) {
                 // munmap but no mysnc
-                EXPECT(== 0, munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity));
-                current->arena_list[i] = NULL;
+                asm volatile("" : : "r" (arena->base_address) : "memory");
+                EXPECT(== 0, munmap(arena->base_address, arena->capacity));
+                arena = NULL;
             }
         }
-        struct __ArenaListElem* old_current = current;
+        struct ArenaListElem* old_current = current;
         current = current->prev;
         free(old_current);
     }
@@ -186,12 +205,14 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
 }
 
 void arena_sync(struct ArenaDir* arena_dir) {
-    struct __ArenaListElem* current = arena_dir->__tail;
+    struct ArenaListElem* current = arena_dir->__tail;
     while (current) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
-            if (current->arena_list[i] != NULL) {
+            struct Arena* arena = current->arena_list[i];
+            if (arena != NULL) {
                 // msync but no mmunmap
-                EXPECT(== 0, msync(current->arena_list[i]->base_address, current->arena_list[i]->capacity, MS_SYNC));
+                asm volatile("" : : "r" (arena->base_address) : "memory");
+                EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
             }
         }
         current = current->prev;
@@ -199,13 +220,16 @@ void arena_sync(struct ArenaDir* arena_dir) {
 }
 
 void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
-    struct __ArenaListElem* current = arena_dir->__tail;
+    struct ArenaListElem* current = arena_dir->__tail;
     bool is_tail = true;
     while (current) {
         for (size_t i = 0; i + ((size_t) is_tail) < current->next_free_slot; ++i) {
-            if (current->arena_list[i] != NULL) {
-                msync_and_munmap(current->arena_list[i]->base_address, current->arena_list[i]->capacity);
-                current->arena_list[i] = NULL;
+            struct Arena* arena = current->arena_list[i];
+            if (arena != NULL) {
+                asm volatile("" : : "r" (arena->base_address) : "memory");
+                EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
+                EXPECT(== 0, munmap(arena->base_address, arena->capacity));
+                arena = NULL;
             }
         }
         if (!is_tail) {
