@@ -1,9 +1,7 @@
 CC ?= gcc
-SOURCE_VERSION ?= $(shell git rev-parse --short HEAD)
-CFLAGS ?= -DSOURCE_VERSION=\"$(SOURCE_VERSION)\" -Werror -Wall -Wextra -fvisibility=internal -ldl -pthread
-DBGCFLAGS ?= -Og -g -fPIC
-OPTCFLAGS ?= -O1 -g -fpic
-
+CFLAGS := $(CFLAGS) -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" -fvisibility=hidden -ldl -pthread -Werror -Wall -Wextra
+DBGCFLAGS := -Og -g -fPIC
+OPTCFLAGS := -O1 -g -fpic
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
 GENERATED_HEADER_FILES := generated/libc_hooks.h
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)

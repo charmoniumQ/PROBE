@@ -164,7 +164,7 @@ void arena_destroy(struct ArenaDir* arena_dir) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
-                asm volatile("" : : "r" (arena->base_address) : "memory");
+                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
                 EXPECT(== 0, munmap(arena->base_address, arena->capacity));
                 arena = NULL;
@@ -190,9 +190,9 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 // munmap but no mysnc
-                asm volatile("" : : "r" (arena->base_address) : "memory");
+                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, munmap(arena->base_address, arena->capacity));
-                arena = NULL;
+                current->arena_list[i] = NULL;
             }
         }
         struct ArenaListElem* old_current = current;
@@ -205,13 +205,14 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
 }
 
 void arena_sync(struct ArenaDir* arena_dir) {
+    asm volatile("" : : "o" (arena_dir->__tail) : "memory");
     struct ArenaListElem* current = arena_dir->__tail;
     while (current) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 // msync but no mmunmap
-                asm volatile("" : : "r" (arena->base_address) : "memory");
+                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
             }
         }
@@ -226,10 +227,10 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
         for (size_t i = 0; i + ((size_t) is_tail) < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
-                asm volatile("" : : "r" (arena->base_address) : "memory");
+                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
                 EXPECT(== 0, munmap(arena->base_address, arena->capacity));
-                arena = NULL;
+                current->arena_list[i] = NULL;
             }
         }
         if (!is_tail) {

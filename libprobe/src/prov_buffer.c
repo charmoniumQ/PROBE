@@ -139,7 +139,8 @@ void prov_log_record(struct Op op) {
      * */
     struct Op* dest = arena_calloc(get_op_arena(), 1, sizeof(struct Op));
     memcpy(dest, &op, sizeof(struct Op));
-
+    asm volatile("" : : "o" (get_op_arena()->__tail) : "memory");
+    arena_sync(get_op_arena());
     /* TODO: Special handling of ops that affect process state */
 
     /* Freeing up virtual memory space is good in theory,
