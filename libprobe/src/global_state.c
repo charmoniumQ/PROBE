@@ -244,6 +244,8 @@ static inline void init_probe_dir() {
 
     ASSERTF(fd_is_valid(inodes_dirfd), "");
     ASSERTF(is_dir(dirfd_path(inodes_dirfd)), "");
+
+    EXPECT(== 0, unwrapped_close(probe_dirfd));
 }
 
 const char* get_probe_dir() {
@@ -264,25 +266,11 @@ static inline void init_epoch_dir() {
     ASSERTF(pids_dirfd != invalid_dirfd, "init_probe_dir() never called");
     ASSERTF(fd_is_valid(pids_dirfd), "");
     ASSERTF(is_dir(dirfd_path(pids_dirfd)), "");
-    int pid_dirfd = mkdir_and_descend(pids_dirfd, NULL, get_pid(), get_exec_epoch() == 0, true);
+    DEBUG("pids_dirfd = %d %s", pids_dirfd, dirfd_path(pids_dirfd));
+    DEBUG("Going to \"%s/%d/%d\" (mkdir %d)", probe_dir, get_pid(), get_exec_epoch(), true);
+    int pid_dirfd = mkdir_and_descend(pids_dirfd, NULL, get_pid(), get_exec_epoch() == 0, false);
     epoch_dirfd = mkdir_and_descend(pid_dirfd, NULL, get_exec_epoch(), get_tid() == get_pid(), true);
     ASSERTF(epoch_dirfd != invalid_dirfd, "");
-}
-
-char* _DEFAULT_PATH = NULL;
-
-static inline void init_default_path() {
-    size_t default_path_size = EXPECT(!= 0, confstr(_CS_PATH, NULL, 0));
-    // Technically +1 is not necessary, but it wont' hurt
-
-    _DEFAULT_PATH = EXPECT_NONNULL(malloc(default_path_size + 1));
-    EXPECT(!= 0, confstr(_CS_PATH, _DEFAULT_PATH, default_path_size + 1));
-
-    // Technically, this shouldn't be necessary, but it won't hurt.
-    _DEFAULT_PATH[default_path_size] = '\0';
-}
-const char* get_default_path() {
-    return EXPECT_NONNULL(_DEFAULT_PATH);
 }
 
 __thread struct ArenaDir op_arena = { 0 };
@@ -308,6 +296,21 @@ struct ArenaDir* get_op_arena() {
 struct ArenaDir* get_data_arena() {
     ASSERTF(arena_is_initialized(&data_arena), "init_log_arena() not called");
     return &data_arena;
+}
+
+char* _DEFAULT_PATH = NULL;
+static inline void init_default_path() {
+    size_t default_path_size = EXPECT(!= 0, confstr(_CS_PATH, NULL, 0));
+    // Technically +1 is not necessary, but it wont' hurt
+
+    _DEFAULT_PATH = EXPECT_NONNULL(malloc(default_path_size + 1));
+    EXPECT(!= 0, confstr(_CS_PATH, _DEFAULT_PATH, default_path_size + 1));
+
+    // Technically, this shouldn't be necessary, but it won't hurt.
+    _DEFAULT_PATH[default_path_size] = '\0';
+}
+const char* get_default_path() {
+    return EXPECT_NONNULL(_DEFAULT_PATH);
 }
 
 /*******************************************************/
@@ -342,49 +345,50 @@ static inline void check_function_pointers() {
  * Therefore, we will reset all the things and call init again.
  */
 void init_after_fork() {
-    DEBUG("Re-initializing process");
+    pid_t real_pid = getpid();
+    if (UNLIKELY(pid != real_pid)) {
+        DEBUG("Re-initializing process");
+        // New TID/PID to detect
+        tid = tid_initial;
+        init_tid();
+        pid = real_pid;
 
-    // New TID/PID to detect
-    tid = tid_initial;
-    init_tid();
-    pid = pid_initial;
-    init_pid();
+        // Since we were forked, we can't be the proc root
+        proc_root = 0;
 
-    // Since we were forked, we can't be the proc root
-    proc_root = 0;
+        // Since we were forked, we are the 0th exec epoch
+        exec_epoch = 0;
 
-    // Since we were forked, we are the 0th exec epoch
-    exec_epoch = 0;
+        // Fork copies RAM; function pointers should already be initted
+        // init_function_pointers();
+        check_function_pointers();
 
-    // Fork copies RAM; function pointers should already be initted
-    // init_function_pointers();
-    check_function_pointers();
+        // Fork copies RAM; copy files var should already be initted
+        // init_copy_files();
 
-    // Fork copies RAM; copy files var should already be initted
-    // init_copy_files();
+        // Fork copies RAM and fds; probe_dir and fds for probe_dir should be opened already
+        // init_probe_dir();
 
-    // Fork copies RAM and fds; probe_dir and fds for probe_dir should be opened already
-    // init_probe_dir();
+        // But, we will need to open a dir for this epoch, as it is different
+        epoch_dirfd = invalid_dirfd;
+        init_epoch_dir();
 
-    // But, we will need to open a dir for this epoch, as it is different
-    epoch_dirfd = invalid_dirfd;
-    init_epoch_dir();
+        // Fork copies RAM; default path var should already be initted
+        // init_default_path();
 
-    // Fork copies RAM; default path var should already be initted
-    // init_default_path();
+        // But we will need to re-open the probe dir, since we are a new process.
 
-    // But we will need to re-open the probe dir, since we are a new process.
+        /*
+         * We don't know if CLONE_FILES was set.
+         * We will conservatively assume it is (NOT safe to call arena_destroy)
+         * But we assume we have a new memory space, we should clear the mem-mappings.
+         * */
+        arena_drop_after_fork(&op_arena);
+        arena_drop_after_fork(&data_arena);
+        init_log_arena();
 
-    /*
-     * We don't know if CLONE_FILES was set.
-     * We will conservatively assume it is (NOT safe to call arena_destroy)
-     * But we assume we have a new memory space, we should clear the mem-mappings.
-     * */
-    arena_drop_after_fork(&op_arena);
-    arena_drop_after_fork(&data_arena);
-    init_log_arena();
-
-    do_init_ops(true);
+        do_init_ops(true);
+    }
 }
 
 int epoch_inited = 0;

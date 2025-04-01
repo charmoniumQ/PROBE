@@ -45,8 +45,8 @@ static inline size_t __arena_align(size_t offset, size_t alignment) {
 
 #define ARENA_FNAME_LENGTH 64
 
-static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t capacity) {
-    capacity = 1 << next_pow2_at_least(mylog2(getpagesize()), capacity);
+static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_capacity) {
+    size_t capacity = 1 << MAX(ceil_log2(getpagesize()), ceil_log2(min_capacity + sizeof(struct Arena)));
 
     /* Create a new mmap */
     char fname_buffer [ARENA_FNAME_LENGTH];
@@ -89,10 +89,11 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t capaci
     ARENA_CURRENT->used = sizeof(struct Arena);
 
     DEBUG(
-        "arena_calloc: instantiation of %p, using %ld for Arena, rest starts at %p\n",
+        "arena_calloc: instantiation of %p, using %ld for Arena, rest starts at %p, capacity %ld\n",
         ARENA_CURRENT->base_address,
         ARENA_CURRENT->used,
-        ARENA_CURRENT->base_address + ARENA_CURRENT->used
+        ARENA_CURRENT->base_address + ARENA_CURRENT->used,
+        ARENA_CURRENT->capacity
     );
 
     /* Update for next instantiation */
@@ -106,7 +107,7 @@ void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_si
          * Let's allocate a new one. */
         arena_reinstantiate(arena_dir, MAX(ARENA_CURRENT->capacity, type_count * type_size + sizeof(struct Arena)));
         padding = 0;
-        ASSERTF(ARENA_CURRENT->used + padding + type_count * type_size <= ARENA_CURRENT->capacity, "Capacitgy calculation is wrong");
+        ASSERTF(ARENA_CURRENT->used + padding + type_count * type_size <= ARENA_CURRENT->capacity, "Capacity calculation is wrong (%ld + %ld + %ld * %ld should be <= %ld)", ARENA_CURRENT->used, padding, type_count, type_size, ARENA_CURRENT->capacity);
     }
 
     void* ret = ARENA_CURRENT->base_address + ARENA_CURRENT->used + padding;

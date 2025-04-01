@@ -84,9 +84,5 @@ void write_bytes(int dirfd, const char* path, const char* content, ssize_t size)
     __attribute__((nonnull));
 
 __attribute__((visibility("hidden")))
-unsigned char mylog2(unsigned int val)
-    __attribute__((pure));
-
-__attribute__((visibility("hidden")))
-unsigned char next_pow2_at_least(unsigned char min_pow2, unsigned int val)
+unsigned char ceil_log2(unsigned int val)
     __attribute__((pure));

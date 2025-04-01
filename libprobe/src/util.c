@@ -100,21 +100,13 @@ void write_bytes(int dirfd, const char* path, const char* content, ssize_t size)
     EXPECT(== 0, unwrapped_close(fd));
 }
 
-unsigned char mylog2(unsigned int val) {
-    ASSERTF(val != 0, "0 is out-of-domain for log");
+unsigned char ceil_log2(unsigned int val) {
     unsigned int ret = 0;
+    bool is_greater = false;
     while (val > 1) {
+        is_greater |= val & 1;
         val >>= 1;
         ret++;
     }
-    return ret;
-}
-
-unsigned char next_pow2_at_least(unsigned char min_pow2, unsigned int val) {
-    unsigned char candidate = mylog2(val);
-    if (candidate > min_pow2) {
-        return candidate;
-    } else {
-        return min_pow2;
-    }
+    return ret + is_greater;
 }
