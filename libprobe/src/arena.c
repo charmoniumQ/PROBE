@@ -51,7 +51,8 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     /* Create a new mmap */
     char fname_buffer [ARENA_FNAME_LENGTH];
     snprintf(fname_buffer, ARENA_FNAME_LENGTH, "%ld.dat", arena_dir->__next_instantiation);
-    int fd = EXPECT(> 0, unwrapped_openat(arena_dir->__dirfd, fname_buffer, O_RDWR | O_CREAT, 0666));
+    int fd = unwrapped_openat(arena_dir->__dirfd, fname_buffer, O_RDWR | O_CREAT, 0666);
+    ASSERTF(fd > 0, "returned_fd=%d (%s dir_fd=%d) %s", fd, dirfd_path(arena_dir->__dirfd), arena_dir->__dirfd, fname_buffer);
 
     EXPECT(== 0, unwrapped_ftruncate(fd, capacity));
 
@@ -124,8 +125,15 @@ void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size)
 }
 
 void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size_t capacity) {
-    EXPECT(== 0, unwrapped_mkdirat(parent_dirfd, name, 0777));
+#ifndef NDEBUG
+    int ret =
+#endif
+        unwrapped_mkdirat(parent_dirfd, name, 0777);
+#ifndef NDEBUG
+    ASSERTF(ret == 0, "(%s fd=%d) %s", dirfd_path(parent_dirfd), parent_dirfd, name);
+#endif
     int dirfd = EXPECT(> 0, unwrapped_openat(parent_dirfd, name, O_RDONLY | O_DIRECTORY | O_PATH));
+    DEBUG("Creating Arena in (%s fd=%d) which should be (%s fd=%d)/%s", dirfd_path(dirfd), dirfd, dirfd_path(parent_dirfd), parent_dirfd, name);
 
     /* O_DIRECTORY fails if name is not a directory */
     /* O_PATH means the resulting fd cannot be read/written to. It can be used as the dirfd to *at() syscall functions. */

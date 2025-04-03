@@ -19,18 +19,22 @@
 
 #define PRIVATE_ENV_VAR_PREFIX "__PROBE_"
 
+// getpid/gettid is kind of expensive (40ns per syscall)
+// but worth it for debug case
+
 static const pid_t pid_initial = -1;
 static pid_t pid = pid_initial;
 pid_t get_pid() {
     return EXPECT(== getpid(), pid);
 }
-pid_t get_pid_safe() {
-    // getpid is kind of expensive (40ns per syscall)
-    // but worth it for debug case
-    return getpid();
-}
 static inline void init_pid() {
     pid = EXPECT(!= pid_initial, getpid());
+}
+pid_t get_pid_safe() {
+    if (pid == pid_initial) {
+        init_pid();
+    }
+    return pid;
 }
 
 const pid_t tid_initial = -1;
@@ -38,14 +42,14 @@ __thread pid_t tid = tid_initial;
 pid_t get_tid() {
     return EXPECT(== gettid(), tid);
 }
-pid_t get_tid_safe() {
-    // gettid is kind of expensive (40ns per syscall)
-    // but worth it for debug case
-    return gettid();
-
-}
 static inline void init_tid() {
     tid = EXPECT(!= tid_initial, gettid());
+}
+pid_t get_tid_safe() {
+    if (tid == tid_initial) {
+        init_tid();
+    }
+    return tid;
 }
 
 const int proc_root_initial = -1;
@@ -163,24 +167,27 @@ bool should_copy_files() {
     return should_copy_files_eagerly() || should_copy_files_lazily();
 }
 
-static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mkdir, bool close) {
-    static char buffer[SIGNED_LONG_STRING_SIZE + 1];
+#define mkdir_and_descend(my_dirfd, name, child, mkdir, close) ({DEBUG("Calling mkdir_and_descend (%s fd=%d)/%d", dirfd_path(my_dirfd), my_dirfd, child); mkdir_and_descend2(my_dirfd, name, child, mkdir, close); })
+
+static int mkdir_and_descend2(int my_dirfd, const char* name, long child, bool mkdir, bool close) {
+    static __thread char buffer[SIGNED_LONG_STRING_SIZE + 1];
     if (!name) {
         CHECK_SNPRINTF(buffer, SIGNED_LONG_STRING_SIZE, "%ld", child);
     }
     if (mkdir) {
-        DEBUG("mkdir %s/%s", dirfd_path(my_dirfd), name ? name : buffer);
         int mkdir_ret = unwrapped_mkdirat(my_dirfd, name ? name : buffer, 0777);
         if (mkdir_ret != 0) {
             int saved_errno = errno;
             list_dir(dirfd_path(my_dirfd), 2);
-            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(my_dirfd), child, strerror(saved_errno));
+            ERROR("Cannot mkdir (%s fd=%d)/%ld: %s", dirfd_path(my_dirfd), my_dirfd, child, strerror(saved_errno));
         }
     }
     int sub_dirfd = unwrapped_openat(my_dirfd, name ? name : buffer, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (sub_dirfd == -1) {
         int saved_errno = errno;
+#ifndef NDEBUG
         list_dir(dirfd_path(my_dirfd), 2);
+#endif
         ERROR(
             "Cannot openat buffer=\"%s\", dirfd=%d, realpath=%s, child=%ld (did we do mkdir? %d), errno=%d,%s",
             name ? name : buffer,
@@ -195,7 +202,7 @@ static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mk
     if (close) {
         EXPECT(== 0, unwrapped_close(my_dirfd));
     }
-    DEBUG("%s/%s -> fd %d", dirfd_path(my_dirfd), name ? name : buffer, sub_dirfd);
+    DEBUG("Returning %s, fd=%d which should be (%s fd=%d)/%s", dirfd_path(sub_dirfd), sub_dirfd, dirfd_path(my_dirfd), my_dirfd, name ? name : buffer);
     return sub_dirfd;
 }
 
@@ -396,7 +403,6 @@ __thread bool thread_inited = false;
 pthread_mutex_t epoch_init_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void ensure_initted() {
-    DEBUG("Ensure initted");
     bool was_epoch_inited = false;
     if (UNLIKELY(!thread_inited)) {
         init_tid();
@@ -404,7 +410,6 @@ void ensure_initted() {
         // Init TID before trying to init probe_dir
         // Also, it will get included in logs
         EXPECT(== 0, pthread_mutex_lock(&epoch_init_lock));
-        DEBUG("Acquired mutex");
         if (UNLIKELY(!epoch_inited)) {
             DEBUG("Initializing process");
             was_epoch_inited = true;

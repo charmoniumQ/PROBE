@@ -13,7 +13,7 @@
 #include "prov_buffer.h"
 
 void prov_log_save() {
-    /* TODO: ensure we call Arena save at exit/_exit */
+    /* TODO: ensure we call Arena save in atexit, pthread_cleanup_push */
     DEBUG("prov log save");
     arena_sync(get_op_arena());
     arena_sync(get_data_arena());
@@ -122,7 +122,18 @@ void prov_log_record(struct Op op) {
 #ifdef DEBUG_LOG
         char str[PATH_MAX * 2];
         op_to_human_readable(str, PATH_MAX * 2, &op);
-        DEBUG("record op: %s", str);
+        DEBUG("recording op: %s", str);
+        if (op.op_code == exec_op_code) {
+            DEBUG("Exec:");
+            for (size_t idx = 0; idx < op.data.exec.envc; ++idx) {
+                fprintf(stderr, "'%s'\n", op.data.exec.env[idx]);
+            }
+            fprintf(stderr, "'%s' ", op.data.exec.path.path);
+            for (size_t idx = 0; idx < op.data.exec.argc; ++idx) {
+                fprintf(stderr, "'%s' ", op.data.exec.argv[idx]);
+            }
+            fprintf(stderr, "\n");
+        }
 #endif
 
     if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
@@ -151,8 +162,6 @@ void prov_log_record(struct Op op) {
      * which is what we want. */
     /* arena_uninstantiate_all_but_last(get_data_arena()); */
     arena_uninstantiate_all_but_last(get_op_arena());
-
-    DEBUG("recorded op");
 }
 
 bool prov_log_is_enabled() {

@@ -109,6 +109,7 @@ const struct Path* op_to_path(const struct Op* op) {
         case unlink_op_code: return &op->data.unlink.path;
         case rename_op_code: return &op->data.rename.src;
         case mkdir_op_code: return &op->data.mkdir.dst;
+        case readdir_op_code: return &op->data.readdir.dir;
         default:
             return &null_path;
     }
@@ -181,6 +182,12 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
 
     if (op->op_code == open_op_code) {
         int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
+        dest += fd_size;
+        size -= fd_size;
+    }
+
+    if (op->op_code == init_process_op_code) {
+        int fd_size = CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_process.pid, op->data.init_process.parent_pid);
         dest += fd_size;
         size -= fd_size;
     }
@@ -262,6 +269,7 @@ void do_init_ops(bool was_epoch_initted) {
             struct Op init_process_op = {
                 init_process_op_code,
                 {.init_process = {
+                    .parent_pid = getppid(),
                     .pid = getpid(),
                     .is_root = is_proc_root(),
                     .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
