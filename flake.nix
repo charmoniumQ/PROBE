@@ -220,7 +220,8 @@
 
                   # libprobe build time requirement
                   pypkgs.pycparser
-                ])).out
+                ]))
+                .out
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
