@@ -1,8 +1,12 @@
-use std::{ffi::OsString, fs::File};
-
 use clap::{arg, command, value_parser, Command};
 use color_eyre::eyre::{eyre, Context, Result};
 use flate2::Compression;
+use std::{
+    ffi::OsString,
+    fs::File,
+    os::unix::process::ExitStatusExt,
+    process::{ExitCode, ExitStatus},
+};
 
 /// Run commands under provenance and generate probe record directory.
 mod record;
@@ -13,7 +17,7 @@ mod transcribe;
 /// Utility code for creating temporary directories.
 mod util;
 
-fn main() -> Result<()> {
+fn inner_main() -> Result<ExitStatus> {
     color_eyre::install()?;
     env_logger::Builder::from_env(env_logger::Env::new().filter_or("__PROBE_LOG", "warn")).init();
     log::debug!("Logger initialized");
@@ -135,7 +139,9 @@ fn main() -> Result<()> {
                 tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()))
             })
             .and_then(|mut tar| transcribe::transcribe(input, &mut tar))
-            .wrap_err("Transcribe command failed")
+            .wrap_err("Transcribe command failed")?;
+
+            Ok(ExitStatus::from_raw(0))
         }
         Some(("__exec", sub)) => {
             let cmd = sub
@@ -155,7 +161,7 @@ fn main() -> Result<()> {
                 .cloned()
                 .collect::<Vec<_>>();
 
-            let exit = std::process::Command::new("python3")
+            std::process::Command::new("python3")
                 .arg("-m")
                 .arg("probe_py.cli")
                 .arg(subcommand)
@@ -163,13 +169,33 @@ fn main() -> Result<()> {
                 .spawn()
                 .wrap_err("Unknown subcommand")?
                 .wait()
-                .wrap_err("Wait on subcommand failed")?;
-
-            match exit.success() {
-                true => Ok(()),
-                false => Err(eyre!("Subcommand exited with code: {}", exit)),
-            }
+                .wrap_err("Wait on subcommand failed")
         }
         None => Err(eyre!("Subcommand expected, try --help for more info")),
+    }
+}
+
+const PROBE_EXIT_BAD_CHILD_CODE: u8 = 57;
+const PROBE_EXIT_TERM_BY_SIGNAL: u8 = 58;
+const PROBE_EXIT_PRINTED_ERROR: u8 = 58;
+
+fn main() -> ExitCode {
+    match inner_main() {
+        Ok(exit_status) => {
+            if exit_status.success() {
+                ExitCode::SUCCESS
+            } else {
+                match exit_status.code() {
+                    Some(exit_status_code) => ExitCode::from(
+                        u8::try_from(exit_status_code).unwrap_or(PROBE_EXIT_BAD_CHILD_CODE),
+                    ),
+                    None => ExitCode::from(PROBE_EXIT_TERM_BY_SIGNAL),
+                }
+            }
+        }
+        Err(err) => {
+            eprintln!("{:?}", err);
+            ExitCode::from(PROBE_EXIT_PRINTED_ERROR)
+        }
     }
 }

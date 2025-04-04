@@ -3,6 +3,7 @@ use std::{
     fs::{self, File},
     os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
+    process::ExitStatus,
     thread,
 };
 
@@ -22,7 +23,7 @@ pub fn record_no_transcribe(
     copy_files_eagerly: bool,
     copy_files_lazily: bool,
     cmd: Vec<OsString>,
-) -> Result<()> {
+) -> Result<ExitStatus> {
     let cwd = PathBuf::from(".");
     let output = match output {
         Some(x) => {
@@ -51,14 +52,14 @@ pub fn record_no_transcribe(
 
     let record_dir = Dir::new(output).wrap_err("Failed to create record directory")?;
 
-    Recorder::new(cmd, record_dir)
+    let (status, _) = Recorder::new(cmd, record_dir)
         .gdb(gdb)
         .debug(debug)
         .copy_files_eagerly(copy_files_eagerly)
         .copy_files_lazily(copy_files_lazily)
         .record()?;
 
-    Ok(())
+    Ok(status)
 }
 
 /// create a probe log file from command arguments
@@ -70,7 +71,7 @@ pub fn record_transcribe(
     copy_files_eagerly: bool,
     copy_files_lazily: bool,
     cmd: Vec<OsString>,
-) -> Result<()> {
+) -> Result<ExitStatus> {
     let output = match output {
         Some(x) => x,
         None => OsString::from("probe_log"),
@@ -85,7 +86,7 @@ pub fn record_transcribe(
 
     let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
 
-    let mut record_dir = Recorder::new(
+    let (status, mut record_dir) = Recorder::new(
         cmd,
         Dir::temp(true).wrap_err("Failed to create record directory")?,
     )
@@ -107,7 +108,7 @@ pub fn record_transcribe(
         }
     };
 
-    Ok(())
+    Ok(status)
 }
 
 /// Builder for running processes under provenance.
@@ -126,7 +127,7 @@ pub struct Recorder {
 impl Recorder {
     /// runs the built recorder, on success returns the PID of launched process and the TempDir it
     /// was recorded into
-    pub fn record(self) -> Result<Dir> {
+    pub fn record(self) -> Result<(ExitStatus, Dir)> {
         // reading and canonicalizing path to libprobe
         let mut libprobe = fs::canonicalize(match std::env::var_os("__PROBE_LIB") {
             Some(x) => PathBuf::from(x),
@@ -267,7 +268,7 @@ impl Recorder {
             }
         }
 
-        Ok(self.output)
+        Ok((exit, self.output))
     }
 
     /// Create new [`Recorder`] from a command and the directory where it should write the probe
