@@ -246,7 +246,7 @@
                 pkgs.maven
               ]
               # gdb broken on i686
-              ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l") pkgs.nextflow
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
