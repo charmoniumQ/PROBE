@@ -200,12 +200,6 @@
             ];
             packages =
               [
-                pkgs.cargo-audit
-                pkgs.cargo-expand
-                pkgs.cargo-flamegraph
-                pkgs.cargo-watch
-                pkgs.rust-analyzer
-
                 (python.withPackages (pypkgs: [
                   # probe_py.manual runtime requirements
                   pypkgs.networkx
@@ -227,6 +221,7 @@
                   # libprobe build time requirement
                   pypkgs.pycparser
                 ]))
+                .out
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
@@ -235,16 +230,13 @@
                 pkgs.gnumake
                 pkgs.gcc
                 pkgs.coreutils
-                pkgs.bash
                 pkgs.alejandra
-                pkgs.hyperfine
                 pkgs.just
                 pkgs.ruff
                 pkgs.cachix
-                pkgs.jq # to make cachix work
                 pkgs.podman
               ]
-              # gdb broken on i686
+              # OpenJDK doesn't build on some platforms
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb

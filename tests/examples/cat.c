@@ -23,7 +23,7 @@ int main (int argc, char **argv) {
 
     int fd2 = dup(fd);
 
-    if ((size = read(fd2, buffer, BUFFER_SIZE)) > 0) {
+    while ((size = read(fd2, buffer, BUFFER_SIZE)) > 0) {
         int ret = write(1, buffer, size);
         if (ret < 0) {
             fprintf(stderr, "Could not write\n");

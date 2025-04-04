@@ -1,6 +1,43 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash -p coreutils qemu parted e2fsprogs dosfstools debootstrap grub2 util-linux
 
+# The Linux bootstrapper
+#
+# Bootstrap Linux distribution in chroot or QEMU.
+#
+# TODO:
+# - Common
+#   - Use unpriv tools
+#     - qcow2fuse
+#     - fakechroot fakeroot debootstrap (--variant=fakechroot)
+#   - Move to Rust + YAML
+#   - Split off chroot from qemu img
+#   - Select distro ansible-like YAML config
+#     - bootstrapper: debootstrap, pacstrap
+#     - sources.list (see ansible.builtin.apt_repository)
+#     - shared dir
+#     - Log in over SSH?
+#     - QEMU opts:
+#       - partition_table: GPT, MBR
+#       - bootloader_mode: BIOS, EFI
+#       - bootloader: grub
+#       - shared devs
+#       - Log in over serial?
+#       - vdisk_size: amt of bytes
+#       - vdisk_format: qcow2, raw
+#       - vdisk_partitions (see community.general.parted)
+# - QEMU side
+#   - Test logging in over serial
+#   - Test GPT/BIOS
+#   - Grub CFG Ansible-like config
+#   - Discuss EFI/OVMF?
+#   - Test in CI
+#   - a bunch of the options should be not none
+# - Chroot side
+#   - What to mount
+#   - Test in CI in QEMU
+#   - a bunch of the options should be default or none
+
 set -e -x -o nounset
 
 ########### Notes ###########
