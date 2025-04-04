@@ -68,7 +68,7 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
          * We need to allocate a new linked-list node
          * */
         struct ArenaListElem* old_tail = arena_dir->__tail;
-        arena_dir->__tail = malloc(sizeof(struct ArenaListElem));
+        arena_dir->__tail = EXPECT_NONNULL(malloc(sizeof(struct ArenaListElem)));
         /* This malloc is undone by a free in arena_dir_destroy */
 
         /* We are about to use slot 0, so the next free slot would be 1 */

@@ -77,8 +77,7 @@ int fopen_to_flags(BORROWED const char* fopentype) {
      * https://www.man7.org/linux/man-pages/man3/fopen.3.html
      **/
     bool plus = fopentype[1] == '+' || (fopentype[1] != '\0' && fopentype[2] == '+');
-    if (false) {
-    } else if (fopentype[0] == 'r' && !plus) {
+    if (fopentype[0] == 'r' && !plus) {
         return O_RDONLY;
     } else if (fopentype[0] == 'r' && plus) {
         return O_RDWR;
