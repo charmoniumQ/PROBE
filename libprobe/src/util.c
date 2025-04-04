@@ -1,13 +1,14 @@
 #define _GNU_SOURCE
 
+#include "../generated/libc_hooks.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <limits.h>
 #include <string.h>
 #include <sys/sendfile.h>
+#include <unistd.h>
 
-#include "../generated/libc_hooks.h"
 #include "debug_logging.h"
 
 #include "util.h"

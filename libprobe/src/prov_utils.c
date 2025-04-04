@@ -1,16 +1,18 @@
 #define _GNU_SOURCE
 
+#include "../generated/libc_hooks.h"
 #include <sys/sysmacros.h>
 #include <sys/resource.h>
 #include <limits.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 #include "debug_logging.h"
 #include "util.h"
 #include "global_state.h"
 #include "prov_buffer.h"
 #include "arena.h"
-#include "../generated/libc_hooks.h"
 
 #include "prov_utils.h"
 

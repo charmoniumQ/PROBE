@@ -3,9 +3,8 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
-#include <string.h>
-#include <stdlib.h> // used in macro for strerror
-
+#include <stdlib.h> // uesd in macro for exit()
+#include <string.h> // used in macro for strerror()
 #include "global_state.h" // used in macro for get_pid_safe()
 #include "util.h"
 
@@ -39,13 +38,13 @@
 #define EXPECT(cond, expr) ({ \
     errno = 0; \
     ssize_t ret = (expr); \
-    ASSERTF((ret cond), "Expected %s %s, but %s == %ld: %s (%d)", #expr, #cond, #expr, ret, strerror(errno), errno); \
+    ASSERTF((ret cond), "Expected %s %s, but %s == %ld: (errno=%d, %s)", #expr, #cond, #expr, ret, errno, strerror(errno)); \
     ret; \
 })
 #define EXPECT_NONNULL(expr) ({ \
     errno = 0; \
     void* ret = (expr); \
-    ASSERTF(ret, "Expected non-null pointer from %s: %s (%d)", #expr, strerror(errno), errno); \
+    ASSERTF(ret, "Expected non-null pointer from %s: (errno=%d)", #expr, errno, strerror(errno)); \
     ret; \
 })
 #else

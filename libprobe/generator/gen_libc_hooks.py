@@ -244,8 +244,7 @@ class ParsedFunc:
                 name=self.name,
                 quals=[],
                 align=[],
-                storage=[],
-                # storage=[] if visibility is None else [f'__attribute__((visibility("{visibility}")))'],
+                storage=[] if visibility is None else [f'__attribute__((visibility("{visibility}")))'],
                 funcspec=[],
                 type=self.declaration(),
                 init=None,
@@ -439,6 +438,16 @@ includes = """
 
 #define _GNU_SOURCE
 
+/*
+ * error: attribute declaration must precede definition [-Werror,-Wignored-attributes]
+ *
+ * Fix that by copying some of these before pesky includes
+ */
+#include <sys/types.h>
+__attribute__((visibility("default"))) char * realpath(const char * restrict name, char * restrict resolved);
+__attribute__((visibility("default"))) ssize_t readlink(const char *filename, char *buffer, size_t size);
+__attribute__((visibility("default"))) ssize_t readlinkat(int dirfd, const char *filename, char *buffer, size_t size);
+
 #include <stdio.h>
 #include <dirent.h>
 #include <ftw.h>
@@ -448,7 +457,6 @@ includes = """
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <sys/types.h>
 #include <sys/time.h>
 
 #include "../src/util.h"
@@ -476,6 +484,7 @@ void init_function_pointers();
 defines = """
 #define _GNU_SOURCE
 
+#include "libc_hooks.h"
 #include <dlfcn.h>
 #include <limits.h>
 #include <limits.h>
@@ -488,8 +497,6 @@ defines = """
 #include "../src/util.h"
 #include "../src/lookup_on_path.h"
 #include "../src/arena.h"
-
-#include "libc_hooks.h"
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)` or `sizeof(type_name)`)

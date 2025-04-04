@@ -4,7 +4,7 @@ set -ex
 
 proj_root="$(dirname "$(dirname "$(dirname "$(realpath "$0")")")")"
 
-libprobe="$proj_root/libprobe/build/libprobe.dbg.so"
+libprobe="$proj_root/libprobe/.build/libprobe.dbg.so"
 
 if [ ! -f "$libprobe" ]; then
     echo "Need to build libprobe first; try 'just compile'"
@@ -28,12 +28,16 @@ mkdir --parents "$__PROBE_DIR"
 exe="$proj_root/tests/examples/simple.exe"
 args="$proj_root/README.md"
 
+# We intentionally want to splat $args here
+# shellcheck disable=SC2086
 LD_DEBUG=all LD_PRELOAD=$libprobe "$exe" $args
 
 rm --recursive --force "$__PROBE_DIR"
 mkdir --parents "$__PROBE_DIR"
 libprobe="$(dirname "$libprobe")/libprobe.so"
 
+# We intentionally want to splat $args here
+# shellcheck disable=SC2086
 LD_PRELOAD=$libprobe "$exe" $args
 
 # if ! LD_DEBUG=all LD_PRELOAD=$libprobe "$exe" $args; then

@@ -31,6 +31,13 @@ Required reading: <https://matt.sh/howto-c>
 cppcheck include/libprobe/* src/* generated/* --check-level=exhaustive
 
 cppclean include/libprobe/* src/* generated/*
+# Output of cppclean seems wrong
+# For example,
+#
+#     src/prov_buffer.h:3: '../include/libprobe/prov_ops.h' does not need to be #included
+#
+# Howver, we can't foward-declare it because a public function takes a struct Op (by value).
+# Therefore, we need the struct layout in the header.
 
 clang-tidy include/libprobe/* src/* generated/* -checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-analyzer-valist.Uninitialized
 

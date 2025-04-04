@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../generated/libc_hooks.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdalign.h>
@@ -11,7 +12,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "../generated/libc_hooks.h"
 #include "debug_logging.h"
 #include "util.h"
 

@@ -1,11 +1,12 @@
 #define _GNU_SOURCE
 
+#include "../generated/libc_hooks.h"
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "util.h"
 
-#include "../generated/libc_hooks.h"
 #include "global_state.h"
 #include "lookup_on_path.h"
 

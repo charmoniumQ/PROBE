@@ -1,12 +1,12 @@
 #define _GNU_SOURCE
 
+#include "../generated/libc_hooks.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
 
-#include "../generated/libc_hooks.h"
 #include "util.h"
 #include "arena.h"
 #include "inode_table.h"

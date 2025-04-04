@@ -2,8 +2,8 @@
 
 #define _GNU_SOURCE
 
-#include <sys/resource.h>
 #include "../include/libprobe/prov_ops.h"
+#include <sys/resource.h>
 #include "util.h"
 
 __attribute__((visibility("hidden")))
