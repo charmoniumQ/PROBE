@@ -28,16 +28,6 @@
 #include <pthread.h>
 
 /*
- * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)`)
- * so we use some macros instead.
- * To pycparser, these macros are defined as variable names (parsable as arguments).
- * To GCC these macros are defined as type names.
- * */
-#define __type_mode_t mode_t
-#define __type_charp char*
-#define __type_charpp char**
-
-/*
  * Likewise, ther is some bug with pycparser unable to parse inline funciton pointers.
  * So we will use a typedef alias.
  * */
