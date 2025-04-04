@@ -200,12 +200,6 @@
             ];
             packages =
               [
-                pkgs.cargo-audit
-                pkgs.cargo-expand
-                pkgs.cargo-flamegraph
-                pkgs.cargo-watch
-                pkgs.rust-analyzer
-
                 (python.withPackages (pypkgs: [
                   # probe_py.manual runtime requirements
                   pypkgs.networkx
@@ -236,17 +230,13 @@
                 pkgs.gcc
                 pkgs.coreutils
                 pkgs.alejandra
-                pkgs.hyperfine
                 pkgs.just
                 pkgs.ruff
                 pkgs.cachix
-                pkgs.jq.bin # to make cachix work
                 pkgs.podman
-
-                pkgs.maven
               ]
-              # gdb broken on i686
-              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l") pkgs.nextflow
+              # OpenJDK doesn't build on some platforms
+              ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
