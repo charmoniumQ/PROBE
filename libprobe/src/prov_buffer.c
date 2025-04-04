@@ -2,6 +2,7 @@
 
 #include <fcntl.h>
 #include <limits.h>
+#include <string.h>
 
 #include "arena.h"
 #include "global_state.h"
@@ -9,6 +10,7 @@
 #include "debug_logging.h"
 #include "prov_utils.h"
 #include "inode_table.h"
+#include "../generated/libc_hooks.h"
 
 #include "prov_buffer.h"
 

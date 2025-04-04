@@ -1,7 +1,12 @@
 #define _GNU_SOURCE
 
+#include <string.h>
+#include <stdlib.h>
+
 #include "util.h"
 
+#include "../generated/libc_hooks.h"
+#include "global_state.h"
 #include "lookup_on_path.h"
 
 bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
@@ -29,10 +34,11 @@ bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
         path_join(bin_path, -1, path_seg, bin_name_length, bin_name);
         int access_ret = unwrapped_faccessat(AT_FDCWD, bin_path, X_OK, 0);
         if (access_ret == 0) {
+            free(path);
             return true;
         }
         path_seg = strtok_r(NULL, delim, &saveptr);
     }
-
+    free(path);
     return false;
 }

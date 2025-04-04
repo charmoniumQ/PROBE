@@ -8,6 +8,7 @@
 
 #include "../generated/libc_hooks.h"
 #include "util.h"
+#include "arena.h"
 #include "inode_table.h"
 #include "env.h"
 #include "prov_buffer.h"

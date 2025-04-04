@@ -5,9 +5,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-#include "../generated/libc_hooks.h"
-
-#include "arena.h"
+struct ArenaDir;
 
 /*
  * For each member of global state $X of type $T, we have

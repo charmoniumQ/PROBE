@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <string.h>
 #include <sys/sendfile.h>
 
 #include "../generated/libc_hooks.h"
@@ -39,11 +40,15 @@ OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const
     if (!path_buf) {
         path_buf = EXPECT_NONNULL(malloc(left_size + right_size + 2));
     }
-    EXPECT_NONNULL(memcpy(path_buf, left, left_size));
+    memcpy(path_buf, left, left_size);
     path_buf[left_size] = '/';
-    EXPECT_NONNULL(memcpy(path_buf + left_size + 1, right, right_size));
+    memcpy(path_buf + left_size + 1, right, right_size);
     path_buf[left_size + 1 + right_size] = '\0';
     return path_buf;
+}
+
+int fd_is_valid(int fd) {
+    return unwrapped_fcntl(fd, F_GETFD) != -1 || errno != EBADF;
 }
 
 void list_dir(const char* name, int indent) {

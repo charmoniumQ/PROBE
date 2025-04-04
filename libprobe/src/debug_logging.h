@@ -2,9 +2,12 @@
 
 #define _GNU_SOURCE
 
-#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h> // used in macro for strerror
+
+#include "global_state.h" // used in macro for get_pid_safe()
 #include "util.h"
-#include "global_state.h"
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1

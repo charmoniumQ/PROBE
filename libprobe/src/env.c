@@ -1,7 +1,9 @@
 #define _GNU_SOURCE
 
 #include <string.h>
+#include <stdlib.h>
 
+#include "arena.h"
 #include "util.h"
 #include "global_state.h"
 

@@ -2046,7 +2046,7 @@ int execv (const char *filename, char *const argv[]) {
 int execl (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
         size_t argc = COUNT_NONNULL_VARARGS(arg0);
-        char** argv = malloc((argc + 1) * sizeof(char*));
+        char** argv = EXPECT_NONNULL(malloc((argc + 1) * sizeof(char*)));
         va_list ap;
         va_start(ap, arg0);
         for (size_t i = 0; i < argc; ++i) {
@@ -2174,8 +2174,8 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
 }
 int execle (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
-        size_t argc = COUNT_NONNULL_VARARGS(arg0) - 1;
-        char** argv = malloc((argc + 1) * sizeof(char*));
+        size_t argc = COUNT_NONNULL_VARARGS(arg0);
+        char** argv = EXPECT_NONNULL(malloc((argc + 1) * sizeof(char*)));
         va_list ap;
 		va_start(ap, arg0);
         for (size_t i = 0; i < argc; ++i) {
@@ -2273,7 +2273,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
         size_t argc = COUNT_NONNULL_VARARGS(arg0);
-        char** argv = malloc((argc + 1) * sizeof(char*));
+        char** argv = EXPECT_NONNULL(malloc((argc + 1) * sizeof(char*)));
         va_list ap;
 		va_start(ap, arg0);
         for (size_t i = 0; i < argc; ++i) {
@@ -2698,7 +2698,7 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
             {.getrusage = {
                 .waitpid_arg = pid,
                 .getrusage_arg = 0,
-                .usage = {{0}},
+                .usage = {0},
                 .ferrno = 0,
             }},
             {0},
@@ -2753,7 +2753,7 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
             {.getrusage = {
                 .waitpid_arg = -1,
                 .getrusage_arg = 0,
-                .usage = {{0}},
+                .usage = {0},
                 .ferrno = 0,
             }},
             {0},

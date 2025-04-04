@@ -1,5 +1,5 @@
-CC ?= gcc
-CFLAGS := $(CFLAGS) -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" -fvisibility=hidden -ldl -pthread -Werror -Wall -Wextra
+CC ?= clang
+CFLAGS := $(CFLAGS) -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" -fvisibility=hidden -Werror -Wall -Wextra
 DBGCFLAGS := -Og -g       -fpic
 OPTCFLAGS := -O3 -DNDEBUG -fPIC
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
@@ -37,7 +37,6 @@ install:
 
 clean:
 	mkdir --parents $(BUILD_DIR)/ generated/
-	touch $(BUILD_DIR)/tmp generated/tmp
 	rm --force --recursive $(BUILD_DIR)/ generated/
 .PHONY: clean
 

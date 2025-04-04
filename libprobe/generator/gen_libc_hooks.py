@@ -244,7 +244,8 @@ class ParsedFunc:
                 name=self.name,
                 quals=[],
                 align=[],
-                storage=[] if visibility is None else [f'__attribute__((visibility("{visibility}")))'],
+                storage=[],
+                # storage=[] if visibility is None else [f'__attribute__((visibility("{visibility}")))'],
                 funcspec=[],
                 type=self.declaration(),
                 init=None,
@@ -486,6 +487,7 @@ defines = """
 #include "../src/env.h"
 #include "../src/util.h"
 #include "../src/lookup_on_path.h"
+#include "../src/arena.h"
 
 #include "libc_hooks.h"
 

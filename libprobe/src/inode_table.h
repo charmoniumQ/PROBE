@@ -3,8 +3,8 @@
 #define _GNU_SOURCE
 
 #include <stdbool.h>
-#include "../include/libprobe/prov_ops.h"
 
+struct Path;
 struct IndexTable;
 
 /*

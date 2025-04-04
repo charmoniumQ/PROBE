@@ -2,8 +2,10 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include "debug_logging.h"
+#include "../include/libprobe/prov_ops.h"
 
 #include "inode_table.h"
 
@@ -79,7 +81,7 @@ struct IndexTable {
 
 static inline struct IndexTable* index_table_create(size_t length) {
     ASSERTF(length, "");
-    struct IndexTable* ret = EXPECT_NONNULL(calloc(sizeof(struct IndexTable) + (length - 1) * sizeof(struct IndexTableEntry), sizeof(char)));
+    struct IndexTable* ret = EXPECT_NONNULL(malloc(sizeof(struct IndexTable) + (length - 1) * sizeof(struct IndexTableEntry)));
     for (size_t idx = 0; idx < length; ++idx) {
         ASSERTF(pthread_rwlock_init(&(&ret->elements + idx)->lock, NULL) == 0, "");
     }

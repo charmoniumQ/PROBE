@@ -71,7 +71,7 @@
       in rec {
         packages = rec {
           inherit (frontend.packages) cargoArtifacts probe-cli;
-          libprobe = pkgs.stdenv.mkDerivation rec {
+          libprobe = pkgs.clangStdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
             src = ./libprobe;
@@ -225,21 +225,25 @@
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
+                # Replay tools
                 pkgs.buildah
-                pkgs.which
+                pkgs.podman
+
+                # C tools
+                pkgs.clang-analyzer
                 pkgs.gnumake
-                pkgs.gcc
+                pkgs.cppcheck
+                pkgs.clang-tools
+                pkgs.clang
+                pkgs.bear
+                pkgs.cppclean
+
+                pkgs.which
                 pkgs.coreutils
                 pkgs.alejandra
                 pkgs.just
                 pkgs.ruff
                 pkgs.cachix
-                pkgs.podman
-                pkgs.cppcheck
-                pkgs.clang-tools
-                pkgs.clang
-
-                pkgs.maven
               ]
               # OpenJDK doesn't build on some platforms
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow

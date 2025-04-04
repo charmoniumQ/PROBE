@@ -26,5 +26,23 @@ Required reading: <https://matt.sh/howto-c>
 
 - https://github.com/include-what-you-use/include-what-you-use
 - https://code.google.com/archive/p/cppclean
-- Clang-analyzer
-- Clang-tidy
+
+``` sh
+cppcheck include/libprobe/* src/* generated/* --check-level=exhaustive
+
+cppclean include/libprobe/* src/* generated/*
+
+clang-tidy include/libprobe/* src/* generated/* -checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-analyzer-valist.Uninitialized
+
+clang-check include/libprobe/* src/* generated/*
+
+make clean && bear -- make
+
+make clean && *scan-build make
+
+# https://github.com/NixOS/nixpkgs/pull/395967
+# https://clang.llvm.org/docs/analyzer/user-docs/CommandLineUsage.html#codechecker
+# https://github.com/Ericsson/codechecker/blob/master/docs/usage.md
+CodeChecker analyze compile_commands.json -o reports
+```
+
