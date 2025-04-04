@@ -219,17 +219,6 @@ static OWNED const char* dirfd_path(int dirfd) {
     return ret;
 }
 
-/*
- * dirfd(3) is not tolerant of NULL:
- * header: https://github.com/bminor/glibc/blob/9fc639f654dc004736836613be703e6bed0c36a8/dirent/dirent.h#L226
- * src: https://github.com/bminor/glibc/blob/9fc639f654dc004736836613be703e6bed0c36a8/sysdeps/unix/sysv/linux/dirfd.c#L27
- *
- * -1 is never a valid fd because it's the error value for syscalls that return fds, so we can do the same.
- */
-static int try_dirfd(BORROWED DIR* dirp) {
-    return dirp ? (dirfd(dirp)) : (-1);
-}
-
 #ifndef NDEBUG
 static int fd_is_valid(int fd) {
     return unwrapped_fcntl(fd, F_GETFD) != -1 || errno != EBADF;
