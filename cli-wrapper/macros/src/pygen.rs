@@ -238,11 +238,12 @@ pub(crate) fn pygen_write_internal(path: syn::LitStr) -> MacroResult<()> {
         None => {
             return Err(quote_spanned! {
                 path.span() =>
-                compile_error!("Environmnet variable not defined");
+                compile_error!("Environment variable not defined");
             }
             .into())
         }
     };
+    println!("Writing Python module to {:?}", path_str);
 
     let mut file = match File::create(path_str) {
         Ok(x) => x,

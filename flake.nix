@@ -226,7 +226,7 @@
 
                   # libprobe build time requirement
                   pypkgs.pycparser
-                ]))
+                ])).out
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
@@ -235,14 +235,15 @@
                 pkgs.gnumake
                 pkgs.gcc
                 pkgs.coreutils
-                pkgs.bash
                 pkgs.alejandra
                 pkgs.hyperfine
                 pkgs.just
                 pkgs.ruff
                 pkgs.cachix
-                pkgs.jq # to make cachix work
+                pkgs.jq.bin # to make cachix work
                 pkgs.podman
+
+                pkgs.maven
               ]
               # gdb broken on i686
               ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow

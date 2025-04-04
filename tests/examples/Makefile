@@ -6,15 +6,19 @@
 # Subsequently, note whether the machine exploded.
 # If not, then PROBE does not interfere with ASAN.
 
+CC ?= gcc
 CFLAGS ?= -Wall -Wextra -Og -g
 
 SOURCE_FILES := $(wildcard *.c)
 
-all: $(SOURCE_FILES:.c=.exe)
+all: $(filter-out minimal_libprobe.exe,$(SOURCE_FILES:.c=.exe)) minimal_libprobe.so
 
 %.exe: %.c
-	gcc $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $<
+
+%.so: %.c
+	$(CC) $(CFLAGS) -fpic -shared -o $@ $<
 
 clean:
-	touch $(SOURCE_FILES:.c=.exe) && rm --force $(SOURCE_FILES:.c=.exe)
+	touch $(SOURCE_FILES:.c=.so) $(SOURCE_FILES:.c=.exe) && rm --force $(SOURCE_FILES:.c=.so) $(SOURCE_FILES:.c=.exe)
 .PHONY: clean
