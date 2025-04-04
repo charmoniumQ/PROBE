@@ -23,7 +23,7 @@
 #define DEBUG(...)
 #endif
 
-#define ERROR(str, ...) ({ LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, strerror(errno)); exit(1); })
+#define ERROR(str, ...) ({ LOG("ERROR " str " (errno=%d)", ##__VA_ARGS__, errno); exit(1); })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
 #ifndef NDEBUG

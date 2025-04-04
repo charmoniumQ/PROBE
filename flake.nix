@@ -235,6 +235,9 @@
                 pkgs.ruff
                 pkgs.cachix
                 pkgs.podman
+                pkgs.cppcheck
+                pkgs.clang-tools
+                pkgs.clang
 
                 pkgs.maven
               ]
