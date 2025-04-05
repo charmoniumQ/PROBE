@@ -181,13 +181,6 @@ impl Recorder {
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__exec")
-                .args(if self.copy_files_eagerly {
-                    std::vec!["--copy-files-eagerly"]
-                } else if self.copy_files_lazily {
-                    std::vec!["--copy-files-lazily"]
-                } else {
-                    std::vec![]
-                })
                 .args(&self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")

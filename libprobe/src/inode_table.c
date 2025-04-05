@@ -81,7 +81,7 @@ struct IndexTable {
 
 static inline struct IndexTable* index_table_create(size_t length) {
     ASSERTF(length, "");
-    struct IndexTable* ret = EXPECT_NONNULL(malloc(sizeof(struct IndexTable) + (length - 1) * sizeof(struct IndexTableEntry)));
+    struct IndexTable* ret = EXPECT_NONNULL(calloc(sizeof(struct IndexTable) + (length - 1) * sizeof(struct IndexTableEntry), 1));
     for (size_t idx = 0; idx < length; ++idx) {
         ASSERTF(pthread_rwlock_init(&(&ret->elements + idx)->lock, NULL) == 0, "");
     }
