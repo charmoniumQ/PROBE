@@ -20,5 +20,6 @@ all: $(filter-out minimal_libprobe.exe,$(SOURCE_FILES:.c=.exe)) minimal_libprobe
 	$(CC) $(CFLAGS) -fpic -shared -o $@ $<
 
 clean:
-	touch $(SOURCE_FILES:.c=.so) $(SOURCE_FILES:.c=.exe) && rm --force $(SOURCE_FILES:.c=.so) $(SOURCE_FILES:.c=.exe)
+	touch tmp.so tmp.exe
+	rm *.so *.exe
 .PHONY: clean

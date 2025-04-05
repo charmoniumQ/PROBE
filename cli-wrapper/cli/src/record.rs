@@ -136,7 +136,7 @@ impl Recorder {
         .wrap_err("unable to canonicalize libprobe path")?;
         if self.debug || self.gdb {
             log::debug!("Using debug version of libprobe");
-            libprobe.push("libprobe-dbg.so");
+            libprobe.push("libprobe.dbg.so");
         } else {
             libprobe.push("libprobe.so");
         }
@@ -177,16 +177,10 @@ impl Recorder {
                 .arg(dir_env)
                 .arg(preload_env)
                 .arg(copy_files_env)
+                .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__exec")
-                .args(if self.copy_files_eagerly {
-                    std::vec!["--copy-files-eagerly"]
-                } else if self.copy_files_lazily {
-                    std::vec!["--copy-files-lazily"]
-                } else {
-                    std::vec![]
-                })
                 .args(&self.cmd)
                 .env_remove("__PROBE_LIB")
                 .env_remove("__PROBE_LOG")
@@ -214,6 +208,7 @@ impl Recorder {
                         ""
                     },
                 )
+                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
                 .env("__PROBE_DIR", self.output.path())
                 .env("LD_PRELOAD", ld_preload)
                 .spawn()

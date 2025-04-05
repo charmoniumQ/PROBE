@@ -10,7 +10,7 @@ printf "project_root = %s\n" "$project_root"
 export CPATH="$project_root/libprobe/include:$CPATH"
 
 # Rust CLI uses __PROBE_LIB to find libprobe binary
-export __PROBE_LIB="$project_root/libprobe/build"
+export __PROBE_LIB="$project_root/libprobe/.build"
 
 # Ensure libprobe.so gets maked
 if [ ! -f "$__PROBE_LIB/libprobe.so" ]; then

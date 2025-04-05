@@ -359,7 +359,7 @@ def find_decl(
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     pre_call_stmts = [
         pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="maybe_init_thread"),
+            name=pycparser.c_ast.ID(name="ensure_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
         # pycparser.c_ast.FuncCall(
@@ -438,6 +438,16 @@ includes = """
 
 #define _GNU_SOURCE
 
+/*
+ * error: attribute declaration must precede definition [-Werror,-Wignored-attributes]
+ *
+ * Fix that by copying some of these before pesky includes
+ */
+#include <sys/types.h>
+__attribute__((visibility("default"))) char * realpath(const char * restrict name, char * restrict resolved);
+__attribute__((visibility("default"))) ssize_t readlink(const char *filename, char *buffer, size_t size);
+__attribute__((visibility("default"))) ssize_t readlinkat(int dirfd, const char *filename, char *buffer, size_t size);
+
 #include <stdio.h>
 #include <dirent.h>
 #include <ftw.h>
@@ -447,8 +457,10 @@ includes = """
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <sys/types.h>
 #include <sys/time.h>
+
+#include "../src/util.h"
+#include "../src/debug_logging.h"
 
 /*
  * There is some bug with pycparser unable to parse inline funciton pointers.
@@ -472,10 +484,19 @@ void init_function_pointers();
 defines = """
 #define _GNU_SOURCE
 
+#include "libc_hooks.h"
 #include <dlfcn.h>
 #include <limits.h>
 #include <limits.h>
 #include <stdarg.h>
+
+#include "../include/libprobe/prov_ops.h"
+#include "../src/prov_utils.h"
+#include "../src/prov_buffer.h"
+#include "../src/env.h"
+#include "../src/util.h"
+#include "../src/lookup_on_path.h"
+#include "../src/arena.h"
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)` or `sizeof(type_name)`)
