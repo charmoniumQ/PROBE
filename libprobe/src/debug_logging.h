@@ -25,7 +25,7 @@
 #define DEBUG(...)
 #endif
 
-#define ERROR(str, ...) ({ LOG("ERROR " str " (errno=%d)", ##__VA_ARGS__, errno); exit(1); })
+#define ERROR(str, ...) ({ LOG("ERROR " str " (errno=%d %s: %s)", ##__VA_ARGS__, errno, strerrorname_np(errno), strerrordesc_np(errno)); exit(1); })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
 #ifndef NDEBUG
@@ -38,13 +38,13 @@
 #define EXPECT(cond, expr) ({ \
     errno = 0; \
     ssize_t ret = (expr); \
-    ASSERTF((ret cond), "Expected %s %s, but %s == %ld: (errno=%d, %s)", #expr, #cond, #expr, ret, errno, strerror(errno)); \
+    ASSERTF((ret cond), "Expected " #expr #cond ", but " #expr " == %ld", ret); \
     ret; \
 })
 #define EXPECT_NONNULL(expr) ({ \
     errno = 0; \
     void* ret = (expr); \
-    ASSERTF(ret, "Expected non-null pointer from %s: (errno=%d)", #expr, errno, strerror(errno)); \
+    ASSERTF(ret, "Expected non-null pointer from " #expr); \
     ret; \
 })
 #else

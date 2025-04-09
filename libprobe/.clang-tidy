@@ -13,7 +13,6 @@ ImplementationFileExtensions:
   - cpp
   - cxx
 HeaderFilterRegex: ''
-ExcludeHeaderFilterRegex: ''
 FormatStyle:     llvm
 User:            sam
 CheckOptions:

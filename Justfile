@@ -6,12 +6,13 @@ fix-py: compile-cli
     #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
     ruff check --fix probe_py/ tests/ libprobe/generator/
 
+[working-directory('cli-wrapper')]
 fix-cli:
     # cargo clippy refuses to run if unstaged inputs (fixes may be destructive)
     # so we git add -A
-    env --chdir cli-wrapper git add -A
-    env --chdir cli-wrapper cargo clippy --fix --allow-staged -- --deny warnings
-    env --chdir cli-wrapper cargo fmt
+    git add -A
+    cargo clippy --fix --allow-staged -- --deny warnings
+    cargo fmt
 
 fix: fix-nix fix-py fix-cli
 
@@ -19,20 +20,28 @@ check-py: compile-cli
     # dmypy == daemon mypy; much faster on subsequent iterations.
     dmypy run -- --strict --no-namespace-packages --pretty probe_py/ tests/ libprobe/generator/
 
+[working-directory('cli-wrapper')]
 check-cli:
-    env --chdir cli-wrapper cargo doc --workspace
+    cargo doc --workspace
 
-check: check-py check-cli
+check: check-py check-cli check-lib
 
+[working-directory: 'libprobe']
 compile-lib:
-    make --directory=libprobe all
+    make all
 
+[working-directory('libprobe')]
+check-lib:
+    make check
+
+[working-directory: 'cli-wrapper']
 compile-cli:
-    env --chdir=cli-wrapper cargo build --release
-    env --chdir=cli-wrapper cargo build
+    cargo build --release
+    cargo build
 
+[working-directory: 'tests/examples']
 compile-tests:
-    make --directory=tests/examples all
+    make all
 
 compile: compile-lib compile-cli compile-tests
 

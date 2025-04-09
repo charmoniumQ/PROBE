@@ -6,10 +6,10 @@ GENERATED_SOURCE_FILES := generated/libc_hooks.c
 GENERATED_HEADER_FILES := generated/libc_hooks.h
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
 SOURCE_FILES := $(wildcard src/*.c) $(GENERATED_SOURCE_FILES)
-HEADER_FILES := $(wildcard src/*.h) $(GENERATED_HEADER_FILES)
+HEADER_FILES := $(wildcard src/*.h) $(GENERATED_HEADER_FILES) $(wildcard include/libprobe/*.h)
 BUILD_DIR := .build/
 
-all: $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
+all: $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so compile_commands.json
 .PHONY: all
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
@@ -30,6 +30,28 @@ $(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
 
+compile_commands.json: $(MAKEFILE_LIST)
+	$(MAKE) clean
+	bear -- $(MAKE) $(BUILD_DIR)/libprobe.dbg.so
+
+$(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
+	nm --dynamic .build/libprobe.dbg.so | grep ' U ' | sed 's/  */ /g' | cut --delim=' ' --fields=3 > $(BUILD_DIR)/undefined_symbols.txt
+
+$(BUILD_DIR)/undefined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
+	nm --dynamic .build/libprobe.dbg.so | grep ' T ' | cut --fields=3 --delimiter=' ' > $(BUILD_DIR)/defined_symbols.txt
+
+check:
+	clang-check $(SOURCE_FILES)
+	clang-tidy  $(SOURCE_FILES)
+	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
+#	cppclean    $(SOURCE_FILES) # see libprobe/README.md
+.PHONY: check
+
+deep-check:
+	$(MAKE) clean
+	scan-build $(MAKE) $(BUILD_DIR)/libprobe.dbg.so
+.PHONY: deep-check
+
 install:
 	mkdir --parents $(INSTALL_PREFIX)
 	install -D --target-directory $(INSTALL_PREFIX)/lib/ $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
@@ -37,7 +59,7 @@ install:
 
 clean:
 	mkdir --parents $(BUILD_DIR)/ generated/
-	rm --force --recursive $(BUILD_DIR)/ generated/
+	rm --force --recursive $(BUILD_DIR)/ generated/ compile_commands.json
 .PHONY: clean
 
 .SUFFIXES:

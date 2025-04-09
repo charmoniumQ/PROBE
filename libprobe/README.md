@@ -2,6 +2,12 @@
 
 Required reading: <https://matt.sh/howto-c>
 
+# Refresh the compile_commands.json
+
+``` sh
+make clean && bear -- make
+```
+
 # C source checks
 
 - Don't use `__` to mark private variables; it's ugly and they will have hidden visibility by default.
@@ -22,30 +28,25 @@ Required reading: <https://matt.sh/howto-c>
 
 - All functions should be `__attribute__((visibility("hidden")))` if used elsewhere in the project or `__attribute__((visibility("default")))` if exported to public API.
 
+# cppclean
+
+Output of cppclean seems wrong
+For example,
+
+    src/prov_buffer.h:3: '../include/libprobe/prov_ops.h' does not need to be #included
+
+Howver, we can't foward-declare it because a public function takes a struct Op (by value).
+Therefore, we need the struct layout in the header.
+
 # C lints
 
 - https://github.com/include-what-you-use/include-what-you-use
 - https://code.google.com/archive/p/cppclean
 
 ``` sh
-cppcheck include/libprobe/* src/* generated/* --check-level=exhaustive
-
-cppclean include/libprobe/* src/* generated/*
-# Output of cppclean seems wrong
-# For example,
-#
-#     src/prov_buffer.h:3: '../include/libprobe/prov_ops.h' does not need to be #included
-#
-# Howver, we can't foward-declare it because a public function takes a struct Op (by value).
-# Therefore, we need the struct layout in the header.
-
-clang-tidy include/libprobe/* src/* generated/* -checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-analyzer-valist.Uninitialized
-
 clang-check include/libprobe/* src/* generated/*
 
-make clean && bear -- make
-
-make clean && *scan-build make
+make clean && scan-build make
 
 # https://github.com/NixOS/nixpkgs/pull/395967
 # https://clang.llvm.org/docs/analyzer/user-docs/CommandLineUsage.html#codechecker
