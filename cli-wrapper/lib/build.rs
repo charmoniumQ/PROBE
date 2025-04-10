@@ -6,8 +6,9 @@ use std::sync::OnceLock;
 use bindgen::callbacks::ParseCallbacks;
 
 fn find_in_cpath(name: &str) -> Result<PathBuf, String> {
-    let cpath = env::var("CPATH")
-        .map_err(|_| "CPATH needs to be set (in unicode) so I can find include header files".to_owned())?;
+    let cpath = env::var("CPATH").map_err(|_| {
+        "CPATH needs to be set (in unicode) so I can find include header files".to_owned()
+    })?;
     Ok(cpath
         .split(':')
         .map(|path_str| PathBuf::from(path_str).join(name))
