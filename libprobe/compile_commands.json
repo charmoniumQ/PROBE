@@ -4,7 +4,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -25,7 +25,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -46,7 +46,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -67,7 +67,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -88,7 +88,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -109,7 +109,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -130,7 +130,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -151,7 +151,7 @@
   "arguments": [
    "clang",
    "-c",
-   "-DSOURCE_VERSION=\"e430e70\"",
+   "-DSOURCE_VERSION=\"cdcbcdd\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",

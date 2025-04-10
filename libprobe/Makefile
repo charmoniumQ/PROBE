@@ -53,6 +53,7 @@ $(BUILD_DIR)/undefined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 	nm --dynamic .build/libprobe.dbg.so | grep ' T ' | cut --fields=3 --delimiter=' ' > $(BUILD_DIR)/defined_symbols.txt
 
 check:
+	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
 	clang-check $(SOURCE_FILES)
 	clang-tidy  $(SOURCE_FILES)
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
