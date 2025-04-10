@@ -2,14 +2,14 @@
 
 #define _GNU_SOURCE
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <utime.h>
 #include <threads.h>
-#include <pthread.h>
+#include <utime.h>
 
 // HACK: defining this manually instead of using <sys/resource.h> is
 // a huge hack, but it greatly reduces the generated code complexity
@@ -94,9 +94,9 @@ struct ExecOp {
     struct Path path;
     int ferrno;
     size_t argc;
-    char * const* argv;
+    char* const* argv;
     size_t envc;
-    char * const* env;
+    char* const* env;
 };
 
 enum TaskType {

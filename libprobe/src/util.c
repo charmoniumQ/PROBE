@@ -2,11 +2,11 @@
 
 #include "../generated/libc_hooks.h"
 #include <fcntl.h>
-#include <sys/stat.h>
-#include <stdlib.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/sendfile.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "debug_logging.h"
@@ -31,7 +31,8 @@ OWNED const char* dirfd_path(int dirfd) {
     return ret;
 }
 
-OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size, BORROWED const char* right) {
+OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left,
+                      ssize_t right_size, BORROWED const char* right) {
     if (left_size == -1) {
         left_size = strlen(left);
     }
@@ -48,14 +49,12 @@ OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const
     return path_buf;
 }
 
-int fd_is_valid(int fd) {
-    return unwrapped_fcntl(fd, F_GETFD) != -1 || errno != EBADF;
-}
+int fd_is_valid(int fd) { return unwrapped_fcntl(fd, F_GETFD) != -1 || errno != EBADF; }
 
 void list_dir(const char* name, int indent) {
     // https://stackoverflow.com/a/8438663
-    DIR *dir;
-    struct dirent *entry;
+    DIR* dir;
+    struct dirent* entry;
 
     if (!(dir = unwrapped_opendir(name)))
         return;
@@ -75,19 +74,23 @@ void list_dir(const char* name, int indent) {
     unwrapped_closedir(dir);
 }
 
-int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path, ssize_t size) {
+int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path,
+              ssize_t size) {
     /*
     ** Adapted from:
     ** https://stackoverflow.com/a/2180157
      */
     int src_fd = unwrapped_openat(src_dirfd, src_path, O_RDONLY);
-    if (src_fd == -1) return -1;
+    if (src_fd == -1)
+        return -1;
     int dst_fd = unwrapped_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
-    if (dst_fd == -1) return -1;
+    if (dst_fd == -1)
+        return -1;
     off_t copied = 0;
     while (copied < size) {
         ssize_t written = sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
-        if (written < 0) return -1;
+        if (written < 0)
+            return -1;
         copied += written;
     }
 

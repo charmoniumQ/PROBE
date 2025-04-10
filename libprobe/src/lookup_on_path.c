@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
 
 #include "../generated/libc_hooks.h"
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "util.h"
@@ -28,8 +28,8 @@ bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     DEBUG("looking up \"%s\" on $PATH=\"%.50s...\"", bin_name, path);
 
     char* saveptr = NULL;
-    const char *delim = ":";
-    char *path_seg;
+    const char* delim = ":";
+    char* path_seg;
     path_seg = strtok_r(path, delim, &saveptr);
     while (path_seg) {
         path_join(bin_path, -1, path_seg, bin_name_length, bin_name);

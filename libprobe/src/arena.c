@@ -1,15 +1,15 @@
 #define _GNU_SOURCE
 
 #include "../generated/libc_hooks.h"
-#include <stddef.h>
-#include <stdio.h>
+#include <fcntl.h>
 #include <stdalign.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <fcntl.h>
 #include <unistd.h>
 
 #include "debug_logging.h"
@@ -19,7 +19,7 @@
 
 struct Arena {
     size_t instantiation;
-    void *base_address;
+    void* base_address;
     uintptr_t capacity;
     uintptr_t used;
 };
@@ -30,7 +30,7 @@ struct Arena {
 #define ARENA_LIST_BLOCK_SIZE 64
 struct ArenaListElem;
 struct ArenaListElem {
-    struct Arena* arena_list [ARENA_LIST_BLOCK_SIZE];
+    struct Arena* arena_list[ARENA_LIST_BLOCK_SIZE];
     /* We store next list elem so that a value of 0 with an uninitialized arena_list represnts a valid ArenaListElem */
     size_t next_free_slot;
     struct ArenaListElem* prev;
@@ -46,13 +46,15 @@ static inline size_t __arena_align(size_t offset, size_t alignment) {
 #define ARENA_FNAME_LENGTH 64
 
 static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_capacity) {
-    size_t capacity = 1 << MAX(ceil_log2(getpagesize()), ceil_log2(min_capacity + sizeof(struct Arena)));
+    size_t capacity =
+        1 << MAX(ceil_log2(getpagesize()), ceil_log2(min_capacity + sizeof(struct Arena)));
 
     /* Create a new mmap */
-    char fname_buffer [ARENA_FNAME_LENGTH];
+    char fname_buffer[ARENA_FNAME_LENGTH];
     snprintf(fname_buffer, ARENA_FNAME_LENGTH, "%ld.dat", arena_dir->__next_instantiation);
     int fd = unwrapped_openat(arena_dir->__dirfd, fname_buffer, O_RDWR | O_CREAT, 0666);
-    ASSERTF(fd > 0, "returned_fd=%d (%s dir_fd=%d) %s", fd, dirfd_path(arena_dir->__dirfd), arena_dir->__dirfd, fname_buffer);
+    ASSERTF(fd > 0, "returned_fd=%d (%s dir_fd=%d) %s", fd, dirfd_path(arena_dir->__dirfd),
+            arena_dir->__dirfd, fname_buffer);
 
     EXPECT(== 0, unwrapped_ftruncate(fd, capacity));
 
@@ -61,7 +63,6 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     /* mmap here corresponds to munmap in either arena_destroy or arena_uninstantiate_all_but_last */
 
     EXPECT(== 0, unwrapped_close(fd));
-
 
     if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
         /* No more free slots in this block, as we've reached block size.
@@ -91,11 +92,8 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
 
     DEBUG(
         "arena_calloc: instantiation of %p, using %ld for Arena, rest starts at %p, capacity %ld\n",
-        ARENA_CURRENT->base_address,
-        ARENA_CURRENT->used,
-        ARENA_CURRENT->base_address + ARENA_CURRENT->used,
-        ARENA_CURRENT->capacity
-    );
+        ARENA_CURRENT->base_address, ARENA_CURRENT->used,
+        ARENA_CURRENT->base_address + ARENA_CURRENT->used, ARENA_CURRENT->capacity);
 
     /* Update for next instantiation */
     arena_dir->__next_instantiation++;
@@ -106,9 +104,12 @@ void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_si
     if (ARENA_CURRENT->used + padding + type_count * type_size > ARENA_CURRENT->capacity) {
         /* Current arena is too small for this allocation;
          * Let's allocate a new one. */
-        arena_reinstantiate(arena_dir, MAX(ARENA_CURRENT->capacity, type_count * type_size + sizeof(struct Arena)));
+        arena_reinstantiate(
+            arena_dir, MAX(ARENA_CURRENT->capacity, type_count * type_size + sizeof(struct Arena)));
         padding = 0;
-        ASSERTF(ARENA_CURRENT->used + padding + type_count * type_size <= ARENA_CURRENT->capacity, "Capacity calculation is wrong (%ld + %ld + %ld * %ld should be <= %ld)", ARENA_CURRENT->used, padding, type_count, type_size, ARENA_CURRENT->capacity);
+        ASSERTF(ARENA_CURRENT->used + padding + type_count * type_size <= ARENA_CURRENT->capacity,
+                "Capacity calculation is wrong (%ld + %ld + %ld * %ld should be <= %ld)",
+                ARENA_CURRENT->used, padding, type_count, type_size, ARENA_CURRENT->capacity);
     }
 
     void* ret = ARENA_CURRENT->base_address + ARENA_CURRENT->used + padding;
@@ -133,7 +134,8 @@ void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size
     ASSERTF(ret == 0, "(%s fd=%d) %s", dirfd_path(parent_dirfd), parent_dirfd, name);
 #endif
     int dirfd = EXPECT(> 0, unwrapped_openat(parent_dirfd, name, O_RDONLY | O_DIRECTORY | O_PATH));
-    DEBUG("Creating Arena in (%s fd=%d) which should be (%s fd=%d)/%s", dirfd_path(dirfd), dirfd, dirfd_path(parent_dirfd), parent_dirfd, name);
+    DEBUG("Creating Arena in (%s fd=%d) which should be (%s fd=%d)/%s", dirfd_path(dirfd), dirfd,
+          dirfd_path(parent_dirfd), parent_dirfd, name);
 
     /* O_DIRECTORY fails if name is not a directory */
     /* O_PATH means the resulting fd cannot be read/written to. It can be used as the dirfd to *at() syscall functions. */
@@ -147,7 +149,6 @@ void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size
     arena_dir->__next_instantiation = 0;
     arena_reinstantiate(arena_dir, capacity);
 }
-
 
 /*
  * - msync is required, from [a previous issue](https://github.com/charmoniumQ/PROBE/pull/84) as well.
@@ -177,7 +178,6 @@ void arena_destroy(struct ArenaDir* arena_dir) {
     arena_dir->__dirfd = 0;
 
     arena_dir->__next_instantiation = 0;
-
 }
 
 void arena_drop_after_fork(struct ArenaDir* arena_dir) {
@@ -218,7 +218,7 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
     struct ArenaListElem* current = arena_dir->__tail;
     bool is_tail = true;
     while (current) {
-        for (size_t i = 0; i + ((size_t) is_tail) < current->next_free_slot; ++i) {
+        for (size_t i = 0; i + ((size_t)is_tail) < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
@@ -236,9 +236,7 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
 }
 
 bool arena_is_initialized(struct ArenaDir* arena_dir) {
-    ASSERTF(
-        (arena_dir->__next_instantiation == 0) == (arena_dir->__tail == NULL),
-        "is_initialized signals disagree"
-    );
+    ASSERTF((arena_dir->__next_instantiation == 0) == (arena_dir->__tail == NULL),
+            "is_initialized signals disagree");
     return arena_dir->__tail != NULL;
 }

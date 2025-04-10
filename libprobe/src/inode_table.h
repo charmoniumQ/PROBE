@@ -15,19 +15,16 @@ struct InodeTable {
     struct IndexTable* majors;
 };
 
-
-__attribute__((visibility("hidden")))
-void inode_table_init(struct InodeTable* inode_table)
+__attribute__((visibility("hidden"))) void inode_table_init(struct InodeTable* inode_table)
     __attribute__((nonnull));
 
-__attribute__((visibility("hidden")))
-bool inode_table_is_init(struct InodeTable* inode_table)
+__attribute__((visibility("hidden"))) bool inode_table_is_init(struct InodeTable* inode_table)
     __attribute__((nonnull));
 
-__attribute__((visibility("hidden")))
-bool inode_table_contains(struct InodeTable* inode_table, const struct Path* path)
+__attribute__((visibility("hidden"))) bool inode_table_contains(struct InodeTable* inode_table,
+                                                                const struct Path* path)
     __attribute__((nonnull));
 
-__attribute__((visibility("hidden")))
-bool inode_table_put_if_not_exists(struct InodeTable* inode_table, const struct Path* path)
+__attribute__((visibility("hidden"))) bool
+inode_table_put_if_not_exists(struct InodeTable* inode_table, const struct Path* path)
     __attribute__((nonnull));

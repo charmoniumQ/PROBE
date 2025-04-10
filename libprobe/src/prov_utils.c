@@ -1,18 +1,18 @@
 #define _GNU_SOURCE
 
 #include "../generated/libc_hooks.h"
-#include <sys/sysmacros.h>
-#include <sys/resource.h>
-#include <limits.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <limits.h>
 #include <stdlib.h>
+#include <sys/resource.h>
+#include <sys/sysmacros.h>
+#include <unistd.h>
 
+#include "arena.h"
 #include "debug_logging.h"
-#include "util.h"
 #include "global_state.h"
 #include "prov_buffer.h"
-#include "arena.h"
+#include "util.h"
 
 #include "prov_utils.h"
 
@@ -45,7 +45,8 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
         struct statx statx_buf;
-        int stat_ret = unwrapped_statx(dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
+        int stat_ret = unwrapped_statx(
+            dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
@@ -66,16 +67,10 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
 
 void path_to_id_string(const struct Path* path, BORROWED char* string) {
     CHECK_SNPRINTF(
-        string,
-        PATH_MAX,
-        "%04x-%04x-%016lx-%016lldx-%08x-%016lx",
-        path->device_major,
-        path->device_minor,
-        path->inode,
+        string, PATH_MAX, "%04x-%04x-%016lx-%016lldx-%08x-%016lx", path->device_major,
+        path->device_minor, path->inode,
         /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
-        (long long int) path->mtime.tv_sec,
-        path->mtime.tv_nsec,
-        path->size);
+        (long long int)path->mtime.tv_sec, path->mtime.tv_nsec, path->size);
 }
 
 int fopen_to_flags(BORROWED const char* fopentype) {
@@ -102,71 +97,102 @@ int fopen_to_flags(BORROWED const char* fopentype) {
 
 const struct Path* op_to_path(const struct Op* op) {
     switch (op->op_code) {
-        case open_op_code: return &op->data.open.path;
-        case chdir_op_code: return &op->data.chdir.path;
-        case exec_op_code: return &op->data.exec.path;
-        case access_op_code: return &op->data.access.path;
-        case stat_op_code: return &op->data.stat.path;
-        case update_metadata_op_code: return &op->data.update_metadata.path;
-        case read_link_op_code: return &op->data.read_link.linkpath;
-        case hard_link_op_code: return &op->data.hard_link.old;
-        case symbolic_link_op_code: return &op->data.symbolic_link.new;
-        case unlink_op_code: return &op->data.unlink.path;
-        case rename_op_code: return &op->data.rename.src;
-        case mkdir_op_code: return &op->data.mkdir.dst;
-        case readdir_op_code: return &op->data.readdir.dir;
-        default:
-            return &null_path;
+    case open_op_code:
+        return &op->data.open.path;
+    case chdir_op_code:
+        return &op->data.chdir.path;
+    case exec_op_code:
+        return &op->data.exec.path;
+    case access_op_code:
+        return &op->data.access.path;
+    case stat_op_code:
+        return &op->data.stat.path;
+    case update_metadata_op_code:
+        return &op->data.update_metadata.path;
+    case read_link_op_code:
+        return &op->data.read_link.linkpath;
+    case hard_link_op_code:
+        return &op->data.hard_link.old;
+    case symbolic_link_op_code:
+        return &op->data.symbolic_link.new;
+    case unlink_op_code:
+        return &op->data.unlink.path;
+    case rename_op_code:
+        return &op->data.rename.src;
+    case mkdir_op_code:
+        return &op->data.mkdir.dst;
+    case readdir_op_code:
+        return &op->data.readdir.dir;
+    default:
+        return &null_path;
     }
 }
 const struct Path* op_to_second_path(const struct Op* op) {
     switch (op->op_code) {
-        case hard_link_op_code: return &op->data.hard_link.new;
-        case rename_op_code: return &op->data.rename.dst;
-        default:
-            return &null_path;
+    case hard_link_op_code:
+        return &op->data.hard_link.new;
+    case rename_op_code:
+        return &op->data.rename.dst;
+    default:
+        return &null_path;
     }
 }
 
 #ifndef NDEBUG
 BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
-        case init_process_op_code: return "init_process";
-        case init_exec_epoch_op_code: return "init_exec_epoch";
-        case init_thread_op_code: return "init_thread";
-        case open_op_code: return "open";
-        case close_op_code: return "close";
-        case clone_op_code: return "clone";
-        case chdir_op_code: return "chdir";
-        case exec_op_code: return "exec";
-        case exit_op_code: return "exit";
-        case access_op_code: return "access";
-        case stat_op_code: return "stat";
-        case readdir_op_code: return "readdir";
-        case wait_op_code: return "wait";
-        case update_metadata_op_code: return "update_metadata";
-        case read_link_op_code: return "readlink";
-        case dup_op_code: return "dup";
-        case hard_link_op_code: return "hard_link";
-        case symbolic_link_op_code: return "symbolic_link";
-        case unlink_op_code: return "unlink";
-        case rename_op_code: return "rename";
-        case mkdir_op_code: return "mkdir";
-        default:
-            ASSERTF(FIRST_OP_CODE < op_code && op_code < LAST_OP_CODE, "Not a valid op_code: %d", op_code);
-            NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
+    case init_process_op_code:
+        return "init_process";
+    case init_exec_epoch_op_code:
+        return "init_exec_epoch";
+    case init_thread_op_code:
+        return "init_thread";
+    case open_op_code:
+        return "open";
+    case close_op_code:
+        return "close";
+    case clone_op_code:
+        return "clone";
+    case chdir_op_code:
+        return "chdir";
+    case exec_op_code:
+        return "exec";
+    case exit_op_code:
+        return "exit";
+    case access_op_code:
+        return "access";
+    case stat_op_code:
+        return "stat";
+    case readdir_op_code:
+        return "readdir";
+    case wait_op_code:
+        return "wait";
+    case update_metadata_op_code:
+        return "update_metadata";
+    case read_link_op_code:
+        return "readlink";
+    case dup_op_code:
+        return "dup";
+    case hard_link_op_code:
+        return "hard_link";
+    case symbolic_link_op_code:
+        return "symbolic_link";
+    case unlink_op_code:
+        return "unlink";
+    case rename_op_code:
+        return "rename";
+    case mkdir_op_code:
+        return "mkdir";
+    default:
+        ASSERTF(FIRST_OP_CODE < op_code && op_code < LAST_OP_CODE, "Not a valid op_code: %d",
+                op_code);
+        NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
 int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
     return CHECK_SNPRINTF(
-        buffer,
-        buffer_length,
-        "dirfd=%d, path=\"%s\", stat_valid=%d, dirfd_valid=%d",
-        path->dirfd_minus_at_fdcwd + AT_FDCWD,
-        path->path,
-        path->stat_valid,
-        path->dirfd_valid
-    );
+        buffer, buffer_length, "dirfd=%d, path=\"%s\", stat_valid=%d, dirfd_valid=%d",
+        path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, path->stat_valid, path->dirfd_valid);
 }
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
@@ -186,13 +212,15 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
     }
 
     if (op->op_code == open_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
+        int fd_size =
+            CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
         dest += fd_size;
         size -= fd_size;
     }
 
     if (op->op_code == init_process_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_process.pid, op->data.init_process.parent_pid);
+        int fd_size = CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_process.pid,
+                                     op->data.init_process.parent_pid);
         dest += fd_size;
         size -= fd_size;
     }
@@ -206,7 +234,6 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
     (void)size;
 }
 #endif
-
 
 void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat_buf) {
     stat_result_buf->mask = STATX_BASIC_STATS;
@@ -272,29 +299,32 @@ void copy_rusage(struct my_rusage* dst, struct rusage* src) {
 void do_init_ops(bool was_epoch_initted) {
     if (was_epoch_initted) {
         if (get_exec_epoch() == 0) {
-            char const * cwd = EXPECT_NONNULL(get_current_dir_name());
+            char const* cwd = EXPECT_NONNULL(get_current_dir_name());
             struct Op init_process_op = {
                 init_process_op_code,
-                {.init_process = {
-                    .parent_pid = getppid(),
-                    .pid = getpid(),
-                    .is_root = is_proc_root(),
-                    .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
-                }},
+                {.init_process =
+                     {
+                         .parent_pid = getppid(),
+                         .pid = getpid(),
+                         .is_root = is_proc_root(),
+                         .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
+                     }},
                 {0},
                 0,
                 0,
             };
             prov_log_try(init_process_op);
             prov_log_record(init_process_op);
-            free((char*) cwd);
+            free((char*)cwd);
         }
         struct Op init_exec_op = {
             init_exec_epoch_op_code,
-            {.init_exec_epoch = {
-                .epoch = get_exec_epoch(),
-                .program_name = arena_strndup(get_data_arena(), program_invocation_name, PATH_MAX),
-            }},
+            {.init_exec_epoch =
+                 {
+                     .epoch = get_exec_epoch(),
+                     .program_name =
+                         arena_strndup(get_data_arena(), program_invocation_name, PATH_MAX),
+                 }},
             {0},
             0,
             0,
@@ -304,11 +334,7 @@ void do_init_ops(bool was_epoch_initted) {
     }
 
     struct Op init_thread_op = {
-        init_thread_op_code,
-        {.init_thread = {.tid = get_tid()}},
-        {0},
-        0,
-        0,
+        init_thread_op_code, {.init_thread = {.tid = get_tid()}}, {0}, 0, 0,
     };
     prov_log_try(init_thread_op);
     prov_log_record(init_thread_op);

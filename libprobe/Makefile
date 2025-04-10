@@ -12,8 +12,10 @@ OPTCFLAGS := -O3 -DNDEBUG -fPIC
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
 GENERATED_HEADER_FILES := generated/libc_hooks.h
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
-SOURCE_FILES := $(wildcard src/*.c) $(GENERATED_SOURCE_FILES)
-HEADER_FILES := $(wildcard src/*.h) $(GENERATED_HEADER_FILES) $(wildcard include/libprobe/*.h)
+MANUAL_SOURCE_FILES := $(wildcard src/*.c)
+MANUAL_HEADER_FILES := $(wildcard src/*.h) $(wildcard include/libprobe/*.h)
+SOURCE_FILES := $(GENERATED_SOURCE_FILES) $(MANUAL_SOURCE_FILES)
+HEADER_FILES := $(GENERATED_HEADER_FILES) $(MANUAL_HEADER_FILES)
 BUILD_DIR := .build
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
@@ -71,5 +73,12 @@ clean:
 	mkdir --parents $(BUILD_DIR)/ generated/
 	rm --force --recursive $(BUILD_DIR)/ generated/ compile_commands.json
 .PHONY: clean
+
+format:
+# Yes, this clang-formats the generated sources
+# But, they aren't checked into VCS, so I don't care
+	git add --all .
+	clang-format -i $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
+.PHONY: format
 
 .SUFFIXES:

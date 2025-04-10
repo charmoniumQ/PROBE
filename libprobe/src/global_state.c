@@ -1,18 +1,18 @@
 #define _GNU_SOURCE
 
 #include "../generated/libc_hooks.h"
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-#include "util.h"
 #include "arena.h"
-#include "inode_table.h"
 #include "env.h"
+#include "inode_table.h"
 #include "prov_buffer.h"
 #include "prov_utils.h"
+#include "util.h"
 
 #include "global_state.h"
 
@@ -25,12 +25,8 @@
 
 static const pid_t pid_initial = -1;
 static pid_t pid = pid_initial;
-pid_t get_pid() {
-    return EXPECT(== getpid(), pid);
-}
-static inline void init_pid() {
-    pid = EXPECT(!= pid_initial, getpid());
-}
+pid_t get_pid() { return EXPECT(== getpid(), pid); }
+static inline void init_pid() { pid = EXPECT(!= pid_initial, getpid()); }
 pid_t get_pid_safe() {
     if (pid == pid_initial) {
         init_pid();
@@ -40,12 +36,8 @@ pid_t get_pid_safe() {
 
 const pid_t tid_initial = -1;
 __thread pid_t tid = tid_initial;
-pid_t get_tid() {
-    return EXPECT(== gettid(), tid);
-}
-static inline void init_tid() {
-    tid = EXPECT(!= tid_initial, gettid());
-}
+pid_t get_tid() { return EXPECT(== gettid(), tid); }
+static inline void init_tid() { tid = EXPECT(!= tid_initial, gettid()); }
 pid_t get_tid_safe() {
     if (tid == tid_initial) {
         init_tid();
@@ -94,7 +86,8 @@ static inline void init_exec_epoch() {
 
         if (last_epoch_pid == get_pid()) {
             const char* exec_epoch_str = getenv_copy(exec_epoch_env_var);
-            ASSERTF(last_epoch_pid_str, "Internal environment variable \"%s\" not set", exec_epoch_env_var);
+            ASSERTF(last_epoch_pid_str, "Internal environment variable \"%s\" not set",
+                    exec_epoch_env_var);
 
             size_t last_exec_epoch = EXPECT(>= 0, strtoul(exec_epoch_str, NULL, 10));
             /* Since zero is a sentinel value for strtol,
@@ -114,12 +107,8 @@ static inline void init_exec_epoch() {
 
     DEBUG("exec_epoch = %d", exec_epoch);
 }
-int get_exec_epoch() {
-    return EXPECT(!= exec_epoch_initial, exec_epoch);
-}
-int get_exec_epoch_safe() {
-    return exec_epoch;
-}
+int get_exec_epoch() { return EXPECT(!= exec_epoch_initial, exec_epoch); }
+int get_exec_epoch_safe() { return exec_epoch; }
 
 char copy_files = ' ';
 const char* copy_files_env_var = PRIVATE_ENV_VAR_PREFIX "COPY_FILES";
@@ -135,16 +124,16 @@ static inline void init_copy_files() {
     }
     DEBUG("Copy files? %c", copy_files);
     switch (copy_files) {
-        case '\0':
-            break;
-        case 'e': /* eagerly copy files */
-        case 'l': /* lazily copy files */
-            inode_table_init(&read_inodes);
-            inode_table_init(&copied_or_overwritten_inodes);
-            break;
-        default:
-            ERROR("copy_files has invalid value %c", copy_files);
-            break;
+    case '\0':
+        break;
+    case 'e': /* eagerly copy files */
+    case 'l': /* lazily copy files */
+        inode_table_init(&read_inodes);
+        inode_table_init(&copied_or_overwritten_inodes);
+        break;
+    default:
+        ERROR("copy_files has invalid value %c", copy_files);
+        break;
     }
 }
 bool should_copy_files_eagerly() {
@@ -164,11 +153,13 @@ struct InodeTable* get_copied_or_overwritten_inodes() {
     return &copied_or_overwritten_inodes;
 }
 
-bool should_copy_files() {
-    return should_copy_files_eagerly() || should_copy_files_lazily();
-}
+bool should_copy_files() { return should_copy_files_eagerly() || should_copy_files_lazily(); }
 
-#define mkdir_and_descend(my_dirfd, name, child, mkdir, close) ({DEBUG("Calling mkdir_and_descend (%s fd=%d)/%d", dirfd_path(my_dirfd), my_dirfd, child); mkdir_and_descend2(my_dirfd, name, child, mkdir, close); })
+#define mkdir_and_descend(my_dirfd, name, child, mkdir, close)                                     \
+    ({                                                                                             \
+        DEBUG("Calling mkdir_and_descend (%s fd=%d)/%d", dirfd_path(my_dirfd), my_dirfd, child);   \
+        mkdir_and_descend2(my_dirfd, name, child, mkdir, close);                                   \
+    })
 
 static int mkdir_and_descend2(int my_dirfd, const char* name, long child, bool mkdir, bool close) {
     static __thread char buffer[SIGNED_LONG_STRING_SIZE + 1];
@@ -180,30 +171,27 @@ static int mkdir_and_descend2(int my_dirfd, const char* name, long child, bool m
         if (mkdir_ret != 0) {
             int saved_errno = errno;
             list_dir(dirfd_path(my_dirfd), 2);
-            ERROR("Cannot mkdir (%s fd=%d)/%ld: %s", dirfd_path(my_dirfd), my_dirfd, child, strerror(saved_errno));
+            ERROR("Cannot mkdir (%s fd=%d)/%ld: %s", dirfd_path(my_dirfd), my_dirfd, child,
+                  strerror(saved_errno));
         }
     }
-    int sub_dirfd = unwrapped_openat(my_dirfd, name ? name : buffer, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    int sub_dirfd =
+        unwrapped_openat(my_dirfd, name ? name : buffer, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (sub_dirfd == -1) {
         int saved_errno = errno;
 #ifndef NDEBUG
         list_dir(dirfd_path(my_dirfd), 2);
 #endif
-        ERROR(
-            "Cannot openat buffer=\"%s\", dirfd=%d, realpath=%s, child=%ld (did we do mkdir? %d), errno=%d,%s",
-            name ? name : buffer,
-            my_dirfd,
-            dirfd_path(my_dirfd),
-            child,
-            mkdir,
-            saved_errno,
-            strerror(saved_errno)
-        );
+        ERROR("Cannot openat buffer=\"%s\", dirfd=%d, realpath=%s, child=%ld (did we do mkdir? "
+              "%d), errno=%d,%s",
+              name ? name : buffer, my_dirfd, dirfd_path(my_dirfd), child, mkdir, saved_errno,
+              strerror(saved_errno));
     }
     if (close) {
         EXPECT(== 0, unwrapped_close(my_dirfd));
     }
-    DEBUG("Returning %s, fd=%d which should be (%s fd=%d)/%s", dirfd_path(sub_dirfd), sub_dirfd, dirfd_path(my_dirfd), my_dirfd, name ? name : buffer);
+    DEBUG("Returning %s, fd=%d which should be (%s fd=%d)/%s", dirfd_path(sub_dirfd), sub_dirfd,
+          dirfd_path(my_dirfd), my_dirfd, name ? name : buffer);
     return sub_dirfd;
 }
 
@@ -277,12 +265,13 @@ static inline void init_epoch_dir() {
     DEBUG("pids_dirfd = %d %s", pids_dirfd, dirfd_path(pids_dirfd));
     DEBUG("Going to \"%s/%d/%d\" (mkdir %d)", probe_dir, get_pid(), get_exec_epoch(), true);
     int pid_dirfd = mkdir_and_descend(pids_dirfd, NULL, get_pid(), get_exec_epoch() == 0, false);
-    epoch_dirfd = mkdir_and_descend(pid_dirfd, NULL, get_exec_epoch(), get_tid() == get_pid(), true);
+    epoch_dirfd =
+        mkdir_and_descend(pid_dirfd, NULL, get_exec_epoch(), get_tid() == get_pid(), true);
     ASSERTF(epoch_dirfd != invalid_dirfd, "");
 }
 
-__thread struct ArenaDir op_arena = { 0 };
-__thread struct ArenaDir data_arena = { 0 };
+__thread struct ArenaDir op_arena = {0};
+__thread struct ArenaDir data_arena = {0};
 const size_t prov_log_arena_size = 64 * 1024;
 static inline void init_log_arena() {
     ASSERTF(!arena_is_initialized(&op_arena), "");
@@ -290,7 +279,8 @@ static inline void init_log_arena() {
     ASSERTF(epoch_dirfd != invalid_dirfd, "init_epoch_dir() never called");
     ASSERTF(fd_is_valid(epoch_dirfd), "epoch_dirfd inited, but invalid");
     ASSERTF(is_dir(dirfd_path(epoch_dirfd)), "epoch_dirfd inited, but not dir");
-    DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", probe_dir, get_pid(), get_exec_epoch(), get_tid(), true);
+    DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", probe_dir, get_pid(), get_exec_epoch(), get_tid(),
+          true);
     int thread_dirfd = mkdir_and_descend(epoch_dirfd, NULL, get_tid(), true, false);
     arena_create(&op_arena, thread_dirfd, "ops", prov_log_arena_size);
     arena_create(&data_arena, thread_dirfd, "data", prov_log_arena_size);
@@ -317,16 +307,13 @@ static inline void init_default_path() {
     // Technically, this shouldn't be necessary, but it won't hurt.
     _DEFAULT_PATH[default_path_size] = '\0';
 }
-const char* get_default_path() {
-    return EXPECT_NONNULL(_DEFAULT_PATH);
-}
+const char* get_default_path() { return EXPECT_NONNULL(_DEFAULT_PATH); }
 
 /*******************************************************/
 
 /*
  * Aggregate functions;
  * These functions call the init_* functions above */
-
 
 static inline void check_function_pointers() {
     /* We use these unwrapped_ function pointers in our code.
@@ -414,22 +401,16 @@ void ensure_initted() {
         if (UNLIKELY(!epoch_inited)) {
             DEBUG("Initializing process");
             was_epoch_inited = true;
-            init_pid();// PID required in probe_dir; also for logs
-            init_proc_root(); // is_proc_root required in init_exec_epoch
-            init_exec_epoch(); // init_exec_epoch required in init_probe_dir
+            init_pid();               // PID required in probe_dir; also for logs
+            init_proc_root();         // is_proc_root required in init_exec_epoch
+            init_exec_epoch();        // init_exec_epoch required in init_probe_dir
             init_function_pointers(); // function pointers required in init_probe_dir
             check_function_pointers();
             init_copy_files();
             init_probe_dir();
             init_epoch_dir();
             init_default_path();
-            EXPECT(== 0,
-                pthread_atfork(
-                    NULL,
-                    NULL,
-                    &init_after_fork
-                )
-            );
+            EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
             epoch_inited = true;
         }
         EXPECT(== 0, pthread_mutex_unlock(&epoch_init_lock));
