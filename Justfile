@@ -28,8 +28,8 @@ check-cli:
 
 [working-directory: 'cli-wrapper']
 compile-cli:
-    cargo build --release
     cargo build
+    cargo build --release
 
 [working-directory: 'libprobe']
 fix-lib:
