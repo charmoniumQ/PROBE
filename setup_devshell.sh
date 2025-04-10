@@ -4,7 +4,7 @@ esc=$(printf '\033')
 red="${esc}[0;31m"
 clr="${esc}[0m"
 
-project_root="$(dirname "$(realpath "$0")")"
+project_root="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 printf "project_root = %s\n" "$project_root"
 
 # Rust frontend uses CPATH to find libprobe headers
