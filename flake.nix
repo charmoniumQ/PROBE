@@ -71,16 +71,29 @@
       in rec {
         packages = rec {
           inherit (frontend.packages) cargoArtifacts probe-cli;
-          libprobe = pkgs.stdenv.mkDerivation rec {
+          libprobe = pkgs.clangStdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
             src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
             buildInputs = [
+              pkgs.git
+              pkgs.compiledb
               (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
             ];
+            nativeCheckInputs = [
+              pkgs.clang-analyzer
+              pkgs.clang-tools
+              pkgs.clang
+              pkgs.compiledb
+              pkgs.cppcheck
+              pkgs.cppclean
+            ];
+            checkPhase = ''
+              make check
+            '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
             pname = "probe";
@@ -225,19 +238,29 @@
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
+                # Replay tools
                 pkgs.buildah
-                pkgs.which
+                pkgs.podman
+
+                # C tools
+                pkgs.clang-analyzer
+                pkgs.clang-tools # must go after clang-analyzer
+                pkgs.clang # must go after clang-tools
+                pkgs.compiledb
+                pkgs.cppcheck
+                pkgs.cppclean
                 pkgs.gnumake
-                pkgs.gcc
+                pkgs.git
+
+                pkgs.which
                 pkgs.coreutils
                 pkgs.alejandra
                 pkgs.just
                 pkgs.ruff
                 pkgs.cachix
-                pkgs.podman
               ]
               # OpenJDK doesn't build on some platforms
-              ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is

@@ -1,8 +1,45 @@
+#pragma once
+
+#define _GNU_SOURCE
+
+#include <pthread.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <threads.h>
+#include <utime.h>
+
+// HACK: defining this manually instead of using <sys/resource.h> is
+// a huge hack, but it greatly reduces the generated code complexity
+// since in glibc all the long ints are unions over two types that
+// both alias to long int, this is done for kernel-userland
+// compatibility reasons that don't matter here.
+struct my_rusage {
+    struct timeval ru_utime;
+    struct timeval ru_stime;
+    long int ru_maxrss;
+    long int ru_ixrss;
+    long int ru_idrss;
+    long int ru_isrss;
+    long int ru_minflt;
+    long int ru_majflt;
+    long int ru_nswap;
+    long int ru_inblock;
+    long int ru_oublock;
+    long int ru_msgsnd;
+    long int ru_msgrcv;
+    long int ru_nsignals;
+    long int ru_nvcsw;
+    long int ru_nivcsw;
+};
+
 struct Path {
     int32_t dirfd_minus_at_fdcwd;
     const char* path; /* path valid if non-null */
-    dev_t device_major;
-    dev_t device_minor;
+    unsigned int device_major;
+    unsigned int device_minor;
     ino_t inode;
     struct statx_timestamp mtime;
     struct statx_timestamp ctime;
@@ -16,6 +53,7 @@ static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, 
 /* static void free_path(struct Path path); */
 
 struct InitProcessOp {
+    pid_t parent_pid;
     pid_t pid;
     bool is_root;
     struct Path cwd;
@@ -23,7 +61,7 @@ struct InitProcessOp {
 
 struct InitExecEpochOp {
     unsigned int epoch;
-    OWNED char* program_name;
+    char* program_name;
 };
 
 struct InitExecEpochOp init_current_exec_epoch();
@@ -56,9 +94,9 @@ struct ExecOp {
     struct Path path;
     int ferrno;
     size_t argc;
-    char * const* argv;
+    char* const* argv;
     size_t envc;
-    char * const* env;
+    char* const* env;
 };
 
 enum TaskType {
@@ -72,7 +110,7 @@ struct CloneOp {
     int flags;
     bool run_pthread_atfork_handlers;
     enum TaskType task_type;
-    unsigned long int task_id;
+    int64_t task_id;
     int ferrno;
 };
 
@@ -120,9 +158,41 @@ struct ReaddirOp {
     int ferrno;
 };
 
+/*
+ * There are user threads (ISO C threads and POSIX threads) and hardware threads (clone/wait4).
+ *
+ * Hardware thread ID is most relevant for ordering synchronization ops. E.g.,
+ * when we hit a mutex, we should record which thread/op we are.
+ *
+ * However, we need the ISO C thread ID and POSIX thread ID to identify thread
+ * the target of creation and joining.
+ *
+ * thrd_t is "A unique object that identifies a thread." [glibc doc](https://www.gnu.org/software/libc/manual/html_node/ISO-C-Thread-Management.html).
+ *
+ * How big is it?
+ *
+ *     echo -e '#include <stdio.h>\n#include <threads.h>\nint main() { printf("%ld\\n", sizeof(thrd_t)); return 0; }' \
+ *     | gcc -Og -g -x c - && ./a.out && rm a.out
+ *     8
+ *
+ * Therefore, we will use int64_t for task_id.
+ *
+ * On the other hand, pthread is not that.
+ *
+ *        POSIX.1 allows an implementation wide freedom in choosing the type
+ *        used to represent a thread ID; for example, representation using
+ *        either an arithmetic type or a structure is permitted.  Therefore,
+ *        variables of type pthread_t can't portably be compared using the C
+ *        equality operator (==); use pthread_equal(3) instead.
+ *        --- [man pthread_self](https://www.man7.org/linux/man-pages/man3/pthread_self.3.html)
+ *
+ * We will track those by creating our own pthread identifier using an atomic
+ * counter and pthread_set/getspecific.
+ */
+
 struct WaitOp {
     enum TaskType task_type;
-    unsigned long int task_id;
+    int64_t task_id;
     int options;
     int status;
     int ferrno;
@@ -131,7 +201,7 @@ struct WaitOp {
 struct GetRUsageOp {
     pid_t waitpid_arg;
     int getrusage_arg;
-    struct rusage usage;
+    struct my_rusage usage;
     int ferrno;
 };
 

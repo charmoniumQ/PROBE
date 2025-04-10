@@ -1,29 +1,45 @@
-static void prov_log_save() {
-    /*
-     * Before I was using mmap-arena, I needed to explicitly save stuff.
-     * I am leaving this here, just in case.
-     * */
+#define _GNU_SOURCE
+
+#include "../generated/libc_hooks.h"
+#include <fcntl.h>
+#include <limits.h>
+#include <string.h>
+
+#include "arena.h"
+#include "debug_logging.h"
+#include "global_state.h"
+#include "inode_table.h"
+#include "prov_utils.h"
+#include "util.h"
+
+#include "prov_buffer.h"
+
+void prov_log_save() {
+    /* TODO: ensure we call Arena save in atexit, pthread_cleanup_push */
+    DEBUG("prov log save");
+    arena_sync(get_op_arena());
+    arena_sync(get_data_arena());
 }
 
-static void prov_log_record(struct Op op);
-
-bool is_read_op(struct Op op) {
-    return (op.op_code == open_op_code && (op.data.open.flags & O_RDONLY || op.data.open.flags & O_RDWR))
-        || op.op_code == exec_op_code
-        || op.op_code == readdir_op_code
-        || op.op_code == read_link_op_code;
+static inline bool is_read_op(struct Op op) {
+    return (op.op_code == open_op_code &&
+            (op.data.open.flags & O_RDONLY || op.data.open.flags & O_RDWR)) ||
+           op.op_code == exec_op_code || op.op_code == readdir_op_code ||
+           op.op_code == read_link_op_code;
 }
 
-bool is_mutate_op(struct Op op) {
-    return op.op_code == open_op_code && (op.data.open.flags & O_WRONLY || op.data.open.flags & O_RDWR);
+static inline bool is_mutate_op(struct Op op) {
+    return op.op_code == open_op_code &&
+           (op.data.open.flags & O_WRONLY || op.data.open.flags & O_RDWR);
 }
 
-bool is_replace_op(struct Op op) {
+static inline bool is_replace_op(struct Op op) {
     /* TODO: Double check flags here */
-    return op.op_code == open_op_code && (op.data.open.flags & O_TRUNC || op.data.open.flags & O_CREAT);
+    return op.op_code == open_op_code &&
+           (op.data.open.flags & O_TRUNC || op.data.open.flags & O_CREAT);
 }
 
-int copy_to_store(const struct Path* path) {
+static int copy_to_store(const struct Path* path) {
     static char dst_path[PATH_MAX];
     path_to_id_string(path, dst_path);
     /*
@@ -35,11 +51,12 @@ int copy_to_store(const struct Path* path) {
     int dst_dirfd = get_inodes_dirfd();
     int access = unwrapped_faccessat(dst_dirfd, dst_path, F_OK, 0);
     if (access == 0) {
-        DEBUG("Already exists %s %d", path->path, path->inode);
+        DEBUG("Already exists %s %ld", path->path, path->inode);
         return 0;
     } else {
-        DEBUG("Copying %s %d", path->path, path->inode);
-        return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, dst_dirfd, dst_path, path->size);
+        DEBUG("Copying %s %ld", path->path, path->inode);
+        return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, dst_dirfd, dst_path,
+                         path->size);
     }
 }
 
@@ -50,7 +67,8 @@ int copy_to_store(const struct Path* path) {
  * just put something random in there.
  * We promise not to read those fields in this function.
  */
-static void prov_log_try(struct Op op) {
+void prov_log_try(struct Op op) {
+    ASSERTF(FIRST_OP_CODE < op.op_code && op.op_code < LAST_OP_CODE, "%d", op.op_code);
     if (op.op_code == clone_op_code && op.data.clone.flags & CLONE_VFORK) {
         DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
     }
@@ -63,31 +81,41 @@ static void prov_log_try(struct Op op) {
         if (should_copy_files() && path->path && path->stat_valid) {
             if (should_copy_files_lazily()) {
                 if (is_read_op(op)) {
-                    DEBUG("Reading %s %d", path->path, path->inode);
-                    inode_table_put_if_not_exists(&read_inodes, path);
+                    DEBUG("Reading %s %ld", path->path, path->inode);
+                    inode_table_put_if_not_exists(get_read_inodes(), path);
                 } else if (is_mutate_op(op)) {
-                    if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
-                        DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+                    if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+                        DEBUG("Mutating, but not copying %s %ld since it is copied already or "
+                              "overwritten",
+                              path->path, path->inode);
                     } else {
-                        DEBUG("Mutating, therefore copying %s %d", path->path, path->inode);
-                        copy_to_store(path);
+                        DEBUG("Mutating, therefore copying %s %ld", path->path, path->inode);
+                        if (copy_to_store(path) != 0) {
+                            DEBUG("Copying failed");
+                        }
                     }
                 } else if (is_replace_op(op)) {
-                    if (inode_table_contains(&read_inodes, path)) {
-                        if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
-                            DEBUG("Mutating, but not copying %s %d since it is copied already or overwritten", path->path, path->inode);
+                    if (inode_table_contains(get_read_inodes(), path)) {
+                        if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(),
+                                                          path)) {
+                            DEBUG("Mutating, but not copying %s %ld since it is copied already or "
+                                  "overwritten",
+                                  path->path, path->inode);
                         } else {
-                            DEBUG("Replace after read %s %d", path->path, path->inode);
-                            copy_to_store(path);
+                            DEBUG("Replace after read %s %ld", path->path, path->inode);
+                            if (copy_to_store(path) != 0) {
+                                DEBUG("Copying failed");
+                            }
                         }
                     } else {
-                        DEBUG("Mutating, but not copying %s %d since it was never read", path->path, path->inode);
+                        DEBUG("Mutating, but not copying %s %ld since it was never read",
+                              path->path, path->inode);
                     }
                 }
             } else if (is_read_op(op) || is_mutate_op(op)) {
-                assert(should_copy_files_eagerly());
-                if (inode_table_put_if_not_exists(&copied_or_overwritten_inodes, path)) {
-                    DEBUG("Not copying %s %d because already did", path->path, path->inode);
+                ASSERTF(should_copy_files_eagerly(), "");
+                if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+                    DEBUG("Not copying %s %ld because already did", path->path, path->inode);
                 } else {
                     copy_to_store(path);
                 }
@@ -99,11 +127,24 @@ static void prov_log_try(struct Op op) {
 /*
  * Call this to indicate that the process did something (successful or not).
  */
-static void prov_log_record(struct Op op) {
+void prov_log_record(struct Op op) {
+    // TODO: construct op in op arena place instead of copying into arena.
+    ASSERTF(FIRST_OP_CODE < op.op_code && op.op_code < LAST_OP_CODE, "%d", op.op_code);
 #ifdef DEBUG_LOG
-        char str[PATH_MAX * 2];
-        op_to_human_readable(str, PATH_MAX * 2, &op);
-        DEBUG("record op: %s", str);
+    char str[PATH_MAX * 2];
+    op_to_human_readable(str, PATH_MAX * 2, &op);
+    DEBUG("recording op: %s", str);
+    if (op.op_code == exec_op_code) {
+        DEBUG("Exec:");
+        for (size_t idx = 0; idx < op.data.exec.envc; ++idx) {
+            fprintf(stderr, "'%s'\n", op.data.exec.env[idx]);
+        }
+        fprintf(stderr, "'%s' ", op.data.exec.path.path);
+        for (size_t idx = 0; idx < op.data.exec.argc; ++idx) {
+            fprintf(stderr, "'%s' ", op.data.exec.argv[idx]);
+        }
+        fprintf(stderr, "\n");
+    }
 #endif
 
     if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
@@ -133,3 +174,5 @@ static void prov_log_record(struct Op op) {
     /* arena_uninstantiate_all_but_last(get_data_arena()); */
     arena_uninstantiate_all_but_last(get_op_arena());
 }
+
+bool prov_log_is_enabled() { return true; }

@@ -358,7 +358,7 @@ pub struct OpsArena<'a> {
     ops: &'a [C_Op],
 }
 
-impl<'a> OpsArena<'a> {
+impl OpsArena<'_> {
     pub fn from_bytes(bytes: Vec<u8>, instantiation: usize) -> Result<Self> {
         let header = ArenaHeader::from_bytes(&bytes, instantiation)
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;

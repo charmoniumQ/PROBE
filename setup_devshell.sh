@@ -1,7 +1,8 @@
 # Posix SH compatible source script
 
-red='\033[0;31m'
-clr='\033[0m'
+esc=$(printf '\033')
+red="${esc}[0;31m"
+clr="${esc}[0m"
 
 project_root="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 printf "project_root = %s\n" "$project_root"
@@ -10,7 +11,7 @@ printf "project_root = %s\n" "$project_root"
 export CPATH="$project_root/libprobe/include:$CPATH"
 
 # Rust CLI uses __PROBE_LIB to find libprobe binary
-export __PROBE_LIB="$project_root/libprobe/build"
+export __PROBE_LIB="$project_root/libprobe/.build"
 
 # Ensure libprobe.so gets maked
 if [ ! -f "$__PROBE_LIB/libprobe.so" ]; then
