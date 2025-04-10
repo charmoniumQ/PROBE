@@ -230,9 +230,9 @@
                 pkgs.podman
 
                 # C tools
-                pkgs.clang
                 pkgs.clang-analyzer
-                pkgs.clang-tools
+                pkgs.clang-tools # must go after clang-analyzer
+                pkgs.clang # must go after clang-tools
                 pkgs.compiledb
                 pkgs.cppcheck
                 pkgs.cppclean

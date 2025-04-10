@@ -221,7 +221,6 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
         for (size_t i = 0; i + ((size_t) is_tail) < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
-                asm volatile("" : : "o" (arena->base_address) : "memory");
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
                 EXPECT(== 0, munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;

@@ -7,7 +7,7 @@
 # If not, then PROBE does not interfere with ASAN.
 
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -Og -g
+CFLAGS ?= -Wall -Wextra -Werror -Og -g
 
 SOURCE_FILES := $(wildcard *.c)
 

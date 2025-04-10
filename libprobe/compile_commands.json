@@ -2,9 +2,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -15,7 +15,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/arena.dbg.o",
+   ".build/src/arena.dbg.o",
    "src/arena.c"
   ],
   "file": "src/arena.c"
@@ -23,9 +23,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -36,7 +36,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/env.dbg.o",
+   ".build/src/env.dbg.o",
    "src/env.c"
   ],
   "file": "src/env.c"
@@ -44,9 +44,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -57,7 +57,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/global_state.dbg.o",
+   ".build/src/global_state.dbg.o",
    "src/global_state.c"
   ],
   "file": "src/global_state.c"
@@ -65,9 +65,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -78,7 +78,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/inode_table.dbg.o",
+   ".build/src/inode_table.dbg.o",
    "src/inode_table.c"
   ],
   "file": "src/inode_table.c"
@@ -86,9 +86,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -99,7 +99,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/lookup_on_path.dbg.o",
+   ".build/src/lookup_on_path.dbg.o",
    "src/lookup_on_path.c"
   ],
   "file": "src/lookup_on_path.c"
@@ -107,9 +107,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -120,7 +120,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/prov_buffer.dbg.o",
+   ".build/src/prov_buffer.dbg.o",
    "src/prov_buffer.c"
   ],
   "file": "src/prov_buffer.c"
@@ -128,9 +128,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -141,7 +141,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/prov_utils.dbg.o",
+   ".build/src/prov_utils.dbg.o",
    "src/prov_utils.c"
   ],
   "file": "src/prov_utils.c"
@@ -149,9 +149,9 @@
  {
   "directory": "/home/sam/box/PROBE/libprobe",
   "arguments": [
-   "musl-clang",
+   "clang",
    "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
+   "-DSOURCE_VERSION=\"76fcd85\"",
    "-fvisibility=hidden",
    "-Werror",
    "-Wall",
@@ -162,28 +162,7 @@
    "-g",
    "-fpic",
    "-o",
-   ".build//src/thread_support.dbg.o",
-   "src/thread_support.c"
-  ],
-  "file": "src/thread_support.c"
- },
- {
-  "directory": "/home/sam/box/PROBE/libprobe",
-  "arguments": [
-   "musl-clang",
-   "-c",
-   "-DSOURCE_VERSION=\"99944bc\"",
-   "-fvisibility=hidden",
-   "-Werror",
-   "-Wall",
-   "-Wextra",
-   "-Wno-unused-command-line-argument",
-   "-fstrict-aliasing",
-   "-Og",
-   "-g",
-   "-fpic",
-   "-o",
-   ".build//src/util.dbg.o",
+   ".build/src/util.dbg.o",
    "src/util.c"
   ],
   "file": "src/util.c"

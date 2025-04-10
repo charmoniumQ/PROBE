@@ -1,5 +1,12 @@
 CC ?= clang
-CFLAGS := $(CFLAGS) -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" -fvisibility=hidden -Werror -Wall -Wextra -Wno-unused-command-line-argument -fstrict-aliasing
+CFLAGS := \
+    $(CFLAGS) \
+    -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" \
+    -fvisibility=hidden \
+    -Werror \
+    -Wall -Wextra \
+    -Wno-unused-command-line-argument \
+    -fstrict-aliasing
 DBGCFLAGS := -Og -g       -fpic
 OPTCFLAGS := -O3 -DNDEBUG -fPIC
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
@@ -7,7 +14,7 @@ GENERATED_HEADER_FILES := generated/libc_hooks.h
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
 SOURCE_FILES := $(wildcard src/*.c) $(GENERATED_SOURCE_FILES)
 HEADER_FILES := $(wildcard src/*.h) $(GENERATED_HEADER_FILES) $(wildcard include/libprobe/*.h)
-BUILD_DIR := .build/
+BUILD_DIR := .build
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all

@@ -465,9 +465,8 @@ __attribute__((visibility("default"))) ssize_t readlinkat(int dirfd, const char 
 /*
  * There is some bug with pycparser unable to parse inline funciton pointers.
  * So we will use a typedef alias.
- * */
+ */
 typedef int (*fn_ptr_int_void_ptr)(void*);
-
 typedef int (*ftw_func)(const char *, const struct stat *, int);
 typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 
@@ -485,12 +484,6 @@ typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 #define __PROBE_L_tmpnam L_tmpnam
 #else
 #error "Can't detect glibc nor musl; don't know how to define tmpnam(...)"
-#endif
-
-#ifndef dirent64
-// Glibc defines dirent64
-// In Musl, dirent == dirent64, and dirent64 is only defined if you write _LARGEFILE64_SOURCE
-#define dirent64 dirent
 #endif
 
 void init_function_pointers();
@@ -525,7 +518,7 @@ defines = """
  * so we use some macros instead.
  * To pycparser, these macros are defined as variable names (parsable as arguments).
  * To GCC these macros are defined as type names.
- * */
+ */
 typedef mode_t __type_mode_t;
 typedef char* __type_charp;
 typedef char** __type_charpp;
@@ -543,6 +536,8 @@ typedef void* __type_voidp;
 #endif
 #endif
 
+// Clang and GCC disagree on how to construct this struct inline.
+// So I will construct it not inline, here.
 struct my_rusage null_usage = {0};
 """
 
