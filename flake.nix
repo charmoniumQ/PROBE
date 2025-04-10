@@ -77,10 +77,23 @@
             src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
             buildInputs = [
+              pkgs.git
+              pkgs.compiledb
               (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
             ];
+            nativeCheckInputs = [
+              pkgs.clang-analyzer
+              pkgs.clang-tools
+              pkgs.clang
+              pkgs.compiledb
+              pkgs.cppcheck
+              pkgs.cppclean
+            ];
+            checkPhase = ''
+              make check
+            '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
             pname = "probe";
@@ -237,6 +250,7 @@
                 pkgs.cppcheck
                 pkgs.cppclean
                 pkgs.gnumake
+                pkgs.git
 
                 pkgs.which
                 pkgs.coreutils
