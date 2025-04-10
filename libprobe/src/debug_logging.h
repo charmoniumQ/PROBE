@@ -25,7 +25,12 @@
 #define DEBUG(...)
 #endif
 
-#define ERROR(str, ...) ({ LOG("ERROR " str " (errno=%d %s: %s)", ##__VA_ARGS__, errno, strerrorname_np(errno), strerrordesc_np(errno)); exit(1); })
+#define ERROR(str, ...) ({ \
+    char* errno_str = strndup(strerror(errno), 4096); \
+    LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str); \
+    free(errno_str); \
+    exit(1); \
+})
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
 #ifndef NDEBUG

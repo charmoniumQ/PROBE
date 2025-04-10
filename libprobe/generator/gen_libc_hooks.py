@@ -471,6 +471,28 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 typedef int (*ftw_func)(const char *, const struct stat *, int);
 typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 
+/*
+ * Smooth out differences between GCC vs Clang and Musl vs Glibc.
+ * Best to feature test than test for compiler/libc, but sometimes feature testing is not possible in the preprocessor.
+ */
+
+// Musl defines tmpnam(char*)
+// Glibc defines tmpnam(char[L_tmpnam])
+// We use tmpnam(char[L_tmpnam]) and let this macro handle the difference
+#ifdef __MUSL__
+#define __PROBE_L_tmpnam
+#elif __USE_GNU
+#define __PROBE_L_tmpnam L_tmpnam
+#else
+#error "Can't detect glibc nor musl; don't know how to define tmpnam(...)"
+#endif
+
+#ifndef dirent64
+// Glibc defines dirent64
+// In Musl, dirent == dirent64, and dirent64 is only defined if you write _LARGEFILE64_SOURCE
+#define dirent64 dirent
+#endif
+
 void init_function_pointers();
 """
 (generated / "libc_hooks.h").write_text(
@@ -509,6 +531,19 @@ typedef char* __type_charp;
 typedef char** __type_charpp;
 typedef int __type_int;
 typedef void* __type_voidp;
+
+/*
+ * Smooth out differences between GCC and Clang
+ */
+#ifndef O_TMPFILE
+#ifndef __O_TMPFILE
+#error "Neither O_TMPFILE nor __O_TMPFILE are defined"
+#else
+#define O_TMPFILE __O_TMPFILE
+#endif
+#endif
+
+struct my_rusage null_usage = {0};
 """
 
 (generated / "libc_hooks.c").write_text(

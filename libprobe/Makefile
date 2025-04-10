@@ -1,5 +1,5 @@
 CC ?= clang
-CFLAGS := $(CFLAGS) -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" -fvisibility=hidden -Werror -Wall -Wextra
+CFLAGS := $(CFLAGS) -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" -fvisibility=hidden -Werror -Wall -Wextra -Wno-unused-command-line-argument -fstrict-aliasing
 DBGCFLAGS := -Og -g       -fpic
 OPTCFLAGS := -O3 -DNDEBUG -fPIC
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
@@ -9,7 +9,7 @@ SOURCE_FILES := $(wildcard src/*.c) $(GENERATED_SOURCE_FILES)
 HEADER_FILES := $(wildcard src/*.h) $(GENERATED_HEADER_FILES) $(wildcard include/libprobe/*.h)
 BUILD_DIR := .build/
 
-all: $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so compile_commands.json
+all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
@@ -32,7 +32,10 @@ $(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
 
 compile_commands.json: $(MAKEFILE_LIST)
 	$(MAKE) clean
-	bear -- $(MAKE) $(BUILD_DIR)/libprobe.dbg.so
+	$(MAKE) $(BUILD_DIR)/libprobe.dbg.so --dry-run | compiledb
+# compiledb is better than bear.
+# For bear, you have to actually run the compile.
+# For compiledb, you can just dry-run.
 
 $(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 	nm --dynamic .build/libprobe.dbg.so | grep ' U ' | sed 's/  */ /g' | cut --delim=' ' --fields=3 > $(BUILD_DIR)/undefined_symbols.txt

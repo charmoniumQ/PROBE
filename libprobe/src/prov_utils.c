@@ -72,7 +72,8 @@ void path_to_id_string(const struct Path* path, BORROWED char* string) {
         path->device_major,
         path->device_minor,
         path->inode,
-        path->mtime.tv_sec,
+        /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
+        (long long int) path->mtime.tv_sec,
         path->mtime.tv_nsec,
         path->size);
 }

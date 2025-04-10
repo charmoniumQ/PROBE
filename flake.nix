@@ -230,13 +230,13 @@
                 pkgs.podman
 
                 # C tools
-                pkgs.clang-analyzer
-                pkgs.gnumake
-                pkgs.cppcheck
-                pkgs.clang-tools
                 pkgs.clang
-                pkgs.bear
+                pkgs.clang-analyzer
+                pkgs.clang-tools
+                pkgs.compiledb
+                pkgs.cppcheck
                 pkgs.cppclean
+                pkgs.gnumake
 
                 pkgs.which
                 pkgs.coreutils

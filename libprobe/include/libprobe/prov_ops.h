@@ -110,7 +110,7 @@ struct CloneOp {
     int flags;
     bool run_pthread_atfork_handlers;
     enum TaskType task_type;
-    unsigned long int task_id;
+    int64_t task_id;
     int ferrno;
 };
 
@@ -158,9 +158,41 @@ struct ReaddirOp {
     int ferrno;
 };
 
+/*
+ * There are user threads (ISO C threads and POSIX threads) and hardware threads (clone/wait4).
+ *
+ * Hardware thread ID is most relevant for ordering synchronization ops. E.g.,
+ * when we hit a mutex, we should record which thread/op we are.
+ *
+ * However, we need the ISO C thread ID and POSIX thread ID to identify thread
+ * the target of creation and joining.
+ *
+ * thrd_t is "A unique object that identifies a thread." [glibc doc](https://www.gnu.org/software/libc/manual/html_node/ISO-C-Thread-Management.html).
+ *
+ * How big is it?
+ *
+ *     echo -e '#include <stdio.h>\n#include <threads.h>\nint main() { printf("%ld\\n", sizeof(thrd_t)); return 0; }' \
+ *     | gcc -Og -g -x c - && ./a.out && rm a.out
+ *     8
+ *
+ * Therefore, we will use int64_t for task_id.
+ *
+ * On the other hand, pthread is not that.
+ *
+ *        POSIX.1 allows an implementation wide freedom in choosing the type
+ *        used to represent a thread ID; for example, representation using
+ *        either an arithmetic type or a structure is permitted.  Therefore,
+ *        variables of type pthread_t can't portably be compared using the C
+ *        equality operator (==); use pthread_equal(3) instead.
+ *        --- [man pthread_self](https://www.man7.org/linux/man-pages/man3/pthread_self.3.html)
+ *
+ * We will track those by creating our own pthread identifier using an atomic
+ * counter and pthread_set/getspecific.
+ */
+
 struct WaitOp {
     enum TaskType task_type;
-    unsigned long int task_id;
+    int64_t task_id;
     int options;
     int status;
     int ferrno;

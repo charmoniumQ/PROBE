@@ -2,6 +2,12 @@
 
 #define _GNU_SOURCE
 
+// https://stackoverflow.com/a/78062291/1078199
+#include <features.h>
+#ifndef __USE_GNU
+#define __MUSL__
+#endif
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdbool.h>

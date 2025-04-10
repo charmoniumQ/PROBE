@@ -28,6 +28,7 @@ typedef void* idtype;
 typedef void* id_t;
 typedef void* siginfo_t;
 typedef int bool;
+typedef int int64_t;
 struct stat;
 struct utimebuf;
 typedef void* OpCode;
@@ -163,7 +164,7 @@ int fcloseall(void) {
 /* Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html */
 int openat(int dirfd, const char *filename, int flags, ...) {
     void* pre_call = ({
-        bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
+        bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & O_TMPFILE) == O_TMPFILE;
         mode_t mode = 0;
         struct Op op = {
             open_op_code,
@@ -206,7 +207,7 @@ fn openat64 = openat;
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open (const char *filename, int flags, ...) {
     void* pre_call = ({
-        bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & __O_TMPFILE) == __O_TMPFILE;
+        bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & O_TMPFILE) == O_TMPFILE;
         mode_t mode = 0;
         struct Op op = {
             open_op_code,
@@ -1978,8 +1979,8 @@ int mknod (const char *filename, mode_t mode, dev_t dev) { }
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Temporary-Files.html */
 FILE * tmpfile (void) { }
 FILE * tmpfile64 (void) { }
-char * tmpnam (char c[L_tmpnam]) { }
-char * tmpnam_r (char c[L_tmpnam]) { }
+char * tmpnam (char c[__PROBE_L_tmpnam]) { }
+char * tmpnam_r (char c[__PROBE_L_tmpnam]) { }
 char * tempnam (const char *dir, const char *prefix) { }
 char * mktemp (char *template) { }
 int mkstemp (char *template) { }
@@ -2424,7 +2425,7 @@ pid_t _Fork (void) {
                 .flags = 0,
                 .run_pthread_atfork_handlers = false,
                 .task_type = TASK_PID,
-                .task_id = 0,
+                .task_id = -1,
                 .ferrno = 0,
             }},
             {0},
@@ -2496,7 +2497,7 @@ pid_t vfork (void) {
                 .flags = 0,
                 .run_pthread_atfork_handlers = true,
                 .task_type = TASK_PID,
-                .task_id = 0,
+                .task_id = -1,
                 .ferrno = 0,
             }},
             {0},
@@ -2566,7 +2567,7 @@ int clone(
                 .flags = flags,
                 .run_pthread_atfork_handlers = false,
                 .task_type = (flags & CLONE_THREAD) ? TASK_TID : TASK_PID,
-                .task_id = 0,
+                .task_id = -1,
                 .ferrno = 0,
             }},
             {0},
@@ -2621,7 +2622,7 @@ pid_t waitpid (pid_t pid, int *status_ptr, int options) {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_PID,
-                .task_id = 0,
+                .task_id = -1,
                 .options = options,
                 .status = 0,
                 .ferrno = 0,
@@ -2683,7 +2684,7 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_TID,
-                .task_id = 0,
+                .task_id = -1,
                 .options = options,
                 .status = 0,
                 .ferrno = 0,
@@ -2698,7 +2699,7 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
             {.getrusage = {
                 .waitpid_arg = pid,
                 .getrusage_arg = 0,
-                .usage = {0},
+                .usage = null_usage,
                 .ferrno = 0,
             }},
             {0},
@@ -2738,7 +2739,7 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_PID,
-                .task_id = 0,
+                .task_id = -1,
                 .options = options,
                 .status = 0,
                 .ferrno = 0,
@@ -2753,7 +2754,7 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
             {.getrusage = {
                 .waitpid_arg = -1,
                 .getrusage_arg = 0,
-                .usage = {0},
+                .usage = null_usage,
                 .ferrno = 0,
             }},
             {0},
@@ -2793,7 +2794,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_TID,
-                .task_id = 0,
+                .task_id = -1,
                 .options = options,
                 .status = 0,
                 .ferrno = 0,
@@ -2825,7 +2826,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
             {.clone = {
                 .flags = CLONE_FILES | CLONE_FS | CLONE_IO | CLONE_PARENT | CLONE_SIGHAND | CLONE_THREAD | CLONE_VM,
                 .task_type = TASK_ISO_C_THREAD,
-                .task_id = 0,
+                .task_id = -1,
                 .run_pthread_atfork_handlers = false,
                 .ferrno = 0,
             }},
@@ -2844,7 +2845,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
         } else {
             /* Success; parent */
             if (LIKELY(prov_log_is_enabled())) {
-                op.data.clone.task_id = ret;
+                op.data.clone.task_id = *((int64_t*)thr);
                 prov_log_record(op);
             }
         }
@@ -2852,12 +2853,14 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
 }
 
 int thrd_join (thrd_t thr, int *res) {
-    void* pre_call = ({
+    void *pre_call = ({
+        int64_t thread_id = 0;
+        memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
         struct Op op = {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_ISO_C_THREAD,
-                .task_id = thr,
+                .task_id = thread_id,
                 .options = 0,
                 .status = 0,
                 .ferrno = 0,
@@ -2895,7 +2898,7 @@ int pthread_create(pthread_t *restrict thread,
             {.clone = {
                 .flags = CLONE_FILES | CLONE_FS | CLONE_IO | CLONE_PARENT | CLONE_SIGHAND | CLONE_THREAD | CLONE_VM,
                 .task_type = TASK_PTHREAD,
-                .task_id = 0,
+                .task_id = -1,
                 .run_pthread_atfork_handlers = false,
                 .ferrno = 0,
             }},
@@ -2914,7 +2917,7 @@ int pthread_create(pthread_t *restrict thread,
         } else {
             /* Success; parent */
             if (LIKELY(prov_log_is_enabled())) {
-                op.data.clone.task_id = *thread;
+                op.data.clone.task_id = *((int64_t*)thread);
                 prov_log_record(op);
             }
         }
@@ -2922,12 +2925,14 @@ int pthread_create(pthread_t *restrict thread,
 }
 
 int pthread_join(pthread_t thread, void **retval) {
-    void* pre_call = ({
+  void *pre_call = ({
+        int64_t thread_id = 0;
+        memcpy(&thread_id, &thread, sizeof(pthread_t)); /* Avoid type punning! */
         struct Op op = {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_PTHREAD,
-                .task_id = thread,
+                .task_id = thread_id,
                 .options = 0,
                 .status = 0,
                 .ferrno = 0,
