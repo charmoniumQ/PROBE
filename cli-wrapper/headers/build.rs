@@ -18,7 +18,6 @@ fn main() {
 
 #define LD_PRELOAD_VAR \"LD_PRELOAD\"
 #define PROBE_DIR_VAR \"PROBE_DIR\"
-#define PROBE_COPY_FILES_VAR \"PROBE_COPY_FILES\"
 #define PIDS_SUBDIR \"pids\"
 #define CONTEXT_SUBDIR \"context\"
 #define INODES_SUBDIR \"inodes\"
@@ -36,5 +35,5 @@ fn main() {
         .include_item("ProcessContext")
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file(out_file);
+        .write_to_file(std::env::var_os("CBINDGEN_OUTFILE").expect("Must define CBINDGEN_OUTFILE"));
 }

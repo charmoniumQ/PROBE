@@ -145,26 +145,29 @@ impl Recorder {
 
         let record_dir = tempfile::TempDir::new()?;
 
-        let copy_files_string = match self.copy_files {
-            probe_headers::CopyFiles::Lazily => "lazy",
-            probe_headers::CopyFiles::Eagerly => "eager",
-            probe_headers::CopyFiles::None => "",
-        };
-
         /* We start `probe __exec $cmd` instead of `$cmd`
          * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
          * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
          * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
          * Since the root process has special quirks, it should not be user's `$cmd`.
          * */
+        fs::create_dir(record_dir.path().join(probe_headers::PIDS_SUBDIR))?;
+        fs::create_dir(record_dir.path().join(probe_headers::CONTEXT_SUBDIR))?;
+        fs::create_dir(record_dir.path().join(probe_headers::INODES_SUBDIR))?;
+
+        let ptc = probe_headers::ProcessTreeContext {
+            libprobe_path: probe_headers::FixedPath::from_path_ref(libprobe_path),
+            copy_files: self.copy_files,
+        };
+        fs::write(
+            record_dir
+                .path()
+                .join(probe_headers::PROCESS_TREE_CONTEXT_FILE),
+            probe_headers::object_to_bytes(&ptc),
+        )?;
+
         let mut child = if self.gdb {
             std::process::Command::new("gdb")
-                .arg(concat_osstrings([
-                    OsString::from("--init-eval-command=set environment "),
-                    OsString::from(probe_headers::PROBE_DIR_VAR),
-                    OsString::from("="),
-                    OsString::from(&record_dir.path()),
-                ]))
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
                     OsString::from(probe_headers::LD_PRELOAD_VAR),
@@ -173,9 +176,9 @@ impl Recorder {
                 ]))
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
-                    OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
+                    OsString::from(probe_headers::PROBE_DIR_VAR),
                     OsString::from("="),
-                    OsString::from(copy_files_string),
+                    record_dir.path().into(),
                 ]))
                 .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
@@ -188,13 +191,11 @@ impl Recorder {
             std::process::Command::new(self_bin)
                 .arg("__exec")
                 .args(self.cmd)
-                .env(probe_headers::PROBE_COPY_FILES_VAR, copy_files_string)
+                .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
                 .env(
                     probe_headers::PROBE_DIR_VAR,
-                    OsString::from(record_dir.path()),
+                    OsString::from(&record_dir.path()),
                 )
-                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
-                .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
                 .spawn()
                 .wrap_err("Failed to launch child process")?
         };

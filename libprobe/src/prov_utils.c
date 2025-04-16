@@ -306,7 +306,6 @@ void do_init_ops(bool was_epoch_initted) {
                      {
                          .parent_pid = getppid(),
                          .pid = getpid(),
-                         .is_root = is_proc_root(),
                          .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
                      }},
                 {0},

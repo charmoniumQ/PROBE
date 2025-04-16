@@ -2,13 +2,18 @@
 
 #define _GNU_SOURCE
 
+#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
+
+#include "../generated/bindings.h"
 
 struct ArenaListElem;
 
 struct ArenaDir {
-    int __dirfd;
+    char* __dir_buffer;
+    size_t __dir_len;
+    size_t __dir_buffer_max;
     struct ArenaListElem* __tail;
     size_t __next_instantiation;
 };
@@ -34,9 +39,9 @@ __attribute__((visibility("hidden"))) void* arena_strndup(struct ArenaDir* arena
  * Implicitly, the pointer *is* read when the mmap gets synced and closed, despite not having a direct "use" of the pointer returned by arena_calloc.
  * */
 
-__attribute__((visibility("hidden"))) void arena_create(struct ArenaDir* arena_dir,
-                                                        int parent_dirfd, char* name,
-                                                        size_t capacity) __attribute__((nonnull));
+__attribute__((visibility("hidden"))) void
+arena_create(struct ArenaDir* arena_dir, char* dir_buffer, size_t dir_len, size_t dir_buffer_max,
+             size_t arena_capacity) __attribute__((nonnull));
 
 /*
  * Client MUST call arena_destroy or arena_sync for the changes to be saved
