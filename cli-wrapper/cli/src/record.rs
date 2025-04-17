@@ -203,6 +203,7 @@ impl Recorder {
                 .arg("__exec")
                 .args(self.cmd)
                 .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
+                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
                 .env(
                     probe_headers::PROBE_DIR_VAR,
                     OsString::from(&record_dir.path()),
