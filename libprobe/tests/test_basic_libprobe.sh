@@ -19,19 +19,19 @@ nm --dynamic --defined-only "$libprobe"
 
 nm --dynamic --undefined-only "$libprobe"
 
-export __PROBE_DIR=/tmp/probe/test
-if [ -e "$__PROBE_DIR" ]; then
-    rm --recursive --force "$__PROBE_DIR"
+export PROBE_DIR=/tmp/probe/test
+if [ -e "$PROBE_DIR" ]; then
+    rm --recursive --force "$PROBE_DIR"
 fi
-mkdir --parents "$__PROBE_DIR"
+mkdir --parents "$PROBE_DIR"
 
 exe="$proj_root/tests/examples/simple.exe"
 args="$proj_root/README.md"
 
 LD_DEBUG=all LD_PRELOAD=$libprobe "$exe" $args
 
-rm --recursive --force "$__PROBE_DIR"
-mkdir --parents "$__PROBE_DIR"
+rm --recursive --force "$PROBE_DIR"
+mkdir --parents "$PROBE_DIR"
 libprobe="$(dirname "$libprobe")/libprobe.so"
 
 LD_PRELOAD=$libprobe "$exe" $args

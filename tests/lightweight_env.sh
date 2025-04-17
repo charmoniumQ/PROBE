@@ -8,4 +8,4 @@ project_root="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")"
 
 path="$project_root/cli-wrapper/target/release"
 
-env - __PROBE_LIB="$__PROBE_LIB" PATH="$path" "${@}"
+env - PROBE_LIB="$PROBE_LIB" PATH="$path" "${@}"

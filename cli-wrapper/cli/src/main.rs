@@ -19,7 +19,7 @@ mod util;
 
 fn inner_main() -> Result<ExitStatus> {
     color_eyre::install()?;
-    env_logger::Builder::from_env(env_logger::Env::new().filter_or("__PROBE_LOG", "warn")).init();
+    env_logger::Builder::from_env(env_logger::Env::new().filter_or("PROBE_LOG", "warn")).init();
     log::debug!("Logger initialized");
 
     let matches = command!()
