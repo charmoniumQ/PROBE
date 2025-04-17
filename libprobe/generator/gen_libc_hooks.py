@@ -5,6 +5,7 @@ import dataclasses
 import pycparser  # type: ignore
 import pycparser.c_generator  # type: ignore
 import typing
+import itertools
 import pathlib
 
 
@@ -311,20 +312,39 @@ init_function_pointers = ParsedFunc(
     return_type=TypeDecl(declname="a", quals=[], align=None, type=void),
     variadic=False,
     stmts=[
-        Assignment(
-            op='=',
-            lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
-            rvalue=pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID(name="dlsym"),
-                args=pycparser.c_ast.ExprList(
-                    exprs=[
-                        pycparser.c_ast.ID(name="RTLD_NEXT"),
-                        pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
-                    ],
+        *itertools.chain.from_iterable([
+            [
+                Assignment(
+                    op='=',
+                    lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
+                    rvalue=pycparser.c_ast.FuncCall(
+                        name=pycparser.c_ast.ID(name="dlsym"),
+                        args=pycparser.c_ast.ExprList(
+                            exprs=[
+                                pycparser.c_ast.ID(name="RTLD_NEXT"),
+                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
+                            ],
+                        ),
+                    ),
                 ),
-            ),
-        )
-        for func_name, func in funcs.items()
+                pycparser.c_ast.If(
+                    cond=pycparser.c_ast.UnaryOp(
+                        op="!",
+                        expr=pycparser.c_ast.ID(name=func_prefix + func_name),
+                    ),
+                    iftrue=pycparser.c_ast.FuncCall(
+                        name=pycparser.c_ast.ID("DEBUG"),
+                        args=pycparser.c_ast.ExprList(
+                            exprs=[
+                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '(...) not found"'),
+                            ],
+                        ),
+                    ),
+                    iffalse=None,
+                ),
+            ]
+            for func_name, func in funcs.items()
+        ]),
     ],
 ).definition()
 
@@ -362,12 +382,12 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             name=pycparser.c_ast.ID(name="ensure_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
-        # pycparser.c_ast.FuncCall(
-        #     name=pycparser.c_ast.ID(name="DEBUG"),
-        #     args=pycparser.c_ast.ExprList(exprs=[
-        #         pycparser.c_ast.Constant(type="string", value='"' + func.name + '(...)"'),
-        #     ]),
-        # ),
+        pycparser.c_ast.FuncCall(
+            name=pycparser.c_ast.ID(name="DEBUG"),
+            args=pycparser.c_ast.ExprList(exprs=[
+                pycparser.c_ast.Constant(type="string", value='"Interposed call"'),
+            ]),
+        ),
     ]
     post_call_stmts = []
 
@@ -494,6 +514,12 @@ typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 #define __PROBE_L_tmpnam L_tmpnam
 #else
 #error "Can't detect glibc nor musl; don't know how to define tmpnam(...)"
+#endif
+
+// On Glibc, struct dirent is 32-bit, with macros switch it to 64-bit or add new struct dirent64
+// On Musl, struct dirent is 64-bit
+#ifdef __MUSL__
+#define dirent64 dirent
 #endif
 
 void init_function_pointers();

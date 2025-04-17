@@ -1,7 +1,8 @@
 CC ?= clang
+VERSION ?= $(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
-    -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" \
+    -DSOURCE_VERSION=\"$(VERSION)\" \
     -fvisibility=hidden \
     -Werror \
     -Wall -Wextra \

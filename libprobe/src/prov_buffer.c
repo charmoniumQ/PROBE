@@ -136,9 +136,11 @@ void prov_log_record(struct Op op) {
     DEBUG("recording op: %s", str);
     if (op.op_code == exec_op_code) {
         DEBUG("Exec:");
+        /*
         for (size_t idx = 0; idx < op.data.exec.envc; ++idx) {
             fprintf(stderr, "'%s'\n", op.data.exec.env[idx]);
         }
+        */
         fprintf(stderr, "'%s' ", op.data.exec.path.path);
         for (size_t idx = 0; idx < op.data.exec.argc; ++idx) {
             fprintf(stderr, "'%s' ", op.data.exec.argv[idx]);

@@ -23,23 +23,24 @@ bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
      *
      * -- https://man7.org/linux/man-pages/man3/exec.3.html
     */
-    char* path = strndup(env_path ? env_path : get_default_path(), sysconf(_SC_ARG_MAX));
+    const char* path = env_path ? env_path : get_default_path();
 
-    DEBUG("looking up \"%s\" on $PATH=\"%.50s...\"", bin_name, path);
-
-    char* saveptr = NULL;
-    const char* delim = ":";
-    char* path_seg;
-    path_seg = strtok_r(path, delim, &saveptr);
-    while (path_seg) {
-        path_join(bin_path, -1, path_seg, bin_name_length, bin_name);
-        int access_ret = unwrapped_faccessat(AT_FDCWD, bin_path, X_OK, 0);
-        if (access_ret == 0) {
-            free(path);
-            return true;
+    DEBUG("Looking for \"%s\" on $PATH=\"%.50s...\"", bin_name, path);
+    while (*path != '\0') {
+        const char* part = path;
+        size_t size = 0;
+        for (; *path != '\0' && *path != ':'; ++path, ++size)
+            ;
+        if (size > 0) {
+            path_join(bin_path, size, part, bin_name_length, bin_name);
+            int access_ret = unwrapped_faccessat(AT_FDCWD, bin_path, X_OK, 0);
+            if (access_ret == 0) {
+                DEBUG("Found \"%s\"", bin_path);
+                return true;
+            }
         }
-        path_seg = strtok_r(NULL, delim, &saveptr);
+        path++;
     }
-    free(path);
+    DEBUG("None found");
     return false;
 }

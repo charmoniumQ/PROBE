@@ -608,39 +608,6 @@ struct dirent * readdir (DIR *dirstream) {
         }
     });
 }
-int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
-    void* pre_call = ({
-        int fd = dirfd(dirstream);
-        struct Op op = {
-            readdir_op_code,
-            {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
-                .child = NULL,
-                .all_children = false,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (*result == NULL) {
-                op.data.readdir.ferrno = saved_errno;
-            } else {
-                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
-                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
-                 * */
-                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
-            }
-            prov_log_record(op);
-        }
-    });
-}
 struct dirent64 * readdir64 (DIR *dirstream) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
@@ -669,6 +636,40 @@ struct dirent64 * readdir64 (DIR *dirstream) {
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
+            }
+            prov_log_record(op);
+        }
+    });
+}
+
+int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
+    void* pre_call = ({
+        int fd = dirfd(dirstream);
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .child = NULL,
+                .all_children = false,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (LIKELY(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            if (*result == NULL) {
+                op.data.readdir.ferrno = saved_errno;
+            } else {
+                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
+                 * */
+                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
             }
             prov_log_record(op);
         }
@@ -707,6 +708,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
         }
     });
 }
+
 int closedir (DIR *dirstream) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
@@ -1978,7 +1980,7 @@ int mknod (const char *filename, mode_t mode, dev_t dev) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Temporary-Files.html */
 FILE * tmpfile (void) { }
-FILE * tmpfile64 (void) { }
+fn tmpfile64 = tmpfile;
 char * tmpnam (char c[__PROBE_L_tmpnam]) { }
 char * tmpnam_r (char c[__PROBE_L_tmpnam]) { }
 char * tempnam (const char *dir, const char *prefix) { }
@@ -1993,7 +1995,8 @@ int execv (const char *filename, char *const argv[]) {
         size_t argc = 0;
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char* const* updated_env = update_env_with_probe_vars(environ, &envc);
+        /* TODO: Avoid this copy */
         char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
@@ -2957,6 +2960,11 @@ int pthread_join(pthread_t thread, void **retval) {
         }
    });
 }
+
+
+void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
+/* TODO: interpose munmap. see ../src/global_state.c, ../src/arena.c */
+/* int munmap(void* addr, size_t length) { } */
 
 /* void exit (int status) { */
 /*     void* pre_call = ({ */
