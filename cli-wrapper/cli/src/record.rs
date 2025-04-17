@@ -151,19 +151,25 @@ impl Recorder {
             probe_headers::CopyFiles::None => "",
         };
 
+        /* We start `probe __exec $cmd` instead of `$cmd`
+         * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
+         * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
+         * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
+         * Since the root process has special quirks, it should not be user's `$cmd`.
+         * */
         let mut child = if self.gdb {
             std::process::Command::new("gdb")
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
-                    OsString::from(probe_headers::LD_PRELOAD_VAR),
+                    OsString::from(probe_headers::PROBE_DIR_VAR),
                     OsString::from("="),
-                    ld_preload.clone(),
+                    OsString::from(&record_dir.path()),
                 ]))
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
-                    OsString::from(probe_headers::PROBE_DIR_VAR),
+                    OsString::from(probe_headers::LD_PRELOAD_VAR),
                     OsString::from("="),
-                    record_dir.path().into(),
+                    ld_preload,
                 ]))
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
@@ -179,12 +185,6 @@ impl Recorder {
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            /* We start `probe __exec $cmd` instead of `$cmd`
-             * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
-             * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
-             * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
-             * Since the root process has special quirks, it should not be user's `$cmd`.
-             * */
             std::process::Command::new(self_bin)
                 .arg("__exec")
                 .args(self.cmd)
