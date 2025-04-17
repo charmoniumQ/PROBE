@@ -301,7 +301,7 @@ def ssh(
 
     ssh_cmd = ["ssh"] + flags
 
-    libprobe = pathlib.Path(os.environ["__PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
+    libprobe = pathlib.Path(os.environ["PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
     if not libprobe.exists():
         typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
         raise typer.Abort()
@@ -343,10 +343,10 @@ def ssh(
 
     subprocess.run(scp_cmd,check=True)
 
-    # Prepare the remote command with LD_PRELOAD and __PROBE_DIR
+    # Prepare the remote command with LD_PRELOAD and PROBE_DIR
     ld_preload = f"{remote_temp_dir}/{libprobe.name}"
 
-    env = ["env", f"LD_PRELOAD={ld_preload}", f"__PROBE_DIR={remote_probe_dir}"]
+    env = ["env", f"LD_PRELOAD={ld_preload}", f"PROBE_DIR={remote_probe_dir}"]
     proc = subprocess.run(ssh_cmd + [destination] + env + remote_host)
 
     # Download the provenance log from the remote machine
