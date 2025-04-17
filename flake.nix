@@ -83,6 +83,12 @@
                 pypkgs.pycparser
               ]))
             ];
+            postUnpack = ''
+              echo $src $sourceRoot $PWD
+              mkdir $sourceRoot/generated
+              cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
+            '';
+            VERSION = version;
             nativeCheckInputs = [
               pkgs.clang-analyzer
               pkgs.clang-tools
@@ -106,7 +112,7 @@
               makeWrapper \
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
-                --set __PROBE_LIB ${libprobe}/lib \
+                --set PROBE_LIB ${libprobe}/lib \
                 --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
@@ -258,7 +264,6 @@
                 pkgs.alejandra
                 pkgs.just
                 pkgs.ruff
-                pkgs.cachix
               ]
               # OpenJDK doesn't build on some platforms
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow

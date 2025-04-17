@@ -129,7 +129,7 @@ impl Recorder {
     /// was recorded into
     pub fn record(self) -> Result<(ExitStatus, Dir)> {
         // reading and canonicalizing path to libprobe
-        let mut libprobe = fs::canonicalize(match std::env::var_os("__PROBE_LIB") {
+        let mut libprobe = fs::canonicalize(match std::env::var_os("PROBE_LIB") {
             Some(x) => PathBuf::from(x),
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
@@ -153,64 +153,57 @@ impl Recorder {
         let self_bin =
             std::env::current_exe().wrap_err("Failed to get path to current executable")?;
 
-        let mut child = if self.gdb {
-            let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");
-            dir_env.push(self.output.path());
-            let mut preload_env = OsString::from("--init-eval-command=set environment LD_PRELOAD=");
-            preload_env.push(ld_preload);
-            let mut copy_files_env =
-                OsString::from("--init-eval-command=set environment __PROBE_COPY_FILES=");
-            if self.copy_files_lazily {
-                copy_files_env.push("lazy");
-            } else if self.copy_files_eagerly {
-                copy_files_env.push("eager")
-            }
-            /* Yes, "set environment a=" will work to set a to null value
-             * in the case where neither copy_file_* option is activated
-             *
-             *   gdb '--init-eval-command=set environment abcdef=' env -eval-command run -eval-command quit \
-             *     | grep abcdef
-             *
-             * */
+        let copy_files_string = if self.copy_files_lazily {
+            "lazy"
+        } else if self.copy_files_eagerly {
+            "eager"
+        } else {
+            ""
+        };
 
+        /* We start `probe __exec $cmd` instead of `$cmd`
+         * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
+         * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
+         * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
+         * Since the root process has special quirks, it should not be user's `$cmd`.
+         * */
+        let mut child = if self.gdb {
             std::process::Command::new("gdb")
-                .arg(dir_env)
-                .arg(preload_env)
-                .arg(copy_files_env)
+                .arg(concat_osstrings([
+                    OsString::from("--init-eval-command=set environment "),
+                    OsString::from(probe_headers::PROBE_DIR_VAR),
+                    OsString::from("="),
+                    OsString::from(&self.output.path()),
+                ]))
+                .arg(concat_osstrings([
+                    OsString::from("--init-eval-command=set environment "),
+                    OsString::from(probe_headers::LD_PRELOAD_VAR),
+                    OsString::from("="),
+                    ld_preload,
+                ]))
+                .arg(concat_osstrings([
+                    OsString::from("--init-eval-command=set environment "),
+                    OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
+                    OsString::from("="),
+                    OsString::from(copy_files_string),
+                ]))
                 .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__exec")
                 .args(&self.cmd)
-                .env_remove("__PROBE_LIB")
-                .env_remove("__PROBE_LOG")
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            /* We start `probe __exec $cmd` instead of `$cmd`
-             * This is because PROBE is not able to capture the arguments of the very first process, but it does capture the arguments of any subsequent exec(...).
-             * Therefore, the "root process" is env, and the user's $cmd is exec(...)-ed.
-             * We could change this by adding argv and environ to InitProcessOp, but I think this solution is more elegant.
-             * Since the root process has special quirks, it should not be user's `$cmd`.
-             * */
             std::process::Command::new(self_bin)
                 .arg("__exec")
                 .args(self.cmd)
-                .env_remove("__PROBE_LIB")
-                .env_remove("__PROBE_LOG")
+                .env(probe_headers::PROBE_COPY_FILES_VAR, copy_files_string)
                 .env(
-                    "__PROBE_COPY_FILES",
-                    if self.copy_files_lazily {
-                        "lazy"
-                    } else if self.copy_files_eagerly {
-                        "eager"
-                    } else {
-                        ""
-                    },
+                    probe_headers::PROBE_DIR_VAR,
+                    OsString::from(&self.output.path()),
                 )
-                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
-                .env("__PROBE_DIR", self.output.path())
-                .env("LD_PRELOAD", ld_preload)
+                .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
                 .spawn()
                 .wrap_err("Failed to launch child process")?
         };
@@ -304,4 +297,12 @@ impl Recorder {
         self.copy_files_lazily = copy_files_lazily;
         self
     }
+}
+
+fn concat_osstrings<const SIZE: usize>(strings: [OsString; SIZE]) -> OsString {
+    let mut result = OsString::new();
+    for s in strings {
+        result.push(s);
+    }
+    result
 }
