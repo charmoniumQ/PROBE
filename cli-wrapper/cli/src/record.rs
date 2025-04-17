@@ -152,6 +152,26 @@ impl Recorder {
         };
 
         let mut child = if self.gdb {
+            let dir_env = concat_osstrings([
+                OsString::from("--init-eval-command=set environment "),
+                OsString::from(probe_headers::PROBE_DIR_VAR),
+                OsString::from("="),
+                OsString::from(&self.output.path())
+            ]);
+            let preload_env = concat_ossstrings([
+                OsString::from("--init-eval-command=set environment "),
+                OsString::from(probe_headers::LD_PRELOAD_VAR),
+                OsString::from("="),
+                ld_preload,
+            ]);
+            let mut copy_files_env = concat_osstrings([
+                OsString::from("--init-eval-command=set environment "),
+                OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
+                OsString::from("="),
+                OsString::from(copy_files_string),
+            ])
+
+        let mut child = if self.gdb {
             std::process::Command::new("gdb")
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
@@ -188,12 +208,7 @@ impl Recorder {
             std::process::Command::new(self_bin)
                 .arg("__exec")
                 .args(self.cmd)
-                .env_remove("PROBE_LIB")
-                .env_remove("PROBE_LOG")
-                .env(
-                    probe_headers::PROBE_COPY_FILES_VAR,
-                    copy_mode_string,
-                )
+                .env(probe_headers::PROBE_COPY_FILES_VAR, copy_files_string)
                 .env(
                     probe_headers::PROBE_DIR_VAR,
                     OsString::from(record_dir.path()),
