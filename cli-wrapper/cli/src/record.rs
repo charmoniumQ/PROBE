@@ -145,31 +145,11 @@ impl Recorder {
 
         let record_dir = tempfile::TempDir::new()?;
 
-        let copy_mode_string = match self.copy_files {
+        let copy_files_string = match self.copy_files {
             probe_headers::CopyFiles::Lazily => "lazy",
             probe_headers::CopyFiles::Eagerly => "eager",
             probe_headers::CopyFiles::None => "",
         };
-
-        let mut child = if self.gdb {
-            let dir_env = concat_osstrings([
-                OsString::from("--init-eval-command=set environment "),
-                OsString::from(probe_headers::PROBE_DIR_VAR),
-                OsString::from("="),
-                OsString::from(&self.output.path()),
-            ]);
-            let preload_env = concat_osstrings([
-                OsString::from("--init-eval-command=set environment "),
-                OsString::from(probe_headers::LD_PRELOAD_VAR),
-                OsString::from("="),
-                ld_preload,
-            ]);
-            let copy_files_env = concat_osstrings([
-                OsString::from("--init-eval-command=set environment "),
-                OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
-                OsString::from("="),
-                OsString::from(copy_files_string),
-            ]);
 
         let mut child = if self.gdb {
             std::process::Command::new("gdb")
@@ -177,7 +157,7 @@ impl Recorder {
                     OsString::from("--init-eval-command=set environment "),
                     OsString::from(probe_headers::LD_PRELOAD_VAR),
                     OsString::from("="),
-                    ld_preload,
+                    ld_preload.clone(),
                 ]))
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
@@ -189,7 +169,7 @@ impl Recorder {
                     OsString::from("--init-eval-command=set environment "),
                     OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
                     OsString::from("="),
-                    OsString::from(copy_mode_string),
+                    OsString::from(copy_files_string),
                 ]))
                 .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
