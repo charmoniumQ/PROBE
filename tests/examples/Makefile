@@ -7,7 +7,7 @@
 # If not, then PROBE does not interfere with ASAN.
 
 CC ?= clang
-CFLAGS ?= -Wall -Wextra -Werror -Og -g
+CFLAGS := $(CFLAGS) -Wall -Wextra -Werror -Og -g
 
 SOURCE_FILES := $(wildcard *.c)
 
