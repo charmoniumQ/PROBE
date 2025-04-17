@@ -52,9 +52,20 @@ modes = [
 ]
 
 
+# This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
+@pytest.fixture(scope="session")
+def does_podman_work() -> bool:
+    return subprocess.run(["podman", "run", "--rm", "ubuntu:24.04", "pwd"], capture_output=True, check=False).returncode == 0
+
+
+@pytest.fixture(scope="session")
+def does_docker_work() -> bool:
+    return subprocess.run(["docker", "run", "--rm", "ubuntu:24.04", "pwd"], capture_output=True, check=False).returncode == 0
+
+
 @pytest.mark.parametrize("mode", modes)
 @pytest.mark.parametrize("command", commands)
-def test_cmds(mode: list[str], command: list[str]) -> None:
+def test_cmds(mode: list[str], command: list[str], does_podman_work: bool, does_docker_work: bool) -> None:
     tmpdir.mkdir(exist_ok=True)
     (tmpdir / "probe_log").unlink(missing_ok=True)
 
@@ -84,21 +95,25 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
 
     if copy_files:
 
-        cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
-        assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
-        cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
+        if does_podman_work:
+            cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
+            assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
+            cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
 
-        cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
-        assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
-        cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
+        if does_podman_work and does_docker_work:
+            # podman/buildah neeeded to export the Docker image
+            # Docker needed to run it
+            cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
+            assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
+            cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
 
 
 def test_big_env() -> None:
