@@ -516,6 +516,12 @@ typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 #error "Can't detect glibc nor musl; don't know how to define tmpnam(...)"
 #endif
 
+// On Glibc, struct dirent is 32-bit, with macros switch it to 64-bit or add new struct dirent64
+// On Musl, struct dirent is 64-bit
+#ifdef __MUSL__
+#define dirent64 dirent
+#endif
+
 void init_function_pointers();
 """
 (generated / "libc_hooks.h").write_text(

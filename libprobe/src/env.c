@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../generated/bindings.h"
 #include "arena.h"
 #include "global_state.h"
 #include "util.h"
@@ -19,19 +20,9 @@ void printenv() {
 
 const char* getenv_copy(const char* name) {
     /* Validate input */
-    ASSERTF(strchr(name, '=') == NULL, "");
-    ASSERTF(name[0], "");
-    ASSERTF(environ, "");
-    size_t name_len = strlen(name);
-    for (char** ep = environ; *ep; ++ep) {
-        if (UNLIKELY(strncmp(name, *ep, name_len) == 0) && LIKELY((*ep)[name_len] == '=')) {
-            char* val = *ep + name_len + 1;
-            DEBUG("Found '%s' = '%s'", name, val);
-            return val;
-        }
-    }
-    DEBUG("'%s' not found", name);
-    return NULL;
+    char* val = getenv(name);
+    DEBUG("Found env '%s' = '%s'", name, val);
+    return val;
 }
 
 /*
@@ -62,7 +53,7 @@ const char* getenv_copy(const char* name) {
 char* const* update_env_with_probe_vars(char* const* user_env, size_t* updated_env_size) {
     /* Define env vars we care about */
     const char* probe_vars[] = {
-        proc_root_env_var, exec_epoch_env_var, pid_env_var, probe_dir_env_var,
+        proc_root_env_var, exec_epoch_env_var, pid_env_var, PROBE_DIR_VAR,
         /* TODO: include LD_PRELOAD, while noting LD_PRELOAD could have been
            changed by the user. */
     };

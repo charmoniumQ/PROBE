@@ -55,8 +55,6 @@ __attribute__((visibility("hidden"))) struct InodeTable* get_read_inodes();
 
 __attribute__((visibility("hidden"))) struct InodeTable* get_copied_or_overwritten_inodes();
 
-__attribute__((visibility("hidden"))) extern const char* probe_dir_env_var;
-
 __attribute__((visibility("hidden"))) const char* get_probe_dir();
 
 __attribute__((visibility("hidden"))) int get_inodes_dirfd();

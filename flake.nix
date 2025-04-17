@@ -257,6 +257,7 @@
                 pkgs.cppclean
                 pkgs.gnumake
                 pkgs.git
+                # pkgs.musl
 
                 pkgs.which
                 pkgs.coreutils

@@ -237,6 +237,7 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
 
 bool arena_is_initialized(struct ArenaDir* arena_dir) {
     ASSERTF((arena_dir->__next_instantiation == 0) == (arena_dir->__tail == NULL),
-            "is_initialized signals disagree %ld %p", arena_dir->__next_instantiation, arena_dir->__tail);
+            "is_initialized signals disagree %ld %p", arena_dir->__next_instantiation,
+            arena_dir->__tail);
     return arena_dir->__tail != NULL;
 }
