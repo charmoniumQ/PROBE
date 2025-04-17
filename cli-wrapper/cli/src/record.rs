@@ -183,7 +183,7 @@ impl Recorder {
                     OsString::from("--init-eval-command=set environment "),
                     OsString::from(probe_headers::LD_PRELOAD_VAR),
                     OsString::from("="),
-                    ld_preload,
+                    ld_preload.clone(),
                 ]))
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
