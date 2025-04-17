@@ -19,19 +19,9 @@ void printenv() {
 
 const char* getenv_copy(const char* name) {
     /* Validate input */
-    ASSERTF(strchr(name, '=') == NULL, "");
-    ASSERTF(name[0], "");
-    ASSERTF(environ, "");
-    size_t name_len = strlen(name);
-    for (char** ep = environ; *ep; ++ep) {
-        if (UNLIKELY(strncmp(name, *ep, name_len) == 0) && LIKELY((*ep)[name_len] == '=')) {
-            char* val = *ep + name_len + 1;
-            DEBUG("Found '%s' = '%s'", name, val);
-            return val;
-        }
-    }
-    DEBUG("'%s' not found", name);
-    return NULL;
+    char* val = getenv(name);
+    DEBUG("Found env '%s' = '%s'", name, val);
+    return val;
 }
 
 /*
