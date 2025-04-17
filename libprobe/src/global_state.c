@@ -7,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "../generated/bindings.h"
 #include "arena.h"
 #include "env.h"
 #include "inode_table.h"
@@ -16,9 +17,7 @@
 
 #include "global_state.h"
 
-#define ENV_VAR_PREFIX "PROBE_"
-
-#define PRIVATE_ENV_VAR_PREFIX "__PROBE_"
+#define PRIVATE_ENV_VAR_PREFIX "PROBE_"
 
 // getpid/gettid is kind of expensive (40ns per syscall)
 // but worth it for debug case
@@ -111,12 +110,11 @@ int get_exec_epoch() { return EXPECT(!= exec_epoch_initial, exec_epoch); }
 int get_exec_epoch_safe() { return exec_epoch; }
 
 char copy_files = ' ';
-const char* copy_files_env_var = PRIVATE_ENV_VAR_PREFIX "COPY_FILES";
 struct InodeTable read_inodes;
 struct InodeTable copied_or_overwritten_inodes;
 static inline void init_copy_files() {
     ASSERTF(copy_files == ' ', "'%c'", copy_files);
-    const char* copy_files_str = getenv_copy(copy_files_env_var);
+    const char* copy_files_str = getenv_copy(PROBE_COPY_FILES_VAR);
     if (copy_files_str) {
         copy_files = copy_files_str[0];
     } else {
@@ -198,7 +196,6 @@ static int mkdir_and_descend2(int my_dirfd, const char* name, long child, bool m
 const int invalid_dirfd = -1;
 int pids_dirfd = invalid_dirfd;
 int inodes_dirfd = invalid_dirfd;
-const char* probe_dir_env_var = PRIVATE_ENV_VAR_PREFIX "DIR";
 char probe_dir[PATH_MAX + 1] = {0};
 static inline void init_probe_dir() {
     ASSERTF(pids_dirfd == invalid_dirfd, "%d", pids_dirfd);
@@ -206,11 +203,11 @@ static inline void init_probe_dir() {
     ASSERTF(probe_dir[0] == '\0', "%s", probe_dir);
 
     // Get initial probe dir
-    const char* probe_dir_env_val = getenv_copy(probe_dir_env_var);
+    const char* probe_dir_env_val = getenv_copy(PROBE_DIR_VAR);
 
     // Use ERROR instead of EXPECT so this gets caught in optimized-mode as well
     if (!probe_dir_env_val) {
-        ERROR("Internal environment variable \"%s\" not set", probe_dir_env_var);
+        ERROR("Internal environment variable \"%s\" not set", PROBE_DIR_VAR);
     }
     strncpy(probe_dir, probe_dir_env_val, PATH_MAX);
     if (probe_dir[0] != '/') {
