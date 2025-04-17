@@ -27,6 +27,7 @@ check-cli:
     cargo clippy -- --deny warnings
     cargo doc --workspace
     cargo fmt --check
+    cargo deny check
 
 [working-directory: 'cli-wrapper']
 compile-cli:
