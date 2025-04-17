@@ -156,20 +156,20 @@ impl Recorder {
                 OsString::from("--init-eval-command=set environment "),
                 OsString::from(probe_headers::PROBE_DIR_VAR),
                 OsString::from("="),
-                OsString::from(&self.output.path())
+                OsString::from(&self.output.path()),
             ]);
-            let preload_env = concat_ossstrings([
+            let preload_env = concat_osstrings([
                 OsString::from("--init-eval-command=set environment "),
                 OsString::from(probe_headers::LD_PRELOAD_VAR),
                 OsString::from("="),
                 ld_preload,
             ]);
-            let mut copy_files_env = concat_osstrings([
+            let copy_files_env = concat_osstrings([
                 OsString::from("--init-eval-command=set environment "),
                 OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
                 OsString::from("="),
                 OsString::from(copy_files_string),
-            ])
+            ]);
 
         let mut child = if self.gdb {
             std::process::Command::new("gdb")
