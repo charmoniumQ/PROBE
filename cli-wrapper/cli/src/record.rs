@@ -190,12 +190,15 @@ impl Recorder {
                 .args(self.cmd)
                 .env_remove("PROBE_LIB")
                 .env_remove("PROBE_LOG")
-                .env(probe_headers::PROBE_COPY_FILES_VAR, copy_mode_string)
-                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
+                .env(
+                    probe_headers::PROBE_COPY_FILES_VAR,
+                    copy_mode_string,
+                )
                 .env(
                     probe_headers::PROBE_DIR_VAR,
                     OsString::from(record_dir.path()),
                 )
+                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
                 .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
                 .spawn()
                 .wrap_err("Failed to launch child process")?
