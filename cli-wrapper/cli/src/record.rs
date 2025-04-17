@@ -5,41 +5,53 @@ use std::{
     path::{Path, PathBuf},
     process::ExitStatus,
     thread,
-    time::Duration,
 };
 
-use color_eyre::eyre::{bail, eyre, Result, WrapErr};
+use color_eyre::eyre::{eyre, Result, WrapErr};
 use flate2::Compression;
 
-use crate::transcribe;
+use crate::{transcribe, util::Dir};
 
 // TODO: modularize and improve ergonomics (maybe expand builder pattern?)
 
 /// create a probe record directory from command arguments
 pub fn record_no_transcribe(
-    output: Option<PathBuf>,
+    output: Option<OsString>,
     overwrite: bool,
     gdb: bool,
     debug: bool,
     copy_files: probe_headers::CopyFiles,
     cmd: Vec<OsString>,
 ) -> Result<ExitStatus> {
+    let cwd = PathBuf::from(".");
     let output = match output {
-        Some(x) => x,
-        None => PathBuf::from("probe_log"),
+        Some(x) => {
+            let path: &Path = x.as_ref();
+            let path_parent = path.parent().unwrap_or(&cwd);
+            let dir_name = path.file_name().unwrap();
+            fs::canonicalize(path_parent)
+                .wrap_err("Failed to canonicalize record directory path")?
+                .join(dir_name)
+        }
+        None => {
+            let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
+            output.push("probe_record");
+            output
+        }
     };
 
-    if output.exists() {
-        if overwrite {
-            bail!("output {:?} already exists", &output);
-        } else if output.is_dir() {
-            fs_extra::dir::remove(&output)?;
-        } else {
-            fs_extra::file::remove(&output)?;
+    if overwrite {
+        if let Err(e) = fs::remove_dir_all(&output) {
+            match e.kind() {
+                std::io::ErrorKind::NotFound => (),
+                _ => return Err(e).wrap_err("Failed to remove exisitng record directory"),
+            }
         }
     }
 
-    let (status, dir) = Recorder::new(cmd)
+    let record_dir = Dir::new(output).wrap_err("Failed to create record directory")?;
+
+    let (status, _) = Recorder::new(cmd, record_dir)
         .gdb(gdb)
         .debug(debug)
         .copy_files(copy_files)
@@ -57,7 +69,7 @@ pub fn record_no_transcribe(
 
 /// create a probe log file from command arguments
 pub fn record_transcribe(
-    output: Option<PathBuf>,
+    output: Option<OsString>,
     overwrite: bool,
     gdb: bool,
     debug: bool,
@@ -66,28 +78,27 @@ pub fn record_transcribe(
 ) -> Result<ExitStatus> {
     let output = match output {
         Some(x) => x,
-        None => PathBuf::from("probe_log"),
+        None => OsString::from("probe_log"),
     };
 
-    if output.exists() {
-        if overwrite {
-            bail!("output {:?} already exists", &output);
-        } else if output.is_dir() {
-            fs_extra::dir::remove(&output)?;
-        } else {
-            fs_extra::file::remove(&output)?;
-        }
+    let file = if overwrite {
+        File::create(&output)
+    } else {
+        File::create_new(&output)
     }
-
-    let file = File::create_new(&output).wrap_err("Failed to create output file")?;
+    .wrap_err("Failed to create output file")?;
 
     let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
 
-    let (status, record_dir) = Recorder::new(cmd)
-        .gdb(gdb)
-        .debug(debug)
-        .copy_files(copy_files)
-        .record()?;
+    let (status, mut record_dir) = Recorder::new(
+        cmd,
+        Dir::temp(true).wrap_err("Failed to create record directory")?,
+    )
+    .gdb(gdb)
+    .debug(debug)
+    .copy_files_eagerly(copy_files_eagerly)
+    .copy_files_lazily(copy_files_lazily)
+    .record()?;
 
     match transcribe::transcribe(&record_dir, &mut tar) {
         Ok(_) => (),
