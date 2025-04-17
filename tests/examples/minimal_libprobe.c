@@ -40,12 +40,3 @@ pid_t fork() {
     pid_t ret = unwrapped_fork();
     return ret;
 }
-
-
-void __attribute__ ((constructor)) setup(void) {
-    fprintf(stderr, "%d.%d Constructor\n", getpid(), gettid());
-}
-
-void __attribute__ ((constructor)) destroy(void) {
-    fprintf(stderr, "%d.%d Destructor\n", getpid(), gettid());
-}
