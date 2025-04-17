@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../generated/bindings.h"
 #include "arena.h"
 #include "global_state.h"
 #include "util.h"
@@ -52,7 +53,7 @@ const char* getenv_copy(const char* name) {
 char* const* update_env_with_probe_vars(char* const* user_env, size_t* updated_env_size) {
     /* Define env vars we care about */
     const char* probe_vars[] = {
-        proc_root_env_var, exec_epoch_env_var, pid_env_var, probe_dir_env_var,
+        proc_root_env_var, exec_epoch_env_var, pid_env_var, PROBE_DIR_VAR,
         /* TODO: include LD_PRELOAD, while noting LD_PRELOAD could have been
            changed by the user. */
     };

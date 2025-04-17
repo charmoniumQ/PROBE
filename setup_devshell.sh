@@ -10,16 +10,19 @@ printf "project_root = %s\n" "$project_root"
 # Rust frontend uses CPATH to find libprobe headers
 export CPATH="$project_root/libprobe/include:$CPATH"
 
-# Rust CLI uses __PROBE_LIB to find libprobe binary
-export __PROBE_LIB="$project_root/libprobe/.build"
+# Rust CLI uses PROBE_LIB to find libprobe binary
+export PROBE_LIB="$project_root/libprobe/.build"
 
 # Ensure libprobe.so gets maked
-if [ ! -f "$__PROBE_LIB/libprobe.so" ]; then
+if [ ! -f "$PROBE_LIB/libprobe.so" ]; then
     printf "%sPlease run 'just compile-lib' to compile libprobe%s\n" "$red" "$clr"
 fi
 
 # Rust code uses PYGEN_OUTFILE to determine where to write this file.
 export PYGEN_OUTFILE="$project_root/probe_py/probe_py/ops.py"
+
+# Rust code uses CBINDGEN_OUTFILE to determine where to write this file.
+export CBINDGEN_OUTFILE="$project_root/libprobe/generated/bindings.h"
 
 # Ensure PROBE CLI gets built
 if [ ! -f "$project_root/cli-wrapper/target/release/probe" ]; then
