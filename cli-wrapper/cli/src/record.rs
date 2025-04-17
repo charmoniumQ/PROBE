@@ -189,8 +189,8 @@ impl Recorder {
             std::process::Command::new(self_bin)
                 .arg("__exec")
                 .args(self.cmd)
-                .env_remove("__PROBE_LIB")
-                .env_remove("__PROBE_LOG")
+                .env_remove("PROBE_LIB")
+                .env_remove("PROBE_LOG")
                 .env(
                     probe_headers::PROBE_COPY_FILES_VAR,
                     copy_mode_string,

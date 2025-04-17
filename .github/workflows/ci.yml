@@ -12,8 +12,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
-          #- ubuntu-22.04
+          - ubuntu-24.04
           # We can test on a Matrix of Ubuntu versions
           # But Nix does get us pretty good reproducibility
           # So we will test just one in CI.
