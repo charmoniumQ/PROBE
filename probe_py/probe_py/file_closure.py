@@ -46,12 +46,18 @@ def build_oci_image(
         # Start contianer
         if verbose:
             console.print("buildah from scratch")
-        container_id = subprocess.run(
+        proc = subprocess.run(
             ["buildah", "from", "scratch"],
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
-        ).stdout.strip()
+        )
+        if proc.returncode != 0:
+            print(proc.stderr)
+            print("-")
+            print(proc.stdout)
+            raise RuntimeError("Command failed; see above")
+        container_id = proc.stdout.strip()
         if verbose:
             console.print(f"Container ID: {container_id}")
 
