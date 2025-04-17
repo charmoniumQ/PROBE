@@ -53,7 +53,7 @@ fix: fix-nix fix-py fix-cli fix-lib
 
 check: check-py check-cli check-lib
 
-compile: compile-lib compile-cli compile-tests
+compile: compile-cli compile-lib compile-tests
 
 test-native: compile
     python -m pytest tests/ -ra --failed-first --maxfail=1 -v
