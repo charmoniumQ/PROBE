@@ -10,11 +10,11 @@ edition.workspace = true
 name = "probe_headers"
 path = "src/lib.rs"
 
+[dependencies]
+clap = {version = "4.5.35", features = ["derive"]}
+
 [build-dependencies]
 cbindgen = "0.28.0"
 
 [lints]
 workspace = true
-
-[dependencies]
-clap = {version = "4.5.35", features = ["derive"]}

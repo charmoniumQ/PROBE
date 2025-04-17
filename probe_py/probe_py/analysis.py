@@ -66,15 +66,12 @@ def validate_provlog(
     cloned_processes = set[tuple[TaskType, int]]()
     opened_fds = set[int]()
     closed_fds = set[int]()
-    n_roots = 0
     for pid, process in provlog.processes.items():
         epochs = set[int]()
         first_op = process.exec_epochs[0].threads[pid].ops[0]
         if not isinstance(first_op.data, InitProcessOp):
             ret.append("First op in exec_epoch 0 should be InitProcessOp")
-        else:
-            if first_op.data.is_root:
-                n_roots += 1
+        last_epoch = max(process.exec_epochs.keys())
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             epochs.add(exec_epoch_no)
             first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
@@ -91,11 +88,14 @@ def validate_provlog(
                 for tid, thread in exec_epoch.threads.items()
                 for op in thread.ops
             }
+            threads_ending_in_exec = 0
             for tid, thread in exec_epoch.threads.items():
                 first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
                 first_thread_op = thread.ops[first_thread_op_idx]
                 if not isinstance(first_thread_op.data, InitThreadOp):
                     ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
+                if isinstance(thread.ops[-1], ExecOp):
+                    threads_ending_in_exec += 1
                 for op in thread.ops:
                     if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
@@ -131,6 +131,8 @@ def validate_provlog(
                     elif isinstance(op.data, InitProcessOp):
                         if exec_epoch_no != 0:
                             ret.append(f"InitProcessOp happened, but exec_epoch was not zero, was {exec_epoch_no}")
+            if exec_epoch_no != last_epoch:
+                assert threads_ending_in_exec == 1
         expected_epochs = set(range(0, max(epochs) + 1))
         if expected_epochs - epochs:
             ret.append(f"Missing epochs for pid={pid}: {sorted(epochs - expected_epochs)}")
@@ -141,8 +143,6 @@ def validate_provlog(
         #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
     elif waited_processes - cloned_processes:
         ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
-    if n_roots != 1:
-        ret.append(f"Got {n_roots} prov roots")
     return ret
 
 

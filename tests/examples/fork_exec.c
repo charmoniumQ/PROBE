@@ -3,21 +3,22 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-int main(
-    __attribute__((unused)) int argc,
-    char *const argv[]
-) {
+int main(__attribute__((unused)) int argc, char *const argv[]) {
+    fprintf(stderr, "main");
     pid_t pid = fork();
+    fprintf(stderr, "forked");
     if (pid < 0) {
         perror("fork");
         return 1;
     } else if (pid == 0) {
+        fprintf(stderr, "child");
         execvp(argv[1], &argv[1]);
         // Exec never returns
         // Must be an error in exec
         perror("exec");
         return 1;
     } else {
+        fprintf(stderr, "parent");
         int status;
         int ret = waitpid(pid, &status, 0);
         if (ret < 0) {

@@ -1,5 +1,9 @@
 # Developer's README
 
+## Why are all of your git commit messages garbage?
+
+- We've given up on making git commit messages in feature branches meaningful. However, we use PR-based squash-merging. We will give a meaningful message at squash-merge time.
+
 ## Principles
 
 - **How to replay old libcalls**:

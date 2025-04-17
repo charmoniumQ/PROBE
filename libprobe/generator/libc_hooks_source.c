@@ -73,7 +73,7 @@ FILE * fopen (const char *filename, const char *opentype) {
         }
     });
 }
-fn fopen64 = fopen;
+/* fn fopen64 = fopen; */
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
         int original_fd = fileno(stream);
@@ -115,7 +115,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         }
     });
 }
-fn freopen64 = freopen;
+/* fn freopen64 = freopen; */
 
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
@@ -202,7 +202,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
     });
 }
 
-fn openat64 = openat;
+/* fn openat64 = openat; */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open (const char *filename, int flags, ...) {
@@ -244,7 +244,7 @@ int open (const char *filename, int flags, ...) {
         }
     });
 }
-fn open64 = open;
+/* fn open64 = open; */
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
         /**
@@ -276,7 +276,7 @@ int creat (const char *filename, mode_t mode) {
         }
     });
 }
-fn create64 = creat;
+/* fn create64 = creat; */
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
@@ -763,32 +763,32 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
         }
     });
 }
-int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) {
-    void* pre_call = ({
-        struct Op op = {
-            readdir_op_code,
-            {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, dir, 0),
-                .child = NULL,
-                .all_children = true,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
-                op.data.readdir.ferrno = saved_errno;
-            }
-            prov_log_record(op);
-        }
-    });
-}
+/* int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) { */
+/*     void* pre_call = ({ */
+/*         struct Op op = { */
+/*             readdir_op_code, */
+/*             {.readdir = { */
+/*                 .dir = create_path_lazy(AT_FDCWD, dir, 0), */
+/*                 .child = NULL, */
+/*                 .all_children = true, */
+/*             }}, */
+/*             {0}, */
+/*             0, */
+/*             0, */
+/*         }; */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_try(op); */
+/*         } */
+/*     }); */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             if (ret != 0) { */
+/*                 op.data.readdir.ferrno = saved_errno; */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
 
 /* Docs: https://www.man7.org/linux/man-pages/man3/scandir.3.html */
 int scandirat(int dirfd, const char *restrict dirp,
@@ -2261,6 +2261,7 @@ int execvp (const char *filename, char *const argv[]) {
         }
     });
     void* call = ({
+        DEBUG("hi");
         int ret = unwrapped_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({

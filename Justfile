@@ -24,7 +24,9 @@ fix-cli:
 
 [working-directory: 'cli-wrapper']
 check-cli:
+    cargo clippy -- --deny warnings
     cargo doc --workspace
+    cargo fmt --check
 
 [working-directory: 'cli-wrapper']
 compile-cli:

@@ -5,96 +5,89 @@ use std::{
     path::{Path, PathBuf},
     process::ExitStatus,
     thread,
+    time::Duration,
 };
 
-use color_eyre::eyre::{eyre, Result, WrapErr};
+use color_eyre::eyre::{bail, eyre, Result, WrapErr};
 use flate2::Compression;
 
-use crate::{transcribe, util::Dir};
+use crate::transcribe;
 
 // TODO: modularize and improve ergonomics (maybe expand builder pattern?)
 
 /// create a probe record directory from command arguments
 pub fn record_no_transcribe(
-    output: Option<OsString>,
+    output: Option<PathBuf>,
     overwrite: bool,
     gdb: bool,
     debug: bool,
-    copy_files_eagerly: bool,
-    copy_files_lazily: bool,
+    copy_files: probe_headers::CopyFiles,
     cmd: Vec<OsString>,
 ) -> Result<ExitStatus> {
-    let cwd = PathBuf::from(".");
     let output = match output {
-        Some(x) => {
-            let path: &Path = x.as_ref();
-            let path_parent = path.parent().unwrap_or(&cwd);
-            let dir_name = path.file_name().unwrap();
-            fs::canonicalize(path_parent)
-                .wrap_err("Failed to canonicalize record directory path")?
-                .join(dir_name)
-        }
-        None => {
-            let mut output = std::env::current_dir().wrap_err("Failed to get CWD")?;
-            output.push("probe_record");
-            output
-        }
+        Some(x) => x,
+        None => PathBuf::from("probe_log"),
     };
 
-    if overwrite {
-        if let Err(e) = fs::remove_dir_all(&output) {
-            match e.kind() {
-                std::io::ErrorKind::NotFound => (),
-                _ => return Err(e).wrap_err("Failed to remove exisitng record directory"),
-            }
+    if output.exists() {
+        if overwrite {
+            bail!("output {:?} already exists", &output);
+        } else if output.is_dir() {
+            fs_extra::dir::remove(&output)?;
+        } else {
+            fs_extra::file::remove(&output)?;
         }
     }
 
-    let record_dir = Dir::new(output).wrap_err("Failed to create record directory")?;
-
-    let (status, _) = Recorder::new(cmd, record_dir)
+    let (status, dir) = Recorder::new(cmd)
         .gdb(gdb)
         .debug(debug)
-        .copy_files_eagerly(copy_files_eagerly)
-        .copy_files_lazily(copy_files_lazily)
-        .record()?;
+        .copy_files(copy_files)
+        .record()
+        .wrap_err("Recorder::record")?;
+
+    fs_extra::dir::move_dir(&dir, &output, &fs_extra::dir::CopyOptions::new()).wrap_err(eyre!(
+        "moving {:?} to {:?}",
+        &dir,
+        &output
+    ))?;
 
     Ok(status)
 }
 
 /// create a probe log file from command arguments
 pub fn record_transcribe(
-    output: Option<OsString>,
+    output: Option<PathBuf>,
     overwrite: bool,
     gdb: bool,
     debug: bool,
-    copy_files_eagerly: bool,
-    copy_files_lazily: bool,
+    copy_files: probe_headers::CopyFiles,
     cmd: Vec<OsString>,
 ) -> Result<ExitStatus> {
     let output = match output {
         Some(x) => x,
-        None => OsString::from("probe_log"),
+        None => PathBuf::from("probe_log"),
     };
 
-    let file = if overwrite {
-        File::create(&output)
-    } else {
-        File::create_new(&output)
+    if output.exists() {
+        if overwrite {
+            bail!("output {:?} already exists", &output);
+        } else if output.is_dir() {
+            fs_extra::dir::remove(&output)?;
+        } else {
+            fs_extra::file::remove(&output)?;
+        }
     }
-    .wrap_err("Failed to create output file")?;
+
+    let file = File::create_new(&output).wrap_err("Failed to create output file")?;
 
     let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
 
-    let (status, mut record_dir) = Recorder::new(
-        cmd,
-        Dir::temp(true).wrap_err("Failed to create record directory")?,
-    )
-    .gdb(gdb)
-    .debug(debug)
-    .copy_files_eagerly(copy_files_eagerly)
-    .copy_files_lazily(copy_files_lazily)
-    .record()?;
+    let (status, record_dir) = Recorder::new(cmd)
+        .gdb(gdb)
+        .debug(debug)
+        .copy_files(copy_files)
+        .record()?;
 
     match transcribe::transcribe(&record_dir, &mut tar) {
         Ok(_) => (),
@@ -103,7 +96,7 @@ pub fn record_transcribe(
                 "Error transcribing record directory, saving directory '{}'",
                 record_dir.as_ref().to_string_lossy()
             );
-            record_dir.drop = false;
+            std::mem::forget(record_dir);
             return Err(e).wrap_err("Failed to transcirbe record directory");
         }
     };
@@ -117,48 +110,45 @@ pub fn record_transcribe(
 pub struct Recorder {
     gdb: bool,
     debug: bool,
-    copy_files_eagerly: bool,
-    copy_files_lazily: bool,
-
-    output: Dir,
+    copy_files: probe_headers::CopyFiles,
     cmd: Vec<OsString>,
 }
 
 impl Recorder {
     /// runs the built recorder, on success returns the PID of launched process and the TempDir it
     /// was recorded into
-    pub fn record(self) -> Result<(ExitStatus, Dir)> {
+    pub fn record(self) -> Result<(ExitStatus, tempfile::TempDir)> {
         // reading and canonicalizing path to libprobe
-        let mut libprobe = fs::canonicalize(match std::env::var_os("PROBE_LIB") {
+        let libprobe_path = fs::canonicalize(match std::env::var_os("PROBE_LIB") {
             Some(x) => PathBuf::from(x),
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
-        .wrap_err("unable to canonicalize libprobe path")?;
-        if self.debug || self.gdb {
+        .wrap_err("unable to canonicalize libprobe path")?
+        .join(if self.debug || self.gdb {
             log::debug!("Using debug version of libprobe");
-            libprobe.push("libprobe.dbg.so");
+            "libprobe.dbg.so"
         } else {
-            libprobe.push("libprobe.so");
-        }
+            "libprobe.so"
+        });
 
         // append any existing LD_PRELOAD overrides; libprobe needs to be explicitly converted from
         // a PathBuf to a OsString because PathBuf::push() automatically adds path separators which
         // is incorrect here.
-        let mut ld_preload = OsString::from(libprobe);
-        if let Some(x) = std::env::var_os("LD_PRELOAD") {
-            ld_preload.push(":");
-            ld_preload.push(&x);
-        }
+        let ld_preload = if let Some(previous_ld_preload) = std::env::var_os("LD_PRELOAD") {
+            concat_osstrings([(&libprobe_path).into(), ":".into(), previous_ld_preload])
+        } else {
+            (&libprobe_path).into()
+        };
 
         let self_bin =
             std::env::current_exe().wrap_err("Failed to get path to current executable")?;
 
-        let copy_files_string = if self.copy_files_lazily {
-            "lazy"
-        } else if self.copy_files_eagerly {
-            "eager"
-        } else {
-            ""
+        let record_dir = tempfile::TempDir::new()?;
+
+        let copy_files_string = match self.copy_files {
+            probe_headers::CopyFiles::Lazily => "lazy",
+            probe_headers::CopyFiles::Eagerly => "eager",
+            probe_headers::CopyFiles::None => "",
         };
 
         /* We start `probe __exec $cmd` instead of `$cmd`
@@ -173,7 +163,7 @@ impl Recorder {
                     OsString::from("--init-eval-command=set environment "),
                     OsString::from(probe_headers::PROBE_DIR_VAR),
                     OsString::from("="),
-                    OsString::from(&self.output.path()),
+                    OsString::from(&record_dir.path()),
                 ]))
                 .arg(concat_osstrings([
                     OsString::from("--init-eval-command=set environment "),
@@ -201,8 +191,9 @@ impl Recorder {
                 .env(probe_headers::PROBE_COPY_FILES_VAR, copy_files_string)
                 .env(
                     probe_headers::PROBE_DIR_VAR,
-                    OsString::from(&self.output.path()),
+                    OsString::from(record_dir.path()),
                 )
+                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
                 .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
                 .spawn()
                 .wrap_err("Failed to launch child process")?
@@ -212,9 +203,9 @@ impl Recorder {
             // without this the child process typically won't have written it's first op by the
             // time we do our sanity check, since we're about to wait on child anyway, this isn't a
             // big deal.
-            thread::sleep(std::time::Duration::from_millis(50));
+            thread::sleep(Duration::from_millis(50));
 
-            match Path::read_dir(self.output.path()) {
+            match Path::read_dir(record_dir.path()) {
                 Ok(x) => {
                     let any_files = x
                         .into_iter()
@@ -256,21 +247,19 @@ impl Recorder {
             }
         }
 
-        Ok((exit, self.output))
+        Ok((exit, record_dir))
     }
 
     /// Create new [`Recorder`] from a command and the directory where it should write the probe
     /// record.
     ///
     /// `cmd[0]` will be used as the command while `cmd[1..]` will be used as the arguments.
-    pub fn new(cmd: Vec<OsString>, output: Dir) -> Self {
+    pub fn new(cmd: Vec<OsString>) -> Self {
         Self {
             gdb: false,
             debug: false,
-            copy_files_eagerly: false,
-            copy_files_lazily: false,
-            output,
             cmd,
+            copy_files: probe_headers::CopyFiles::Lazily,
         }
     }
 
@@ -286,15 +275,8 @@ impl Recorder {
         self
     }
 
-    /// Set if probe should copy files needed to re-execute.
-    pub fn copy_files_eagerly(mut self, copy_files_eagerly: bool) -> Self {
-        self.copy_files_eagerly = copy_files_eagerly;
-        self
-    }
-
-    /// Set if probe should copy files needed to re-execute.
-    pub fn copy_files_lazily(mut self, copy_files_lazily: bool) -> Self {
-        self.copy_files_lazily = copy_files_lazily;
+    pub fn copy_files(mut self, copy_files: probe_headers::CopyFiles) -> Self {
+        self.copy_files = copy_files;
         self
     }
 }

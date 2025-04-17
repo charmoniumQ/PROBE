@@ -49,7 +49,7 @@ class InodeVersionLog:
 @dataclass(frozen=True)
 class ProvLog:
     processes: typing.Mapping[int, ProcessProvLog]
-    inodes: typing.Mapping[InodeVersionLog, pathlib.Path]
+    inodes: typing.Mapping[InodeVersionLog, pathlib.Path] | None
     has_inodes: bool
 
 # TODO: implement this in probe_py.generated.ops

@@ -10,3 +10,11 @@ pub const DATA_SUBDIR: &str = "data";
 pub const OPS_SUBDIR: &str = "ops";
 // I would like to propagate this to C, if possible
 // https://github.com/mozilla/cbindgen/issues/927
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Debug)]
+#[repr(C)]
+pub enum CopyFiles {
+    None,
+    Lazily,
+    Eagerly,
+}
