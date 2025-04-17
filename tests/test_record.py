@@ -46,9 +46,9 @@ commands = [
 modes = [
     ["probe", "record"],
     ["probe", "record", "--debug"],
-    ["probe", "record", "--copy-files", "dont-copy"],
+    ["probe", "record", "--copy-files", "none"],
     ["probe", "record", "--copy-files", "lazily"],
-    # ["probe", "record", "--copy-files=eagerly"],
+    ["probe", "record", "--copy-files", "eagerly"],
 ]
 
 
@@ -62,7 +62,8 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
-    cmd = ["probe", "validate", *(["--should-have-files"] if ("eagerly" in mode or "lazily" in mode) else [])]
+    copy_files = "eagerly" in mode or "lazily" in mode
+    cmd = ["probe", "validate", *(["--should-have-files"] if copy_files else [])]
     print(shlex.join(cmd))
 
     if any("gcc" in arg for arg in command):
@@ -81,7 +82,7 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
-    if "--copy-files" in mode:
+    if copy_files:
 
         cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
         print(shlex.join(cmd))

@@ -46,11 +46,12 @@ pub fn record_no_transcribe(
         .record()
         .wrap_err("Recorder::record")?;
 
-    fs_extra::dir::move_dir(&dir, &output, &fs_extra::dir::CopyOptions::new()).wrap_err(eyre!(
-        "moving {:?} to {:?}",
+
+    fs_extra::dir::move_dir(
         &dir,
-        &output
-    ))?;
+        &output,
+        &fs_extra::dir::CopyOptions::new(),
+    ).wrap_err(eyre!("moving {:?} to {:?}", &dir, &output))?;
 
     Ok(status)
 }

@@ -95,10 +95,7 @@
           ./lib
           ./macros
           ./headers
-<<<<<<< HEAD
           ./my-workspace-hack
-=======
->>>>>>> 462b0f9 (Don't hold open FDs (WIP))
         ];
       });
   };
