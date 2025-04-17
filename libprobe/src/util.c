@@ -65,10 +65,10 @@ void list_dir(const char* name, int indent) {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
             snprintf(path, sizeof(path), "%s/%s", name, entry->d_name);
-            fprintf(stderr, "%*s%s/\n", indent, "", entry->d_name);
+            LOG("%*s%s/", indent, "", entry->d_name);
             list_dir(path, indent + 2);
         } else {
-            fprintf(stderr, "%*s%s\n", indent, "", entry->d_name);
+            LOG("%*s%s", indent, "", entry->d_name);
         }
     }
     unwrapped_closedir(dir);
