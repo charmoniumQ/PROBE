@@ -5,6 +5,7 @@ members = [
     "lib",
     "macros",
     "headers",
+    "my-workspace-hack",
 ]
 
 [workspace.package]
