@@ -77,6 +77,7 @@ struct OpenOp {
     int32_t fd;
     int ferrno;
     /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
+    int shared_library; 
 };
 
 struct CloseOp {
