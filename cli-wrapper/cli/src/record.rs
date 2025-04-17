@@ -129,7 +129,7 @@ impl Recorder {
     /// was recorded into
     pub fn record(self) -> Result<(ExitStatus, Dir)> {
         // reading and canonicalizing path to libprobe
-        let mut libprobe = fs::canonicalize(match std::env::var_os("__PROBE_LIB") {
+        let mut libprobe = fs::canonicalize(match std::env::var_os("PROBE_LIB") {
             Some(x) => PathBuf::from(x),
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
@@ -153,25 +153,33 @@ impl Recorder {
         let self_bin =
             std::env::current_exe().wrap_err("Failed to get path to current executable")?;
 
+        let copy_files_string = if self.copy_files_lazily {
+            "lazy";
+        } else if self.copy_files_eagerly {
+            "eager"
+        } else {
+            ""
+        };
+
         let mut child = if self.gdb {
-            let mut dir_env = OsString::from("--init-eval-command=set environment __PROBE_DIR=");
-            dir_env.push(self.output.path());
-            let mut preload_env = OsString::from("--init-eval-command=set environment LD_PRELOAD=");
-            preload_env.push(ld_preload);
-            let mut copy_files_env =
-                OsString::from("--init-eval-command=set environment __PROBE_COPY_FILES=");
-            if self.copy_files_lazily {
-                copy_files_env.push("lazy");
-            } else if self.copy_files_eagerly {
-                copy_files_env.push("eager")
-            }
-            /* Yes, "set environment a=" will work to set a to null value
-             * in the case where neither copy_file_* option is activated
-             *
-             *   gdb '--init-eval-command=set environment abcdef=' env -eval-command run -eval-command quit \
-             *     | grep abcdef
-             *
-             * */
+            let dir_env = concat_osstrings([
+                OsString::from("--init-eval-command=set environment "),
+                OsString::from(probe_headers::PROBE_DIR_VAR),
+                OsString::from("="),
+                OsString::from(&self.output.path())
+            ]);
+            let preload_env = concat_ossstrings([
+                OsString::from("--init-eval-command=set environment "),
+                OsString::from(probe_headers::LD_PRELOAD_VAR),
+                OsString::from("="),
+                ld_preload,
+            ]);
+            let mut copy_files_env = concat_osstrings([
+                OsString::from("--init-eval-command=set environment "),
+                OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
+                OsString::from("="),
+                OsString::from(copy_files_string),
+            ])
 
             std::process::Command::new("gdb")
                 .arg(dir_env)
@@ -182,8 +190,8 @@ impl Recorder {
                 .arg(self_bin)
                 .arg("__exec")
                 .args(&self.cmd)
-                .env_remove("__PROBE_LIB")
-                .env_remove("__PROBE_LOG")
+                .env_remove("PROBE_LIB")
+                .env_remove("PROBE_LOG")
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
@@ -198,16 +206,7 @@ impl Recorder {
                 .args(self.cmd)
                 .env_remove("PROBE_LIB")
                 .env_remove("PROBE_LOG")
-                .env(
-                    probe_headers::PROBE_COPY_FILES_VAR,
-                    if self.copy_files_lazily {
-                        "lazy"
-                    } else if self.copy_files_eagerly {
-                        "eager"
-                    } else {
-                        ""
-                    },
-                )
+                .env(probe_headers::PROBE_COPY_FILES_VAR, copy_files_string)
                 .env(
                     probe_headers::PROBE_DIR_VAR,
                     OsString::from(&self.output.path()),
@@ -306,4 +305,16 @@ impl Recorder {
         self.copy_files_lazily = copy_files_lazily;
         self
     }
+}
+
+fn concat_osstrings<const SIZE: usize>(strings: [OsString; SIZE]) -> OsString {
+    pub fn copy_files_lazily(mut self, copy_files_lazily: bool) -> Self {
+    let mut result = OsString::new();
+        self.copy_files_lazily = copy_files_lazily;
+    for s in strings {
+        self
+        result.push(s);
+    }
+    }
+    result
 }
