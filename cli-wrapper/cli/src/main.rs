@@ -5,6 +5,7 @@ use std::{
     ffi::OsString,
     fs::File,
     os::unix::process::ExitStatusExt,
+    path::PathBuf,
     process::{ExitCode, ExitStatus},
 };
 
@@ -19,7 +20,7 @@ mod util;
 
 fn inner_main() -> Result<ExitStatus> {
     color_eyre::install()?;
-    env_logger::Builder::from_env(env_logger::Env::new().filter_or("__PROBE_LOG", "warn")).init();
+    env_logger::Builder::from_env(env_logger::Env::new().filter_or("PROBE_LOG", "warn")).init();
     log::debug!("Logger initialized");
 
     let matches = command!()
@@ -31,7 +32,7 @@ fn inner_main() -> Result<ExitStatus> {
                 .args([
                     arg!(-o --output <PATH> "Set destinaton for recording.")
                         .required(false)
-                        .value_parser(value_parser!(OsString)),
+                        .value_parser(value_parser!(PathBuf)),
                     arg!(-f --overwrite "Overwrite existing output if it exists.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
@@ -44,12 +45,10 @@ fn inner_main() -> Result<ExitStatus> {
                     arg!(--debug "Run in verbose & debug build of libprobe.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
-                    arg!(-e --"copy-files-eagerly" "Eagerly copy files that would be needed to re-execute the program.")
+                    arg!(-e --"copy-files" <COPY_FILES> "Whether/how to copy files that would be needed to re-execute the program.")
                         .required(false)
-                        .value_parser(value_parser!(bool)),
-                    arg!(-c --"copy-files-lazily" "lazily Copy files that would be needed to re-execute the program.")
-                        .required(false)
-                        .value_parser(value_parser!(bool)),
+                        .value_parser(value_parser!(probe_headers::CopyFiles))
+                        .default_value("none"),
                     arg!(<CMD> ... "Command to execute under provenance.")
                         .required(true)
                         .trailing_var_arg(true)
@@ -64,11 +63,11 @@ fn inner_main() -> Result<ExitStatus> {
                     arg!(-o --output <PATH> "Path to write the transcribed PROBE log.")
                         .required(false)
                         .default_value("probe_log")
-                        .value_parser(value_parser!(OsString)),
+                        .value_parser(value_parser!(PathBuf)),
                     arg!(-i --input <PATH> "Path to read the PROBE record from.")
                         .required(false)
                         .default_value("probe_record")
-                        .value_parser(value_parser!(OsString)),
+                        .value_parser(value_parser!(PathBuf)),
                 ])
                 .about("Convert PROBE records to PROBE logs."),
             Command::new("__exec").hide(true).arg(
@@ -82,52 +81,32 @@ fn inner_main() -> Result<ExitStatus> {
 
     match matches.subcommand() {
         Some(("record", sub)) => {
-            let output = sub.get_one::<OsString>("output").cloned();
+            let output = sub.get_one::<PathBuf>("output").cloned();
             let overwrite = sub.get_flag("overwrite");
             let no_transcribe = sub.get_flag("no-transcribe");
             let gdb = sub.get_flag("gdb");
             let debug = sub.get_flag("debug");
-            let copy_files_eagerly = sub.get_flag("copy-files-eagerly");
-            let copy_files_lazily = sub.get_flag("copy-files-lazily");
+            let copy_files = sub
+                .get_one::<probe_headers::CopyFiles>("COPY_FILES")
+                .cloned()
+                .unwrap_or(probe_headers::CopyFiles::Lazily);
             let cmd = sub
                 .get_many::<OsString>("CMD")
                 .unwrap()
                 .cloned()
                 .collect::<Vec<_>>();
 
-            if copy_files_eagerly && copy_files_lazily {
-                Err(eyre!(
-                    "Cannot copy files both eagerly and lazily; please discard one or both"
-                ))
+            if no_transcribe {
+                record::record_no_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
             } else {
-                if no_transcribe {
-                    record::record_no_transcribe(
-                        output,
-                        overwrite,
-                        gdb,
-                        debug,
-                        copy_files_eagerly,
-                        copy_files_lazily,
-                        cmd,
-                    )
-                } else {
-                    record::record_transcribe(
-                        output,
-                        overwrite,
-                        gdb,
-                        debug,
-                        copy_files_eagerly,
-                        copy_files_lazily,
-                        cmd,
-                    )
-                }
-                .wrap_err("Record command failed")
+                record::record_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
             }
+            .wrap_err("Record command failed")
         }
         Some(("transcribe", sub)) => {
             let overwrite = sub.get_flag("overwrite");
-            let output = sub.get_one::<OsString>("output").unwrap().clone();
-            let input = sub.get_one::<OsString>("input").unwrap().clone();
+            let output = sub.get_one::<PathBuf>("output").unwrap().clone();
+            let input = sub.get_one::<PathBuf>("input").unwrap().clone();
 
             if overwrite {
                 File::create(&output)

@@ -73,7 +73,7 @@ FILE * fopen (const char *filename, const char *opentype) {
         }
     });
 }
-fn fopen64 = fopen;
+/* fn fopen64 = fopen; */
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
         int original_fd = fileno(stream);
@@ -115,7 +115,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         }
     });
 }
-fn freopen64 = freopen;
+/* fn freopen64 = freopen; */
 
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
@@ -202,7 +202,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
     });
 }
 
-fn openat64 = openat;
+/* fn openat64 = openat; */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open (const char *filename, int flags, ...) {
@@ -244,7 +244,7 @@ int open (const char *filename, int flags, ...) {
         }
     });
 }
-fn open64 = open;
+/* fn open64 = open; */
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
         /**
@@ -276,7 +276,7 @@ int creat (const char *filename, mode_t mode) {
         }
     });
 }
-fn create64 = creat;
+/* fn create64 = creat; */
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
@@ -641,72 +641,72 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
         }
     });
 }
-struct dirent64 * readdir64 (DIR *dirstream) {
-    void* pre_call = ({
-        int fd = dirfd(dirstream);
-        struct Op op = {
-            readdir_op_code,
-            {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
-                .child = NULL,
-                .all_children = false,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (ret == NULL) {
-                op.data.readdir.ferrno = saved_errno;
-            } else {
-                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
-                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
-                 * */
-                op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
-            }
-            prov_log_record(op);
-        }
-    });
-}
-int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) {
-    void* pre_call = ({
-        int fd = dirfd(dirstream);
-        struct Op op = {
-            readdir_op_code,
-            {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
-                .child = NULL,
-                .all_children = false,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (*result == NULL) {
-                op.data.readdir.ferrno = saved_errno;
-            } else {
-                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
-                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
-                 * */
-                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
-            }
-            prov_log_record(op);
-        }
-    });
-}
+/* struct dirent64 * readdir64 (DIR *dirstream) { */
+/*     void* pre_call = ({ */
+/*         int fd = dirfd(dirstream); */
+/*         struct Op op = { */
+/*             readdir_op_code, */
+/*             {.readdir = { */
+/*                 .dir = create_path_lazy(fd, "", AT_EMPTY_PATH), */
+/*                 .child = NULL, */
+/*                 .all_children = false, */
+/*                 .ferrno = 0, */
+/*             }}, */
+/*             {0}, */
+/*             0, */
+/*             0, */
+/*         }; */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_try(op); */
+/*         } */
+/*     }); */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             if (ret == NULL) { */
+/*                 op.data.readdir.ferrno = saved_errno; */
+/*             } else { */
+/*                 /\* Note: we will assume these dirents aer the same as openat(fd, ret->name); */
+/*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
+/*                  * *\/ */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name)); */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
+/* int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) { */
+/*     void* pre_call = ({ */
+/*         int fd = dirfd(dirstream); */
+/*         struct Op op = { */
+/*             readdir_op_code, */
+/*             {.readdir = { */
+/*                 .dir = create_path_lazy(fd, "", AT_EMPTY_PATH), */
+/*                 .child = NULL, */
+/*                 .all_children = false, */
+/*                 .ferrno = 0, */
+/*             }}, */
+/*             {0}, */
+/*             0, */
+/*             0, */
+/*         }; */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_try(op); */
+/*         } */
+/*     }); */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             if (*result == NULL) { */
+/*                 op.data.readdir.ferrno = saved_errno; */
+/*             } else { */
+/*                 /\* Note: we will assume these dirents aer the same as openat(fd, ret->name); */
+/*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
+/*                  * *\/ */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name)); */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
 int closedir (DIR *dirstream) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
@@ -761,32 +761,32 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
         }
     });
 }
-int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) {
-    void* pre_call = ({
-        struct Op op = {
-            readdir_op_code,
-            {.readdir = {
-                .dir = create_path_lazy(AT_FDCWD, dir, 0),
-                .child = NULL,
-                .all_children = true,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
-                op.data.readdir.ferrno = saved_errno;
-            }
-            prov_log_record(op);
-        }
-    });
-}
+/* int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) { */
+/*     void* pre_call = ({ */
+/*         struct Op op = { */
+/*             readdir_op_code, */
+/*             {.readdir = { */
+/*                 .dir = create_path_lazy(AT_FDCWD, dir, 0), */
+/*                 .child = NULL, */
+/*                 .all_children = true, */
+/*             }}, */
+/*             {0}, */
+/*             0, */
+/*             0, */
+/*         }; */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_try(op); */
+/*         } */
+/*     }); */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             if (ret != 0) { */
+/*                 op.data.readdir.ferrno = saved_errno; */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
 
 /* Docs: https://www.man7.org/linux/man-pages/man3/scandir.3.html */
 int scandirat(int dirfd, const char *restrict dirp,
@@ -1993,7 +1993,8 @@ int execv (const char *filename, char *const argv[]) {
         size_t argc = 0;
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char* const* updated_env = update_env_with_probe_vars(environ, &envc);
+        /* TODO: Avoid this copy */
         char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
         struct Op op = {
             exec_op_code,
@@ -2258,6 +2259,7 @@ int execvp (const char *filename, char *const argv[]) {
         }
     });
     void* call = ({
+        DEBUG("hi");
         int ret = unwrapped_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
@@ -2957,6 +2959,11 @@ int pthread_join(pthread_t thread, void **retval) {
         }
    });
 }
+
+
+void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
+/* TODO: interpose munmap. see ../src/global_state.c, ../src/arena.c */
+/* int munmap(void* addr, size_t length) { } */
 
 /* void exit (int status) { */
 /*     void* pre_call = ({ */

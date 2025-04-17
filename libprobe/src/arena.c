@@ -58,7 +58,7 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
 
     EXPECT(== 0, unwrapped_ftruncate(fd, capacity));
 
-    void* base_address = mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* base_address = unwrapped_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     ASSERTF(base_address != MAP_FAILED, "");
     /* mmap here corresponds to munmap in either arena_destroy or arena_uninstantiate_all_but_last */
 
@@ -237,6 +237,6 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
 
 bool arena_is_initialized(struct ArenaDir* arena_dir) {
     ASSERTF((arena_dir->__next_instantiation == 0) == (arena_dir->__tail == NULL),
-            "is_initialized signals disagree");
+            "is_initialized signals disagree %ld %p", arena_dir->__next_instantiation, arena_dir->__tail);
     return arena_dir->__tail != NULL;
 }

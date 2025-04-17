@@ -1,7 +1,8 @@
 CC ?= clang
+VERSION ?= $(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
-    -DSOURCE_VERSION=\"$(shell git rev-parse --short HEAD)\" \
+    -DSOURCE_VERSION=\"$(VERSION)\" \
     -fvisibility=hidden \
     -Werror \
     -Wall -Wextra \
@@ -20,6 +21,9 @@ BUILD_DIR := .build
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
+
+generated: $(GENERATED_FILES)
+.PHONY: generated
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
 	$(CC) -flto    -fpic -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
@@ -71,8 +75,8 @@ install:
 .PHONY: install
 
 clean:
-	mkdir --parents $(BUILD_DIR)/ generated/
-	rm --force --recursive $(BUILD_DIR)/ generated/ compile_commands.json
+	mkdir --parents $(BUILD_DIR)/
+	rm --force --recursive $(BUILD_DIR)/ $(GENERATED_FILES) compile_commands.json
 .PHONY: clean
 
 format:

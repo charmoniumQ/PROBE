@@ -6,7 +6,7 @@
 # Subsequently, note whether the machine exploded.
 # If not, then PROBE does not interfere with ASAN.
 
-CC ?= gcc
+CC ?= clang
 CFLAGS ?= -Wall -Wextra -Werror -Og -g
 
 SOURCE_FILES := $(wildcard *.c)
