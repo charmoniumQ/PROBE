@@ -154,7 +154,7 @@ impl Recorder {
             std::env::current_exe().wrap_err("Failed to get path to current executable")?;
 
         let copy_files_string = if self.copy_files_lazily {
-            "lazy";
+            "lazy"
         } else if self.copy_files_eagerly {
             "eager"
         } else {
@@ -166,20 +166,20 @@ impl Recorder {
                 OsString::from("--init-eval-command=set environment "),
                 OsString::from(probe_headers::PROBE_DIR_VAR),
                 OsString::from("="),
-                OsString::from(&self.output.path())
+                OsString::from(&self.output.path()),
             ]);
-            let preload_env = concat_ossstrings([
+            let preload_env = concat_osstrings([
                 OsString::from("--init-eval-command=set environment "),
                 OsString::from(probe_headers::LD_PRELOAD_VAR),
                 OsString::from("="),
                 ld_preload,
             ]);
-            let mut copy_files_env = concat_osstrings([
+            let copy_files_env = concat_osstrings([
                 OsString::from("--init-eval-command=set environment "),
                 OsString::from(probe_headers::PROBE_COPY_FILES_VAR),
                 OsString::from("="),
                 OsString::from(copy_files_string),
-            ])
+            ]);
 
             std::process::Command::new("gdb")
                 .arg(dir_env)
@@ -308,13 +308,9 @@ impl Recorder {
 }
 
 fn concat_osstrings<const SIZE: usize>(strings: [OsString; SIZE]) -> OsString {
-    pub fn copy_files_lazily(mut self, copy_files_lazily: bool) -> Self {
     let mut result = OsString::new();
-        self.copy_files_lazily = copy_files_lazily;
     for s in strings {
-        self
         result.push(s);
-    }
     }
     result
 }
