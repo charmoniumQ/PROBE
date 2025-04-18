@@ -1,3 +1,4 @@
+import random
 import os
 import re
 import shlex
@@ -44,22 +45,15 @@ def build_oci_image(
             raise typer.Exit(code=1)
 
         # Start contianer
+        container_id = f"probe-{random.randint(0, 2**32 - 1):08x}"
         if verbose:
-            console.print("buildah from scratch")
-        proc = subprocess.run(
-            ["buildah", "from", "scratch"],
-            check=False,
-            capture_output=True,
+            console.print(shlex.join(["buildah", "from", "--name", container_id, "scratch"]))
+        subprocess.run(
+            ["buildah", "from", "--name", container_id, "scratch"],
+            check=True,
+            capture_output=not verbose,
             text=True,
         )
-        if proc.returncode != 0:
-            print(proc.stderr)
-            print("-")
-            print(proc.stdout)
-            raise RuntimeError("Command failed; see above")
-        container_id = proc.stdout.strip()
-        if verbose:
-            console.print(f"Container ID: {container_id}")
 
         # Copy relevant files
         if verbose:

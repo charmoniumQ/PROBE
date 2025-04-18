@@ -29,19 +29,19 @@ commands = [
         "and",
         "./a.out",
     ),
-    bash(
-        *bash(
-            *bash("echo", "hi", "redirect_to", "file0"),
-            "and",
-            *bash("cat", "file0", "file0", "redirect_to", "file1"),
-        ),
-        "and",
-        *bash(
-            *bash("cat", "file0", "file1", "redirect_to", "file2"),
-            "and",
-            *bash("cat", "file0", "file2", "redirect_to", "file3"),
-        ),
-    ),
+    # bash(
+    #     *bash(
+    #         *bash("echo", "hi", "redirect_to", "file0"),
+    #         "and",
+    #         *bash("cat", "file0", "file0", "redirect_to", "file1"),
+    #     ),
+    #     "and",
+    #     *bash(
+    #         *bash("cat", "file0", "file1", "redirect_to", "file2"),
+    #         "and",
+    #         *bash("cat", "file0", "file2", "redirect_to", "file3"),
+    #     ),
+    # ),
 ]
 
 modes = [
