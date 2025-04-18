@@ -83,6 +83,7 @@ def ops_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        only_proc_ops: bool = typer.Option(False, help="For only Exec, Clone, Wait Operations")
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -94,7 +95,7 @@ def ops_graph(
     Supports .png, .svg, and .dot
     """
     prov_log = parse_probe_log(probe_log)
-    process_graph = analysis.provlog_to_digraph(prov_log)
+    process_graph = analysis.provlog_to_digraph(prov_log, only_proc_ops)
     analysis.color_hb_graph(prov_log, process_graph)
     graph_utils.serialize_graph(process_graph, output)
 
