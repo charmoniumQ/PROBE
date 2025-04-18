@@ -76,9 +76,14 @@
             version = "0.1.0";
             src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
+            doCheck = true;
+            checkInputs = [
+                pkgs.clang-tools
+                pkgs.cppcheck
+                pkgs.include-what-you-use
+            ];
             buildInputs = [
               pkgs.git
-              pkgs.compiledb
               (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))

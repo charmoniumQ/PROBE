@@ -5,7 +5,7 @@ Required reading: <https://matt.sh/howto-c>
 # Refresh the compile_commands.json
 
 ``` sh
-make clean && bear -- make
+make clean && make compile_commands.json
 ```
 
 # C source checks
@@ -28,29 +28,20 @@ make clean && bear -- make
 
 - Ensure `nonnull` and `returns_nonnull` are applied where applicable.
 
-# cppclean
-
-Output of cppclean seems wrong
-For example,
-
-    src/prov_buffer.h:3: '../include/libprobe/prov_ops.h' does not need to be #included
-
-Howver, we can't foward-declare it because a public function takes a struct Op (by value).
-Therefore, we need the struct layout in the header.
-
-# C lints
-
-- https://github.com/include-what-you-use/include-what-you-use
-- https://code.google.com/archive/p/cppclean
+# Run C lints
 
 ``` sh
-clang-check include/libprobe/* src/* generated/*
+make format
 
-make clean && scan-build make
+make check
+
+make deep-check
 
 # https://github.com/NixOS/nixpkgs/pull/395967
 # https://clang.llvm.org/docs/analyzer/user-docs/CommandLineUsage.html#codechecker
 # https://github.com/Ericsson/codechecker/blob/master/docs/usage.md
+# TODO: make CodeChecker work
 CodeChecker analyze compile_commands.json -o reports
 ```
 
+Unfortunately [include-what-you-use](https://github.com/include-what-you-use/include-what-you-use), it often suggests "private/implementation-defined" headers like `linux/limits.h` rather than the [documented public interface `limits.h`](https://www.man7.org/linux/man-pages/man0/limits.h.0p.html). For those cases, I overrode those wrong cases with the comment; search `IWYU pragma` to see examples.

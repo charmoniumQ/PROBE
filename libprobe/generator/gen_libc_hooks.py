@@ -259,7 +259,7 @@ class ParsedFunc:
 
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
-ast = pycparser.parse_file(filename, use_cpp=True)
+ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument"])
 orig_funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
