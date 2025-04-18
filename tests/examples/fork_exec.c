@@ -4,21 +4,21 @@
 #include <sys/wait.h>
 
 int main(__attribute__((unused)) int argc, char *const argv[]) {
-    fprintf(stderr, "main");
+    fprintf(stderr, "main\n");
     pid_t pid = fork();
-    fprintf(stderr, "forked");
+    fprintf(stderr, "forked\n");
     if (pid < 0) {
         perror("fork");
         return 1;
     } else if (pid == 0) {
-        fprintf(stderr, "child");
+        fprintf(stderr, "child\n");
         execvp(argv[1], &argv[1]);
         // Exec never returns
         // Must be an error in exec
         perror("exec");
         return 1;
     } else {
-        fprintf(stderr, "parent");
+        fprintf(stderr, "parent\n");
         int status;
         int ret = waitpid(pid, &status, 0);
         if (ret < 0) {

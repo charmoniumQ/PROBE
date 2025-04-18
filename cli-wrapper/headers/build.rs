@@ -36,5 +36,5 @@ fn main() {
         .include_item("ProcessContext")
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file(std::env::var_os("CBINDGEN_OUTFILE").expect("Must define CBINDGEN_OUTFILE"));
+        .write_to_file(out_file);
 }

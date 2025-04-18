@@ -663,6 +663,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "my-workspace-hack"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clap_builder",
+ "either",
+ "libc",
+ "log",
+ "once_cell",
+ "regex",
+ "regex-automata",
+ "regex-syntax",
+ "syn",
+]
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

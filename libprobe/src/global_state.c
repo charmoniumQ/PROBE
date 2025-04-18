@@ -46,7 +46,7 @@ pid_t get_tid_safe() {
 
 static inline void* open_and_mmap(const char* path, bool writable, size_t size) {
     DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
-    int fd = unwrapped_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY));
+    int fd = unwrapped_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
     if (UNLIKELY(fd == -1)) {
         ERROR("Could not open process_tree in parent's dir at %s", path);
     }

@@ -2279,7 +2279,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         size_t argc = COUNT_NONNULL_VARARGS(arg0);
         char** argv = EXPECT_NONNULL(malloc((argc + 1) * sizeof(char*)));
         va_list ap;
-		va_start(ap, arg0);
+        va_start(ap, arg0);
         for (size_t i = 0; i < argc; ++i) {
             argv[i] = va_arg(ap, __type_charp);
         }
