@@ -23,6 +23,7 @@ rayon = "1.10.0"
 serde = { version = "1.0.203", features = ["serde_derive"] }
 serde_json = "1.0.118"
 thiserror = "1.0.61"
+my-workspace-hack = { version = "0.1", path = "../my-workspace-hack" }
 
 [build-dependencies]
 bindgen = "0.69.4"

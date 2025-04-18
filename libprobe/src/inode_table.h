@@ -2,10 +2,9 @@
 
 #define _GNU_SOURCE
 
-#include <stdbool.h>
+#include <stdbool.h> // for bool
 
 struct Path;
-struct IndexTable;
 
 /*
  * This struct "hides" the implementation from users.

@@ -1,18 +1,28 @@
 #define _GNU_SOURCE
 
-#include "../generated/libc_hooks.h"
-#include <fcntl.h>
-#include <limits.h>
-#include <string.h>
-
-#include "arena.h"
-#include "debug_logging.h"
-#include "global_state.h"
-#include "inode_table.h"
-#include "prov_utils.h"
-#include "util.h"
-
 #include "prov_buffer.h"
+
+#include <fcntl.h>   // for AT_FDCWD, O_RDWR, O_CREAT
+#include <limits.h>  // IWYU pragma: keep for PATH_MAX
+#include <pthread.h> // for pthread_self
+#include <sched.h>   // for CLONE_VFORK
+#include <stdbool.h> // for bool, true
+#include <stdio.h>   // for fprintf, stderr
+#include <string.h>  // for memcpy, size_t
+#include <threads.h> // for thrd_current
+#include <time.h>    // IWYU pragma: keep for timespec, clock_gettime
+#include <unistd.h>  // for F_OK
+// IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
+// IWYU pragma: no_include "linux/limits.h" for PATH_MAX
+
+#include "../generated/libc_hooks.h"      // for unwrapped_faccessat
+#include "../include/libprobe/prov_ops.h" // for Op, Path, OpCode, Op::(ano...
+#include "arena.h"                        // for arena_sync, arena_calloc
+#include "debug_logging.h"                // for DEBUG, ASSERTF, DEBUG_LOG
+#include "global_state.h"                 // for get_copied_or_overwritten_...
+#include "inode_table.h"                  // for inode_table_put_if_not_exists
+#include "prov_utils.h"                   // for op_to_human_readable, op_t...
+#include "util.h"                         // for copy_file
 
 void prov_log_save() {
     /* TODO: ensure we call Arena save in atexit, pthread_cleanup_push */

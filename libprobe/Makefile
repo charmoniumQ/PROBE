@@ -8,6 +8,9 @@ CFLAGS := \
     -Wall -Wextra \
     -Wno-unused-command-line-argument \
     -fstrict-aliasing
+# musl-clang wrapper triggers -Wno-unused-command-line-argument.
+# But musl with clang (normal invocation) does not.
+
 DBGCFLAGS := -Og -g       -fpic
 OPTCFLAGS := -O3 -DNDEBUG -fPIC
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
@@ -26,42 +29,47 @@ generated: $(GENERATED_FILES)
 .PHONY: generated
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
-	$(CC) -flto    -fpic -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
+	$(CC) -MJ $@.compile_command.json -flto    -fpic -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
 
 $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o)) $(MAKEFILE_LIST)
-	$(CC) -fno-lto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
+	$(CC) -MJ $@.compile_command.json -fno-lto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
 
 $(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)
-	$(CC) -c $(CFLAGS) $(OPTCFLAGS) -o $@ $<
+	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(OPTCFLAGS) -o $@ $<
 
 $(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)
-	$(CC) -c $(CFLAGS) $(DBGCFLAGS) -o $@ $<
+	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(DBGCFLAGS) -o $@ $<
 
 $(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
 
-compile_commands.json: $(MAKEFILE_LIST)
-	$(MAKE) clean
-	$(MAKE) $(BUILD_DIR)/libprobe.dbg.so --dry-run | compiledb
-# compiledb is better than bear.
-# For bear, you have to actually run the compile.
-# For compiledb, you can just dry-run.
-
-$(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
-	nm --dynamic .build/libprobe.dbg.so | grep ' U ' | sed 's/  */ /g' | cut --delim=' ' --fields=3 > $(BUILD_DIR)/undefined_symbols.txt
+compile_commands.json: $(BUILD_DIR)/libprobe.dbg.so
+	echo '[' > $@
+	env --chdir=$(BUILD_DIR) find . -name '*.compile_command.json' -exec cat '{}' \; >> $@
+	echo ']' >> $@
 
 $(BUILD_DIR)/undefined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
+	nm --dynamic .build/libprobe.dbg.so | grep ' U ' | sed 's/  */ /g' | cut --delim=' ' --fields=3 > $(BUILD_DIR)/undefined_symbols.txt
+
+$(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 	nm --dynamic .build/libprobe.dbg.so | grep ' T ' | cut --fields=3 --delimiter=' ' > $(BUILD_DIR)/defined_symbols.txt
 
 check: compile_commands.json $(GENERATED_FILES)
+	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
 	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
-	clang-check $(SOURCE_FILES)
+	echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1
 	clang-tidy  $(SOURCE_FILES)
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
-#	cppclean    $(SOURCE_FILES) # see libprobe/README.md
+
+#	cppclean    $(SOURCE_FILES)
+# Currently, cppclean does not provide a mechanism to disable warnings.
+# It flags *all* static data as a warning because it may not be threadsafe.
+# I have carefully ensured our static data is either thread-local or guarded by a mutex (at initialization time)
+# Nevertheless, selecting which warnings to flag is still a TODO in cppclean.
+# https://github.com/myint/cppclean/blob/aa73d06022533a3ff0a956910f2df9a54c233d88/cpp/find_warnings.py#L18
 .PHONY: check
 
 deep-check:

@@ -259,7 +259,7 @@ class ParsedFunc:
 
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
-ast = pycparser.parse_file(filename, use_cpp=True)
+ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument"])
 orig_funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
@@ -468,32 +468,28 @@ includes = """
 
 #define _GNU_SOURCE
 
-/*
- * error: attribute declaration must precede definition [-Werror,-Wignored-attributes]
- *
- * Fix that by copying some of these before pesky includes
- */
-#include <sys/types.h>
-__attribute__((visibility("default"))) char * realpath(const char * restrict name, char * restrict resolved);
-__attribute__((visibility("default"))) ssize_t readlink(const char *filename, char *buffer, size_t size);
-__attribute__((visibility("default"))) ssize_t readlinkat(int dirfd, const char *filename, char *buffer, size_t size);
+#include <dirent.h>               // for DIR
+#include <features.h>             // for __USE_GNU
+#include <ftw.h>                  // for FTW
+#include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
+#include <signal.h>               // for siginfo_t
+#include <stdio.h>                // for L_tmpnam, FILE, size_t
+#include <sys/stat.h>             // IWYU pragma: keep for stat
+#include <sys/time.h>             // IWYU pragma: keep for timeval
+#include <sys/types.h>            // for pid_t, mode_t, ssize_t, gid_t, uid_t
+#include <sys/wait.h>             // IWYU pragma: keep for idtype_t
+#include <threads.h>              // for thrd_t, thrd_start_t
+// IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
+// IWYU pragma: no_include "bits/types/idtype_t.h" for idtype_t
+// IWYU pragma: no_include "bits/types/sigevent_t.h" for pthread_attr_t
 
-#include <stdio.h>
-#include <dirent.h>
-#include <ftw.h>
-#include <threads.h>
-#include <pthread.h>
-#include <utime.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <sys/time.h>
-
-#include "../src/util.h"
-#include "../src/debug_logging.h"
+struct rusage;
+struct stat;
+struct statx;
+struct utimbuf;
 
 /*
- * There is some bug with pycparser unable to parse inline funciton pointers.
+ * There is some bug with pycparser unable to parse inline function pointers.
  * So we will use a typedef alias.
  */
 typedef int (*fn_ptr_int_void_ptr)(void*);
@@ -505,6 +501,10 @@ typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
  * Best to feature test than test for compiler/libc, but sometimes feature testing is not possible in the preprocessor.
  */
 
+#ifndef __USE_GNU
+#define __MUSL__
+#endif
+
 // Musl defines tmpnam(char*)
 // Glibc defines tmpnam(char[L_tmpnam])
 // We use tmpnam(char[L_tmpnam]) and let this macro handle the difference
@@ -512,8 +512,6 @@ typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 #define __PROBE_L_tmpnam
 #elif __USE_GNU
 #define __PROBE_L_tmpnam L_tmpnam
-#else
-#error "Can't detect glibc nor musl; don't know how to define tmpnam(...)"
 #endif
 
 // On Glibc, struct dirent is 32-bit, with macros switch it to 64-bit or add new struct dirent64
@@ -537,18 +535,44 @@ defines = """
 #define _GNU_SOURCE
 
 #include "libc_hooks.h"
-#include <dlfcn.h>
-#include <limits.h>
-#include <limits.h>
-#include <stdarg.h>
 
-#include "../include/libprobe/prov_ops.h"
-#include "../src/prov_utils.h"
-#include "../src/prov_buffer.h"
-#include "../src/env.h"
-#include "../src/util.h"
-#include "../src/lookup_on_path.h"
-#include "../src/arena.h"
+#include <dirent.h>                                          // for DIR, dirfd
+#include <dlfcn.h>                                           // for dlsym
+#include <errno.h>                                           // for errno
+#include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
+#include <ftw.h>                                             // for ftw, nftw
+#include <limits.h>                                          // for INT_MAX, PATH_MAX
+#include <pthread.h>                                         // for pthread_...
+#include <sched.h>                                           // for CLONE_TH...
+#include <stdarg.h>                                          // for va_arg
+#include <stdbool.h>                                         // for false, true
+#include <stdint.h>                                          // for int64_t
+#include <stdio.h>                                           // for fileno
+#include <stdlib.h>                                          // for free
+#include <string.h>                                          // for memcpy
+#include <sys/stat.h>                                        // for chmod, statx
+#include <sys/time.h>                                        // for futimes
+#include <sys/wait.h>                                        // for wait, wait3
+#include <threads.h>                                         // for thrd_t
+#include <unistd.h>                                          // for environ
+#include <utime.h>                                           // for utimbuf
+// IWYU pragma: no_include "bits/statx-generic.h"               for statx
+// IWYU pragma: no_include "bits/types/siginfo_t.h"             for si_pid, si_status
+// IWYU pragma: no_include "linux/limits.h"                     for PATH_MAX
+
+#include "../include/libprobe/prov_ops.h"                    // for Op, OpCode
+#include "../src/arena.h"                                    // for prov_log...
+#include "../src/env.h"                                      // for arena_co...
+#include "../src/lookup_on_path.h"                           // for lookup_o...
+#include "../src/prov_buffer.h"                              // for prov_log...
+#include "../src/prov_utils.h"                               // for create_p...
+#include "../src/util.h"                                     // for LIKELY
+#include "../src/debug_logging.h"                            // for DEBUG
+#include "../src/global_state.h"                             // for ensure_i...
+
+struct rusage;
+struct stat;
+struct statx;
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)` or `sizeof(type_name)`)
@@ -575,7 +599,7 @@ typedef void* __type_voidp;
 
 // Clang and GCC disagree on how to construct this struct inline.
 // So I will construct it not inline, here.
-struct my_rusage null_usage = {0};
+const struct my_rusage null_usage = {0};
 """
 
 (generated / "libc_hooks.c").write_text(
