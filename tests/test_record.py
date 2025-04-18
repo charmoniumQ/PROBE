@@ -1,4 +1,5 @@
 import os
+import random
 import shutil
 import pytest
 import pathlib
@@ -28,19 +29,19 @@ commands = [
         "and",
         "./a.out",
     ),
-    # bash(
-    #     *bash(
-    #         *bash("echo", "hi", "redirect_to", "file0"),
-    #         "and",
-    #         *bash("cat", "file0", "file0", "redirect_to", "file1"),
-    #     ),
-    #     "and",
-    #     *bash(
-    #         *bash("cat", "file0", "file1", "redirect_to", "file2"),
-    #         "and",
-    #         *bash("cat", "file0", "file2", "redirect_to", "file3"),
-    #     ),
-    # ),
+    bash(
+        *bash(
+            *bash("echo", "hi", "redirect_to", "file0"),
+            "and",
+            *bash("cat", "file0", "file0", "redirect_to", "file1"),
+        ),
+        "and",
+        *bash(
+            *bash("cat", "file0", "file1", "redirect_to", "file2"),
+            "and",
+            *bash("cat", "file0", "file2", "redirect_to", "file3"),
+        ),
+    ),
 ]
 
 modes = [
@@ -52,9 +53,33 @@ modes = [
 ]
 
 
+# This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
+@pytest.fixture(scope="session")
+def does_podman_work() -> bool:
+    return subprocess.run(["podman", "run", "--rm", "ubuntu:24.04", "pwd"], capture_output=True, check=False).returncode == 0
+
+
+@pytest.fixture(scope="session")
+def does_docker_work() -> bool:
+    return subprocess.run(["docker", "run", "--rm", "ubuntu:24.04", "pwd"], capture_output=True, check=False).returncode == 0
+
+
+@pytest.fixture(scope="session")
+def does_buildah_work() -> bool:
+    name = f"probe-{random.randint(0, 2**32 - 1):08x}"
+    proc = subprocess.run(["buildah", "from", "--name", name, "scratch"], capture_output=True, text=True)
+    return proc.returncode == 0 and subprocess.run(["buildah", "remove", name], capture_output=True, check=False).returncode == 0
+
+
 @pytest.mark.parametrize("mode", modes)
 @pytest.mark.parametrize("command", commands)
-def test_cmds(mode: list[str], command: list[str]) -> None:
+def test_cmds(
+        mode: list[str],
+        command: list[str],
+        does_podman_work: bool,
+        does_docker_work: bool,
+        does_buildah_work: bool,
+) -> None:
     tmpdir.mkdir(exist_ok=True)
     (tmpdir / "probe_log").unlink(missing_ok=True)
 
@@ -84,21 +109,23 @@ def test_cmds(mode: list[str], command: list[str]) -> None:
 
     if copy_files:
 
-        cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
-        assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
-        cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
+        if does_buildah_work and does_podman_work:
+            cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
+            assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
+            cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
 
-        cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
-        assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
-        cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
-        print(shlex.join(cmd))
-        subprocess.run(cmd, check=True, cwd=tmpdir)
+        if does_buildah_work and does_docker_work:
+            cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
+            assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
+            cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=tmpdir)
 
 
 def test_big_env() -> None:
