@@ -95,6 +95,7 @@
           ./lib
           ./macros
           ./headers
+          ./my-workspace-hack
         ];
       });
   };
