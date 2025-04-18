@@ -61,23 +61,28 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
     return ret;
 }
 
-static inline void checked_mkdir(const char* path) {
-    int mkdir_ret = unwrapped_mkdirat(AT_FDCWD, path, 0777);
-    if (mkdir_ret == -1) {
-        ERROR("Could not open process directory at %s", path);
-    }
-}
+// Use a macro so we get the location of the callee in the dbeug log
+#define checked_mkdir(path)                                                                        \
+    ({                                                                                             \
+        DEBUG("mkdir %s", path);                                                                   \
+        int mkdir_ret = unwrapped_mkdirat(AT_FDCWD, path, 0777);                                   \
+        if (mkdir_ret == -1) {                                                                     \
+            list_dir(path, 2);                                                                     \
+            ERROR("Could not mkdir directory %s", path);                                           \
+        }                                                                                          \
+    })
 
-static inline void check_fixed_path(
 #ifdef NDEBUG
-    __attribute__((unused))
+#define check_fixed_path(path)
+#else
+#define check_fixed_path(path)                                                                     \
+    ({                                                                                             \
+        ASSERTF(path->len > 2, "{\"%s\", %d}", path->bytes, path->len);                            \
+        ASSERTF(path->bytes[0] == '/', "{\"%s\", %d}", path->bytes, path->len);                    \
+        ASSERTF(path->bytes[path->len - 1] != '\0', "{\"%s\", %d}", path->bytes, path->len);       \
+        ASSERTF(path->bytes[path->len] == '\0', "{\"%s\", %d}", path->bytes, path->len);           \
+    })
 #endif
-    const struct FixedPath* path) {
-    ASSERTF(path->len > 2, "{\"%s\", %d}", path->bytes, path->len);
-    ASSERTF(path->bytes[0] == '/', "{\"%s\", %d}", path->bytes, path->len);
-    ASSERTF(path->bytes[path->len - 1] != '\0', "{\"%s\", %d}", path->bytes, path->len);
-    ASSERTF(path->bytes[path->len] == '\0', "{\"%s\", %d}", path->bytes, path->len);
-}
 
 static struct FixedPath __probe_dir = {0};
 static inline void init_probe_dir() {
@@ -88,23 +93,26 @@ static inline void init_probe_dir() {
     size_t probe_dir_len = strnlen(__probe_private_dir_env_val, PATH_MAX);
     memcpy(&__probe_dir.bytes, __probe_private_dir_env_val, probe_dir_len);
     __probe_dir.len = probe_dir_len;
-    check_fixed_path(&__probe_dir);
+    check_fixed_path((&__probe_dir));
 }
 const struct FixedPath* get_probe_dir() {
-    check_fixed_path(&__probe_dir);
+    check_fixed_path((&__probe_dir));
     return &__probe_dir;
 }
 static __thread struct FixedPath __probe_dir_thread;
 void init_mut_probe_dir() {
-    memcpy(__probe_dir_thread.bytes, __probe_dir.bytes, __probe_dir.len);
+    check_fixed_path((&__probe_dir));
+    memcpy(__probe_dir_thread.bytes, __probe_dir.bytes, __probe_dir.len + 1 /* copy the \0 byte */);
     __probe_dir_thread.len = __probe_dir.len;
-    check_fixed_path(&__probe_dir_thread);
+    check_fixed_path((&__probe_dir_thread));
 }
 struct FixedPath* get_mut_probe_dir() {
-    check_fixed_path(&__probe_dir_thread);
+    check_fixed_path((&__probe_dir_thread));
     return &__probe_dir_thread;
 }
 
+static struct InodeTable read_inodes;
+static struct InodeTable copied_or_overwritten_inodes;
 static struct ProcessContext* __process = NULL;
 static const struct ProcessTreeContext* __process_tree = NULL;
 static inline void init_process_obj() {
@@ -127,14 +135,16 @@ static inline void init_process_obj() {
         CHECK_SNPRINTF(path_buf + probe_dir->len, (int)(PATH_MAX - probe_dir->len),
                        "/" PIDS_SUBDIR "/%d", pid);
         checked_mkdir(path_buf);
-    } else {
-        __process->epoch_no += 1;
     }
+    __process->epoch_no += 1;
 
     /* mkdir epoch */
     CHECK_SNPRINTF(path_buf + probe_dir->len, (int)(PATH_MAX - probe_dir->len),
-                   "/" PIDS_SUBDIR "/%d/%d", pid, __process->epoch_no);
+                   "/" PIDS_SUBDIR "/%d/%d", pid, __process->epoch_no - 1);
     checked_mkdir(path_buf);
+
+    inode_table_init(&read_inodes);
+    inode_table_init(&copied_or_overwritten_inodes);
 }
 static inline const struct ProcessContext* get_process() { return EXPECT_NONNULL(__process); }
 static inline const struct ProcessTreeContext* get_process_tree() {
@@ -143,9 +153,6 @@ static inline const struct ProcessTreeContext* get_process_tree() {
 }
 const struct FixedPath* get_libprobe_path() { return &get_process_tree()->libprobe_path; }
 enum CopyFiles get_copy_files_mode() { return get_process_tree()->copy_files; }
-
-static struct InodeTable read_inodes;
-static struct InodeTable copied_or_overwritten_inodes;
 
 struct InodeTable* get_read_inodes() {
     ASSERTF(inode_table_is_init(&read_inodes), "");
@@ -158,12 +165,12 @@ struct InodeTable* get_copied_or_overwritten_inodes() {
 
 int get_exec_epoch_safe() {
     if (__process) {
-        return __process->epoch_no;
+        return __process->epoch_no - 1;
     } else {
         return -1;
     }
 }
-int get_exec_epoch() { return get_process()->epoch_no; }
+int get_exec_epoch() { return get_process()->epoch_no - 1; }
 
 static __thread struct FixedPath __ops_path = {0};
 static __thread struct FixedPath __data_path = {0};
@@ -176,17 +183,18 @@ static inline void init_log_arena() {
     pid_t pid = get_pid();
     pid_t tid = get_tid();
     __ops_path.len = CHECK_SNPRINTF(__ops_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%d/%d",
-                                    probe_dir->bytes, pid, process->epoch_no, tid);
-    check_fixed_path(&__ops_path);
+                                    probe_dir->bytes, pid, process->epoch_no - 1, tid);
+    check_fixed_path((&__ops_path));
     checked_mkdir(__ops_path.bytes);
     __ops_path.len =
         CHECK_SNPRINTF(__ops_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%d/%d/" OPS_SUBDIR "/",
-                       probe_dir->bytes, pid, process->epoch_no, tid);
-    check_fixed_path(&__ops_path);
+                       probe_dir->bytes, pid, process->epoch_no - 1, tid);
+    check_fixed_path((&__ops_path));
     __data_path.len =
         CHECK_SNPRINTF(__data_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%d/%d/" DATA_SUBDIR "/",
-                       probe_dir->bytes, pid, process->epoch_no, tid);
-    check_fixed_path(&__data_path);
+                       probe_dir->bytes, pid, process->epoch_no - 1, tid);
+    check_fixed_path((&__data_path));
+    DEBUG("ops_path = \"%s\"", __ops_path.bytes);
     arena_create(&__ops_arena, __ops_path.bytes, __ops_path.len, PATH_MAX, prov_log_arena_size);
     arena_create(&__data_arena, __data_path.bytes, __data_path.len, PATH_MAX, prov_log_arena_size);
     ASSERTF(arena_is_initialized(&__ops_arena), "");
