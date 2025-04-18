@@ -2,7 +2,7 @@
 
 #define _GNU_SOURCE
 
-#include <stddef.h>
+#include <stddef.h> // for size_t
 struct ArenaDir;
 
 __attribute__((visibility("hidden"))) void printenv(void);

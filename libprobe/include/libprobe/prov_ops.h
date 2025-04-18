@@ -2,14 +2,17 @@
 
 #define _GNU_SOURCE
 
-#include <pthread.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <threads.h>
-#include <utime.h>
+#include <pthread.h>   // IWYU pragma: keep for pthread_t
+#include <stdbool.h>   // for bool, false
+#include <stddef.h>    // for size_t, NULL
+#include <stdint.h>    // for uint32_t, int32_t, uint64_t, int64_t
+#include <sys/stat.h>  // IWYU pragma: keep for statx_timestamp
+#include <sys/time.h>  // for timeval
+#include <sys/types.h> // for pid_t, mode_t, gid_t, ino_t, uid_t
+#include <threads.h>   // for thrd_t
+#include <time.h>      // for timespec
+// IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
+// IWYU pragma: no_include "linux/stat.h" for statx_timestamp
 
 // HACK: defining this manually instead of using <sys/resource.h> is
 // a huge hack, but it greatly reduces the generated code complexity

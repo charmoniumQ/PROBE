@@ -2,10 +2,8 @@
 
 #define _GNU_SOURCE
 
-#include <stdbool.h>
-#include <stddef.h>
-
-struct ArenaListElem;
+#include <stdbool.h> // for bool
+#include <stddef.h>  // for size_t
 
 struct ArenaDir {
     int __dirfd;

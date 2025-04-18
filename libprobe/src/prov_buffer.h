@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
 
-#include "../include/libprobe/prov_ops.h"
+#include <stdbool.h> // for bool
+
+struct Op;
 
 __attribute__((visibility("hidden"))) void prov_log_save();
 

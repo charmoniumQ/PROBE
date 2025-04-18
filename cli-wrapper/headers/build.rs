@@ -13,8 +13,8 @@ fn main() {
         )
         .with_after_include(
             "
-#include <stdint.h>
-#include <stdbool.h>
+#include <stdint.h>  // for uint32_t
+#include <stdbool.h> // for bool
 
 #define LD_PRELOAD_VAR \"LD_PRELOAD\"
 #define PROBE_DIR_VAR \"PROBE_DIR\"

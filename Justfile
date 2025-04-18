@@ -24,9 +24,13 @@ fix-cli:
 
 [working-directory: 'cli-wrapper']
 check-cli:
-    cargo clippy -- --deny warnings
-    cargo doc --workspace
     cargo fmt --check
+    cargo doc --workspace
+    cargo clippy -- --deny warnings
+    cargo deny check
+    cargo audit
+    cargo hakari generate --diff
+    cargo hakari manage-deps --dry-run
 
 [working-directory: 'cli-wrapper']
 compile-cli:

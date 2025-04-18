@@ -2,10 +2,8 @@
 
 #define _GNU_SOURCE
 
-#include <stdbool.h>
-#include <unistd.h>
-
-struct ArenaDir;
+#include <stdbool.h>   // for bool
+#include <sys/types.h> // for pid_t
 
 /*
  * For each member of global state $X of type $T, we have

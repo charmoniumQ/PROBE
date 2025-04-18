@@ -12,11 +12,9 @@ make clean && bear -- make
 
 - Don't use `__` to mark private variables; it's ugly and they will have hidden visibility by default.
 
-- See if global variables can be converted to static function variables.
+- See if global variables can be converted to static function variables (same lifetime, but scoped to the function).
 
-- Include its own header last.
-
-- Don't duplicate includes already present in headers.
+- Include its own header first.
 
 - Apply `nonnull` attribute liberally.
 
@@ -27,6 +25,8 @@ make clean && bear -- make
 - Always begin with `#pragma once`.
 
 - All functions should be `__attribute__((visibility("hidden")))` if used elsewhere in the project or `__attribute__((visibility("default")))` if exported to public API.
+
+- Ensure `nonnull` and `returns_nonnull` are applied where applicable.
 
 # cppclean
 

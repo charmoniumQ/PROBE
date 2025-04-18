@@ -23,6 +23,7 @@ probe_headers = { path = "../headers" }
 tar = "0.4.41"
 tempfile = "3.19.1"
 fs_extra = "1.3.0"
+my-workspace-hack = { version = "0.1", path = "../my-workspace-hack" }
 
 [lints]
 workspace = true

@@ -2,9 +2,16 @@
 
 #define _GNU_SOURCE
 
-#include "../include/libprobe/prov_ops.h"
-#include "util.h"
-#include <sys/resource.h>
+#include "util.h"    // for BORROWED
+#include <stdbool.h> // for bool
+// IWYU pragma: no_include "libprobe/prov_ops.h" for Op (ptr only), StatResult (ptr only)
+
+struct Op;         // IWYU pragma: keep
+struct StatResult; // IWYU pragma: keep
+struct my_rusage;  // IWYU pragma: keep
+struct rusage;
+struct stat;
+struct statx;
 
 __attribute__((visibility("hidden"))) struct Path
 create_path_lazy(int dirfd, BORROWED const char* path, int flags);

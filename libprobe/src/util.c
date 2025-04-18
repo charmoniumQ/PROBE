@@ -1,17 +1,24 @@
 #define _GNU_SOURCE
 
-#include "../generated/libc_hooks.h"
-#include <fcntl.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/sendfile.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <dirent.h>       // for dirent
+#include <errno.h>        // for errno, EBADF
+#include <fcntl.h>        // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
+#include <limits.h>       // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
+#include <stdbool.h>      // for bool, false
+#include <stdlib.h>       // for malloc
+#include <string.h>       // for memcpy, strcmp, strlen
+#include <sys/sendfile.h> // for sendfile
+#include <sys/stat.h>     // for S_IFDIR, S_IFMT, statx, STATX_TYPE
+#include <sys/types.h>    // for ssize_t, off_t
+#include <unistd.h>       // for write
+// IWYU pragma: no_include "asm-generic/errno-base.h"   for EBADF
+// IWYU pragma: no_include "bits/posix1_lim.h"          for SSIZE_MAX
+// IWYU pragma: no_include "linux/limits.h"             for PATH_MAX
+// IWYU pragma: no_include "linux/stat.h"               for statx, STATX_TYPE
 
-#include "debug_logging.h"
-
-#include "util.h"
+#include "../generated/libc_hooks.h" // for unwrapped_close, unwrapped_openat
+#include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
+#include "util.h"                    // for BORROWED, OWNED, CHECK_SNPRINTF
 
 bool is_dir(const char* dir) {
     struct statx statx_buf;
@@ -64,11 +71,11 @@ void list_dir(const char* name, int indent) {
             char path[1024];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
-            snprintf(path, sizeof(path), "%s/%s", name, entry->d_name);
-            fprintf(stderr, "%*s%s/\n", indent, "", entry->d_name);
+            CHECK_SNPRINTF(path, ((int)sizeof(path)), "%s/%s", name, entry->d_name);
+            LOG("%*s%s/", indent, "", entry->d_name);
             list_dir(path, indent + 2);
         } else {
-            fprintf(stderr, "%*s%s\n", indent, "", entry->d_name);
+            LOG("%*s%s\n", indent, "", entry->d_name);
         }
     }
     unwrapped_closedir(dir);

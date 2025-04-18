@@ -3,15 +3,12 @@
 #define _GNU_SOURCE
 
 // https://stackoverflow.com/a/78062291/1078199
-#include <features.h>
-#ifndef __USE_GNU
-#define __MUSL__
-#endif
+#include <stdarg.h>    // for va_arg, va_end, va_start, va_list
+#include <stdbool.h>   // for bool
+#include <stdio.h>     // for snprintf, size_t
+#include <sys/types.h> // for ssize_t
 
-#include "debug_logging.h"
-#include <dirent.h>
-#include <stdbool.h>
-#include <stdio.h>
+#include "debug_logging.h" // for ASSERTF
 
 /*
  * OWNED/BORROWED determins who is responsible for freeing a pointer received or returned by a function-call.
@@ -86,3 +83,11 @@ __attribute__((visibility("hidden"))) void write_bytes(int dirfd, const char* pa
 
 __attribute__((visibility("hidden"))) unsigned char ceil_log2(unsigned int val)
     __attribute__((pure));
+
+__attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
+    char buf[10];
+    CHECK_SNPRINTF(buf, 10, "");
+    COUNT_NONNULL_VARARGS(f);
+    __attribute__((unused)) bool a = true;
+    __attribute__((unused)) size_t b = 1;
+}

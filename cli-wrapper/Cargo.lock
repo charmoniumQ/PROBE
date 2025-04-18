@@ -792,6 +792,7 @@ dependencies = [
  "fs_extra",
  "libc",
  "log",
+ "my-workspace-hack",
  "probe_headers",
  "probe_lib",
  "tar",
@@ -804,6 +805,7 @@ version = "0.2.0"
 dependencies = [
  "cbindgen",
  "clap",
+ "my-workspace-hack",
 ]
 
 [[package]]
@@ -814,6 +816,7 @@ dependencies = [
  "libc",
  "log",
  "machine-info",
+ "my-workspace-hack",
  "probe_headers",
  "probe_macros",
  "rayon",
@@ -826,6 +829,7 @@ dependencies = [
 name = "probe_macros"
 version = "0.2.0"
 dependencies = [
+ "my-workspace-hack",
  "parking_lot",
  "proc-macro2",
  "quote",

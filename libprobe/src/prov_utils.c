@@ -1,20 +1,29 @@
 #define _GNU_SOURCE
 
-#include "../generated/libc_hooks.h"
-#include <fcntl.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <sys/resource.h>
-#include <sys/sysmacros.h>
-#include <unistd.h>
-
-#include "arena.h"
-#include "debug_logging.h"
-#include "global_state.h"
-#include "prov_buffer.h"
-#include "util.h"
-
 #include "prov_utils.h"
+
+#include <fcntl.h>         // for O_CREAT, AT_FDCWD, O_RDWR
+#include <limits.h>        // IWYU pragma: keep for PATH_MAX
+#include <stdbool.h>       // for bool, true, false
+#include <stdlib.h>        // for NULL, free
+#include <string.h>        // for strlen, strncpy
+#include <sys/resource.h>  // IWYU pragma: keep for rusage
+#include <sys/stat.h>      // IWYU pragma: keep for stat, statx, statx_timestamp
+#include <sys/sysmacros.h> // for major, minor
+#include <time.h>          // for timespec
+#include <unistd.h>        // for getpid, getppid, get_curre...
+// IWYU pragma: no_include "bits/types/struct_rusage.h"      for rusage, rusage::(anonymous)
+// IWYU pragma: no_include "linux/limits.h"                  for PATH_MAX
+// IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
+
+#include "../generated/libc_hooks.h"      // for unwrapped_statx
+#include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
+#include "arena.h"                        // for arena_strndup
+#include "debug_logging.h"                // for DEBUG, EXPECT_NONNULL, NOT...
+#include "errno.h"                        // for program_invocation_name
+#include "global_state.h"                 // for get_data_arena, get_exec_e...
+#include "prov_buffer.h"                  // for prov_log_record, prov_log_try
+#include "util.h"                         // for CHECK_SNPRINTF, BORROWED
 
 struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
     if (LIKELY(prov_log_is_enabled())) {
