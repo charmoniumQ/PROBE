@@ -1,25 +1,31 @@
 #define _GNU_SOURCE
-
-#include "../generated/libc_hooks.h"
-#include <limits.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
-
-#include "../generated/bindings.h"
-#include "arena.h"
-#include "env.h"
-#include "inode_table.h"
-#include "prov_buffer.h"
-#include "prov_utils.h"
-#include "util.h"
-
 #include "global_state.h"
+
+#include <fcntl.h>     // for AT_FDCWD, O_CREAT, O_PATH, O_RD...
+#include <limits.h>    // IWYU pragma: keep for PATH_MAX
+#include <pthread.h>   // for pthread_mutex_t
+#include <stdbool.h>   // for true, bool, false
+#include <string.h>    // for memcpy, NULL, size_t, strnlen
+#include <sys/mman.h>  // for mmap, PROT_*, MAP_*
+#include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
+#include <sys/types.h> // for pid_t
+#include <unistd.h>    // for getpid, gettid, confstr, _CS_PATH
+// IWYU pragma: no_include "bits/mman-linux.h"    for PROT_*
+// IWYU pragma: no_include "bits/pthreadtypes.h"  for pthread_mutex_t
+// IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
+// IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
+
+#include "../generated/bindings.h"   // for FixedPath, ProcessContext, PIDS...
+#include "../generated/libc_hooks.h" // for unwrapped_mkdirat, unwrapped_close
+#include "arena.h"                   // for arena_is_initialized, arena_create
+#include "debug_logging.h"           // for ASSERTF, EXPECT, DEBUG, ERROR
+#include "env.h"                     // for getenv_copy
+#include "inode_table.h"             // for inode_table_init, inode_table_i...
+#include "prov_utils.h"              // for do_init_ops
+#include "util.h"                    // for CHECK_SNPRINTF, list_dir, UNLIKELY
 
 // getpid/gettid is kind of expensive (40ns per syscall)
 // but worth it for debug case
-
 static const pid_t pid_initial = -1;
 static pid_t pid = pid_initial;
 pid_t get_pid() { return EXPECT(== getpid(), pid); }

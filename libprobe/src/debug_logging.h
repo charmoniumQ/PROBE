@@ -2,11 +2,11 @@
 
 #define _GNU_SOURCE
 
-#include "global_state.h" // used in macro for get_pid_safe()
-#include "util.h"
-#include <errno.h>
-#include <stdlib.h> // uesd in macro for exit()
-#include <string.h> // used in macro for strerror()
+#include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
+#include <errno.h>        // for errno
+#include <stdio.h>        // for fprintf, stderr
+#include <stdlib.h>       // for exit, free
+#include <string.h>       // for strerror, strndup
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1
@@ -39,7 +39,7 @@
 #ifndef NDEBUG
 #define ASSERTF(cond, str, ...)                                                                    \
     ({                                                                                             \
-        if (UNLIKELY(!(cond))) {                                                                   \
+        if (__builtin_expect(!(cond), 0)) {                                                        \
             ERROR("Assertion " #cond " failed: " str, ##__VA_ARGS__);                              \
         }                                                                                          \
     })
@@ -65,3 +65,10 @@
 #endif
 
 #define NOT_IMPLEMENTED(str, ...) ERROR("Not implemented: " str, ##__VA_ARGS__)
+
+__attribute__((unused)) static inline void __mark_as_used__debug_logging_h() {
+    fprintf(stderr, "hi");
+    strndup("hi", 3);
+    get_pid();
+    exit(1);
+}

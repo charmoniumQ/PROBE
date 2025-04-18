@@ -1,21 +1,21 @@
 #define _GNU_SOURCE
 
-#include "../generated/libc_hooks.h"
-#include <fcntl.h>
-#include <stdalign.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
-
-#include "debug_logging.h"
-#include "util.h"
-
 #include "arena.h"
+
+#include <fcntl.h>    // for AT_FDCWD, O_CREAT, O_RDWR
+#include <stdbool.h>  // for bool, false, true
+#include <stddef.h>   // for size_t, NULL
+#include <stdint.h>   // for uintptr_t
+#include <stdio.h>    // for snprintf
+#include <stdlib.h>   // for free, malloc
+#include <string.h>   // for memcpy, strnlen
+#include <sys/mman.h> // for msync, munmap, MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
+#include <unistd.h>   // for getpagesize
+// IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
+
+#include "../generated/libc_hooks.h" // for unwrapped_close, unwrapped_ftru...
+#include "debug_logging.h"           // for EXPECT, ASSERTF, EXPECT_NONNULL
+#include "util.h"                    // for ceil_log2, MAX
 
 /* TODO: Interpose munmap. See global_state.c, ../generator/libc_hooks_source.c */
 #define unwrapped_munmap munmap
@@ -31,7 +31,6 @@ struct Arena {
  * The size of the array is ARENA_LIST_BLOCK_SIZE.
  * Making this larger requires more memory, but makes there be fewer linked-list allocations. */
 #define ARENA_LIST_BLOCK_SIZE 64
-struct ArenaListElem;
 struct ArenaListElem {
     struct Arena* arena_list[ARENA_LIST_BLOCK_SIZE];
     /* We store next list elem so that a value of 0 with an uninitialized arena_list represnts a valid ArenaListElem */

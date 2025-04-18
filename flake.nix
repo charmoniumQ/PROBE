@@ -76,9 +76,14 @@
             version = "0.1.0";
             src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
+            doCheck = true;
+            checkInputs = [
+              pkgs.clang-tools
+              pkgs.cppcheck
+              pkgs.include-what-you-use
+            ];
             buildInputs = [
               pkgs.git
-              pkgs.compiledb
               (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
@@ -256,11 +261,10 @@
                 pkgs.clang-analyzer
                 pkgs.clang-tools # must go after clang-analyzer
                 pkgs.clang # must go after clang-tools
-                pkgs.compiledb
                 pkgs.cppcheck
-                pkgs.cppclean
                 pkgs.gnumake
                 pkgs.git
+                pkgs.include-what-you-use
                 pkgs.libclang
                 # pkgs.musl
 

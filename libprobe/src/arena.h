@@ -2,13 +2,8 @@
 
 #define _GNU_SOURCE
 
-#include <limits.h>
-#include <stdbool.h>
-#include <stddef.h>
-
-#include "../generated/bindings.h"
-
-struct ArenaListElem;
+#include <stdbool.h> // for bool
+#include <stddef.h>  // for size_t
 
 struct ArenaDir {
     char* __dir_buffer;

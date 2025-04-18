@@ -2,10 +2,9 @@
 
 #define _GNU_SOURCE
 
-#include <stdbool.h>
-#include <unistd.h>
+#include <sys/types.h> // for pid_t
 
-struct ArenaDir;
+#include "../generated/bindings.h" // for CopyFiles
 
 /*
  * For each member of global state $X of type $T, we have
