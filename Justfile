@@ -28,6 +28,7 @@ check-cli:
     cargo doc --workspace
     cargo fmt --check
     cargo deny check
+    cargo audit
 
 [working-directory: 'cli-wrapper']
 compile-cli:

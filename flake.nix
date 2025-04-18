@@ -210,15 +210,19 @@
         devShells = {
           default = craneLib.devShell {
             shellHook = ''
+              export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
               pushd $(git rev-parse --show-toplevel) > /dev/null
               source ./setup_devshell.sh
               popd > /dev/null
             '';
-            inputsFrom = [
-              frontend.packages.probe-cli
-            ];
             packages =
               [
+                # Rust stuff
+                pkgs.cargo-deny
+                pkgs.cargo-audit
+                pkgs.cargo-machete
+                pkgs.cargo-hakari
+
                 (python.withPackages (pypkgs: [
                   # probe_py.manual runtime requirements
                   pypkgs.networkx
@@ -257,6 +261,7 @@
                 pkgs.cppclean
                 pkgs.gnumake
                 pkgs.git
+                pkgs.libclang
                 # pkgs.musl
 
                 pkgs.which
