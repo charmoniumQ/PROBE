@@ -19,7 +19,7 @@ RUN cachix use charmonium
 """
 
 
-@pytest.mark.skip("This test takes a long time and doesn't work in CI because we can't execute our own podman")
+@pytest.mark.skip("This test takes a long time")
 def test_podman_install() -> None:
     podman = shutil.which("podman")
     assert podman

@@ -41,6 +41,18 @@ jobs:
         name: charmonium
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+    - name: Build Rust artifacts
+      run: nix build .#cargoArtifacts
+
+    - name: Build Rust
+      run: nix build .#probe-cli
+
+    - name: Build libprobe
+      run: nix build .#libprobe
+
+    - name: Build rest
+      run: nix build .
+
     - name: Build and test in Nix flake
       run: nix flake check --all-systems --print-build-logs
 

@@ -763,32 +763,32 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
         }
     });
 }
-/* int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) { */
-/*     void* pre_call = ({ */
-/*         struct Op op = { */
-/*             readdir_op_code, */
-/*             {.readdir = { */
-/*                 .dir = create_path_lazy(AT_FDCWD, dir, 0), */
-/*                 .child = NULL, */
-/*                 .all_children = true, */
-/*             }}, */
-/*             {0}, */
-/*             0, */
-/*             0, */
-/*         }; */
-/*         if (LIKELY(prov_log_is_enabled())) { */
-/*             prov_log_try(op); */
-/*         } */
-/*     }); */
-/*     void* post_call = ({ */
-/*         if (LIKELY(prov_log_is_enabled())) { */
-/*             if (ret != 0) { */
-/*                 op.data.readdir.ferrno = saved_errno; */
-/*             } */
-/*             prov_log_record(op); */
-/*         } */
-/*     }); */
-/* } */
+int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) {
+    void* pre_call = ({
+        struct Op op = {
+            readdir_op_code,
+            {.readdir = {
+                .dir = create_path_lazy(AT_FDCWD, dir, 0),
+                .child = NULL,
+                .all_children = true,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (LIKELY(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            if (ret != 0) {
+                op.data.readdir.ferrno = saved_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
 
 /* Docs: https://www.man7.org/linux/man-pages/man3/scandir.3.html */
 int scandirat(int dirfd, const char *restrict dirp,
@@ -2261,7 +2261,6 @@ int execvp (const char *filename, char *const argv[]) {
         }
     });
     void* call = ({
-        DEBUG("hi");
         int ret = unwrapped_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
@@ -2280,7 +2279,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         size_t argc = COUNT_NONNULL_VARARGS(arg0);
         char** argv = EXPECT_NONNULL(malloc((argc + 1) * sizeof(char*)));
         va_list ap;
-		va_start(ap, arg0);
+        va_start(ap, arg0);
         for (size_t i = 0; i < argc; ++i) {
             argv[i] = va_arg(ap, __type_charp);
         }

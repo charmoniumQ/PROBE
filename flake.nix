@@ -215,13 +215,11 @@
         devShells = {
           default = craneLib.devShell {
             shellHook = ''
+              export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
               pushd $(git rev-parse --show-toplevel) > /dev/null
               source ./setup_devshell.sh
               popd > /dev/null
             '';
-            inputsFrom = [
-              frontend.packages.probe-cli
-            ];
             packages =
               [
                 # Rust stuff

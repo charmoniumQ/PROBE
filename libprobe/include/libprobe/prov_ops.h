@@ -58,7 +58,6 @@ static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, 
 struct InitProcessOp {
     pid_t parent_pid;
     pid_t pid;
-    bool is_root;
     struct Path cwd;
 };
 

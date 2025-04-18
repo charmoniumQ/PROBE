@@ -1,4 +1,5 @@
 import os
+import random
 import shutil
 import pytest
 import pathlib
@@ -63,9 +64,22 @@ def does_docker_work() -> bool:
     return subprocess.run(["docker", "run", "--rm", "ubuntu:24.04", "pwd"], capture_output=True, check=False).returncode == 0
 
 
+@pytest.fixture(scope="session")
+def does_buildah_work() -> bool:
+    name = f"probe-{random.randint(0, 2**32 - 1):08x}"
+    proc = subprocess.run(["buildah", "from", "--name", name, "scratch"], capture_output=True, text=True)
+    return proc.returncode == 0 and subprocess.run(["buildah", "remove", name], capture_output=True, check=False).returncode == 0
+
+
 @pytest.mark.parametrize("mode", modes)
 @pytest.mark.parametrize("command", commands)
-def test_cmds(mode: list[str], command: list[str], does_podman_work: bool, does_docker_work: bool) -> None:
+def test_cmds(
+        mode: list[str],
+        command: list[str],
+        does_podman_work: bool,
+        does_docker_work: bool,
+        does_buildah_work: bool,
+) -> None:
     tmpdir.mkdir(exist_ok=True)
     (tmpdir / "probe_log").unlink(missing_ok=True)
 
@@ -95,7 +109,7 @@ def test_cmds(mode: list[str], command: list[str], does_podman_work: bool, does_
 
     if copy_files:
 
-        if does_podman_work:
+        if does_buildah_work and does_podman_work:
             cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=tmpdir)
@@ -104,9 +118,7 @@ def test_cmds(mode: list[str], command: list[str], does_podman_work: bool, does_
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=tmpdir)
 
-        if does_podman_work and does_docker_work:
-            # podman/buildah neeeded to export the Docker image
-            # Docker needed to run it
+        if does_buildah_work and does_docker_work:
             cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=tmpdir)

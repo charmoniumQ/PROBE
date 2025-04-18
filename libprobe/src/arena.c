@@ -45,18 +45,16 @@ static inline size_t __arena_align(size_t offset, size_t alignment) {
 
 #define ARENA_CURRENT arena_dir->__tail->arena_list[arena_dir->__tail->next_free_slot - 1]
 
-#define ARENA_FNAME_LENGTH 64
-
 static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_capacity) {
     size_t capacity =
         1 << MAX(ceil_log2(getpagesize()), ceil_log2(min_capacity + sizeof(struct Arena)));
 
     /* Create a new mmap */
-    char fname_buffer[ARENA_FNAME_LENGTH];
-    snprintf(fname_buffer, ARENA_FNAME_LENGTH, "%ld.dat", arena_dir->__next_instantiation);
-    int fd = unwrapped_openat(arena_dir->__dirfd, fname_buffer, O_RDWR | O_CREAT, 0666);
-    ASSERTF(fd > 0, "returned_fd=%d (%s dir_fd=%d) %s", fd, dirfd_path(arena_dir->__dirfd),
-            arena_dir->__dirfd, fname_buffer);
+    snprintf(arena_dir->__dir_buffer + arena_dir->__dir_len,
+             arena_dir->__dir_buffer_max - arena_dir->__dir_len, "%016lx.dat",
+             arena_dir->__next_instantiation);
+    int fd = unwrapped_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
+    ASSERTF(fd > 0, "returned_fd=%d (%s)", fd, arena_dir->__dir_buffer);
 
     EXPECT(== 0, unwrapped_ftruncate(fd, capacity));
 
@@ -92,10 +90,9 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     ARENA_CURRENT->capacity = capacity;
     ARENA_CURRENT->used = sizeof(struct Arena);
 
-    DEBUG(
-        "arena_calloc: instantiation of %p, using %ld for Arena, rest starts at %p, capacity %ld\n",
-        ARENA_CURRENT->base_address, ARENA_CURRENT->used,
-        ARENA_CURRENT->base_address + ARENA_CURRENT->used, ARENA_CURRENT->capacity);
+    DEBUG("arena_calloc: instantiation=%ld, base_address=%p, used=%ld, capacity=%ld",
+          ARENA_CURRENT->instantiation, ARENA_CURRENT->base_address, ARENA_CURRENT->used,
+          ARENA_CURRENT->capacity);
 
     /* Update for next instantiation */
     arena_dir->__next_instantiation++;
@@ -127,29 +124,20 @@ void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size)
     return dst;
 }
 
-void arena_create(struct ArenaDir* arena_dir, int parent_dirfd, char* name, size_t capacity) {
-#ifndef NDEBUG
-    int ret =
-#endif
-        unwrapped_mkdirat(parent_dirfd, name, 0777);
-#ifndef NDEBUG
-    ASSERTF(ret == 0, "(%s fd=%d) %s", dirfd_path(parent_dirfd), parent_dirfd, name);
-#endif
-    int dirfd = EXPECT(> 0, unwrapped_openat(parent_dirfd, name, O_RDONLY | O_DIRECTORY | O_PATH));
-    DEBUG("Creating Arena in (%s fd=%d) which should be (%s fd=%d)/%s", dirfd_path(dirfd), dirfd,
-          dirfd_path(parent_dirfd), parent_dirfd, name);
-
-    /* O_DIRECTORY fails if name is not a directory */
-    /* O_PATH means the resulting fd cannot be read/written to. It can be used as the dirfd to *at() syscall functions. */
+void arena_create(struct ArenaDir* arena_dir, char* dir_buffer, size_t dir_len,
+                  size_t dir_buffer_max, size_t arena_capacity) {
+    EXPECT(== 0, unwrapped_mkdirat(AT_FDCWD, dir_buffer, 0777));
     struct ArenaListElem* tail = EXPECT_NONNULL(malloc(sizeof(struct ArenaListElem)));
     /* malloc here corresponds to free in arena_destroy */
 
     tail->next_free_slot = 0;
     tail->prev = NULL;
-    arena_dir->__dirfd = dirfd;
+    arena_dir->__dir_buffer = dir_buffer;
+    arena_dir->__dir_len = dir_len;
+    arena_dir->__dir_buffer_max = dir_buffer_max;
     arena_dir->__tail = tail;
     arena_dir->__next_instantiation = 0;
-    arena_reinstantiate(arena_dir, capacity);
+    arena_reinstantiate(arena_dir, arena_capacity);
 }
 
 /*
@@ -166,7 +154,7 @@ void arena_destroy(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
-                EXPECT(== 0, munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, unwrapped_munmap(arena->base_address, arena->capacity));
                 arena = NULL;
             }
         }
@@ -175,10 +163,6 @@ void arena_destroy(struct ArenaDir* arena_dir) {
         free(old_current);
     }
     arena_dir->__tail = NULL;
-
-    unwrapped_close(arena_dir->__dirfd);
-    arena_dir->__dirfd = 0;
-
     arena_dir->__next_instantiation = 0;
 }
 
@@ -189,7 +173,7 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 // munmap but no mysnc
-                EXPECT(== 0, munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, unwrapped_munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;
             }
         }
@@ -198,7 +182,6 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
         free(old_current);
     }
     arena_dir->__tail = NULL;
-    arena_dir->__dirfd = 0;
     arena_dir->__next_instantiation = 0;
 }
 
@@ -224,7 +207,7 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
-                EXPECT(== 0, munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, unwrapped_munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;
             }
         }

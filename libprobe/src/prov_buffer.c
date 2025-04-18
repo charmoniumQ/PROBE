@@ -15,6 +15,7 @@
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
+#include "../generated/bindings.h"        // for CopyFiles
 #include "../generated/libc_hooks.h"      // for unwrapped_faccessat
 #include "../include/libprobe/prov_ops.h" // for Op, Path, OpCode, Op::(ano...
 #include "arena.h"                        // for arena_sync, arena_calloc
@@ -50,23 +51,22 @@ static inline bool is_replace_op(struct Op op) {
 }
 
 static int copy_to_store(const struct Path* path) {
-    static char dst_path[PATH_MAX];
-    path_to_id_string(path, dst_path);
+    struct FixedPath* store_path = get_mut_probe_dir();
+    store_path->bytes[store_path->len] = '/';
+    path_to_id_string(path, store_path->bytes + store_path->len + 1);
     /*
     ** We take precautions to avoid calling copy(f) if copy(f) is already called in the same process.
     ** But it may have been already called in a different process!
     ** Especially coreutils used in every script.
      */
-
-    int dst_dirfd = get_inodes_dirfd();
-    int access = unwrapped_faccessat(dst_dirfd, dst_path, F_OK, 0);
+    int access = unwrapped_faccessat(AT_FDCWD, store_path->bytes, F_OK, 0);
     if (access == 0) {
         DEBUG("Already exists %s %ld", path->path, path->inode);
         return 0;
     } else {
         DEBUG("Copying %s %ld", path->path, path->inode);
-        return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, dst_dirfd, dst_path,
-                         path->size);
+        return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, AT_FDCWD,
+                         store_path->bytes, path->size);
     }
 }
 
@@ -88,8 +88,10 @@ void prov_log_try(struct Op op) {
 
     for (char i = 0; i < 2; ++i) {
         const struct Path* path = (i == 0) ? op_to_path(&op) : op_to_second_path(&op);
-        if (should_copy_files() && path->path && path->stat_valid) {
-            if (should_copy_files_lazily()) {
+        enum CopyFiles mode = get_copy_files_mode();
+        if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly) && path->path &&
+            path->stat_valid) {
+            if (mode == CopyFiles_Lazily) {
                 if (is_read_op(op)) {
                     DEBUG("Reading %s %ld", path->path, path->inode);
                     inode_table_put_if_not_exists(get_read_inodes(), path);
@@ -123,7 +125,7 @@ void prov_log_try(struct Op op) {
                     }
                 }
             } else if (is_read_op(op) || is_mutate_op(op)) {
-                ASSERTF(should_copy_files_eagerly(), "");
+                ASSERTF(mode == CopyFiles_Eagerly, "");
                 if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
                     DEBUG("Not copying %s %ld because already did", path->path, path->inode);
                 } else {
