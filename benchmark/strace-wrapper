@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
-result/bin/strace -f -o strace.log -e !arch_prctl,mmap,munmap,brk,mprotect,rseq,prlimit64,set_tid_address,set_robust_list,getrandom,futex,rt_sigaction,lseek,ioctl,fcntl,read,pread64,sysinfo -- "$@"
+$(dirname $0)/result/bin/strace -v -s 1048576 -f -o strace.log -e !arch_prctl,mmap,munmap,brk,mprotect,rseq,prlimit64,set_tid_address,set_robust_list,getrandom,futex,rt_sigaction,lseek,ioctl,fcntl,read,pread64,sysinfo -- "$@"
+# for log in $(ls *strace.log).strip().split("\n"):
+#     cut -f2- "-d " @(log) | grep -v write | sed 's/0x[0-9a-f]*/hex/g' > @(log.replace(".log", ".limlog"))

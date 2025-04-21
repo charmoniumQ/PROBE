@@ -3,7 +3,14 @@ import dataclasses
 import pycparser  # type: ignore
 import pycparser.c_generator  # type: ignore
 import typing
+import itertools
 import pathlib
+
+
+# Intercept libc functions
+# But ignore pre_call/post_call actions
+# Don't produce ops
+ignore_actions = False
 
 
 _T = typing.TypeVar("_T")
@@ -23,39 +30,47 @@ if typing.TYPE_CHECKING:
         indent_level: int
     class Node:
         pass
+    @dataclasses.dataclass
     class IdentifierType(Node):
         names: list[str]
-        def __init__(self, names: list[str]) -> None: ...
+    @dataclasses.dataclass
     class Assignment(Node):
-        def __init__(self, op: str, lvalue: Node, rvalue: Node): ...
         op: str
         lvalue: Node
         rvalue: Node
+    @dataclasses.dataclass
     class Compound(Node):
         block_items: list[Node]
+    @dataclasses.dataclass
     class ID(Node):
         name: str
+    @dataclasses.dataclass
     class Decl(Node):
-        def __init__(self, name: str, quals: list[str], align: list[str], storage: list[str], funcspec: list[str], type: TypeDecl, init: Node | None, bitsize : Node | None) -> None: ...
         name: str
-        quals: list[Node]
-        align: list[Node]
-        storage: list[Node]
-        funcspec: list[Node]
-        type: TypeDecl
-        init: Node | None
-        bitsize: Node | None
+        quals: list[str]
+        align: list[str]
+        storage: list[str]
+        funcspec: list[str]
+        type: TypeDecl | PtrDecl
+        init: Node | None = None
+        bitsize: Node | None = None
+    @dataclasses.dataclass
     class TypeDecl(Node):
-        def __init__(self, declname: str, quals: list[Node], align: Node | None, type: Node) -> None: ...
-        declname: str
+        declname: str | None
         quals: list[Node]
         align: Node | None
         type: Node
+    @dataclasses.dataclass
     class FuncDecl(Node):
-        args: ParamList
+        args: ParamList | None
         type: TypeDecl
+    @dataclasses.dataclass
     class ParamList(Node):
         params: list[Decl]
+    @dataclasses.dataclass
+    class PtrDecl(Node):
+        quals: list[str]
+        type: TypeDecl | FuncDecl
 else:
     CGenerator = pycparser.c_generator.CGenerator
     Node = pycparser.c_ast.Node
@@ -67,6 +82,7 @@ else:
     ID = pycparser.c_ast.ID
     FuncDecl = pycparser.c_ast.FuncDecl
     ParamList = pycparser.c_ast.ParamList
+    PtrDecl = pycparser.c_ast.PtrDecl
 
 
 class GccCGenerator(CGenerator):
@@ -84,7 +100,7 @@ class GccCGenerator(CGenerator):
         if n.bitsize:
             s += ' : ' + self.visit(n.bitsize)
         if n.init:
-            s += ' = ' + self._parenthesize_if(n.init, lambda n: isinstance(n, (Assignment, pycparser.c_ast.Compound)))
+            s += ' = ' + self._parenthesize_if(n.init, lambda n: isinstance(n, (Assignment, Compound)))
         return s
 
     def _parenthesize_if(self, n: Node, condition: typing.Callable[[Node], bool]) -> str:
@@ -92,7 +108,7 @@ class GccCGenerator(CGenerator):
         s = self._visit_expr(n)
         self.indent_level -= 2
         if condition(n):
-            if isinstance(n, pycparser.c_ast.Compound):
+            if isinstance(n, Compound):
                 return "(\n" + s + self._make_indent() + ")"
             else:
                 return '(' + s + ')'
@@ -127,10 +143,10 @@ void = IdentifierType(names=['void'])
 c_ast_int = IdentifierType(names=['int'])
 
 
-def ptr_type(type: Node) -> pycparser.c_ast.PtrDecl:
-    return pycparser.c_ast.PtrDecl(
+def ptr_type(type: Node) -> PtrDecl:
+    return PtrDecl(
         quals=[],
-        type=pycparser.c_ast.TypeDecl(
+        type=TypeDecl(
             declname="v",
             quals=[],
             align=None,
@@ -143,11 +159,11 @@ void_fn_ptr = pycparser.c_ast.Typename(
     name=None,
     quals=[],
     align=None,
-    type=pycparser.c_ast.PtrDecl(
+    type=PtrDecl(
         quals=[],
-        type=pycparser.c_ast.FuncDecl(
+        type=FuncDecl(
             args=None,
-            type=pycparser.c_ast.TypeDecl(
+            type=TypeDecl(
                 declname=None,
                 quals=[],
                 align=None,
@@ -158,11 +174,20 @@ void_fn_ptr = pycparser.c_ast.Typename(
 )
 
 
+def strip_restrict(ty: TypeDecl | PtrDecl) -> TypeDecl | PtrDecl:
+    if isinstance(ty, PtrDecl):
+        return PtrDecl(
+            quals=[qual for qual in ty.quals if qual != "restrict"],
+            type=ty.type,
+        )
+    else:
+        return ty
+
 @dataclasses.dataclass(frozen=True)
 class ParsedFunc:
     name: str
     # Using tuples rather than lists since tuples are covariant
-    params: typing.Sequence[tuple[str, TypeDecl]]
+    params: typing.Sequence[tuple[str, TypeDecl | PtrDecl]]
     return_type: TypeDecl
     variadic: bool = False
     stmts: typing.Sequence[Node] = ()
@@ -173,11 +198,11 @@ class ParsedFunc:
             name=decl.name,
             params=tuple(
                 (param_decl.name, param_decl.type)
-                for param_decl in expect_type(FuncDecl, decl.type).args.params
+                for param_decl in expect_type(ParamList, expect_type(FuncDecl, decl.type).args).params
                 if isinstance(param_decl, Decl)
             ),
             return_type=expect_type(FuncDecl, decl.type).type,
-            variadic=isinstance(expect_type(FuncDecl, decl.type).args.params[-1], pycparser.c_ast.EllipsisParam),
+            variadic=isinstance(expect_type(ParamList, expect_type(FuncDecl, decl.type).args).params[-1], pycparser.c_ast.EllipsisParam),
         )
 
     @staticmethod
@@ -189,7 +214,7 @@ class ParsedFunc:
 
     def declaration(self) -> pycparser.c_ast.FuncDecl:
         return pycparser.c_ast.FuncDecl(
-            args=pycparser.c_ast.ParamList(
+            args=ParamList(
                 params=[
                     Decl(
                         name=param_name,
@@ -212,27 +237,27 @@ class ParsedFunc:
             ),
         )
 
-    def definition(self) -> pycparser.c_ast.FuncDef:
+    def definition(self, visibility: str | None = None) -> pycparser.c_ast.FuncDef:
         return pycparser.c_ast.FuncDef(
             decl=Decl(
                 name=self.name,
                 quals=[],
                 align=[],
-                storage=[],
+                storage=[] if visibility is None else [f'__attribute__((visibility("{visibility}")))'],
                 funcspec=[],
                 type=self.declaration(),
                 init=None,
                 bitsize=None
             ),
             param_decls=None,
-            body=pycparser.c_ast.Compound(
-                block_items=self.stmts,
+            body=Compound(
+                block_items=list(self.stmts),
             ),
         )
 
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
-ast = pycparser.parse_file(filename, use_cpp=True)
+ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument"])
 orig_funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
@@ -246,19 +271,31 @@ funcs = {
         if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
     },
 }
-# funcs = {
-#     key: val
-#     for key, val in list(funcs.items())
-# }
 func_prefix = "unwrapped_"
 func_pointer_declarations = [
     Decl(
         name=func_prefix + func_name,
         quals=[],
         align=[],
-        storage=["static"],
+        storage=[],
         funcspec=[],
-        type=pycparser.c_ast.PtrDecl(
+        type=PtrDecl(
+            quals=[],
+            type=dataclasses.replace(func, name=func_prefix + func.name).declaration(),
+        ),
+        init=None,
+        bitsize=None,
+    )
+    for func_name, func in funcs.items()
+]
+func_pointer_extern_declarations = [
+    Decl(
+        name=func_prefix + func_name,
+        quals=[],
+        align=[],
+        storage=["extern"],
+        funcspec=[],
+        type=PtrDecl(
             quals=[],
             type=dataclasses.replace(func, name=func_prefix + func.name).declaration(),
         ),
@@ -273,20 +310,39 @@ init_function_pointers = ParsedFunc(
     return_type=TypeDecl(declname="a", quals=[], align=None, type=void),
     variadic=False,
     stmts=[
-        Assignment(
-            op='=',
-            lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
-            rvalue=pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID(name="dlsym"),
-                args=pycparser.c_ast.ExprList(
-                    exprs=[
-                        pycparser.c_ast.ID(name="RTLD_NEXT"),
-                        pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
-                    ],
+        *itertools.chain.from_iterable([
+            [
+                Assignment(
+                    op='=',
+                    lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
+                    rvalue=pycparser.c_ast.FuncCall(
+                        name=pycparser.c_ast.ID(name="dlsym"),
+                        args=pycparser.c_ast.ExprList(
+                            exprs=[
+                                pycparser.c_ast.ID(name="RTLD_NEXT"),
+                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
+                            ],
+                        ),
+                    ),
                 ),
-            ),
-        )
-        for func_name, func in funcs.items()
+                pycparser.c_ast.If(
+                    cond=pycparser.c_ast.UnaryOp(
+                        op="!",
+                        expr=pycparser.c_ast.ID(name=func_prefix + func_name),
+                    ),
+                    iftrue=pycparser.c_ast.FuncCall(
+                        name=pycparser.c_ast.ID("DEBUG"),
+                        args=pycparser.c_ast.ExprList(
+                            exprs=[
+                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '(...) not found"'),
+                            ],
+                        ),
+                    ),
+                    iffalse=None,
+                ),
+            ]
+            for func_name, func in funcs.items()
+        ]),
     ],
 ).definition()
 
@@ -321,20 +377,20 @@ def find_decl(
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     pre_call_stmts = [
         pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="maybe_init_thread"),
+            name=pycparser.c_ast.ID(name="ensure_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
         pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="DEBUG"),
             args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value='"' + func.name + '(...)"'),
+                pycparser.c_ast.Constant(type="string", value='"Interposed call"'),
             ]),
         ),
     ]
     post_call_stmts = []
 
     pre_call_action = find_decl(func.stmts, "pre_call", func.name)
-    if pre_call_action:
+    if not ignore_actions and pre_call_action:
         if isinstance(pre_call_action.init, Compound):
             pre_call_stmts.extend(pre_call_action.init.block_items)
         else:
@@ -342,60 +398,28 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
 
     post_call_action = find_decl(func.stmts, "post_call", func.name)
 
-    if post_call_action:
+    if not ignore_actions and  post_call_action:
         post_call_stmts.extend(
             expect_type(Compound, post_call_action.init).block_items,
         )
 
-    call_stmts_block = find_decl(func.stmts, "call", func.name)
+    call_stmts_block = find_decl(func.stmts, "call", func.name) if not ignore_actions else None
     if call_stmts_block is None:
-        if func.variadic:
-            varargs_size_decl = find_decl(func.stmts, "varargs_size", func.name)
-            pre_call_stmts.append(varargs_size_decl)
-            # Generates: __builtin_apply((void (*)())_o_open, __builtin_apply_args(), varargs_size)
-            uncasted_func_call = pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID(name="__builtin_apply"),
-                args=pycparser.c_ast.ExprList(
-                    exprs=[
-                        pycparser.c_ast.Cast(
-                            to_type=void_fn_ptr,
-                            expr=pycparser.c_ast.ID(name=func_prefix + func.name)
-                        ),
-                        pycparser.c_ast.FuncCall(name=pycparser.c_ast.ID(name="__builtin_apply_args"), args=None),
-                        pycparser.c_ast.ID(name="varargs_size"),
-                    ],
-                ),
-            )
-            if is_void(func.return_type):
-                call_stmts = [uncasted_func_call]
-            else:
-                call_stmts = [define_var(
-                    func.return_type,
-                    "ret",
-                    pycparser.c_ast.UnaryOp(
-                        op="*",
-                        expr=pycparser.c_ast.Cast(
-                            to_type=ptr_type(func.return_type),
-                            expr=uncasted_func_call,
-                        ),
-                    ),
-                )]
+        call_expr = pycparser.c_ast.FuncCall(
+            name=pycparser.c_ast.ID(
+                name=func_prefix + func.name,
+            ),
+            args=pycparser.c_ast.ExprList(
+                exprs=[
+                    pycparser.c_ast.ID(name=param_name)
+                    for param_name, _ in func.params
+                ],
+            ),
+        )
+        if is_void(func.return_type):
+            call_stmts = [call_expr]
         else:
-            call_expr = pycparser.c_ast.FuncCall(
-                name=pycparser.c_ast.ID(
-                    name=func_prefix + func.name,
-                ),
-                args=pycparser.c_ast.ExprList(
-                    exprs=[
-                        pycparser.c_ast.ID(name=param_name)
-                        for param_name, _ in func.params
-                    ],
-                ),
-            )
-            if is_void(func.return_type):
-                call_stmts = [call_expr]
-            else:
-                call_stmts = [define_var(func.return_type, "ret", call_expr)]
+            call_stmts = [define_var(func.return_type, "ret", call_expr)]
     else:
         call_stmts = expect_type(Compound, call_stmts_block.init).block_items
 
@@ -418,27 +442,172 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     return pre_call_stmts + call_stmts + post_call_stmts
 
 
-static_args_wrapper_func_declarations = [
+wrapper_func_declarations = [
     dataclasses.replace(
         func,
         stmts=wrapper_func_body(func),
-    ).definition()
+    ).definition(visibility="default")
     for _, func in funcs.items()
 ]
 generated = pathlib.Path("generated")
 generated.mkdir(exist_ok=True)
+
+warning = """
+/*
+ ********************************************************************************
+ * This file is automatically generated from generator/libc_hooks.py and generator/libc_hooks_source.c
+ * All modifications will be LOST
+ ********************************************************************************
+ */
+"""
+
+includes = """
+#pragma once
+
+#define _GNU_SOURCE
+
+#include <dirent.h>               // for DIR
+#include <features.h>             // for __USE_GNU
+#include <ftw.h>                  // for FTW
+#include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
+#include <signal.h>               // for siginfo_t
+#include <stdio.h>                // for L_tmpnam, FILE, size_t
+#include <sys/stat.h>             // IWYU pragma: keep for stat
+#include <sys/time.h>             // IWYU pragma: keep for timeval
+#include <sys/types.h>            // for pid_t, mode_t, ssize_t, gid_t, uid_t
+#include <sys/wait.h>             // IWYU pragma: keep for idtype_t
+#include <threads.h>              // for thrd_t, thrd_start_t
+// IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
+// IWYU pragma: no_include "bits/types/idtype_t.h" for idtype_t
+// IWYU pragma: no_include "bits/types/sigevent_t.h" for pthread_attr_t
+
+struct rusage;
+struct stat;
+struct statx;
+struct utimbuf;
+
+/*
+ * There is some bug with pycparser unable to parse inline function pointers.
+ * So we will use a typedef alias.
+ */
+typedef int (*fn_ptr_int_void_ptr)(void*);
+typedef int (*ftw_func)(const char *, const struct stat *, int);
+typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
+
+/*
+ * Smooth out differences between GCC vs Clang and Musl vs Glibc.
+ * Best to feature test than test for compiler/libc, but sometimes feature testing is not possible in the preprocessor.
+ */
+
+#ifndef __USE_GNU
+#define __MUSL__
+#endif
+
+// Musl defines tmpnam(char*)
+// Glibc defines tmpnam(char[L_tmpnam])
+// We use tmpnam(char[L_tmpnam]) and let this macro handle the difference
+#ifdef __MUSL__
+#define __PROBE_L_tmpnam
+#elif __USE_GNU
+#define __PROBE_L_tmpnam L_tmpnam
+#endif
+
+// On Glibc, struct dirent is 32-bit, with macros switch it to 64-bit or add new struct dirent64
+// On Musl, struct dirent is 64-bit
+#ifdef __MUSL__
+#define dirent64 dirent
+#endif
+
+void init_function_pointers();
+"""
 (generated / "libc_hooks.h").write_text(
+    warning + "\n\n" +
+    includes.strip() + "\n\n" +
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
-            *func_pointer_declarations,
+            *func_pointer_extern_declarations,
         ])
     )
 )
+defines = """
+#define _GNU_SOURCE
+
+#include "libc_hooks.h"
+
+#include <dirent.h>                                          // for DIR, dirfd
+#include <dlfcn.h>                                           // for dlsym
+#include <errno.h>                                           // for errno
+#include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
+#include <ftw.h>                                             // for ftw, nftw
+#include <limits.h>                                          // for INT_MAX, PATH_MAX
+#include <pthread.h>                                         // for pthread_...
+#include <sched.h>                                           // for CLONE_TH...
+#include <stdarg.h>                                          // for va_arg
+#include <stdbool.h>                                         // for false, true
+#include <stdint.h>                                          // for int64_t
+#include <stdio.h>                                           // for fileno
+#include <stdlib.h>                                          // for free
+#include <string.h>                                          // for memcpy
+#include <sys/stat.h>                                        // for chmod, statx
+#include <sys/time.h>                                        // for futimes
+#include <sys/wait.h>                                        // for wait, wait3
+#include <threads.h>                                         // for thrd_t
+#include <unistd.h>                                          // for environ
+#include <utime.h>                                           // for utimbuf
+// IWYU pragma: no_include "bits/statx-generic.h"               for statx
+// IWYU pragma: no_include "bits/types/siginfo_t.h"             for si_pid, si_status
+// IWYU pragma: no_include "linux/limits.h"                     for PATH_MAX
+
+#include "../include/libprobe/prov_ops.h"                    // for Op, OpCode
+#include "../src/arena.h"                                    // for prov_log...
+#include "../src/env.h"                                      // for arena_co...
+#include "../src/lookup_on_path.h"                           // for lookup_o...
+#include "../src/prov_buffer.h"                              // for prov_log...
+#include "../src/prov_utils.h"                               // for create_p...
+#include "../src/util.h"                                     // for LIKELY
+#include "../src/debug_logging.h"                            // for DEBUG
+#include "../src/global_state.h"                             // for ensure_i...
+
+struct rusage;
+struct stat;
+struct statx;
+
+/*
+ * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)` or `sizeof(type_name)`)
+ * so we use some macros instead.
+ * To pycparser, these macros are defined as variable names (parsable as arguments).
+ * To GCC these macros are defined as type names.
+ */
+typedef mode_t __type_mode_t;
+typedef char* __type_charp;
+typedef char** __type_charpp;
+typedef int __type_int;
+typedef void* __type_voidp;
+
+/*
+ * Smooth out differences between GCC and Clang
+ */
+#ifndef O_TMPFILE
+#ifndef __O_TMPFILE
+#error "Neither O_TMPFILE nor __O_TMPFILE are defined"
+#else
+#define O_TMPFILE __O_TMPFILE
+#endif
+#endif
+
+// Clang and GCC disagree on how to construct this struct inline.
+// So I will construct it not inline, here.
+const struct my_rusage null_usage = {0};
+"""
+
 (generated / "libc_hooks.c").write_text(
+    warning + "\n\n" +
+    defines.strip() + "\n\n" +
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
+            *func_pointer_declarations,
             init_function_pointers,
-            *static_args_wrapper_func_declarations,
+            *wrapper_func_declarations,
         ])
     )
 )

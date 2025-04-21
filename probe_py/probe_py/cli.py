@@ -30,19 +30,19 @@ def validate(
         ] = pathlib.Path("probe_log"),
         should_have_files: Annotated[
             bool,
-            typer.Argument(help="Whether to check that the probe_log was run with --copy-files.")
+            typer.Option(help="Whether to check that the probe_log was run with copied files.")
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
     warning_free = True
-    with parser.parse_probe_log_ctx(probe_log_path) as probe_log:
-        for inode, contents in probe_log.copied_files.items():
+    with parse_probe_log_ctx(probe_log) as parsed_probe_log:
+        for inode, contents in (parsed_probe_log.inodes or {}).items():
             content_length = contents.stat().st_size
             if inode.size != content_length:
                 console.print(f"Blob for {inode} has actual size {content_length}", style="red")
                 warning_free = False
         # At this point, the inode storage is gone, but the probe_log is already in memory
-    if should_have_files and not probe_log.probe_options.copy_files:
+    if should_have_files and parsed_probe_log.has_inodes is None:
         warning_free = False
         console.print("No files stored in probe log", style="red")
     hb_graph = analysis.probe_log_to_hb_graph(probe_log)
@@ -228,8 +228,8 @@ def docker_image(
     if image_name.count(":") != 1:
         console.print(f"Invalid image name {image_name}", style="red")
         raise typer.Exit(code=1)
-    with parser.parse_probe_log_ctx(probe_log_path) as probe_log:
-        if not probe_log.probe_options.copy_files:
+    with parse_probe_log_ctx(probe_log) as prov_log:
+        if prov_log.has_inodes is None:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
@@ -262,8 +262,8 @@ def oci_image(
         podman run --rm python-numpy:latest
 
     """
-    with parser.parse_probe_log_ctx(probe_log_path) as probe_log:
-        if not probe_log.probe_options.copy_files:
+    with parse_probe_log_ctx(probe_log) as prov_log:
+        if prov_log.has_inodes is None:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
@@ -292,7 +292,7 @@ def ssh(
 
     ssh_cmd = ["ssh"] + flags
 
-    libprobe = pathlib.Path(os.environ["__PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
+    libprobe = pathlib.Path(os.environ["PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
     if not libprobe.exists():
         typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
         raise typer.Abort()
@@ -334,10 +334,10 @@ def ssh(
 
     subprocess.run(scp_cmd,check=True)
 
-    # Prepare the remote command with LD_PRELOAD and __PROBE_DIR
+    # Prepare the remote command with LD_PRELOAD and PROBE_DIR
     ld_preload = f"{remote_temp_dir}/{libprobe.name}"
 
-    env = ["env", f"LD_PRELOAD={ld_preload}", f"__PROBE_DIR={remote_probe_dir}"]
+    env = ["env", f"LD_PRELOAD={ld_preload}", f"PROBE_DIR={remote_probe_dir}"]
     proc = subprocess.run(ssh_cmd + [destination] + env + remote_host)
 
     # Download the provenance log from the remote machine

@@ -727,7 +727,7 @@ class ProbeCopyEager(Probe):
     run_cmd = cmd(
         nix_path("..#probe-bundled", "/bin/probe"),
         "record",
-        "--copy-files-eagerly",
+        "--copy-files=eagerly",
         "--no-transcribe",
         "--output",
         prov_log,
@@ -739,7 +739,7 @@ class ProbeCopyLazy(Probe):
     run_cmd = cmd(
         nix_path("..#probe-bundled", "/bin/probe"),
         "record",
-        "--copy-files-lazily",
+        "--copy-files=lazily",
         "--no-transcribe",
         "--output",
         prov_log,

@@ -20,7 +20,7 @@ int main (int argc, char **argv) {
     char buffer [BUFFER_SIZE];
     size_t size;
 
-    if ((size = fread(&buffer, 1, BUFFER_SIZE, fptr)) > 0) {
+    while ((size = fread(&buffer, 1, BUFFER_SIZE, fptr)) > 0) {
         fwrite(buffer, size, 1, stdout);
     }
 
