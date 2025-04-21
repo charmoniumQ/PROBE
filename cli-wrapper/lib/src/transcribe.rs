@@ -40,7 +40,7 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
         .par_bridge()
         .map(|x| {
             parse_pid(
-                x.wrap_err("Error reading DirEntry from 'pids' directory")?
+                x.wrap_err("Error reading DirEntry from record directory")?
                     .path(),
                 &pids_out_dir,
             )
@@ -48,15 +48,15 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
         .try_fold(|| 0usize, |acc, x| x.map(|x| acc + x))
         .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
 
-    let inodes_in_dir = in_dir.as_ref().join("inodes");
-    let inodes_out_dir = out_dir.as_ref().join("inodes");
-    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create 'inodes' directory")?;
+    let inodes_in_dir = in_dir.as_ref().join(probe_headers::INODES_SUBDIR);
+    let inodes_out_dir = out_dir.as_ref().join(probe_headers::INODES_SUBDIR);
+    fs::create_dir(&inodes_out_dir).wrap_err("Failed to create inodes directory")?;
     let inode_count = fs::read_dir(inodes_in_dir.clone())
-        .wrap_err("Error opening 'inodes' directory")?
+        .wrap_err("Error opening inodes directory")?
         .par_bridge()
         .map(|inode_contents| {
             let name = inode_contents
-                .wrap_err("Error reading from 'inodes' directory")?
+                .wrap_err("Error reading from inodes directory")?
                 .file_name();
             fs::hard_link(inodes_in_dir.join(name.clone()), inodes_out_dir.join(name))
                 .wrap_err("Error hardlinking inode")?;

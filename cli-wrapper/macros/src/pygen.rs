@@ -240,8 +240,8 @@ pub(crate) fn pygen_write_internal(path: syn::LitStr) -> MacroResult<()> {
                 path.span() =>
                 compile_error!("Environment variable not defined");
             }
-        },
-        None => return Ok(()),
+            .into())
+        }
     };
     println!("Writing Python module to {:?}", path_str);
 

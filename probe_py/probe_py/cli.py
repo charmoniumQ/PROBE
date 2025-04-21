@@ -102,9 +102,7 @@ def dataflow_graph(
     probe_log = parser.parse_probe_log(probe_log_path)
     dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
     graph_utils.serialize_graph(dataflow_graph, output)
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
-    graph_utils.serialize_graph(dataflow_graph, output)
+
 
 def get_host_name() -> int:
     hostname = socket.gethostname()

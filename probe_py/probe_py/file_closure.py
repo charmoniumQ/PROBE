@@ -10,7 +10,7 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion, Pid
+from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion
 from .ops import Path, ChdirOp, OpenOp, CloseOp, InitProcessOp, ExecOp
 from .consts import AT_FDCWD
 

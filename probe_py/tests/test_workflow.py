@@ -4,8 +4,8 @@ import pathlib
 import networkx as nx  # type: ignore
 from probe_py.analysis import FileNode, ProcessNode, InodeOnDevice, FileVersion
 from probe_py.workflows import NextflowGenerator
-from probe_py.analysis import FileNode, ProcessNode, DfGraph
-from probe_py.ptypes import Inode, Host
+from probe_py.analysis import DfGraph
+from probe_py.ptypes import Host
 
 
 tmpdir = pathlib.Path(__file__).resolve().parent.parent / "tmp"
