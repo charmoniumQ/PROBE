@@ -11,23 +11,54 @@ project_root = pathlib.Path(__file__).resolve().parent.parent.parent
 tmpdir = pathlib.Path(__file__).resolve().parent / "tmp"
 
 
-def bash(*cmds: str) -> list[str]:
-    return ["bash", "-c", shlex.join(cmds).replace(" and ", " && ").replace(" redirect_to ", " > ")]
+def bash(*cmd: str) -> list[str]:
+    return ["bash", "-c", shlex.join(cmd).replace(" redirect_to ", " > ")]
+
+
+def bash_multi(*cmds: list[str]) -> list[str]:
+    return ["bash", "-c", " && ".join(
+        shlex.join(cmd).replace(" and ", " && ").replace(" redirect_to ", " > ")
+        for cmd in cmds
+    )]
+
+
+c_hello_world = r"""
+#include <stdio.h>
+#include <fcntl.h>
+int main() {
+    open(".", 0);
+    printf("hello world\n");
+    return 0;
+}
+"""
+
+
+java_subprocess_hello_world = """
+public class HelloWorld {
+    public static void main(String[] args) throws java.io.IOException, InterruptedException {
+        System.exit(
+            new ProcessBuilder("echo", "Hello", "world")
+            .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+            .start()
+            .waitFor()
+        );
+   }
+}
+"""
 
 
 commands = [
     ["echo", "hi"],
     ["head", "../../flake.nix"],
-    bash(
-        "echo",
-        "#include <stdio.h>\n#include <fcntl.h>\nint main() {open(\".\", 0); printf(\"hello world\\n\"); return 0; }",
-        "redirect_to",
-        "test.c",
-        "and",
-        "gcc",
-        "test.c",
-        "and",
-        "./a.out",
+    bash_multi(
+        ["echo", c_hello_world, "redirect_to", "test.c"],
+        ["gcc", "test.c"],
+        ["./a.out"],
+    ),
+    bash_multi(
+        ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
+        ["javac", "HelloWorld.java"],
+        ["java", "HelloWorld"],
     ),
     # bash(
     #     *bash(
