@@ -613,3 +613,9 @@ const struct my_rusage null_usage = {0};
         ])
     )
 )
+
+(generated / "libc_fns.csv").write_text(
+    "\n".join([
+        func_name for func_name, _ in funcs.items()
+    ])
+)

@@ -1,6 +1,6 @@
 import typing
-import networkx as nx  # type: ignore
-from .ptypes import TaskType, ProvLog
+import networkx as nx
+from .ptypes import Inode, ProbeLog, TaskType, Pid, ExecNo, Tid
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
 from collections import deque
@@ -12,7 +12,8 @@ import pathlib
 import os
 import collections
 
-class EdgeLabels(IntEnum):
+
+class EdgeLabel(IntEnum):
     PROGRAM_ORDER = 1
     FORK_JOIN = 2
     EXEC = 3
@@ -53,10 +54,32 @@ class FileNode:
         return f"{self.file} inode {self.inodeOnDevice.inode}"
 
 # type alias for a node
+OpNode = tuple[Pid, ExecNo, Tid, int]
+
+
+if typing.TYPE_CHECKING:
+    HbGraph: typing.TypeAlias = nx.DiGraph[OpNode]
+    DfGraph: typing.TypeAlias = nx.DiGraph[FileNode | ProcessNode]
+    ProcessTree: typing.TypeAlias = nx.DiGraph[tuple[Pid, ExecNo]]
+else:
+    HbGraph = nx.DiGraph
+    DfGraph = nx.DiGraph
+    ProcessTree = nx.DiGraph
+
+
+def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
+    program_order_edges = list[tuple[OpNode, OpNode]]()
+    fork_join_edges = list[tuple[OpNode, OpNode]]()
+    exec_edges = list[tuple[OpNode, OpNode]]()
+    nodes = list[OpNode]()
+    proc_to_ops = dict[tuple[int, int, int], list[OpNode]]()
+
+
 Node: typing.TypeAlias = tuple[int, int, int, int]
 
 # type for the edges
 EdgeType: typing.TypeAlias = tuple[Node, Node]
+
 
 def validate_provlog(
         provlog: ProvLog,
@@ -66,11 +89,15 @@ def validate_provlog(
     cloned_processes = set[tuple[TaskType, int]]()
     opened_fds = set[int]()
     closed_fds = set[int]()
+    n_roots = 0
     for pid, process in provlog.processes.items():
         epochs = set[int]()
         first_op = process.exec_epochs[0].threads[pid].ops[0]
         if not isinstance(first_op.data, InitProcessOp):
             ret.append("First op in exec_epoch 0 should be InitProcessOp")
+        else:
+            if first_op.data.is_root:
+                n_roots += 1
         last_epoch = max(process.exec_epochs.keys())
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             epochs.add(exec_epoch_no)
@@ -143,6 +170,8 @@ def validate_provlog(
         #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
     elif waited_processes - cloned_processes:
         ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
+    if n_roots != 1:
+        ret.append(f"Got {n_roots} prov roots")
     return ret
 
 
@@ -157,14 +186,14 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     nodes = list[Node]()
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
-    for pid, process in process_tree_prov_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+    for pid, process in probe_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.execs.items():
             # to find the last executing epoch of the process
             last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
             # Reduce each thread to the ops we actually care about
             for tid, thread in exec_epoch.threads.items():
                 context = (pid, exec_epoch_no, tid)
-                ops = list[Node]()
+                ops = list[OpNode]()
                 # Filter just the ops we are interested in
                 op_index = 0
                 for op_index, op in enumerate(thread.ops):
@@ -176,16 +205,16 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 proc_to_ops[context] = ops
 
     # Define helper functions
-    def first(pid: int, exid: int, tid: int) -> Node:
+    def first(pid: int, exid: int, tid: int) -> OpNode:
         return proc_to_ops[(pid, exid, tid)][0]
 
-    def last(pid: int, exid: int, tid: int) -> Node:
+    def last(pid: int, exid: int, tid: int) -> OpNode:
         return proc_to_ops[(pid, exid, tid)][-1]
 
-    def get_first_pthread(pid: int, exid: int, target_pthread_id: int) -> list[Node]:
-        ret = list[Node]()
-        for pid, process in process_tree_prov_log.processes.items():
-            for exid, exec_epoch in process.exec_epochs.items():
+    def get_first_pthread(pid: int, exid: int, target_pthread_id: int) -> list[OpNode]:
+        ret = list[OpNode]()
+        for pid, process in probe_log.processes.items():
+            for exid, exec_epoch in process.execs.items():
                 for tid, thread in exec_epoch.threads.items():
                     for op_index, op in enumerate(thread.ops):
                         if op.pthread_id == target_pthread_id:
@@ -193,10 +222,10 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                         break
         return ret
 
-    def get_last_pthread(pid: int, exid: int, target_pthread_id: int) -> list[Node]:
-        ret = list[Node]()
-        for pid, process in process_tree_prov_log.processes.items():
-            for exid, exec_epoch in process.exec_epochs.items():
+    def get_last_pthread(pid: int, exid: int, target_pthread_id: int) -> list[OpNode]:
+        ret = list[OpNode]()
+        for pid, process in probe_log.processes.items():
+            for exid, exec_epoch in process.execs.items():
                 for tid, thread in exec_epoch.threads.items():
                     for op_index, op in list(enumerate(thread.ops))[::-1]:
                         if op.pthread_id == target_pthread_id:
@@ -207,7 +236,7 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     # Hook up forks/joins
     for node in list(nodes):
         pid, exid, tid, op_index = node
-        op_data = process_tree_prov_log.processes[pid].exec_epochs[exid].threads[tid].ops[op_index].data
+        op_data = probe_log.processes[pid].execs[exid].threads[tid].ops[op_index].data
         target: tuple[int, int, int]
         if False:
             pass
@@ -243,29 +272,36 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
             target = pid, exid + 1, pid
             exec_edges.append((node, first(*target)))
 
-    process_graph = nx.DiGraph()
+    hb_graph = HbGraph()
     for node in nodes:
-        process_graph.add_node(node)
+        hb_graph.add_node(node)
 
-    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels) -> None:
+    def add_edges(edges:list[tuple[OpNode, OpNode]], label:EdgeLabel) -> None:
         for node0, node1 in edges:
-            process_graph.add_edge(node0, node1, label=label)
+            hb_graph.add_edge(node0, node1, label=label)
     
-    add_edges(program_order_edges, EdgeLabels.PROGRAM_ORDER)
-    add_edges(exec_edges, EdgeLabels.EXEC)
-    add_edges(fork_join_edges, EdgeLabels.FORK_JOIN)
-    return process_graph
+    add_edges(program_order_edges, EdgeLabel.PROGRAM_ORDER)
+    add_edges(exec_edges, EdgeLabel.EXEC)
+    add_edges(fork_join_edges, EdgeLabel.FORK_JOIN)
+    return hb_graph
 
-def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node, traversed: set[int] , dataflow_graph:nx.DiGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]]) -> None:
+
+def traverse_hb_for_dfgraph(
+        probe_log: ProbeLog,
+        starting_node: OpNode,
+        traversed: set[int],
+        dataflow_graph: DfGraph,
+        cmd_map: dict[int, list[str]],
+) -> None:
     starting_pid = starting_node[0]
     
-    starting_op = prov_log_get_node(process_tree_prov_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
-    process_graph = provlog_to_digraph(process_tree_prov_log)
+    starting_op = get_op(probe_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
+    hb_graph = probe_log_to_hb_graph(probe_log)
     
-    edges = list_edges_from_start_node(process_graph, starting_node)
-    name_map = collections.defaultdict[InodeOnDevice, list[pathlib.Path]](list)
+    edges = list_edges_from_start_node(hb_graph, starting_node)
+    name_map = collections.defaultdict[Inode, list[pathlib.Path]](list)
 
-    target_nodes = collections.defaultdict[int, list[Node]](list)
+    target_nodes = collections.defaultdict[int, list[OpNode]](list)
     console = rich.console.Console(file=sys.stderr)
     
     for edge in edges:  
@@ -275,8 +311,9 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
         if pid in traversed or tid in traversed:
             continue
         
-        op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
-        next_op = prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
+        op = get_op(probe_log, pid, exec_epoch_no, tid, op_index).data
+        next_op = get_op(probe_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
+
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
@@ -318,28 +355,29 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
             for node in target_nodes[op.task_id]:
-                traverse_hb_for_dfgraph(process_tree_prov_log, node, traversed, dataflow_graph, cmd_map, inode_version_map)
+                traverse_hb_for_dfgraph(probe_log, node, traversed, dataflow_graph, cmd_map, inode_version_map)
                 traversed.add(node[2])
         # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
             if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
                 return
 
-def provlog_to_dataflow_graph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
-    dataflow_graph = nx.DiGraph()
-    process_graph = provlog_to_digraph(process_tree_prov_log)
-    root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
+
+def probe_log_to_dataflow_graph(probe_log: ProbeLog) -> DfGraph:
+    dataflow_graph = DfGraph()
+    hb_graph = probe_log_to_hb_graph(probe_log)
+    root_node = [n for n in hb_graph.nodes() if hb_graph.out_degree(n) > 0 and hb_graph.in_degree(n) == 0][0]
     traversed: set[int] = set()
     cmd_map = collections.defaultdict[int, list[str]](list)
-    for edge in list(nx.edges(process_graph))[::-1]:
+    for edge in list(hb_graph.edges())[::-1]:
         pid, exec_epoch_no, tid, op_index = edge[0]
-        op = prov_log_get_node(process_tree_prov_log, pid, exec_epoch_no, tid, op_index).data
+        op = get_op(probe_log, pid, exec_epoch_no, tid, op_index).data
         if isinstance(op, ExecOp):
-            if pid == tid and exec_epoch_no == 0:
+            if pid.main_thread() == tid and exec_epoch_no == 0:
                 cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
 
     inode_version_map: dict[int, set[FileVersion]] = {}
-    traverse_hb_for_dfgraph(process_tree_prov_log, root_node, traversed, dataflow_graph, cmd_map, inode_version_map)
+    traverse_hb_for_dfgraph(probe_log, root_node, traversed, dataflow_graph, cmd_map, inode_version_map)
 
     file_version: dict[str, int] = {}
     for inode, versions in inode_version_map.items():
@@ -360,19 +398,23 @@ def prov_log_get_node(prov_log: ProvLog, pid: int, exec_epoch: int, tid: int, op
     return prov_log.processes[pid].exec_epochs[exec_epoch].threads[tid].ops[op_no]
 
 
+def get_op(probe_log: ProbeLog, pid: Pid, eno: ExecNo, tid: Tid, op_no: int) -> Op:
+    return probe_log.processes[pid].execs[eno].threads[tid].ops[op_no]
+
+
 def validate_hb_closes(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
     # Note that this test doesn't work if a process "intentionally" leaves a fd open for its child.
     # E.g., bash-in-pipe
-    provlog_reverse = process_graph.reverse()
+    reservse_hb_graph = hb_graph.reverse()
     ret = list[str]()
     reserved_fds = {0, 1, 2}
-    for node in process_graph.nodes:
-        op = prov_log_get_node(provlog, *node)
+    for node in hb_graph.nodes():
+        op = get_op(probe_log, *node)
         if isinstance(op.data, CloseOp) and op.data.ferrno == 0:
             for closed_fd in range(op.data.low_fd, op.data.high_fd + 1):
                 if closed_fd not in reserved_fds:
-                    for pred_node in nx.dfs_preorder_nodes(provlog_reverse, node):
-                        pred_op = prov_log_get_node(provlog, *pred_node)
+                    for pred_node in nx.dfs_preorder_nodes(reservse_hb_graph, node):
+                        pred_op = get_op(probe_log, *pred_node)
                         if isinstance(pred_op.data, OpenOp) and pred_op.data.fd == closed_fd and op.data.ferrno == 0:
                             break
                     else:
@@ -380,14 +422,15 @@ def validate_hb_closes(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]
     return ret
 
 
-def validate_hb_waits(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
-    provlog_reverse = process_graph.reverse()
+def validate_hb_waits(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
+    reservse_hb_graph = hb_graph.reverse()
+
     ret = list[str]()
-    for node in process_graph.nodes:
-        op = prov_log_get_node(provlog, *node)
+    for node in hb_graph.nodes():
+        op = get_op(probe_log, *node)
         if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
-            for pred_node in nx.dfs_preorder_nodes(provlog_reverse, node):
-                pred_op = prov_log_get_node(provlog, *pred_node)
+            for pred_node in nx.dfs_preorder_nodes(reservse_hb_graph, node):
+                pred_op = get_op(probe_log, *pred_node)
                 pid1, eid1, tid1, opid1 = pred_node
                 if isinstance(pred_op.data, CloneOp) and pred_op.data.task_type == op.data.task_type and pred_op.data.task_id == op.data.task_id and op.data.ferrno == 0:
                     break
@@ -395,14 +438,14 @@ def validate_hb_waits(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
                 ret.append(f"Wait of {op.data.task_id} in {node} is not preceeded by corresponding clone")
     return ret
 
-def validate_hb_clones(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+def validate_hb_clones(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     ret = list[str]()
-    for node in process_graph.nodes:
-        op = prov_log_get_node(provlog, *node)
+    for node in hb_graph.nodes():
+        op = get_op(probe_log, *node)
         if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
-            for node1 in process_graph.successors(node):
+            for node1 in hb_graph.successors(node):
                 pid1, exid1, tid1, op_no1 = node1
-                op1 = prov_log_get_node(provlog, *node1)
+                op1 = get_op(probe_log, *node1)
                 if False:
                     pass
                 elif op.data.task_type == TaskType.TASK_PID:
@@ -424,17 +467,17 @@ def validate_hb_clones(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]
     return ret
 
 
-def validate_hb_degree(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+def validate_hb_degree(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     ret = list[str]()
     found_entry = False
     found_exit = False
-    for node in process_graph.nodes:
-        if process_graph.in_degree(node) == 0:
+    for node in hb_graph.nodes():
+        if hb_graph.in_degree(node) == 0:
             if not found_entry:
                 found_entry = True
             else:
                 ret.append(f"Node {node} has no predecessors")
-        if process_graph.out_degree(node) == 0:
+        if hb_graph.out_degree(node) == 0:
             if not found_exit:
                 found_exit = True
             else:
@@ -446,24 +489,24 @@ def validate_hb_degree(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]
     return ret
 
 
-def validate_hb_acyclic(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+def validate_hb_acyclic(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     try:
-        cycle = nx.find_cycle(process_graph)
+        cycle = nx.find_cycle(hb_graph)
     except nx.NetworkXNoCycle:
         return []
     else:
         return [f"Cycle detected: {cycle}"]
 
 
-def validate_hb_execs(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
+def validate_hb_execs(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     ret = list[str]()
-    for node0 in process_graph.nodes():
-        pid0, eid0, tid0, op0 = node0
-        op0 = prov_log_get_node(provlog, *node0)
+    for node0 in hb_graph.nodes():
+        pid0, eid0, tid0, _ = node0
+        op0 = get_op(probe_log, *node0)
         if isinstance(op0.data, ExecOp):
-            for node1 in process_graph.successors(node0):
-                pid1, eid1, tid1, op1 = node1
-                op1 = prov_log_get_node(provlog, *node1)
+            for node1 in hb_graph.successors(node0):
+                pid1, eid1, tid1, _ = node1
+                op1 = get_op(probe_log, *node1)
                 if isinstance(op1.data, InitExecEpochOp):
                     if eid0 + 1 != eid1:
                         ret.append(f"ExecOp {node0} is followed by {node1}, whose exec epoch id should be {eid0 + 1}")
@@ -473,7 +516,7 @@ def validate_hb_execs(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]:
     return ret
 
 
-def validate_hb_graph(processes: ProvLog, hb_graph: nx.DiGraph) -> list[str]:
+def validate_hb_graph(processes: ProbeLog, hb_graph: HbGraph) -> list[str]:
     ret = list[str]()
     # ret.extend(validate_hb_closes(processes, hb_graph))
     ret.extend(validate_hb_waits(processes, hb_graph))
@@ -494,21 +537,22 @@ def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, ty
     graph.remove_node(node)
     return ret
 
-def color_hb_graph(prov_log: ProvLog, process_graph: nx.DiGraph) -> None:
+
+def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     label_color_map = {
-        EdgeLabels.EXEC: 'yellow',
-        EdgeLabels.FORK_JOIN: 'red',
-        EdgeLabels.PROGRAM_ORDER: 'green',
+        EdgeLabel.EXEC: 'yellow',
+        EdgeLabel.FORK_JOIN: 'red',
+        EdgeLabel.PROGRAM_ORDER: 'green',
     }
 
-    for node0, node1, attrs in process_graph.edges(data=True):
-        label: EdgeLabels = attrs['label']
-        process_graph[node0][node1]['color'] = label_color_map[label]
+    for node0, node1, attrs in hb_graph.edges(data=True):
+        label: EdgeLabel = attrs['label']
+        hb_graph[node0][node1]['color'] = label_color_map[label]
         del attrs['label']
 
-    for node, data in process_graph.nodes(data=True):
+    for node, data in hb_graph.nodes(data=True):
         pid, exid, tid, op_no = node
-        op = prov_log_get_node(prov_log, *node)
+        op = get_op(probe_log, *node)
         typ = type(op.data).__name__
         data["label"] = f"{pid}.{exid}.{tid}.{op_no}\n{typ}"
         if False:
@@ -526,60 +570,27 @@ def color_hb_graph(prov_log: ProvLog, process_graph: nx.DiGraph) -> None:
             data["label"] += f"\n{op.data.path.path.decode()}"
 
 
-def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
-    G = nx.DiGraph()
-
-    def epoch_node_id(pid: int, epoch_no: int) -> str:
-        return f"pid{pid}_epoch{epoch_no}"
-
+def probe_log_to_process_tree(prov_log: ProvLog) -> ProcessTree:
+    child_processes = collections.defaultdict[tuple[Pid, ExecEpoch]](list[tuple[Pid, ExecEpoch]])
+    process_tree = ProcessTree()
     for pid, process in prov_log.processes.items():
-        for epoch_no, epoch in process.exec_epochs.items():
-            cmd_args = None
-
-            for tid, thread in epoch.threads.items():
-                for op in thread.ops:
-                    op_data = op.data
-
-                    if isinstance(op_data, ExecOp):
-                        args_list = [arg.decode('utf-8') for arg in op_data.argv]
-                        cmd_args = " ".join(args_list)
-                        break
-                if cmd_args:
-                    break
-
-            if cmd_args:
-                label = f"PID={pid}\n {cmd_args}"
-            else:
-                label = f"PID={pid}\n cloned from parent"
-
-            node_id = epoch_node_id(pid, epoch_no)
-            G.add_node(node_id, label=label)
-
-    for pid, process in prov_log.processes.items():
+        last_exec = max(process.exec_epoch.keys())
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            parent_node_id = epoch_node_id(pid, exec_epoch_no)
-
+            if exec_epoch_no != last_exec:
+                process_tree.add_edge((pid, exec_epoch), (pid, exec_epoch + 1), label=EdgeLabel.EXEC)
             for tid, thread in exec_epoch.threads.items():
-                for op in thread.ops:
-                    op_data = op.data
+                found_exec = False
+                for op_index, op in enumerate(thread.ops):
+                    if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                        process_tree.add_edge((pid, exec_epoch), (op_data.task_id, 0), label=EdgeLabel.FORK_JOIN)
+                    elif isinstance(op.data, ExecOp) and op.data.ferrno == 0:
+                        found_exec = True
+                        cmd = shlex.join(op.data.argv)
+                        process_tree.add_node((pid, exec_epoch), label=f"pid{pid}_epoch{epoch_no}\n{cmd}")
+                if not found_exec:
+                    process_tree.add_node((pid, exec_epoch), label=f"pid{pid}_epoch{epoch_no}")
 
-                    if isinstance(op_data, CloneOp) and op_data.ferrno == 0:
-                        child_pid = op_data.task_id
-                        if child_pid in prov_log.processes:
-                            child_epoch = 0
-                            child_node_id = epoch_node_id(child_pid, child_epoch)
-
-                            if G.has_node(child_node_id):
-                                G.add_edge(parent_node_id, child_node_id, label="clone", constraint="true")
-
-                    if isinstance(op_data, ExecOp):
-                        new_epoch_no = exec_epoch_no + 1
-                        new_node_id = epoch_node_id(pid, new_epoch_no)
-
-                        if G.has_node(new_node_id):
-                            G.add_edge(parent_node_id, new_node_id, label="exec", constraint="false")
-
-    return G
+    return process_tree
 
 def get_max_parallelism_latest(graph: nx.DiGraph, prov_log: ProvLog) -> int:
     visited = set()
