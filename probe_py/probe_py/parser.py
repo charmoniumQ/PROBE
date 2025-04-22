@@ -19,8 +19,7 @@ def parse_probe_log_ctx(probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
     """
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
-
-        with tarfile.open(probe_log, mode="r") as tar:
+        with tarfile.open(path_to_probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")
 
         copy_files = (tmpdir / "info" / "copy_files").exists()

@@ -19,9 +19,9 @@ project_root = pathlib.Path(__file__).resolve().parent.parent.parent
 def test_diff_cmd() -> None:
     paths = [str(project_root / "flake.nix"), str(project_root / "flake.lock")]
     command = ['diff', *paths]
-    process_tree_probe_log = execute_command(command, 1)
-    process_graph = probe_log_to_hb_graph(process_tree_probe_log)
-    assert not validate_hb_graph(process_tree_probe_log, process_graph)
+    probe_log = execute_command(command, 1)
+    hb_graph = probe_log_to_hb_graph(probe_log)
+    assert not validate_hb_graph(probe_log, hb_graph)
     path_bytes = [path.encode() for path in paths]
     dfs_edges = list(nx.dfs_edges(process_graph))
     match_open_and_close_fd(dfs_edges, process_tree_probe_log, path_bytes)
@@ -29,9 +29,9 @@ def test_diff_cmd() -> None:
 
 def test_bash_in_bash() -> None:
     command = ["bash", "-c", f"head {project_root}/flake.nix ; head {project_root}/flake.lock"]
-    process_tree_probe_log = execute_command(command)
-    process_graph = probe_log_to_hb_graph(process_tree_probe_log)
-    assert not validate_hb_graph(process_tree_probe_log, process_graph)
+    probe_log = execute_command(command)
+    hb_graph = probe_log_to_hb_graph(probe_log)
+    assert not validate_hb_graph(probe_log, hb_graph)
     paths = [f'{project_root}/flake.nix'.encode(), f'{project_root}/flake.lock'.encode()]
     process_file_map = {}
     start_node = [
@@ -47,9 +47,9 @@ def test_bash_in_bash() -> None:
 
 def test_bash_in_bash_pipe() -> None:
     command = ["bash", "-c", f"head {project_root}/flake.nix | tail"]
-    process_tree_probe_log = execute_command(command)
-    process_graph = probe_log_to_hb_graph(process_tree_probe_log)
-    assert not validate_hb_graph(process_tree_probe_log, process_graph)
+    probe_log = execute_command(command)
+    process_graph = probe_log_to_hb_graph(probe_log)
+    assert not validate_hb_graph(probe_log, hb_graph)
     paths = [f'{project_root}/flake.nix'.encode(), b'stdout']
     start_node = [
         node
@@ -62,9 +62,9 @@ def test_bash_in_bash_pipe() -> None:
 
 @pytest.mark.xfail
 def test_pthreads() -> None:
-    process_tree_probe_log = execute_command([f"{project_root}/tests/examples/createFile.exe"])
-    process_graph = probe_log_to_hb_graph(process_tree_probe_log)
-    assert not validate_hb_graph(process_tree_probe_log, process_graph)
+    probe_log = execute_command([f"{project_root}/tests/examples/createFile.exe"])
+    hb_graph = probe_log_to_hb_graph(probe_log)
+    assert not validate_hb_graph(probe_log, hb_graph)
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
     bfs_nodes = [node for layer in nx.bfs_layers(process_graph, root_node) for node in layer]
     root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]

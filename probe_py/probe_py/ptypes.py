@@ -57,9 +57,11 @@ class Host:
 @dataclasses.dataclass(frozen=True)
 class Inode:
     host: Host
-    device_major: int
-    device_minor: int
-    inode: int
+
+
+@dataclasses.dataclass(frozen=True)
+class ProbeOptions:
+    copy_files: bool
 
 
 @dataclasses.dataclass(frozen=True)
@@ -83,11 +85,6 @@ class InodeVersion:
             s.st_mtime_ns %  int(1e9),
             s.st_size,
         )
-
-
-@dataclasses.dataclass(frozen=True)
-class ProbeOptions:
-    copy_files: bool
 
 
 @dataclasses.dataclass(frozen=True)

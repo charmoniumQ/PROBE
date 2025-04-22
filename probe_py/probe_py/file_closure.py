@@ -198,7 +198,7 @@ def copy_file_closure(
         _get_dlibs(resolved_path, dependent_dlibs)
         for dependent_dlib in dependent_dlibs:
             to_copy[pathlib.Path(dependent_dlib)] = None
-    inodes = prov_log.inodes
+    inodes = probe_log.inodes
     if inodes is None:
         raise ValueError("PROBE log appears to not contain inodes")
     for resolved_path, maybe_path in to_copy.items():
@@ -256,10 +256,10 @@ def resolve_path(
         raise KeyError(f"dirfd {path.dirfd} not found in fd table")
 
 
-def get_root_pid(prov_log: ProvLog) -> int | None:
+def get_root_pid(probe_log: ProbeLog) -> int | None:
     possible_root = []
-    for pid, process in prov_log.processes.items():
-        first_op = process.exec_epochs[0].threads[pid].ops[0].data
+    for pid, process in probe_log.processes.items():
+        first_op = process.execs[0].threads[pid].ops[0].data
         if isinstance(first_op, InitProcessOp):
             possible_root.append(pid)
     if possible_root:

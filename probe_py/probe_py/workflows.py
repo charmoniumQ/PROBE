@@ -1,4 +1,4 @@
-from probe_py.analysis import ProcessNode, FileNode
+from probe_py.analysis import ProcessNode, FileNode, DfGraph
 import networkx as nx # type: ignore
 import abc
 from typing import List, Set, Optional
