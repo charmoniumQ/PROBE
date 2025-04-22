@@ -54,10 +54,10 @@ class FileNode:
         return f"{self.file} inode {self.inodeOnDevice.inode}"
 
 # type alias for a node
-Node: typing.TypeAlias = tuple[int, int, int, int]
+OpNode = tuple[Pid, ExecNo, Tid, int]
 
 # type for the edges
-EdgeType: typing.TypeAlias = tuple[Node, Node]
+EdgeType: typing.TypeAlias = tuple[OpNode, OpNode]
 
 
 HbGraph: typing.TypeAlias = nx.DiGraph
@@ -153,11 +153,11 @@ def validate_probe_log(
 
 def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     # [pid, exec_epoch_no, tid, op_index]
-    program_order_edges = list[tuple[Node, Node]]()
-    fork_join_edges = list[tuple[Node, Node]]()
-    exec_edges = list[tuple[Node, Node]]()
-    nodes = list[Node]()
-    proc_to_ops = dict[tuple[int, int, int], list[Node]]()
+    program_order_edges = list[tuple[OpNode, OpNode]]()
+    fork_join_edges = list[tuple[OpNode, OpNode]]()
+    exec_edges = list[tuple[OpNode, OpNode]]()
+    nodes = list[OpNode]()
+    proc_to_ops = dict[tuple[int, int, int], list[OpNode]]()
     last_exec_epoch = dict[int, int]()
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
@@ -166,7 +166,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
             # Reduce each thread to the ops we actually care about
             for tid, thread in exec_epoch.threads.items():
                 context = (pid, exec_epoch_no, tid)
-                ops = list[Node]()
+                ops = list[OpNode]()
                 # Filter just the ops we are interested in
                 op_index = 0
                 for op_index, op in enumerate(thread.ops):
@@ -178,14 +178,14 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
                 proc_to_ops[context] = ops
 
     # Define helper functions
-    def first(pid: int, exid: int, tid: int) -> Node:
+    def first(pid: int, exid: int, tid: int) -> OpNode:
         return proc_to_ops[(pid, exid, tid)][0]
 
-    def last(pid: int, exid: int, tid: int) -> Node:
+    def last(pid: int, exid: int, tid: int) -> OpNode:
         return proc_to_ops[(pid, exid, tid)][-1]
 
-    def get_first_pthread(pid: int, exid: int, target_pthread_id: int) -> list[Node]:
-        ret = list[Node]()
+    def get_first_pthread(pid: int, exid: int, target_pthread_id: int) -> list[OpNode]:
+        ret = list[OpNode]()
         for pid, process in probe_log.processes.items():
             for exid, exec_epoch in process.execs.items():
                 for tid, thread in exec_epoch.threads.items():
@@ -195,8 +195,8 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
                         break
         return ret
 
-    def get_last_pthread(pid: int, exid: int, target_pthread_id: int) -> list[Node]:
-        ret = list[Node]()
+    def get_last_pthread(pid: int, exid: int, target_pthread_id: int) -> list[OpNode]:
+        ret = list[OpNode]()
         for pid, process in probe_log.processes.items():
             for exid, exec_epoch in process.execs.items():
                 for tid, thread in exec_epoch.threads.items():
@@ -249,7 +249,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     for node in nodes:
         hb_graph.add_node(node)
 
-    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabel) -> None:
+    def add_edges(edges:list[tuple[OpNode, OpNode]], label:EdgeLabel) -> None:
         for node0, node1 in edges:
             hb_graph.add_edge(node0, node1, label=label)
     
@@ -258,7 +258,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     add_edges(fork_join_edges, EdgeLabel.FORK_JOIN)
     return hb_graph
 
-def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: Node, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]]) -> None:
+def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]]) -> None:
     starting_pid = starting_node[0]
     
     starting_op = get_op(probe_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
@@ -267,7 +267,7 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: Node, traversed:
     edges = list_edges_from_start_node(hb_graph, starting_node)
     name_map = collections.defaultdict[InodeOnDevice, list[pathlib.Path]](list)
 
-    target_nodes = collections.defaultdict[int, list[Node]](list)
+    target_nodes = collections.defaultdict[int, list[OpNode]](list)
     console = rich.console.Console(file=sys.stderr)
     
     for edge in edges:  
