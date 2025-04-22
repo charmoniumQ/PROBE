@@ -1,6 +1,6 @@
 import typing
 import networkx as nx  # type: ignore
-from .ptypes import TaskType, ProbeLog
+from .ptypes import TaskType, ProbeLog, Pid, ExecNo, Tid
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
 from collections import deque
@@ -360,8 +360,9 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog) -> DfGraph:
 
     return dataflow_graph
 
-def get_op(probe_log: ProbeLog, pid: int, exec_epoch: int, tid: int, op_no: int) -> Op:
-    return probe_log.processes[pid].execs[exec_epoch].threads[tid].ops[op_no]
+
+def get_op(probe_log: ProbeLog, pid: Pid, eno: ExecNo, tid: Tid, op_no: int) -> Op:
+    return probe_log.processes[pid].execs[eno].threads[tid].ops[op_no]
 
 
 def validate_hb_closes(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
