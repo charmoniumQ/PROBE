@@ -23,8 +23,8 @@ def test_diff_cmd() -> None:
     hb_graph = probe_log_to_hb_graph(probe_log)
     assert not validate_hb_graph(probe_log, hb_graph)
     path_bytes = [path.encode() for path in paths]
-    dfs_edges = list(nx.dfs_edges(process_graph))
-    match_open_and_close_fd(dfs_edges, process_tree_probe_log, path_bytes)
+    dfs_edges = list(nx.dfs_edges(hb_graph))
+    match_open_and_close_fd(dfs_edges, probe_log, path_bytes)
 
 
 def test_bash_in_bash() -> None:
@@ -36,28 +36,28 @@ def test_bash_in_bash() -> None:
     process_file_map = {}
     start_node = [
         node
-        for node in process_graph.nodes()
-        if process_graph.in_degree(node) == 0
+        for node in hb_graph.nodes()
+        if hb_graph.in_degree(node) == 0
     ][0]
-    dfs_edges = list(nx.dfs_edges(process_graph,source=start_node))
+    dfs_edges = list(nx.dfs_edges(hb_graph,source=start_node))
     parent_process_id = dfs_edges[0][0][0]
     process_file_map[f"{project_root}/flake.lock".encode()] = parent_process_id
     process_file_map[f"{project_root}/flake.nix".encode()] = parent_process_id
-    check_for_clone_and_open(dfs_edges, process_tree_probe_log, 1, process_file_map, paths)
+    check_for_clone_and_open(dfs_edges, probe_log, 1, process_file_map, paths)
 
 def test_bash_in_bash_pipe() -> None:
     command = ["bash", "-c", f"head {project_root}/flake.nix | tail"]
     probe_log = execute_command(command)
-    process_graph = probe_log_to_hb_graph(probe_log)
+    hb_graph = probe_log_to_hb_graph(probe_log)
     assert not validate_hb_graph(probe_log, hb_graph)
     paths = [f'{project_root}/flake.nix'.encode(), b'stdout']
     start_node = [
         node
-        for node in process_graph.nodes()
-        if process_graph.in_degree(node) == 0
+        for node in hb_graph.nodes()
+        if hb_graph.in_degree(node) == 0
     ][0]
-    dfs_edges = list(nx.dfs_edges(process_graph,source=start_node))
-    check_for_clone_and_open(dfs_edges, process_tree_probe_log, len(paths), {}, paths)
+    dfs_edges = list(nx.dfs_edges(hb_graph,source=start_node))
+    check_for_clone_and_open(dfs_edges, probe_log, len(paths), {}, paths)
 
 
 @pytest.mark.xfail
@@ -65,13 +65,13 @@ def test_pthreads() -> None:
     probe_log = execute_command([f"{project_root}/tests/examples/createFile.exe"])
     hb_graph = probe_log_to_hb_graph(probe_log)
     assert not validate_hb_graph(probe_log, hb_graph)
-    root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
-    bfs_nodes = [node for layer in nx.bfs_layers(process_graph, root_node) for node in layer]
-    root_node = [n for n in process_graph.nodes() if process_graph.out_degree(n) > 0 and process_graph.in_degree(n) == 0][0]
-    dfs_edges = list(nx.dfs_edges(process_graph,source=root_node))
+    root_node = [n for n in hb_graph.nodes() if hb_graph.out_degree(n) > 0 and hb_graph.in_degree(n) == 0][0]
+    bfs_nodes = [node for layer in nx.bfs_layers(hb_graph, root_node) for node in layer]
+    root_node = [n for n in hb_graph.nodes() if hb_graph.out_degree(n) > 0 and hb_graph.in_degree(n) == 0][0]
+    dfs_edges = list(nx.dfs_edges(hb_graph,source=root_node))
     total_pthreads = 3
     paths = [b'/tmp/0.txt', b'/tmp/1.txt', b'/tmp/2.txt']
-    check_pthread_graph(bfs_nodes, dfs_edges, process_tree_probe_log, total_pthreads, paths)
+    check_pthread_graph(bfs_nodes, dfs_edges, probe_log, total_pthreads, paths)
     
 def execute_command(command: list[str], return_code: int = 0) -> ProbeLog:
     input = pathlib.Path("probe_log")
@@ -90,13 +90,13 @@ def execute_command(command: list[str], return_code: int = 0) -> ProbeLog:
     # assert result.returncode == return_code
     assert result.returncode == 0
     assert input.exists()
-    process_tree_probe_log = parse_probe_log(input)
-    return process_tree_probe_log
+    probe_log = parse_probe_log(input)
+    return probe_log
 
 
 def check_for_clone_and_open(
         dfs_edges: typing.Sequence[tuple[Node, Node]],
-        process_tree_probe_log: ProbeLog,
+        probe_log: ProbeLog,
         number_of_child_process: int,
         process_file_map: dict[bytes, Pid],
         paths: list[bytes],
@@ -116,11 +116,11 @@ def check_for_clone_and_open(
     for edge in dfs_edges:
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
         
-        curr_node_op = get_op_from_probe_log(process_tree_probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        curr_node_op = get_op_from_probe_log(probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
         if curr_node_op is not None:
             curr_node_op_data = curr_node_op.data
         if(isinstance(curr_node_op_data,CloneOp)):
-            next_op = get_op_from_probe_log(process_tree_probe_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
+            next_op = get_op_from_probe_log(probe_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3])
             if next_op is not None:
                 next_op_data = next_op.data
             if isinstance(next_op_data,ExecOp):
@@ -169,7 +169,7 @@ def check_for_clone_and_open(
             # check if stdout is read in right child process
             if(edge[1][3]==-1):
                 continue
-            next_init_op = get_op_from_probe_log(process_tree_probe_log,curr_pid,1,curr_pid,0)
+            next_init_op = get_op_from_probe_log(probe_log,curr_pid,1,curr_pid,0)
             if next_init_op is not None:
                 next_init_op_data = next_init_op.data
                 assert isinstance(next_init_op_data, InitExecEpochOp)
@@ -188,14 +188,14 @@ def check_for_clone_and_open(
 
 def match_open_and_close_fd(
         dfs_edges: typing.Sequence[tuple[Node, Node]],
-        process_tree_probe_log: ProbeLog,
+        probe_log: ProbeLog,
         paths: list[bytes],
 ) -> None:
     reserved_file_descriptors = [0, 1, 2]
     file_descriptors = set[int]()
     for edge in dfs_edges:
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
-        curr_node_op = get_op_from_probe_log(process_tree_probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        curr_node_op = get_op_from_probe_log(probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
         if curr_node_op is not None:
             curr_node_op_data = curr_node_op.data
         if(isinstance(curr_node_op_data,OpenOp)):
@@ -218,7 +218,7 @@ def match_open_and_close_fd(
 def check_pthread_graph(
         bfs_nodes: typing.Sequence[Node],
         dfs_edges: typing.Sequence[tuple[Node, Node]],
-        process_tree_probe_log: ProbeLog,
+        probe_log: ProbeLog,
         total_pthreads: int,
         paths: list[bytes],
 ) -> None:
@@ -228,11 +228,11 @@ def check_pthread_graph(
     file_descriptors = set[int]()
     reserved_file_descriptors = [1, 2, 3]
     edge = dfs_edges[0]
-    parent_pthread_id = get_op_from_probe_log(process_tree_probe_log, edge[0][0], edge[0][1], edge[0][2], edge[0][3]).pthread_id
+    parent_pthread_id = get_op_from_probe_log(probe_log, edge[0][0], edge[0][1], edge[0][2], edge[0][3]).pthread_id
 
     for edge in dfs_edges:
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = edge[0]
-        curr_node_op = get_op_from_probe_log(process_tree_probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        curr_node_op = get_op_from_probe_log(probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
         if(isinstance(curr_node_op.data,CloneOp)):
             if edge[1][2] != curr_tid:
                continue
@@ -250,7 +250,7 @@ def check_pthread_graph(
     assert len(set(bfs_nodes)) == len(bfs_nodes)
     for node in bfs_nodes:
         curr_pid, curr_epoch_idx, curr_tid, curr_op_idx = node
-        curr_node_op = get_op_from_probe_log(process_tree_probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
+        curr_node_op = get_op_from_probe_log(probe_log, curr_pid, curr_epoch_idx, curr_tid, curr_op_idx)
         if curr_node_op is not None and (isinstance(curr_node_op.data,OpenOp)):
             file_descriptors.add(curr_node_op.data.fd)
             path = curr_node_op.data.path.path
@@ -278,7 +278,7 @@ def check_pthread_graph(
     assert len(file_descriptors) == 0
 
 def get_op_from_probe_log(
-        process_tree_probe_log: ProbeLog,
+        probe_log: ProbeLog,
         pid: Pid,
         exec_epoch_id: ExecNo,
         tid: Tid,
@@ -286,4 +286,4 @@ def get_op_from_probe_log(
 ) -> Op:
     if op_idx == -1 or exec_epoch_id == -1:
         raise ValueError()
-    return process_tree_probe_log.processes[pid].execs[exec_epoch_id].threads[tid].ops[op_idx]
+    return probe_log.processes[pid].execs[exec_epoch_id].threads[tid].ops[op_idx]
