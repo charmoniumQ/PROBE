@@ -1,6 +1,6 @@
 import typing
 import networkx as nx
-from .ptypes import Inode, ProbeLog, TaskType, Host, Pid, ExecNo, Tid
+from .ptypes import Inode, ProbeLog, TaskType, Host, Pid, ExecNo, Tid, InodeVersion
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
 from collections import deque
@@ -25,19 +25,10 @@ class ProcessNode:
 
 
 @dataclass(frozen=True)
-class FileVersion:
-    mtime_sec: int
-    mtime_nsec: int
+class FileAccess:
+    inode_version: InodeVersion
+    path: pathlib.Path
 
-@dataclass(frozen=True)
-class FileNode:
-    inodeOnDevice: InodeOnDevice
-    version: FileVersion
-    file: str
-
-    @property
-    def label(self) -> str:
-        return f"{self.file} inode {self.inodeOnDevice.inode}"
 
 # type alias for a node
 OpNode = tuple[Pid, ExecNo, Tid, int]
@@ -45,35 +36,21 @@ OpNode = tuple[Pid, ExecNo, Tid, int]
 
 if typing.TYPE_CHECKING:
     HbGraph: typing.TypeAlias = nx.DiGraph[OpNode]
-    DfGraph: typing.TypeAlias = nx.DiGraph[FileNode | ProcessNode]
+    DfGraph: typing.TypeAlias = nx.DiGraph[FileAccess | ProcessNode]
 else:
     HbGraph = nx.DiGraph
     DfGraph = nx.DiGraph
 
 
-def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
-    program_order_edges = list[tuple[OpNode, OpNode]]()
-    fork_join_edges = list[tuple[OpNode, OpNode]]()
-    exec_edges = list[tuple[OpNode, OpNode]]()
-    nodes = list[OpNode]()
-    proc_to_ops = dict[tuple[int, int, int], list[OpNode]]()
-
-
-Node: typing.TypeAlias = tuple[int, int, int, int]
-
-# type for the edges
-EdgeType: typing.TypeAlias = tuple[Node, Node]
-
-
 def validate_provlog(
-        provlog: ProvLog,
+        probe_log: ProbeLog,
 ) -> list[str]:
     ret = list[str]()
     waited_processes = set[tuple[TaskType, int]]()
     cloned_processes = set[tuple[TaskType, int]]()
     opened_fds = set[int]()
     closed_fds = set[int]()
-    for pid, process in provlog.processes.items():
+    for pid, process in probe_log.processes.items():
         epochs = set[int]()
         first_op = process.exec_epochs[0].threads[pid].ops[0]
         if not isinstance(first_op.data, InitProcessOp):
@@ -127,7 +104,7 @@ def validate_provlog(
                     elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
                         if False:
                             pass
-                        elif op.data.task_type == TaskType.TASK_PID and op.data.task_id not in provlog.processes.keys():
+                        elif op.data.task_type == TaskType.TASK_PID and op.data.task_id not in probe_log.processes.keys():
                             ret.append(f"CloneOp returned a PID {op.data.task_id} that we didn't track")
                         elif op.data.task_type == TaskType.TASK_TID and op.data.task_id not in exec_epoch.threads.keys():
                             ret.append(f"CloneOp returned a TID {op.data.task_id} that we didn't track")
