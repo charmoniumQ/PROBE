@@ -1,4 +1,4 @@
-from probe_py.analysis import ProcessNode, FileNode
+from probe_py.analysis import ProcessNode, FileNode, DfGraph
 import networkx as nx # type: ignore
 import abc
 from typing import List, Set, Optional
@@ -24,7 +24,7 @@ All the cases we should take care of:
 """
 class WorkflowGenerator(abc.ABC):
     @abc.abstractmethod
-    def generate_workflow(self, graph: nx.DiGraph) -> str:
+    def generate_workflow(self, graph: DfGraph) -> str:
         pass
 
 class NextflowGenerator(WorkflowGenerator):
@@ -256,7 +256,7 @@ process process_{id(process)} {{
 
                 self.visited.add(node)
   
-    def generate_workflow(self, graph: nx.DiGraph) -> str:  
+    def generate_workflow(self, graph: DfGraph) -> str:
         """
         Generate the complete Nextflow workflow script from the graph.
         """
@@ -383,7 +383,7 @@ class MakefileGenerator:
                 
                 self.handle_process_node(node, inputs, outputs)
 
-    def generate_makefile(self, graph: nx.DiGraph) -> str:
+    def generate_makefile(self, graph: DfGraph) -> str:
         """
         Generate the complete Makefile script from the graph.
         """

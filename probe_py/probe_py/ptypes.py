@@ -2,29 +2,18 @@ from __future__ import annotations
 import pathlib
 from . import ops
 import os
-from dataclasses import dataclass
+import dataclasses
 import enum
 import typing
 
 
-@dataclass(frozen=True)
-class ThreadProvLog:
-    tid: int
-    ops: typing.Sequence[ops.Op]
 
-@dataclass(frozen=True)
-class ExecEpochProvLog:
-    epoch: int
-    threads: typing.Mapping[int, ThreadProvLog]
+@dataclasses.dataclass(frozen=True)
+class ProbeOptions:
+    copy_files: bool
 
 
-@dataclass(frozen=True)
-class ProcessProvLog:
-    pid: int
-    exec_epochs: typing.Mapping[int, ExecEpochProvLog]
-
-
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class InodeVersionLog:
     device_major: int
     device_minor: int
@@ -45,10 +34,32 @@ class InodeVersionLog:
             s.st_size,
         )
 
+Tid: typing.TypeAlias = int
+Pid: typing.TypeAlias = int
+ExecNo: typing.TypeAlias = int
 
-@dataclass(frozen=True)
-class ProvLog:
-    processes: typing.Mapping[int, ProcessProvLog]
+
+@dataclasses.dataclass(frozen=True)
+class KernelThread:
+    tid: Tid
+    ops: typing.Sequence[ops.Op]
+
+
+@dataclasses.dataclass(frozen=True)
+class Exec:
+    exec_no: ExecNo
+    threads: typing.Mapping[Tid, KernelThread]
+
+
+@dataclasses.dataclass(frozen=True)
+class Process:
+    pid: Pid
+    execs: typing.Mapping[ExecNo, Exec]
+
+
+@dataclasses.dataclass(frozen=True)
+class ProbeLog:
+    processes: typing.Mapping[Pid, Process]
     inodes: typing.Mapping[InodeVersionLog, pathlib.Path] | None
     has_inodes: bool
 

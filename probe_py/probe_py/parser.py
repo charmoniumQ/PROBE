@@ -6,18 +6,22 @@ import tarfile
 import tempfile
 import contextlib
 from . import ops
-from .ptypes import ProvLog, InodeVersionLog, ThreadProvLog, ExecEpochProvLog, ProcessProvLog
+from .ptypes import ProbeLog, InodeVersionLog, KernelThread, Exec, Process
 from dataclasses import replace
 
 
 @contextlib.contextmanager
 def parse_probe_log_ctx(
-        probe_log: pathlib.Path,
-) -> typing.Iterator[ProvLog]:
-    """Parse probe log; return provenance data and inode contents"""
+        path_to_probe_log: pathlib.Path,
+) -> typing.Iterator[ProbeLog]:
+    """Parse probe log
+
+    In this contextmanager, copied_files are extracted onto the disk.
+
+    """
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
-        with tarfile.open(probe_log, mode="r") as tar:
+        with tarfile.open(path_to_probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")
         has_inodes = (tmpdir / "info" / "copy_files").exists()
         inodes = {
@@ -39,17 +43,20 @@ def parse_probe_log_ctx(
                     tid = int(tid_file.name)
                     # read, split, comprehend, deserialize, extend
                     jsonlines = tid_file.read_text().strip().split("\n")
-                    tids[tid] = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
-                epochs[epoch] = ExecEpochProvLog(epoch, tids)
-            processes[pid] = ProcessProvLog(pid, epochs)
-        yield ProvLog(processes, inodes, has_inodes)
+                    tids[tid] = KernelThread(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
+                epochs[epoch] = Exec(epoch, tids)
+            processes[pid] = Process(pid, epochs)
+        yield ProbeLog(processes, inodes, has_inodes)
 
 def parse_probe_log(
-        probe_log: pathlib.Path,
-) -> ProvLog:
-    """Parse probe log; return provenance data, but throw away inode contents"""
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        return replace(prov_log, has_inodes=False, inodes={})
+        path_to_probe_log: pathlib.Path,
+) -> ProbeLog:
+    """Parse probe log.
+
+    Unlike parse_probe_ctx, the copied_files will not be accessible.
+    """
+    with parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        return replace(probe_log, has_inodes=False, inodes={})
 
 
 def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
