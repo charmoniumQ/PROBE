@@ -18,6 +18,7 @@ from .workflows import MakefileGenerator, NextflowGenerator
 from . import file_closure
 from . import graph_utils
 from .ssh_argparser import parse_ssh_args
+from . import ops
 import enum
 from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
 from sqlalchemy.orm import Session
@@ -95,8 +96,18 @@ def ops_graph(
     Supports .png, .svg, and .dot
     """
     prov_log = parse_probe_log(probe_log)
-    process_graph = analysis.provlog_to_digraph(prov_log, only_proc_ops)
+    process_graph = analysis.provlog_to_digraph(prov_log)
+    if only_proc_ops:
+        graph_utils.remove_nodes(
+            process_graph,
+            lambda node: isinstance(
+                analysis.prov_log_get_node(prov_log, *node).data, # type: ignore
+                (ops.ExecOp, ops.CloneOp, ops.WaitOp)
+            ),
+            lambda incoming_edge_label, outgoing_edge_label: outgoing_edge_label,
+        )
     analysis.color_hb_graph(prov_log, process_graph)
+    print(process_graph)
     graph_utils.serialize_graph(process_graph, output)
 
     

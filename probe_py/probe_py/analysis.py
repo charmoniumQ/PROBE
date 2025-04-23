@@ -1,3 +1,4 @@
+import warnings
 import typing
 import networkx as nx  # type: ignore
 from .ptypes import TaskType, ProvLog
@@ -149,19 +150,18 @@ def validate_provlog(
 # TODO: Rename "digraph" to "hb_graph" in the entire project.
 # Digraph (aka "directed graph") is too vague a term; the proper name is "happens-before graph".
 # Later on, we will have a function that transforms an hb graph to file graph (both of which are digraphs)
-def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False) -> nx.DiGraph:
-    proc_ops = [ExecOp, CloneOp, WaitOp]
+def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     # [pid, exec_epoch_no, tid, op_index]
     program_order_edges = list[tuple[Node, Node]]()
-    fork_join_edges = list[tuple[Node, Node]]()
-    exec_edges = list[tuple[Node, Node]]()
+    fork_join_edges = list[tuple[Node, Node | None]]()
+    exec_edges = list[tuple[Node, Node | None]]()
     nodes = list[Node]()
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
     for pid, process in process_tree_prov_log.processes.items():
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             # to find the last executing epoch of the process
-            
+            last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
             # Reduce each thread to the ops we actually care about
             for tid, thread in exec_epoch.threads.items():
                 context = (pid, exec_epoch_no, tid)
@@ -169,8 +169,6 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
                 # Filter just the ops we are interested in
                 op_index = 0
                 for op_index, op in enumerate(thread.ops):
-                    if only_proc_ops and not isinstance(op.data, tuple(proc_ops)):
-                        continue
                     ops.append((*context, op_index))
                 # Add just those ops to the graph
                 nodes.extend(ops)
@@ -181,7 +179,8 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
                 last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
     # Define helper functions
     def first(pid: int, exid: int, tid: int) -> Node | None:
-        if(len(proc_to_ops[(pid, exid, tid)])==0):
+        if not proc_to_ops.get((pid, exid, tid)):
+            warnings.warn(f"We have no ops for PID={pid}, exec={exid}, TID={tid}, but we know that it occurred.")
             return None
         return proc_to_ops[(pid, exid, tid)][0]
 
@@ -223,14 +222,10 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
             elif op_data.task_type == TaskType.TASK_PID:
                 # Spawning a thread links to the current PID and exec epoch
                 target = (op_data.task_id, 0, op_data.task_id)
-                targetNode = first(*target)
-                if targetNode is not None:
-                    fork_join_edges.append((node, targetNode))
+                fork_join_edges.append((node, first(*target)))
             elif op_data.task_type == TaskType.TASK_TID:
                 target = (pid, exid, op_data.task_id)
-                targetNode = first(*target)
-                if targetNode is not None:
-                    fork_join_edges.append((node, targetNode))
+                fork_join_edges.append((node, first(*target)))
             elif op_data.task_type == TaskType.TASK_PTHREAD:
                 for dest in get_first_pthread(pid, exid, op_data.task_id):
                     fork_join_edges.append((node, dest))
@@ -251,17 +246,16 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog, only_proc_ops: bool=False
         elif isinstance(op_data, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
             target = pid, exid + 1, pid
-            targetNode = first(*target)
-            if targetNode is not None:
-                exec_edges.append((node, targetNode))
+            exec_edges.append((node, first(*target)))
 
     process_graph = nx.DiGraph()
     for node in nodes:
         process_graph.add_node(node)
 
-    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels) -> None:
+    def add_edges(edges: typing.Iterable[tuple[Node, Node | None]], label:EdgeLabels) -> None:
         for node0, node1 in edges:
-            process_graph.add_edge(node0, node1, label=label)
+            if node1:
+                process_graph.add_edge(node0, node1, label=label)
     
     add_edges(program_order_edges, EdgeLabels.PROGRAM_ORDER)
     add_edges(exec_edges, EdgeLabels.EXEC)
