@@ -1,3 +1,4 @@
+import random
 import os
 import re
 import shlex
@@ -44,16 +45,15 @@ def build_oci_image(
             raise typer.Exit(code=1)
 
         # Start contianer
+        container_id = f"probe-{random.randint(0, 2**32 - 1):08x}"
         if verbose:
-            console.print("buildah from scratch")
-        container_id = subprocess.run(
-            ["buildah", "from", "scratch"],
+            console.print(shlex.join(["buildah", "from", "--name", container_id, "scratch"]))
+        subprocess.run(
+            ["buildah", "from", "--name", container_id, "scratch"],
             check=True,
-            capture_output=True,
+            capture_output=not verbose,
             text=True,
-        ).stdout.strip()
-        if verbose:
-            console.print(f"Container ID: {container_id}")
+        )
 
         # Copy relevant files
         if verbose:
@@ -72,7 +72,7 @@ def build_oci_image(
             raise typer.Exit(code=1)
         last_op = prov_log.processes[pid].exec_epochs[0].threads[pid].ops[-1].data
         if not isinstance(last_op, ExecOp):
-            console.print("Last op is not ExecOp. Are you sure this probe_log is valid?")
+            console.print(f"Last op is not ExecOp: {last_op}. Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
         args = [
             arg.decode() for arg in last_op.argv
@@ -198,7 +198,9 @@ def copy_file_closure(
         _get_dlibs(resolved_path, dependent_dlibs)
         for dependent_dlib in dependent_dlibs:
             to_copy[pathlib.Path(dependent_dlib)] = None
-
+    inodes = prov_log.inodes
+    if inodes is None:
+        raise ValueError("PROBE log appears to not contain inodes")
     for resolved_path, maybe_path in to_copy.items():
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
@@ -213,7 +215,7 @@ def copy_file_closure(
             )
         else:
             ivl = None
-        if ivl is not None and (inode_content := prov_log.inodes.get(ivl)) is not None:
+        if ivl is not None and (inode_content := inodes.get(ivl)) is not None:
             # These inodes are "owned" by us, since we extracted them from the tar archive.
             # When the tar archive gets deleted, these inodes will remain.
             destination_path.hardlink_to(inode_content)
@@ -252,11 +254,16 @@ def resolve_path(
 
 
 def get_root_pid(prov_log: ProvLog) -> int | None:
+    possible_root = []
     for pid, process in prov_log.processes.items():
         first_op = process.exec_epochs[0].threads[pid].ops[0].data
-        if isinstance(first_op, InitProcessOp) and first_op.is_root:
-            return pid
-    return None
+        if isinstance(first_op, InitProcessOp):
+            possible_root.append(pid)
+    if possible_root:
+        # TODO: Fix this; min works for Linux because PIDs are assigned sequentially
+        return min(possible_root)
+    else:
+        return None
 
 
 ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+")

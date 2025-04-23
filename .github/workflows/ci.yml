@@ -12,8 +12,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
-          #- ubuntu-22.04
+          - ubuntu-24.04
           # We can test on a Matrix of Ubuntu versions
           # But Nix does get us pretty good reproducibility
           # So we will test just one in CI.
@@ -36,15 +35,39 @@ jobs:
         echo -e 'CACHIX_AUTH_TOKEN length: '
         echo ${{ secrets.CACHIX_AUTH_TOKEN }} | wc -c
 
-    - uses: cachix/cachix-action@v15
+    - name: Set up cachix
+      uses: cachix/cachix-action@v15
       with:
         name: charmonium
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-    - run: nix flake check --all-systems --print-build-logs
+    - name: Build Rust artifacts
+      run: nix build .#cargoArtifacts
 
-    - run: nix build --print-build-logs .#probe-bundled
+    - name: Build Rust
+      run: nix build .#probe-cli
+
+    - name: Build libprobe
+      run: nix build .#libprobe
+
+    - name: Build rest
+      run: nix build .
+
+    - name: Build and test in Nix flake
+      run: nix flake check --all-systems --print-build-logs
+
+    - name: Check benchmark on all systems
+      run: nix flake check ./benchmark --all-systems --print-build-logs
 
     # The devshell uses slightly different build process than the Nix pkg
     # Might as well test that too
-    - run: nix develop --command just compile fix check test-native
+    #
+    # - name: Build and test in devshell
+    #   run: nix develop --command just lint compile test
+    #
+    # ^ That takes a long time, and it runs the same checks as nix flake check.
+    # Developers should run `just lint compile test` on their machines.
+    # CI and consumers will run `nix flake check`
+    # However, we still want to build the devshell so the build artifacts get uploaded to Cachix.
+    - name: Build devshell
+      run: nix develop --command true

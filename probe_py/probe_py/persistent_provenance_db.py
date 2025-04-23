@@ -23,7 +23,7 @@ def get_engine() -> Engine:
 class ProcessThatWrites(Base):
     __tablename__ = 'process_that_writes'
 
-    id: Mapped[int] = mapped_column(primary_key=True, auto_increment=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     inode: Mapped[int]
     process_id: Mapped[int]
     device_major: Mapped[int]

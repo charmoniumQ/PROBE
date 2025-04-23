@@ -3,6 +3,7 @@ import networkx as nx  # type: ignore
 from .ptypes import TaskType, ProvLog
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
+from collections import deque
 from enum import IntEnum
 import rich
 import sys
@@ -65,15 +66,12 @@ def validate_provlog(
     cloned_processes = set[tuple[TaskType, int]]()
     opened_fds = set[int]()
     closed_fds = set[int]()
-    n_roots = 0
     for pid, process in provlog.processes.items():
         epochs = set[int]()
         first_op = process.exec_epochs[0].threads[pid].ops[0]
         if not isinstance(first_op.data, InitProcessOp):
             ret.append("First op in exec_epoch 0 should be InitProcessOp")
-        else:
-            if first_op.data.is_root:
-                n_roots += 1
+        last_epoch = max(process.exec_epochs.keys())
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             epochs.add(exec_epoch_no)
             first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
@@ -90,11 +88,14 @@ def validate_provlog(
                 for tid, thread in exec_epoch.threads.items()
                 for op in thread.ops
             }
+            threads_ending_in_exec = 0
             for tid, thread in exec_epoch.threads.items():
                 first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
                 first_thread_op = thread.ops[first_thread_op_idx]
                 if not isinstance(first_thread_op.data, InitThreadOp):
                     ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
+                if isinstance(thread.ops[-1], ExecOp):
+                    threads_ending_in_exec += 1
                 for op in thread.ops:
                     if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
@@ -130,6 +131,8 @@ def validate_provlog(
                     elif isinstance(op.data, InitProcessOp):
                         if exec_epoch_no != 0:
                             ret.append(f"InitProcessOp happened, but exec_epoch was not zero, was {exec_epoch_no}")
+            if exec_epoch_no != last_epoch:
+                assert threads_ending_in_exec == 1
         expected_epochs = set(range(0, max(epochs) + 1))
         if expected_epochs - epochs:
             ret.append(f"Missing epochs for pid={pid}: {sorted(epochs - expected_epochs)}")
@@ -140,8 +143,6 @@ def validate_provlog(
         #ret.append(f"Closed more fds than we opened: {closed_fds=} {reserved_fds=} {opened_fds=}")
     elif waited_processes - cloned_processes:
         ret.append(f"Waited on more processes than we cloned: {waited_processes=} {cloned_processes=}")
-    if n_roots != 1:
-        ret.append(f"Got {n_roots} prov roots")
     return ret
 
 
@@ -591,3 +592,43 @@ def provlog_to_process_tree(prov_log: ProvLog) -> nx.DiGraph:
                             G.add_edge(parent_node_id, new_node_id, label="exec", constraint="false")
 
     return G
+
+def get_max_parallelism_latest(graph: nx.DiGraph, prov_log: ProvLog) -> int:
+    visited = set()
+    # counter is set to 1 to include the main parent process
+    counter = 1 
+    max_counter = 1
+    start_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+    queue = deque([(start_node, None)])  # (current_node, parent_node)
+    while queue:
+        node, parent = queue.popleft()
+        if node in visited:
+            continue
+        pid, exec_epoch_no, tid, op_index = node
+        if(parent):
+            parent_pid, parent_exec_epoch_no, parent_tid, parent_op_index = parent
+            parent_op = prov_log_get_node(prov_log, parent_pid, parent_exec_epoch_no, parent_tid, parent_op_index).data
+        node_op = prov_log_get_node(prov_log, pid, exec_epoch_no, tid, op_index).data
+
+        visited.add(node)
+
+        # waitOp can be reached from the cloneOp and the last op of the child process
+        # is waitOp is reached via the cloneOp we ignore the node
+        if isinstance(node_op, WaitOp):
+            if parent and isinstance(parent_op, CloneOp):
+                visited.remove(node)
+                continue
+        # for every clone the new process runs in parallel with other so we increment the counter
+        if isinstance(node_op, CloneOp):
+            counter += 1
+            max_counter = max(counter, max_counter)
+        # for every waitOp the control comes back to the parent process so we decrement the counter
+        elif isinstance(node_op, WaitOp):
+            if node_op.task_id!=0:
+                counter -= 1
+        
+        # Add neighbors to the queue
+        for neighbor in graph.neighbors(node):
+            queue.append((neighbor, node))
+
+    return max_counter

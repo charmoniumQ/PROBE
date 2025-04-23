@@ -1,370 +1,337 @@
-/*
- * For each member of global state $X of type $T, we have
- *
- *     const $T __$X_initial = invalid_value_sentinel;
- *     $T __$X = __$X_initial;
- *     static void init_$X();
- *     static $T get_$X();
- *     static $T get_$X_safe();
- *
- * __$X_initial should be an invalid value (or at least very rare value) of $X.
- *
- * Most client code should assume $X has already been initialized, and call get_$X().
- *
- * However, in some instances (so far only used in debug logging), we may need to access before they would have been bootstrapped.
- * In such case, client code should call get_$X_safe(), which will test if $X is initialized, and if not, return a sentinel value
- *
- */
+#define _GNU_SOURCE
+#include "global_state.h"
 
-static const int __is_proc_root_initial = -1;
-static int __is_proc_root = __is_proc_root_initial;
-static const char* is_proc_root_env_var = PRIVATE_ENV_VAR_PREFIX "IS_ROOT";
-static void init_is_proc_root() {
-    assert(__is_proc_root == __is_proc_root_initial);
-    const char* is_root = debug_getenv(is_proc_root_env_var);
-    if (is_root != NULL) {
-        assert(is_root[0] == '0' && is_root[1] == '\0');
-        __is_proc_root = 0;
-    } else {
-        __is_proc_root = 1;
-    }
-    DEBUG("Is proc root? %d", __is_proc_root);
-}
-static bool is_proc_root() {
-    assert(__is_proc_root == 1 || __is_proc_root == 0);
-    return __is_proc_root;
-}
+#include <fcntl.h>     // for AT_FDCWD, O_CREAT, O_PATH, O_RD...
+#include <limits.h>    // IWYU pragma: keep for PATH_MAX
+#include <pthread.h>   // for pthread_mutex_t
+#include <stdbool.h>   // for true, bool, false
+#include <string.h>    // for memcpy, NULL, size_t, strnlen
+#include <sys/mman.h>  // for mmap, PROT_*, MAP_*
+#include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
+#include <sys/types.h> // for pid_t
+#include <unistd.h>    // for getpid, gettid, confstr, _CS_PATH
+// IWYU pragma: no_include "bits/mman-linux.h"    for PROT_*
+// IWYU pragma: no_include "bits/pthreadtypes.h"  for pthread_mutex_t
+// IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
+// IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
-/*
- * exec-family of functions _rep\lace_ the process currently being run with a new process, by loading the specified program.
- * It has the same PID, but it is a new process.
- * Therefore, we track the "exec epoch".
- * If this PID is the same as the one in the environment, this must be a new exec epoch of the same.
- * Otherwise, it must be a truly new process.
- */
-static const int __exec_epoch_initial = -1;
-static int __exec_epoch = __exec_epoch_initial;
-static const char* exec_epoch_env_var = PRIVATE_ENV_VAR_PREFIX "EXEC_EPOCH";
-static const char* pid_env_var = PRIVATE_ENV_VAR_PREFIX "PID";
-static void init_exec_epoch() {
-    assert(__exec_epoch == __exec_epoch_initial);
+#include "../generated/bindings.h"   // for FixedPath, ProcessContext, PIDS...
+#include "../generated/libc_hooks.h" // for unwrapped_mkdirat, unwrapped_close
+#include "arena.h"                   // for arena_is_initialized, arena_create
+#include "debug_logging.h"           // for ASSERTF, EXPECT, DEBUG, ERROR
+#include "env.h"                     // for getenv_copy
+#include "inode_table.h"             // for inode_table_init, inode_table_i...
+#include "prov_utils.h"              // for do_init_ops
+#include "util.h"                    // for CHECK_SNPRINTF, list_dir, UNLIKELY
 
-    if (!is_proc_root()) {
-        const char* last_epoch_pid_str = debug_getenv(pid_env_var);
-        if (!last_epoch_pid_str) {
-            ERROR("Internal environment variable \"%s\" not set", pid_env_var);
-        }
-
-        pid_t last_epoch_pid = EXPECT(> 0, my_strtoul(last_epoch_pid_str, NULL, 10));
-
-        if (last_epoch_pid == getpid()) {
-            const char* exec_epoch_str = debug_getenv(exec_epoch_env_var);
-            if (!last_epoch_pid_str) {
-                ERROR("Internal environment variable \"%s\" not set", exec_epoch_env_var);
-            }
-
-            size_t last_exec_epoch = EXPECT(>= 0, my_strtoul(exec_epoch_str, NULL, 10));
-            /* Since zero is a sentinel value for strtol,
-             * if it returns zero,
-             * there's a small chance that exec_epoch_str is an invalid int,
-             * We cerify manually */
-            assert(last_exec_epoch != 0 || exec_epoch_str[0] == '0');
-
-            __exec_epoch = last_exec_epoch + 1;
-        } else {
-            __exec_epoch = 0;
-        }
-    } else {
-        __exec_epoch = 0;
-    }
-
-    DEBUG("exec_epoch = %d", __exec_epoch);
-}
-static int get_exec_epoch() {
-    assert(__exec_epoch != __exec_epoch_initial);
-    return __exec_epoch;
-}
-static int get_exec_epoch_safe() {
-    return __exec_epoch;
-}
-
-static char __copy_files = ' ';
-static const char* copy_files_env_var = PRIVATE_ENV_VAR_PREFIX "COPY_FILES";
-struct InodeTable read_inodes;
-struct InodeTable copied_or_overwritten_inodes;
-static void init_copy_files() {
-    assert(__copy_files == ' ');
-    const char* copy_files_str = debug_getenv(copy_files_env_var);
-    if (copy_files_str) {
-        __copy_files = copy_files_str[0];
-    } else {
-        __copy_files = '\0';
-    }
-    DEBUG("Copy files? %c", __copy_files);
-    switch (__copy_files) {
-        case '\0':
-            break;
-        case 'e': /* eagerly copy files */
-        case 'l': /* lazily copy files */
-            inode_table_init(&read_inodes);
-            inode_table_init(&copied_or_overwritten_inodes);
-            break;
-        default:
-            ERROR("copy_files has invalid value %c", __copy_files);
-            break;
-    }
-}
-static bool should_copy_files_eagerly() {
-    assert(__copy_files == '\0' || __copy_files == 'e' || __copy_files == 'l');
-    return __copy_files == 'e';
-}
-static bool should_copy_files_lazily() {
-    assert(__copy_files == '\0' || __copy_files == 'e' || __copy_files == 'l');
-    return __copy_files == 'l';
-}
-static bool should_copy_files() {
-    return should_copy_files_eagerly() || should_copy_files_lazily();
-}
-
-static int mkdir_and_descend(int my_dirfd, const char* name, long child, bool mkdir, bool close) {
-    char buffer[signed_long_string_size + 1];
-    if (!name) {
-        CHECK_SNPRINTF(buffer, signed_long_string_size, "%ld", child);
-    }
-    if (mkdir) {
-        DEBUG("mkdir %s/%s", dirfd_path(my_dirfd), name ? name : buffer);
-        int mkdir_ret = unwrapped_mkdirat(my_dirfd, name ? name : buffer, 0777);
-        if (mkdir_ret != 0) {
-            int saved_errno = errno;
-#ifndef NDEBUG
-            listdir(dirfd_path(my_dirfd), 2);
+// getpid/gettid is kind of expensive (40ns per syscall)
+// but worth it for debug case
+static const pid_t pid_initial = -1;
+static pid_t pid = pid_initial;
+pid_t get_pid() { return EXPECT(== getpid(), pid); }
+static inline void init_pid() { pid = EXPECT(!= pid_initial, getpid()); }
+pid_t get_pid_safe() {
+#ifdef NDEBUG
+    return pid;
+#else
+    return getpid();
 #endif
-            ERROR("Cannot mkdir %s/%ld: %s", dirfd_path(my_dirfd), child, strerror(saved_errno));
-        }
-    }
-    int sub_dirfd = unwrapped_openat(my_dirfd, name ? name : buffer, O_RDONLY | O_DIRECTORY);
-    if (sub_dirfd == -1) {
-        int saved_errno = errno;
-#ifndef NDEBUG
-        listdir(dirfd_path(my_dirfd), 2);
+}
+
+static const pid_t tid_initial = -1;
+static __thread pid_t tid = tid_initial;
+pid_t get_tid() { return EXPECT(== gettid(), tid); }
+static inline void init_tid() { tid = EXPECT(!= tid_initial, gettid()); }
+pid_t get_tid_safe() {
+#ifdef NDEBUG
+    return tid;
+#else
+    return gettid();
 #endif
-        DEBUG("dirfd=%d buffer=\"%s\"", my_dirfd, name ? name : buffer);
-        ERROR("Cannot openat %s/%ld (did we do mkdir? %d): %s", dirfd_path(my_dirfd), child, mkdir, strerror(saved_errno));
-    }
-    if (close) {
-        EXPECT(== 0, unwrapped_close(my_dirfd));
-    }
-    DEBUG("%s/%s -> fd %d", dirfd_path(my_dirfd), name ? name : buffer, sub_dirfd);
-    return sub_dirfd;
 }
 
-static const int invalid_dirfd = -1;
-static int __epoch_dirfd = invalid_dirfd;
-static int __inodes_dirfd = invalid_dirfd;
-static const char* probe_dir_env_var = PRIVATE_ENV_VAR_PREFIX "DIR";
-static char __probe_dir[PATH_MAX + 1];
-static void init_probe_dir() {
-    assert(__epoch_dirfd == invalid_dirfd);
-    if (__probe_dir[0] == '\0') {
-        // Get initial probe dir
-        const char* probe_dir_env_val = debug_getenv(probe_dir_env_var);
-        if (!probe_dir_env_val) {
-            ERROR("Internal environment variable \"%s\" not set", probe_dir_env_var);
-        }
-        strncpy(__probe_dir, probe_dir_env_val, PATH_MAX);
-        if (__probe_dir[0] != '/') {
-            ERROR("PROBE dir \"%s\" is not absolute", __probe_dir);
-        }
-        if (!is_dir(__probe_dir)) {
-            ERROR("PROBE dir \"%s\" is not a directory", __probe_dir);
-        }
+static inline void* open_and_mmap(const char* path, bool writable, size_t size) {
+    DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
+    int fd = unwrapped_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
+    if (UNLIKELY(fd == -1)) {
+        ERROR("Could not open process_tree in parent's dir at %s", path);
     }
-    int probe_dirfd = unwrapped_openat(AT_FDCWD, __probe_dir, O_RDONLY | O_DIRECTORY);
-    if (probe_dirfd < 0) {
-        ERROR("Could not open \"%s\"", __probe_dir);
+    if (writable) {
+        EXPECT(== 0, unwrapped_ftruncate(fd, size));
     }
-
-    DEBUG("probe_dir = \"%s\"", __probe_dir);
-
-    if (is_proc_root()) {
-        int info_dirfd = mkdir_and_descend(probe_dirfd, "info", 0, true, false);
-        write_bytes(info_dirfd, "copy_files", should_copy_files() ? "1" : "0", 1);
-        EXPECT(== 0, unwrapped_close(info_dirfd));
-    }
-
-    int pids_dirfd = mkdir_and_descend(probe_dirfd, "pids", 0, is_proc_root(), false);
-
-    __inodes_dirfd = mkdir_and_descend(probe_dirfd, "inodes", 0, is_proc_root(), false);
-
-    int pid_dirfd = mkdir_and_descend(pids_dirfd, NULL, getpid(), get_exec_epoch() == 0, true);
-
-    __epoch_dirfd = mkdir_and_descend(pid_dirfd, NULL, get_exec_epoch(), my_gettid() == getpid(), true);
-}
-static int get_epoch_dirfd() {
-    assert(fd_is_valid(__epoch_dirfd));
-    return __epoch_dirfd;
-}
-static int get_inodes_dirfd() {
-    assert(fd_is_valid(__inodes_dirfd));
-    return __inodes_dirfd;
+    void* ret = EXPECT_NONNULL(unwrapped_mmap(
+        NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ), MAP_SHARED, fd, 0));
+    ASSERTF(ret != MAP_FAILED, "mmap did not succeed");
+    EXPECT(== 0, unwrapped_close(fd));
+    DEBUG("ret = %p", ret);
+    return ret;
 }
 
-static __thread struct ArenaDir __op_arena = { 0 };
-static __thread struct ArenaDir __data_arena = { 0 };
+// Use a macro so we get the location of the callee in the dbeug log
+#define checked_mkdir(path)                                                                        \
+    ({                                                                                             \
+        DEBUG("mkdir %s", path);                                                                   \
+        int mkdir_ret = unwrapped_mkdirat(AT_FDCWD, path, 0777);                                   \
+        if (mkdir_ret == -1) {                                                                     \
+            list_dir(path, 2);                                                                     \
+            ERROR("Could not mkdir directory %s", path);                                           \
+        }                                                                                          \
+    })
+
+#ifdef NDEBUG
+#define check_fixed_path(path)
+#else
+#define check_fixed_path(path)                                                                     \
+    ({                                                                                             \
+        ASSERTF(path->len > 2, "{\"%s\", %d}", path->bytes, path->len);                            \
+        ASSERTF(path->bytes[0] == '/', "{\"%s\", %d}", path->bytes, path->len);                    \
+        ASSERTF(path->bytes[path->len - 1] != '\0', "{\"%s\", %d}", path->bytes, path->len);       \
+        ASSERTF(path->bytes[path->len] == '\0', "{\"%s\", %d}", path->bytes, path->len);           \
+    })
+#endif
+
+static struct FixedPath __probe_dir = {0};
+static inline void init_probe_dir() {
+    const char* __probe_private_dir_env_val = getenv_copy(PROBE_DIR_VAR);
+    if (UNLIKELY(!__probe_private_dir_env_val)) {
+        ERROR("env " PROBE_DIR_VAR " is not set");
+    }
+    size_t probe_dir_len = strnlen(__probe_private_dir_env_val, PATH_MAX);
+    memcpy(&__probe_dir.bytes, __probe_private_dir_env_val, probe_dir_len);
+    __probe_dir.len = probe_dir_len;
+    check_fixed_path((&__probe_dir));
+}
+const struct FixedPath* get_probe_dir() {
+    check_fixed_path((&__probe_dir));
+    return &__probe_dir;
+}
+static __thread struct FixedPath __probe_dir_thread;
+void init_mut_probe_dir() {
+    check_fixed_path((&__probe_dir));
+    memcpy(__probe_dir_thread.bytes, __probe_dir.bytes, __probe_dir.len + 1 /* copy the \0 byte */);
+    __probe_dir_thread.len = __probe_dir.len;
+    check_fixed_path((&__probe_dir_thread));
+}
+struct FixedPath* get_mut_probe_dir() {
+    check_fixed_path((&__probe_dir_thread));
+    return &__probe_dir_thread;
+}
+
+static struct InodeTable read_inodes;
+static struct InodeTable copied_or_overwritten_inodes;
+static struct ProcessContext* __process = NULL;
+static const struct ProcessTreeContext* __process_tree = NULL;
+static inline void init_process_obj() {
+    const struct FixedPath* probe_dir = get_probe_dir();
+    char path_buf[PATH_MAX] = {0};
+    memcpy(path_buf, probe_dir->bytes, probe_dir->len);
+
+    /* Set up process tree context
+     * Note that sizeof("abc") already includes 1 extra for the null byte. */
+    memcpy(path_buf + probe_dir->len, "/" PROCESS_TREE_CONTEXT_FILE "\0",
+           (sizeof(PROCESS_TREE_CONTEXT_FILE) + 1));
+    __process_tree = open_and_mmap(path_buf, false, sizeof(struct ProcessTreeContext));
+
+    /* Set up process context */
+    CHECK_SNPRINTF(path_buf + probe_dir->len, (int)(PATH_MAX - probe_dir->len),
+                   "/" CONTEXT_SUBDIR "/%d", pid);
+    __process = open_and_mmap(path_buf, true, sizeof(struct ProcessContext));
+    if (__process->epoch_no == 0) {
+        /* mkdir process dirs */
+        CHECK_SNPRINTF(path_buf + probe_dir->len, (int)(PATH_MAX - probe_dir->len),
+                       "/" PIDS_SUBDIR "/%d", pid);
+        checked_mkdir(path_buf);
+    }
+    __process->epoch_no += 1;
+
+    /* mkdir epoch */
+    CHECK_SNPRINTF(path_buf + probe_dir->len, (int)(PATH_MAX - probe_dir->len),
+                   "/" PIDS_SUBDIR "/%d/%d", pid, __process->epoch_no - 1);
+    checked_mkdir(path_buf);
+
+    inode_table_init(&read_inodes);
+    inode_table_init(&copied_or_overwritten_inodes);
+}
+static inline const struct ProcessContext* get_process() { return EXPECT_NONNULL(__process); }
+static inline const struct ProcessTreeContext* get_process_tree() {
+    ASSERTF(__process_tree != NULL, "");
+    return __process_tree;
+}
+const struct FixedPath* get_libprobe_path() { return &get_process_tree()->libprobe_path; }
+enum CopyFiles get_copy_files_mode() { return get_process_tree()->copy_files; }
+
+struct InodeTable* get_read_inodes() {
+    ASSERTF(inode_table_is_init(&read_inodes), "");
+    return &read_inodes;
+}
+struct InodeTable* get_copied_or_overwritten_inodes() {
+    ASSERTF(inode_table_is_init(&copied_or_overwritten_inodes), "");
+    return &copied_or_overwritten_inodes;
+}
+
+int get_exec_epoch_safe() {
+    if (__process) {
+        return __process->epoch_no - 1;
+    } else {
+        return -1;
+    }
+}
+int get_exec_epoch() { return get_process()->epoch_no - 1; }
+
+static __thread struct FixedPath __ops_path = {0};
+static __thread struct FixedPath __data_path = {0};
+static __thread struct ArenaDir __ops_arena = {0};
+static __thread struct ArenaDir __data_arena = {0};
 static const size_t prov_log_arena_size = 64 * 1024;
-static void init_log_arena() {
-    assert(!arena_is_initialized(&__op_arena));
-    assert(!arena_is_initialized(&__data_arena));
-    DEBUG("Going to \"%s/%d/%d/%d\" (mkdir %d)", __probe_dir, getpid(), get_exec_epoch(), my_gettid(), true);
-    int thread_dirfd = mkdir_and_descend(get_epoch_dirfd(), NULL, my_gettid(), true, false);
-    EXPECT( == 0, arena_create(&__op_arena, thread_dirfd, "ops", prov_log_arena_size));
-    EXPECT( == 0, arena_create(&__data_arena, thread_dirfd, "data", prov_log_arena_size));
+static inline void init_log_arena() {
+    const struct ProcessContext* process = get_process();
+    const struct FixedPath* probe_dir = get_probe_dir();
+    pid_t pid = get_pid();
+    pid_t tid = get_tid();
+    __ops_path.len = CHECK_SNPRINTF(__ops_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%d/%d",
+                                    probe_dir->bytes, pid, process->epoch_no - 1, tid);
+    check_fixed_path((&__ops_path));
+    checked_mkdir(__ops_path.bytes);
+    __ops_path.len =
+        CHECK_SNPRINTF(__ops_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%d/%d/" OPS_SUBDIR "/",
+                       probe_dir->bytes, pid, process->epoch_no - 1, tid);
+    check_fixed_path((&__ops_path));
+    __data_path.len =
+        CHECK_SNPRINTF(__data_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%d/%d/" DATA_SUBDIR "/",
+                       probe_dir->bytes, pid, process->epoch_no - 1, tid);
+    check_fixed_path((&__data_path));
+    DEBUG("ops_path = \"%s\"", __ops_path.bytes);
+    arena_create(&__ops_arena, __ops_path.bytes, __ops_path.len, PATH_MAX, prov_log_arena_size);
+    arena_create(&__data_arena, __data_path.bytes, __data_path.len, PATH_MAX, prov_log_arena_size);
+    ASSERTF(arena_is_initialized(&__ops_arena), "");
+    ASSERTF(arena_is_initialized(&__data_arena), "");
 }
-static struct ArenaDir* get_op_arena() {
-    assert(arena_is_initialized(&__op_arena));
-    return &__op_arena;
+struct ArenaDir* get_op_arena() {
+    ASSERTF(arena_is_initialized(&__ops_arena), "init_log_arena() not called");
+    return &__ops_arena;
 }
-static struct ArenaDir* get_data_arena() {
-    assert(arena_is_initialized(&__data_arena));
+struct ArenaDir* get_data_arena() {
+    ASSERTF(arena_is_initialized(&__data_arena), "init_log_arena() not called");
     return &__data_arena;
 }
 
-char* _DEFAULT_PATH = NULL;
-
-static void init_default_path() {
-    size_t default_path_size = EXPECT(!= 0, confstr(_CS_PATH, NULL, 0));
-    default_path_size += 1;
-    // Technically +1 is not necessary, but it wont' hurt
-
-    _DEFAULT_PATH = EXPECT_NONNULL(malloc(default_path_size));
-    EXPECT(!= 0, confstr(_CS_PATH, _DEFAULT_PATH, default_path_size));
-
-    // Technically, this shouldn't be necessary, but it won't hurt.
-    _DEFAULT_PATH[default_path_size] = '\0';
+/*
+ * echo '#include <stdio.h>\n#include <unistd.h>\nint main() {printf("%ld\\n", confstr(_CS_PATH, NULL, 0)); return 0;}' | gcc -x c - && ./a.out && rm a.out
+ */
+static struct FixedPath __default_path;
+static inline void init_default_path() {
+    __default_path.len = EXPECT(!= 0, confstr(_CS_PATH, __default_path.bytes, PATH_MAX));
 }
-static char* get_default_path() {
-    assert(_DEFAULT_PATH != NULL);
-    return _DEFAULT_PATH;
+const char* get_default_path() {
+    ASSERTF(__default_path.bytes[0] != '\0', "");
+    return __default_path.bytes;
 }
 
 /*******************************************************/
 
-/**
+/*
  * Aggregate functions;
  * These functions call the init_* functions above */
-static void init_process_global_state() {
-    init_is_proc_root();
-    init_exec_epoch();
-    init_copy_files();
-    init_probe_dir();
-    init_default_path();
-}
 
-static void init_thread_global_state() {
-    init_log_arena();
+static inline void check_function_pointers() {
+#ifndef NDEBUG
+    /* We use these unwrapped_ function pointers in our code.
+     * The rest of the unwrapped_ function pointers are only used if the application (tracee) calls the corresponding libc (without unwrapped_ prefix) function.
+     * */
+    ASSERTF(unwrapped_close, "");
+    ASSERTF(unwrapped_execvpe, "");
+    ASSERTF(unwrapped_faccessat, "");
+    ASSERTF(unwrapped_fcntl, "");
+    ASSERTF(unwrapped_fexecve, "");
+    ASSERTF(unwrapped_fork, "");
+    ASSERTF(unwrapped_ftruncate, "");
+    ASSERTF(unwrapped_mkdirat, "");
+    ASSERTF(unwrapped_mmap, "");
+    /* TODO: Interpose munmap. See arena.c, ../generator/libc_hooks_source.c */
+    /* ASSERTF(unwrapped_munmap, ""); */
+    ASSERTF(unwrapped_openat, "");
+    ASSERTF(unwrapped_statx, "");
+
+    // assert that function pointers are callable
+    struct statx buf;
+    EXPECT(== 0, unwrapped_statx(AT_FDCWD, ".", 0, STATX_BASIC_STATS, &buf));
+    int fd = EXPECT(> 0, unwrapped_openat(AT_FDCWD, ".", O_PATH));
+    EXPECT(== 0, unwrapped_close(fd));
+#endif
 }
 
 /*
  * After a fork, the process will _appear_ to be initialized, but not be truly initialized.
- * E.g., __exec_epoch will be wrong.
+ * E.g., exec_epoch will be wrong.
  * Therefore, we will reset all the things and call init again.
  */
-static void reinit_process_global_state() {
-    __is_proc_root = 0;
-    __exec_epoch = 0;
-    __epoch_dirfd = invalid_dirfd;
-    /* TODO: Can we skip some of this if we got fork()ed and the FDs are still open? */
-    init_probe_dir();
+void init_after_fork() {
+    pid_t real_pid = getpid();
+    if (UNLIKELY(pid != real_pid)) {
+        DEBUG("Re-initializing process");
+        // New TID/PID to detect
+        tid = tid_initial;
+        init_tid();
+        pid = real_pid;
+
+        // Fork copies RAM; function pointers should already be initted
+        // init_function_pointers();
+        check_function_pointers();
+
+        // probe dir hasn't moved, and we already got a copy of it
+        // init_probe_dir();
+
+        // But we need to get the _current_ PID process object
+        init_process_obj();
+
+        // Default path should already be fine
+        //init_default_path();
+
+        /*
+         * We don't know if CLONE_FILES was set.
+         * We will conservatively assume it is (NOT safe to call arena_destroy)
+         * But we assume we have a new memory space, we should clear the mem-mappings.
+         * */
+        arena_drop_after_fork(&__ops_arena);
+        arena_drop_after_fork(&__data_arena);
+        init_log_arena();
+        init_mut_probe_dir();
+
+        do_init_ops(true);
+    }
 }
 
-static void reinit_thread_global_state() {
-    /*
-     * We don't know if CLONE_FILES was set.
-     * We will conservatively assume it is (NOT safe to call arena_destroy)
-     * But we assume we have a new memory space, we should clear the mem-mappings.
-     * */
-    arena_drop_after_fork(&__op_arena);
-    arena_drop_after_fork(&__data_arena);
-    init_log_arena();
-}
+int epoch_inited = 0;
+__thread bool thread_inited = false;
+pthread_mutex_t epoch_init_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static char* const* update_env_with_probe_vars(char* const* user_env, size_t* updated_env_size) {
-    /* Define env vars we care about */
-    const char* probe_vars[] = {
-        is_proc_root_env_var,
-        exec_epoch_env_var,
-        pid_env_var,
-        probe_dir_env_var,
-        /* TODO: include LD_PRELOAD, while noting LD_PRELOAD could have been changed by the user. */
-    };
-    char exec_epoch_str[unsigned_int_string_size];
-    CHECK_SNPRINTF(exec_epoch_str, unsigned_int_string_size, "%d", get_exec_epoch());
-    char pid_str[unsigned_int_string_size];
-    CHECK_SNPRINTF(pid_str, unsigned_int_string_size, "%d", getpid());
-    const char* probe_vals[] = {
-        "0",
-        exec_epoch_str,
-        pid_str,
-        __probe_dir,
-    };
-    const size_t probe_var_count = sizeof(probe_vars) / sizeof(char*);
-
-    /* Precompute some shiz */
-    size_t probe_var_lengths[10] = { 0 };
-    for (size_t i = 0; i < probe_var_count; ++i) {
-        probe_var_lengths[i] = strlen(probe_vars[i]);
-    }
-    char* probe_entries[10] = { NULL };
-    for (size_t i = 0; i < probe_var_count; ++i) {
-        size_t probe_val_length = strlen(probe_vals[i]);
-        probe_entries[i] = malloc(probe_var_lengths[i] + 1 + probe_val_length + 1);
-        memcpy(probe_entries[i], probe_vars[i], probe_var_lengths[i]);
-        probe_entries[i][probe_var_lengths[i]] = '=';
-        memcpy(probe_entries[i] + probe_var_lengths[i] + 1, probe_vals[i], probe_val_length);
-        probe_entries[i][probe_var_lengths[i] + 1 + probe_val_length] = '\0';
-        DEBUG("Exporting %s", probe_entries[i]);
-    }
-
-    /* Compute user's size */
-    size_t user_env_size = 0;
-    for (char* const* arg = user_env; *arg; ++arg) {
-        ++user_env_size;
-    }
-
-    /* Allocate a new env, based on the user's requested env, with our probe vars */
-    char** updated_env = malloc((user_env_size + probe_var_count + 1) * sizeof(char*));
-    if (!updated_env) {
-        ERROR("Out of mem");
-    }
-
-    /* Copy user's env to new env
-     * Clear out existence of probe_vars, if they happen to exist in the user's requested env.
-     * */
-    *updated_env_size = 0;
-    for (char* const* ep = user_env; *ep; ++ep) {
-        bool is_probe_var = false;
-        for (size_t i = 0; i < probe_var_count; ++i) {
-            if (memcmp(*ep, probe_vars[i], probe_var_lengths[i]) == 0 && (*ep)[probe_var_lengths[i]] == '=') {
-                is_probe_var = true;
-                break;
-            }
+void ensure_initted() {
+    bool was_epoch_inited = false;
+    if (UNLIKELY(!thread_inited)) {
+        init_tid();
+        DEBUG("Initializing thread; acquiring mutex");
+        // Init TID before trying to init probe_dir
+        // Also, it will get included in logs
+        EXPECT(== 0, pthread_mutex_lock(&epoch_init_lock));
+        if (UNLIKELY(!epoch_inited)) {
+            DEBUG("Initializing process");
+            was_epoch_inited = true;
+            init_pid();               // PID required in probe_dir; also for logs
+            init_function_pointers(); // function pointers required in init_probe_dir
+            check_function_pointers();
+            init_probe_dir();
+            init_process_obj();
+            init_default_path();
+            EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
+            epoch_inited = true;
         }
-        if (!is_probe_var) {
-            updated_env[*updated_env_size] = *ep;
-            (*updated_env_size)++;
-        }
+        EXPECT(== 0, pthread_mutex_unlock(&epoch_init_lock));
+        DEBUG("Released mutex");
+        // log arena required in every thread
+        // Before do_init_ops
+        init_log_arena();
+        init_mut_probe_dir();
+        thread_inited = true;
+        do_init_ops(was_epoch_inited);
     }
-
-    /*
-     * Now add our _desired_ versions of the probe vars we care about.
-     */
-    for (size_t i = 0; i < probe_var_count; ++i) {
-        updated_env[*updated_env_size] = probe_entries[i];
-        (*updated_env_size)++;
-    }
-
-    /* Top it off with a NULL */
-    updated_env[*updated_env_size] = NULL;
-
-    return updated_env;
 }

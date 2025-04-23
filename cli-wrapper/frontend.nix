@@ -31,6 +31,7 @@
       "pygenConfigPhase"
     ];
     pygenConfigPhase = ''
+      export CBINDGEN_OUTFILE="$out/resources/bindings.h"
       export PYGEN_OUTFILE="$out/resources/ops.py"
       mkdir --parents "$(dirname "$PYGEN_OUTFILE")"
       echo "Sending python code to $PYGEN_OUTFILE"
@@ -93,6 +94,8 @@
           ./cli
           ./lib
           ./macros
+          ./headers
+          ./my-workspace-hack
         ];
       });
   };

@@ -71,19 +71,43 @@
       in rec {
         packages = rec {
           inherit (frontend.packages) cargoArtifacts probe-cli;
-          libprobe = pkgs.stdenv.mkDerivation rec {
+          libprobe = pkgs.clangStdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
             src = ./libprobe;
             makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
+            doCheck = true;
+            checkInputs = [
+              pkgs.clang-tools
+              pkgs.cppcheck
+              pkgs.include-what-you-use
+            ];
             buildInputs = [
-              (pkgs.python312.withPackages (pypkgs: [
+              pkgs.git
+              (python.withPackages (pypkgs: [
                 pypkgs.pycparser
               ]))
             ];
+            postUnpack = ''
+              echo $src $sourceRoot $PWD
+              mkdir $sourceRoot/generated
+              cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
+            '';
+            VERSION = version;
+            nativeCheckInputs = [
+              pkgs.clang-analyzer
+              pkgs.clang-tools
+              pkgs.clang
+              pkgs.compiledb
+              pkgs.cppcheck
+              pkgs.cppclean
+            ];
+            checkPhase = ''
+              make check
+            '';
           };
-          probe-bundled = pkgs.stdenv.mkDerivation rec {
-            pname = "probe-bundled";
+          probe = pkgs.stdenv.mkDerivation rec {
+            pname = "probe";
             version = "0.1.0";
             dontUnpack = true;
             dontBuild = true;
@@ -93,10 +117,13 @@
               makeWrapper \
                 ${frontend.packages.probe-cli}/bin/probe \
                 $out/bin/probe \
-                --set __PROBE_LIB ${libprobe}/lib \
-                --prefix PATH : ${probe-py}/bin \
+                --set PROBE_LIB ${libprobe}/lib \
+                --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
                 --prefix PATH : ${pkgs.buildah}/bin
             '';
+            passthru = {
+              exePath = "/bin/probe";
+            };
           };
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
@@ -141,7 +168,7 @@
               runHook postCheck
             '';
           };
-          default = probe-bundled;
+          default = probe;
         };
         checks = {
           inherit
@@ -168,7 +195,7 @@
             name = "probe-integration-tests";
             src = ./tests;
             nativeBuildInputs = [
-              packages.probe-bundled
+              packages.probe
               pkgs.podman
               pkgs.docker
               pkgs.coreutils # so we can `probe record head ...`, etc.
@@ -179,23 +206,27 @@
             '';
           };
         };
+        apps = rec {
+          default = probe;
+          probe = flake-utils.lib.mkApp {
+            drv = packages.probe;
+          };
+        };
         devShells = {
           default = craneLib.devShell {
             shellHook = ''
+              export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
               pushd $(git rev-parse --show-toplevel) > /dev/null
               source ./setup_devshell.sh
               popd > /dev/null
             '';
-            inputsFrom = [
-              frontend.packages.probe-cli
-            ];
             packages =
               [
+                # Rust stuff
+                pkgs.cargo-deny
                 pkgs.cargo-audit
-                pkgs.cargo-expand
-                pkgs.cargo-flamegraph
-                pkgs.cargo-watch
-                pkgs.rust-analyzer
+                pkgs.cargo-machete
+                pkgs.cargo-hakari
 
                 (python.withPackages (pypkgs: [
                   # probe_py.manual runtime requirements
@@ -218,25 +249,34 @@
                   # libprobe build time requirement
                   pypkgs.pycparser
                 ]))
+                .out
 
                 # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
 
+                # Replay tools
                 pkgs.buildah
-                pkgs.which
+                pkgs.podman
+
+                # C tools
+                pkgs.clang-analyzer
+                pkgs.clang-tools # must go after clang-analyzer
+                pkgs.clang # must go after clang-tools
+                pkgs.cppcheck
                 pkgs.gnumake
-                pkgs.gcc
+                pkgs.git
+                pkgs.include-what-you-use
+                pkgs.libclang
+                # pkgs.musl
+
+                pkgs.which
                 pkgs.coreutils
-                pkgs.bash
                 pkgs.alejandra
-                pkgs.hyperfine
                 pkgs.just
                 pkgs.ruff
-                pkgs.cachix
-                pkgs.jq # to make cachix work
-                pkgs.podman
               ]
-              # gdb broken on i686
-              ++ pkgs.lib.lists.optional (system != "i686-linux") pkgs.nextflow
+              # OpenJDK doesn't build on some platforms
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is

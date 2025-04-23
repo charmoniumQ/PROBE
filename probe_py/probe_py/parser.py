@@ -26,7 +26,7 @@ def parse_probe_log_ctx(
                 for segment in file.name.split("-")
             ]): file
             for file in (tmpdir / "inodes").iterdir()
-        } if (tmpdir / "inodes").exists() else {}
+        } if (tmpdir / "inodes").exists() else None
 
         processes = {}
         for pid_dir in (tmpdir / "pids").iterdir():

@@ -32,10 +32,10 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 
     let start = SystemTime::now();
 
-    let pids_out_dir = out_dir.as_ref().join("pids");
+    let pids_out_dir = out_dir.as_ref().join(probe_headers::PIDS_SUBDIR);
     fs::create_dir(&pids_out_dir).wrap_err("Failed to create pids directory")?;
 
-    let ops_count = fs::read_dir(in_dir.as_ref().join("pids"))
+    let ops_count = fs::read_dir(in_dir.as_ref().join(probe_headers::PIDS_SUBDIR))
         .wrap_err("Error opening record directory")?
         .par_bridge()
         .map(|x| {
@@ -48,8 +48,8 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
         .try_fold(|| 0usize, |acc, x| x.map(|x| acc + x))
         .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
 
-    let inodes_in_dir = in_dir.as_ref().join("inodes");
-    let inodes_out_dir = out_dir.as_ref().join("inodes");
+    let inodes_in_dir = in_dir.as_ref().join(probe_headers::INODES_SUBDIR);
+    let inodes_out_dir = out_dir.as_ref().join(probe_headers::INODES_SUBDIR);
     fs::create_dir(&inodes_out_dir).wrap_err("Failed to create inodes directory")?;
     let inode_count = fs::read_dir(inodes_in_dir.clone())
         .wrap_err("Error opening inodes directory")?
@@ -65,29 +65,11 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
         .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
         .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
 
-    let info_in_dir = in_dir.as_ref().join("info");
-    let info_out_dir = out_dir.as_ref().join("info");
-    fs::create_dir(&info_out_dir).wrap_err("Failed to create info directory")?;
-    let info_count = fs::read_dir(info_in_dir.clone())
-        .wrap_err("Error opening info directory")?
-        .par_bridge()
-        .map(|info| {
-            let name = info
-                .wrap_err("Error reading from info directory")?
-                .file_name();
-            fs::hard_link(info_in_dir.join(name.clone()), info_out_dir.join(name))
-                .wrap_err("Error hardlinking info")?;
-            Ok(1usize)
-        })
-        .try_fold(|| 0usize, |acc, x: Result<usize>| x.map(|x| acc + x))
-        .try_reduce(|| 0usize, |id, x| Ok(id + x))?;
-
     match SystemTime::now().duration_since(start) {
         Ok(x) => log::info!(
-            "Processed {} Ops, {} inodes, {} infos in {:.3} seconds",
+            "Processed {} Ops, {} inodes in {:.3} seconds",
             ops_count,
             inode_count,
-            info_count,
             x.as_secs_f32()
         ),
         Err(_) => log::error!("Processing arena dir took negative time"),
@@ -214,7 +196,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
     let ctx = ArenaContext(
         try_files_from_dir(
             paths
-                .get(OsStr::new("data"))
+                .get(OsStr::new(probe_headers::DATA_SUBDIR))
                 .ok_or_else(|| option_err("Missing data directory from TID directory"))?
                 .path(),
         )?
@@ -233,7 +215,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
     let mut count: usize = 0;
     try_files_from_dir(
         paths
-            .get(OsStr::new("ops"))
+            .get(OsStr::new(probe_headers::OPS_SUBDIR))
             .ok_or_else(|| option_err("Missing ops directory from TID directory"))?
             .path(),
     )?
@@ -358,7 +340,7 @@ pub struct OpsArena<'a> {
     ops: &'a [C_Op],
 }
 
-impl<'a> OpsArena<'a> {
+impl OpsArena<'_> {
     pub fn from_bytes(bytes: Vec<u8>, instantiation: usize) -> Result<Self> {
         let header = ArenaHeader::from_bytes(&bytes, instantiation)
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;
