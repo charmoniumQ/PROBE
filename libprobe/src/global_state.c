@@ -335,3 +335,17 @@ void ensure_initted() {
         do_init_ops(was_epoch_inited);
     }
 }
+
+/*
+ * TODO: if destructors/constructors are reliable after we statically link with Musl,
+ * then we should use constructors instead of `ensure_initted`.
+ * We should emit a new kind of op in the destructor.
+ */
+
+__attribute__((constructor)) void constructor() { ensure_initted(); }
+
+void prov_log_save();
+
+__attribute__((destructor)) void destructor() {
+    prov_log_save();
+}

@@ -47,6 +47,10 @@ public class HelloWorld {
 """
 
 
+true_path = shutil.which("true")
+assert true_path
+
+
 commands = [
     ["echo", "hi"],
     ["head", "../../flake.nix"],
@@ -59,6 +63,10 @@ commands = [
         ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
         ["javac", "HelloWorld.java"],
         ["java", "HelloWorld"],
+    ),
+    bash_multi(
+        ["python", "-c", "print(4)"],
+        [true_path],
     ),
     # bash(
     #     *bash(
