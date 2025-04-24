@@ -1,14 +1,13 @@
 import os
 import random
 import shutil
-import pytest
 import pathlib
 import shlex
 import subprocess
+import pytest
 
 
-project_root = pathlib.Path(__file__).resolve().parent.parent.parent
-tmpdir = pathlib.Path(__file__).resolve().parent / "tmp"
+project_root = pathlib.Path(__file__).resolve().parent.parent
 
 
 def bash(*cmd: str) -> list[str]:
@@ -49,11 +48,12 @@ public class HelloWorld {
 
 true_path = shutil.which("true")
 assert true_path
+false_path = shutil.which("false")
 
 
 commands = {
     "echo": ["echo", "hi"],
-    "head": ["head", "../../flake.nix"],
+    "head": ["head", "test_file.txt"],
     "c-hello": bash_multi(
         ["echo", c_hello_world, "redirect_to", "test.c"],
         ["gcc", "test.c"],
@@ -102,13 +102,42 @@ def does_buildah_work() -> bool:
     return proc.returncode == 0 and subprocess.run(["buildah", "remove", name], capture_output=True, check=False).returncode == 0
 
 
+@pytest.fixture(scope="session")
+def scratch_directory_parent() -> pathlib.Path:
+    real_scratch_directory_parent = pathlib.Path(__file__).resolve().parent / "tmp"
+    if real_scratch_directory_parent.exists():
+        shutil.rmtree(real_scratch_directory_parent)
+    real_scratch_directory_parent.mkdir()
+    return real_scratch_directory_parent
+
+
+@pytest.fixture(scope="function")
+def scratch_directory(
+        request: pytest.FixtureRequest,
+        scratch_directory_parent: pathlib.Path,
+) -> pathlib.Path:
+    """An predictable, persistent, empty directory.
+
+    This directory will be ignored by Git, but persistent after the test's
+    completion for manual inspection. It gets cleared every re-test however.
+
+    """
+    scratch_dir = scratch_directory_parent / request.node.nodeid.replace("/", "_")
+    if scratch_dir.exists():
+        shutil.rmtree(scratch_dir)
+    scratch_dir.mkdir()
+    return scratch_dir
+
+
 @pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
 def test_unmodified_cmds(
+        scratch_directory: pathlib.Path,
         command: list[str],
 ) -> None:
-    tmpdir.mkdir(exist_ok=True)
+    (scratch_directory / "test_file.txt").write_text("hello world")
+    print(scratch_directory)
     print(shlex.join(command))
-    subprocess.run(command, check=True, cwd=tmpdir)
+    subprocess.run(command, check=True, cwd=scratch_directory)
 
 
 @pytest.mark.parametrize("copy_files", [
@@ -119,6 +148,7 @@ def test_unmodified_cmds(
 @pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
 @pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
 def test_cmds(
+        scratch_directory: pathlib.Path,
         copy_files: str,
         debug: bool,
         command: list[str],
@@ -126,57 +156,53 @@ def test_cmds(
         does_docker_work: bool,
         does_buildah_work: bool,
 ) -> None:
-    tmpdir.mkdir(exist_ok=True)
-    (tmpdir / "probe_log").unlink(missing_ok=True)
+    (scratch_directory / "test_file.txt").write_text("hello world")
+    print(scratch_directory)
 
     cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=tmpdir)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
-    copy_files = copy_files in {"eagerly", "lazily"}
-    cmd = ["probe", "validate", *(["--should-have-files"] if copy_files else [])]
+    should_have_copy_files = copy_files in {"eagerly", "lazily"}
+    cmd = ["probe", "validate", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
-
-    if any("gcc" in arg for arg in command):
-        # GCC creates many threads and processes, so this stuff is pretty slow.
-        return
 
     cmd = ["probe", "export", "debug-text"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=tmpdir)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "export", "ops-graph", "test.png"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=tmpdir)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "export", "dataflow-graph", "test.png"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=tmpdir)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
-    if copy_files:
+    if should_have_copy_files:
 
         if does_buildah_work and does_podman_work:
             cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=tmpdir)
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
             assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
             cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
             print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=tmpdir)
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
 
         if does_buildah_work and does_docker_work:
             cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=tmpdir)
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
             assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
             cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
             print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=tmpdir)
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
 
 
-def test_big_env() -> None:
-    tmpdir.mkdir(exist_ok=True)
-    (tmpdir / "probe_log").unlink(missing_ok=True)
+def test_big_env(
+        scratch_directory: pathlib.Path,
+) -> None:
     subprocess.run(
         ["probe", "record", "--debug", "--copy-files", "none", *commands["c-hello"]],
         env={
@@ -184,13 +210,14 @@ def test_big_env() -> None:
             "A": "B"*10000,
         },
         check=True,
-        cwd=tmpdir,
+        cwd=scratch_directory,
     )
 
 
-def test_fail() -> None:
-    tmpdir.mkdir(exist_ok=True)
-    (tmpdir / "probe_log").unlink(missing_ok=True)
-    cmd = ["probe", "record", "--copy-files", "none", "false"]
-    proc = subprocess.run(cmd, check=False, cwd=tmpdir)
+def test_fail(
+        scratch_directory: pathlib.Path,
+) -> None:
+    assert false_path
+    cmd = ["probe", "record", "--copy-files", "none", false_path]
+    proc = subprocess.run(cmd, check=False, cwd=scratch_directory)
     assert proc.returncode != 0

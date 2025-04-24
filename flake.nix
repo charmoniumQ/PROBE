@@ -187,23 +187,25 @@
             nativeBuildInputs = [pkgs.alejandra];
             installPhase = "mkdir $out";
             buildPhase = "alejandra --check .";
-
           };
           probe-integration-tests = pkgs.stdenv.mkDerivation {
             name = "probe-integration-tests";
             src = ./tests;
-            nativeBuildInputs = [
-              packages.probe
-              (python.withPackages(ps: with ps; [
-                pytest
-                packages.probe-py
-              ]))
-              pkgs.buildah
-              pkgs.podman
-              pkgs.docker
-              pkgs.coreutils # so we can `probe record head ...`, etc.
-            ] ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
-            buildPhase = "pytest .";
+            nativeBuildInputs =
+              [
+                packages.probe
+                (python.withPackages (ps:
+                  with ps; [
+                    pytest
+                    packages.probe-py
+                  ]))
+                pkgs.buildah
+                pkgs.podman
+                pkgs.docker
+                pkgs.coreutils # so we can `probe record head ...`, etc.
+              ]
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
+            buildPhase = "pytest -v -W error .";
             installPhase = "mkdir $out";
           };
         };
