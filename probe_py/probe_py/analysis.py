@@ -293,10 +293,12 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
             if op.task_type == TaskType.TASK_PID:
                 if edge[0][0] != edge[1][0]:
                     target_nodes[op.task_id].append(edge[1])
+                    print("target_nodes (PID):", edge[0], op, "->", edge[1], prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]))
                     continue
             elif op.task_type == TaskType.TASK_PTHREAD:
                 if edge[0][2] != edge[1][2]:
                     target_nodes[op.task_id].append(edge[1])
+                    print("target_nodes (pthread):", edge[0], op, "->", edge[1], prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]))
                     continue
             if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
                 
@@ -307,7 +309,9 @@ def traverse_hb_for_dfgraph(process_tree_prov_log: ProvLog, starting_node: Node,
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
+            print("WaitOp:", edge[0], op, "->", edge[1], prov_log_get_node(process_tree_prov_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]))
             for node in target_nodes[op.task_id]:
+                print("WaitOp:", edge[0], op, "targets:", node, prov_log_get_node(process_tree_prov_log, node[0], node[1], node[2], node[3]))
                 traverse_hb_for_dfgraph(process_tree_prov_log, node, traversed, dataflow_graph, cmd_map, inode_version_map)
                 traversed.add(node[2])
         # return back to the WaitOp of the parent process
