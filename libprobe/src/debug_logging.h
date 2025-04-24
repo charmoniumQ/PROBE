@@ -17,7 +17,7 @@
 #define SOURCE_VERSION ""
 #endif
 
-#define LOG(str, ...) \
+#define LOG(str, ...)                                                                              \
     fprintf(stderr, "" SOURCE_VERSION ":" __FILE__ ":%d:%s() pid=%d.%d.%d " str "\n", __LINE__,    \
             __func__, get_pid_safe(), get_exec_epoch_safe(), get_tid_safe(), ##__VA_ARGS__)
 
