@@ -51,20 +51,20 @@ true_path = shutil.which("true")
 assert true_path
 
 
-commands = [
-    ["echo", "hi"],
-    ["head", "../../flake.nix"],
-    bash_multi(
+commands = {
+    "echo": ["echo", "hi"],
+    "head": ["head", "../../flake.nix"],
+    "c-hello": bash_multi(
         ["echo", c_hello_world, "redirect_to", "test.c"],
         ["gcc", "test.c"],
         ["./a.out"],
     ),
-    bash_multi(
+    "java-subprocess-hello": bash_multi(
         ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
         ["javac", "HelloWorld.java"],
         ["java", "HelloWorld"],
     ),
-    bash_multi(
+    "python-hello": bash_multi(
         ["python", "-c", "print(4)"],
         [true_path],
     ),
@@ -81,15 +81,7 @@ commands = [
     #         *bash("cat", "file0", "file2", "redirect_to", "file3"),
     #     ),
     # ),
-]
-
-modes = [
-    ["probe", "record"],
-    ["probe", "record", "--debug"],
-    ["probe", "record", "--copy-files", "none"],
-    ["probe", "record", "--copy-files", "lazily"],
-    ["probe", "record", "--copy-files", "eagerly"],
-]
+}
 
 
 # This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
@@ -110,10 +102,25 @@ def does_buildah_work() -> bool:
     return proc.returncode == 0 and subprocess.run(["buildah", "remove", name], capture_output=True, check=False).returncode == 0
 
 
-@pytest.mark.parametrize("mode", modes)
-@pytest.mark.parametrize("command", commands)
+@pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
+def test_unmodified_cmds(
+        command: list[str],
+) -> None:
+    tmpdir.mkdir(exist_ok=True)
+    print(shlex.join(command))
+    subprocess.run(command, check=True, cwd=tmpdir)
+
+
+@pytest.mark.parametrize("copy_files", [
+    "none",
+    "lazily",
+    "eagerly",
+])
+@pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
+@pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
 def test_cmds(
-        mode: list[str],
+        copy_files: str,
+        debug: bool,
         command: list[str],
         does_podman_work: bool,
         does_docker_work: bool,
@@ -122,11 +129,11 @@ def test_cmds(
     tmpdir.mkdir(exist_ok=True)
     (tmpdir / "probe_log").unlink(missing_ok=True)
 
-    cmd = [*mode, *command]
+    cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=tmpdir)
 
-    copy_files = "eagerly" in mode or "lazily" in mode
+    copy_files = copy_files in {"eagerly", "lazily"}
     cmd = ["probe", "validate", *(["--should-have-files"] if copy_files else [])]
     print(shlex.join(cmd))
 
@@ -171,7 +178,7 @@ def test_big_env() -> None:
     tmpdir.mkdir(exist_ok=True)
     (tmpdir / "probe_log").unlink(missing_ok=True)
     subprocess.run(
-        [*modes[0], *commands[2]],
+        ["probe", "record", "--debug", "--copy-files", "none", *commands["c-hello"]],
         env={
             **os.environ,
             "A": "B"*10000,
@@ -184,6 +191,6 @@ def test_big_env() -> None:
 def test_fail() -> None:
     tmpdir.mkdir(exist_ok=True)
     (tmpdir / "probe_log").unlink(missing_ok=True)
-    cmd = ["probe", "record", "false"]
+    cmd = ["probe", "record", "--copy-files", "none", "false"]
     proc = subprocess.run(cmd, check=False, cwd=tmpdir)
     assert proc.returncode != 0

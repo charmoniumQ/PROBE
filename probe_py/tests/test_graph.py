@@ -17,6 +17,7 @@ project_root = pathlib.Path(__file__).resolve().parent.parent.parent
 
 
 def test_diff_cmd() -> None:
+    assert False
     paths = [str(project_root / "flake.nix"), str(project_root / "flake.lock")]
     command = ['diff', *paths]
     process_tree_prov_log = execute_command(command, 1)
