@@ -1,7 +1,7 @@
 import typing
 import networkx as nx  # type: ignore
 from .ptypes import TaskType, ProvLog
-from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
+from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
 from collections import deque
 from enum import IntEnum
@@ -68,13 +68,10 @@ def validate_provlog(
     closed_fds = set[int]()
     for pid, process in provlog.processes.items():
         epochs = set[int]()
-        first_op = process.exec_epochs[0].threads[pid].ops[0]
-        if not isinstance(first_op.data, InitProcessOp):
-            ret.append("First op in exec_epoch 0 should be InitProcessOp")
         last_epoch = max(process.exec_epochs.keys())
         for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             epochs.add(exec_epoch_no)
-            first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
+            first_ee_op_idx = 0
             first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
             if not isinstance(first_ee_op.data, InitExecEpochOp):
                 ret.append(f"{first_ee_op_idx} in exec_epoch should be InitExecEpochOp")
@@ -108,10 +105,6 @@ def validate_provlog(
                     elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
                         opened_fds.add(op.data.fd)
                     elif isinstance(op.data, ExecOp):
-                        if len(op.data.argv) != op.data.argc:
-                            ret.append("argv vs argc mismatch")
-                        if len(op.data.env) != op.data.envc:
-                            ret.append("env vs envc mismatch")
                         if not op.data.argv:
                             ret.append("No arguments stored in exec syscall")
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
@@ -128,9 +121,6 @@ def validate_provlog(
                             ret.append(f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track")
                         elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
                             ret.append(f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track")
-                    elif isinstance(op.data, InitProcessOp):
-                        if exec_epoch_no != 0:
-                            ret.append(f"InitProcessOp happened, but exec_epoch was not zero, was {exec_epoch_no}")
             if exec_epoch_no != last_epoch:
                 assert threads_ending_in_exec == 1
         expected_epochs = set(range(0, max(epochs) + 1))
@@ -406,7 +396,7 @@ def validate_hb_clones(provlog: ProvLog, process_graph: nx.DiGraph) -> list[str]
                 if False:
                     pass
                 elif op.data.task_type == TaskType.TASK_PID:
-                    if isinstance(op1.data, InitProcessOp):
+                    if isinstance(op1.data, InitExecEpochOp):
                         if op.data.task_id != pid1:
                             ret.append(f"CloneOp {node} returns {op.data.task_id} but the next op has pid {pid1}")
                         break

@@ -5,13 +5,11 @@
 #include <fcntl.h>         // for O_CREAT, AT_FDCWD, O_RDWR
 #include <limits.h>        // IWYU pragma: keep for PATH_MAX
 #include <stdbool.h>       // for bool, true, false
-#include <stdlib.h>        // for NULL, free
 #include <string.h>        // for strlen, strncpy
 #include <sys/resource.h>  // IWYU pragma: keep for rusage
 #include <sys/stat.h>      // IWYU pragma: keep for stat, statx, statx_timestamp
 #include <sys/sysmacros.h> // for major, minor
 #include <time.h>          // for timespec
-#include <unistd.h>        // for getpid, getppid, get_curre...
 // IWYU pragma: no_include "bits/types/struct_rusage.h"      for rusage, rusage::(anonymous)
 // IWYU pragma: no_include "linux/limits.h"                  for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
@@ -20,7 +18,6 @@
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
 #include "arena.h"                        // for arena_strndup
 #include "debug_logging.h"                // for DEBUG, EXPECT_NONNULL, NOT...
-#include "errno.h"                        // for program_invocation_name
 #include "global_state.h"                 // for get_data_arena, get_exec_e...
 #include "prov_buffer.h"                  // for prov_log_record, prov_log_try
 #include "util.h"                         // for CHECK_SNPRINTF, BORROWED
@@ -112,6 +109,8 @@ const struct Path* op_to_path(const struct Op* op) {
         return &op->data.chdir.path;
     case exec_op_code:
         return &op->data.exec.path;
+    case init_exec_epoch_op_code:
+        return &op->data.init_exec_epoch.exe;
     case access_op_code:
         return &op->data.access.path;
     case stat_op_code:
@@ -150,8 +149,6 @@ const struct Path* op_to_second_path(const struct Op* op) {
 #ifndef NDEBUG
 BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
-    case init_process_op_code:
-        return "init_process";
     case init_exec_epoch_op_code:
         return "init_exec_epoch";
     case init_thread_op_code:
@@ -227,9 +224,10 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
         size -= fd_size;
     }
 
-    if (op->op_code == init_process_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_process.pid,
-                                     op->data.init_process.parent_pid);
+    if (op->op_code == init_exec_epoch_op_code) {
+        int fd_size =
+            CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_exec_epoch.pid,
+                           op->data.init_exec_epoch.parent_pid);
         dest += fd_size;
         size -= fd_size;
     }
@@ -303,47 +301,4 @@ void copy_rusage(struct my_rusage* dst, struct rusage* src) {
     dst->ru_nsignals = src->ru_nsignals;
     dst->ru_nvcsw = src->ru_nvcsw;
     dst->ru_nivcsw = src->ru_nivcsw;
-}
-
-void do_init_ops(bool was_epoch_initted) {
-    if (was_epoch_initted) {
-        if (get_exec_epoch() == 0) {
-            char const* cwd = EXPECT_NONNULL(get_current_dir_name());
-            struct Op init_process_op = {
-                init_process_op_code,
-                {.init_process =
-                     {
-                         .parent_pid = getppid(),
-                         .pid = getpid(),
-                         .cwd = create_path_lazy(AT_FDCWD, cwd, 0),
-                     }},
-                {0},
-                0,
-                0,
-            };
-            prov_log_try(init_process_op);
-            prov_log_record(init_process_op);
-            free((char*)cwd);
-        }
-        struct Op init_exec_op = {
-            init_exec_epoch_op_code,
-            {.init_exec_epoch =
-                 {
-                     .epoch = get_exec_epoch(),
-                     .program_name =
-                         arena_strndup(get_data_arena(), program_invocation_name, PATH_MAX),
-                 }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(init_exec_op);
-        prov_log_record(init_exec_op);
-    }
-
-    struct Op init_thread_op = {
-        init_thread_op_code, {.init_thread = {.tid = get_tid()}}, {0}, 0, 0,
-    };
-    prov_log_try(init_thread_op);
-    prov_log_record(init_thread_op);
 }

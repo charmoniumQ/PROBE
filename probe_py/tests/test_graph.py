@@ -2,7 +2,7 @@ import pytest
 import typing
 from probe_py.parser import parse_probe_log
 from probe_py.ptypes import ProvLog
-from probe_py.ops import OpenOp, CloneOp, ExecOp, InitProcessOp, InitExecEpochOp, CloseOp, WaitOp, Op
+from probe_py.ops import OpenOp, CloneOp, ExecOp, InitExecEpochOp, CloseOp, WaitOp, Op
 from probe_py.analysis import provlog_to_digraph, validate_hb_graph
 import pathlib
 import networkx as nx  # type: ignore
@@ -119,7 +119,7 @@ def check_for_clone_and_open(
                 assert edge[1][0] == curr_node_op_data.task_id
                 check_child_processes.append(curr_node_op_data.task_id)
                 continue
-            if isinstance(next_op_data,InitProcessOp):
+            if isinstance(next_op_data, InitExecEpochOp):
                 assert edge[1][0] == curr_node_op_data.task_id
                 check_child_processes.append(curr_node_op_data.task_id)
                 continue
@@ -165,7 +165,7 @@ def check_for_clone_and_open(
             if next_init_op is not None:
                 next_init_op_data = next_init_op.data
                 assert isinstance(next_init_op_data, InitExecEpochOp)
-            if next_init_op_data.program_name == b'tail':
+            if next_init_op_data.exe.path.endswith(b'tail'):
                 assert process_file_map[b'stdout'] == curr_pid
                 check_child_processes.remove(curr_pid)
 

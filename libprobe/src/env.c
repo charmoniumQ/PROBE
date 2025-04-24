@@ -131,25 +131,25 @@ char* const* update_env_with_probe_vars(char* const* env, size_t* new_env_size) 
     return new_env;
 }
 
-char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size_t* argc) {
-    if (*argc == 0) {
-        /* Compute argc and store in *argc */
+char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size_t argc) {
+    if (argc == 0) {
+        /* Compute argc and store in argc */
         for (char* const* argv_p = argv; *argv_p; ++argv_p) {
-            (*argc)++;
+            ++argc;
         }
     }
 
-    char** argv_copy = arena_calloc(arena_dir, *argc + 1, sizeof(char*));
+    char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
 
-    for (size_t i = 0; i < *argc; ++i) {
+    for (size_t i = 0; i < argc; ++i) {
         size_t length = strlen(argv[i]);
         argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
         memcpy(argv_copy[i], argv[i], length + 1);
         ASSERTF(!argv_copy[i][length], "");
     }
 
-    ASSERTF(!argv[*argc], "");
-    argv_copy[*argc] = NULL;
+    ASSERTF(!argv[argc], "");
+    argv_copy[argc] = NULL;
 
     return argv_copy;
 }
