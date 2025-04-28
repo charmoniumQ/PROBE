@@ -48,6 +48,6 @@ lint: lint-py lint-cli lint-lib
 compile: compile-cli compile-lib compile-tests
 
 test: compile
-    python -m pytest tests/ -ra --failed-first --maxfail=1 -v
+    python -m pytest tests/ -ra --failed-first --maxfail=1 -v -W error --durations=0
 
 pre-commit: lint compile test
