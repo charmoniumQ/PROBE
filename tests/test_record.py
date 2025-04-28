@@ -64,10 +64,10 @@ commands = {
         ["javac", "HelloWorld.java"],
         ["java", "HelloWorld"],
     ),
-    # "python-hello": bash_multi(
-    #     ["python", "-c", "print(4)"],
-    #     [true_path],
-    # ),
+    "python-hello": bash_multi(
+        ["python", "-c", "print(4)"],
+        [true_path],
+    ),
     # bash(
     #     *bash(
     #         *bash("echo", "hi", "redirect_to", "file0"),

@@ -2578,7 +2578,7 @@ int clone(
         } else if (ret == 0) {
             /* Success; child. */
             if (flags & CLONE_THREAD) {
-                ensure_initted();
+                ensure_thread_initted();
             } else {
                 init_after_fork();
             }

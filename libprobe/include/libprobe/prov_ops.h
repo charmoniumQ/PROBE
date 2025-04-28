@@ -55,15 +55,14 @@ static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, 
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 
-struct InitProcessOp {
+struct InitExecEpochOp {
     pid_t parent_pid;
     pid_t pid;
-    struct Path cwd;
-};
-
-struct InitExecEpochOp {
     unsigned int epoch;
-    char* program_name;
+    struct Path cwd;
+    struct Path exe;
+    char* const* argv;
+    char* const* env;
 };
 
 struct InitThreadOp {
@@ -305,7 +304,6 @@ enum OpCode {
 struct Op {
     enum OpCode op_code;
     union {
-        struct InitProcessOp init_process;
         struct InitExecEpochOp init_exec_epoch;
         struct InitThreadOp init_thread;
         struct OpenOp open;

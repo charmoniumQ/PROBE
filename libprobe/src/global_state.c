@@ -5,7 +5,8 @@
 #include <limits.h>    // IWYU pragma: keep for PATH_MAX
 #include <pthread.h>   // for pthread_mutex_t
 #include <stdbool.h>   // for true, bool, false
-#include <string.h>    // for memcpy, NULL, size_t, strnlen
+#include <stdlib.h>    // for free
+#include <string.h>    // for memcpy, NULL, size_t, strnlen// for memcpy, NULL, size_t, strnlen
 #include <sys/mman.h>  // for mmap, PROT_*, MAP_*
 #include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
 #include <sys/types.h> // for pid_t
@@ -15,14 +16,16 @@
 // IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
-#include "../generated/bindings.h"   // for FixedPath, ProcessContext, PIDS...
-#include "../generated/libc_hooks.h" // for unwrapped_mkdirat, unwrapped_close
-#include "arena.h"                   // for arena_is_initialized, arena_create
-#include "debug_logging.h"           // for ASSERTF, EXPECT, DEBUG, ERROR
-#include "env.h"                     // for getenv_copy
-#include "inode_table.h"             // for inode_table_init, inode_table_i...
-#include "prov_utils.h"              // for do_init_ops
-#include "util.h"                    // for CHECK_SNPRINTF, list_dir, UNLIKELY
+#include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
+#include "../generated/libc_hooks.h"      // for unwrapped_mkdirat, unwrapped_close
+#include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
+#include "arena.h"                        // for arena_is_initialized, arena_create
+#include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG, ERROR
+#include "env.h"                          // for getenv_copy
+#include "inode_table.h"                  // for inode_table_init, inode_table_i...
+#include "prov_buffer.h"                  // for prov_log_try, prov_log_record, prov_log_save
+#include "prov_utils.h"                   // for do_init_ops
+#include "util.h"                         // for CHECK_SNPRINTF, list_dir, UNLIKELY
 
 // getpid/gettid is kind of expensive (40ns per syscall)
 // but worth it for debug case
@@ -227,12 +230,6 @@ const char* get_default_path() {
     return __default_path.bytes;
 }
 
-/*******************************************************/
-
-/*
- * Aggregate functions;
- * These functions call the init_* functions above */
-
 static inline void check_function_pointers() {
 #ifndef NDEBUG
     /* We use these unwrapped_ function pointers in our code.
@@ -260,6 +257,91 @@ static inline void check_function_pointers() {
 #endif
 }
 
+/*******************************************************/
+
+/*
+ * Aggregate functions;
+ * These functions call the init_* functions above */
+
+static inline void emit_init_epoch_op() {
+    static struct FixedPath cwd = {0};
+    static struct FixedPath exe = {0};
+    if (!getcwd(cwd.bytes, PROBE_PATH_MAX)) {
+        ERROR("");
+    }
+    if (unwrapped_readlinkat(AT_FDCWD, "/proc/self/exe", exe.bytes, PROBE_PATH_MAX) < 0) {
+        ERROR("");
+    }
+    size_t argc = 0;
+    size_t envc = 0;
+    char* const* argv = read_null_delim_file("/proc/self/cmdline", &argc);
+    char* const* env = read_null_delim_file("/proc/self/environ", &envc);
+    struct Op init_epoch_op = {
+        init_exec_epoch_op_code,
+        {.init_exec_epoch =
+             {
+                 .parent_pid = getppid(),
+                 .pid = getpid(),
+                 .epoch = get_exec_epoch(),
+                 .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, 0),
+                 .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
+                 .argv = arena_copy_argv(get_data_arena(), argv, argc),
+                 .env = arena_copy_argv(get_data_arena(), env, envc),
+             }},
+        {0},
+        0,
+        0,
+    };
+    prov_log_try(init_epoch_op);
+    prov_log_record(init_epoch_op);
+    free((void*)argv[0]);
+    free((void*)argv);
+    free((void*)env[0]);
+    free((void*)env);
+}
+
+static inline void emit_init_thread_op() {
+    struct Op init_thread_op = {
+        init_thread_op_code, {.init_thread = {.tid = get_tid()}}, {0}, 0, 0,
+    };
+    prov_log_try(init_thread_op);
+    prov_log_record(init_thread_op);
+}
+
+static __thread bool thread_inited = false;
+static bool exec_epoch_inited = false;
+void init_thread() {
+    if (UNLIKELY(!exec_epoch_inited)) {
+        ERROR("This exec epoch was never properly initted");
+    }
+    init_log_arena();
+    init_mut_probe_dir();
+    thread_inited = true;
+}
+void ensure_thread_initted() {
+    if (UNLIKELY(!thread_inited)) {
+        init_tid();
+        init_thread();
+        emit_init_thread_op();
+    }
+}
+
+void init_epoch() {
+    DEBUG("Initializing process");
+    init_tid();
+    init_pid();
+    init_function_pointers();
+    check_function_pointers();
+    init_probe_dir();
+    init_process_obj();
+    init_default_path();
+    exec_epoch_inited = true;
+    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
+    init_thread();
+    emit_init_epoch_op();
+    emit_init_thread_op();
+}
+
 /*
  * After a fork, the process will _appear_ to be initialized, but not be truly initialized.
  * E.g., exec_epoch will be wrong.
@@ -268,7 +350,7 @@ static inline void check_function_pointers() {
 void init_after_fork() {
     pid_t real_pid = getpid();
     if (UNLIKELY(pid != real_pid)) {
-        DEBUG("Re-initializing process");
+        DEBUG("Re-initializing child process");
         // New TID/PID to detect
         tid = tid_initial;
         init_tid();
@@ -287,6 +369,10 @@ void init_after_fork() {
         // Default path should already be fine
         //init_default_path();
 
+        //exec_epoch_inited = true;
+
+        EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
+
         /*
          * We don't know if CLONE_FILES was set.
          * We will conservatively assume it is (NOT safe to call arena_destroy)
@@ -294,44 +380,21 @@ void init_after_fork() {
          * */
         arena_drop_after_fork(&__ops_arena);
         arena_drop_after_fork(&__data_arena);
-        init_log_arena();
-        init_mut_probe_dir();
 
-        do_init_ops(true);
+        init_thread();
+        emit_init_epoch_op();
+        emit_init_thread_op();
     }
 }
 
-int epoch_inited = 0;
-__thread bool thread_inited = false;
-pthread_mutex_t epoch_init_lock = PTHREAD_MUTEX_INITIALIZER;
+/*
+ * TODO: if destructors/constructors are reliable after we statically link with Musl,
+ * then we should use constructors instead of `ensure_initted`.
+ * We should emit a new kind of op in the destructor.
+ */
 
-void ensure_initted() {
-    bool was_epoch_inited = false;
-    if (UNLIKELY(!thread_inited)) {
-        init_tid();
-        DEBUG("Initializing thread; acquiring mutex");
-        // Init TID before trying to init probe_dir
-        // Also, it will get included in logs
-        EXPECT(== 0, pthread_mutex_lock(&epoch_init_lock));
-        if (UNLIKELY(!epoch_inited)) {
-            DEBUG("Initializing process");
-            was_epoch_inited = true;
-            init_pid();               // PID required in probe_dir; also for logs
-            init_function_pointers(); // function pointers required in init_probe_dir
-            check_function_pointers();
-            init_probe_dir();
-            init_process_obj();
-            init_default_path();
-            EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-            epoch_inited = true;
-        }
-        EXPECT(== 0, pthread_mutex_unlock(&epoch_init_lock));
-        DEBUG("Released mutex");
-        // log arena required in every thread
-        // Before do_init_ops
-        init_log_arena();
-        init_mut_probe_dir();
-        thread_inited = true;
-        do_init_ops(was_epoch_inited);
-    }
-}
+__attribute__((constructor)) void constructor() { init_epoch(); }
+
+void prov_log_save();
+
+__attribute__((destructor)) void destructor() { prov_log_save(); }
