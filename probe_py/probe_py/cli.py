@@ -27,6 +27,7 @@ import shlex
 import datetime
 import random
 import socket
+import sys
 
 
 console = rich.console.Console(stderr=True)
@@ -51,6 +52,7 @@ def validate(
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
+    sys.excepthook =  sys.__excepthook__
     warning_free = True
     with parse_probe_log_ctx(probe_log) as parsed_probe_log:
         for inode, contents in (parsed_probe_log.inodes or {}).items():
@@ -95,6 +97,7 @@ def ops_graph(
 
     Supports .png, .svg, and .dot
     """
+    sys.excepthook =  sys.__excepthook__
     prov_log = parse_probe_log(probe_log)
     process_graph = analysis.provlog_to_digraph(prov_log)
     if only_proc_ops:
@@ -127,6 +130,7 @@ def dataflow_graph(
 
     Dataflow shows the name of each proceess, its read files, and its write files.
     """
+    sys.excepthook =  sys.__excepthook__
     prov_log = parse_probe_log(probe_log)
     dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
     graph_utils.serialize_graph(dataflow_graph, output)
