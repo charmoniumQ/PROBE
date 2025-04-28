@@ -147,7 +147,7 @@ def test_unmodified_cmds(
 ])
 @pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
 @pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
-def test_cmds(
+def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,
         debug: bool,
@@ -166,18 +166,6 @@ def test_cmds(
     should_have_copy_files = copy_files in {"eagerly", "lazily"}
     cmd = ["probe", "validate", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
-
-    cmd = ["probe", "export", "debug-text"]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
-
-    cmd = ["probe", "export", "ops-graph", "test.png"]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
-
-    cmd = ["probe", "export", "dataflow-graph", "test.png"]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     if should_have_copy_files:
 
@@ -198,6 +186,33 @@ def test_cmds(
             cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=scratch_directory)
+
+
+@pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
+def test_downstream_analyses(
+        scratch_directory: pathlib.Path,
+        command: list[str],
+        does_podman_work: bool,
+        does_docker_work: bool,
+        does_buildah_work: bool,
+) -> None:
+    (scratch_directory / "test_file.txt").write_text("hello world")
+    print(scratch_directory)
+
+    cmd = ["probe", "record", "--copy-files", "none", *command]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    cmd = ["probe", "export", "debug-text"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
+
+    cmd = ["probe", "export", "ops-graph", "test.png"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
+
+    cmd = ["probe", "export", "dataflow-graph", "test.png"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
 
 def test_big_env(
