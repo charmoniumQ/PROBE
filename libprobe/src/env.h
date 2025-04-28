@@ -19,5 +19,5 @@ update_env_with_probe_vars(char* const* user_env, size_t* updated_env_size)
  * If argc argument is positive, assume that is the argc.
  * */
 __attribute__((visibility("hidden"))) char* const* arena_copy_argv(struct ArenaDir* arena_dir,
-                                                                   char* const* argv, size_t* argc)
+                                                                   char* const* argv, size_t argc)
     __attribute__((nonnull, returns_nonnull));
