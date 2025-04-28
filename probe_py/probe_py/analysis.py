@@ -108,10 +108,6 @@ def validate_provlog(
                     elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
                         opened_fds.add(op.data.fd)
                     elif isinstance(op.data, ExecOp):
-                        if len(op.data.argv) != op.data.argc:
-                            ret.append("argv vs argc mismatch")
-                        if len(op.data.env) != op.data.envc:
-                            ret.append("env vs envc mismatch")
                         if not op.data.argv:
                             ret.append("No arguments stored in exec syscall")
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:

@@ -66,8 +66,6 @@ struct InitExecEpochOp {
     char* program_name;
 };
 
-struct InitExecEpochOp init_current_exec_epoch();
-
 struct InitThreadOp {
     pid_t tid;
 };
@@ -95,9 +93,7 @@ struct ChdirOp {
 struct ExecOp {
     struct Path path;
     int ferrno;
-    size_t argc;
     char* const* argv;
-    size_t envc;
     char* const* env;
 };
 

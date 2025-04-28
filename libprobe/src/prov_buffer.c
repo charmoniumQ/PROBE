@@ -154,7 +154,7 @@ void prov_log_record(struct Op op) {
         }
         */
         fprintf(stderr, "'%s' ", op.data.exec.path.path);
-        for (size_t idx = 0; idx < op.data.exec.argc; ++idx) {
+        for (size_t idx = 0; op.data.exec.argv[idx]; ++idx) {
             fprintf(stderr, "'%s' ", op.data.exec.argv[idx]);
         }
         fprintf(stderr, "\n");
