@@ -122,7 +122,8 @@ def scratch_directory(
     completion for manual inspection. It gets cleared every re-test however.
 
     """
-    scratch_dir = scratch_directory_parent / request.node.nodeid.replace("/", "_")
+    suffix: str = request.node.nodeid.replace("/", "_")
+    scratch_dir = scratch_directory_parent / suffix
     if scratch_dir.exists():
         shutil.rmtree(scratch_dir)
     scratch_dir.mkdir()
