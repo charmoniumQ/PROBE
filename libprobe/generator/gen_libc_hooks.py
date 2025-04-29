@@ -379,7 +379,7 @@ def find_decl(
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     pre_call_stmts = [
         pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="ensure_initted"),
+            name=pycparser.c_ast.ID(name="ensure_thread_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
         pycparser.c_ast.FuncCall(

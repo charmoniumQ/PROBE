@@ -18,6 +18,7 @@ from . import workflows
 from . import file_closure
 from . import graph_utils
 from .ssh_argparser import parse_ssh_args
+from . import ops
 import enum
 from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
 from sqlalchemy.orm import Session
@@ -26,6 +27,7 @@ import shlex
 import datetime
 import random
 import socket
+import sys
 
 
 console = rich.console.Console(stderr=True)
@@ -50,6 +52,7 @@ def validate(
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
+    sys.excepthook =  sys.__excepthook__
     warning_free = True
     with parser.parse_probe_log_ctx(path_to_probe_log) as parsed_probe_log:
         for inode, contents in (parsed_probe_log.inodes or {}).items():
@@ -83,6 +86,10 @@ def ops_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        only_proc_ops: Annotated[
+            bool,
+            typer.Option(help="For only Exec, Clone, Wait Operations"),
+        ] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -95,6 +102,15 @@ def ops_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hb_graph = analysis.probe_log_to_hb_graph(probe_log)
+    if only_proc_ops:
+        graph_utils.remove_nodes(
+            hb_graph,
+            lambda node: isinstance(
+                analysis.get_op(prov_log, *node).data, # type: ignore
+                (ops.ExecOp, ops.CloneOp, ops.WaitOp)
+            ),
+            lambda incoming_edge_label, outgoing_edge_label: outgoing_edge_label,
+        )
     analysis.color_hb_graph(probe_log, hb_graph)
     graph_utils.serialize_graph(hb_graph, output)
 
@@ -117,7 +133,6 @@ def dataflow_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
-    graph_utils.serialize_graph(dataflow_graph, output)
 
 
 def get_host_name() -> int:

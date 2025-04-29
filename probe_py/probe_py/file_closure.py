@@ -10,8 +10,8 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .ptypes import ProbeLog, InodeVersionLog
-from .ops import Path, ChdirOp, OpenOp, CloseOp, InitProcessOp, ExecOp
+from .ptypes import ProvLog, InodeVersionLog
+from .ops import Path, ChdirOp, OpenOp, CloseOp, ExecOp, InitExecEpochOp
 from .consts import AT_FDCWD
 
 
@@ -26,9 +26,9 @@ def build_oci_image(
     if root_pid is None:
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
-    first_op = probe_log.processes[root_pid].execs[0].threads[root_pid].ops[0].data
-    if not isinstance(first_op, InitProcessOp):
-        console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
+    first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
+    if not isinstance(first_op, InitExecEpochOp):
+        console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
@@ -158,8 +158,8 @@ def copy_file_closure(
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
             first_op = probe_log.processes[root_pid].execs[0].threads[root_pid].ops[0].data
-            if not isinstance(first_op, InitProcessOp):
-                console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
+            if not isinstance(first_op, InitExecEpochOp):
+                console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
             fds = {AT_FDCWD: pathlib.Path(first_op.cwd.path.decode())}
             for tid, thread in exec_epoch.threads.items():
@@ -257,8 +257,8 @@ def get_root_pid(probe_log: ProbeLog) -> int | None:
     possible_root = []
     for pid, process in probe_log.processes.items():
         first_op = process.execs[0].threads[pid].ops[0].data
-        if isinstance(first_op, InitProcessOp):
-            possible_root.append(pid)
+        assert isinstance(first_op, InitExecEpochOp)
+        possible_root.append(pid)
     if possible_root:
         # TODO: Fix this; min works for Linux because PIDs are assigned sequentially
         return min(possible_root)

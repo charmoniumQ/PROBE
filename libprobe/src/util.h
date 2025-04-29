@@ -84,6 +84,10 @@ __attribute__((visibility("hidden"))) void write_bytes(int dirfd, const char* pa
 __attribute__((visibility("hidden"))) unsigned char ceil_log2(unsigned int val)
     __attribute__((pure));
 
+__attribute__((visibility("hidden"))) char* const* read_null_delim_file(const char* path,
+                                                                        size_t* array_len)
+    __attribute__((nonnull, returns_nonnull, malloc));
+
 __attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
     char buf[10];
     CHECK_SNPRINTF(buf, 10, "");

@@ -62,6 +62,6 @@ __attribute__((visibility("hidden"))) struct ArenaDir* get_data_arena()
 __attribute__((visibility("hidden"))) const char* get_default_path()
     __attribute__((returns_nonnull));
 
-__attribute__((visibility("hidden"))) void ensure_initted();
+__attribute__((visibility("hidden"))) void ensure_thread_initted();
 
 __attribute__((visibility("hidden"))) void init_after_fork();

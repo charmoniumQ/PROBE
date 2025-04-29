@@ -1,7 +1,8 @@
+import warnings
 import typing
 import networkx as nx  # type: ignore
-from .ptypes import TaskType, ProbeLog, Pid, ExecNo, Tid
-from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitProcessOp, InitExecEpochOp, InitThreadOp, StatOp
+from .ptypes import TaskType, ProvLog
+from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
 from collections import deque
 from enum import IntEnum
@@ -76,10 +77,10 @@ def validate_probe_log(
         first_op = process.execs[0].threads[pid].ops[0]
         if not isinstance(first_op.data, InitProcessOp):
             ret.append("First op in exec_epoch 0 should be InitProcessOp")
-        last_epoch = max(process.execs.keys())
-        for exec_epoch_no, exec_epoch in process.execs.items():
+        last_epoch = max(process.exec_epochs.keys())
+        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
             epochs.add(exec_epoch_no)
-            first_ee_op_idx = 1 if exec_epoch_no == 0 else 0
+            first_ee_op_idx = 0
             first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
             if not isinstance(first_ee_op.data, InitExecEpochOp):
                 ret.append(f"{first_ee_op_idx} in exec_epoch should be InitExecEpochOp")
@@ -113,10 +114,6 @@ def validate_probe_log(
                     elif isinstance(op.data, OpenOp) and op.data.ferrno == 0:
                         opened_fds.add(op.data.fd)
                     elif isinstance(op.data, ExecOp):
-                        if len(op.data.argv) != op.data.argc:
-                            ret.append("argv vs argc mismatch")
-                        if len(op.data.env) != op.data.envc:
-                            ret.append("env vs envc mismatch")
                         if not op.data.argv:
                             ret.append("No arguments stored in exec syscall")
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
@@ -133,9 +130,6 @@ def validate_probe_log(
                             ret.append(f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track")
                         elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
                             ret.append(f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track")
-                    elif isinstance(op.data, InitProcessOp):
-                        if exec_epoch_no != 0:
-                            ret.append(f"InitProcessOp happened, but exec_epoch was not zero, was {exec_epoch_no}")
             if exec_epoch_no != last_epoch:
                 assert threads_ending_in_exec == 1
         expected_epochs = set(range(0, max(epochs) + 1))
@@ -154,8 +148,8 @@ def validate_probe_log(
 def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     # [pid, exec_epoch_no, tid, op_index]
     program_order_edges = list[tuple[OpNode, OpNode]]()
-    fork_join_edges = list[tuple[OpNode, OpNode]]()
-    exec_edges = list[tuple[OpNode, OpNode]]()
+    fork_join_edges = list[tuple[OpNode, OpNode | None]]()
+    exec_edges = list[tuple[OpNode, OpNode | None]]()
     nodes = list[OpNode]()
     proc_to_ops = dict[tuple[int, int, int], list[OpNode]]()
     last_exec_epoch = dict[int, int]()
@@ -176,9 +170,13 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
                 program_order_edges.extend(zip(ops[:-1], ops[1:])) 
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
-
+            if(len(ops)!=0):
+                last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
     # Define helper functions
-    def first(pid: int, exid: int, tid: int) -> OpNode:
+    def first(pid: int, exid: int, tid: int) -> Node | None:
+        if not proc_to_ops.get((pid, exid, tid)):
+            warnings.warn(f"We have no ops for PID={pid}, exec={exid}, TID={tid}, but we know that it occurred.")
+            return None
         return proc_to_ops[(pid, exid, tid)][0]
 
     def last(pid: int, exid: int, tid: int) -> OpNode:
@@ -249,28 +247,33 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     for node in nodes:
         hb_graph.add_node(node)
 
-    def add_edges(edges:list[tuple[OpNode, OpNode]], label:EdgeLabel) -> None:
+    def add_edges(edges: typing.Iterable[tuple[Node, Node | None]], label:EdgeLabels) -> None:
         for node0, node1 in edges:
-            hb_graph.add_edge(node0, node1, label=label)
+            if node1:
+                hb_graph.add_edge(node0, node1, label=label)
     
     add_edges(program_order_edges, EdgeLabel.PROGRAM_ORDER)
     add_edges(exec_edges, EdgeLabel.EXEC)
     add_edges(fork_join_edges, EdgeLabel.FORK_JOIN)
     return hb_graph
 
-def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]]) -> None:
+
+def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]], hb_graph: nx.DiGraph) -> None:
     starting_pid = starting_node[0]
     
     starting_op = get_op(probe_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
-    hb_graph = probe_log_to_hb_graph(probe_log)
     
     edges = list_edges_from_start_node(hb_graph, starting_node)
+
     name_map = collections.defaultdict[InodeOnDevice, list[pathlib.Path]](list)
 
     target_nodes = collections.defaultdict[int, list[OpNode]](list)
     console = rich.console.Console(file=sys.stderr)
+
+    print("starting at", starting_node, starting_op)
     
-    for edge in edges:  
+    for edge in edges:
+
         pid, exec_epoch_no, tid, op_index = edge[0]
         
         # check if the process is already visited when waitOp occurred
@@ -279,7 +282,6 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
         
         op = get_op(probe_log, pid, exec_epoch_no, tid, op_index).data
         next_op = get_op(probe_log, edge[1][0], edge[1][1], edge[1][2], edge[1][3]).data
-
         if isinstance(op, OpenOp):
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
@@ -321,7 +323,7 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
             for node in target_nodes[op.task_id]:
-                traverse_hb_for_dfgraph(probe_log, node, traversed, dataflow_graph, cmd_map, inode_version_map)
+                traverse_hb_for_dfgraph(probe_log, node, traversed, dataflow_graph, cmd_map, inode_version_map, hb_graph)
                 traversed.add(node[2])
         # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
@@ -343,7 +345,7 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog) -> DfGraph:
                 cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
 
     inode_version_map: dict[int, set[FileVersion]] = {}
-    traverse_hb_for_dfgraph(probe_log, root_node, traversed, dataflow_graph, cmd_map, inode_version_map)
+    traverse_hb_for_dfgraph(probe_log, root_node, traversed, dataflow_graph, cmd_map, inode_version_map, hb_graph)
 
     file_version: dict[str, int] = {}
     for inode, versions in inode_version_map.items():
@@ -412,7 +414,7 @@ def validate_hb_clones(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
                 if False:
                     pass
                 elif op.data.task_type == TaskType.TASK_PID:
-                    if isinstance(op1.data, InitProcessOp):
+                    if isinstance(op1.data, InitExecEpochOp):
                         if op.data.task_id != pid1:
                             ret.append(f"CloneOp {node} returns {op.data.task_id} but the next op has pid {pid1}")
                         break
