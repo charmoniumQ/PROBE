@@ -54,12 +54,13 @@ class Host:
         else:
             # In containers and GitHub CI, SystemD machine-id may not exist.
             # Our alternative is to create a random iD, and store it in a persistent location
-            if consts.ALTERNATIVE_MACHINE_ID.exists():
-                return Host(socket.gethostname(), int(consts.ALTERNATIVE_MACHINE_ID.read_text(), 16))
+            alternative_machine_id = consts.get_state_dir() / "machine-id"
+            if alternative_machine_id.exists():
+                return Host(socket.gethostname(), int(alternative_machine_id.read_text(), 16))
             else:
-                consts.ALTERNATIVE_MACHINE_ID.parent.mkdir(exist_ok=True, parents=True)
+                alternative_machine_id.parent.mkdir(exist_ok=True, parents=True)
                 machine_id = int.from_bytes(random.randbytes(8))
-                consts.ALTERNATIVE_MACHINE_ID.write_text(f"{machine_id:08x}")
+                alternative_machine_id.write_text(f"{machine_id:08x}")
                 return Host(socket.gethostname(), machine_id)
 
 
