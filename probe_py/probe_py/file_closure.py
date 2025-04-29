@@ -10,7 +10,7 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .ptypes import ProvLog, InodeVersionLog
+from .ptypes import InodeVersionLog, ProbeLog
 from .ops import Path, ChdirOp, OpenOp, CloseOp, ExecOp, InitExecEpochOp
 from .consts import AT_FDCWD
 
@@ -26,7 +26,7 @@ def build_oci_image(
     if root_pid is None:
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
-    first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
+    first_op = probe_log.processes[root_pid].execs[0].threads[root_pid].ops[0].data
     if not isinstance(first_op, InitExecEpochOp):
         console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)

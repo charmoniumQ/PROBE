@@ -106,7 +106,7 @@ def ops_graph(
         graph_utils.remove_nodes(
             hb_graph,
             lambda node: isinstance(
-                analysis.get_op(prov_log, *node).data, # type: ignore
+                analysis.get_op(probe_log, *node).data, # type: ignore
                 (ops.ExecOp, ops.CloneOp, ops.WaitOp)
             ),
             lambda incoming_edge_label, outgoing_edge_label: outgoing_edge_label,
@@ -133,6 +133,7 @@ def dataflow_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
+    graph_utils.serialize_graph(dataflow_graph, output)
 
 
 def get_host_name() -> int:

@@ -1,7 +1,7 @@
 import warnings
 import typing
 import networkx as nx  # type: ignore
-from .ptypes import TaskType, ProvLog
+from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog
 from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitExecEpochOp, InitThreadOp, StatOp
 from .graph_utils import list_edges_from_start_node
 from collections import deque
@@ -74,11 +74,8 @@ def validate_probe_log(
     closed_fds = set[int]()
     for pid, process in probe_log.processes.items():
         epochs = set[int]()
-        first_op = process.execs[0].threads[pid].ops[0]
-        if not isinstance(first_op.data, InitProcessOp):
-            ret.append("First op in exec_epoch 0 should be InitProcessOp")
-        last_epoch = max(process.exec_epochs.keys())
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+        last_epoch = max(process.execs.keys())
+        for exec_epoch_no, exec_epoch in process.execs.items():
             epochs.add(exec_epoch_no)
             first_ee_op_idx = 0
             first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
@@ -173,7 +170,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
             if(len(ops)!=0):
                 last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
     # Define helper functions
-    def first(pid: int, exid: int, tid: int) -> Node | None:
+    def first(pid: int, exid: int, tid: int) -> OpNode | None:
         if not proc_to_ops.get((pid, exid, tid)):
             warnings.warn(f"We have no ops for PID={pid}, exec={exid}, TID={tid}, but we know that it occurred.")
             return None
@@ -247,7 +244,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     for node in nodes:
         hb_graph.add_node(node)
 
-    def add_edges(edges: typing.Iterable[tuple[Node, Node | None]], label:EdgeLabels) -> None:
+    def add_edges(edges: typing.Iterable[tuple[OpNode, OpNode | None]], label: EdgeLabel) -> None:
         for node0, node1 in edges:
             if node1:
                 hb_graph.add_edge(node0, node1, label=label)
