@@ -1,33 +1,32 @@
-import typing
+from typing_extensions import Annotated
+import datetime
+import enum
 import dataclasses
 import json
-from typing_extensions import Annotated
-import pathlib
-import subprocess
-import shutil
-import rich
-from probe_py.scp import scp_with_provenance
 import os
-import typer
+import pathlib
+import random
+import shlex
+import shutil
+import socket
+import subprocess
+import sys
 import tempfile
+import typing
+import typer
 import rich.console
 import rich.pretty
-from . import parser
+import sqlalchemy.orm
 from . import analysis
-from . import workflows
 from . import file_closure
 from . import graph_utils
-from .ssh_argparser import parse_ssh_args
+from . import ssh_argparser
 from . import ops
-import enum
+from . import parser
+from . import scp as scp_module
+from . import workflows
+from .analysis import ProcessNode, FileAccess
 from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
-from sqlalchemy.orm import Session
-from .analysis import ProcessNode, FileNode
-import shlex
-import datetime
-import random
-import socket
-import sys
 
 
 console = rich.console.Console(stderr=True)
@@ -54,22 +53,22 @@ def validate(
     """Sanity-check probe_log and report errors."""
     sys.excepthook =  sys.__excepthook__
     warning_free = True
-    with parser.parse_probe_log_ctx(path_to_probe_log) as parsed_probe_log:
-        for inode, contents in (parsed_probe_log.inodes or {}).items():
+    with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        for inode, contents in (probe_log.copied_files or {}).items():
             content_length = contents.stat().st_size
             if inode.size != content_length:
                 console.print(f"Blob for {inode} has actual size {content_length}", style="red")
                 warning_free = False
         # At this point, the inode storage is gone, but the probe_log is already in memory
-    if should_have_files and parsed_probe_log.has_inodes is None:
+    if should_have_files and not probe_log.copied_files:
         warning_free = False
         console.print("No files stored in probe log", style="red")
-    for warning in analysis.validate_probe_log(parsed_probe_log):
+    for warning in analysis.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    analysis.probe_log_to_dataflow_graph(parsed_probe_log)
-    hb_graph = analysis.probe_log_to_hb_graph(parsed_probe_log)
-    for warning in analysis.validate_hb_graph(parsed_probe_log, hb_graph):
+    analysis.probe_log_to_dataflow_graph(probe_log)
+    hb_graph = analysis.probe_log_to_hb_graph(probe_log)
+    for warning in analysis.validate_hb_graph(probe_log, hb_graph):
         warning_free = False
         console.print(warning, style="red")
     if not warning_free:
@@ -106,7 +105,7 @@ def ops_graph(
         graph_utils.remove_nodes(
             hb_graph,
             lambda node: isinstance(
-                analysis.get_op(probe_log, *node).data, # type: ignore
+                analysis.get_op(probe_log, *node).data,
                 (ops.ExecOp, ops.CloneOp, ops.WaitOp)
             ),
             lambda incoming_edge_label, outgoing_edge_label: outgoing_edge_label,
@@ -152,7 +151,7 @@ def store_dataflow_graph(path_to_probe_log: Annotated[
     probe_log = parser.parse_probe_log(path_to_probe_log)
     dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
     engine = get_engine()
-    with Session(engine) as session:
+    with sqlalchemy.orm.Session(engine) as session:
         for node in dataflow_graph.nodes():
             if isinstance(node, ProcessNode):
                 print(node)
@@ -166,22 +165,38 @@ def store_dataflow_graph(path_to_probe_log: Annotated[
                 if child_process:
                     child_process.parent_process_id = parent_process_id
 
-            elif isinstance(node1, ProcessNode) and isinstance(node2, FileNode):
-                inode_info = node2.inodeOnDevice
+            elif isinstance(node1, ProcessNode) and isinstance(node2, FileAccess):
+                inode_info = node2.inode_version
                 host = get_host_name()
-                stat_info = os.stat(node2.file)
+                stat_info = os.stat(node2.path)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_output_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.device_major, device_minor  = inode_info.device_minor, host = host, path = node2.file, mtime = mtime, size = size)
+                new_output_inode = ProcessThatWrites(
+                    inode=inode_info.inode,
+                    process_id=node1.pid,
+                    device=inode_info.inode.device,
+                    host=host,
+                    path=node2.path,
+                    mtime=mtime,
+                    size=size,
+                )
                 session.add(new_output_inode)
 
-            elif isinstance(node1, FileNode) and isinstance(node2, ProcessNode):
-                inode_info = node1.inodeOnDevice
+            elif isinstance(node1, FileAccess) and isinstance(node2, ProcessNode):
+                inode_info = node1.inode_version
                 host = get_host_name()
-                stat_info = os.stat(node1.file)
+                stat_info = os.stat(node1.path)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_input_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.device_major, device_minor= inode_info.device_minor, host = host, path = node1.file, mtime=mtime, size=size)
+                new_input_inode = ProcessInputs(
+                    inode=inode_info.inode,
+                    process_id=node2.pid,
+                    device=inode_info.inode.device,
+                    host=host,
+                    path=node1.path,
+                    mtime=mtime,
+                    size=size,
+                )
                 session.add(new_input_inode)
 
         root_process = None
@@ -225,8 +240,11 @@ def debug_text(
                             console=console,
                             max_string=40,
                         )
-        for ivl, path in sorted((probe_log.inodes or {}).items()):
-            out_console.print(f"device={ivl.device_major}.{ivl.device_minor} inode={ivl.inode} mtime={ivl.tv_sec}.{ivl.tv_nsec} -> {ivl.size} blob")
+        for ino_ver, path in sorted(probe_log.copied_files.items()):
+            out_console.print(
+                f"device={ino_ver.inode.device.major_id}.{ino_ver.inode.device.minor_id} inode={ino_ver.inode.number} mtime={ino_ver.mtime} -> {ino_ver.size} blob"
+            )
+
 
 @export_app.command()
 def docker_image(
@@ -256,7 +274,7 @@ def docker_image(
         console.print(f"Invalid image name {image_name}", style="red")
         raise typer.Exit(code=1)
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
-        if probe_log.has_inodes is None:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
@@ -290,7 +308,7 @@ def oci_image(
 
     """
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
-        if probe_log.has_inodes is None:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
@@ -315,7 +333,7 @@ def ssh(
     Wrap SSH and record provenance of the remote command.
     """
 
-    flags, destination, remote_host = parse_ssh_args(ssh_args)
+    flags, destination, remote_host = ssh_argparser.parse_ssh_args(ssh_args)
 
     ssh_cmd = ["ssh"] + flags
 
@@ -519,7 +537,7 @@ context_settings=dict(
     ),
 )
 def scp(cmd: list[str]) -> None:
-    scp_with_provenance(cmd)
+    scp_module.scp_with_provenance(cmd)
 
 if __name__ == "__main__":
     app()

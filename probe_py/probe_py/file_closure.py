@@ -10,8 +10,9 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .ptypes import InodeVersionLog, ProbeLog
-from .ops import Path, ChdirOp, OpenOp, CloseOp, ExecOp, InitExecEpochOp
+import numpy
+from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion, Pid, Device
+from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp
 from .consts import AT_FDCWD
 
 
@@ -26,7 +27,7 @@ def build_oci_image(
     if root_pid is None:
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
-    first_op = probe_log.processes[root_pid].execs[0].threads[root_pid].ops[0].data
+    first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
     if not isinstance(first_op, InitExecEpochOp):
         console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
@@ -70,7 +71,7 @@ def build_oci_image(
         if pid is None:
             console.print("Could not find root process; Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
-        last_op = probe_log.processes[pid].execs[0].threads[pid].ops[-1].data
+        last_op = probe_log.processes[pid].execs[initial_exec_no].threads[pid.main_thread()].ops[-1].data
         if not isinstance(last_op, ExecOp):
             console.print(f"Last op is not ExecOp: {last_op}. Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
@@ -157,7 +158,7 @@ def copy_file_closure(
             if root_pid is None:
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
-            first_op = probe_log.processes[root_pid].execs[0].threads[root_pid].ops[0].data
+            first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
             if not isinstance(first_op, InitExecEpochOp):
                 console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
@@ -198,24 +199,25 @@ def copy_file_closure(
         _get_dlibs(resolved_path, dependent_dlibs)
         for dependent_dlib in dependent_dlibs:
             to_copy[pathlib.Path(dependent_dlib)] = None
-    inodes = probe_log.inodes
+    inodes = probe_log.copied_files
     if inodes is None:
         raise ValueError("PROBE log appears to not contain inodes")
     for resolved_path, maybe_path in to_copy.items():
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         if maybe_path is not None:
-            ivl = InodeVersionLog(
-                maybe_path.device_major,
-                maybe_path.device_minor,
-                maybe_path.inode,
-                maybe_path.mtime.sec,
-                maybe_path.mtime.nsec,
+            ino_ver = InodeVersion(
+                Inode(
+                    probe_log.host,
+                    Device(maybe_path.device_major, maybe_path.device_minor),
+                    maybe_path.inode,
+                ),
+                numpy.datetime64(maybe_path.mtime.sec * int(1e9) + maybe_path.mtime.nsec, "ns"),
                 maybe_path.size,
             )
         else:
-            ivl = None
-        if ivl is not None and (inode_content := inodes.get(ivl)) is not None:
+            ino_ver = None
+        if ino_ver is not None and (inode_content := inodes.get(ino_ver)) is not None:
             # These inodes are "owned" by us, since we extracted them from the tar archive.
             # When the tar archive gets deleted, these inodes will remain.
             destination_path.hardlink_to(inode_content)
@@ -225,7 +227,7 @@ def copy_file_closure(
             if verbose:
                 console.print(f"Skipping {resolved_path}")
         elif resolved_path.exists():
-            if ivl is not None and InodeVersionLog.from_path(resolved_path) != ivl:
+            if ino_ver is not None and InodeVersion.from_path(resolved_path) != ino_ver:
                 warnings.warn(f"{resolved_path} changed in between the time of `probe record` and now.")
             if resolved_path.is_dir():
                 destination_path.mkdir(exist_ok=True, parents=True)
@@ -253,10 +255,10 @@ def resolve_path(
         raise KeyError(f"dirfd {path.dirfd} not found in fd table")
 
 
-def get_root_pid(probe_log: ProbeLog) -> int | None:
+def get_root_pid(probe_log: ProbeLog) -> Pid | None:
     possible_root = []
     for pid, process in probe_log.processes.items():
-        first_op = process.execs[0].threads[pid].ops[0].data
+        first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0].data
         assert isinstance(first_op, InitExecEpochOp)
         possible_root.append(pid)
     if possible_root:

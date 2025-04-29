@@ -1,13 +1,20 @@
+import numpy
 import re
 import pytest
 import pathlib
 import networkx as nx  # type: ignore
-from probe_py.analysis import FileNode, ProcessNode, InodeOnDevice, FileVersion
+from probe_py.analysis import FileAccess, ProcessNode, DfGraph
 from probe_py.workflows import NextflowGenerator
-from probe_py.analysis import DfGraph
+from probe_py.ptypes import Host, InodeVersion, Inode, Device
 
 
-tmpdir = pathlib.Path(__file__).resolve().parent / "tmp"
+tmpdir = pathlib.Path(__file__).resolve().parent.parent / "tmp"
+
+
+host = Host.localhost()
+device = Device(0, 0)
+time = numpy.datetime64(0, "ns")
+newer_time = numpy.datetime64(1, "ns")
 
 
 @pytest.mark.xfail
@@ -18,10 +25,10 @@ def test_dataflow_graph_to_nextflow_script() -> None:
     a_file_path.write_text("This is A.txt")
     b_file_path.write_text("This is A.txt")
 
-    dataflow_graph = nx.DiGraph()
+    dataflow_graph = nx.DiGraph[FileAccess | ProcessNode]()
 
-    A = FileNode(InodeOnDevice(0,0,0), FileVersion(0, 0), "A.txt")
-    B = FileNode(InodeOnDevice(0,0,1), FileVersion(0, 0), "B.txt")
+    A = FileAccess(InodeVersion(Inode(host, device, 0), time, 0), pathlib.Path("A.txt"))
+    B = FileAccess(InodeVersion(Inode(host, device, 1), time, 0), pathlib.Path("B.txt"))
     W = ProcessNode(0, ("cp", "A.txt", "B.txt"))
     dataflow_graph.add_nodes_from([A, B], color="red")
     dataflow_graph.add_nodes_from([W], color="blue")
@@ -59,10 +66,10 @@ workflow {
     expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
     assert script == expected_script
 
-    A = FileNode(InodeOnDevice(0,0,0), FileVersion(0, 0), "A.txt")
-    B0 = FileNode(InodeOnDevice(0,0,1), FileVersion(0, 0), "B.txt")
-    B1 = FileNode(InodeOnDevice(0,0,1), FileVersion(1, 0), "B.txt")
-    C = FileNode(InodeOnDevice(0,0,3), FileVersion(0, 0), "C.txt")
+    A  = FileAccess(InodeVersion(Inode(host, device, 0), time, 0), pathlib.Path("A.txt"))
+    B0 = FileAccess(InodeVersion(Inode(host, device, 1), time, 0), pathlib.Path("B.txt"))
+    B1 = FileAccess(InodeVersion(Inode(host, device, 1), newer_time, 0), pathlib.Path("B.txt"))
+    C  = FileAccess(InodeVersion(Inode(host, device, 3), time, 0), pathlib.Path("C.txt"))
     W = ProcessNode(0,("cp", "A.txt", "B.txt"))
     X = ProcessNode(1,("sed", "s/foo/bar/g", "-i", "B.txt"))
     # Note, the filename in FileNode will not always appear in the cmd of ProcessNode!

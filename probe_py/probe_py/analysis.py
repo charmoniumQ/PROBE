@@ -1,58 +1,39 @@
-import warnings
-import typing
-import networkx as nx  # type: ignore
-from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog
-from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitExecEpochOp, InitThreadOp, StatOp
-from .graph_utils import list_edges_from_start_node
-from collections import deque
-from enum import IntEnum
+import collections
+import dataclasses
+import enum
+import os
+import pathlib
 import rich
 import sys
-from dataclasses import dataclass
-import pathlib
-import os
-import collections
+import typing
+import warnings
+import networkx
+import numpy
+from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, Inode, InodeVersion, initial_exec_no, Host, Device
+from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitExecEpochOp, InitThreadOp, StatOp
+from .graph_utils import list_edges_from_start_node
 
 
-class EdgeLabel(IntEnum):
+class EdgeLabel(enum.IntEnum):
     PROGRAM_ORDER = 1
     FORK_JOIN = 2
     EXEC = 3
  
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class ProcessNode:
     pid: int
     cmd: tuple[str,...]
-    
-@dataclass(frozen=True)
-class InodeOnDevice:
-    device_major: int
-    device_minor: int
-    inode: int
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, InodeOnDevice):
-            return NotImplemented
-        return (self.device_major == other.device_major and
-                self.device_minor == other.device_minor and
-                self.inode == other.inode)
-    def __hash__(self) -> int:
-        return hash((self.device_major, self.device_minor, self.inode))
 
-@dataclass(frozen=True)
-class FileVersion:
-    mtime_sec: int
-    mtime_nsec: int
-
-@dataclass(frozen=True)
-class FileNode:
-    inodeOnDevice: InodeOnDevice
-    version: FileVersion
-    file: str
+@dataclasses.dataclass(frozen=True)
+class FileAccess:
+    inode_version: InodeVersion
+    path: pathlib.Path
 
     @property
     def label(self) -> str:
-        return f"{self.file} inode {self.inodeOnDevice.inode}"
+        return f"{self.path!s} inode {self.inode_version.inode}"
+
 
 # type alias for a node
 OpNode = tuple[Pid, ExecNo, Tid, int]
@@ -61,8 +42,15 @@ OpNode = tuple[Pid, ExecNo, Tid, int]
 EdgeType: typing.TypeAlias = tuple[OpNode, OpNode]
 
 
-HbGraph: typing.TypeAlias = nx.DiGraph
-DfGraph: typing.TypeAlias = nx.DiGraph
+if typing.TYPE_CHECKING:
+    HbGraph: typing.TypeAlias = networkx.DiGraph[OpNode]
+    DfGraph: typing.TypeAlias = networkx.DiGraph[FileAccess | ProcessNode]
+    ProcessTree: typing.TypeAlias = networkx.DiGraph[str]
+else:
+    HbGraph = networkx.DiGraph
+    DfGraph = networkx.DiGraph
+    ProcessTree = networkx.DiGraph
+
 
 def validate_probe_log(
         probe_log: ProbeLog,
@@ -78,7 +66,7 @@ def validate_probe_log(
         for exec_epoch_no, exec_epoch in process.execs.items():
             epochs.add(exec_epoch_no)
             first_ee_op_idx = 0
-            first_ee_op = exec_epoch.threads[pid].ops[first_ee_op_idx]
+            first_ee_op = exec_epoch.threads[pid.main_thread()].ops[first_ee_op_idx]
             if not isinstance(first_ee_op.data, InitExecEpochOp):
                 ret.append(f"{first_ee_op_idx} in exec_epoch should be InitExecEpochOp")
             pthread_ids = {
@@ -93,7 +81,7 @@ def validate_probe_log(
             }
             threads_ending_in_exec = 0
             for tid, thread in exec_epoch.threads.items():
-                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
+                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid.main_thread() else 0)
                 first_thread_op = thread.ops[first_thread_op_idx]
                 if not isinstance(first_thread_op.data, InitThreadOp):
                     ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
@@ -148,12 +136,12 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     fork_join_edges = list[tuple[OpNode, OpNode | None]]()
     exec_edges = list[tuple[OpNode, OpNode | None]]()
     nodes = list[OpNode]()
-    proc_to_ops = dict[tuple[int, int, int], list[OpNode]]()
-    last_exec_epoch = dict[int, int]()
+    proc_to_ops = dict[tuple[Pid, ExecNo, Tid], list[OpNode]]()
+    last_exec_epoch = dict[Pid, ExecNo]()
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
             # to find the last executing epoch of the process
-            last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
+            last_exec_epoch[pid] = max(last_exec_epoch.get(pid, initial_exec_no), exec_epoch_no)
             # Reduce each thread to the ops we actually care about
             for tid, thread in exec_epoch.threads.items():
                 context = (pid, exec_epoch_no, tid)
@@ -168,15 +156,15 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
             if(len(ops)!=0):
-                last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
+                last_exec_epoch[pid] = max(last_exec_epoch.get(pid, initial_exec_no), exec_epoch_no)
     # Define helper functions
-    def first(pid: int, exid: int, tid: int) -> OpNode | None:
+    def first(pid: Pid, exid: ExecNo, tid: Tid) -> OpNode | None:
         if not proc_to_ops.get((pid, exid, tid)):
             warnings.warn(f"We have no ops for PID={pid}, exec={exid}, TID={tid}, but we know that it occurred.")
             return None
         return proc_to_ops[(pid, exid, tid)][0]
 
-    def last(pid: int, exid: int, tid: int) -> OpNode:
+    def last(pid: Pid, exid: ExecNo, tid: Tid) -> OpNode:
         return proc_to_ops[(pid, exid, tid)][-1]
 
     def get_first_pthread(pid: int, exid: int, target_pthread_id: int) -> list[OpNode]:
@@ -205,7 +193,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     for node in list(nodes):
         pid, exid, tid, op_index = node
         op_data = probe_log.processes[pid].execs[exid].threads[tid].ops[op_index].data
-        target: tuple[int, int, int]
+        target: tuple[Pid, ExecNo, Tid]
         if False:
             pass
         elif isinstance(op_data, CloneOp) and op_data.ferrno == 0:
@@ -213,10 +201,10 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
                 pass
             elif op_data.task_type == TaskType.TASK_PID:
                 # Spawning a thread links to the current PID and exec epoch
-                target = (op_data.task_id, 0, op_data.task_id)
+                target = (Pid(op_data.task_id), initial_exec_no, Tid(op_data.task_id))
                 fork_join_edges.append((node, first(*target)))
             elif op_data.task_type == TaskType.TASK_TID:
-                target = (pid, exid, op_data.task_id)
+                target = (pid, exid, Tid(op_data.task_id))
                 fork_join_edges.append((node, first(*target)))
             elif op_data.task_type == TaskType.TASK_PTHREAD:
                 for dest in get_first_pthread(pid, exid, op_data.task_id):
@@ -227,17 +215,21 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
             if False:
                 pass
             elif op_data.task_type == TaskType.TASK_PID:
-                target = (op_data.task_id, last_exec_epoch.get(op_data.task_id, 0), op_data.task_id)
+                target = (
+                    Pid(op_data.task_id),
+                    last_exec_epoch.get(Pid(op_data.task_id), initial_exec_no),
+                    Tid(op_data.task_id),
+                )
                 fork_join_edges.append((last(*target), node))
             elif op_data.task_type == TaskType.TASK_TID:
-                target = (pid, exid, op_data.task_id)
+                target = (pid, exid, Tid(op_data.task_id))
                 fork_join_edges.append((last(*target), node))
             elif op_data.ferrno == 0 and op_data.task_type == TaskType.TASK_PTHREAD:
                 for dest in get_last_pthread(pid, exid, op_data.task_id):
                     fork_join_edges.append((dest, node))
         elif isinstance(op_data, ExecOp):
             # Exec brings same pid, incremented exid, and main thread
-            target = pid, exid + 1, pid
+            target = pid, exid.next(), pid.main_thread()
             exec_edges.append((node, first(*target)))
 
     hb_graph = HbGraph()
@@ -255,14 +247,13 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     return hb_graph
 
 
-def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]], hb_graph: HbGraph) -> None:
+def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[InodeVersion]], hb_graph: HbGraph) -> None:
     starting_pid = starting_node[0]
     
     starting_op = get_op(probe_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
     
     edges = list_edges_from_start_node(hb_graph, starting_node)
-
-    name_map = collections.defaultdict[InodeOnDevice, list[pathlib.Path]](list)
+    name_map = collections.defaultdict[Inode, list[pathlib.Path]](list)
 
     target_nodes = collections.defaultdict[int, list[OpNode]](list)
     console = rich.console.Console(file=sys.stderr)
@@ -283,16 +274,16 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
             dataflow_graph.add_node(processNode, label=processNode.cmd)
-            file = InodeOnDevice(op.path.device_major, op.path.device_minor, op.path.inode)
+            inode = Inode(Host.localhost(), Device(op.path.device_major, op.path.device_minor), op.path.inode)
             path_str = op.path.path.decode("utf-8")
-            curr_version = FileVersion(op.path.mtime.sec, op.path.mtime.nsec)
+            curr_version = InodeVersion(inode, numpy.datetime64(op.path.mtime.sec * int(1e9) + op.path.mtime.nsec, "ns"), op.path.size)
             inode_version_map.setdefault(op.path.inode, set())
             inode_version_map[op.path.inode].add(curr_version)
-            fileNode = FileNode(file, curr_version, path_str)
-            dataflow_graph.add_node(fileNode, label=fileNode.label)
+            fileNode = FileAccess(curr_version, pathlib.Path(path_str))
+            dataflow_graph.add_node(fileNode)
             path = pathlib.Path(op.path.path.decode("utf-8"))
-            if path not in name_map[file]:
-                name_map[file].append(path)
+            if path not in name_map[inode]:
+                name_map[inode].append(path)
             if access_mode == os.O_RDONLY:
                 dataflow_graph.add_edge(fileNode, processNode)
             elif access_mode == os.O_WRONLY:
@@ -338,24 +329,27 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog) -> DfGraph:
         pid, exec_epoch_no, tid, op_index = edge[0]
         op = get_op(probe_log, pid, exec_epoch_no, tid, op_index).data
         if isinstance(op, ExecOp):
-            if pid == tid and exec_epoch_no == 0:
+            if pid.main_thread() == tid and exec_epoch_no == 0:
                 cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
 
-    inode_version_map: dict[int, set[FileVersion]] = {}
+    inode_version_map: dict[int, set[InodeVersion]] = {}
     traverse_hb_for_dfgraph(probe_log, root_node, traversed, dataflow_graph, cmd_map, inode_version_map, hb_graph)
 
     file_version: dict[str, int] = {}
     for inode, versions in inode_version_map.items():
-        sorted_versions = sorted(versions, key=lambda version: (version.mtime_sec, version.mtime_nsec))
+        sorted_versions = sorted(
+            versions,
+            key=lambda version: typing.cast(int, version.mtime),
+        )
         for idx, version in enumerate(sorted_versions):
-            str_id = f"{inode}_{version.mtime_sec}_{version.mtime_nsec}"
+            str_id = f"{inode}_{version.mtime}"
             file_version[str_id] = idx
 
     for idx, node in enumerate(dataflow_graph.nodes()):
-        if isinstance(node, FileNode):
-            str_id = f"{node.inodeOnDevice.inode}_{node.version.mtime_sec}_{node.version.mtime_nsec}"
-            label = f"{node.file} inode {node.inodeOnDevice.inode} fv {file_version[str_id]} "
-            nx.set_node_attributes(dataflow_graph, {node: label}, "label")
+        if isinstance(node, FileAccess):
+            str_id = f"{inode}_{version.mtime}"
+            label = f"{node.path} inode {node.inode_version.inode.number} fv {file_version[str_id]} "
+            networkx.set_node_attributes(dataflow_graph, {node: label}, "label") # type: ignore
 
     return dataflow_graph
 
@@ -375,7 +369,7 @@ def validate_hb_closes(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
         if isinstance(op.data, CloseOp) and op.data.ferrno == 0:
             for closed_fd in range(op.data.low_fd, op.data.high_fd + 1):
                 if closed_fd not in reserved_fds:
-                    for pred_node in nx.dfs_preorder_nodes(reservse_hb_graph, node):
+                    for pred_node in networkx.dfs_preorder_nodes(reservse_hb_graph, node):
                         pred_op = get_op(probe_log, *pred_node)
                         if isinstance(pred_op.data, OpenOp) and pred_op.data.fd == closed_fd and op.data.ferrno == 0:
                             break
@@ -391,7 +385,7 @@ def validate_hb_waits(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     for node in hb_graph.nodes():
         op = get_op(probe_log, *node)
         if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
-            for pred_node in nx.dfs_preorder_nodes(reservse_hb_graph, node):
+            for pred_node in networkx.dfs_preorder_nodes(reservse_hb_graph, node):
                 pred_op = get_op(probe_log, *pred_node)
                 pid1, eid1, tid1, opid1 = pred_node
                 if isinstance(pred_op.data, CloneOp) and pred_op.data.task_type == op.data.task_type and pred_op.data.task_id == op.data.task_id and op.data.ferrno == 0:
@@ -453,8 +447,8 @@ def validate_hb_degree(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
 
 def validate_hb_acyclic(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     try:
-        cycle = nx.find_cycle(hb_graph)
-    except nx.NetworkXNoCycle:
+        cycle = networkx.find_cycle(hb_graph)
+    except networkx.NetworkXNoCycle:
         return []
     else:
         return [f"Cycle detected: {cycle}"]
@@ -486,17 +480,6 @@ def validate_hb_graph(processes: ProbeLog, hb_graph: HbGraph) -> list[str]:
     ret.extend(validate_hb_degree(processes, hb_graph))
     ret.extend(validate_hb_acyclic(processes, hb_graph))
     ret.extend(validate_hb_execs(processes, hb_graph))
-    return ret
-
-
-def relax_node(graph: nx.DiGraph, node: typing.Any) -> list[tuple[typing.Any, typing.Any]]:
-    """Remove node from graph and attach its predecessors to its successors"""
-    ret = list[tuple[typing.Any, typing.Any]]()
-    for predecessor in graph.predecessors:
-        for successor in graph.successors:
-            ret.append((predecessor, successor))
-            graph.add_edge(predecessor, successor)
-    graph.remove_node(node)
     return ret
 
 
@@ -532,8 +515,8 @@ def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
             data["label"] += f"\n{op.data.path.path.decode()}"
 
 
-def probe_log_to_process_tree(probe_log: ProbeLog) -> nx.DiGraph:
-    G = nx.DiGraph()
+def probe_log_to_process_tree(probe_log: ProbeLog) -> ProcessTree:
+    G = ProcessTree()
 
     def epoch_node_id(pid: int, epoch_no: int) -> str:
         return f"pid{pid}_epoch{epoch_no}"
@@ -587,13 +570,13 @@ def probe_log_to_process_tree(probe_log: ProbeLog) -> nx.DiGraph:
 
     return G
 
-def get_max_parallelism_latest(graph: DfGraph, probe_log: ProbeLog) -> int:
+def get_max_parallelism_latest(hb_graph: HbGraph, probe_log: ProbeLog) -> int:
     visited = set()
     # counter is set to 1 to include the main parent process
     counter = 1 
     max_counter = 1
-    start_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
-    queue = deque([(start_node, None)])  # (current_node, parent_node)
+    start_node = [node for node in hb_graph.nodes() if hb_graph.in_degree(node) == 0][0]
+    queue = collections.deque[tuple[OpNode, OpNode | None]]([(start_node, None)])  # (current_node, parent_node)
     while queue:
         node, parent = queue.popleft()
         if node in visited:
@@ -622,7 +605,7 @@ def get_max_parallelism_latest(graph: DfGraph, probe_log: ProbeLog) -> int:
                 counter -= 1
         
         # Add neighbors to the queue
-        for neighbor in graph.neighbors(node):
+        for neighbor in hb_graph.successors(node):
             queue.append((neighbor, node))
 
     return max_counter

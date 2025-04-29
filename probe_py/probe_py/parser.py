@@ -1,19 +1,33 @@
 from __future__ import annotations
+import dataclasses
 import pathlib
 import typing
 import json
 import tarfile
 import tempfile
 import contextlib
+import numpy
 from . import ops
-from .ptypes import ProbeLog, InodeVersionLog, KernelThread, Exec, Process
-from dataclasses import replace
+from .ptypes import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec, Device
+
+
+def iv_from_file_name(host: Host, name: str) -> InodeVersion:
+    # See `libprobe/src/prov_utils.c:path_to_id_string()`
+    array = [
+        int(segment, 16)
+        for segment in name.split("-")
+    ]
+    assert len(array) == 6
+    return InodeVersion(
+        # TODO: use the correct host
+        Inode(host, Device(array[0], array[1]), array[2]),
+        numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
+        array[5],
+    )
 
 
 @contextlib.contextmanager
-def parse_probe_log_ctx(
-        path_to_probe_log: pathlib.Path,
-) -> typing.Iterator[ProbeLog]:
+def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
     """Parse probe log
 
     In this contextmanager, copied_files are extracted onto the disk.
@@ -23,30 +37,40 @@ def parse_probe_log_ctx(
         tmpdir = pathlib.Path(_tmpdir)
         with tarfile.open(path_to_probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")
+        host = Host.localhost()
         has_inodes = (tmpdir / "info" / "copy_files").exists()
         inodes = {
-            InodeVersionLog(*[
-                int(segment, 16)
-                for segment in file.name.split("-")
-            ]): file
+            iv_from_file_name(host, file.name): file
             for file in (tmpdir / "inodes").iterdir()
-        } if (tmpdir / "inodes").exists() else None
+        } if (tmpdir / "inodes").exists() else {}
 
-        processes = {}
+        processes = dict[Pid, Process]()
         for pid_dir in (tmpdir / "pids").iterdir():
-            pid = int(pid_dir.name)
-            epochs = {}
+            pid = Pid(pid_dir.name)
+            execs = {}
             for epoch_dir in pid_dir.iterdir():
-                epoch = int(epoch_dir.name)
-                tids = {}
+                exec_no = ExecNo(epoch_dir.name)
+                threads = {}
                 for tid_file in epoch_dir.iterdir():
-                    tid = int(tid_file.name)
-                    # read, split, comprehend, deserialize, extend
+                    tid = Tid(tid_file.name)
                     jsonlines = tid_file.read_text().strip().split("\n")
-                    tids[tid] = KernelThread(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
-                epochs[epoch] = Exec(epoch, tids)
-            processes[pid] = Process(pid, epochs)
-        yield ProbeLog(processes, inodes, has_inodes)
+                    ops_list = [
+                        json.loads(line, object_hook=op_hook)
+                        for line in jsonlines
+                    ]
+                    threads[tid] = KernelThread(tid, ops_list)
+                execs[exec_no] = Exec(exec_no, threads)
+            processes[pid] = Process(pid, execs)
+
+        yield ProbeLog(
+            processes,
+            inodes,
+            ProbeOptions(
+                copy_files=has_inodes,
+            ),
+            host,
+        )
+
 
 def parse_probe_log(
         path_to_probe_log: pathlib.Path,
@@ -56,7 +80,11 @@ def parse_probe_log(
     Unlike parse_probe_ctx, the copied_files will not be accessible.
     """
     with parse_probe_log_ctx(path_to_probe_log) as probe_log:
-        return replace(probe_log, has_inodes=False, inodes={})
+        return dataclasses.replace(
+            probe_log,
+            copied_files={},
+            probe_options=dataclasses.replace(probe_log.probe_options, copy_files=False),
+        )
 
 
 def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:

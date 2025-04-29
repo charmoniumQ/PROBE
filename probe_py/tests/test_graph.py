@@ -5,7 +5,7 @@ from probe_py.ptypes import ProbeLog, Pid, ExecNo, Tid
 from probe_py.ops import OpenOp, CloneOp, ExecOp, InitExecEpochOp, CloseOp, WaitOp, Op
 from probe_py.analysis import probe_log_to_hb_graph, validate_hb_graph
 import pathlib
-import networkx as nx  # type: ignore
+import networkx as nx
 import subprocess
 
 Node: typing.TypeAlias = tuple[Pid, ExecNo, Tid, int]
@@ -170,7 +170,7 @@ def check_for_clone_and_open(
             # check if stdout is read in right child process
             if(edge[1][3]==-1):
                 continue
-            next_init_op = get_op_from_probe_log(probe_log,curr_pid,1,curr_pid,0)
+            next_init_op = get_op_from_probe_log(probe_log, curr_pid, ExecNo(1), curr_pid.main_thread(), 0)
             if next_init_op is not None:
                 next_init_op_data = next_init_op.data
                 assert isinstance(next_init_op_data, InitExecEpochOp)
