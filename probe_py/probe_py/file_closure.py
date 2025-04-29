@@ -10,7 +10,8 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion, Pid
+import numpy
+from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion, Pid, Device
 from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp
 from .consts import AT_FDCWD
 
@@ -208,12 +209,10 @@ def copy_file_closure(
             ino_ver = InodeVersion(
                 Inode(
                     probe_log.host,
-                    maybe_path.device_major,
-                    maybe_path.device_minor,
+                    Device(maybe_path.device_major, maybe_path.device_minor),
                     maybe_path.inode,
                 ),
-                maybe_path.mtime.sec,
-                maybe_path.mtime.nsec,
+                numpy.datetime64(maybe_path.mtime.sec * int(1e9) + maybe_path.mtime.nsec, "ns"),
                 maybe_path.size,
             )
         else:

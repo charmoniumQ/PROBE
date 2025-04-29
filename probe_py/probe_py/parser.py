@@ -6,8 +6,24 @@ import json
 import tarfile
 import tempfile
 import contextlib
+import numpy
 from . import ops
-from .ptypes import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
+from .ptypes import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec, Device
+
+
+def iv_from_file_name(host: Host, name: str) -> InodeVersion:
+    # See `libprobe/src/prov_utils.c:path_to_id_string()`
+    array = [
+        int(segment, 16)
+        for segment in name.split("-")
+    ]
+    assert len(array) == 6
+    return InodeVersion(
+        # TODO: use the correct host
+        Inode(host, Device(array[0], array[1]), array[2]),
+        numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
+        array[5],
+    )
 
 
 @contextlib.contextmanager
@@ -21,20 +37,12 @@ def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[Prob
         tmpdir = pathlib.Path(_tmpdir)
         with tarfile.open(path_to_probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")
-
-        copy_files = (tmpdir / "info" / "copy_files").exists()
-
-        host_name = (tmpdir / "info" / "host_name").read_text()
-        host_id = int((tmpdir / "info" / "host_id").read_text(), 16)
-        host = Host(host_name, host_id)
-
-        inodes = dict()
-        if copy_files and (tmpdir / "inodes").exists():
-            for copied_file in (tmpdir / "inodes").iterdir():
-                device_major, device_minor, inode_str, mtime_sec, mtime_nsec, size = copied_file.name.split("-")
-                inode = Inode(host, int(device_major, 16), int(device_minor, 16), int(inode_str, 16))
-                inode_version = InodeVersion(inode, int(mtime_sec, 16), int(mtime_nsec, 16), int(size, 16))
-                inodes[inode_version] = copied_file
+        host = Host.localhost()
+        has_inodes = (tmpdir / "info" / "copy_files").exists()
+        inodes = {
+            iv_from_file_name(host, file.name): file
+            for file in (tmpdir / "inodes").iterdir()
+        } if (tmpdir / "inodes").exists() else {}
 
         processes = dict[Pid, Process]()
         for pid_dir in (tmpdir / "pids").iterdir():
@@ -58,21 +66,25 @@ def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[Prob
             processes,
             inodes,
             ProbeOptions(
-                copy_files=copy_files,
+                copy_files=has_inodes,
             ),
             host,
         )
 
 
 def parse_probe_log(
-        probe_log_path: pathlib.Path,
+        path_to_probe_log: pathlib.Path,
 ) -> ProbeLog:
     """Parse probe log.
 
     Unlike parse_probe_ctx, the copied_files will not be accessible.
     """
-    with parse_probe_log_ctx(probe_log_path) as probe_log:
-        return dataclasses.replace(probe_log, copied_files={})
+    with parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        return dataclasses.replace(
+            probe_log,
+            copied_files={},
+            probe_options=dataclasses.replace(probe_log.probe_options, copy_files=False),
+        )
 
 
 def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:

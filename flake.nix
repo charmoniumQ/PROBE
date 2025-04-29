@@ -153,6 +153,7 @@
               python.pkgs.xdg-base-dirs
               python.pkgs.sqlalchemy
               python.pkgs.pyyaml
+              python.pkgs.numpy
             ];
             nativeCheckInputs = [
               python.pkgs.mypy

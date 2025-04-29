@@ -1,8 +1,14 @@
+import pathlib
 import typing
-import xdg_base_dirs
 
 
-PROBE_HOME: typing.Final = xdg_base_dirs.xdg_data_home() / "PROBE"
+SYSTEMD_MACHINE_ID = pathlib.Path("/etc/machine-id")
+
+
+# PROBE application key
+# Application name + unique (random) string
+APPLICATION_KEY = b"PROBE \xe5\x06PKsQz\xa3yq5\x82\x14\xd2\x85\x90"
+
 
 # echo -e '#include <fcntl.h>\nAT_FDCWD' | gcc -E - | tail --lines=1
 AT_FDCWD: typing.Final = -100

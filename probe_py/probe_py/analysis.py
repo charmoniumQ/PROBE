@@ -1,16 +1,17 @@
-import warnings
-import typing
-import networkx as nx
-from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, Inode, InodeVersion, initial_exec_no, Host
-from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitExecEpochOp, InitThreadOp, StatOp
-from .graph_utils import list_edges_from_start_node
 import collections
+import dataclasses
 import enum
+import os
+import pathlib
 import rich
 import sys
-import dataclasses
-import pathlib
-import os
+import typing
+import warnings
+import networkx
+import numpy
+from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, Inode, InodeVersion, initial_exec_no, Host, Device
+from .ops import Op, CloneOp, ExecOp, WaitOp, OpenOp, CloseOp, InitExecEpochOp, InitThreadOp, StatOp
+from .graph_utils import list_edges_from_start_node
 
 
 class EdgeLabel(enum.IntEnum):
@@ -42,13 +43,13 @@ EdgeType: typing.TypeAlias = tuple[OpNode, OpNode]
 
 
 if typing.TYPE_CHECKING:
-    HbGraph: typing.TypeAlias = nx.DiGraph[OpNode]
-    DfGraph: typing.TypeAlias = nx.DiGraph[FileAccess | ProcessNode]
-    ProcessTree: typing.TypeAlias = nx.DiGraph[str]
+    HbGraph: typing.TypeAlias = networkx.DiGraph[OpNode]
+    DfGraph: typing.TypeAlias = networkx.DiGraph[FileAccess | ProcessNode]
+    ProcessTree: typing.TypeAlias = networkx.DiGraph[str]
 else:
-    HbGraph = nx.DiGraph
-    DfGraph = nx.DiGraph
-    ProcessTree = nx.DiGraph
+    HbGraph = networkx.DiGraph
+    DfGraph = networkx.DiGraph
+    ProcessTree = networkx.DiGraph
 
 
 def validate_probe_log(
@@ -273,9 +274,9 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
             dataflow_graph.add_node(processNode, label=processNode.cmd)
-            inode = Inode(Host.localhost(), op.path.device_major, op.path.device_minor, op.path.inode)
+            inode = Inode(Host.localhost(), Device(op.path.device_major, op.path.device_minor), op.path.inode)
             path_str = op.path.path.decode("utf-8")
-            curr_version = InodeVersion(inode, op.path.mtime.sec, op.path.mtime.nsec, op.path.size)
+            curr_version = InodeVersion(inode, numpy.datetime64(op.path.mtime.sec * int(1e9) + op.path.mtime.nsec, "ns"), op.path.size)
             inode_version_map.setdefault(op.path.inode, set())
             inode_version_map[op.path.inode].add(curr_version)
             fileNode = FileAccess(curr_version, pathlib.Path(path_str))
@@ -336,16 +337,19 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog) -> DfGraph:
 
     file_version: dict[str, int] = {}
     for inode, versions in inode_version_map.items():
-        sorted_versions = sorted(versions, key=lambda version: (version.mtime_sec, version.mtime_nsec))
+        sorted_versions = sorted(
+            versions,
+            key=lambda version: typing.cast(int, version.mtime),
+        )
         for idx, version in enumerate(sorted_versions):
-            str_id = f"{inode}_{version.mtime_sec}_{version.mtime_nsec}"
+            str_id = f"{inode}_{version.mtime}"
             file_version[str_id] = idx
 
     for idx, node in enumerate(dataflow_graph.nodes()):
         if isinstance(node, FileAccess):
-            str_id = f"{inode}_{version.mtime_sec}_{version.mtime_nsec}"
-            label = f"{node.path} inode {node.inode_version.inode.inode} fv {file_version[str_id]} "
-            nx.set_node_attributes(dataflow_graph, {node: label}, "label") # type: ignore
+            str_id = f"{inode}_{version.mtime}"
+            label = f"{node.path} inode {node.inode_version.inode.number} fv {file_version[str_id]} "
+            networkx.set_node_attributes(dataflow_graph, {node: label}, "label") # type: ignore
 
     return dataflow_graph
 
@@ -365,7 +369,7 @@ def validate_hb_closes(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
         if isinstance(op.data, CloseOp) and op.data.ferrno == 0:
             for closed_fd in range(op.data.low_fd, op.data.high_fd + 1):
                 if closed_fd not in reserved_fds:
-                    for pred_node in nx.dfs_preorder_nodes(reservse_hb_graph, node):
+                    for pred_node in networkx.dfs_preorder_nodes(reservse_hb_graph, node):
                         pred_op = get_op(probe_log, *pred_node)
                         if isinstance(pred_op.data, OpenOp) and pred_op.data.fd == closed_fd and op.data.ferrno == 0:
                             break
@@ -381,7 +385,7 @@ def validate_hb_waits(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     for node in hb_graph.nodes():
         op = get_op(probe_log, *node)
         if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
-            for pred_node in nx.dfs_preorder_nodes(reservse_hb_graph, node):
+            for pred_node in networkx.dfs_preorder_nodes(reservse_hb_graph, node):
                 pred_op = get_op(probe_log, *pred_node)
                 pid1, eid1, tid1, opid1 = pred_node
                 if isinstance(pred_op.data, CloneOp) and pred_op.data.task_type == op.data.task_type and pred_op.data.task_id == op.data.task_id and op.data.ferrno == 0:
@@ -443,8 +447,8 @@ def validate_hb_degree(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
 
 def validate_hb_acyclic(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     try:
-        cycle = nx.find_cycle(hb_graph)
-    except nx.NetworkXNoCycle:
+        cycle = networkx.find_cycle(hb_graph)
+    except networkx.NetworkXNoCycle:
         return []
     else:
         return [f"Cycle detected: {cycle}"]

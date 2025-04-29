@@ -171,7 +171,15 @@ def store_dataflow_graph(path_to_probe_log: Annotated[
                 stat_info = os.stat(node2.path)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_output_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.inode.major, device_minor  = inode_info.inode.minor, host = host, path = node2.path, mtime = mtime, size = size)
+                new_output_inode = ProcessThatWrites(
+                    inode=inode_info.inode,
+                    process_id=node1.pid,
+                    device=inode_info.inode.device,
+                    host=host,
+                    path=node2.path,
+                    mtime=mtime,
+                    size=size,
+                )
                 session.add(new_output_inode)
 
             elif isinstance(node1, FileAccess) and isinstance(node2, ProcessNode):
@@ -180,7 +188,15 @@ def store_dataflow_graph(path_to_probe_log: Annotated[
                 stat_info = os.stat(node1.path)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_input_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.inode.major, device_minor= inode_info.inode.minor, host = host, path = node1.path, mtime=mtime, size=size)
+                new_input_inode = ProcessInputs(
+                    inode=inode_info.inode,
+                    process_id=node2.pid,
+                    device=inode_info.inode.device,
+                    host=host,
+                    path=node1.path,
+                    mtime=mtime,
+                    size=size,
+                )
                 session.add(new_input_inode)
 
         root_process = None
@@ -226,7 +242,7 @@ def debug_text(
                         )
         for ino_ver, path in sorted(probe_log.copied_files.items()):
             out_console.print(
-                f"device={ino_ver.inode.major}.{ino_ver.inode.minor} inode={ino_ver.inode.inode} mtime={ino_ver.mtime_sec}.{ino_ver.mtime_nsec} -> {ino_ver.size} blob"
+                f"device={ino_ver.inode.device.major_id}.{ino_ver.inode.device.minor_id} inode={ino_ver.inode.number} mtime={ino_ver.mtime} -> {ino_ver.size} blob"
             )
 
 

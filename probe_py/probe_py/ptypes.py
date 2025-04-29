@@ -1,15 +1,15 @@
 from __future__ import annotations
-import pathlib
-import functools
-import socket
-import random
-import datetime
-from . import ops
-from . import consts
-import os
 import dataclasses
 import enum
+import hmac
+import functools
+import os
+import pathlib
+import socket
 import typing
+import numpy
+from . import ops
+from . import consts
 
 
 # New types encourage type saftey,
@@ -41,26 +41,30 @@ class Host:
     @staticmethod
     def localhost() -> Host:
         """Returns a Host object representing the current host"""
-        node_id_file = consts.PROBE_HOME / "node_id"
-        if node_id_file.exists():
-            return Host(socket.gethostname(), int(node_id_file.read_text(), 16))
+
+        # https://www.freedesktop.org/software/systemd/man/latest/machine-id.html
+        # This ID uniquely identifies the host. It should be considered "confidential".
+        # If a stable unique identifier that is tied to the machine is needed for some application,
+        # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
+        if consts.SYSTEMD_MACHINE_ID.exists():
+            machine_id_bytes = int(consts.SYSTEMD_MACHINE_ID.read_text().strip(), 16).to_bytes(16)
+            hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest())
+            return Host(socket.gethostname(), hashed_machine_id)
         else:
-            node_id_file.parent.mkdir(exist_ok=True)
-            hostname = socket.gethostname()
-            rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
-            bits_per_hex_digit = 4
-            hex_digits = 8
-            node_id = rng.getrandbits(bits_per_hex_digit * hex_digits)
-            node_id_file.write_text(f"{node_id:0{hex_digits}x}")
-            return Host(hostname, node_id)
+            raise NotImplementedError("Currently, PROBE requires /etc/machine-id, which should be set by SystemD")
+
+
+@dataclasses.dataclass(frozen=True)
+class Device:
+    major_id: int
+    minor_id: int
 
 
 @dataclasses.dataclass(frozen=True)
 class Inode:
     host: Host
-    major: int
-    minor: int
-    inode: int
+    device: Device
+    number: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -71,9 +75,13 @@ class ProbeOptions:
 @dataclasses.dataclass(frozen=True)
 class InodeVersion:
     inode: Inode
-    mtime_sec: int
-    mtime_nsec: int
+    # If you assume no clock adjustemnts, it is monotonic with other mtimes on the same Host;
+    # other Hosts will not be synchronized (vector clock).
+    # It's better to assume nothing; different mtime still implies different object, but no ordering.
+    # mtime nanoseconds precision (whether or not we have nanosecond resolution)
+    mtime: numpy.datetime64
     size: int
+    other_id: int = 0
 
     @staticmethod
     def from_path(path: pathlib.Path) -> InodeVersion:
@@ -81,12 +89,13 @@ class InodeVersion:
         return InodeVersion(
             Inode(
                 Host.localhost(),
-                os.major(s.st_dev),
-                os.minor(s.st_dev),
+                Device(
+                    os.major(s.st_dev),
+                    os.minor(s.st_dev),
+                ),
                 s.st_ino,
             ),
-            s.st_mtime_ns // int(1e9),
-            s.st_mtime_ns %  int(1e9),
+            numpy.datetime64(s.st_mtime_ns, "ns"),
             s.st_size,
         )
 
