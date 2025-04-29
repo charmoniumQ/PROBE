@@ -211,6 +211,10 @@ def test_downstream_analyses(
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
+    cmd = ["probe", "export", "ops-graph", "--only-proc-ops", "test.png"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
+
     cmd = ["probe", "export", "dataflow-graph", "test.png"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)

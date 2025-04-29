@@ -1,3 +1,4 @@
+import warnings
 import typing
 import networkx as nx  # type: ignore
 from .ptypes import TaskType, ProvLog
@@ -142,8 +143,8 @@ def validate_provlog(
 def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     # [pid, exec_epoch_no, tid, op_index]
     program_order_edges = list[tuple[Node, Node]]()
-    fork_join_edges = list[tuple[Node, Node]]()
-    exec_edges = list[tuple[Node, Node]]()
+    fork_join_edges = list[tuple[Node, Node | None]]()
+    exec_edges = list[tuple[Node, Node | None]]()
     nodes = list[Node]()
     proc_to_ops = dict[tuple[int, int, int], list[Node]]()
     last_exec_epoch = dict[int, int]()
@@ -164,9 +165,13 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
                 program_order_edges.extend(zip(ops[:-1], ops[1:])) 
                 # Store these so we can hook up forks/joins between threads
                 proc_to_ops[context] = ops
-
+            if(len(ops)!=0):
+                last_exec_epoch[pid] = max(last_exec_epoch.get(pid, 0), exec_epoch_no)
     # Define helper functions
-    def first(pid: int, exid: int, tid: int) -> Node:
+    def first(pid: int, exid: int, tid: int) -> Node | None:
+        if not proc_to_ops.get((pid, exid, tid)):
+            warnings.warn(f"We have no ops for PID={pid}, exec={exid}, TID={tid}, but we know that it occurred.")
+            return None
         return proc_to_ops[(pid, exid, tid)][0]
 
     def last(pid: int, exid: int, tid: int) -> Node:
@@ -237,9 +242,10 @@ def provlog_to_digraph(process_tree_prov_log: ProvLog) -> nx.DiGraph:
     for node in nodes:
         process_graph.add_node(node)
 
-    def add_edges(edges:list[tuple[Node, Node]], label:EdgeLabels) -> None:
+    def add_edges(edges: typing.Iterable[tuple[Node, Node | None]], label:EdgeLabels) -> None:
         for node0, node1 in edges:
-            process_graph.add_edge(node0, node1, label=label)
+            if node1:
+                process_graph.add_edge(node0, node1, label=label)
     
     add_edges(program_order_edges, EdgeLabels.PROGRAM_ORDER)
     add_edges(exec_edges, EdgeLabels.EXEC)

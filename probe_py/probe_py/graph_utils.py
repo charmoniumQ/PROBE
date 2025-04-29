@@ -6,6 +6,7 @@ import pydot  # type: ignore
 
 
 _Node = typing.TypeVar("_Node")
+_EdgeLabel = typing.TypeVar("_EdgeLabel")
 
 
 if typing.TYPE_CHECKING:
@@ -54,15 +55,32 @@ def serialize_graph_proc_tree(
         pydot_graph.write_png(str(output))
 
 
-def relax_node(graph: DiGraph[_Node], node: _Node) -> list[tuple[_Node, _Node]]:
+def relax_node(
+        graph: DiGraph[_Node],
+        node: _Node,
+        combine_edge_fn: typing.Callable[[_EdgeLabel, _EdgeLabel], _EdgeLabel],
+) -> list[tuple[_Node, _Node]]:
     """Remove node from graph and attach its predecessors to its successors"""
     ret = list[tuple[typing.Any, typing.Any]]()
     for predecessor in graph.predecessors(node):
+        old_incoming_label = graph.get_edge_data(predecessor, node)["label"]
         for successor in graph.successors(node):
+            old_outgoing_label = graph.get_edge_data(node, successor)["label"]
+            new_label = combine_edge_fn(old_incoming_label, old_outgoing_label)
             ret.append((predecessor, successor))
-            graph.add_edge(predecessor, successor)
+            graph.add_edge(predecessor, successor, label=new_label)
     graph.remove_node(node)
     return ret
+
+
+def remove_nodes(
+        graph: DiGraph[_Node],
+        keep_node_fn: typing.Callable[[_Node], bool],
+        combine_edge_fn: typing.Callable[[_EdgeLabel, _EdgeLabel], _EdgeLabel],
+) -> DiGraph[_Node]:
+    for node in list(graph.nodes):
+        if not keep_node_fn(node):
+            relax_node(graph, node, combine_edge_fn)
 
 
 def list_edges_from_start_node(graph: DiGraph[_Node], start_node: _Node) -> typing.Iterable[tuple[_Node, _Node]]:
