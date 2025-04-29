@@ -1,15 +1,31 @@
 from typing_extensions import Annotated
+import datetime
+import enum
+import dataclasses
+import json
+import os
 import pathlib
+import random
+import shlex
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
 import typer
 import rich.console
 import rich.pretty
-from . import parser
-from . import validators
+import sqlalchemy.orm
 from . import analysis
-from . import workflows
 from . import file_closure
 from . import graph_utils
-import enum
+from . import ssh_arg_parser
+from . import ops
+from . import parser
+from . import scp as scp_module
+from . import workflows
+from .analysis import ProcessNode, FileNode
+from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
 
 
 console = rich.console.Console(stderr=True)
@@ -34,6 +50,7 @@ def validate(
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
+    sys.excepthook =  sys.__excepthook__
     warning_free = True
     with parser.parse_probe_log_ctx(path_to_probe_log) as parsed_probe_log:
         for inode, contents in (parsed_probe_log.inodes or {}).items():
@@ -67,6 +84,10 @@ def ops_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        only_proc_ops: Annotated[
+            bool,
+            typer.Option(help="For only Exec, Clone, Wait Operations"),
+        ] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -79,6 +100,15 @@ def ops_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hb_graph = analysis.probe_log_to_hb_graph(probe_log)
+    if only_proc_ops:
+        graph_utils.remove_nodes(
+            hb_graph,
+            lambda node: isinstance(
+                analysis.get_op(probe_log, *node).data, # type: ignore
+                (ops.ExecOp, ops.CloneOp, ops.WaitOp)
+            ),
+            lambda incoming_edge_label, outgoing_edge_label: outgoing_edge_label,
+        )
     analysis.color_hb_graph(probe_log, hb_graph)
     graph_utils.serialize_graph(hb_graph, output)
 
@@ -120,7 +150,7 @@ def store_dataflow_graph(path_to_probe_log: Annotated[
     probe_log = parser.parse_probe_log(path_to_probe_log)
     dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
     engine = get_engine()
-    with Session(engine) as session:
+    with sqlalchemy.orm.Session(engine) as session:
         for node in dataflow_graph.nodes():
             if isinstance(node, ProcessNode):
                 print(node)
@@ -286,7 +316,7 @@ def ssh(
     Wrap SSH and record provenance of the remote command.
     """
 
-    flags, destination, remote_host = parse_ssh_args(ssh_args)
+    flags, destination, remote_host = ssh_arg_parser.parse_ssh_args(ssh_args)
 
     ssh_cmd = ["ssh"] + flags
 
@@ -490,7 +520,7 @@ context_settings=dict(
     ),
 )
 def scp(cmd: list[str]) -> None:
-    scp_with_provenance(cmd)
+    scp_module.scp_with_provenance(cmd)
 
 if __name__ == "__main__":
     app()

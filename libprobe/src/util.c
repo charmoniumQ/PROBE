@@ -126,3 +126,39 @@ unsigned char ceil_log2(unsigned int val) {
     }
     return ret + is_greater;
 }
+
+char* const* read_null_delim_file(const char* path, size_t* array_len) {
+    int fd = unwrapped_openat(AT_FDCWD, path, O_RDONLY);
+    struct statx statx_result;
+    EXPECT(== 0, unwrapped_statx(fd, NULL, AT_EMPTY_PATH, STATX_SIZE, &statx_result));
+    size_t buffer_len = statx_result.stx_size;
+    char* buffer = EXPECT_NONNULL(malloc(buffer_len + 1));
+    buffer[buffer_len] = '\0';
+    if ((ssize_t)buffer_len != read(fd, buffer, buffer_len)) {
+        ERROR("");
+    }
+    EXPECT(== 0, unwrapped_close(fd));
+    *array_len = 1;
+    for (size_t buffer_idx = 0; buffer_idx < buffer_len; ++buffer_idx) {
+        if (buffer[buffer_idx] == '\0') {
+            ++*array_len;
+        }
+    }
+    char** array = EXPECT_NONNULL(malloc((*array_len + 1) * sizeof(char*)));
+    array[*array_len] = NULL;
+    size_t buffer_idx = 0;
+    size_t array_idx = 0;
+    while (true) {
+        array[array_idx] = &buffer[buffer_idx];
+        if (array_idx + 1 == *array_len) {
+            break;
+        }
+        while (buffer[buffer_idx]) {
+            ++buffer_idx;
+        }
+        ++buffer_idx;
+        ASSERTF(buffer_idx < buffer_len, "%ld < %ld; %ld < %ld", buffer_idx, buffer_len, array_idx,
+                *array_len);
+    }
+    return array;
+}

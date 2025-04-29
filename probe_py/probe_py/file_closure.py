@@ -10,8 +10,8 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion
-from .ops import Path, ChdirOp, OpenOp, CloseOp, InitProcessOp, ExecOp
+from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion, Pid
+from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp
 from .consts import AT_FDCWD
 
 
@@ -27,8 +27,8 @@ def build_oci_image(
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
     first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
-    if not isinstance(first_op, InitProcessOp):
-        console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
+    if not isinstance(first_op, InitExecEpochOp):
+        console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
@@ -158,8 +158,8 @@ def copy_file_closure(
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
             first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
-            if not isinstance(first_op, InitProcessOp):
-                console.print("First op is not InitProcessOp. Are you sure this probe_log is valid?")
+            if not isinstance(first_op, InitExecEpochOp):
+                console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
             fds = {AT_FDCWD: pathlib.Path(first_op.cwd.path.decode())}
             for tid, thread in exec_epoch.threads.items():
@@ -198,7 +198,7 @@ def copy_file_closure(
         _get_dlibs(resolved_path, dependent_dlibs)
         for dependent_dlib in dependent_dlibs:
             to_copy[pathlib.Path(dependent_dlib)] = None
-    inodes = probe_log.inodes
+    inodes = probe_log.copied_files
     if inodes is None:
         raise ValueError("PROBE log appears to not contain inodes")
     for resolved_path, maybe_path in to_copy.items():
@@ -218,7 +218,7 @@ def copy_file_closure(
             )
         else:
             ino_ver = None
-        if ino_ver is not None and (inode_content := inodes.get(ivl)) is not None:
+        if ino_ver is not None and (inode_content := inodes.get(ino_ver)) is not None:
             # These inodes are "owned" by us, since we extracted them from the tar archive.
             # When the tar archive gets deleted, these inodes will remain.
             destination_path.hardlink_to(inode_content)
@@ -256,12 +256,12 @@ def resolve_path(
         raise KeyError(f"dirfd {path.dirfd} not found in fd table")
 
 
-def get_root_pid(probe_log: ProbeLog) -> int | None:
+def get_root_pid(probe_log: ProbeLog) -> Pid | None:
     possible_root = []
     for pid, process in probe_log.processes.items():
-        first_op = process.execs[0].threads[pid].ops[0].data
-        if isinstance(first_op, InitProcessOp):
-            possible_root.append(pid)
+        first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0].data
+        assert isinstance(first_op, InitExecEpochOp)
+        possible_root.append(pid)
     if possible_root:
         # TODO: Fix this; min works for Linux because PIDs are assigned sequentially
         return min(possible_root)

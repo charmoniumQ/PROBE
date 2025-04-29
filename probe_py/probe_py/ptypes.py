@@ -21,7 +21,8 @@ class Pid(int):
 
 
 class ExecNo(int):
-    pass
+    def next(self) -> ExecNo:
+        return ExecNo(self + 1)
 
 
 initial_exec_no = ExecNo(0)
@@ -57,6 +58,9 @@ class Host:
 @dataclasses.dataclass(frozen=True)
 class Inode:
     host: Host
+    major: int
+    minor: int
+    inode: int
 
 
 @dataclasses.dataclass(frozen=True)

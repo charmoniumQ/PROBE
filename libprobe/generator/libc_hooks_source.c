@@ -1992,27 +1992,23 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        size_t argc = 0;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char* const* updated_env = update_env_with_probe_vars(environ, &envc);
         /* TODO: Avoid this copy */
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
             0,
             0,
         };
-        op.data.exec.argc = argc;
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_save();
@@ -2058,18 +2054,16 @@ int execl (const char *filename, const char *arg0, ...) {
         }
         va_end(ap);
         argv[argc] = NULL;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(environ, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
@@ -2098,19 +2092,16 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        size_t argc = 0;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(env, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
@@ -2138,19 +2129,16 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        size_t argc = 0;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(env, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, 0);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
@@ -2186,20 +2174,18 @@ int execle (const char *filename, const char *arg0, ...) {
             argv[i] = va_arg(ap, __type_charp);
         }
         argv[argc] = NULL;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
         char** env = va_arg(ap, __type_charpp);
         va_end(ap);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(env, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
                 .path = create_path_lazy(0, filename, 0),
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
@@ -2231,11 +2217,10 @@ int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
-        size_t argc = 0;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(environ, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -2244,9 +2229,7 @@ int execvp (const char *filename, char *const argv[]) {
                  * */
                 .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
@@ -2285,10 +2268,10 @@ int execlp (const char *filename, const char *arg0, ...) {
         }
         argv[argc] = NULL;
         va_end(ap);
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(environ, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -2297,9 +2280,7 @@ int execlp (const char *filename, const char *arg0, ...) {
                  * */
                 .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
@@ -2332,11 +2313,10 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
         char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
         bool found = lookup_on_path(filename, bin_path);
-        size_t argc = 0;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, &argc);
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(envp, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
             {.exec = {
@@ -2345,9 +2325,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
                  * */
                 .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
                 .ferrno = 0,
-                .argc = argc,
                 .argv = copied_argv,
-                .envc = envc,
                 .env = copied_updated_env,
             }},
             {0},
@@ -2600,7 +2578,7 @@ int clone(
         } else if (ret == 0) {
             /* Success; child. */
             if (flags & CLONE_THREAD) {
-                ensure_initted();
+                ensure_thread_initted();
             } else {
                 init_after_fork();
             }
