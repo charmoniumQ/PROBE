@@ -11,7 +11,7 @@ from .ptypes import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Ti
 
 
 @contextlib.contextmanager
-def parse_probe_log_ctx(probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
+def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
     """Parse probe log
 
     In this contextmanager, copied_files are extracted onto the disk.

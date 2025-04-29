@@ -1,6 +1,6 @@
 from typing import Iterator
-from .ops import InitProcessOp, InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp
-from .ptypes import Tid, Pid, ProbeLog, initial_exec_no, TaskType
+from .ops import InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp
+from .ptypes import Tid, Pid, ProbeLog, TaskType
 
 
 """The analyses make a lot of assumptions about the probe_log.
@@ -32,9 +32,9 @@ def validate_root_pid(
 ) -> Iterator[str]:
     n_roots = 0
     for pid, process in probe_log.processes.items():
-        first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0]
-        if isinstance(first_op, InitProcessOp) and first_op.is_root:
-            n_roots += 1
+        #first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0]
+        for other_pid, other_process in probe_log.processes.items():
+            raise NotImplementedError()
     if n_roots == 0:
         yield "No root pid found"
     elif n_roots > 1:
@@ -50,15 +50,9 @@ def validate_init_ops(
             for tid, thread in exec_ep.threads.items():
                 op_idx = 0
                 op = thread.ops[op_idx]
-                if exec_no == initial_exec_no and tid == pid.main_thread():
-                    if not isinstance(op.data, InitProcessOp):
-                        yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitProcesOp, not {op.data}"
-                    op_idx += 1
-
-                op = thread.ops[op_idx]
                 if tid == pid.main_thread():
                     if not isinstance(op.data, InitExecEpochOp):
-                        yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitExecEPochOp, not {op.data}"
+                        yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitExecEpochOp, not {op.data}"
                     op_idx += 1
 
                 op = thread.ops[op_idx]
@@ -67,7 +61,7 @@ def validate_init_ops(
                 op_idx += 1
 
                 for op_no, op in enumerate(thread.ops[op_idx:]):
-                    if isinstance(op, (InitProcessOp, InitExecEpochOp, InitThreadOp)):
+                    if isinstance(op, (InitExecEpochOp, InitThreadOp)):
                         yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is Init*Op, but it does not appear early enough"
 
 
@@ -135,12 +129,9 @@ def validate_execs(probe_log: ProbeLog) -> Iterator[str]:
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
                     if isinstance(op.data, ExecOp):
-                        if len(op.data.argv) != op.data.argc:
-                            yield "argv vs argc mismatch"
-                        if len(op.data.env) != op.data.envc:
-                            yield "env vs envc mismatch"
                         if not op.data.argv:
                             yield "No arguments stored in exec syscall"
+
 
 def validate_opens_and_closes(probe_log: ProbeLog) -> Iterator[str]:
     opened_fds = set[int]()

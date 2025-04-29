@@ -12,6 +12,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import typing
 import typer
 import rich.console
 import rich.pretty
@@ -19,12 +20,12 @@ import sqlalchemy.orm
 from . import analysis
 from . import file_closure
 from . import graph_utils
-from . import ssh_arg_parser
+from . import ssh_argparser
 from . import ops
 from . import parser
 from . import scp as scp_module
 from . import workflows
-from .analysis import ProcessNode, FileNode
+from .analysis import ProcessNode, FileAccess
 from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
 
 
@@ -52,22 +53,22 @@ def validate(
     """Sanity-check probe_log and report errors."""
     sys.excepthook =  sys.__excepthook__
     warning_free = True
-    with parser.parse_probe_log_ctx(path_to_probe_log) as parsed_probe_log:
-        for inode, contents in (parsed_probe_log.inodes or {}).items():
+    with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        for inode, contents in (probe_log.copied_files or {}).items():
             content_length = contents.stat().st_size
             if inode.size != content_length:
                 console.print(f"Blob for {inode} has actual size {content_length}", style="red")
                 warning_free = False
         # At this point, the inode storage is gone, but the probe_log is already in memory
-    if should_have_files and parsed_probe_log.has_inodes is None:
+    if should_have_files and not probe_log.copied_files:
         warning_free = False
         console.print("No files stored in probe log", style="red")
-    for warning in analysis.validate_probe_log(parsed_probe_log):
+    for warning in analysis.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    analysis.probe_log_to_dataflow_graph(parsed_probe_log)
-    hb_graph = analysis.probe_log_to_hb_graph(parsed_probe_log)
-    for warning in analysis.validate_hb_graph(parsed_probe_log, hb_graph):
+    analysis.probe_log_to_dataflow_graph(probe_log)
+    hb_graph = analysis.probe_log_to_hb_graph(probe_log)
+    for warning in analysis.validate_hb_graph(probe_log, hb_graph):
         warning_free = False
         console.print(warning, style="red")
     if not warning_free:
@@ -164,22 +165,22 @@ def store_dataflow_graph(path_to_probe_log: Annotated[
                 if child_process:
                     child_process.parent_process_id = parent_process_id
 
-            elif isinstance(node1, ProcessNode) and isinstance(node2, FileNode):
-                inode_info = node2.inodeOnDevice
+            elif isinstance(node1, ProcessNode) and isinstance(node2, FileAccess):
+                inode_info = node2.inode_version
                 host = get_host_name()
-                stat_info = os.stat(node2.file)
+                stat_info = os.stat(node2.path)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_output_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.device_major, device_minor  = inode_info.device_minor, host = host, path = node2.file, mtime = mtime, size = size)
+                new_output_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.inode.major, device_minor  = inode_info.inode.minor, host = host, path = node2.path, mtime = mtime, size = size)
                 session.add(new_output_inode)
 
-            elif isinstance(node1, FileNode) and isinstance(node2, ProcessNode):
-                inode_info = node1.inodeOnDevice
+            elif isinstance(node1, FileAccess) and isinstance(node2, ProcessNode):
+                inode_info = node1.inode_version
                 host = get_host_name()
-                stat_info = os.stat(node1.file)
+                stat_info = os.stat(node1.path)
                 mtime = int(stat_info.st_mtime * 1_000_000_000)
                 size = stat_info.st_size
-                new_input_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.device_major, device_minor= inode_info.device_minor, host = host, path = node1.file, mtime=mtime, size=size)
+                new_input_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.inode.major, device_minor= inode_info.inode.minor, host = host, path = node1.path, mtime=mtime, size=size)
                 session.add(new_input_inode)
 
         root_process = None
@@ -225,7 +226,7 @@ def debug_text(
                         )
         for ino_ver, path in sorted(probe_log.copied_files.items()):
             out_console.print(
-                f"device={ino_ver.inode.device_major}.{ino_ver.inode.device_minor} inode={ino_ver.inode.inode} mtime={ino_ver.mtime_sec}.{ino_ver.mtime_nsec} -> {ino_ver.size} blob"
+                f"device={ino_ver.inode.major}.{ino_ver.inode.minor} inode={ino_ver.inode.inode} mtime={ino_ver.mtime_sec}.{ino_ver.mtime_nsec} -> {ino_ver.size} blob"
             )
 
 
@@ -257,7 +258,7 @@ def docker_image(
         console.print(f"Invalid image name {image_name}", style="red")
         raise typer.Exit(code=1)
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
-        if probe_log.has_inodes is None:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
@@ -291,7 +292,7 @@ def oci_image(
 
     """
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
-        if probe_log.has_inodes is None:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
@@ -316,7 +317,7 @@ def ssh(
     Wrap SSH and record provenance of the remote command.
     """
 
-    flags, destination, remote_host = ssh_arg_parser.parse_ssh_args(ssh_args)
+    flags, destination, remote_host = ssh_argparser.parse_ssh_args(ssh_args)
 
     ssh_cmd = ["ssh"] + flags
 

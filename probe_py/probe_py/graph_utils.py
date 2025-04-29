@@ -1,8 +1,8 @@
 import typing
 import pathlib
-import networkx  # type: ignore
+import networkx
 from typing import Optional
-import pydot  # type: ignore
+import pydot
 
 
 _Node = typing.TypeVar("_Node")
@@ -10,10 +10,9 @@ _EdgeLabel = typing.TypeVar("_EdgeLabel")
 
 
 if typing.TYPE_CHECKING:
-    DiGraph: typing.TypeAlias = networkx.DiGraph[_Node]
+    DiGraph: typing.TypeAlias = networkx.DiGraph
 else:
-    class DiGraph(typing.Generic[_Node], networkx.DiGraph):
-        pass
+    DiGraph = networkx.DiGraph
 
 
 def serialize_graph(
@@ -50,9 +49,9 @@ def serialize_graph_proc_tree(
             pydot_graph.add_subgraph(subg)
 
     if output.suffix == ".dot":
-        pydot_graph.write_raw(str(output))
+        pydot_graph.write_raw(output)
     else:
-        pydot_graph.write_png(str(output))
+        pydot_graph.write_png(output)
 
 
 def relax_node(
@@ -78,9 +77,10 @@ def remove_nodes(
         keep_node_fn: typing.Callable[[_Node], bool],
         combine_edge_fn: typing.Callable[[_EdgeLabel, _EdgeLabel], _EdgeLabel],
 ) -> DiGraph[_Node]:
-    for node in list(graph.nodes):
+    for node in list(graph.nodes()):
         if not keep_node_fn(node):
             relax_node(graph, node, combine_edge_fn)
+    return graph
 
 
 def list_edges_from_start_node(graph: DiGraph[_Node], start_node: _Node) -> typing.Iterable[tuple[_Node, _Node]]:

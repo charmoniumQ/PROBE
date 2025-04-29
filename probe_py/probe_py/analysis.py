@@ -74,7 +74,7 @@ def validate_probe_log(
             }
             threads_ending_in_exec = 0
             for tid, thread in exec_epoch.threads.items():
-                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid else 0)
+                first_thread_op_idx = first_ee_op_idx + (1 if tid == pid.main_thread() else 0)
                 first_thread_op = thread.ops[first_thread_op_idx]
                 if not isinstance(first_thread_op.data, InitThreadOp):
                     ret.append(f"{first_thread_op_idx} in exec_epoch should be InitThreadOp")
@@ -505,7 +505,7 @@ def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
             data["label"] += f"\n{op.data.path.path.decode()}"
 
 
-def probe_log_to_process_tree(probe_log: ProbeLog) -> nx.DiGraph:
+def probe_log_to_process_tree(probe_log: ProbeLog) -> nx.DiGraph[str]:
     G = nx.DiGraph[str]()
 
     def epoch_node_id(pid: int, epoch_no: int) -> str:
