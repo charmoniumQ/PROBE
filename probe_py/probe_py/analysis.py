@@ -255,7 +255,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     return hb_graph
 
 
-def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]], hb_graph: nx.DiGraph) -> None:
+def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[FileVersion]], hb_graph: HbGraph) -> None:
     starting_pid = starting_node[0]
     
     starting_op = get_op(probe_log, starting_node[0], starting_node[1], starting_node[2], starting_node[3])
