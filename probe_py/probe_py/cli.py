@@ -86,7 +86,10 @@ def ops_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        only_proc_ops: bool = typer.Option(False, help="For only Exec, Clone, Wait Operations")
+        only_proc_ops: Annotated[
+            bool,
+            typer.Option(help="For only Exec, Clone, Wait Operations"),
+        ] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
