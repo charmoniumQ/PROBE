@@ -105,7 +105,7 @@ def ops_graph(
         graph_utils.remove_nodes(
             hb_graph,
             lambda node: isinstance(
-                analysis.get_op(probe_log, *node).data, # type: ignore
+                analysis.get_op(probe_log, *node).data,
                 (ops.ExecOp, ops.CloneOp, ops.WaitOp)
             ),
             lambda incoming_edge_label, outgoing_edge_label: outgoing_edge_label,
