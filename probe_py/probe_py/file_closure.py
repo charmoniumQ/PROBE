@@ -10,30 +10,30 @@ import shutil
 import warnings
 import pathlib
 import typing
-from .ptypes import ProvLog, InodeVersionLog
+from .ptypes import InodeVersionLog, ProbeLog
 from .ops import Path, ChdirOp, OpenOp, CloseOp, ExecOp, InitExecEpochOp
 from .consts import AT_FDCWD
 
 
 def build_oci_image(
-        prov_log: ProvLog,
+        probe_log: ProbeLog,
         image_name: str,
         push_docker: bool,
         verbose: bool,
         console: rich.console.Console,
 ) -> None:
-    root_pid = get_root_pid(prov_log)
+    root_pid = get_root_pid(probe_log)
     if root_pid is None:
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
-    first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
+    first_op = probe_log.processes[root_pid].execs[0].threads[root_pid].ops[0].data
     if not isinstance(first_op, InitExecEpochOp):
         console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
         copy_file_closure(
-            prov_log,
+            probe_log,
             tmpdir,
             copy=True,
             verbose=verbose,
@@ -66,11 +66,11 @@ def build_oci_image(
         )
 
         # Set up other config (env, cmd, entrypoint)
-        pid = get_root_pid(prov_log)
+        pid = get_root_pid(probe_log)
         if pid is None:
             console.print("Could not find root process; Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
-        last_op = prov_log.processes[pid].exec_epochs[0].threads[pid].ops[-1].data
+        last_op = probe_log.processes[pid].execs[0].threads[pid].ops[-1].data
         if not isinstance(last_op, ExecOp):
             console.print(f"Last op is not ExecOp: {last_op}. Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
@@ -131,33 +131,33 @@ def build_oci_image(
 
 
 def copy_file_closure(
-        prov_log: ProvLog,
+        probe_log: ProbeLog,
         destination: pathlib.Path,
         copy: bool,
         verbose: bool,
         console: rich.console.Console,
 ) -> None:
-    """Extract files used by the application recoreded in prov_log to destination
+    """Extract files used by the application recoreded in probe_log to destination
 
-    If the required file are recorded in prov_log, we will use that.
-    However, prov_log only captures files that get mutated _during the $cmd_.
+    If the required file are recorded in probe_log, we will use that.
+    However, probe_log only captures files that get mutated _during the $cmd_.
     We assume the rest of the files will not change between the time of `probe record $cmd` and `probe oci-image`.
     (so probably run those back-to-back).
-    For the files not included in prov_log, we will use the current copy on-disk.
-    However, we will test to ensure it is the same version as recorded in prov_log.
+    For the files not included in probe_log, we will use the current copy on-disk.
+    However, we will test to ensure it is the same version as recorded in probe_log.
 
     `copy` refers to whether we should copy files from disk or symlink them.
     """
 
     to_copy = dict[pathlib.Path, Path | None]()
     to_copy_exes = dict[pathlib.Path, Path | None]()
-    for pid, process in prov_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
-            root_pid = get_root_pid(prov_log)
+    for pid, process in probe_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.execs.items():
+            root_pid = get_root_pid(probe_log)
             if root_pid is None:
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
-            first_op = prov_log.processes[root_pid].exec_epochs[0].threads[root_pid].ops[0].data
+            first_op = probe_log.processes[root_pid].execs[0].threads[root_pid].ops[0].data
             if not isinstance(first_op, InitExecEpochOp):
                 console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
@@ -198,7 +198,7 @@ def copy_file_closure(
         _get_dlibs(resolved_path, dependent_dlibs)
         for dependent_dlib in dependent_dlibs:
             to_copy[pathlib.Path(dependent_dlib)] = None
-    inodes = prov_log.inodes
+    inodes = probe_log.inodes
     if inodes is None:
         raise ValueError("PROBE log appears to not contain inodes")
     for resolved_path, maybe_path in to_copy.items():
@@ -220,7 +220,7 @@ def copy_file_closure(
             # When the tar archive gets deleted, these inodes will remain.
             destination_path.hardlink_to(inode_content)
             if verbose:
-                console.print(f"Hardlinking {resolved_path} from prov_log")
+                console.print(f"Hardlinking {resolved_path} from probe_log")
         elif any(resolved_path.is_relative_to(forbidden_path) for forbidden_path in forbidden_paths):
             if verbose:
                 console.print(f"Skipping {resolved_path}")
@@ -253,10 +253,10 @@ def resolve_path(
         raise KeyError(f"dirfd {path.dirfd} not found in fd table")
 
 
-def get_root_pid(prov_log: ProvLog) -> int | None:
+def get_root_pid(probe_log: ProbeLog) -> int | None:
     possible_root = []
-    for pid, process in prov_log.processes.items():
-        first_op = process.exec_epochs[0].threads[pid].ops[0].data
+    for pid, process in probe_log.processes.items():
+        first_op = process.execs[0].threads[pid].ops[0].data
         assert isinstance(first_op, InitExecEpochOp)
         possible_root.append(pid)
     if possible_root:

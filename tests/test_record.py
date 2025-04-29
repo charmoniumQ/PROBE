@@ -68,19 +68,16 @@ commands = {
         ["python", "-c", "print(4)"],
         [true_path],
     ),
-    # bash(
-    #     *bash(
-    #         *bash("echo", "hi", "redirect_to", "file0"),
-    #         "and",
-    #         *bash("cat", "file0", "file0", "redirect_to", "file1"),
-    #     ),
-    #     "and",
-    #     *bash(
-    #         *bash("cat", "file0", "file1", "redirect_to", "file2"),
-    #         "and",
-    #         *bash("cat", "file0", "file2", "redirect_to", "file3"),
-    #     ),
-    # ),
+    "bash-in-bash": bash_multi(
+        bash_multi(
+            ["echo", "hi", "redirect_to", "file0"],
+            ["cat", "file0", "file0", "redirect_to", "file1"],
+        ),
+        bash_multi(
+            ["cat", "file0", "file1", "redirect_to", "file2"],
+            ["cat", "file0", "file2", "redirect_to", "file3"],
+        ),
+    ),
 }
 
 

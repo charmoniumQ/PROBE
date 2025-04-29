@@ -4,6 +4,7 @@ import pathlib
 import networkx as nx  # type: ignore
 from probe_py.analysis import FileNode, ProcessNode, InodeOnDevice, FileVersion
 from probe_py.workflows import NextflowGenerator
+from probe_py.analysis import DfGraph
 
 
 tmpdir = pathlib.Path(__file__).resolve().parent / "tmp"
@@ -68,7 +69,7 @@ workflow {
     Y = ProcessNode(2,("analyze", "-i", "-k"))
 
 
-    example_dataflow_graph = nx.DiGraph()
+    example_dataflow_graph = DfGraph()
     # FileNodes will be red and ProcessNodes will be blue in the visualization
     # Code can distinguish between the two using isinstance(node, ProcessNode) or likewise with FileNode
     example_dataflow_graph.add_nodes_from([A, B0, B1, C], color="red")
