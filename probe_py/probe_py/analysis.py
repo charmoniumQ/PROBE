@@ -29,6 +29,10 @@ class FileAccess:
     inode_version: InodeVersion
     path: pathlib.Path
 
+    @property
+    def label(self) -> str:
+        return f"{self.path!s} inode {self.inode_version.inode}"
+
 
 # type alias for a node
 OpNode = tuple[Pid, ExecNo, Tid, int]
@@ -40,9 +44,11 @@ EdgeType: typing.TypeAlias = tuple[OpNode, OpNode]
 if typing.TYPE_CHECKING:
     HbGraph: typing.TypeAlias = nx.DiGraph[OpNode]
     DfGraph: typing.TypeAlias = nx.DiGraph[FileAccess | ProcessNode]
+    ProcessTree: typing.TypeAlias = nx.DiGraph[str]
 else:
     HbGraph = nx.DiGraph
     DfGraph = nx.DiGraph
+    ProcessTree = nx.DiGraph
 
 
 def validate_probe_log(
@@ -339,7 +345,7 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog) -> DfGraph:
         if isinstance(node, FileAccess):
             str_id = f"{inode}_{version.mtime_sec}_{version.mtime_nsec}"
             label = f"{node.path} inode {node.inode_version.inode.inode} fv {file_version[str_id]} "
-            nx.set_node_attributes(dataflow_graph, {node: label}, "label")
+            nx.set_node_attributes(dataflow_graph, {node: label}, "label") # type: ignore
 
     return dataflow_graph
 
@@ -505,8 +511,8 @@ def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
             data["label"] += f"\n{op.data.path.path.decode()}"
 
 
-def probe_log_to_process_tree(probe_log: ProbeLog) -> nx.DiGraph[str]:
-    G = nx.DiGraph[str]()
+def probe_log_to_process_tree(probe_log: ProbeLog) -> ProcessTree:
+    G = ProcessTree()
 
     def epoch_node_id(pid: int, epoch_no: int) -> str:
         return f"pid{pid}_epoch{epoch_no}"

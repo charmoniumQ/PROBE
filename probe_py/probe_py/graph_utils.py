@@ -1,3 +1,4 @@
+from __future__ import annotations
 import typing
 import pathlib
 import networkx
@@ -12,6 +13,7 @@ _EdgeLabel = typing.TypeVar("_EdgeLabel")
 if typing.TYPE_CHECKING:
     DiGraph: typing.TypeAlias = networkx.DiGraph
 else:
+
     DiGraph = networkx.DiGraph
 
 

@@ -74,7 +74,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
 #define checked_mkdir(path)                                                                        \
     ({                                                                                             \
         DEBUG("mkdir %s", path);                                                                   \
-        int mkdir_ret = unwrapped_mkdirat(AT_FDCWD, path, 0777);                                     \
+        int mkdir_ret = unwrapped_mkdirat(AT_FDCWD, path, 0777);                                   \
         if (mkdir_ret == -1) {                                                                     \
             list_dir(path, 2);                                                                     \
             ERROR("Could not mkdir directory %s", path);                                           \
