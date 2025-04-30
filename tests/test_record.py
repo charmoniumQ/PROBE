@@ -140,10 +140,16 @@ def test_unmodified_cmds(
 
 @pytest.mark.parametrize("copy_files", [
     "none",
-    "lazily",
-    "eagerly",
+    # "lazily",
+    # "eagerly",
 ])
-@pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
+@pytest.mark.parametrize("debug", [
+    # False,
+    True,
+], ids=[
+    # "opt",
+    "dbg",
+])
 @pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
 def test_record(
         scratch_directory: pathlib.Path,

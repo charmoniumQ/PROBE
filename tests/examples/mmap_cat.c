@@ -30,7 +30,7 @@ int main (int argc, char **argv) {
 
     char* buffer = (char *) mmap(NULL, statx_result.stx_size, PROT_READ, MAP_SHARED, fd, 0);
     if (buffer == NULL || buffer == MAP_FAILED) {
-        fprintf(stderr, "Could not mmap fd=%d /* \"%s\" */, size=%lld\n", fd, argv[1], statx_result.stx_size);
+        fprintf(stderr, "Could not mmap fd=%d /* \"%s\" */, size=%lld\n", fd, argv[1], (unsigned long long)statx_result.stx_size);
         perror("mmap");
         exit(1);
     }

@@ -217,9 +217,10 @@
           };
         };
         devShells = {
-          default = craneLib.devShell {
+          default = pkgs.pkgsMusl.mkShell {
             shellHook = ''
               export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+              export CC=musl-clang
               pushd $(git rev-parse --show-toplevel) > /dev/null
               source ./setup_devshell.sh
               popd > /dev/null
@@ -270,7 +271,7 @@
                 pkgs.git
                 pkgs.include-what-you-use
                 pkgs.libclang
-                # pkgs.musl
+                pkgs.musl
 
                 pkgs.which
                 pkgs.coreutils
