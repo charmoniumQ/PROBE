@@ -156,8 +156,10 @@ impl Recorder {
         fs::create_dir(record_dir.path().join(probe_headers::INODES_SUBDIR))?;
 
         let ptc = probe_headers::ProcessTreeContext {
-            libprobe_path: probe_headers::FixedPath::from_path_ref(libprobe_path),
+            libprobe_path: probe_headers::FixedPath::from_path_ref(libprobe_path)
+                .map_err(|e| eyre!("{e:?}"))?,
             copy_files: self.copy_files,
+            parent_of_root: std::process::id(),
         };
         fs::write(
             record_dir

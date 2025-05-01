@@ -1,4 +1,4 @@
-from typing import Iterator
+import typing
 from .ops import InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp
 from .ptypes import Tid, Pid, ProbeLog, TaskType
 
@@ -12,14 +12,13 @@ libprobe, but we should still test them, for defensive coding and error-localiza
 
 def validate_probe_log(
         probe_log: ProbeLog,
-) -> Iterator[str]:
+) -> typing.Iterator[str]:
     """Yields validation errors as strings
 
     If you are fixing errors, resolve the first one first. Programmers can
     assume the errors above the particular check have been checked and resolved.
 
     """
-    yield from validate_root_pid(probe_log)
     yield from validate_init_ops(probe_log)
     yield from validate_exec_epoch_presence(probe_log)
     yield from validate_clone_targets(probe_log)
@@ -27,24 +26,11 @@ def validate_probe_log(
     yield from validate_opens_and_closes(probe_log)
 
 
-def validate_root_pid(
-        probe_log: ProbeLog,
-) -> Iterator[str]:
-    n_roots = 0
-    for pid, process in probe_log.processes.items():
-        #first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0]
-        for other_pid, other_process in probe_log.processes.items():
-            raise NotImplementedError()
-    if n_roots == 0:
-        yield "No root pid found"
-    elif n_roots > 1:
-        yield "Multiple roots found"
-
-
 def validate_init_ops(
         probe_log: ProbeLog,
-) -> Iterator[str]:
+) -> typing.Iterator[str]:
     """Init ops have to appear before any other ops"""
+    n_roots = 0
     for pid, process in probe_log.processes.items():
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
@@ -53,6 +39,8 @@ def validate_init_ops(
                 if tid == pid.main_thread():
                     if not isinstance(op.data, InitExecEpochOp):
                         yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitExecEpochOp, not {op.data}"
+                    elif op.data.parent_pid == probe_log.probe_options.parent_of_root:
+                            n_roots += 1
                     op_idx += 1
 
                 op = thread.ops[op_idx]
@@ -64,8 +52,13 @@ def validate_init_ops(
                     if isinstance(op, (InitExecEpochOp, InitThreadOp)):
                         yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is Init*Op, but it does not appear early enough"
 
+    if n_roots == 0:
+        yield "No root pid found"
+    elif n_roots > 1:
+        yield "Multiple roots found"
 
-def validate_exec_epoch_presence(probe_log: ProbeLog) -> Iterator[str]:
+
+def validate_exec_epoch_presence(probe_log: ProbeLog) -> typing.Iterator[str]:
     """We must have all exec_epochs from 0..N"""
     for pid, process in probe_log.processes.items():
         present_execs = set(process.execs.keys())
@@ -75,7 +68,7 @@ def validate_exec_epoch_presence(probe_log: ProbeLog) -> Iterator[str]:
             yield f"{pid} has execs {sorted(present_execs)}; expected [0, ..., {max_exec_no}]"
 
 
-def validate_clone_targets(probe_log: ProbeLog) -> Iterator[str]:
+def validate_clone_targets(probe_log: ProbeLog) -> typing.Iterator[str]:
     """Clone must return threads that we observe"""
     pids = probe_log.processes.keys()
     for pid, process in probe_log.processes.items():
@@ -103,7 +96,7 @@ def validate_clone_targets(probe_log: ProbeLog) -> Iterator[str]:
                             yield f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track"
 
 
-def validate_clones_and_waits(probe_log: ProbeLog) -> Iterator[str]:
+def validate_clones_and_waits(probe_log: ProbeLog) -> typing.Iterator[str]:
     """Cloned PIDs and TIDs == waited PIDs and TIDs"""
     cloned_processes = set[tuple[TaskType, int]]()
     waited_processes = set[tuple[TaskType, int]]()
@@ -123,7 +116,7 @@ def validate_clones_and_waits(probe_log: ProbeLog) -> Iterator[str]:
         yield f"Waited different PIDs or TIDs than we cloned: {waited_processes=} {cloned_processes=}"
 
 
-def validate_execs(probe_log: ProbeLog) -> Iterator[str]:
+def validate_execs(probe_log: ProbeLog) -> typing.Iterator[str]:
     for pid, process in probe_log.processes.items():
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
@@ -133,7 +126,7 @@ def validate_execs(probe_log: ProbeLog) -> Iterator[str]:
                             yield "No arguments stored in exec syscall"
 
 
-def validate_opens_and_closes(probe_log: ProbeLog) -> Iterator[str]:
+def validate_opens_and_closes(probe_log: ProbeLog) -> typing.Iterator[str]:
     opened_fds = set[int]()
     closed_fds = set[int]()
     for pid, process in probe_log.processes.items():
