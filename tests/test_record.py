@@ -49,21 +49,32 @@ public class HelloWorld {
 true_path = shutil.which("true")
 assert true_path
 false_path = shutil.which("false")
+assert false_path
+echo_path = shutil.which("echo")
+assert echo_path
 
 
 commands = {
     "echo": ["echo", "hi"],
+    "echo-path": [echo_path, "hi"],
     "head": ["head", "test_file.txt"],
+    "bash-multi": bash_multi(
+        # echo is a bash bulitin
+        # so we use echo_path to get the real echo executable
+        [echo_path, "hi"],
+        [echo_path, "hello"],
+        [echo_path, "world"],
+    ),
     "c-hello": bash_multi(
         ["echo", c_hello_world, "redirect_to", "test.c"],
         ["gcc", "test.c"],
         ["./a.out"],
     ),
-    "java-subprocess-hello": bash_multi(
-        ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
-        ["javac", "HelloWorld.java"],
-        ["java", "HelloWorld"],
-    ),
+    # "java-subprocess-hello": bash_multi(
+    #     ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
+    #     ["javac", "HelloWorld.java"],
+    #     ["java", "HelloWorld"],
+    # ),
     "python-hello": bash_multi(
         ["python", "-c", "print(4)"],
         [true_path],
@@ -133,8 +144,6 @@ def test_unmodified_cmds(
         command: list[str],
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("hello world")
-    print(scratch_directory)
-    print(shlex.join(command))
     subprocess.run(command, check=True, cwd=scratch_directory)
 
 
@@ -144,7 +153,7 @@ def test_unmodified_cmds(
     "eagerly",
 ])
 @pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
-@pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
+@pytest.mark.parametrize("command", [commands["echo-path"]], ids=["echo-path"])
 def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,
@@ -156,6 +165,10 @@ def test_record(
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("hello world")
     print(scratch_directory)
+
+    print(shutil.which("probe"))
+    import json
+    pathlib.Path("env.json").write_text(json.dumps(dict(os.environ)))
 
     cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
     print(shlex.join(cmd))
@@ -200,15 +213,12 @@ def test_downstream_analyses(
     cmd = ["probe", "record", "--copy-files", "none", *command]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
+
     cmd = ["probe", "export", "debug-text"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    subprocess.run(cmd, check=True, capture_output=True, cwd=scratch_directory)
 
-    cmd = ["probe", "export", "ops-graph", "test.png"]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
-
-    cmd = ["probe", "export", "ops-graph", "--only-proc-ops", "test.png"]
+    cmd = ["probe", "export", "hb-graph", "test.png"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 

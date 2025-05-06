@@ -41,8 +41,13 @@ typedef void* thrd_t;
 typedef void* thrd_start_t;
 typedef void* pthread_t;
 typedef void* pthread_attr_t;
+typedef void* posix_spawn_file_actions_t;
+typedef void* posix_spawnattr_t;
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
+
+struct PthreadHelperArgs;
+struct ThrdHelperArgs;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
@@ -1985,6 +1990,7 @@ int execv (const char *filename, char *const argv[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2046,6 +2052,7 @@ int execl (const char *filename, const char *arg0, ...) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2084,6 +2091,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2121,6 +2129,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2168,6 +2177,7 @@ int execle (const char *filename, const char *arg0, ...) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2212,6 +2222,7 @@ int execvp (const char *filename, char *const argv[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2263,6 +2274,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2308,6 +2320,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2323,6 +2336,107 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
             op.data.exec.ferrno = saved_errno;
             prov_log_record(op);
         }
+    });
+}
+
+
+int posix_spawn(pid_t* restrict pid, const char* restrict path,
+                const posix_spawn_file_actions_t* restrict file_actions,
+                const posix_spawnattr_t* restrict attrp, char* const argv[restrict],
+                char* const envp[restrict]) {
+    void* pre_call = ({
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(envp, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+
+        struct Op spawn_op =
+        { spawn_op_code,
+          {.spawn = {
+          .exec =
+          {
+          .path = create_path_lazy(0, path, 0),
+          .ferrno = 0,
+          .argv = copied_argv,
+          .env = copied_updated_env,
+      },
+          .child_pid = 0,
+          .ferrno = 0,
+      }},
+            {0},
+            0,
+            0,
+        };
+        if (LIKELY(prov_log_is_enabled())) {
+            prov_log_try(spawn_op);
+            prov_log_save();
+        } else {
+            prov_log_save();
+        }
+    });
+    void* call = ({
+        int ret = unwrapped_posix_spawn(pid, path, file_actions, attrp, argv, updated_env);
+    });
+    void* post_call = ({
+        if (UNLIKELY(ret != 0)) {
+            spawn_op.data.spawn.ferrno = errno;
+        } else {
+            spawn_op.data.spawn.child_pid = *pid;
+        }
+        prov_log_record(spawn_op);
+        free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
+    });
+}
+
+int posix_spawnp(pid_t* restrict pid, const char* restrict file,
+                 const posix_spawn_file_actions_t* restrict file_actions,
+                 const posix_spawnattr_t* restrict attrp, char* const argv[restrict],
+                 char* const envp[restrict]) {
+    void* pre_call = ({
+
+        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+        bool found = lookup_on_path(file, bin_path);
+
+        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        size_t envc = 0;
+        char * const* updated_env = update_env_with_probe_vars(envp, &envc);
+        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+
+        struct Op spawn_op =
+        { spawn_op_code,
+          {.spawn = {
+          .exec =
+          {
+          .path = found ? create_path_lazy(0, bin_path, 0) : null_path,
+          .ferrno = 0,
+          .argv = copied_argv,
+          .env = copied_updated_env,
+      },
+          .child_pid = 0,
+          .ferrno = 0,
+      }},
+            {0},
+            0,
+            0,
+        };
+        if (LIKELY(prov_log_is_enabled())) {
+            prov_log_try(spawn_op);
+            prov_log_save();
+        } else {
+            prov_log_save();
+        }
+    });
+    void* call = ({
+        int ret = unwrapped_posix_spawnp(pid, file, file_actions, attrp, argv, updated_env);
+    });
+    void* post_call = ({
+        if (UNLIKELY(ret != 0)) {
+            spawn_op.data.spawn.ferrno = errno;
+        } else {
+            spawn_op.data.spawn.child_pid = *pid;
+        }
+        prov_log_record(spawn_op);
+        free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
     });
 }
 
@@ -2790,6 +2904,10 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
             0,
         };
     });
+    void* call = ({
+        struct ThrdHelperArgs real_args = {func, arg};
+        int ret = unwrapped_thrd_create(thr, thrd_helper, &real_args);
+    });
     void* post_call = ({
         if (UNLIKELY(ret != thrd_success)) {
             /* Failure */
@@ -2861,6 +2979,10 @@ int pthread_create(pthread_t *restrict thread,
             0,
             0,
         };
+    });
+    void* call = ({
+        struct PthreadHelperArgs real_args = {start_routine, arg};
+        int ret = unwrapped_pthread_create(thread, attr, pthread_helper, &real_args);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {

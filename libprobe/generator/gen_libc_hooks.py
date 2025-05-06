@@ -471,6 +471,7 @@ includes = """
 #include <ftw.h>                  // for FTW
 #include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
 #include <signal.h>               // for siginfo_t
+#include <spawn.h>                // for posix_spawn_file_actions_t
 #include <stdio.h>                // for L_tmpnam, FILE, size_t
 #include <sys/stat.h>             // IWYU pragma: keep for stat
 #include <sys/time.h>             // IWYU pragma: keep for timeval
@@ -539,9 +540,10 @@ defines = """
 #include <errno.h>                                           // for errno
 #include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
 #include <ftw.h>                                             // for ftw, nftw
-#include <limits.h>                                          // for INT_MAX, PATH_MAX
+#include <linux/close_range.h>                               // for CLOSE_RANGE_CLOEXEC
 #include <pthread.h>                                         // for pthread_...
 #include <sched.h>                                           // for CLONE_TH...
+#include <spawn.h>                                           // for posix_spawn_file_actions_t
 #include <stdarg.h>                                          // for va_arg
 #include <stdbool.h>                                         // for false, true
 #include <stdint.h>                                          // for int64_t
@@ -560,13 +562,14 @@ defines = """
 
 #include "../include/libprobe/prov_ops.h"                    // for Op, OpCode
 #include "../src/arena.h"                                    // for prov_log...
+#include "../src/debug_logging.h"                            // for DEBUG
 #include "../src/env.h"                                      // for arena_co...
+#include "../src/global_state.h"                             // for ensure_i...
 #include "../src/lookup_on_path.h"                           // for lookup_o...
+#include "../src/pthread_helper.h"                           // for pthread_helper
 #include "../src/prov_buffer.h"                              // for prov_log...
 #include "../src/prov_utils.h"                               // for create_p...
 #include "../src/util.h"                                     // for LIKELY
-#include "../src/debug_logging.h"                            // for DEBUG
-#include "../src/global_state.h"                             // for ensure_i...
 
 struct rusage;
 struct stat;

@@ -21,6 +21,11 @@ class Pid(int):
 
 
 class ExecNo(int):
+    def prev(self) -> ExecNo:
+        if self != 0:
+            return ExecNo(self - 1)
+        else:
+            raise RuntimeError()
     def next(self) -> ExecNo:
         return ExecNo(self + 1)
 
@@ -48,7 +53,7 @@ class Host:
         # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
         if consts.SYSTEMD_MACHINE_ID.exists():
             machine_id_bytes = int(consts.SYSTEMD_MACHINE_ID.read_text().strip(), 16).to_bytes(16)
-            hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest())
+            hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)
             return Host(socket.gethostname(), hashed_machine_id)
         else:
             raise NotImplementedError("Currently, PROBE requires /etc/machine-id, which should be set by SystemD")
@@ -155,6 +160,9 @@ class ProbeLog:
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
     probe_options: ProbeOptions
     host: Host
+
+    def get_op(self, pid: Pid, exec_no: ExecNo, tid: Tid, op_no: int) -> ops.Op:
+        return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
 
 
 # TODO: implement this in probe_py.generated.ops

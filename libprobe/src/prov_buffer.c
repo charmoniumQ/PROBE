@@ -62,8 +62,7 @@ static int copy_to_store(const struct Path* path) {
 
 static void maybe_copy_to_store(enum Access access, struct Path* path) {
     enum CopyFiles mode = get_copy_files_mode();
-    if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly) && path->path &&
-        path->stat_valid) {
+    if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly) && path->path && path->stat_valid) {
         if (mode == CopyFiles_Lazily) {
             if (access == READ_ACCESS) {
                 DEBUG("Reading %s %ld", path->path, path->inode);
@@ -81,8 +80,7 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
                 }
             } else if (access == TRUNCATE_WRITE_ACCESS) {
                 if (inode_table_contains(get_read_inodes(), path)) {
-                    if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(),
-                                                      path)) {
+                    if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
                         DEBUG("Mutating, but not copying %s %ld since it is copied already or "
                               "overwritten",
                               path->path, path->inode);
@@ -93,8 +91,8 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
                         }
                     }
                 } else {
-                    DEBUG("Mutating, but not copying %s %ld since it was never read",
-                          path->path, path->inode);
+                    DEBUG("Mutating, but not copying %s %ld since it was never read", path->path,
+                          path->inode);
                 }
             }
         } else if (access == READ_ACCESS || access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
@@ -124,31 +122,33 @@ void prov_log_try(struct Op op) {
 
     /* Think about copying files if necessary */
     switch (op.op_code) {
-        case open_op_code: {
-            enum Access access = UNKNOWN_ACCESS;
-            if ((op.data.open.flags & O_ACCMODE) == O_RDONLY) {
-                access = READ_ACCESS;
-            } else if (op.data.open.flags & (O_TRUNC | O_CREAT)) {
-                access = TRUNCATE_WRITE_ACCESS;
-            } else if ((op.data.open.flags & O_ACCMODE) == O_WRONLY) {
-                access = WRITE_ACCESS;
-            } else if ((op.data.open.flags & O_ACCMODE) == O_RDONLY) {
-                access = READ_WRITE_ACCESS;
-            } else {
-                ASSERTF(false, "unreachable code");
-            }
-            maybe_copy_to_store(access, &op.data.open.path);
-            break;
+    case open_op_code: {
+        enum Access access = UNKNOWN_ACCESS;
+        if ((op.data.open.flags & O_ACCMODE) == O_RDONLY) {
+            access = READ_ACCESS;
+        } else if (op.data.open.flags & (O_TRUNC | O_CREAT)) {
+            access = TRUNCATE_WRITE_ACCESS;
+        } else if ((op.data.open.flags & O_ACCMODE) == O_WRONLY) {
+            access = WRITE_ACCESS;
+        } else if ((op.data.open.flags & O_ACCMODE) == O_RDWR) {
+            access = READ_WRITE_ACCESS;
+        } else {
+            ASSERTF(false, "unreachable code, %s %d", op.data.open.path.path,
+                    op.data.open.flags & O_ACCMODE);
         }
-        case exec_op_code: {
-            maybe_copy_to_store(READ_ACCESS, &op.data.exec.path);
-            break;
-        }
-        default: break;
+        maybe_copy_to_store(access, &op.data.open.path);
+        break;
     }
-
-    if (op.op_code == exec_op_code) {
-        prov_log_record(op);
+    case exec_op_code: {
+        maybe_copy_to_store(READ_ACCESS, &op.data.exec.path);
+        break;
+    }
+    case spawn_op_code: {
+        maybe_copy_to_store(READ_ACCESS, &op.data.spawn.exec.path);
+        break;
+    }
+    default:
+        break;
     }
 }
 

@@ -96,6 +96,12 @@ struct ExecOp {
     char* const* env;
 };
 
+struct SpawnOp {
+    struct ExecOp exec;
+    pid_t child_pid;
+    int ferrno;
+};
+
 enum TaskType {
     TASK_PID,
     TASK_TID,
@@ -283,6 +289,7 @@ enum OpCode {
     close_op_code,
     chdir_op_code,
     exec_op_code,
+    spawn_op_code,
     clone_op_code,
     exit_op_code,
     access_op_code,
@@ -310,6 +317,7 @@ struct Op {
         struct CloseOp close;
         struct ChdirOp chdir;
         struct ExecOp exec;
+        struct SpawnOp spawn;
         struct CloneOp clone;
         struct ExitOp exit;
         struct AccessOp access;

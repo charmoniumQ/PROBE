@@ -183,6 +183,7 @@ def copy_file_closure(
                             resolved_path = resolve_path(fds, path)
                             to_copy_exes[resolved_path] = path
                     elif isinstance(op.data, CloseOp):
+                        raise NotImplementedError()
                         for fd in range(op.data.low_fd, op.data.high_fd + 1):
                             if fd in fds:
                                 del fds[fd]
@@ -205,6 +206,7 @@ def copy_file_closure(
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         if maybe_path is not None:
+            raise NotImplementedError()
             ino_ver = InodeVersion.from_path(maybe_path)
         else:
             ino_ver = None

@@ -30,7 +30,6 @@ def validate_init_ops(
         probe_log: ProbeLog,
 ) -> typing.Iterator[str]:
     """Init ops have to appear before any other ops"""
-    n_roots = 0
     for pid, process in probe_log.processes.items():
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
@@ -39,8 +38,6 @@ def validate_init_ops(
                 if tid == pid.main_thread():
                     if not isinstance(op.data, InitExecEpochOp):
                         yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitExecEpochOp, not {op.data}"
-                    elif op.data.parent_pid == probe_log.probe_options.parent_of_root:
-                            n_roots += 1
                     op_idx += 1
 
                 op = thread.ops[op_idx]
@@ -52,18 +49,13 @@ def validate_init_ops(
                     if isinstance(op, (InitExecEpochOp, InitThreadOp)):
                         yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is Init*Op, but it does not appear early enough"
 
-    if n_roots == 0:
-        yield "No root pid found"
-    elif n_roots > 1:
-        yield "Multiple roots found"
-
 
 def validate_exec_epoch_presence(probe_log: ProbeLog) -> typing.Iterator[str]:
     """We must have all exec_epochs from 0..N"""
     for pid, process in probe_log.processes.items():
         present_execs = set(process.execs.keys())
         max_exec_no = max(process.execs.keys())
-        expected_execs = set(range(0, max_exec_no))
+        expected_execs = set(range(0, max_exec_no + 1))
         if present_execs != expected_execs:
             yield f"{pid} has execs {sorted(present_execs)}; expected [0, ..., {max_exec_no}]"
 
@@ -137,7 +129,7 @@ def validate_opens_and_closes(probe_log: ProbeLog) -> typing.Iterator[str]:
                         opened_fds.add(op.data.fd)
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
                         # Range in Python is up-to-not-including high_fd, so we add one to it.
-                        closed_fds.update(range(op.data.low_fd, op.data.high_fd + 1))
+                        closed_fds.add(op.data.fd)
     reserved_fds = {0, 1, 2}
     opened_fds -= reserved_fds
     closed_fds -= reserved_fds

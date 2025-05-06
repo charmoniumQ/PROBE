@@ -51,8 +51,8 @@ def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[Prob
             processes,
             inodes,
             ProbeOptions(
-                copy_files=options.copy_files != 0,
-                parent_of_root=options.parent_of_root,
+                copy_files=options["copy_files"] != 0,
+                parent_of_root=options["parent_of_root"],
             ),
             host,
         )
