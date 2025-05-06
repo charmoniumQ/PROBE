@@ -70,11 +70,11 @@ commands = {
         ["gcc", "test.c"],
         ["./a.out"],
     ),
-    # "java-subprocess-hello": bash_multi(
-    #     ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
-    #     ["javac", "HelloWorld.java"],
-    #     ["java", "HelloWorld"],
-    # ),
+    "java-subprocess-hello": bash_multi(
+        ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
+        ["javac", "HelloWorld.java"],
+        ["java", "HelloWorld"],
+    ),
     "python-hello": bash_multi(
         ["python", "-c", "print(4)"],
         [true_path],
@@ -165,10 +165,6 @@ def test_record(
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("hello world")
     print(scratch_directory)
-
-    print(shutil.which("probe"))
-    import json
-    pathlib.Path("env.json").write_text(json.dumps(dict(os.environ)))
 
     cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
     print(shlex.join(cmd))
