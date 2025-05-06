@@ -5,6 +5,7 @@ import hmac
 import functools
 import os
 import pathlib
+import random
 import socket
 import typing
 import numpy
@@ -56,7 +57,16 @@ class Host:
             hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)
             return Host(socket.gethostname(), hashed_machine_id)
         else:
-            raise NotImplementedError("Currently, PROBE requires /etc/machine-id, which should be set by SystemD")
+            # In containers and GitHub CI, SystemD machine-id may not exist.
+            # Our alternative is to create a random iD, and store it in a persistent location
+            alternative_machine_id = consts.get_state_dir() / "machine-id"
+            if alternative_machine_id.exists():
+                return Host(socket.gethostname(), int(alternative_machine_id.read_text(), 16))
+            else:
+                alternative_machine_id.parent.mkdir(exist_ok=True, parents=True)
+                machine_id = int.from_bytes(random.randbytes(8))
+                alternative_machine_id.write_text(f"{machine_id:08x}")
+                return Host(socket.gethostname(), machine_id)
 
 
 @dataclasses.dataclass(frozen=True)
