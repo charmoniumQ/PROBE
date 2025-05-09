@@ -33,23 +33,13 @@ void prov_log_save() {
     arena_sync(get_data_arena());
 }
 
-static inline bool is_read_op(struct Op op) {
-    return (op.op_code == open_op_code &&
-            (op.data.open.flags & O_RDONLY || op.data.open.flags & O_RDWR)) ||
-           op.op_code == exec_op_code || op.op_code == readdir_op_code ||
-           op.op_code == read_link_op_code;
-}
-
-static inline bool is_mutate_op(struct Op op) {
-    return op.op_code == open_op_code &&
-           (op.data.open.flags & O_WRONLY || op.data.open.flags & O_RDWR);
-}
-
-static inline bool is_replace_op(struct Op op) {
-    /* TODO: Double check flags here */
-    return op.op_code == open_op_code &&
-           (op.data.open.flags & O_TRUNC || op.data.open.flags & O_CREAT);
-}
+enum Access {
+    READ_ACCESS,
+    TRUNCATE_WRITE_ACCESS,
+    WRITE_ACCESS,
+    READ_WRITE_ACCESS,
+    UNKNOWN_ACCESS,
+};
 
 static int copy_to_store(const struct Path* path) {
     static thread_local struct FixedPath store_path;
@@ -89,6 +79,54 @@ static int copy_to_store(const struct Path* path) {
     }
 }
 
+static void maybe_copy_to_store(enum Access access, struct Path* path) {
+    enum CopyFiles mode = get_copy_files_mode();
+    if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly) && path->path && path->stat_valid) {
+        if (mode == CopyFiles_Lazily) {
+            if (access == READ_ACCESS) {
+                DEBUG("Reading %s %ld", path->path, path->inode);
+                inode_table_put_if_not_exists(get_read_inodes(), path);
+            } else if (access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
+                if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+                    DEBUG("Mutating, but not copying %s %ld since it is copied already or "
+                          "overwritten",
+                          path->path, path->inode);
+                } else {
+                    DEBUG("Mutating, therefore copying %s %ld", path->path, path->inode);
+                    if (copy_to_store(path) != 0) {
+                        WARNING("Copying failed");
+                    }
+                }
+            } else if (access == TRUNCATE_WRITE_ACCESS) {
+                if (inode_table_contains(get_read_inodes(), path)) {
+                    if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+                        DEBUG("Mutating, but not copying %s %ld since it is copied already or "
+                              "overwritten",
+                              path->path, path->inode);
+                    } else {
+                        DEBUG("Replace after read %s %ld", path->path, path->inode);
+                        if (copy_to_store(path) != 0) {
+                            WARNING("Copying failed");
+                        }
+                    }
+                } else {
+                    DEBUG("Mutating, but not copying %s %ld since it was never read", path->path,
+                          path->inode);
+                }
+            }
+        } else if (access == READ_ACCESS || access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
+            ASSERTF(mode == CopyFiles_Eagerly, "");
+            if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+                DEBUG("Not copying %s %ld because already did", path->path, path->inode);
+            } else {
+                if (copy_to_store(path) != 0) {
+                    WARNING("Copying failed");
+                }
+            }
+        }
+    }
+}
+
 /*
  * Call this to indicate that the process is about to do some op.
  * The values of the op that are not known before executing the call
@@ -98,60 +136,36 @@ static int copy_to_store(const struct Path* path) {
  */
 void prov_log_try(struct Op op) {
     ASSERTF(FIRST_OP_CODE < op.op_code && op.op_code < LAST_OP_CODE, "%d", op.op_code);
+
     if (op.op_code == clone_op_code && op.data.clone.flags & CLONE_VFORK) {
         DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
     }
-    if (op.op_code == exec_op_code) {
-        prov_log_record(op);
-    }
 
-    for (char i = 0; i < 2; ++i) {
-        const struct Path* path = (i == 0) ? op_to_path(&op) : op_to_second_path(&op);
-        enum CopyFiles mode = get_copy_files_mode();
-        if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly) && path->path &&
-            path->stat_valid) {
-            if (mode == CopyFiles_Lazily) {
-                if (is_read_op(op)) {
-                    DEBUG("Reading %s %ld", path->path, path->inode);
-                    inode_table_put_if_not_exists(get_read_inodes(), path);
-                } else if (is_mutate_op(op)) {
-                    if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
-                        DEBUG("Mutating, but not copying %s %ld since it is copied already or "
-                              "overwritten",
-                              path->path, path->inode);
-                    } else {
-                        DEBUG("Mutating, therefore copying %s %ld", path->path, path->inode);
-                        if (copy_to_store(path) != 0) {
-                            DEBUG("Copying failed");
-                        }
-                    }
-                } else if (is_replace_op(op)) {
-                    if (inode_table_contains(get_read_inodes(), path)) {
-                        if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(),
-                                                          path)) {
-                            DEBUG("Mutating, but not copying %s %ld since it is copied already or "
-                                  "overwritten",
-                                  path->path, path->inode);
-                        } else {
-                            DEBUG("Replace after read %s %ld", path->path, path->inode);
-                            if (copy_to_store(path) != 0) {
-                                DEBUG("Copying failed");
-                            }
-                        }
-                    } else {
-                        DEBUG("Mutating, but not copying %s %ld since it was never read",
-                              path->path, path->inode);
-                    }
-                }
-            } else if (is_read_op(op) || is_mutate_op(op)) {
-                ASSERTF(mode == CopyFiles_Eagerly, "");
-                if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
-                    DEBUG("Not copying %s %ld because already did", path->path, path->inode);
-                } else {
-                    copy_to_store(path);
-                }
-            }
+    /* Think about copying files if necessary */
+    switch (op.op_code) {
+    case open_op_code: {
+        enum Access access = UNKNOWN_ACCESS;
+        if ((op.data.open.flags & O_ACCMODE) == O_RDONLY) {
+            access = READ_ACCESS;
+        } else if (op.data.open.flags & (O_TRUNC | O_CREAT)) {
+            access = TRUNCATE_WRITE_ACCESS;
+        } else if ((op.data.open.flags & O_ACCMODE) == O_WRONLY) {
+            access = WRITE_ACCESS;
+        } else if ((op.data.open.flags & O_ACCMODE) == O_RDWR) {
+            access = READ_WRITE_ACCESS;
+        } else {
+            ASSERTF(false, "unreachable code, %s %d", op.data.open.path.path,
+                    op.data.open.flags & O_ACCMODE);
         }
+        maybe_copy_to_store(access, &op.data.open.path);
+        break;
+    }
+    case exec_op_code: {
+        maybe_copy_to_store(READ_ACCESS, &op.data.exec.path);
+        break;
+    }
+    default:
+        break;
     }
 }
 
@@ -167,13 +181,14 @@ void prov_log_record(struct Op op) {
     if (op.op_code != readdir_op_code) {
         DEBUG("recording op: %s", str);
     }
-    if (op.op_code == exec_op_code) {
-        DEBUG("Exec:");
-        /*
-        for (size_t idx = 0; idx < op.data.exec.envc; ++idx) {
-            fprintf(stderr, "'%s'\n", op.data.exec.env[idx]);
+    if (op.op_code == init_exec_epoch_op_code) {
+        DEBUG("Init exec:");
+        for (size_t idx = 0; op.data.init_exec_epoch.argv[idx]; ++idx) {
+            fprintf(stderr, "'%s' ", op.data.init_exec_epoch.argv[idx]);
         }
-        */
+        fprintf(stderr, "\n");
+    } else if (op.op_code == exec_op_code) {
+        DEBUG("Exec:");
         fprintf(stderr, "'%s' ", op.data.exec.path.path);
         for (size_t idx = 0; op.data.exec.argv[idx]; ++idx) {
             fprintf(stderr, "'%s' ", op.data.exec.argv[idx]);
