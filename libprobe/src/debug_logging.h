@@ -27,6 +27,8 @@
 #define DEBUG(...)
 #endif
 
+#define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
+
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
         char* errno_str = strndup(strerror(errno), 4096);                                          \
