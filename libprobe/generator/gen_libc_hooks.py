@@ -387,10 +387,10 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             ]),
         ),
     ]
-    # For some reason, Clang analyzer can suddenly prove that if execvpe returns, errno (call_errno) must be non-zero.
+    # For some reason, Clang analyzer can suddenly prove that if execle returns, errno (call_errno) must be non-zero.
     # So this is a dead store.
     # But it can't prove that for the other execs
-    if func.name != "execvpe":
+    if func.name != "execle":
         pre_call_stmts.insert(0, define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno")))
     post_call_stmts = []
 
@@ -452,8 +452,8 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                 cond=pycparser.c_ast.ID(name="call_errno"),
                 iftrue=pycparser.c_ast.ID(name="call_errno"),
                 iffalse=pycparser.c_ast.ID(name="saved_errno"),
-            ) if func.name != "execvpe" else pycparser.c_ast.ID(name="call_errno"),
-            # See note above regarding execvpe
+            ) if func.name != "execle" else pycparser.c_ast.ID(name="call_errno"),
+            # See note above regarding execle
         ),
     )
 
