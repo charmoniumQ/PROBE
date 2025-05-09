@@ -114,6 +114,15 @@ def does_buildah_work() -> bool:
 
 
 @pytest.fixture(scope="session")
+def compile_examples() -> None:
+    subprocess.run(
+        ["make", "--directory", str(project_root / "tests/examples")],
+        capture_output=True,
+        check=True,
+    )
+
+
+@pytest.fixture(scope="session")
 def scratch_directory_parent() -> pathlib.Path:
     real_scratch_directory_parent = pathlib.Path(__file__).resolve().parent / "tmp"
     if real_scratch_directory_parent.exists():
@@ -160,6 +169,7 @@ def test_record(
         does_podman_work: bool,
         does_docker_work: bool,
         does_buildah_work: bool,
+        compile_examples: None,
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("hello world")
     print(scratch_directory)

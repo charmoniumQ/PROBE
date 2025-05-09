@@ -204,6 +204,8 @@
                 pkgs.podman
                 pkgs.docker
                 pkgs.coreutils # so we can `probe record head ...`, etc.
+                pkgs.gnumake
+                pkgs.clang
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = "pytest -v -W error .";
