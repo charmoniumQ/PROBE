@@ -251,6 +251,8 @@ pub enum OpInternal {
     #[serde(untagged)]
     ExecOp(ExecOp),
     #[serde(untagged)]
+    SpawnOp(SpawnOp),
+    #[serde(untagged)]
     CloneOp(CloneOp),
     #[serde(untagged)]
     ExitOp(ExitOp),
@@ -299,6 +301,7 @@ impl FfiFrom<C_Op> for OpInternal {
             C_OpCode_close_op_code => Self::CloseOp(unsafe { value.close }.ffi_into(ctx)?),
             C_OpCode_chdir_op_code => Self::ChdirOp(unsafe { value.chdir }.ffi_into(ctx)?),
             C_OpCode_exec_op_code => Self::ExecOp(unsafe { value.exec }.ffi_into(ctx)?),
+            C_OpCode_spawn_op_code => Self::SpawnOp(unsafe { value.spawn }.ffi_into(ctx)?),
             C_OpCode_clone_op_code => Self::CloneOp(unsafe { value.clone }.ffi_into(ctx)?),
             C_OpCode_exit_op_code => Self::ExitOp(unsafe { value.exit }.ffi_into(ctx)?),
             C_OpCode_access_op_code => Self::AccessOp(unsafe { value.access }.ffi_into(ctx)?),
