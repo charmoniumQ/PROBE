@@ -30,6 +30,7 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
             -1,
             -1,
             -1,
+            0,
             {0},
             {0},
             0,
@@ -51,11 +52,14 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
         struct statx statx_buf;
-        int stat_ret = unwrapped_statx(
-            dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
+        int stat_ret = unwrapped_statx(dirfd, path, flags,
+                                       STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
+                                           STATX_CTIME | STATX_SIZE,
+                                       &statx_buf);
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
+            ret.mode = statx_buf.stx_mode;
             ret.inode = statx_buf.stx_ino;
             ret.mtime = statx_buf.stx_mtime;
             ret.ctime = statx_buf.stx_ctime;

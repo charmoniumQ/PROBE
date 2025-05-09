@@ -387,6 +387,11 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             ]),
         ),
     ]
+    # For some reason, Clang analyzer can suddenly prove that if execvpe returns, errno (call_errno) must be non-zero.
+    # So this is a dead store.
+    # But it can't prove that for the other execs
+    if func.name != "execvpe":
+        pre_call_stmts.insert(0, define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno")))
     post_call_stmts = []
 
     pre_call_action = find_decl(func.stmts, "pre_call", func.name)
@@ -402,6 +407,17 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         post_call_stmts.extend(
             expect_type(Compound, post_call_action.init).block_items,
         )
+
+    pre_call_stmts.append(
+        Assignment(
+            op="=",
+            lvalue=pycparser.c_ast.ID(name="errno"),
+            rvalue=pycparser.c_ast.Constant(
+                type="int",
+                value="0",
+            ),
+        ),
+    )
 
     call_stmts_block = find_decl(func.stmts, "call", func.name) if not ignore_actions else None
     if call_stmts_block is None:
@@ -423,16 +439,23 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     else:
         call_stmts = expect_type(Compound, call_stmts_block.init).block_items
 
-    save_errno = define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno"))
-    restore_errno = Assignment(
-        op='=',
-        lvalue=pycparser.c_ast.ID(name="errno"),
-        rvalue=pycparser.c_ast.ID(name="saved_errno"),
+    post_call_stmts.insert(
+        0,
+        define_var(c_ast_int, "call_errno", pycparser.c_ast.ID(name="errno")),
     )
 
-    if post_call_stmts:
-        post_call_stmts.insert(0, save_errno)
-        post_call_stmts.append(restore_errno)
+    post_call_stmts.append(
+        Assignment(
+            op="=",
+            lvalue=pycparser.c_ast.ID(name="errno"),
+            rvalue=pycparser.c_ast.TernaryOp(
+                cond=pycparser.c_ast.ID(name="call_errno"),
+                iftrue=pycparser.c_ast.ID(name="call_errno"),
+                iffalse=pycparser.c_ast.ID(name="saved_errno"),
+            ) if func.name != "execvpe" else pycparser.c_ast.ID(name="call_errno"),
+            # See note above regarding execvpe
+        ),
+    )
 
     if not is_void(func.return_type):
         post_call_stmts.append(

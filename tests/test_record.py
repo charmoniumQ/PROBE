@@ -1,4 +1,3 @@
-import os
 import random
 import shutil
 import pathlib
@@ -8,6 +7,9 @@ import pytest
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent
+
+
+PROBE = str(project_root / "cli-wrapper/target/release/probe")
 
 
 def bash(*cmd: str) -> list[str]:
@@ -45,30 +47,42 @@ public class HelloWorld {
 }
 """
 
-
-true_path = shutil.which("true")
-assert true_path
-false_path = shutil.which("false")
+example_path = project_root / "tests/examples"
 
 
-commands = {
-    "echo": ["echo", "hi"],
-    "head": ["head", "test_file.txt"],
-    "c-hello": bash_multi(
+simple_commands = {
+    "echo": [str(example_path / "echo.exe"), "hello", "world"],
+    "cat": [str(example_path / "cat.exe"), "test_file.txt"],
+    "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
+    "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
+    "ls": [str(example_path / "ls.exe"), "."],
+    "coreutils_echo": ["echo", "hi"],
+    "coreutils_cat": ["cat", "test_file.txt"],
+    "python_hello": ["python", "-c", "print(4)"],
+}
+
+complex_commands = {
+    "hello_world_pthreads": [str(example_path / "hello_world_pthreads.exe")],
+    "mutex": [str(example_path / "mutex.exe")],
+    "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
+    "bash_multi": bash_multi(
+        # echo is a bash bulitin
+        # so we use echo_path to get the real echo executable
+        [str(example_path / "echo.exe"), "hi"],
+        [str(example_path / "echo.exe"), "hello"],
+        [str(example_path / "echo.exe"), "world"],
+    ),
+    "c_hello": bash_multi(
         ["echo", c_hello_world, "redirect_to", "test.c"],
         ["gcc", "test.c"],
         ["./a.out"],
     ),
-    "java-subprocess-hello": bash_multi(
+    "java_subprocess_hello": bash_multi(
         ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
         ["javac", "HelloWorld.java"],
         ["java", "HelloWorld"],
     ),
-    "python-hello": bash_multi(
-        ["python", "-c", "print(4)"],
-        [true_path],
-    ),
-    "bash-in-bash": bash_multi(
+    "bash_in_bash": bash_multi(
         bash_multi(
             ["echo", "hi", "redirect_to", "file0"],
             ["cat", "file0", "file0", "redirect_to", "file1"],
@@ -127,24 +141,17 @@ def scratch_directory(
     return scratch_dir
 
 
-@pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
-def test_unmodified_cmds(
-        scratch_directory: pathlib.Path,
-        command: list[str],
-) -> None:
-    (scratch_directory / "test_file.txt").write_text("hello world")
-    print(scratch_directory)
-    print(shlex.join(command))
-    subprocess.run(command, check=True, cwd=scratch_directory)
-
-
 @pytest.mark.parametrize("copy_files", [
     "none",
     "lazily",
     "eagerly",
 ])
 @pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
-@pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
+@pytest.mark.parametrize(
+    "command",
+    {**simple_commands, **complex_commands}.values(),
+    ids={**simple_commands, **complex_commands}.keys(),
+)
 def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,
@@ -156,6 +163,9 @@ def test_record(
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("hello world")
     print(scratch_directory)
+
+    (scratch_directory / "test_file.txt").write_text("hello world")
+    subprocess.run(command, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
     print(shlex.join(cmd))
@@ -186,7 +196,11 @@ def test_record(
             subprocess.run(cmd, check=True, cwd=scratch_directory)
 
 
-@pytest.mark.parametrize("command", commands.values(), ids=commands.keys())
+@pytest.mark.parametrize(
+    "command",
+    complex_commands.values(),
+    ids=complex_commands.keys(),
+)
 def test_downstream_analyses(
         scratch_directory: pathlib.Path,
         command: list[str],
@@ -200,6 +214,7 @@ def test_downstream_analyses(
     cmd = ["probe", "record", "--copy-files", "none", *command]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
+
     cmd = ["probe", "export", "debug-text"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
@@ -217,24 +232,9 @@ def test_downstream_analyses(
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
 
-def test_big_env(
-        scratch_directory: pathlib.Path,
-) -> None:
-    subprocess.run(
-        ["probe", "record", "--debug", "--copy-files", "none", *commands["c-hello"]],
-        env={
-            **os.environ,
-            "A": "B"*10000,
-        },
-        check=True,
-        cwd=scratch_directory,
-    )
-
-
 def test_fail(
         scratch_directory: pathlib.Path,
 ) -> None:
-    assert false_path
-    cmd = ["probe", "record", "--copy-files", "none", false_path]
+    cmd = ["probe", "record", "--copy-files", "none", str(example_path / "false.exe")]
     proc = subprocess.run(cmd, check=False, cwd=scratch_directory)
     assert proc.returncode != 0

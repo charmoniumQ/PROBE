@@ -87,7 +87,7 @@ fn inner_main() -> Result<ExitStatus> {
             let gdb = sub.get_flag("gdb");
             let debug = sub.get_flag("debug");
             let copy_files = sub
-                .get_one::<probe_headers::CopyFiles>("COPY_FILES")
+                .get_one::<probe_headers::CopyFiles>("copy-files")
                 .cloned()
                 .unwrap_or(probe_headers::CopyFiles::Lazily);
             let cmd = sub

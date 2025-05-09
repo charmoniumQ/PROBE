@@ -2,16 +2,17 @@
 
 #include "prov_buffer.h"
 
-#include <fcntl.h>   // for AT_FDCWD, O_RDWR, O_CREAT
-#include <limits.h>  // IWYU pragma: keep for PATH_MAX
-#include <pthread.h> // for pthread_self
-#include <sched.h>   // for CLONE_VFORK
-#include <stdbool.h> // for bool, true
-#include <stdio.h>   // for fprintf, stderr
-#include <string.h>  // for memcpy, size_t
-#include <threads.h> // for thrd_current
-#include <time.h>    // IWYU pragma: keep for timespec, clock_gettime
-#include <unistd.h>  // for F_OK
+#include <fcntl.h>    // for AT_FDCWD, O_RDWR, O_CREAT
+#include <limits.h>   // IWYU pragma: keep for PATH_MAX
+#include <pthread.h>  // for pthread_self
+#include <sched.h>    // for CLONE_VFORK
+#include <stdbool.h>  // for bool, true
+#include <stdio.h>    // for fprintf, stderr
+#include <string.h>   // for memcpy, size_t
+#include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
+#include <threads.h>  // for thrd_current
+#include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
+#include <unistd.h>   // for F_OK
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
@@ -51,22 +52,40 @@ static inline bool is_replace_op(struct Op op) {
 }
 
 static int copy_to_store(const struct Path* path) {
-    struct FixedPath* store_path = get_mut_probe_dir();
-    store_path->bytes[store_path->len] = '/';
-    path_to_id_string(path, store_path->bytes + store_path->len + 1);
+    static thread_local struct FixedPath store_path;
+    static thread_local bool initialized = false;
+    if (!initialized) {
+        store_path = *get_probe_dir();
+        initialized = true;
+    }
+    store_path.bytes[store_path.len] = '/';
+    path_to_id_string(path, store_path.bytes + store_path.len + 1);
     /*
     ** We take precautions to avoid calling copy(f) if copy(f) is already called in the same process.
     ** But it may have been already called in a different process!
     ** Especially coreutils used in every script.
      */
-    int access = unwrapped_faccessat(AT_FDCWD, store_path->bytes, F_OK, 0);
+    int access = unwrapped_faccessat(AT_FDCWD, store_path.bytes, F_OK, 0);
     if (access == 0) {
         DEBUG("Already exists %s %ld", path->path, path->inode);
         return 0;
-    } else {
-        DEBUG("Copying %s %ld", path->path, path->inode);
+    } else if ((path->mode & S_IFMT) == S_IFDIR) {
+        DEBUG("Copying directory %s %ld", path->path, path->inode);
+        // TODO: implement this
+        // We need to copy the inode metadata (not actual contents) linked in this directory
+        return 0;
+    } else if ((path->mode & S_IFMT) == S_IFREG) {
+        DEBUG("Copying regular file %s %ld", path->path, path->inode);
         return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, AT_FDCWD,
-                         store_path->bytes, path->size);
+                         store_path.bytes, path->size);
+    } else if ((path->mode & S_IFMT) == S_IFCHR) {
+        DEBUG("Copying block device file %s %ld", path->path, path->inode);
+        // TODO
+        return 0;
+    } else {
+        ERROR("Not sure how to copy special file %s %ld %d", path->path, path->inode,
+              path->mode & S_IFMT);
+        return 0;
     }
 }
 
@@ -145,6 +164,9 @@ void prov_log_record(struct Op op) {
 #ifdef DEBUG_LOG
     char str[PATH_MAX * 2];
     op_to_human_readable(str, PATH_MAX * 2, &op);
+    if (op.op_code != readdir_op_code) {
+        DEBUG("recording op: %s", str);
+    }
     DEBUG("recording op: %s", str);
     if (op.op_code == exec_op_code) {
         DEBUG("Exec:");
