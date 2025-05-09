@@ -167,7 +167,6 @@ void prov_log_record(struct Op op) {
     if (op.op_code != readdir_op_code) {
         DEBUG("recording op: %s", str);
     }
-    DEBUG("recording op: %s", str);
     if (op.op_code == exec_op_code) {
         DEBUG("Exec:");
         /*

@@ -1,3 +1,6 @@
+use serde::Serialize;
+use std::fmt::Debug;
+
 pub const PROBE_PATH_MAX: usize = 4096;
 pub const LD_PRELOAD_VAR: &str = "LD_PRELOAD";
 pub const PROBE_DIR_VAR: &str = "PROBE_DIR";
@@ -11,7 +14,7 @@ pub const OPS_SUBDIR: &str = "ops";
 // https://github.com/mozilla/cbindgen/issues/927
 
 /// cbindgen:prefix-with-name
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Debug, serde::Serialize)]
 #[repr(C)]
 pub enum CopyFiles {
     None,
@@ -27,9 +30,38 @@ pub enum CopyFiles {
  * That's peanuts these days.
  */
 #[repr(C)]
+#[derive(Clone)]
 pub struct FixedPath {
     pub bytes: [std::ffi::c_char; PROBE_PATH_MAX],
     pub len: u32,
+}
+
+#[repr(C)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct ProcessTreeContext {
+    pub libprobe_path: FixedPath,
+    pub copy_files: CopyFiles,
+    pub parent_of_root: u32,
+}
+
+#[repr(C)]
+pub struct ProcessContext {
+    pub epoch_no: u32,
+    pub process_tree_path: FixedPath,
+    pub pid_arena_path: FixedPath,
+    pub enable_recording: bool,
+}
+
+impl FixedPath {
+    fn escape_string(&self) -> Result<String, Vec<u8>> {
+        let u8_slice = unsafe {
+            std::slice::from_raw_parts(self.bytes.as_ptr() as *const u8, self.len as usize)
+        };
+        match std::str::from_utf8(u8_slice).map(|s| s.to_string()) {
+            Ok(string) => Ok(string),
+            Err(_) => Err(Vec::from(u8_slice)),
+        }
+    }
 }
 
 impl Default for FixedPath {
@@ -41,51 +73,84 @@ impl Default for FixedPath {
     }
 }
 
-impl FixedPath {
-    pub fn from_path_ref<P: AsRef<std::path::Path>>(path: P) -> Self {
-        let mut output = FixedPath::default();
-        let cstring = std::ffi::CString::new(path.as_ref().to_string_lossy().as_bytes())
-            .expect("Path contains null byte");
-        let bytes = cstring.as_bytes_with_nul();
-        assert!(
-            bytes.len() <= output.bytes.len(),
-            "Path too long for {}-byte buffer",
-            PROBE_PATH_MAX
-        );
-        unsafe {
-            /* Should be mem-safe because we checked the length. */
-            std::ptr::copy_nonoverlapping(
-                bytes.as_ptr(),
-                output.bytes.as_mut_ptr() as *mut u8, /* sizeof(i8) == sizeof(u8) */
-                bytes.len(),
-            );
-        };
-        /* Just in case */
-        output.bytes[bytes.len()] = 0_i8;
-        output.len = bytes.len() as u32 - 1 /* Exclude the null byte from length calculation */;
-        output
+impl PartialEq for FixedPath {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes[0..(self.len as usize)] == other.bytes[0..(other.len as usize)]
     }
 }
 
-#[repr(C)]
-pub struct ProcessTreeContext {
-    pub libprobe_path: FixedPath,
-    pub copy_files: CopyFiles,
+impl Eq for FixedPath {}
+
+impl Debug for FixedPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self.escape_string() {
+            Ok(string) => string.fmt(f),
+            Err(bytes) => bytes
+                .into_iter()
+                .map(|b| std::ascii::escape_default(b).to_string())
+                .collect::<Vec<String>>()
+                .join("")
+                .fmt(f),
+        }
+    }
 }
 
-pub fn object_to_bytes<Type: Sized>(object: &Type) -> &[u8] {
+impl Serialize for FixedPath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if self.len as usize >= self.bytes.len() {
+            Err(serde::ser::Error::custom("Length too long for fixed path"))
+        } else {
+            match self.escape_string() {
+                Ok(string) => serializer.serialize_str(&string),
+                Err(bytes) => serializer.serialize_bytes(&bytes),
+            }
+        }
+    }
+}
+
+impl FixedPath {
+    pub fn from_path_ref<P: AsRef<std::path::Path>>(
+        path: P,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut output = FixedPath::default();
+        let cstring =
+            std::ffi::CString::new(path.as_ref().to_string_lossy().as_bytes()).map_err(Box::new)?;
+        let bytes = cstring.as_bytes_with_nul();
+        if bytes.len() >= output.bytes.len() {
+            Err("Path too long for fixed buffer".into())
+        } else {
+            unsafe {
+                /* Should be mem-safe because we checked the length. */
+                std::ptr::copy_nonoverlapping(
+                    bytes.as_ptr(),
+                    output.bytes.as_mut_ptr() as *mut u8, /* sizeof(i8) == sizeof(u8) */
+                    bytes.len(),
+                );
+            };
+            /* Just in case */
+            output.bytes[bytes.len()] = 0_i8;
+            output.len = bytes.len() as u32 - 1 /* Exclude the null byte from length calculation */;
+            Ok(output)
+        }
+    }
+}
+
+pub fn object_to_bytes<Type: Sized>(object: Type) -> Vec<u8> {
     unsafe {
         core::slice::from_raw_parts(
-            (object as *const Type) as *const u8,
-            core::mem::size_of::<Type>(),
+            (&object as *const Type) as *const u8,
+            std::mem::size_of::<Type>(),
         )
     }
+    .to_vec()
 }
 
-#[repr(C)]
-pub struct ProcessContext {
-    pub epoch_no: u32,
-    pub process_tree_path: FixedPath,
-    pub pid_arena_path: FixedPath,
-    pub enable_recording: bool,
+pub fn object_from_bytes<Type: Sized + Clone>(bytes: Vec<u8>) -> Type {
+    assert!(bytes.len() == std::mem::size_of::<Type>());
+    assert!((bytes.as_ptr() as usize) % std::mem::align_of::<Type>() == 0);
+
+    unsafe { (*{ bytes.as_ptr() as *const Type }).clone() }
 }

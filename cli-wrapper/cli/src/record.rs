@@ -156,14 +156,21 @@ impl Recorder {
         fs::create_dir(record_dir.path().join(probe_headers::INODES_SUBDIR))?;
 
         let ptc = probe_headers::ProcessTreeContext {
-            libprobe_path: probe_headers::FixedPath::from_path_ref(libprobe_path),
+            libprobe_path: probe_headers::FixedPath::from_path_ref(libprobe_path)
+                .map_err(|e| eyre!("{e:?}"))?,
             copy_files: self.copy_files,
+            parent_of_root: std::process::id(),
         };
+
+        /* Check round-trip-ability */
+        let ptc_bytes = probe_headers::object_to_bytes(ptc.clone());
+        assert!(ptc == probe_headers::object_from_bytes(ptc_bytes.clone()));
+
         fs::write(
             record_dir
                 .path()
                 .join(probe_headers::PROCESS_TREE_CONTEXT_FILE),
-            probe_headers::object_to_bytes(&ptc),
+            ptc_bytes,
         )?;
 
         let mut child = if self.gdb {

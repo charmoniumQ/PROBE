@@ -80,6 +80,7 @@ class Inode:
 @dataclasses.dataclass(frozen=True)
 class ProbeOptions:
     copy_files: bool
+    parent_of_root: Pid
 
 
 @dataclasses.dataclass(frozen=True)
