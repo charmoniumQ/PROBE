@@ -41,8 +41,13 @@ typedef void* thrd_t;
 typedef void* thrd_start_t;
 typedef void* pthread_t;
 typedef void* pthread_attr_t;
+typedef void* posix_spawn_file_actions_t;
+typedef void* posix_spawnattr_t;
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
+
+struct PthreadHelperArg;
+struct ThrdHelperArg;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
@@ -2011,6 +2016,7 @@ int execv (const char *filename, char *const argv[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2072,6 +2078,7 @@ int execl (const char *filename, const char *arg0, ...) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2110,6 +2117,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2147,6 +2155,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2194,6 +2203,7 @@ int execle (const char *filename, const char *arg0, ...) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2238,6 +2248,7 @@ int execvp (const char *filename, char *const argv[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2289,6 +2300,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2334,6 +2346,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
+            prov_log_record(op);
             prov_log_save();
         } else {
             prov_log_save();
@@ -2816,6 +2829,12 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
             0,
         };
     });
+    void* call = ({
+        struct ThrdHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct ThrdHelperArg)));
+        real_arg->func = func;
+        real_arg->arg = arg;
+        int ret = unwrapped_thrd_create(thr, thrd_helper, &real_arg);
+    });
     void* post_call = ({
         if (UNLIKELY(ret != thrd_success)) {
             /* Failure */
@@ -2887,6 +2906,12 @@ int pthread_create(pthread_t *restrict thread,
             0,
             0,
         };
+    });
+    void* call = ({
+        struct PthreadHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct PthreadHelperArg)));
+        real_arg->start_routine = start_routine;
+        real_arg->arg = arg;
+        int ret = unwrapped_pthread_create(thread, attr, pthread_helper, real_arg);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
