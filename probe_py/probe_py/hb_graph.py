@@ -1,8 +1,11 @@
 import dataclasses
+import shlex
+import textwrap
 import typing
+import warnings
 import networkx
 from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog
-from .ops import CloneOp, ExecOp, WaitOp, SpawnOp
+from .ops import CloneOp, ExecOp, WaitOp, SpawnOp, InitExecEpochOp, InitThreadOp
 
 """
 HbGraph stands for "Happened-Before graph".
@@ -48,6 +51,9 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
         _create_spawn_edges(node, probe_log, hb_graph)
         _create_clone_edges(node, probe_log, hb_graph)
         _create_wait_edges(node, probe_log, hb_graph)
+
+    _create_other_thread_edges(probe_log, hb_graph)
+
     validate_hb_graph(hb_graph, True)
 
     return hb_graph
@@ -139,6 +145,8 @@ def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                 ]
                 assert nodes
 
+                hb_graph.add_nodes_from(nodes)
+
                 # Hook up program order edges
                 hb_graph.add_edges_from(zip(nodes[:-1], nodes[1:]))
 
@@ -151,18 +159,16 @@ def _create_clone_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) ->
                 target_tid = Tid(op.data.task_id)
                 if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
                     raise InvalidProbeLog(f"Clone points to a thread {target_tid} we didn't track")
-                hb_graph.add_edge(
-                    node,
-                    OpNode(node.pid, node.exec_no, target_tid, 0),
-                )
+                target = OpNode(node.pid, node.exec_no, target_tid, 0)
+                assert hb_graph.has_node(target)
+                hb_graph.add_edge(node, target)
             case TaskType.TASK_PID:
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
                     raise InvalidProbeLog(f"Clone points to a process {target_pid} we didn't track")
-                hb_graph.add_edge(
-                    node,
-                    OpNode(target_pid, initial_exec_no, target_pid.main_thread(), 0),
-                )
+                target = OpNode(target_pid, initial_exec_no, target_pid.main_thread(), 0)
+                assert hb_graph.has_node(target)
+                hb_graph.add_edge(node, target)
 
 
 def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -173,10 +179,8 @@ def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                 target_tid = Tid(op.data.task_id)
                 if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
                     raise InvalidProbeLog(f"Wait points to a thread {target_tid} we didn't track")
-                hb_graph.add_edge(
-                    node,
-                    OpNode(node.pid, node.exec_no, target_tid, -1),
-                )
+                target = OpNode(node.pid, node.exec_no, target_tid, len(probe_log.processes[node.pid].execs[node.exec_no].threads[target_tid].ops) - 1)
+                hb_graph.add_edge(node, target)
             case TaskType.TASK_PID:
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
@@ -185,10 +189,11 @@ def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                 last_exec = probe_log.processes[target_pid].execs[last_exec_no]
                 for tid, thread in last_exec.threads.items():
                     last_op_no = len(thread.ops) - 1
-                    hb_graph.add_edge(
-                        node,
-                        OpNode(target_pid, last_exec_no, tid, last_op_no),
-                    )
+                    target = OpNode(target_pid, last_exec_no, tid, last_op_no)
+                    assert hb_graph.has_node(target)
+                    hb_graph.add_edge(node, target)
+            case _:
+                warnings.warn("Edges between other kinds of threads are sound but not percise for now")
 
 
 def _create_exec_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -197,10 +202,9 @@ def _create_exec_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> 
         next_exec_no = node.exec_no.next()
         if next_exec_no not in probe_log.processes[node.pid].execs:
             raise InvalidProbeLog(f"Exec points to an exec epoch {next_exec_no} we didn't track")
-        hb_graph.add_edge(
-            node,
-            OpNode(node.pid, next_exec_no, node.pid.main_thread(), 0),
-        )
+        target = OpNode(node.pid, next_exec_no, node.pid.main_thread(), 0)
+        assert hb_graph.has_node(target)
+        hb_graph.add_edge(node, target)
 
 
 def _create_spawn_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -209,7 +213,59 @@ def _create_spawn_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) ->
         child_pid = Pid(op.data.child_pid)
         if child_pid not in probe_log.processes:
             raise InvalidProbeLog(f"Spawn points to a pid {child_pid} we didn't track")
-        hb_graph.add_edge(
-            node,
-            OpNode(child_pid, initial_exec_no, child_pid.main_thread(), 0),
-        )
+        target = OpNode(child_pid, initial_exec_no, child_pid.main_thread(), 0)
+        assert hb_graph.has_node(target)
+        hb_graph.add_edge(node, target)
+
+
+def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
+    # Sometimes we don't have the thread creation or termination edges
+    for pid, process in probe_log.processes.items():
+        for exec_no, exec_epoch in process.execs.items():
+            for tid, thread in exec_epoch.threads.items():
+                first_op_main_thread = OpNode(pid, exec_no, pid.main_thread(), 0)
+                # last_op_main_thread = OpNode(pid, exec_no, pid.main_thread(), len(exec_epoch.threads[pid.main_thread()].ops) - 1)
+                if tid != pid.main_thread():
+                    first_op = OpNode(pid, exec_no, tid, 0)
+                    # last_op = OpNode(pid, exec_no, tid, len(thread.ops) - 1)
+                    if len(list(hb_graph.predecessors(first_op))) == 0:
+                        hb_graph.add_edge(first_op_main_thread, first_op)
+                    # if last_op_main_thread != first_op_main_thread and len(list(hb_graph.successors(last_op))) == 0:
+                    #     hb_graph.add_edge(last_op, last_op_main_thread)
+
+
+def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
+    for node, data in hb_graph.nodes(data=True):
+        op = probe_log.get_op(*node.op_quad())
+        if len(list(hb_graph.predecessors(node))) == 0:
+            data["label"] = "root"
+        elif isinstance(op.data, InitExecEpochOp):
+            data["label"] = " ".join([
+                f"PID {node.pid}",
+                textwrap.shorten(
+                    shlex.join([
+                        textwrap.shorten(
+                            arg.decode(errors="backslashreplace"),
+                            width=60,
+                        )
+                        for arg in op.data.argv
+                    ]),
+                    width=400,
+                )
+            ])
+        elif isinstance(op.data, InitThreadOp):
+            data["label"] = f"TID {node.tid}"
+        else:
+            data["label"] = f"{op.data.__class__.__name__} ({node.op_no})"
+            data["labelfontsize"] = 8
+
+    for node0, node1, data in hb_graph.edges(data=True):
+        if node0.pid != node1.pid or node0.tid != node1.tid:
+            pass
+        else:
+            data["style"] = "bold"
+
+    if not networkx.is_directed_acyclic_graph(hb_graph):
+        cycle = list(networkx.find_cycle(hb_graph))
+        for a, b in cycle:
+            hb_graph.get_edge_data(a, b)["color"] = "red"

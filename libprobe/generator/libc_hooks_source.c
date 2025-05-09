@@ -46,8 +46,8 @@ typedef void* posix_spawnattr_t;
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
-struct PthreadHelperArgs;
-struct ThrdHelperArgs;
+struct PthreadHelperArg;
+struct ThrdHelperArg;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
@@ -2905,8 +2905,10 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
         };
     });
     void* call = ({
-        struct ThrdHelperArgs real_args = {func, arg};
-        int ret = unwrapped_thrd_create(thr, thrd_helper, &real_args);
+        struct ThrdHelperArg* real_arg = malloc(sizeof(struct ThrdHelperArg));
+        real_arg->func = func;
+        real_arg->arg = arg;
+        int ret = unwrapped_thrd_create(thr, thrd_helper, &real_arg);
     });
     void* post_call = ({
         if (UNLIKELY(ret != thrd_success)) {
@@ -2981,8 +2983,10 @@ int pthread_create(pthread_t *restrict thread,
         };
     });
     void* call = ({
-        struct PthreadHelperArgs real_args = {start_routine, arg};
-        int ret = unwrapped_pthread_create(thread, attr, pthread_helper, &real_args);
+        struct PthreadHelperArg* real_arg = malloc(sizeof(struct PthreadHelperArg));
+        real_arg->start_routine = start_routine;
+        real_arg->arg = arg;
+        int ret = unwrapped_pthread_create(thread, attr, pthread_helper, real_arg);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {

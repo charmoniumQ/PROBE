@@ -310,36 +310,17 @@ static inline void emit_init_thread_op() {
 
 static __thread bool thread_inited = false;
 static bool exec_epoch_inited = false;
-void init_thread() {
-    if (UNLIKELY(!exec_epoch_inited)) {
-        ERROR("This exec epoch was never properly initted");
-    }
-    init_log_arena();
-    init_mut_probe_dir();
-    thread_inited = true;
-}
 void ensure_thread_initted() {
     if (UNLIKELY(!thread_inited)) {
+        if (UNLIKELY(!exec_epoch_inited)) {
+            ERROR("This exec epoch was never properly initted");
+        }
         init_tid();
-        init_thread();
+        init_log_arena();
+        init_mut_probe_dir();
+        thread_inited = true;
         emit_init_thread_op();
     }
-}
-
-void init_epoch() {
-    DEBUG("Initializing process");
-    init_tid();
-    init_pid();
-    init_function_pointers();
-    check_function_pointers();
-    init_probe_dir();
-    init_process_obj();
-    init_default_path();
-    exec_epoch_inited = true;
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    init_thread();
-    emit_init_epoch_op();
-    emit_init_thread_op();
 }
 
 /*
@@ -381,7 +362,10 @@ void init_after_fork() {
         arena_drop_after_fork(&__ops_arena);
         arena_drop_after_fork(&__data_arena);
 
-        init_thread();
+        init_log_arena();
+        init_mut_probe_dir();
+        thread_inited = true;
+
         emit_init_epoch_op();
         emit_init_thread_op();
     }
@@ -393,7 +377,23 @@ void init_after_fork() {
  * We should emit a new kind of op in the destructor.
  */
 
-__attribute__((constructor)) void constructor() { init_epoch(); }
+__attribute__((constructor)) void constructor() {
+    DEBUG("Initializing exec epoch");
+    init_tid();
+    init_pid();
+    init_function_pointers();
+    check_function_pointers();
+    init_probe_dir();
+    init_process_obj();
+    init_default_path();
+    exec_epoch_inited = true;
+    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
+    init_log_arena();
+    init_mut_probe_dir();
+    thread_inited = true;
+    emit_init_epoch_op();
+    emit_init_thread_op();
+}
 
 void prov_log_save();
 

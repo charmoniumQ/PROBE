@@ -32,15 +32,14 @@ pub fn parse_top_level<P1: AsRef<Path>, P2: AsRef<Path> + Sync>(
 
     let start = SystemTime::now();
 
-    let ptc: Box<probe_headers::ProcessTreeContext> = probe_headers::object_from_bytes(
+    let ptc = probe_headers::object_from_bytes::<probe_headers::ProcessTreeContext>(
         fs::read(
             in_dir
                 .as_ref()
                 .join(probe_headers::PROCESS_TREE_CONTEXT_FILE),
         )
         .map_err(|_| ProbeError::UnreachableCode)?,
-    )
-    .ok_or(ProbeError::UnreachableCode)?;
+    );
 
     fs::write(
         out_dir.as_ref().join("options.json"),

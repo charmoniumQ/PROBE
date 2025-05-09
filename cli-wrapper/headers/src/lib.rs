@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use serde::Serialize;
 
 pub const PROBE_PATH_MAX: usize = 4096;
@@ -29,13 +30,14 @@ pub enum CopyFiles {
  * That's peanuts these days.
  */
 #[repr(C)]
+#[derive(Clone)]
 pub struct FixedPath {
     pub bytes: [std::ffi::c_char; PROBE_PATH_MAX],
     pub len: u32,
 }
 
 #[repr(C)]
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct ProcessTreeContext {
     pub libprobe_path: FixedPath,
     pub copy_files: CopyFiles,
@@ -50,11 +52,40 @@ pub struct ProcessContext {
     pub enable_recording: bool,
 }
 
+impl FixedPath {
+    fn escape_string(&self) -> Result<String, Vec<u8>> {
+        let u8_slice = unsafe {
+            std::slice::from_raw_parts(self.bytes.as_ptr() as *const u8, self.len as usize)
+        };
+        match std::str::from_utf8(u8_slice).map(|s| s.to_string()) {
+            Ok(string) => Ok(string),
+            Err(_) => Err(Vec::from(u8_slice)),
+        }
+    }
+}
+
 impl Default for FixedPath {
     fn default() -> Self {
         Self {
             bytes: [0; PROBE_PATH_MAX],
             len: 0,
+        }
+    }
+}
+
+impl PartialEq for FixedPath {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes[0..(self.len as usize)] == other.bytes[0..(other.len as usize)]
+    }
+}
+
+impl Eq for FixedPath {}
+
+impl Debug for FixedPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self.escape_string() {
+            Ok(string) => string.fmt(f),
+            Err(bytes) => bytes.into_iter().map(|b| std::ascii::escape_default(b as u8).to_string()).collect::<Vec<String>>().join("").fmt(f),
         }
     }
 }
@@ -105,20 +136,22 @@ impl FixedPath {
     }
 }
 
-pub fn object_to_bytes<Type: Sized>(object: &Type) -> &[u8] {
+pub fn object_to_bytes<Type: Sized>(object: Type) -> Vec<u8> {
     unsafe {
         core::slice::from_raw_parts(
-            (object as *const Type) as *const u8,
-            core::mem::size_of::<Type>(),
+            (&object as *const Type) as *const u8,
+            std::mem::size_of::<Type>(),
         )
-    }
+    }.to_vec()
 }
 
-pub fn object_from_bytes<Type: Sized>(mut bytes: Vec<u8>) -> Option<Box<Type>> {
-    let ptr = bytes.as_mut_ptr();
-    if bytes.len() < std::mem::size_of::<Type>() || ptr as usize % align_of::<Type>() != 0 {
-        None
-    } else {
-        Some(unsafe { Box::from_raw(ptr as *mut Type) })
+pub fn object_from_bytes<Type: Sized + Clone>(bytes: Vec<u8>) -> Type {
+    assert!(bytes.len() == std::mem::size_of::<Type>());
+    assert!((bytes.as_ptr() as usize) % std::mem::align_of::<Type>() == 0);
+
+    unsafe {
+        (*{
+            bytes.as_ptr() as *const Type
+        }).clone()
     }
 }

@@ -124,7 +124,7 @@ impl Recorder {
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
         .wrap_err("unable to canonicalize libprobe path")?
-        .join(if self.debug || self.gdb {
+        .join(if self.debug {
             log::debug!("Using debug version of libprobe");
             "libprobe.dbg.so"
         } else {
@@ -161,11 +161,18 @@ impl Recorder {
             copy_files: self.copy_files,
             parent_of_root: std::process::id(),
         };
+
+        /* Check round-trip-ability */
+        let ptc_bytes = probe_headers::object_to_bytes(ptc.clone());
+        assert!(
+            ptc == probe_headers::object_from_bytes(ptc_bytes.clone())
+        );
+
         fs::write(
             record_dir
                 .path()
                 .join(probe_headers::PROCESS_TREE_CONTEXT_FILE),
-            probe_headers::object_to_bytes(&ptc),
+            ptc_bytes,
         )?;
 
         let mut child = if self.gdb {

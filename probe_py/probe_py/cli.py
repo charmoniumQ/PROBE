@@ -80,6 +80,7 @@ def hb_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        reduce: bool = True,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -92,6 +93,9 @@ def hb_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    if reduce:
+        hbg = hb_graph_module.retain_only(hbg, lambda _: False)
+    hb_graph_module.label_nodes(probe_log, hbg)
     graph_utils.serialize_graph(hbg, output)
 
     

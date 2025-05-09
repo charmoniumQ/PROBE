@@ -30,6 +30,7 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
             -1,
             -1,
             -1,
+            0,
             {0},
             {0},
             0,
@@ -52,10 +53,11 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
          * */
         struct statx statx_buf;
         int stat_ret = unwrapped_statx(
-            dirfd, path, flags, STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
+            dirfd, path, flags, STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
+            ret.mode = statx_buf.stx_mode;
             ret.inode = statx_buf.stx_ino;
             ret.mtime = statx_buf.stx_mtime;
             ret.ctime = statx_buf.stx_ctime;
@@ -146,7 +148,6 @@ const struct Path* op_to_second_path(const struct Op* op) {
     }
 }
 
-#ifndef NDEBUG
 BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
     case init_exec_epoch_op_code:
@@ -242,7 +243,6 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
     (void)dest;
     (void)size;
 }
-#endif
 
 void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat_buf) {
     stat_result_buf->mask = STATX_BASIC_STATS;

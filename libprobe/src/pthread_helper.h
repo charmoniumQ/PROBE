@@ -2,15 +2,15 @@
 
 #define _GNU_SOURCE
 
-struct PthreadHelperArgs {
+struct PthreadHelperArg {
     void* (*start_routine)(void*);
     void* restrict arg;
 };
 
 __attribute__((visibility("hidden"))) void* pthread_helper(void* restrict arg);
 
-struct ThrdHelperArgs {
-    int (*start_routine)(void*);
+struct ThrdHelperArg {
+    int (*func)(void*);
     void* restrict arg;
 };
 

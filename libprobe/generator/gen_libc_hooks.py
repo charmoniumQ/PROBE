@@ -396,6 +396,17 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         else:
             pre_call_stmts.append(pre_call_action.init)
 
+    pre_call_stmts.append(
+        Assignment(
+                    op='=',
+                    lvalue=pycparser.c_ast.ID(name="errno"),
+                    rvalue=pycparser.c_ast.Constant(
+                        type='int',
+                        value='0',
+                    ),
+                )
+    )
+
     post_call_action = find_decl(func.stmts, "post_call", func.name)
 
     if not ignore_actions and  post_call_action:
