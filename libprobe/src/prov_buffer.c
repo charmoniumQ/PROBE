@@ -2,16 +2,17 @@
 
 #include "prov_buffer.h"
 
-#include <fcntl.h>   // for AT_FDCWD, O_RDWR, O_CREAT
-#include <limits.h>  // IWYU pragma: keep for PATH_MAX
-#include <pthread.h> // for pthread_self
-#include <sched.h>   // for CLONE_VFORK
-#include <stdbool.h> // for bool, true
-#include <stdio.h>   // for fprintf, stderr
-#include <string.h>  // for memcpy, size_t
-#include <threads.h> // for thrd_current
-#include <time.h>    // IWYU pragma: keep for timespec, clock_gettime
-#include <unistd.h>  // for F_OK
+#include <fcntl.h>    // for AT_FDCWD, O_RDWR, O_CREAT
+#include <limits.h>   // IWYU pragma: keep for PATH_MAX
+#include <pthread.h>  // for pthread_self
+#include <sched.h>    // for CLONE_VFORK
+#include <stdbool.h>  // for bool, true
+#include <stdio.h>    // for fprintf, stderr
+#include <string.h>   // for memcpy, size_t
+#include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
+#include <threads.h>  // for thrd_current
+#include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
+#include <unistd.h>   // for F_OK
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
@@ -72,7 +73,8 @@ static int copy_to_store(const struct Path* path) {
         // TODO
         return 0;
     } else {
-        ERROR("Not sure how to copy special file %s %ld %d", path->path, path->inode, path->mode & S_IFMT);
+        ERROR("Not sure how to copy special file %s %ld %d", path->path, path->inode,
+              path->mode & S_IFMT);
         return 0;
     }
 }

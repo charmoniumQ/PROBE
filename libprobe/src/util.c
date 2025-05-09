@@ -182,7 +182,7 @@ char* const* read_null_delim_file(const char* path, size_t* array_len) {
             ++buffer_idx;
         }
         ++buffer_idx;
-        ASSERTF(buffer[buffer_idx], "buffer[%d] should not equal \\0", buffer_idx);
+        ASSERTF(buffer[buffer_idx], "buffer[%ld] should not equal \\0", buffer_idx);
     }
 
     return array;

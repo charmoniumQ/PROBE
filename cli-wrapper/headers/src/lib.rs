@@ -1,5 +1,5 @@
-use std::fmt::Debug;
 use serde::Serialize;
+use std::fmt::Debug;
 
 pub const PROBE_PATH_MAX: usize = 4096;
 pub const LD_PRELOAD_VAR: &str = "LD_PRELOAD";
@@ -85,7 +85,12 @@ impl Debug for FixedPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self.escape_string() {
             Ok(string) => string.fmt(f),
-            Err(bytes) => bytes.into_iter().map(|b| std::ascii::escape_default(b as u8).to_string()).collect::<Vec<String>>().join("").fmt(f),
+            Err(bytes) => bytes
+                .into_iter()
+                .map(|b| std::ascii::escape_default(b).to_string())
+                .collect::<Vec<String>>()
+                .join("")
+                .fmt(f),
         }
     }
 }
@@ -142,16 +147,13 @@ pub fn object_to_bytes<Type: Sized>(object: Type) -> Vec<u8> {
             (&object as *const Type) as *const u8,
             std::mem::size_of::<Type>(),
         )
-    }.to_vec()
+    }
+    .to_vec()
 }
 
 pub fn object_from_bytes<Type: Sized + Clone>(bytes: Vec<u8>) -> Type {
     assert!(bytes.len() == std::mem::size_of::<Type>());
     assert!((bytes.as_ptr() as usize) % std::mem::align_of::<Type>() == 0);
 
-    unsafe {
-        (*{
-            bytes.as_ptr() as *const Type
-        }).clone()
-    }
+    unsafe { (*{ bytes.as_ptr() as *const Type }).clone() }
 }

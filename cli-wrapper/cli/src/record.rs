@@ -164,9 +164,7 @@ impl Recorder {
 
         /* Check round-trip-ability */
         let ptc_bytes = probe_headers::object_to_bytes(ptc.clone());
-        assert!(
-            ptc == probe_headers::object_from_bytes(ptc_bytes.clone())
-        );
+        assert!(ptc == probe_headers::object_from_bytes(ptc_bytes.clone()));
 
         fs::write(
             record_dir

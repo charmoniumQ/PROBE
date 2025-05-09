@@ -27,7 +27,7 @@
 #define DEBUG(...)
 #endif
 
-#define WARNING(str, ...) LOG("WARNING " str " (errno=%d %s)", ##__VA_ARGS__)
+#define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
 
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
@@ -75,10 +75,9 @@ __attribute__((unused)) static inline void __mark_as_used__debug_logging_h() {
     exit(1);
 }
 
-
 #define ALWAYS_ASSERTF(cond, str, ...)                                                             \
     ({                                                                                             \
-        if (__builtin_expect(!(cond), 0)) {                                                       \
+        if (__builtin_expect(!(cond), 0)) {                                                        \
             ERROR("Assertion " #cond " failed: " str, ##__VA_ARGS__);                              \
         }                                                                                          \
     })

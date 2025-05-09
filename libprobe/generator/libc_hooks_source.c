@@ -2905,7 +2905,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
         };
     });
     void* call = ({
-        struct ThrdHelperArg* real_arg = malloc(sizeof(struct ThrdHelperArg));
+        struct ThrdHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct ThrdHelperArg)));
         real_arg->func = func;
         real_arg->arg = arg;
         int ret = unwrapped_thrd_create(thr, thrd_helper, &real_arg);
@@ -2983,7 +2983,7 @@ int pthread_create(pthread_t *restrict thread,
         };
     });
     void* call = ({
-        struct PthreadHelperArg* real_arg = malloc(sizeof(struct PthreadHelperArg));
+        struct PthreadHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct PthreadHelperArg)));
         real_arg->start_routine = start_routine;
         real_arg->arg = arg;
         int ret = unwrapped_pthread_create(thread, attr, pthread_helper, real_arg);
