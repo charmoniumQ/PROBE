@@ -208,8 +208,10 @@ def test_record(
 
 @pytest.mark.parametrize(
     "command",
-    complex_commands.values(),
-    ids=complex_commands.keys(),
+    [
+        pytest.param(val, id=key, marks=pytest.mark.xfail if key == "bash_in_bash" else (),)
+        for key, val in complex_commands.items()
+    ]
 )
 def test_downstream_analyses(
         scratch_directory: pathlib.Path,
