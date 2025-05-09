@@ -10,8 +10,7 @@ import shutil
 import warnings
 import pathlib
 import typing
-import numpy
-from .ptypes import ProbeLog, initial_exec_no, Inode, InodeVersion, Pid, Device
+from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
 from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp
 from .consts import AT_FDCWD
 
@@ -184,6 +183,7 @@ def copy_file_closure(
                             resolved_path = resolve_path(fds, path)
                             to_copy_exes[resolved_path] = path
                     elif isinstance(op.data, CloseOp):
+                        raise NotImplementedError()
                         for fd in range(op.data.low_fd, op.data.high_fd + 1):
                             if fd in fds:
                                 del fds[fd]
@@ -206,15 +206,8 @@ def copy_file_closure(
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         if maybe_path is not None:
-            ino_ver = InodeVersion(
-                Inode(
-                    probe_log.host,
-                    Device(maybe_path.device_major, maybe_path.device_minor),
-                    maybe_path.inode,
-                ),
-                numpy.datetime64(maybe_path.mtime.sec * int(1e9) + maybe_path.mtime.nsec, "ns"),
-                maybe_path.size,
-            )
+            raise NotImplementedError()
+            ino_ver = InodeVersion.from_path(maybe_path)
         else:
             ino_ver = None
         if ino_ver is not None and (inode_content := inodes.get(ino_ver)) is not None:

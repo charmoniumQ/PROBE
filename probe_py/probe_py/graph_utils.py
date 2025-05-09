@@ -1,4 +1,5 @@
 from __future__ import annotations
+import itertools
 import typing
 import pathlib
 import networkx
@@ -7,13 +8,11 @@ import pydot
 
 
 _Node = typing.TypeVar("_Node")
-_EdgeLabel = typing.TypeVar("_EdgeLabel")
 
 
 if typing.TYPE_CHECKING:
     DiGraph: typing.TypeAlias = networkx.DiGraph
 else:
-
     DiGraph = networkx.DiGraph
 
 
@@ -22,7 +21,7 @@ def serialize_graph(
         output: pathlib.Path,
 ) -> None:
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph)
-    if output.suffix == "dot":
+    if output.suffix == ".dot":
         pydot_graph.write_raw(output)
     else:
         pydot_graph.write_png(output)
@@ -56,37 +55,107 @@ def serialize_graph_proc_tree(
         pydot_graph.write_png(output)
 
 
-def relax_node(
-        graph: DiGraph[_Node],
-        node: _Node,
-        combine_edge_fn: typing.Callable[[_EdgeLabel, _EdgeLabel], _EdgeLabel],
-) -> list[tuple[_Node, _Node]]:
-    """Remove node from graph and attach its predecessors to its successors"""
-    ret = list[tuple[typing.Any, typing.Any]]()
-    for predecessor in graph.predecessors(node):
-        old_incoming_label = graph.get_edge_data(predecessor, node)["label"]
-        for successor in graph.successors(node):
-            old_outgoing_label = graph.get_edge_data(node, successor)["label"]
-            new_label = combine_edge_fn(old_incoming_label, old_outgoing_label)
-            ret.append((predecessor, successor))
-            graph.add_edge(predecessor, successor, label=new_label)
-    graph.remove_node(node)
-    return ret
+def is_antichain(
+        reflexive_transitive_closure: DiGraph[_Node],
+        nodes: typing.Iterable[_Node],
+) -> bool:
+    for node_0 in nodes:
+        for node_1 in nodes:
+            if node_0 != node_1:
+                if node_0 in reflexive_transitive_closure.successors(node_1):
+                    return False
+                # We check inclusion the other way by swapping node_0 and node_1
+    return True
 
 
-def remove_nodes(
-        graph: DiGraph[_Node],
-        keep_node_fn: typing.Callable[[_Node], bool],
-        combine_edge_fn: typing.Callable[[_EdgeLabel, _EdgeLabel], _EdgeLabel],
+def antichain_prior(
+        reflexive_transitive_closure: DiGraph[_Node],
+        antichain0: typing.Iterable[_Node],
+        antichain1: typing.Iterable[_Node],
+) -> bool:
+    """All of antichain0 is before any of antichain1"""
+    return all(
+        any(
+            antichain0_node in reflexive_transitive_closure.predecessors(antichain1_node)
+            for antichain1_node in antichain1
+        )
+        for antichain0_node in antichain0
+    )
+
+
+def antichain_after(
+        reflexive_transitive_closure: DiGraph[_Node],
+        antichain0: typing.Iterable[_Node],
+        antichain1: typing.Iterable[_Node],
+) -> bool:
+    """All of antichain1 is after some of antichain0"""
+    return all(
+        any(
+            antichain0_node in reflexive_transitive_closure.predecessors(antichain1_node)
+            for antichain0_node in antichain0
+        )
+        for antichain1_node in antichain1
+    )
+
+
+def is_valid_segment(
+        reflexive_transitive_closure: DiGraph[_Node],
+        upper_bound_inclusive: frozenset[_Node],
+        lower_bound_inclusive: frozenset[_Node],
+) -> bool:
+    return (
+        is_antichain(reflexive_transitive_closure, upper_bound_inclusive)
+        and
+        is_antichain(reflexive_transitive_closure, lower_bound_inclusive)
+        and
+        antichain_prior(reflexive_transitive_closure, upper_bound_inclusive, lower_bound_inclusive)
+        and
+        antichain_after(reflexive_transitive_closure, upper_bound_inclusive, lower_bound_inclusive)
+    )
+
+
+def add_self_loops(
+        digraph: DiGraph[_Node],
+        copy: bool,
 ) -> DiGraph[_Node]:
-    for node in list(graph.nodes()):
-        if not keep_node_fn(node):
-            relax_node(graph, node, combine_edge_fn)
-    return graph
+    if copy:
+        digraph = digraph.copy()
+    for node in digraph.nodes():
+        digraph.add_edge(node, node)
+    return digraph
 
 
-def list_edges_from_start_node(graph: DiGraph[_Node], start_node: _Node) -> typing.Iterable[tuple[_Node, _Node]]:
-    all_edges = list(graph.edges())
-    start_index = next(i for i, edge in enumerate(all_edges) if edge[0] == start_node)
-    ordered_edges = all_edges[start_index:] + all_edges[:start_index]
-    return ordered_edges
+def nodes_in_segment(
+        reflexive_transitive_closure: DiGraph[_Node],
+        upper_bound_inclusive: frozenset[_Node],
+        lower_bound_inclusive: frozenset[_Node],
+) -> frozenset[_Node]:
+    candidates = frozenset(itertools.chain.from_iterable(
+        reflexive_transitive_closure.successors(upper_bound)
+        for upper_bound in upper_bound_inclusive
+    ))
+    return frozenset({
+        candidate
+        for candidate in candidates
+        if any(
+                lower_bound in reflexive_transitive_closure.successors(candidate)
+                for lower_bound in lower_bound_inclusive
+        )
+    })
+
+
+def replace(digraph: DiGraph[_Node], old: _Node, new: _Node) -> None:
+    for pred in list(digraph.predecessors(old)):
+        if pred != old:
+            digraph.remove_edge(pred, old)
+            digraph.add_edge(pred, new)
+
+    for succ in list(digraph.successors(old)):
+        if succ != old:
+            digraph.remove_edge(old, succ)
+            digraph.add_edge(new, succ)
+
+    if digraph.has_edge(old, old):
+        digraph.add_edge(new, new)
+
+    digraph.remove_node(old)
