@@ -1,4 +1,4 @@
-
+import os
 import dataclasses
 import os
 import shlex
@@ -194,10 +194,14 @@ def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                     warnings.warn(f"Wait points to a process {target_pid} we didn't track")
                 else:
                     last_exec_no = max(probe_log.processes[target_pid].execs.keys())
-                    last_op_no = len(probe_log.processes[target_pid].execs[last_exec_no].threads[target_pid.main_thread()].ops) - 1
-                    target = OpNode(target_pid, last_exec_no, target_pid.main_thread(), last_op_no)
-                    assert hb_graph.has_node(target)
-                    hb_graph.add_edge(target, node)
+                    last_exec = probe_log.processes[target_pid].execs[last_exec_no]
+                    for tid, thread in last_exec.threads.items():
+                        last_op_no = len(thread.ops) - 1
+                        target = OpNode(target_pid, last_exec_no, tid, last_op_no)
+                        assert hb_graph.has_node(target)
+                        hb_graph.add_edge(target, node)
+                        # TODO: If we guarantee every thread in every process links to the exit node,
+                        # we can just put one edge going from the exit node to the wait
             case _:
                 warnings.warn("Wait edges between other kinds of threads are sound but not percise for now")
 
@@ -271,32 +275,20 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
                 ),
                 width=80,
             )
-            if op.data.ferrno != 0:
-                data["label"] += " error"
-                data["color"] = "red"
         elif isinstance(op.data, OpenOp):
             access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
             data["label"] = f"Open ({access}) {op.data.path.path.decode(errors='backslashreplace')}"
-            if op.data.ferrno != 0:
-                data["label"] += " error"
-                data["color"] = "red"
-            else:
-                data["label"] += f" fd={op.data.fd}"
+            data["label"] += f" fd={op.data.fd}"
         elif isinstance(op.data, CloseOp):
-            if op.data.ferrno != 0:
-                data["label"] = "Close error"
-                data["color"] = "red"
-            else:
-                data["label"] = f"Close fd={op.data.fd}"
+            data["label"] = f"Close fd={op.data.fd}"
         elif isinstance(op.data, DupOp):
-            if op.data.ferrno != 0:
-                data["label"] = "Dup faild"
-                data["color"] = "red"
-            else:
-                data["label"] = f"DupOp fd={op.data.old} → fd={op.data.new}"
+            data["label"] = f"DupOp fd={op.data.old} → fd={op.data.new}"
         else:
             data["label"] = f"{op.data.__class__.__name__}"
             data["labelfontsize"] = 8
+        if getattr(op.data, "ferrno", 0) != 0:
+            data["label"] += " (failed)"
+            data["color"] = "red"
         if add_op_no:
             data["label"] = f"{node.op_no}: " + data["label"]
 
