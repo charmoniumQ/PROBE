@@ -44,6 +44,7 @@ struct Path {
     unsigned int device_major;
     unsigned int device_minor;
     ino_t inode;
+    uint16_t mode;
     struct statx_timestamp mtime;
     struct statx_timestamp ctime;
     size_t size;
@@ -51,7 +52,7 @@ struct Path {
     bool dirfd_valid;
 };
 
-static const struct Path null_path = {-1, NULL, -1, -1, -1, {0}, {0}, 0, false, false};
+static const struct Path null_path = {-1, NULL, -1, -1, -1, 0, {0}, {0}, 0, false, false};
 /* We don't need to free paths since I switched to the Arena allocator */
 /* static void free_path(struct Path path); */
 
@@ -79,9 +80,9 @@ struct OpenOp {
 };
 
 struct CloseOp {
-    int32_t low_fd;
-    int32_t high_fd;
+    int32_t fd;
     int ferrno;
+    struct Path path;
 };
 
 struct ChdirOp {
@@ -94,6 +95,12 @@ struct ExecOp {
     int ferrno;
     char* const* argv;
     char* const* env;
+};
+
+struct SpawnOp {
+    struct ExecOp exec;
+    pid_t child_pid;
+    int ferrno;
 };
 
 enum TaskType {
@@ -283,6 +290,7 @@ enum OpCode {
     close_op_code,
     chdir_op_code,
     exec_op_code,
+    spawn_op_code,
     clone_op_code,
     exit_op_code,
     access_op_code,
@@ -310,6 +318,7 @@ struct Op {
         struct CloseOp close;
         struct ChdirOp chdir;
         struct ExecOp exec;
+        struct SpawnOp spawn;
         struct CloneOp clone;
         struct ExitOp exit;
         struct AccessOp access;

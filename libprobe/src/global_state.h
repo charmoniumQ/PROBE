@@ -35,9 +35,6 @@ __attribute__((visibility("hidden"))) pid_t get_tid();
 __attribute__((visibility("hidden"))) const struct FixedPath* get_probe_dir()
     __attribute__((returns_nonnull));
 
-__attribute__((visibility("hidden"))) struct FixedPath* get_mut_probe_dir()
-    __attribute__((returns_nonnull));
-
 __attribute__((visibility("hidden"))) const struct FixedPath* get_libprobe_path()
     __attribute__((returns_nonnull));
 

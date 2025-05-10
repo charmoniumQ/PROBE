@@ -108,17 +108,6 @@ const struct FixedPath* get_probe_dir() {
     check_fixed_path((&__probe_dir));
     return &__probe_dir;
 }
-static __thread struct FixedPath __probe_dir_thread;
-void init_mut_probe_dir() {
-    check_fixed_path((&__probe_dir));
-    memcpy(__probe_dir_thread.bytes, __probe_dir.bytes, __probe_dir.len + 1 /* copy the \0 byte */);
-    __probe_dir_thread.len = __probe_dir.len;
-    check_fixed_path((&__probe_dir_thread));
-}
-struct FixedPath* get_mut_probe_dir() {
-    check_fixed_path((&__probe_dir_thread));
-    return &__probe_dir_thread;
-}
 
 static struct InodeTable read_inodes;
 static struct InodeTable copied_or_overwritten_inodes;
@@ -310,36 +299,16 @@ static inline void emit_init_thread_op() {
 
 static __thread bool thread_inited = false;
 static bool exec_epoch_inited = false;
-void init_thread() {
-    if (UNLIKELY(!exec_epoch_inited)) {
-        ERROR("This exec epoch was never properly initted");
-    }
-    init_log_arena();
-    init_mut_probe_dir();
-    thread_inited = true;
-}
 void ensure_thread_initted() {
     if (UNLIKELY(!thread_inited)) {
+        if (UNLIKELY(!exec_epoch_inited)) {
+            ERROR("This exec epoch was never properly initted");
+        }
         init_tid();
-        init_thread();
+        init_log_arena();
+        thread_inited = true;
         emit_init_thread_op();
     }
-}
-
-void init_epoch() {
-    DEBUG("Initializing process");
-    init_tid();
-    init_pid();
-    init_function_pointers();
-    check_function_pointers();
-    init_probe_dir();
-    init_process_obj();
-    init_default_path();
-    exec_epoch_inited = true;
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    init_thread();
-    emit_init_epoch_op();
-    emit_init_thread_op();
 }
 
 /*
@@ -381,7 +350,9 @@ void init_after_fork() {
         arena_drop_after_fork(&__ops_arena);
         arena_drop_after_fork(&__data_arena);
 
-        init_thread();
+        init_log_arena();
+        thread_inited = true;
+
         emit_init_epoch_op();
         emit_init_thread_op();
     }
@@ -393,7 +364,22 @@ void init_after_fork() {
  * We should emit a new kind of op in the destructor.
  */
 
-__attribute__((constructor)) void constructor() { init_epoch(); }
+__attribute__((constructor)) void constructor() {
+    DEBUG("Initializing exec epoch");
+    init_tid();
+    init_pid();
+    init_function_pointers();
+    check_function_pointers();
+    init_probe_dir();
+    init_process_obj();
+    init_default_path();
+    exec_epoch_inited = true;
+    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
+    init_log_arena();
+    thread_inited = true;
+    emit_init_epoch_op();
+    emit_init_thread_op();
+}
 
 void prov_log_save();
 

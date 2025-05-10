@@ -2,9 +2,7 @@ import numpy
 import re
 import pytest
 import pathlib
-import networkx as nx  # type: ignore
-from probe_py.analysis import FileAccess, ProcessNode, DfGraph
-from probe_py.workflows import NextflowGenerator
+from probe_py.dataflow_graph import DataflowGraph, InodeVersionNode
 from probe_py.ptypes import Host, InodeVersion, Inode, Device
 
 
@@ -24,12 +22,14 @@ def test_dataflow_graph_to_nextflow_script() -> None:
 
     a_file_path.write_text("This is A.txt")
     b_file_path.write_text("This is A.txt")
+    dataflow_graph = DataflowGraph()
 
-    dataflow_graph = nx.DiGraph[FileAccess | ProcessNode]()
+    raise NotImplementedError()
 
-    A = FileAccess(InodeVersion(Inode(host, device, 0), time, 0), pathlib.Path("A.txt"))
-    B = FileAccess(InodeVersion(Inode(host, device, 1), time, 0), pathlib.Path("B.txt"))
-    W = ProcessNode(0, ("cp", "A.txt", "B.txt"))
+    A = InodeVersionNode(InodeVersion(Inode(host, device, 0), time, 0), pathlib.Path("A.txt"))
+    B = InodeVersionNode(InodeVersion(Inode(host, device, 1), time, 0), pathlib.Path("B.txt"))
+    W = (0, ("cp", "A.txt", "B.txt"))
+
     dataflow_graph.add_nodes_from([A, B], color="red")
     dataflow_graph.add_nodes_from([W], color="blue")
     dataflow_graph.add_edges_from([(A, W), (W, B)])
@@ -59,24 +59,26 @@ workflow {
   B_2etxt_20v0=file("B.txt")
   B_2etxt_20v0 = process_140080913286064(A_2etxt_20v0)
 }'''
-    generator = NextflowGenerator()
-    script = generator.generate_workflow(dataflow_graph)
+    raise NotImplementedError()
+    # generator = NextflowGenerator()
+    # script = generator.generate_workflow(dataflow_graph)
+    script = "hi"
 
     script = re.sub(r'process_\d+', 'process_*', script)
     expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
     assert script == expected_script
 
-    A  = FileAccess(InodeVersion(Inode(host, device, 0), time, 0), pathlib.Path("A.txt"))
-    B0 = FileAccess(InodeVersion(Inode(host, device, 1), time, 0), pathlib.Path("B.txt"))
-    B1 = FileAccess(InodeVersion(Inode(host, device, 1), newer_time, 0), pathlib.Path("B.txt"))
-    C  = FileAccess(InodeVersion(Inode(host, device, 3), time, 0), pathlib.Path("C.txt"))
-    W = ProcessNode(0,("cp", "A.txt", "B.txt"))
-    X = ProcessNode(1,("sed", "s/foo/bar/g", "-i", "B.txt"))
+    A  = InodeVersionNode(InodeVersion(Inode(host, device, 0), time, 0), pathlib.Path("A.txt"))
+    B0 = InodeVersionNode(InodeVersion(Inode(host, device, 1), time, 0), pathlib.Path("B.txt"))
+    B1 = InodeVersionNode(InodeVersion(Inode(host, device, 1), newer_time, 0), pathlib.Path("B.txt"))
+    C  = InodeVersionNode(InodeVersion(Inode(host, device, 3), time, 0), pathlib.Path("C.txt"))
+    W = (0,("cp", "A.txt", "B.txt"))
+    X = (1,("sed", "s/foo/bar/g", "-i", "B.txt"))
     # Note, the filename in FileNode will not always appear in the cmd of ProcessNode!
-    Y = ProcessNode(2,("analyze", "-i", "-k"))
+    Y = (2,("analyze", "-i", "-k"))
 
 
-    example_dataflow_graph = DfGraph()
+    example_dataflow_graph = DataflowGraph()
     # FileNodes will be red and ProcessNodes will be blue in the visualization
     # Code can distinguish between the two using isinstance(node, ProcessNode) or likewise with FileNode
     example_dataflow_graph.add_nodes_from([A, B0, B1, C], color="red")
@@ -150,8 +152,9 @@ workflow {
   C_2etxt_20v0 = process_140123043038656(A_2etxt_20v0, B_2etxt_20v1)
 }'''
 
-    generator = NextflowGenerator()
-    script = generator.generate_workflow(example_dataflow_graph)
+    # generator = NextflowGenerator()
+    # script = generator.generate_workflow(example_dataflow_graph)
+    script = "hi"
     script = re.sub(r'process_\d+', 'process_*', script)
     expected_script = re.sub(r'process_\d+', 'process_*', expected_script)
     assert script == expected_script
