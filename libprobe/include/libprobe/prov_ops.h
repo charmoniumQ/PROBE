@@ -80,9 +80,9 @@ struct OpenOp {
 };
 
 struct CloseOp {
-    int32_t low_fd;
-    int32_t high_fd;
+    int32_t fd;
     int ferrno;
+    struct Path path;
 };
 
 struct ChdirOp {

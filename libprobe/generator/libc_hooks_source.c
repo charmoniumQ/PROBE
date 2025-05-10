@@ -97,7 +97,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         };
         struct Op close_op = {
             close_op_code,
-            {.close = {original_fd, original_fd, 0}},
+            {.close = {original_fd, 0, create_path_lazy(original_fd, NULL, AT_EMPTY_PATH)}},
             {0},
             0,
             0,
@@ -129,7 +129,7 @@ int fclose (FILE *stream) {
         int fd = fileno(stream);
         struct Op op = {
             close_op_code,
-            {.close = {fd, fd, 0}},
+            {.close = {fd, 0, create_path_lazy(fd, NULL, AT_EMPTY_PATH)}},
             {0},
             0,
             0,
@@ -146,23 +146,9 @@ int fclose (FILE *stream) {
     });
 }
 int fcloseall(void) {
-    void* pre_call = ({
-        struct Op op = {
-            close_op_code,
-            {.close = {0, INT_MAX, 0}},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            op.data.close.ferrno = ret == 0 ? 0 : call_errno;
-            prov_log_record(op);
-        }
+    void* call = ({
+        closefrom(0);
+        int ret = 0;
     });
 }
 
@@ -286,7 +272,7 @@ int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
             close_op_code,
-            {.close = {filedes, filedes, 0}},
+            {.close = {filedes, 0, create_path_lazy(filedes, NULL, AT_EMPTY_PATH)}},
             {0},
             0,
             0,
@@ -303,45 +289,33 @@ int close (int filedes) {
     });
 }
 int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
-    void* pre_call = ({
-        if (flags != 0) {
-            NOT_IMPLEMENTED("I don't know how to handle close_rnage flags yet");
+    void* call = ({
+        ASSERTF(flags == 0 || flags == CLOSE_RANGE_CLOEXEC,
+                "I haven't implemented CLOSE_RANGE_UNSHARE");
+        if (flags == 0) {
+            for (unsigned int fd = lowfd; fd <= maxfd; ++fd) {
+                /* Not unwrapped close, so it gets logged as a normal close */
+                close(fd);
+            }
+
         }
-        struct Op op = {
-            close_op_code,
-            {.close = {lowfd, maxfd, 0}},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-         if (LIKELY(prov_log_is_enabled())) {
-            op.data.close.ferrno = ret == 0 ? 0 : call_errno;
-            prov_log_record(op);
-        }
+        int ret = 0;
     });
 }
 void closefrom (int lowfd) {
-    void* pre_call = ({
-        struct Op op = {
-            close_op_code,
-            {.close = {lowfd, INT_MAX, 0}},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
+    void* call = ({
+        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
+        struct dirent* dirp;
+        while ((dirp = unwrapped_readdir(dp)) != NULL) {
+            if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') {
+                int fd = strtol(dirp->d_name, NULL, 10);
+                if (fd >= lowfd) {
+                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
+                    close(fd);
+                }
+            }
         }
-    });
-    void* post_call = ({
-         if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record(op);
-        }
+        unwrapped_closedir(dp);
     });
 }
 
@@ -374,7 +348,7 @@ int dup2 (int old, int new) {
     void* pre_call = ({
         struct Op close_op = {
             close_op_code,
-            {.close = {new, new, 0}},
+            {.close = {new, 0, create_path_lazy(new, NULL, AT_EMPTY_PATH)}},
             {0},
             0,
             0,
@@ -408,7 +382,7 @@ int dup3 (int old, int new, int flags) {
     void* pre_call = ({
         struct Op close_op = {
             close_op_code,
-            {.close = {new, new, 0}},
+            {.close = {new, 0, create_path_lazy(new, NULL, AT_EMPTY_PATH)}},
             {0},
             0,
             0,
@@ -719,7 +693,7 @@ int closedir (DIR *dirstream) {
         int fd = dirfd(dirstream);
         struct Op op = {
             close_op_code,
-            {.close = {fd, fd, 0}},
+            {.close = {fd, 0, create_path_lazy(fd, NULL, AT_EMPTY_PATH)}},
             {0},
             0,
             0,
