@@ -494,6 +494,7 @@ includes = """
 #include <ftw.h>                  // for FTW
 #include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
 #include <signal.h>               // for siginfo_t
+#include <spawn.h>                // for posix_spawn_file_actions_t
 #include <stdio.h>                // for L_tmpnam, FILE, size_t
 #include <sys/stat.h>             // IWYU pragma: keep for stat
 #include <sys/time.h>             // IWYU pragma: keep for timeval
@@ -565,6 +566,7 @@ defines = """
 #include <limits.h>                                          // for INT_MAX, PATH_MAX
 #include <pthread.h>                                         // for pthread_...
 #include <sched.h>                                           // for CLONE_TH...
+#include <spawn.h>                                           // for posix_spawn_file_actions_t
 #include <stdarg.h>                                          // for va_arg
 #include <stdbool.h>                                         // for false, true
 #include <stdint.h>                                          // for int64_t
