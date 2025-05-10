@@ -150,7 +150,6 @@ const struct Path* op_to_second_path(const struct Op* op) {
     }
 }
 
-#ifndef NDEBUG
 BORROWED const char* op_code_to_string(enum OpCode op_code) {
     switch (op_code) {
     case init_exec_epoch_op_code:
@@ -246,7 +245,6 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
     (void)dest;
     (void)size;
 }
-#endif
 
 void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat_buf) {
     stat_result_buf->mask = STATX_BASIC_STATS;

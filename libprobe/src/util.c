@@ -127,38 +127,63 @@ unsigned char ceil_log2(unsigned int val) {
     return ret + is_greater;
 }
 
-char* const* read_null_delim_file(const char* path, size_t* array_len) {
+char* read_file(const char* path, size_t* buffer_len, size_t* buffer_capacity) {
     int fd = unwrapped_openat(AT_FDCWD, path, O_RDONLY);
-    struct statx statx_result;
-    EXPECT(== 0, unwrapped_statx(fd, NULL, AT_EMPTY_PATH, STATX_SIZE, &statx_result));
-    size_t buffer_len = statx_result.stx_size;
-    char* buffer = EXPECT_NONNULL(malloc(buffer_len + 1));
-    buffer[buffer_len] = '\0';
-    if ((ssize_t)buffer_len != read(fd, buffer, buffer_len)) {
-        ERROR("");
+    *buffer_capacity = 4096;
+    char* buffer = EXPECT_NONNULL(malloc(*buffer_capacity));
+    *buffer_len = 0;
+    while (true) {
+        ssize_t ret = read(fd, buffer + *buffer_len, *buffer_capacity - *buffer_len);
+        if (ret == 0) {
+            break;
+        } else if (ret < 0) {
+            ERROR("");
+        } else {
+            *buffer_len += ret;
+            if (*buffer_len == *buffer_capacity) {
+                *buffer_capacity *= 2;
+                buffer = EXPECT_NONNULL(realloc(buffer, *buffer_capacity));
+            }
+        }
     }
     EXPECT(== 0, unwrapped_close(fd));
-    *array_len = 1;
+    return buffer;
+}
+
+char* const* read_null_delim_file(const char* path, size_t* array_len) {
+    size_t buffer_len;
+    size_t buffer_capacity;
+    char* buffer = read_file(path, &buffer_len, &buffer_capacity);
+    ASSERTF(buffer[buffer_len - 1] == '\0', "");
+
+    /* Count array elements */
+    *array_len = 0;
     for (size_t buffer_idx = 0; buffer_idx < buffer_len; ++buffer_idx) {
         if (buffer[buffer_idx] == '\0') {
             ++*array_len;
         }
     }
-    char** array = EXPECT_NONNULL(malloc((*array_len + 1) * sizeof(char*)));
-    array[*array_len] = NULL;
+
+    /* Copy array elements */
+    char** array = EXPECT_NONNULL(malloc((*array_len + 1 /* trailing NULL */) * sizeof(char*)));
+    array[*array_len] = NULL; /* trailing NULL */
     size_t buffer_idx = 0;
     size_t array_idx = 0;
     while (true) {
         array[array_idx] = &buffer[buffer_idx];
-        if (array_idx + 1 == *array_len) {
+        array_idx += 1;
+
+        if (array_idx == *array_len) {
             break;
         }
+
+        /* Find next NULL */
         while (buffer[buffer_idx]) {
             ++buffer_idx;
         }
         ++buffer_idx;
-        ASSERTF(buffer_idx < buffer_len, "%ld < %ld; %ld < %ld", buffer_idx, buffer_len, array_idx,
-                *array_len);
+        ASSERTF(buffer[buffer_idx], "buffer[%ld] should not equal \\0", buffer_idx);
     }
+
     return array;
 }

@@ -2043,7 +2043,7 @@ int execv (const char *filename, char *const argv[]) {
          * */
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2091,7 +2091,7 @@ int execl (const char *filename, const char *arg0, ...) {
         free((char**) updated_env);
         free((char**) argv);
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2129,7 +2129,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
     void* post_call = ({
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2167,7 +2167,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
     void* post_call = ({
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2217,7 +2217,7 @@ int execle (const char *filename, const char *arg0, ...) {
         free((char**)updated_env);
         free((char**)argv);
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2260,7 +2260,7 @@ int execvp (const char *filename, char *const argv[]) {
     void* post_call = ({
         free((char**) updated_env);
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2313,7 +2313,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         free((char**) updated_env);
         free((char**) argv);
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2358,7 +2358,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* post_call = ({
         free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
         if (LIKELY(prov_log_is_enabled())) {
-            ASSERTF(errno > 0, "exec should only return if error");
+            ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;
             prov_log_record(op);
         }
@@ -2405,7 +2405,7 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
-            spawn_op.data.spawn.ferrno = errno;
+            spawn_op.data.spawn.ferrno = call_errno;
         } else {
             spawn_op.data.spawn.child_pid = *pid;
         }
@@ -2457,7 +2457,7 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
-            spawn_op.data.spawn.ferrno = errno;
+            spawn_op.data.spawn.ferrno = call_errno;
         } else {
             spawn_op.data.spawn.child_pid = *pid;
         }

@@ -124,7 +124,7 @@ impl Recorder {
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
         .wrap_err("unable to canonicalize libprobe path")?
-        .join(if self.debug || self.gdb {
+        .join(if self.debug {
             log::debug!("Using debug version of libprobe");
             "libprobe.dbg.so"
         } else {
