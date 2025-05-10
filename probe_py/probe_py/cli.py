@@ -26,6 +26,7 @@ from . import parser
 from . import scp as scp_module
 from . import workflows
 from .analysis import ProcessNode, FileAccess
+from . import validators
 from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
 
 
@@ -63,7 +64,7 @@ def validate(
     if should_have_files and not probe_log.copied_files:
         warning_free = False
         console.print("No files stored in probe log", style="red")
-    for warning in analysis.validate_probe_log(probe_log):
+    for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
     analysis.probe_log_to_dataflow_graph(probe_log)

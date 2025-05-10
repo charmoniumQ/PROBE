@@ -2,7 +2,7 @@ import numpy
 import re
 import pytest
 import pathlib
-import networkx as nx  # type: ignore
+import networkx as nx
 from probe_py.analysis import FileAccess, ProcessNode, DfGraph
 from probe_py.workflows import NextflowGenerator
 from probe_py.ptypes import Host, InodeVersion, Inode, Device
