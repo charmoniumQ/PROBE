@@ -39,7 +39,7 @@ def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[Prob
             tar.extractall(tmpdir, filter="data")
         host = Host.localhost()
         inodes = {
-            iv_from_file_name(host, file.name): file
+            InodeVersion.from_id_string(file.name): file
             for file in (tmpdir / "inodes").iterdir()
         } if (tmpdir / "inodes").exists() else {}
 
@@ -54,7 +54,7 @@ def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[Prob
                     tid = Tid(tid_file.name)
                     jsonlines = tid_file.read_text().strip().split("\n")
                     ops_list = [
-                        json.loads(line, object_hook=op_hook)
+                        json.loads(line, object_hook=_op_hook)
                         for line in jsonlines
                     ]
                     threads[tid] = KernelThread(tid, ops_list)
@@ -89,7 +89,7 @@ def parse_probe_log(
         )
 
 
-def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
+def _op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
     ty: str = json_map["_type"]
     json_map.pop("_type")
 

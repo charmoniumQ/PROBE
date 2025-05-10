@@ -414,7 +414,7 @@ def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
     for node0, node1, attrs in hb_graph.edges(data=True):
         label: EdgeLabel = attrs['label']
-        hb_graph[node0][node1]['color'] = label_color_map[label]
+        hb_graph[node0][node1]['color'] = label_color_map[label]  # type: ignore
         del attrs['label']
 
     for node, data in hb_graph.nodes(data=True):

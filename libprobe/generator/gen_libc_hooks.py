@@ -29,7 +29,7 @@ if typing.TYPE_CHECKING:
         def _make_indent(self) -> str: ...
         indent_level: int
     class Node:
-        pass
+        def __iter__(self) -> typing.Iterator[Node]: ...
     @dataclasses.dataclass
     class IdentifierType(Node):
         names: list[str]
@@ -114,6 +114,40 @@ class GccCGenerator(CGenerator):
                 return '(' + s + ')'
         else:
             return s
+
+
+class FunctionalNodeVisitor(typing.Generic[_T]):
+    _method_cache: None | dict[str, typing.Callable[[Node], list[_T]]] = None
+
+    def visit(self, node) -> list[_T]:
+        """ Visit a node."""
+
+        if self._method_cache is None:
+            self._method_cache = {}
+
+        visitor = self._method_cache.get(node.__class__.__name__, None)
+        if visitor is None:
+            method = 'visit_' + node.__class__.__name__
+            visitor = getattr(self, method, self.generic_visit)  # type: ignore
+            self._method_cache[node.__class__.__name__] = visitor  # type: ignore
+
+        assert visitor
+
+        return visitor(node)
+
+    def generic_visit(self, node: Node) -> list[_T]:
+        """ Called if no explicit visitor function exists for a
+            node. Implements preorder visiting of the node.
+        """
+        return list(itertools.chain.from_iterable(self.visit(c) for c in node))
+
+
+class ErrnoDetector(FunctionalNodeVisitor[bool]):
+    def visit_ID(self, node: ID) -> list[bool]:
+        if node.name == "errno":
+            return [True]
+        else:
+            return []
 
 
 def is_void(node: TypeDecl) -> bool:
@@ -380,12 +414,12 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             name=pycparser.c_ast.ID(name="ensure_thread_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
-        pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="DEBUG"),
-            args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value='"Interposed call"'),
-            ]),
-        ),
+        # pycparser.c_ast.FuncCall(
+        #     name=pycparser.c_ast.ID(name="DEBUG"),
+        #     args=pycparser.c_ast.ExprList(exprs=[
+        #         pycparser.c_ast.Constant(type="string", value='"Interposed call"'),
+        #     ]),
+        # ),
     ]
     # For some reason, Clang analyzer can suddenly prove that if execle returns, errno (call_errno) must be non-zero.
     # So this is a dead store.
@@ -393,6 +427,11 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     if func.name != "execle":
         pre_call_stmts.insert(0, define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno")))
     post_call_stmts = []
+
+
+    for stmt in func.stmts:
+        if ErrnoDetector().visit(stmt):
+            raise RuntimeError(f"{func.name} accesses errno")
 
     pre_call_action = find_decl(func.stmts, "pre_call", func.name)
     if not ignore_actions and pre_call_action:

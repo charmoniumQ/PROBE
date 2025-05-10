@@ -110,6 +110,36 @@ class InodeVersion:
             s.st_size,
         )
 
+    @staticmethod
+    def from_probe_path(path: ops.Path) -> InodeVersion:
+        return InodeVersion(
+            Inode(
+                Host.localhost(),
+                Device(path.device_major, path.device_minor),
+                path.inode,
+            ),
+            numpy.datetime64(path.mtime.sec * int(1e9) + path.mtime.nsec, "ns"),
+            path.size,
+        )
+
+    @staticmethod
+    def from_id_string(id_string: str) -> InodeVersion:
+        # See `libprobe/src/prov_utils.c:path_to_id_string()`
+        array = [
+            int(segment, 16)
+            for segment in id_string.split("-")
+        ]
+        assert len(array) == 6
+        return InodeVersion(
+            Inode(
+                Host.localhost(),
+                Device(array[0], array[1]),
+                array[2],
+            ),
+            numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
+            array[5],
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class KernelThread:

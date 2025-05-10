@@ -1,5 +1,5 @@
 import typing
-from ..digraph import DiGraph
+from .. import DiGraph
 import pydot
 
 
