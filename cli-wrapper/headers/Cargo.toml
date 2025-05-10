@@ -13,6 +13,7 @@ path = "src/lib.rs"
 [dependencies]
 clap = {version = "4.5.35", features = ["derive"]}
 my-workspace-hack = { version = "0.1", path = "../my-workspace-hack" }
+serde = { version = "1.0.219", features = ["derive"] }
 
 [build-dependencies]
 cbindgen = "0.28.0"

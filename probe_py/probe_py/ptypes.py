@@ -22,6 +22,11 @@ class Pid(int):
 
 
 class ExecNo(int):
+    def prev(self) -> ExecNo:
+        if self != 0:
+            return ExecNo(self - 1)
+        else:
+            raise RuntimeError()
     def next(self) -> ExecNo:
         return ExecNo(self + 1)
 
@@ -80,6 +85,7 @@ class Inode:
 @dataclasses.dataclass(frozen=True)
 class ProbeOptions:
     copy_files: bool
+    parent_of_root: Pid
 
 
 @dataclasses.dataclass(frozen=True)
@@ -109,6 +115,36 @@ class InodeVersion:
             s.st_size,
         )
 
+    @staticmethod
+    def from_probe_path(path: ops.Path) -> InodeVersion:
+        return InodeVersion(
+            Inode(
+                Host.localhost(),
+                Device(path.device_major, path.device_minor),
+                path.inode,
+            ),
+            numpy.datetime64(path.mtime.sec * int(1e9) + path.mtime.nsec, "ns"),
+            path.size,
+        )
+
+    @staticmethod
+    def from_id_string(id_string: str) -> InodeVersion:
+        # See `libprobe/src/prov_utils.c:path_to_id_string()`
+        array = [
+            int(segment, 16)
+            for segment in id_string.split("-")
+        ]
+        assert len(array) == 6
+        return InodeVersion(
+            Inode(
+                Host.localhost(),
+                Device(array[0], array[1]),
+                array[2],
+            ),
+            numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
+            array[5],
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class KernelThread:
@@ -135,6 +171,9 @@ class ProbeLog:
     probe_options: ProbeOptions
     host: Host
 
+    def get_op(self, pid: Pid, exec_no: ExecNo, tid: Tid, op_no: int) -> ops.Op:
+        return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
+
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(enum.IntEnum):
@@ -142,3 +181,7 @@ class TaskType(enum.IntEnum):
     TASK_TID = 1
     TASK_ISO_C_THREAD = 2
     TASK_PTHREAD = 3
+
+
+class InvalidProbeLog(Exception):
+    pass

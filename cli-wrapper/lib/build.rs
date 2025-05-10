@@ -36,6 +36,7 @@ fn should_prefix(name: &str) -> bool {
             "CloseOp",
             "ChdirOp",
             "ExecOp",
+            "SpawnOp",
             "CloneOp",
             "ExitOp",
             "AccessOp",

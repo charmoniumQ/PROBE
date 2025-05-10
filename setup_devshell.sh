@@ -30,7 +30,7 @@ if [ ! -f "$project_root/cli-wrapper/target/release/probe" ]; then
 fi
 
 # Add PROBE CLI to path
-export PATH="$project_root/cli-wrapper/target/release:$PATH"
+export PATH="$project_root/cli-wrapper/target/debug:$PATH"
 
 # Add probe_py to the Python path
 export PYTHONPATH="$project_root/probe_py/:$PYTHONPATH"
