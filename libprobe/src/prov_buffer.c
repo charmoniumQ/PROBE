@@ -164,6 +164,10 @@ void prov_log_try(struct Op op) {
         maybe_copy_to_store(READ_ACCESS, &op.data.exec.path);
         break;
     }
+    case spawn_op_code: {
+        maybe_copy_to_store(READ_ACCESS, &op.data.spawn.exec.path);
+        break;
+    }
     default:
         break;
     }

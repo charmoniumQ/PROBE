@@ -289,14 +289,14 @@ def validate_hb_closes(probe_log: ProbeLog, hb_graph: HbGraph) -> list[str]:
     for node in hb_graph.nodes():
         op = get_op(probe_log, *node)
         if isinstance(op.data, CloseOp) and op.data.ferrno == 0:
-            for closed_fd in range(op.data.low_fd, op.data.high_fd + 1):
-                if closed_fd not in reserved_fds:
-                    for pred_node in networkx.dfs_preorder_nodes(reservse_hb_graph, node):
-                        pred_op = get_op(probe_log, *pred_node)
-                        if isinstance(pred_op.data, OpenOp) and pred_op.data.fd == closed_fd and op.data.ferrno == 0:
-                            break
-                    else:
-                        ret.append(f"Close of {closed_fd} in {node} is not preceeded by corresponding open")
+            closed_fd = op.data.fd
+            if closed_fd not in reserved_fds:
+                for pred_node in networkx.dfs_preorder_nodes(reservse_hb_graph, node):
+                    pred_op = get_op(probe_log, *pred_node)
+                    if isinstance(pred_op.data, OpenOp) and pred_op.data.fd == closed_fd and op.data.ferrno == 0:
+                        break
+                else:
+                    ret.append(f"Close of {closed_fd} in {node} is not preceeded by corresponding open")
     return ret
 
 
@@ -427,8 +427,7 @@ def color_hb_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
         elif isinstance(op.data, OpenOp):
             data["label"] += f"\n{op.data.path.path.decode()} (fd={op.data.fd})"
         elif isinstance(op.data, CloseOp):
-            fds = list(range(op.data.low_fd, op.data.high_fd + 1))
-            data["label"] += "\n" + " ".join(map(str, fds))
+            data["label"] += f"\n{op.data.fd}"
         elif isinstance(op.data, CloneOp):
             data["label"] += f"\n{TaskType(op.data.task_type).name} {op.data.task_id}"
         elif isinstance(op.data, WaitOp):
