@@ -2,9 +2,11 @@ import dataclasses
 import enum
 import functools
 import os
+import pathlib
 import typing
 import networkx
 import shlex
+import textwrap
 import warnings
 from .ptypes import Inode, InodeVersion, InvalidProbeLog, ProbeLog
 from . import ops
@@ -65,7 +67,7 @@ def hb_graph_to_dataflow_graph(
     )
 
     dataflow_graph = typing.cast(DataflowGraph, reduced_hb_graph)
-    validate_dataflow_graph(dataflow_graph, False)
+    validate_dataflow_graph(probe_log, dataflow_graph, False)
 
     inode_versions: typing.Mapping[Inode, list[InodeVersionNode]] = {
         inode: []
@@ -79,7 +81,7 @@ def hb_graph_to_dataflow_graph(
     n_nodes = len(list(dataflow_graph.nodes())) + 1
     for inode, access, segment in inode_access_segments:
         add_segment(n_nodes, dataflow_graph, inode_versions, inode, access, segment)
-        validate_dataflow_graph(dataflow_graph, False)
+        validate_dataflow_graph(probe_log, dataflow_graph, False)
 
     dataflow_tc = graph_utils.add_self_loops(networkx.transitive_closure(dataflow_graph), False)
 
@@ -97,10 +99,10 @@ def hb_graph_to_dataflow_graph(
             versions,
             ordered_write_nodes,
         )
-        validate_dataflow_graph(dataflow_graph, False)
+        validate_dataflow_graph(probe_log, dataflow_graph, False)
         # dataflow_graph has been mutated, but it will be consistent with the old one.
 
-    validate_dataflow_graph(dataflow_graph, True)
+    validate_dataflow_graph(probe_log, dataflow_graph, True)
 
     # Transitive reduction eliminates unnecessary dataflow edges
     dataflow_graph = networkx.transitive_reduction(dataflow_graph)
@@ -148,7 +150,7 @@ def get_inode_access_segments(
             elif access_mode == os.O_WRONLY:
                 access = Access.WRITE
             elif access_mode == os.O_RDWR:
-                access = Access.READ_WRITE
+                access = Access.WRITE # TODO: fix me
             else:
                 raise InvalidProbeLog(
                     f"Found file {op.data.path.path.decode()} with invalid access mode"
@@ -217,6 +219,8 @@ def add_segment(
                 inode,
                 len(inode_versions[inode]) + n_nodes,
             )
+            inode_versions[inode].append(new_inode_version)
+            assert not dataflow_graph.has_node(new_inode_version)
             for lower_bound in segment.lower_bound:
                 dataflow_graph.add_edge(lower_bound, new_inode_version)
         case Access.TRUNCATE_WRITE:
@@ -233,7 +237,7 @@ def totally_order_writes(
 ) -> list[tuple[list[DfNode], InodeVersionNode]]:
     """Return a list of totally-ordered writes.
 
-    Each write consists of the antichain of nodes which execute (and therefore
+    Each write consists of a set of nodes which execute (and therefore
     preceed) the write, and the InodeVersionNode which *is written to*.
 
     dataflow_graph is an in/out parameter.
@@ -251,7 +255,7 @@ def totally_order_writes(
             node0: tuple[list[DfNode], InodeVersionNode],
             node1: tuple[list[DfNode], InodeVersionNode],
     ) -> bool:
-        return graph_utils.antichain_prior(
+        return graph_utils.all_prior(
             dataflow_graph_tc,
             node0[0],
             node1[0],
@@ -262,10 +266,10 @@ def totally_order_writes(
     )
 
     if write_nodes:
-        for (antichain0, ivn0), (antichain1, ivn1) in zip(write_nodes[:-1], write_nodes[1:]):
-            if not graph_utils.antichain_prior(dataflow_graph_tc, antichain0, antichain1):
+        for (bound0, ivn0), (bound1, ivn1) in zip(write_nodes[:-1], write_nodes[1:]):
+            if not graph_utils.all_prior(dataflow_graph_tc, bound0, bound1):
                 warnings.warn(f"Appears to be datarace between {ivn0} and {ivn1}")
-            if graph_utils.antichain_prior(dataflow_graph_tc, antichain1, antichain0):
+            if graph_utils.all_prior(dataflow_graph_tc, bound1, bound0):
                 warnings.warn(f"Appears to be datarace between {ivn0} and {ivn1}")
 
     return write_nodes
@@ -326,23 +330,39 @@ def label_nodes(probe_log: ProbeLog, dataflow_graph: DataflowGraph) -> None:
                                 paths.append(op.data.path.path.decode(errors="backslashreplace"))
                             case ops.ExecOp():
                                 paths.append(op.data.path.path.decode(errors="backslashreplace"))
-                data["label"] = f"{', '.join(paths)} v{node.version}"
+                data["label"] = f"{', '.join(sorted(set(paths)))} v{node.version}"
             case hb_graph.OpNode():
                 op = probe_log.get_op(*node.op_quad())
                 match op.data:
                     case ops.InitExecEpochOp():
-                        data["label"] = "exec " + shlex.join(arg.decode(errors="backslashreplace") for arg in op.data.argv)
+                        data["label"] = textwrap.fill(
+                            textwrap.shorten(
+                                shlex.join([
+                                    textwrap.shorten(
+                                        arg.decode(errors="backslashreplace"),
+                                        width=80,
+                                    )
+                                    for arg in op.data.argv
+                                ]),
+                                width=80 * 10,
+                            ),
+                            width=80,
+                        )
                     case _:
                         data["label"] = type(op.data).__name__
 
 
 def validate_dataflow_graph(
+        probe_log: ProbeLog,
         dataflow_graph: DataflowGraph,
         check_version_order: bool,
 ) -> None:
     if not networkx.is_directed_acyclic_graph(dataflow_graph):
         cycle = list(networkx.find_cycle(dataflow_graph))
-        raise InvalidProbeLog(f"Found a cycle in graph: {cycle}")
+        output = pathlib.Path("invalid.dot").resolve()
+        label_nodes(probe_log, dataflow_graph)
+        graph_utils.serialize_graph(dataflow_graph, output)
+        raise InvalidProbeLog(f"Found a cycle in graph: {cycle}; see {output}")
 
     if not networkx.is_weakly_connected(dataflow_graph):
         raise InvalidProbeLog(f"Graph is not strongly connected: {list(networkx.weakly_connected_components(dataflow_graph))}")

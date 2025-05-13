@@ -55,20 +55,7 @@ def serialize_graph_proc_tree(
         pydot_graph.write_png(output)
 
 
-def is_antichain(
-        reflexive_transitive_closure: DiGraph[_Node],
-        nodes: typing.Iterable[_Node],
-) -> bool:
-    for node_0 in nodes:
-        for node_1 in nodes:
-            if node_0 != node_1:
-                if node_0 in reflexive_transitive_closure.successors(node_1):
-                    return False
-                # We check inclusion the other way by swapping node_0 and node_1
-    return True
-
-
-def antichain_prior(
+def all_prior(
         reflexive_transitive_closure: DiGraph[_Node],
         antichain0: typing.Iterable[_Node],
         antichain1: typing.Iterable[_Node],
@@ -83,7 +70,7 @@ def antichain_prior(
     )
 
 
-def antichain_after(
+def all_after(
         reflexive_transitive_closure: DiGraph[_Node],
         antichain0: typing.Iterable[_Node],
         antichain1: typing.Iterable[_Node],
@@ -103,14 +90,9 @@ def is_valid_segment(
         upper_bound_inclusive: frozenset[_Node],
         lower_bound_inclusive: frozenset[_Node],
 ) -> bool:
-    return (
-        is_antichain(reflexive_transitive_closure, upper_bound_inclusive)
+    return (all_prior(reflexive_transitive_closure, upper_bound_inclusive, lower_bound_inclusive)
         and
-        is_antichain(reflexive_transitive_closure, lower_bound_inclusive)
-        and
-        antichain_prior(reflexive_transitive_closure, upper_bound_inclusive, lower_bound_inclusive)
-        and
-        antichain_after(reflexive_transitive_closure, upper_bound_inclusive, lower_bound_inclusive)
+        all_after(reflexive_transitive_closure, upper_bound_inclusive, lower_bound_inclusive)
     )
 
 

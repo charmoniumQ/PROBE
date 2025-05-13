@@ -170,6 +170,8 @@ def _create_clone_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) ->
                 target = OpNode(target_pid, initial_exec_no, target_pid.main_thread(), 0)
                 assert hb_graph.has_node(target)
                 hb_graph.add_edge(node, target)
+            case _:
+                warnings.warn("Clone edges between other kinds of threads are sound but not percise for now")
 
 
 def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -194,7 +196,7 @@ def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                     assert hb_graph.has_node(target)
                     hb_graph.add_edge(node, target)
             case _:
-                warnings.warn("Edges between other kinds of threads are sound but not percise for now")
+                warnings.warn("Wait edges between other kinds of threads are sound but not percise for now")
 
 
 def _create_exec_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -231,6 +233,8 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                     # last_op = OpNode(pid, exec_no, tid, len(thread.ops) - 1)
                     if len(list(hb_graph.predecessors(first_op))) == 0:
                         hb_graph.add_edge(first_op_main_thread, first_op)
+                    # Tying each thread to the last op in the main thread can cause a cycle
+                    # if the CloneOp that created that thread was the last op of the main thread.
                     # if last_op_main_thread != first_op_main_thread and len(list(hb_graph.successors(last_op))) == 0:
                     #     hb_graph.add_edge(last_op, last_op_main_thread)
 
@@ -243,16 +247,19 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
         elif isinstance(op.data, InitExecEpochOp):
             data["label"] = " ".join([
                 f"PID {node.pid}",
-                textwrap.shorten(
-                    shlex.join([
-                        textwrap.shorten(
-                            arg.decode(errors="backslashreplace"),
-                            width=60,
-                        )
-                        for arg in op.data.argv
-                    ]),
-                    width=400,
-                )
+                textwrap.fill(
+                    textwrap.shorten(
+                        shlex.join([
+                            textwrap.shorten(
+                                arg.decode(errors="backslashreplace"),
+                                width=80,
+                            )
+                            for arg in op.data.argv
+                        ]),
+                        width=80 * 10,
+                    ),
+                    width=80,
+                ),
             ])
         elif isinstance(op.data, InitThreadOp):
             data["label"] = f"TID {node.tid}"
