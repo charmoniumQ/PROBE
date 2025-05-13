@@ -78,7 +78,7 @@ FILE * fopen (const char *filename, const char *opentype) {
         }
     });
 }
-/* fn fopen64 = fopen; */
+fn fopen64 = fopen;
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
         int original_fd = fileno(stream);
@@ -120,7 +120,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         }
     });
 }
-/* fn freopen64 = freopen; */
+fn freopen64 = freopen;
 
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
@@ -235,7 +235,7 @@ int open (const char *filename, int flags, ...) {
         }
     });
 }
-/* fn open64 = open; */
+fn open64 = open;
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
         /**
@@ -267,7 +267,7 @@ int creat (const char *filename, mode_t mode) {
         }
     });
 }
-/* fn create64 = creat; */
+fn create64 = creat;
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {

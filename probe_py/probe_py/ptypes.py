@@ -22,6 +22,11 @@ class Pid(int):
 
 
 class ExecNo(int):
+    def prev(self) -> ExecNo:
+        if self != 0:
+            return ExecNo(self - 1)
+        else:
+            raise RuntimeError()
     def next(self) -> ExecNo:
         return ExecNo(self + 1)
 
@@ -166,6 +171,9 @@ class ProbeLog:
     probe_options: ProbeOptions
     host: Host
 
+    def get_op(self, pid: Pid, exec_no: ExecNo, tid: Tid, op_no: int) -> ops.Op:
+        return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
+
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(enum.IntEnum):
@@ -173,3 +181,7 @@ class TaskType(enum.IntEnum):
     TASK_TID = 1
     TASK_ISO_C_THREAD = 2
     TASK_PTHREAD = 3
+
+
+class InvalidProbeLog(Exception):
+    pass

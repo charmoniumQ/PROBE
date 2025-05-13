@@ -98,26 +98,25 @@ complex_commands = {
 # This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
 @pytest.fixture(scope="session")
 def does_podman_work() -> bool:
-    return subprocess.run(["podman", "run", "--rm", "ubuntu:24.04", "pwd"], capture_output=True, check=False).returncode == 0
+    return subprocess.run(["podman", "run", "--rm", "ubuntu:24.04", "pwd"], check=False).returncode == 0
 
 
 @pytest.fixture(scope="session")
 def does_docker_work() -> bool:
-    return subprocess.run(["docker", "run", "--rm", "ubuntu:24.04", "pwd"], capture_output=True, check=False).returncode == 0
+    return subprocess.run(["docker", "run", "--rm", "ubuntu:24.04", "pwd"], check=False).returncode == 0
 
 
 @pytest.fixture(scope="session")
 def does_buildah_work() -> bool:
     name = f"probe-{random.randint(0, 2**32 - 1):08x}"
-    proc = subprocess.run(["buildah", "from", "--name", name, "scratch"], capture_output=True, text=True)
-    return proc.returncode == 0 and subprocess.run(["buildah", "remove", name], capture_output=True, check=False).returncode == 0
+    proc = subprocess.run(["buildah", "from", "--name", name, "scratch"])
+    return proc.returncode == 0 and subprocess.run(["buildah", "remove", name], check=False).returncode == 0
 
 
 @pytest.fixture(scope="session")
 def compile_examples() -> None:
     subprocess.run(
         ["make", "--directory", str(project_root / "tests/examples")],
-        capture_output=True,
         check=True,
     )
 
@@ -208,10 +207,8 @@ def test_record(
 
 @pytest.mark.parametrize(
     "command",
-    [
-        pytest.param(val, id=key, marks=pytest.mark.xfail if key == "bash_in_bash" else (),)
-        for key, val in complex_commands.items()
-    ]
+    complex_commands.values(),
+    ids=complex_commands.keys(),
 )
 def test_downstream_analyses(
         scratch_directory: pathlib.Path,
@@ -229,13 +226,10 @@ def test_downstream_analyses(
 
     cmd = ["probe", "export", "debug-text"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    # stdout is huge
+    subprocess.run(cmd, check=True, cwd=scratch_directory, stdout=subprocess.DEVNULL)
 
-    cmd = ["probe", "export", "ops-graph", "test.png"]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
-
-    cmd = ["probe", "export", "ops-graph", "--only-proc-ops", "test.png"]
+    cmd = ["probe", "export", "hb-graph", "test.png"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
