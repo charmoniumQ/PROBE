@@ -159,7 +159,7 @@ def check_for_clone_and_open(
                         assert curr_pid in check_child_processes
                         check_child_processes.remove(curr_pid)
         elif(isinstance(curr_node_op_data,CloseOp)):
-            fd = curr_node_op_data.low_fd
+            fd = curr_node_op_data.fd
             if fd in reserved_file_descriptors:
                 continue
             if curr_node_op_data.ferrno != 0:
@@ -205,7 +205,7 @@ def match_open_and_close_fd(
             if path in paths:
                 paths.remove(path)
         elif(isinstance(curr_node_op_data,CloseOp)):
-            fd = curr_node_op_data.low_fd
+            fd = curr_node_op_data.fd
             if fd in reserved_file_descriptors:
                 continue
             if curr_node_op_data.ferrno != 0:
@@ -261,8 +261,8 @@ def check_pthread_graph(
                     # ensure the right cloned process has OpenOp for the path
                     assert process_file_map[path] == curr_node_op.pthread_id
         elif curr_node_op is not None and (isinstance(curr_node_op.data, CloseOp)):
-            fd = curr_node_op.data.low_fd
-            print("close", curr_tid, curr_node_op.pthread_id, curr_node_op.data.low_fd)
+            fd = curr_node_op.data.fd
+            print("close", curr_tid, curr_node_op.pthread_id, curr_node_op.data.fd)
             if fd in reserved_file_descriptors:
                 continue
             if curr_node_op.data.ferrno != 0:

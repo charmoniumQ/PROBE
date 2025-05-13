@@ -129,8 +129,7 @@ def validate_opens_and_closes(probe_log: ProbeLog) -> typing.Iterator[str]:
                         opened_fds.add(op.data.fd)
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
                         # Range in Python is up-to-not-including high_fd, so we add one to it.
-                        for fd in range(op.data.low_fd, op.data.high_fd + 1):
-                            closed_fds.add(fd)
+                        closed_fds.add(op.data.fd)
     reserved_fds = {0, 1, 2}
     opened_fds -= reserved_fds
     closed_fds -= reserved_fds
