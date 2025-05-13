@@ -602,6 +602,7 @@ defines = """
 #include <errno.h>                                           // for errno
 #include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
 #include <ftw.h>                                             // for ftw, nftw
+#include <limits.h>                                          // IWYU pragma: keep for INT_MAX, PATH_MAX
 #include <linux/close_range.h>                               // for CLOSE_RANGE_CLOEXEC
 #include <pthread.h>                                         // for pthread_...
 #include <sched.h>                                           // for CLONE_TH...
