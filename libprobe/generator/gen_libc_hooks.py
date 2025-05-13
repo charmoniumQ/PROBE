@@ -119,7 +119,7 @@ class GccCGenerator(CGenerator):
 class FunctionalNodeVisitor(typing.Generic[_T]):
     _method_cache: None | dict[str, typing.Callable[[Node], list[_T]]] = None
 
-    def visit(self, node) -> list[_T]:
+    def visit(self, node: Node) -> list[_T]:
         """ Visit a node."""
 
         if self._method_cache is None:
@@ -128,8 +128,8 @@ class FunctionalNodeVisitor(typing.Generic[_T]):
         visitor = self._method_cache.get(node.__class__.__name__, None)
         if visitor is None:
             method = 'visit_' + node.__class__.__name__
-            visitor = getattr(self, method, self.generic_visit)  # type: ignore
-            self._method_cache[node.__class__.__name__] = visitor  # type: ignore
+            visitor = getattr(self, method, self.generic_visit)
+            self._method_cache[node.__class__.__name__] = visitor
 
         assert visitor
 
@@ -602,7 +602,8 @@ defines = """
 #include <errno.h>                                           // for errno
 #include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
 #include <ftw.h>                                             // for ftw, nftw
-#include <limits.h>                                          // for INT_MAX, PATH_MAX
+#include <limits.h>                                          // IWYU pragma: keep for INT_MAX, PATH_MAX
+#include <linux/close_range.h>                               // for CLOSE_RANGE_CLOEXEC
 #include <pthread.h>                                         // for pthread_...
 #include <sched.h>                                           // for CLONE_TH...
 #include <spawn.h>                                           // for posix_spawn_file_actions_t
