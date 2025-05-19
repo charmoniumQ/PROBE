@@ -244,6 +244,7 @@
                   pypkgs.xdg-base-dirs
                   pypkgs.pyyaml
                   pypkgs.types-pyyaml
+                  pypkgs.numpy
 
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil

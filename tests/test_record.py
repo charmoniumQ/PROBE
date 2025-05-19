@@ -18,7 +18,7 @@ def bash(*cmd: str) -> list[str]:
 
 def bash_multi(*cmds: list[str]) -> list[str]:
     return ["bash", "-c", " && ".join(
-        shlex.join(cmd).replace(" and ", " && ").replace(" redirect_to ", " > ")
+        shlex.join(cmd).replace(" pipe ", " | ").replace(" redirect_to ", " > ")
         for cmd in cmds
     )]
 
@@ -71,6 +71,15 @@ complex_commands = {
         [str(example_path / "echo.exe"), "hi"],
         [str(example_path / "echo.exe"), "hello"],
         [str(example_path / "echo.exe"), "world"],
+    ),
+    "echo_cat": bash_multi(
+        [str(example_path / "echo.exe"), "hi", "redirect_to", "test_file"],
+        [str(example_path / "cat.exe"), "test_file", "redirect_to", "test_file2"],
+    ),
+    "pipe": bash_multi(
+        # echo is a bash bulitin
+        # so we use echo_path to get the real echo executable
+        [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
     "c_hello": bash_multi(
         ["echo", c_hello_world, "redirect_to", "test.c"],

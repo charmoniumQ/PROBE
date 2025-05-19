@@ -1,3 +1,4 @@
+import collections
 import getpass
 import grp
 import itertools
@@ -46,3 +47,15 @@ def groupby_dict(
     for key, group in itertools.groupby(data, key_func):
         ret.setdefault(key, []).extend(map(value_func, group))
     return ret
+
+
+def all_unique(elements: typing.Iterable[_T]) -> bool:
+    return len(set(elements)) == len(list(elements))
+
+
+def duplicates(elements: typing.Iterable[_T]) -> typing.Iterable[_T]:
+    return [
+        elem
+        for elem, count in collections.Counter(elements).most_common()
+        if count > 1
+    ]
