@@ -119,7 +119,7 @@ def does_docker_work() -> bool:
 def does_buildah_work() -> bool:
     name = f"probe-{random.randint(0, 2**32 - 1):08x}"
     proc = subprocess.run(["buildah", "from", "--name", name, "scratch"])
-    return proc.returncode == 0 and subprocess.run(["buildah", "remove", name], check=False).returncode == 0
+    return proc.returncode == 0 and subprocess.run(["buildah", "rm", name], check=False).returncode == 0
 
 
 @pytest.fixture(scope="session")
@@ -169,6 +169,7 @@ def scratch_directory(
     {**simple_commands, **complex_commands}.values(),
     ids={**simple_commands, **complex_commands}.keys(),
 )
+@pytest.mark.timeout(20)
 def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,
@@ -219,6 +220,7 @@ def test_record(
     complex_commands.values(),
     ids=complex_commands.keys(),
 )
+@pytest.mark.timeout(100)
 def test_downstream_analyses(
         scratch_directory: pathlib.Path,
         command: list[str],

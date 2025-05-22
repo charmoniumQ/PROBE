@@ -1,6 +1,7 @@
 from __future__ import annotations
+import collections.abc
 import dataclasses
-import functools
+import tqdm
 import itertools
 import typing
 import pathlib
@@ -19,10 +20,16 @@ class Segment(typing.Generic[_Node]):
     lower_bound: frozenset[_Node]
 
     def __post_init__(self) -> None:
-        assert all_prior(self.dag_tc, self.upper_bound, self.lower_bound)
-        assert all_after(self.dag_tc, self.upper_bound, self.lower_bound)
-        assert is_antichain(self.dag_tc, self.upper_bound), f"{self.upper_bound} is not an antichain"
-        assert is_antichain(self.dag_tc, self.lower_bound), f"{self.lower_bound} is not an antichain"
+        unbounded = unbounded_below_nodes(self.dag_tc, self.upper_bound, self.lower_bound)
+        assert not unbounded, \
+            f"{unbounded} in self.upper_bound is not dominated by any in {self.lower_bound=}"
+        unbounded = unbounded_above_nodes(self.dag_tc, self.lower_bound, self.upper_bound)
+        assert not unbounded, \
+            f"{unbounded} in self.lower_bound is not dominated by any in {self.upper_bound=}"
+        assert is_antichain(self.dag_tc, self.upper_bound), \
+            f"{self.upper_bound} is not an antichain"
+        assert is_antichain(self.dag_tc, self.lower_bound), \
+            f"{self.lower_bound} is not an antichain"
 
     def nodes(self) -> frozenset[_Node]:
         beneath_upper_bound = frozenset(
@@ -49,11 +56,11 @@ class Segment(typing.Generic[_Node]):
             dag_tc = segments[0].dag_tc
             assert all(segment.dag_tc is dag_tc for segment in segments)
 
-            sorted_union_of_upper_bounds = sorted({
+            sorted_union_of_upper_bounds = dag_sort(dag_tc, {
                 node
                 for segment in segments
                 for node in segment.upper_bound
-            }, key=functools.cmp_to_key(dag_tc_leq(dag_tc)))
+            })
 
             upper_bound_of_union = set()
             upper_bounded_nodes = set[_Node]()
@@ -62,11 +69,11 @@ class Segment(typing.Generic[_Node]):
                     upper_bound_of_union.add(node)
                     upper_bounded_nodes.update(dag_tc.successors(node))
 
-            sorted_union_of_lower_bounds = sorted({
+            sorted_union_of_lower_bounds = dag_sort(dag_tc, {
                 node
                 for segment in segments
                 for node in segment.lower_bound
-            }, key=functools.cmp_to_key(dag_tc_leq(dag_tc)), reverse=True)
+            }, reverse=True)
 
             lower_bound_of_union = set()
             lower_bounded_nodes = set[_Node]()
@@ -79,48 +86,43 @@ class Segment(typing.Generic[_Node]):
         else:
             return Segment(networkx.DiGraph(), frozenset(), frozenset())
 
-def dag_tc_leq(dag_tc: networkx.DiGraph[_Node]) -> typing.Callable[[_Node, _Node], bool]:
-    """Return a less-than-or-equal-to operator for the transitive closure of a DAG."""
-    def leq(node0: _Node, node1: _Node) -> bool:
-        return node0 == node1 or node0 in dag_tc.predecessors(node1)
-    return leq
+
+def dag_sort(
+        dag_tc: networkx.DiGraph[_Node],
+        nodes: typing.Iterable[_Node],
+        reverse: bool = False,
+        check: bool = True,
+) -> list[_Node]:
+    # NOT CORRECT!
+    # TIL: Can't use traditional sorting algorithms for partial orders.
+    # ret = sorted(nodes, key=functools.cmp_to_key(dag_tc_leq(dag_tc, reverse=reverse)))
+    return list(networkx.topological_sort(hasse_diagram(
+        nodes,
+        lambda n0, n1: dag_tc.has_edge(n1, n0) if reverse else dag_tc.has_edge(n0, n1),
+    )))
 
 
-def get_bottommost(dag_tc: networkx.DiGraph[_Node], nodes: typing.Iterable[_Node]) -> frozenset[_Node]:
+def get_bottommost(dag_tc: networkx.DiGraph[_Node], nodes: collections.abc.Set[_Node]) -> frozenset[_Node]:
     covered_nodes = set[_Node]()
     bottommost_nodes = set()
-    sorted_nodes = sorted(nodes, key=functools.cmp_to_key(dag_tc_leq(dag_tc)), reverse=False)
-    serialize_graph(dag_tc, pathlib.Path("test2.dot"))
-    for a, b in zip(sorted_nodes[:-1], sorted_nodes[1:]):
-        print(a, b, dag_tc_leq(dag_tc)(a, b), a in dag_tc.predecessors(b))
+    sorted_nodes = dag_sort(dag_tc, nodes, reverse=True)
     for node in sorted_nodes:
         if node not in covered_nodes:
             bottommost_nodes.add(node)
             covered_nodes.update(dag_tc.predecessors(node))
-            print(bottommost_nodes, [other for other in nodes if other in covered_nodes])
     return frozenset(bottommost_nodes)
 
 
-def get_uppermost(dag_tc: networkx.DiGraph[_Node], nodes: typing.Iterable[_Node]) -> frozenset[_Node]:
-    covered_nodes = set[_Node]()
-    uppermost_nodes = set()
-    sorted_nodes = sorted(nodes, key=functools.cmp_to_key(dag_tc_leq(dag_tc)), reverse=True)
-    for node in sorted_nodes:
-        if node not in covered_nodes:
-            uppermost_nodes.add(node)
-            covered_nodes.update(dag_tc.successors(node))
-    return frozenset(uppermost_nodes)
-
-
-def poset_to_dag(
+def hasse_diagram(
         elements: typing.Iterable[_Node],
         leq: typing.Callable[[_Node, _Node], bool],
-        self_loops: bool = False,
 ) -> networkx.DiGraph[_Node]:
     dag: networkx.DiGraph[_Node] = networkx.DiGraph()
-    for e0, e1 in itertools.product(elements, repeat=2):
-        if (self_loops or e0 != e1) and leq(e0, e1):
+    dag.add_nodes_from(elements)
+    for e0, e1 in itertools.permutations(elements, 2):
+        if leq(e0, e1):
             dag.add_edge(e0, e1)
+    assert networkx.is_directed_acyclic_graph(dag)
     return dag
 
 
@@ -133,7 +135,7 @@ def serialize_graph(
     if name_mapper is None:
         def name_mapper(node: _Node) -> str:
             return str(node)
-    relabeling = {node: name_mapper(node) for node in graph.nodes()}
+    relabeling = {node: name_mapper(node) for node in tqdm.tqdm(graph.nodes(), "relabel nodes")}
     assert util.all_unique(relabeling.values()), util.duplicates(relabeling.values())
     graph2 = networkx.relabel_nodes(graph, relabeling)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
@@ -171,34 +173,36 @@ def serialize_graph_proc_tree(
         pydot_graph.write_png(output)
 
 
-def all_prior(
+def unbounded_below_nodes(
         reflexive_transitive_closure: networkx.DiGraph[_Node],
-        antichain0: typing.Iterable[_Node],
-        antichain1: typing.Iterable[_Node],
-) -> bool:
-    """All of antichain0 is before any of antichain1"""
-    return all(
-        any(
-            antichain0_node in reflexive_transitive_closure.predecessors(antichain1_node)
-            for antichain1_node in antichain1
+        candidates: typing.Iterable[_Node],
+        bounds: typing.Iterable[_Node],
+) -> list[_Node]:
+    """Return all candidates which are not bounded below by bounds"""
+    return [
+        candidate
+        for candidate in candidates
+        if not any(
+            reflexive_transitive_closure.has_edge(candidate, bound) or candidate == bound
+            for bound in bounds
         )
-        for antichain0_node in antichain0
-    )
+    ]
 
 
-def all_after(
+def unbounded_above_nodes(
         reflexive_transitive_closure: networkx.DiGraph[_Node],
-        antichain0: typing.Iterable[_Node],
-        antichain1: typing.Iterable[_Node],
-) -> bool:
-    """All of antichain1 is after some of antichain0"""
-    return all(
-        any(
-            antichain0_node in reflexive_transitive_closure.predecessors(antichain1_node)
-            for antichain0_node in antichain0
+        candidates: typing.Iterable[_Node],
+        bounds: typing.Iterable[_Node],
+) -> list[_Node]:
+    """Return all candidates which are not bounded above by bounds"""
+    return [
+        candidate
+        for candidate in candidates
+        if not any(
+            reflexive_transitive_closure.has_edge(bound, candidate) or candidate == bound
+            for bound in bounds
         )
-        for antichain1_node in antichain1
-    )
+    ]
 
 def is_antichain(
         reflexive_transitive_closure: networkx.DiGraph[_Node],
@@ -237,3 +241,16 @@ def replace(digraph: networkx.DiGraph[_Node], old: _Node, new: _Node) -> None:
         digraph.add_edge(new, new)
 
     digraph.remove_node(old)
+
+
+def bfs_with_pruning(
+        digraph: networkx.DiGraph[_Node],
+        start: _Node,
+) -> typing.Generator[_Node, bool, None]:
+    """BFS but send False to prune this branch"""
+    queue = [start]
+    while queue:
+        node = queue.pop()
+        continue_with_children = yield node
+        if continue_with_children:
+            queue.extend(digraph.successors(node))

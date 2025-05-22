@@ -236,6 +236,36 @@ int open (const char *filename, int flags, ...) {
     });
 }
 fn open64 = open;
+int __open_2 (const char *filename, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
+                .flags = flags,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (LIKELY(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* call = ({
+        int ret = unwrapped_open(filename, flags);
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            op.data.open.ferrno = UNLIKELY(ret == -1) ? call_errno : 0;
+            op.data.open.fd = ret;
+            prov_log_record(op);
+        }
+    });
+}
 int creat (const char *filename, mode_t mode) {
     void* pre_call = ({
         /**
@@ -2199,8 +2229,16 @@ int execle (const char *filename, const char *arg0, ...) {
 }
 int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
-        bool found = lookup_on_path(filename, bin_path);
+        const char* bin_path;
+        bool found;
+        if (filename[0] != '/') {
+            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            found = lookup_on_path(filename, tmp_bin_path);
+            bin_path = tmp_bin_path;
+        } else {
+            bin_path = filename;
+            found = true;
+        }
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(environ, &envc);
@@ -2242,8 +2280,16 @@ int execvp (const char *filename, char *const argv[]) {
 }
 int execlp (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
-        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
-        bool found = lookup_on_path(filename, bin_path);
+        const char* bin_path;
+        bool found;
+        if (filename[0] != '/') {
+            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            found = lookup_on_path(filename, tmp_bin_path);
+            bin_path = tmp_bin_path;
+        } else {
+            bin_path = filename;
+            found = true;
+        }
         size_t argc = COUNT_NONNULL_VARARGS(arg0);
         char** argv = EXPECT_NONNULL(malloc((argc + 1) * sizeof(char*)));
         va_list ap;
@@ -2297,8 +2343,16 @@ int execlp (const char *filename, const char *arg0, ...) {
 /* Docs: https://linux.die.net/man/3/execvpe1 */
 int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
-        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
-        bool found = lookup_on_path(filename, bin_path);
+        const char* bin_path;
+        bool found;
+        if (filename[0] != '/') {
+            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            found = lookup_on_path(filename, tmp_bin_path);
+            bin_path = tmp_bin_path;
+        } else {
+            bin_path = filename;
+            found = true;
+        }
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(envp, &envc);
@@ -2393,10 +2447,16 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
                  const posix_spawnattr_t* restrict attrp, char* const argv[restrict],
                  char* const envp[restrict]) {
     void* pre_call = ({
-
-        char* bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
-        bool found = lookup_on_path(file, bin_path);
-
+        bool found;
+        const char* bin_path;
+        if (file[0] != '/') {
+            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            found = lookup_on_path(file, tmp_bin_path);
+            bin_path = tmp_bin_path;
+        } else {
+            bin_path = file;
+            found = true;
+        }
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
         char * const* updated_env = update_env_with_probe_vars(envp, &envc);

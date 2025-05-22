@@ -5,6 +5,7 @@ import textwrap
 import typing
 import warnings
 import networkx
+import tqdm
 from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog
 from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp
 
@@ -49,7 +50,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     _create_program_order_edges(probe_log, hb_graph)
 
     # Hook up synchronization edges
-    for node in hb_graph.nodes():
+    for node in tqdm.tqdm(hb_graph.nodes(), "sync edges"):
         _create_exec_edges(node, probe_log, hb_graph)
         _create_spawn_edges(node, probe_log, hb_graph)
         _create_clone_edges(node, probe_log, hb_graph)
@@ -80,7 +81,11 @@ def retain_only(
     reduced_hb_graph.add_node(root)
     last_in_process[root.thread_triple()] = root
 
-    for node in networkx.dfs_preorder_nodes(full_hb_graph, root):
+    for node in tqdm.tqdm(
+            networkx.dfs_preorder_nodes(full_hb_graph, root),
+            total=len(full_hb_graph),
+            desc="retain",
+    ):
         data = full_hb_graph.nodes(data=True)[node]
         node_triple = (node.pid, node.exec_no, node.tid)
         interesting_predecessors = [
@@ -141,7 +146,7 @@ def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
 def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     if not probe_log.processes:
         raise InvalidProbeLog("No processes tracked")
-    for pid, process in probe_log.processes.items():
+    for pid, process in tqdm.tqdm(probe_log.processes.items(), "processes program order"):
         if not process.execs:
             raise InvalidProbeLog(f"No exec epochs tracked for pid {pid}")
         for exec_no, exec_epoch in process.execs.items():
@@ -252,7 +257,7 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    for node, data in hb_graph.nodes(data=True):
+    for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "label"):
         op = probe_log.get_op(*node.op_quad())
         if len(list(hb_graph.predecessors(node))) == 0:
             data["label"] = "root"

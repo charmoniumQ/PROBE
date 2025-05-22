@@ -1,9 +1,12 @@
+import collections
 import dataclasses
 import enum
 import os
+import pathlib
+import textwrap
 import typing
 import networkx
-import functools
+import tqdm
 from . import ptypes
 from . import ops
 from . import hb_graph
@@ -41,9 +44,10 @@ class InodeVersionNode:
     """A particular version of the inode"""
     inode: ptypes.Inode
     version: int
+    paths: frozenset[pathlib.Path]
 
     def __str__(self) -> str:
-        return f"Inode {self.inode.number} v{self.version}"
+        return f"{' '.join(map(str, self.paths))} {self.inode.number} v{self.version}"
 
 
 if typing.TYPE_CHECKING:
@@ -65,13 +69,27 @@ def hb_graph_to_dataflow_graph(
     reduced_hb_graph = hb_graph.retain_only(
         probe_log,
         hbg,
-        lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)),
+        lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)) and op.data.ferrno == 0,
     )
 
-    reduced_hb_graph_tc = graph_utils.add_self_loops(
-        networkx.transitive_closure(reduced_hb_graph),
-        copy=False,
-    )
+    reduced_hb_graph_tc = reduced_hb_graph.copy()
+    # TODO: Optimize computing the transitive closure.
+    # Consider the following algorithm for DAGs:
+    #     for src in reverse(topological_sort(graph)):
+    #         Do DFS starting from src.
+    #         Call the node we are currently visiting in the DFS cur.
+    #         tc.add_edge(src, cur)
+    #         if cur in already_visited:
+    #             tc.add_edges_from((cur, suc) for suc in tc.successors(cur))
+    #             Abort this line of DFS.
+    #         else:
+    #             Continue this line of DFS from cur.
+    #         already_visited.add(src)
+    for v in tqdm.tqdm(reduced_hb_graph.nodes(), desc="TC"):
+        reduced_hb_graph_tc.add_edges_from(
+            (v, u)
+            for u in networkx.descendants(reduced_hb_graph, v)
+        )
 
     inode_epochs = get_fine_inode_epochs(
         probe_log,
@@ -83,40 +101,106 @@ def hb_graph_to_dataflow_graph(
     dataflow_graph_tc = typing.cast(DataflowGraph, reduced_hb_graph_tc)
     validate_dataflow_graph(probe_log, dataflow_graph, dataflow_graph_tc)
 
-    for inode, epochs in inode_epochs.items():
-        epoch_graph = graph_utils.poset_to_dag(
+    for inode, epochs in tqdm.tqdm(inode_epochs.items(), "inodes"):
+        epoch_graph = graph_utils.hasse_diagram(
             epochs,
-            lambda node0, node1: graph_utils.all_prior(
+            lambda node0, node1: not graph_utils.unbounded_below_nodes(
                 reduced_hb_graph_tc,
                 node0.bounds.lower_bound,
                 node1.bounds.upper_bound,
             ),
-            self_loops=False,
-            test_assertions=False,
         )
 
-        epoch_graph_tc = networkx.transitive_closure(epoch_graph)
-
-        sorted_epochs = sorted(
-            epochs,
-            key=functools.cmp_to_key(graph_utils.dag_tc_leq(epoch_graph_tc)),
-        )
+        sorted_epochs = list(networkx.topological_sort(epoch_graph))
 
         reads, writes = number_sorted_epochs(epoch_graph, sorted_epochs)
 
         check_for_races(epoch_graph, reads, writes)
 
-        add_nodes(dataflow_graph, inode, reads, writes)
+        add_nodes(probe_log, dataflow_graph, inode, reads, writes)
 
     validate_dataflow_graph(probe_log, dataflow_graph, None)
 
-    # dataflow_graph = networkx.transitive_reduction(dataflow_graph)
-
-    # assert any("label" in data for _, data in dataflow_graph.nodes(data=True))
-
-    # validate_dataflow_graph(probe_log, dataflow_graph, None)
-
     return dataflow_graph
+
+
+
+def reduce_dataflow_graph(
+        probe_log: ptypes.ProbeLog,
+        dataflow_graph: DataflowGraph,
+) -> DataflowGraph:
+    reduced_dataflow_graph = DataflowGraph()
+    reduced_nodes = dict[tuple[ptypes.Pid, ptypes.ExecNo], hb_graph.OpNode]()
+    accepting_reads = dict[tuple[ptypes.Pid, ptypes.ExecNo], bool]()
+    for node in networkx.topological_sort(dataflow_graph):
+        if isinstance(node, hb_graph.OpNode):
+            key = (node.pid, node.exec_no)
+            if key not in reduced_nodes:
+                reduced_nodes[key] = node
+                accepting_reads[key] = True
+                print("root", node)
+            op_predecessors = [
+                predecessor
+                for predecessor in dataflow_graph.predecessors(node)
+                if isinstance(predecessor, hb_graph.OpNode) and not _is_program_order(predecessor, node)
+            ]
+            op_successors = [
+                successor
+                for successor in dataflow_graph.successors(node)
+                if isinstance(successor, hb_graph.OpNode) and not _is_program_order(successor, node)
+            ]
+            inode_predecessors = [
+                predecessor
+                for predecessor in dataflow_graph.predecessors(node)
+                if isinstance(predecessor, InodeVersionNode)
+            ]
+            inode_successors = [
+                successor
+                for successor in dataflow_graph.successors(node)
+                if isinstance(successor, InodeVersionNode)
+            ]
+            if inode_predecessors or op_predecessors:
+                if not accepting_reads[key]:
+                    reduced_dataflow_graph.add_edge(reduced_nodes[key], node)
+                    print(reduced_nodes[key], node)
+                    accepting_reads[key] = True
+                    reduced_nodes[key] = node
+                for inode_predecessor in inode_predecessors:
+                    reduced_dataflow_graph.add_edge(
+                        inode_predecessor,
+                        reduced_nodes[key],
+                    )
+                for op_predecessor in op_predecessors:
+                    # We used to consider op predecessors like "reads" of inodes.
+                    # But that could introduce cycles in the dataflow graph.
+                    # The predecessor themselves could have had conflicting operations.
+                    # Consider the program:
+                    #     fork.
+                    #     If parent: wait on child.
+                    #     If child: write file foo.
+                    # Naively, our graph would have main_0 -> child, main_0 -> main_1, child -> main_1
+                    reduced_dataflow_graph.add_edge(
+                        reduced_nodes[(op_predecessor.pid, op_predecessor.exec_no)],
+                        reduced_nodes[key],
+                    )
+            if op_successors or inode_successors:
+                accepting_reads[key] = False
+                # In the old DFG, this node (this proc) -> target_node (other proc)
+                # But in the reduced DFG, we don't know the target_node yet,
+                # because we don't know how the other proc is being reduced.
+                # So we can't create this edge right now.
+                # But we should switch out of accepting reads, as this is functionally a write.
+                # The edge will get created by the target_node's op_predecessors logic.
+                for inode_successor in inode_successors:
+                    reduced_dataflow_graph.add_edge(reduced_nodes[key], inode_successor)
+    return reduced_dataflow_graph
+
+
+def _is_program_order(
+        node0: hb_graph.OpNode | InodeVersionNode,
+        node1: hb_graph.OpNode | InodeVersionNode,
+) -> bool:
+    return isinstance(node0, hb_graph.OpNode) and isinstance(node1, hb_graph.OpNode) and node0.pid == node1.pid and node0.exec_no == node1.exec_no
 
 
 def get_fine_inode_epochs(
@@ -128,7 +212,7 @@ def get_fine_inode_epochs(
 
     out = dict[ptypes.Inode, list[AccessEpoch[hb_graph.OpNode]]]()
 
-    for i, node in enumerate(hbg.nodes()):
+    for node in tqdm.tqdm(hbg.nodes(), "file nodes"):
         op = probe_log.get_op(*node.op_quad())
         if isinstance(op.data, ops.OpenOp) and op.data.ferrno == 0:
             inode_version = ptypes.InodeVersion.from_probe_path(op.data.path)
@@ -220,6 +304,7 @@ def check_for_races(
 
 
 def add_nodes(
+        probe_log: ptypes.ProbeLog,
         dataflow_graph: DataflowGraph,
         inode: ptypes.Inode,
         reads: list[AccessEpoch[hb_graph.OpNode]],
@@ -227,10 +312,19 @@ def add_nodes(
 ) -> None:
     # need_v0 = (reads and reads[0].version == 0) or (writes and writes[0].access in {Access.READ_WRITE, Access.WRITE})
 
+    paths = set[pathlib.Path]()
     for epoch in [*reads, *writes]:
-        assert epoch.version
-        version = InodeVersionNode(inode, epoch.version)
-        next_version = InodeVersionNode(inode, epoch.version + 1)
+        for node in [*epoch.bounds.upper_bound, *epoch.bounds.lower_bound]:
+            op_data = probe_log.get_op(*node.op_quad()).data
+            match op_data:
+                case ops.ExecOp() | ops.OpenOp() | ops.CloseOp():
+                    paths.add(pathlib.Path(op_data.path.path.decode(errors="backslashreplace")))
+    frozen_paths = frozenset(paths)
+
+    for epoch in [*reads, *writes]:
+        assert epoch.version is not None
+        version = InodeVersionNode(inode, epoch.version, frozen_paths)
+        next_version = InodeVersionNode(inode, epoch.version + 1, frozen_paths)
         match epoch.access:
             case Access.WRITE:
                 for op_node in epoch.bounds.lower_bound:
@@ -241,33 +335,51 @@ def add_nodes(
                     dataflow_graph.add_edge(op_node, next_version)
             case Access.READ_WRITE:
                 for op_node in epoch.bounds.upper_bound:
-                    dataflow_graph.add_edge(op_node, version)
+                    dataflow_graph.add_edge(version, op_node)
                 for op_node in epoch.bounds.lower_bound:
                     dataflow_graph.add_edge(op_node, next_version)
             case Access.READ:
                 for op_node in epoch.bounds.upper_bound:
-                    dataflow_graph.add_edge(op_node, version)
-
-
+                    dataflow_graph.add_edge(version, op_node)
 
 
 def label_nodes(probe_log: ptypes.ProbeLog, dataflow_graph: DataflowGraph) -> None:
-    for node, data in dataflow_graph.nodes(data=True):
+    count = dict[tuple[ptypes.Pid, ptypes.ExecNo], int]()
+    for node in networkx.topological_sort(dataflow_graph):
+        data = dataflow_graph.nodes(data=True)[node]
         match node:
+            case hb_graph.OpNode():
+                if node.op_no == 0:
+                    count[(node.pid, node.exec_no)] = 1
+                    if node.exec_no != 0:
+                        op = probe_log.get_op(node.pid, node.exec_no, node.pid.main_thread(), 0)
+                        assert isinstance(op.data, ops.InitExecEpochOp)
+                        data["label"] = "exec\n" + "\n".join(
+                            textwrap.shorten(
+                                arg.decode(errors="backslashreplace"),
+                                width=100,
+                            )
+                            for arg in op.data.argv[:10]
+                        ) + ("\n..." if len(op.data.argv) > 10 else "")
+                    else:
+                        data["label"] = "(child proc)"
+                else:
+                    data["label"] = f"proc v{count[(node.pid, node.exec_no)]}"
+                    count[(node.pid, node.exec_no)] += 1
+                data["shape"] = "oval"
             case InodeVersionNode():
-                paths = []
-                for other in [
-                        *dataflow_graph.predecessors(node),
-                        *dataflow_graph.successors(node),
-                ]:
-                    if isinstance(other, hb_graph.OpNode):
-                        op = probe_log.get_op(*other.op_quad())
-                        match op.data:
-                            case ops.OpenOp():
-                                paths.append(op.data.path.path.decode(errors="backslashreplace"))
-                            case ops.ExecOp():
-                                paths.append(op.data.path.path.decode(errors="backslashreplace"))
-                data["label"] = f"{', '.join(sorted(set(paths)))} v{node.version}"
+                def shorten_path(input: pathlib.Path) -> str:
+                    return ("/" if input.is_absolute() else "") + "/".join(
+                        textwrap.shorten(part, width=20)
+                        for part in input.parts
+                        if part != "/"
+                    )
+                data["label"] = f"{' '.join(map(shorten_path, node.paths))} v{node.version}"
+                data["shape"] = "rectangle"
+
+    for node0, node1, data in dataflow_graph.edges(data=True):
+        if isinstance(node0, hb_graph.OpNode) and isinstance(node1, hb_graph.OpNode) and node0.pid != node1.pid:
+            data["style"] = "dashed"
 
     # dataflow_graph_tc = graph_utils.add_self_loops(networkx.transitive_closure(dataflow_graph), False)
     # inode_to_last_node: dict[ptypes.Inode, None | InodeVersionNode] = {
@@ -292,8 +404,8 @@ def validate_dataflow_graph(
         dataflow_graph: DataflowGraph,
         dataflow_graph_tc: DataflowGraph | None,
 ) -> None:
-    if dataflow_graph_tc is None:
-        dataflow_graph_tc = graph_utils.add_self_loops(networkx.transitive_closure(dataflow_graph), False)
+    # if dataflow_graph_tc is None:
+    #     dataflow_graph_tc = graph_utils.add_self_loops(networkx.transitive_closure(dataflow_graph), False)
     # TODO
     # if not networkx.is_directed_acyclic_graph(dataflow_graph):
     #     cycle = list(networkx.find_cycle(dataflow_graph))
