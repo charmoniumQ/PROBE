@@ -22,6 +22,11 @@ class Pid(int):
 
 
 class ExecNo(int):
+    def prev(self) -> ExecNo:
+        if self != 0:
+            return ExecNo(self - 1)
+        else:
+            raise RuntimeError()
     def next(self) -> ExecNo:
         return ExecNo(self + 1)
 
@@ -95,7 +100,7 @@ class InodeVersion:
     other_id: int = 0
 
     @staticmethod
-    def from_path(path: pathlib.Path) -> InodeVersion:
+    def from_local_path(path: pathlib.Path) -> InodeVersion:
         s = path.stat()
         return InodeVersion(
             Inode(
@@ -166,6 +171,20 @@ class ProbeLog:
     probe_options: ProbeOptions
     host: Host
 
+    # TODO: refactor
+    # I think we should have probe_log.ops[quad] and probe_log.ops -> iterator
+    # Maybe drop probe_log.ops -> iterator
+
+    def get_op(self, pid: Pid, exec_no: ExecNo, tid: Tid, op_no: int) -> ops.Op:
+        return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
+
+    def ops(self) -> typing.Iterator[ops.Op]:
+        for process in self.processes.values():
+            for exec in process.execs.values():
+                for thread in exec.threads.values():
+                    yield from thread.ops
+
+
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(enum.IntEnum):
@@ -173,3 +192,7 @@ class TaskType(enum.IntEnum):
     TASK_TID = 1
     TASK_ISO_C_THREAD = 2
     TASK_PTHREAD = 3
+
+
+class InvalidProbeLog(Exception):
+    pass
