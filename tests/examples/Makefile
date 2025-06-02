@@ -6,8 +6,9 @@
 # Subsequently, note whether the machine exploded.
 # If not, then PROBE does not interfere with ASAN.
 
-CC ?= clang
-CFLAGS ?= -Wall -Wextra -Werror -Og -g
+CC = musl-clang
+LD = ld
+CFLAGS ?= -Wall -Wextra -Werror -Og -g -Wno-unused-command-line-argument
 
 SOURCE_FILES := $(wildcard *.c)
 
@@ -16,8 +17,12 @@ all: $(filter-out minimal_libprobe.exe,$(SOURCE_FILES:.c=.exe)) minimal_libprobe
 %.exe: %.c
 	$(CC) $(CFLAGS) -o $@ $<
 
-%.so: %.c
-	$(CC) $(CFLAGS) -fpic -shared -o $@ $<
+minimal_libprobe.o: minimal_libprobe.c $(MAKEFILE_LIST)
+	$(CC) $(CFLAGS) -fpic -c -o $@ $<
+
+minimal_libprobe.so: minimal_libprobe.o minimal_libprobe.map $(MAKEFILE_LIST)
+	$(LD) -shared --version-script=minimal_libprobe.map -ldl -o $@ $< $(CUSTOM_MUSLC)
+
 
 clean:
 	touch tmp.so tmp.exe
