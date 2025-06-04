@@ -145,12 +145,12 @@ int fclose (FILE *stream) {
         }
     });
 }
-int fcloseall(void) {
-    void* call = ({
-        closefrom(0);
-        int ret = 0;
-    });
-}
+/* int fcloseall(void) { */
+/*     void* call = ({ */
+/*         closefrom(0); */
+/*         int ret = 0; */
+/*     }); */
+/* } */
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html */
 int openat(int dirfd, const char *filename, int flags, ...) {
@@ -318,36 +318,38 @@ int close (int filedes) {
         }
     });
 }
-int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
-    void* call = ({
-        ASSERTF(flags == 0 || flags == CLOSE_RANGE_CLOEXEC,
-                "I haven't implemented CLOSE_RANGE_UNSHARE");
-        if (flags == 0) {
-            for (unsigned int fd = lowfd; fd <= maxfd; ++fd) {
-                /* Not unwrapped close, so it gets logged as a normal close */
-                close(fd);
-            }
+/* int close_range (unsigned int lowfd, unsigned int maxfd, int flags) { */
+/*     void* call = ({ */
+/*         ASSERTF(flags == 0 || flags == CLOSE_RANGE_CLOEXEC, */
+/*                 "I haven't implemented CLOSE_RANGE_UNSHARE"); */
+/*         if (flags == 0) { */
+/*             DEBUG("close_range %d %d -> close", lowfd, maxfd); */
+/*             for (unsigned int fd = lowfd; fd <= maxfd; ++fd) { */
+/*                 /\* Not unwrapped close, so it gets logged as a normal close *\/ */
+/*                 close(fd); */
+/*             } */
 
-        }
-        int ret = 0;
-    });
-}
-void closefrom (int lowfd) {
-    void* call = ({
-        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
-        struct dirent* dirp;
-        while ((dirp = unwrapped_readdir(dp)) != NULL) {
-            if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') {
-                int fd = strtol(dirp->d_name, NULL, 10);
-                if (fd >= lowfd) {
-                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
-                    close(fd);
-                }
-            }
-        }
-        unwrapped_closedir(dp);
-    });
-}
+/*         } */
+/*         int ret = 0; */
+/*     }); */
+/* } */
+/* void closefrom (int lowfd) { */
+/*     void* call = ({ */
+/*         DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd")); */
+/*         struct dirent* dirp; */
+/*         DEBUG("closefrom %d -> close", lowfd); */
+/*         while ((dirp = unwrapped_readdir(dp)) != NULL) { */
+/*             if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') { */
+/*                 int fd = strtol(dirp->d_name, NULL, 10); */
+/*                 if (fd >= lowfd) { */
+/*                     /\* Use the real (not unwrapped) close, so it gets logged as a normal close *\/ */
+/*                     close(fd); */
+/*                 } */
+/*             } */
+/*         } */
+/*         unwrapped_closedir(dp); */
+/*     }); */
+/* } */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html */
 int dup (int old) {
@@ -969,32 +971,32 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
-int symlink (const char *oldname, const char *newname) {
-    void* pre_call = ({
-        struct Op op = {
-            symbolic_link_op_code,
-            {.symbolic_link = {
-                .old = oldname,
-                .new = create_path_lazy(AT_FDCWD, newname, 0),
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
-                op.data.symbolic_link.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
-    });
-}
+/* int symlink (const char *oldname, const char *newname) { */
+/*     void* pre_call = ({ */
+/*         struct Op op = { */
+/*             symbolic_link_op_code, */
+/*             {.symbolic_link = { */
+/*                 .old = oldname, */
+/*                 .new = create_path_lazy(AT_FDCWD, newname, 0), */
+/*                 .ferrno = 0, */
+/*             }}, */
+/*             {0}, */
+/*             0, */
+/*             0, */
+/*         }; */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_try(op); */
+/*         } */
+/*     }); */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             if (ret != 0) { */
+/*                 op.data.symbolic_link.ferrno = call_errno; */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/symlink.2.html */
 int symlinkat(const char *target, int newdirfd, const char *linkpath) {

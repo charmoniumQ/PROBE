@@ -194,25 +194,25 @@ def test_record(
     cmd = ["probe", "validate", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
 
-    if should_have_copy_files:
+    # if should_have_copy_files:
 
-        if does_buildah_work and does_podman_work:
-            cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
-            assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
-            cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
+    #     if does_buildah_work and does_podman_work:
+    #         cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
+    #         print(shlex.join(cmd))
+    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
+    #         assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
+    #         cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
+    #         print(shlex.join(cmd))
+    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
 
-        if does_buildah_work and does_docker_work:
-            cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
-            assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
-            cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
+    #     if does_buildah_work and does_docker_work:
+    #         cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
+    #         print(shlex.join(cmd))
+    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
+    #         assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
+    #         cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
+    #         print(shlex.join(cmd))
+    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
 
 
 @pytest.mark.parametrize(

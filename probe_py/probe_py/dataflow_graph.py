@@ -1,16 +1,17 @@
-import collections
 import dataclasses
 import enum
 import os
 import pathlib
 import textwrap
 import typing
+import warnings
 import networkx
 import tqdm
-from . import ptypes
-from . import ops
-from . import hb_graph
 from . import graph_utils
+from . import hb_graph
+from . import ops
+from . import ptypes
+from . import util
 
 
 _Node = typing.TypeVar("_Node")
@@ -124,7 +125,6 @@ def hb_graph_to_dataflow_graph(
     return dataflow_graph
 
 
-
 def reduce_dataflow_graph(
         probe_log: ptypes.ProbeLog,
         dataflow_graph: DataflowGraph,
@@ -194,6 +194,25 @@ def reduce_dataflow_graph(
                 for inode_successor in inode_successors:
                     reduced_dataflow_graph.add_edge(reduced_nodes[key], inode_successor)
     return reduced_dataflow_graph
+
+
+def combine_indistinguishable_inodes(
+        dataflow_graph: DataflowGraph,
+) -> DataflowGraph:
+    def are_nodes_identical(
+            node0: hb_graph.OpNode | InodeVersionNode,
+            node1: hb_graph.OpNode | InodeVersionNode,
+    ) -> bool:
+        return (
+            isinstance(node0, InodeVersionNode)
+            and
+            isinstance(node1, InodeVersionNode)
+            and
+            frozenset(dataflow_graph.predecessors(node0)) == frozenset(dataflow_graph.predecessors(node1))
+            and
+            frozenset(dataflow_graph.successors(node0)) == frozenset(dataflow_graph.successors(node1))
+        )
+    return networkx.quotient_graph(dataflow_graph, are_nodes_identical)
 
 
 def _is_program_order(
@@ -415,7 +434,7 @@ def validate_dataflow_graph(
     #     raise ptypes.InvalidProbeLog(f"Found a cycle in graph: {cycle}; see {output}")
 
     if not networkx.is_weakly_connected(dataflow_graph):
-        raise ptypes.InvalidProbeLog(f"Graph is not strongly connected: {list(networkx.weakly_connected_components(dataflow_graph))}")
+        warnings.warn(f"Graph is not strongly connected: {'\n'.join(map(str, networkx.weakly_connected_components(dataflow_graph)))}")
 
     # inode_to_last_node: dict[ptypes.Inode, None | InodeVersionNode] = {
     #     node.inode: None

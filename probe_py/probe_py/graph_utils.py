@@ -5,6 +5,7 @@ import tqdm
 import itertools
 import typing
 import pathlib
+import random
 import networkx
 import pydot
 from . import util
@@ -254,3 +255,28 @@ def bfs_with_pruning(
         continue_with_children = yield node
         if continue_with_children:
             queue.extend(digraph.successors(node))
+
+
+def get_root(dag: networkx.DiGraph[_Node]) -> _Node:
+    roots = get_roots(dag)
+    if len(roots) != 1:
+        raise RuntimeError(f"No roots or too many roots: {roots}")
+    else:
+        return roots[0]
+
+
+def get_roots(dag: networkx.DiGraph[_Node]) -> list[_Node]:
+    return [
+        node
+        for node in dag.nodes()
+        if dag.in_degree(node) == 0
+    ]
+
+
+def randomly_sample_edges(inp: networkx.DiGraph[_Node], factor: float, seed: int = 0) -> networkx.DiGraph[_Node]:
+    out: networkx.DiGraph[_Node] = networkx.DiGraph()
+    rng = random.Random(seed)
+    inp_edges = list(inp.edges(data=True))
+    for src, dst, data in rng.sample(inp_edges, round(len(inp_edges) * factor)):
+        out.add_edge(src, dst, **data)
+    return out
