@@ -183,10 +183,8 @@ def copy_file_closure(
                             resolved_path = resolve_path(fds, path)
                             to_copy_exes[resolved_path] = path
                     elif isinstance(op.data, CloseOp):
-                        raise NotImplementedError()
-                        for fd in range(op.data.low_fd, op.data.high_fd + 1):
-                            if fd in fds:
-                                del fds[fd]
+                        if op.data.fd in fds:
+                            del fds[op.data.fd]
 
     shell = pathlib.Path(os.environ["SHELL"])
     to_copy_exes[shell] = None
@@ -206,8 +204,7 @@ def copy_file_closure(
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         if maybe_path is not None:
-            raise NotImplementedError()
-            ino_ver = InodeVersion.from_path(maybe_path)
+            ino_ver = InodeVersion.from_probe_path(maybe_path)
         else:
             ino_ver = None
         if ino_ver is not None and (inode_content := inodes.get(ino_ver)) is not None:
@@ -220,7 +217,7 @@ def copy_file_closure(
             if verbose:
                 console.print(f"Skipping {resolved_path}")
         elif resolved_path.exists():
-            if ino_ver is not None and InodeVersion.from_path(resolved_path) != ino_ver:
+            if ino_ver is not None and InodeVersion.from_local_path(resolved_path) != ino_ver:
                 warnings.warn(f"{resolved_path} changed in between the time of `probe record` and now.")
             if resolved_path.is_dir():
                 destination_path.mkdir(exist_ok=True, parents=True)

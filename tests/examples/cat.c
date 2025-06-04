@@ -6,21 +6,27 @@
 extern char** environ;
 
 int main (int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <file>\n", argv[0]);
+    if (argc != 1 && argc != 2) {
+        fprintf(stderr, "Usage: %s [file]\n", argv[0]);
         exit(1);
     }
-    int fd = open(argv[1], O_RDONLY);
-    if (fd == -1) {
-        fprintf(stderr, "Could not open %s\n", argv[1]);
-        perror("open");
-        exit(1);
+    int fd;
+    if (argc == 1) {
+        fd = STDIN_FILENO;
+    } else {
+        fd = open(argv[1], O_RDONLY);
+        if (fd == -1) {
+            fprintf(stderr, "Could not open %s\n", argv[1]);
+            perror("open");
+            exit(1);
+        }
     }
 
     #define BUFFER_SIZE 1024
     char buffer [BUFFER_SIZE];
     size_t size;
 
+    // Pointless dup to test libprobe
     int fd2 = dup(fd);
 
     while ((size = read(fd2, buffer, BUFFER_SIZE)) > 0) {
