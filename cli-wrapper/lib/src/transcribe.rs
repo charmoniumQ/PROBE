@@ -283,22 +283,21 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
     })?;
 
     usize::from_str_radix(
-        file_stem
-        .to_str()
-        .ok_or_else(|| {
+        file_stem.to_str().ok_or_else(|| {
             log::error!("'{}' not valid UTF-8", file_stem.to_string_lossy());
             option_err("filename not valid UTF-8")
         })?,
         16,
-    ).map_err(|e| {
-            log::error!(
-                "Parsing filename '{}' to integer in {:?}",
-                file_stem.to_string_lossy(),
-                dir.as_ref().to_str(),
-            );
-            ProbeError::from(e)
-        })
-        .wrap_err("Failed to parse filename to integer")
+    )
+    .map_err(|e| {
+        log::error!(
+            "Parsing filename '{}' to integer in {:?}",
+            file_stem.to_string_lossy(),
+            dir.as_ref().to_str(),
+        );
+        ProbeError::from(e)
+    })
+    .wrap_err("Failed to parse filename to integer")
 }
 
 /// this struct represents a `<TID>/data` probe record directory.
