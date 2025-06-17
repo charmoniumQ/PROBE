@@ -58,6 +58,7 @@ simple_commands = {
     # skip million_stats because it takes a very long time.
     # Re-enable once we hvae a faster analysis.
     # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
+    # See https://github.com/charmoniumQ/PROBE/pull/135
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
@@ -212,7 +213,7 @@ def test_record(
 @pytest.mark.parametrize(
     "command",
     [
-        pytest.param(val, id=key, marks=pytest.mark.xfail if key == "bash_in_bash" else (),)
+        pytest.param(val, id=key, marks=pytest.mark.xfail)
         for key, val in complex_commands.items()
     ]
 )
