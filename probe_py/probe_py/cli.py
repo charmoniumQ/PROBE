@@ -121,10 +121,6 @@ def dataflow_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        edge_sample_factor: Annotated[
-            float,
-            typer.Option(help="sample form edges of graph"),
-        ] = 1.0,
 ) -> None:
     """
     Write a dataflow graph for probe_log.
@@ -137,9 +133,9 @@ def dataflow_graph(
     dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
     dfg = dataflow_graph_module.reduce_dataflow_graph(probe_log, dfg)
     dataflow_graph_module.label_nodes(probe_log, dfg)
-    if edge_sample_factor != 1.0:
-        dfg = graph_utils.randomly_sample_edges(dfg, edge_sample_factor)
-    graph_utils.serialize_graph(dfg, output)
+    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
+    graph_utils.serialize_graph(compressed_dfg, output)
+
 
 @export_app.command()
 def store_dataflow_graph(path_to_probe_log: Annotated[

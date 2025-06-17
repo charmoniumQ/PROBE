@@ -79,7 +79,6 @@ def bfs_predecessors(digraph: DiGraph[_Node], source: _Node) -> typing.Iterator[
 
 def topological_sort(digraph: DiGraph[_Node]) -> typing.Iterator[_Node]: ...
 
-
 def topological_generations(digraph: DiGraph[_Node]) -> typing.Iterator[set[_Node]]: ...
 
 
@@ -113,3 +112,9 @@ def transitive_closure(
 def transitive_reduction(
         digraph: DiGraph[_Node],
 ) -> DiGraph[_Node]: ...
+
+
+def quotient_graph(
+        digraph: DiGraph[_Node],
+        partition: typing.Callable[[_Node, _Node], bool],
+) -> DiGraph[frozenset[_Node]]: ...

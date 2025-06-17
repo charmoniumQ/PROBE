@@ -11,7 +11,6 @@ from . import graph_utils
 from . import hb_graph
 from . import ops
 from . import ptypes
-from . import util
 
 
 _Node = typing.TypeVar("_Node")
@@ -53,9 +52,11 @@ class InodeVersionNode:
 
 if typing.TYPE_CHECKING:
     DataflowGraph: typing.TypeAlias = networkx.DiGraph[hb_graph.OpNode | InodeVersionNode]
+    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[hb_graph.OpNode | frozenset[InodeVersionNode]]
     EpochGraph: typing.TypeAlias = networkx.DiGraph[AccessEpoch[hb_graph.OpNode]]
 else:
     DataflowGraph = networkx.DiGraph
+    CompressedDataflowGraph = networkx.DiGraph
     EpochGraph = networkx.DiGraph
 
 
@@ -73,24 +74,7 @@ def hb_graph_to_dataflow_graph(
         lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)) and op.data.ferrno == 0,
     )
 
-    reduced_hb_graph_tc = reduced_hb_graph.copy()
-    # TODO: Optimize computing the transitive closure.
-    # Consider the following algorithm for DAGs:
-    #     for src in reverse(topological_sort(graph)):
-    #         Do DFS starting from src.
-    #         Call the node we are currently visiting in the DFS cur.
-    #         tc.add_edge(src, cur)
-    #         if cur in already_visited:
-    #             tc.add_edges_from((cur, suc) for suc in tc.successors(cur))
-    #             Abort this line of DFS.
-    #         else:
-    #             Continue this line of DFS from cur.
-    #         already_visited.add(src)
-    for v in tqdm.tqdm(reduced_hb_graph.nodes(), desc="TC"):
-        reduced_hb_graph_tc.add_edges_from(
-            (v, u)
-            for u in networkx.descendants(reduced_hb_graph, v)
-        )
+    reduced_hb_graph_tc = graph_utils.LazyTransitiveClosure(hbg)
 
     inode_epochs = get_fine_inode_epochs(
         probe_log,
@@ -98,29 +82,27 @@ def hb_graph_to_dataflow_graph(
         reduced_hb_graph_tc,
     )
 
-    dataflow_graph = typing.cast(DataflowGraph, reduced_hb_graph)
-    dataflow_graph_tc = typing.cast(DataflowGraph, reduced_hb_graph_tc)
-    validate_dataflow_graph(probe_log, dataflow_graph, dataflow_graph_tc)
+    dataflow_graph = typing.cast(DataflowGraph, reduced_hb_graph.copy())
+    validate_dataflow_graph(probe_log, dataflow_graph)
 
     for inode, epochs in tqdm.tqdm(inode_epochs.items(), "inodes"):
         epoch_graph = graph_utils.hasse_diagram(
             epochs,
-            lambda node0, node1: not graph_utils.unbounded_below_nodes(
-                reduced_hb_graph_tc,
-                node0.bounds.lower_bound,
+            lambda node0, node1: not reduced_hb_graph_tc.non_ancestors(
                 node1.bounds.upper_bound,
+                node0.bounds.lower_bound,
             ),
         )
 
         sorted_epochs = list(networkx.topological_sort(epoch_graph))
 
-        reads, writes = number_sorted_epochs(epoch_graph, sorted_epochs)
+        reads, writes = number_sorted_epochs(sorted_epochs)
 
         check_for_races(epoch_graph, reads, writes)
 
         add_nodes(probe_log, dataflow_graph, inode, reads, writes)
 
-    validate_dataflow_graph(probe_log, dataflow_graph, None)
+        validate_dataflow_graph(probe_log, dataflow_graph)
 
     return dataflow_graph
 
@@ -198,8 +180,8 @@ def reduce_dataflow_graph(
 
 def combine_indistinguishable_inodes(
         dataflow_graph: DataflowGraph,
-) -> DataflowGraph:
-    def are_nodes_identical(
+) -> CompressedDataflowGraph:
+    def same_neighbors(
             node0: hb_graph.OpNode | InodeVersionNode,
             node1: hb_graph.OpNode | InodeVersionNode,
     ) -> bool:
@@ -212,7 +194,19 @@ def combine_indistinguishable_inodes(
             and
             frozenset(dataflow_graph.successors(node0)) == frozenset(dataflow_graph.successors(node1))
         )
-    return networkx.quotient_graph(dataflow_graph, are_nodes_identical)
+    def node_mapper(node_set: frozenset[hb_graph.OpNode | InodeVersionNode]) -> hb_graph.OpNode | frozenset[InodeVersionNode]:
+        first_node = next(iter(node_set))
+        if isinstance(first_node, hb_graph.OpNode):
+            assert all(isinstance(node, hb_graph.OpNode) for node in node_set)
+            return first_node
+        else:
+            assert all(isinstance(node, InodeVersionNode) for node in node_set)
+            return typing.cast(frozenset[InodeVersionNode], node_set)
+
+    return graph_utils.map_nodes(
+        node_mapper,
+        networkx.quotient_graph(dataflow_graph, same_neighbors),
+    )
 
 
 def _is_program_order(
@@ -225,7 +219,7 @@ def _is_program_order(
 def get_fine_inode_epochs(
         probe_log: ptypes.ProbeLog,
         hbg: hb_graph.HbGraph,
-        hbg_tc: hb_graph.HbGraph,
+        hbg_tc: graph_utils.LazyTransitiveClosure[hb_graph.OpNode],
 ) -> typing.Mapping[ptypes.Inode, typing.Sequence[AccessEpoch[hb_graph.OpNode]]]:
     """Return a mapping from inode to a list of each segment during which an indoe can be accessed."""
 
@@ -250,7 +244,7 @@ def get_fine_inode_epochs(
             # We only care about the bottommost.
             # It's "nicer" if the bounds of the intervals form antichains (otherwise they contain redundancy).
             # So we will filter for only the bottommost closes.
-            bottommost_closes = graph_utils.get_bottommost(hbg_tc, closes)
+            bottommost_closes = hbg_tc.get_bottommost(closes)
 
             segment = graph_utils.Segment(
                 hbg_tc,
@@ -286,7 +280,6 @@ def get_fine_inode_epochs(
 
 
 def number_sorted_epochs(
-        epoch_graph_tc: EpochGraph,
         sorted_epochs: list[AccessEpoch[hb_graph.OpNode]],
 ) -> tuple[list[AccessEpoch[hb_graph.OpNode]], list[AccessEpoch[hb_graph.OpNode]]]:
     reads = []
@@ -421,7 +414,7 @@ def label_nodes(probe_log: ptypes.ProbeLog, dataflow_graph: DataflowGraph) -> No
 def validate_dataflow_graph(
         probe_log: ptypes.ProbeLog,
         dataflow_graph: DataflowGraph,
-        dataflow_graph_tc: DataflowGraph | None,
+        # dataflow_graph_tc: DataflowGraph | None,
 ) -> None:
     # if dataflow_graph_tc is None:
     #     dataflow_graph_tc = graph_utils.add_self_loops(networkx.transitive_closure(dataflow_graph), False)
