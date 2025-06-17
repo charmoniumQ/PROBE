@@ -575,6 +575,9 @@ typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 #define __PROBE_L_tmpnam L_tmpnam
 #endif
 
+// Musl does not define closefrom; gcc does and we interpose it.
+__attribute__((visibility("default"))) void closefrom(int lowfd);
+
 // On Glibc, struct dirent is 32-bit, with macros switch it to 64-bit or add new struct dirent64
 // On Musl, struct dirent is 64-bit
 #ifdef __MUSL__
