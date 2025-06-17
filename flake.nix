@@ -198,6 +198,7 @@
                 (python.withPackages (ps:
                   with ps; [
                     pytest
+                    pytest-timeout
                     packages.probe-py
                   ]))
                 pkgs.buildah
@@ -248,6 +249,7 @@
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil
                   pypkgs.pytest
+                  pypkgs.pytest-timeout
                   pypkgs.mypy
                   pypkgs.ipython
                   pypkgs.xdg-base-dirs
