@@ -1,9 +1,11 @@
-import time
-import os
+import collections
 import getpass
 import grp
+import itertools
+import os
 import pathlib
 import tarfile
+import time
 import typing
 
 
@@ -29,3 +31,31 @@ def filter_relative_to(path: pathlib.Path) -> typing.Callable[[tarfile.TarInfo],
         member_path = pathlib.Path(member.name)
         return member.replace(name=str(member_path.relative_to(path)))
     return filter
+
+
+_T = typing.TypeVar("_T")
+_U = typing.TypeVar("_U")
+_V = typing.TypeVar("_V")
+
+
+def groupby_dict(
+        data: typing.Iterable[_T],
+        key_func: typing.Callable[[_T], _V],
+        value_func: typing.Callable[[_T], _U],
+) -> typing.Mapping[_V, typing.Sequence[_U]]:
+    ret: dict[_V, list[_U]] = {}
+    for key, group in itertools.groupby(data, key_func):
+        ret.setdefault(key, []).extend(map(value_func, group))
+    return ret
+
+
+def all_unique(elements: typing.Iterable[_T]) -> bool:
+    return len(set(elements)) == len(list(elements))
+
+
+def duplicates(elements: typing.Iterable[_T]) -> typing.Iterable[_T]:
+    return [
+        elem
+        for elem, count in collections.Counter(elements).most_common()
+        if count > 1
+    ]
