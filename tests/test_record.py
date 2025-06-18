@@ -54,6 +54,7 @@ simple_commands = {
     "echo": [str(example_path / "echo.exe"), "hello", "world"],
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
+    "createFile": [f"{project_root}/tests/examples/createFile.exe"],
     "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
     # skip million_stats because it takes a very long time.
     # Re-enable once we hvae a faster analysis.
@@ -69,6 +70,7 @@ complex_commands = {
     "hello_world_pthreads": [str(example_path / "hello_world_pthreads.exe")],
     "mutex": [str(example_path / "mutex.exe")],
     "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
+    "diff": ["diff", "test_file.txt", "test_file.txt"],
     "bash_multi": bash_multi(
         # echo is a bash bulitin
         # so we use echo_path to get the real echo executable
