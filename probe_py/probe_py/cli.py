@@ -1,14 +1,10 @@
 from typing_extensions import Annotated
-import datetime
-import enum
 import dataclasses
+import enum
 import json
 import os
 import pathlib
-import random
-import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
@@ -17,17 +13,15 @@ import typer
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
-from . import analysis
 from . import file_closure
 from . import graph_utils
-from . import ssh_argparser
+from . import hb_graph as hb_graph_module
 from . import ops
 from . import parser
 from . import scp as scp_module
-from . import workflows
-from .analysis import ProcessNode, FileAccess
+from . import ssh_argparser
 from . import validators
-from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
+from .persistent_provenance_db import get_engine
 
 
 console = rich.console.Console(stderr=True)
@@ -67,17 +61,20 @@ def validate(
     for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    analysis.probe_log_to_dataflow_graph(probe_log)
-    hb_graph = analysis.probe_log_to_hb_graph(probe_log)
-    for warning in analysis.validate_hb_graph(probe_log, hb_graph):
-        warning_free = False
-        console.print(warning, style="red")
+    hb_graph_module.probe_log_to_hb_graph(probe_log)
+    # dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
     if not warning_free:
         raise typer.Exit(code=1)
 
 
+class OpType(enum.StrEnum):
+    ALL = enum.auto()
+    MINIMAL = enum.auto()
+    FILE = enum.auto()
+
+
 @export_app.command()
-def ops_graph(
+def hb_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
@@ -86,10 +83,10 @@ def ops_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        only_proc_ops: Annotated[
-            bool,
-            typer.Option(help="For only Exec, Clone, Wait Operations"),
-        ] = False,
+        retain_ops: Annotated[
+            OpType,
+            typer.Option(help="Which ops to include in the graph?")
+        ] = OpType.MINIMAL,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -101,117 +98,88 @@ def ops_graph(
     Supports .png, .svg, and .dot
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
-    hb_graph = analysis.probe_log_to_hb_graph(probe_log)
-    if only_proc_ops:
-        graph_utils.remove_nodes(
-            hb_graph,
-            lambda node: isinstance(
-                analysis.get_op(probe_log, *node).data,
-                (ops.ExecOp, ops.CloneOp, ops.WaitOp)
-            ),
-            lambda incoming_edge_label, outgoing_edge_label: outgoing_edge_label,
-        )
-    analysis.color_hb_graph(probe_log, hb_graph)
-    graph_utils.serialize_graph(hb_graph, output)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    match retain_ops:
+        case OpType.ALL:
+            pass
+        case OpType.MINIMAL:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, _op: False)
+        case OpType.FILE:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
+    hb_graph_module.label_nodes(probe_log, hbg, retain_ops == OpType.ALL)
+    graph_utils.serialize_graph(hbg, output)
 
-    
-@export_app.command()
-def dataflow_graph(
-        output: Annotated[
-            pathlib.Path,
-            typer.Argument()
-        ] = pathlib.Path("dataflow-graph.png"),
-        path_to_probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
-) -> None:
-    """
-    Write a dataflow graph for probe_log.
-
-    Dataflow shows the name of each proceess, its read files, and its write files.
-    """
-    probe_log = parser.parse_probe_log(path_to_probe_log)
-    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
-    graph_utils.serialize_graph(dataflow_graph, output)
-
-
-def get_host_name() -> int:
-    hostname = socket.gethostname()
-    rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
-    bits_per_hex_digit = 4
-    hex_digits = 8
-    random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
-    return random_number
 
 @export_app.command()
 def store_dataflow_graph(path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"))->None:
-    probe_log = parser.parse_probe_log(path_to_probe_log)
-    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
+    # probe_log = parser.parse_probe_log(path_to_probe_log)
+    # hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    # dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
     engine = get_engine()
     with sqlalchemy.orm.Session(engine) as session:
-        for node in dataflow_graph.nodes():
-            if isinstance(node, ProcessNode):
-                print(node)
-                new_process = Process(process_id = int(node.pid), parent_process_id = 0, cmd = shlex.join(node.cmd), time = datetime.datetime.now())
-                session.add(new_process)
+        raise NotImplementedError()
+        # for node in dfg.nodes():
+            # if isinstance(node, ProcessNode):
+            #     new_process = Process(process_id = int(node.pid), parent_process_id = 0, cmd = shlex.join(node.cmd), time = datetime.datetime.now())
+            #     session.add(new_process)
 
-        for (node1, node2) in dataflow_graph.edges():
-            if isinstance(node1, ProcessNode) and isinstance(node2, ProcessNode):
-                parent_process_id = node1.pid
-                child_process = session.get(Process, node2.pid)
-                if child_process:
-                    child_process.parent_process_id = parent_process_id
+        # for (node1, node2) in dfg.edges():
+            # if isinstance(node1, ProcessNode) and isinstance(node2, ProcessNode):
+            #     parent_process_id = node1.pid
+            #     child_process = session.get(Process, node2.pid)
+            #     if child_process:
+            #         child_process.parent_process_id = parent_process_id
 
-            elif isinstance(node1, ProcessNode) and isinstance(node2, FileAccess):
-                inode_info = node2.inode_version
-                host = get_host_name()
-                stat_info = os.stat(node2.path)
-                mtime = int(stat_info.st_mtime * 1_000_000_000)
-                size = stat_info.st_size
-                new_output_inode = ProcessThatWrites(
-                    inode=inode_info.inode,
-                    process_id=node1.pid,
-                    device=inode_info.inode.device,
-                    host=host,
-                    path=node2.path,
-                    mtime=mtime,
-                    size=size,
-                )
-                session.add(new_output_inode)
+            # elif isinstance(node1, ProcessNode) and isinstance(node2, FileAccess):
+            #     inode_info = node2.inode_version
+            #     host = get_host_name()
+            #     stat_info = os.stat(node2.path)
+            #     mtime = int(stat_info.st_mtime * 1_000_000_000)
+            #     size = stat_info.st_size
+            #     new_output_inode = ProcessThatWrites(
+            #         inode=inode_info.inode,
+            #         process_id=node1.pid,
+            #         device=inode_info.inode.device,
+            #         host=host,
+            #         path=node2.path,
+            #         mtime=mtime,
+            #         size=size,
+            #     )
+            #     session.add(new_output_inode)
 
-            elif isinstance(node1, FileAccess) and isinstance(node2, ProcessNode):
-                inode_info = node1.inode_version
-                host = get_host_name()
-                stat_info = os.stat(node1.path)
-                mtime = int(stat_info.st_mtime * 1_000_000_000)
-                size = stat_info.st_size
-                new_input_inode = ProcessInputs(
-                    inode=inode_info.inode,
-                    process_id=node2.pid,
-                    device=inode_info.inode.device,
-                    host=host,
-                    path=node1.path,
-                    mtime=mtime,
-                    size=size,
-                )
-                session.add(new_input_inode)
+            # elif isinstance(node1, FileAccess) and isinstance(node2, ProcessNode):
+            #     inode_info = node1.inode_version
+            #     host = get_host_name()
+            #     stat_info = os.stat(node1.path)
+            #     mtime = int(stat_info.st_mtime * 1_000_000_000)
+            #     size = stat_info.st_size
+            #     new_input_inode = ProcessInputs(
+            #         inode=inode_info.inode,
+            #         process_id=node2.pid,
+            #         device=inode_info.inode.device,
+            #         host=host,
+            #         path=node1.path,
+            #         mtime=mtime,
+            #         size=size,
+            #     )
+            #     session.add(new_input_inode)
 
-        root_process = None
-        for node in dataflow_graph.nodes():
-            if isinstance(node, ProcessNode):
-                pid = node.pid
-                process_record = session.get(Process, pid)
-                if process_record and process_record.parent_process_id == 0:
-                    if root_process is not None:
-                        print(f"Error: Two parent processes - {pid} and {root_process}")
-                        session.rollback()
-                        return
-                    else:
-                        root_process = pid
+        raise NotImplementedError()
+        # root_process = None
+        # for node in dataflow_graph_module.nodes():
+        #     if isinstance(node, ProcessNode):
+        #         pid = node.pid
+        #         process_record = session.get(Process, pid)
+        #         if process_record and process_record.parent_process_id == 0:
+        #             if root_process is not None:
+        #                 print(f"Error: Two parent processes - {pid} and {root_process}")
+        #                 session.rollback()
+        #                 return
+        #             else:
+        #                 root_process = pid
 
         session.commit()
 
@@ -238,8 +206,8 @@ def debug_text(
                         out_console.print(op_no)
                         rich.pretty.pprint(
                             op.data,
-                            console=console,
-                            max_string=40,
+                            console=out_console,
+                            max_string=None,
                         )
         for ino_ver, path in sorted(probe_log.copied_files.items()):
             out_console.print(
@@ -408,52 +376,6 @@ def ssh(
     raise typer.Exit(proc.returncode)
 
 
-class OutputFormat(str, enum.Enum):
-    makefile = "makefile"
-    nextflow = "nextflow"
-
-@export_app.command()
-def makefile(
-        output: Annotated[
-            pathlib.Path,
-            typer.Argument(),
-        ] = pathlib.Path("Makefile"),
-        path_to_probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
-) -> None:
-    """
-    Export the probe_log to a Makefile
-    """
-    probe_log = parser.parse_probe_log(path_to_probe_log)
-    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
-    g = workflows.MakefileGenerator()
-    output = pathlib.Path("Makefile")
-    script = g.generate_makefile(dataflow_graph)
-    output.write_text(script)
-
-@export_app.command()
-def nextflow(
-        output: Annotated[
-            pathlib.Path,
-            typer.Argument(),
-        ] = pathlib.Path("nextflow.nf"),
-        path_to_probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
-) -> None:
-    """
-    Export the probe_log to a Nextflow workflow
-    """
-    probe_log = parser.parse_probe_log(path_to_probe_log)
-    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log)
-    g = workflows.NextflowGenerator()
-    output = pathlib.Path("nextflow.nf")
-    script = g.generate_workflow(dataflow_graph)
-    output.write_text(script)
-
 @export_app.command()
 def process_tree(
     output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.png"),
@@ -467,22 +389,15 @@ def process_tree(
 
     Digraph shows the clone ops of the parent process and the children.
     """
-    probe_log = parser.parse_probe_log(path_to_probe_log)
-    digraph = analysis.probe_log_to_process_tree(probe_log)
-
-    same_rank_groups = []
-    for pid, process in probe_log.processes.items():
-        group = []
-        for epoch_no in sorted(process.execs.keys()):
-            node_id = f"pid{pid}_epoch{epoch_no}"
-            if digraph.has_node(node_id):
-                group.append(node_id)
-
-        if group:
-            same_rank_groups.append(group)
-
-    graph_utils.serialize_graph_proc_tree(digraph, output, same_rank_groups=same_rank_groups)
-
+    raise NotImplementedError()
+    # probe_log = parser.parse_probe_log(path_to_probe_log)
+    # hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    # pt = process_tree_module.hb_graph_to_process_tree(probe_log, hbg)
+    # graph_utils.serialize_graph_proc_tree(
+    #     pt,
+    #     output,
+    #     # same_rank_groups=same_rank_groups,
+    # )
 
 
 @export_app.command()
