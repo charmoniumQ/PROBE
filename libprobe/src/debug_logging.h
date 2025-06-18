@@ -74,10 +74,3 @@ __attribute__((unused)) static inline void __mark_as_used__debug_logging_h() {
     get_pid();
     exit(1);
 }
-
-#define ALWAYS_ASSERTF(cond, str, ...)                                                             \
-    ({                                                                                             \
-        if (__builtin_expect(!(cond), 0)) {                                                        \
-            ERROR("Assertion " #cond " failed: " str, ##__VA_ARGS__);                              \
-        }                                                                                          \
-    })

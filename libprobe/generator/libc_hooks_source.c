@@ -145,12 +145,13 @@ int fclose (FILE *stream) {
         }
     });
 }
-/* int fcloseall(void) { */
-/*     void* call = ({ */
-/*         closefrom(0); */
-/*         int ret = 0; */
-/*     }); */
-/* } */
+int fcloseall(void) {
+    void* call = ({
+        /* TODO: We are also technically supposed to flush the streams here. */
+        closefrom(0);
+        int ret = 0;
+    });
+}
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html */
 int openat(int dirfd, const char *filename, int flags, ...) {
@@ -193,7 +194,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
     });
 }
 
-/* fn openat64 = openat; */
+fn openat64 = openat;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open (const char *filename, int flags, ...) {
@@ -318,38 +319,49 @@ int close (int filedes) {
         }
     });
 }
-/* int close_range (unsigned int lowfd, unsigned int maxfd, int flags) { */
-/*     void* call = ({ */
-/*         ASSERTF(flags == 0 || flags == CLOSE_RANGE_CLOEXEC, */
-/*                 "I haven't implemented CLOSE_RANGE_UNSHARE"); */
-/*         if (flags == 0) { */
-/*             DEBUG("close_range %d %d -> close", lowfd, maxfd); */
-/*             for (unsigned int fd = lowfd; fd <= maxfd; ++fd) { */
-/*                 /\* Not unwrapped close, so it gets logged as a normal close *\/ */
-/*                 close(fd); */
-/*             } */
-
-/*         } */
-/*         int ret = 0; */
-/*     }); */
-/* } */
-/* void closefrom (int lowfd) { */
-/*     void* call = ({ */
-/*         DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd")); */
-/*         struct dirent* dirp; */
-/*         DEBUG("closefrom %d -> close", lowfd); */
-/*         while ((dirp = unwrapped_readdir(dp)) != NULL) { */
-/*             if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') { */
-/*                 int fd = strtol(dirp->d_name, NULL, 10); */
-/*                 if (fd >= lowfd) { */
-/*                     /\* Use the real (not unwrapped) close, so it gets logged as a normal close *\/ */
-/*                     close(fd); */
-/*                 } */
-/*             } */
-/*         } */
-/*         unwrapped_closedir(dp); */
-/*     }); */
-/* } */
+int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
+    void* call = ({
+        ASSERTF(flags == 0 || flags == CLOSE_RANGE_CLOEXEC,
+                "I haven't implemented CLOSE_RANGE_UNSHARE");
+        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
+        struct dirent* dirp;
+        DEBUG("close_range %d %d %d -> close", lowfd, maxfd, flags);
+        while ((dirp = unwrapped_readdir(dp)) != NULL) {
+            if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') {
+                unsigned int fd = (unsigned int) strtol(dirp->d_name, NULL, 10);
+                if (lowfd <= fd && fd <= maxfd) {
+                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
+                    if (flags == 0) {
+                        close(fd);
+                    } else if (flags == CLOSE_RANGE_CLOEXEC) {
+                        int fd_flags = fcntl(fd, F_GETFD);
+                        fd_flags |= O_CLOEXEC;
+                        fcntl(fd, F_SETFD, fd_flags);
+                    }
+                }
+            }
+        }
+        unwrapped_closedir(dp);
+        int ret = 0;
+    });
+}
+void closefrom (int lowfd) {
+    void* call = ({
+        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
+        struct dirent* dirp;
+        DEBUG("closefrom %d -> close", lowfd);
+        while ((dirp = unwrapped_readdir(dp)) != NULL) {
+            if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') {
+                int fd = (int) strtol(dirp->d_name, NULL, 10);
+                if (lowfd <= fd) {
+                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
+                    close(fd);
+                }
+            }
+        }
+        unwrapped_closedir(dp);
+    });
+}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html */
 int dup (int old) {
@@ -443,7 +455,7 @@ int dup3 (int old, int new, int flags) {
     });
 }
 
-/* TODO: fcntl */
+/* TODO: fcntl to op */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
 int fcntl (int filedes, int command, ...) {
     void* pre_call = ({
@@ -584,7 +596,7 @@ DIR * fdopendir (int fd) {
     });
 }
 
-/* TODO: dirent manipulation */
+/* TODO: interpose and sort dirent iteration */
 /* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html */
 struct dirent * readdir (DIR *dirstream) {
     void* pre_call = ({
@@ -970,6 +982,7 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
     });
 }
 
+/* TODO: debug */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
 /* int symlink (const char *oldname, const char *newname) { */
 /*     void* pre_call = ({ */
@@ -1556,7 +1569,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
     });
 }
 
-/* fn newfstatat = fstatat; */
+fn newfstatat = fstatat;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
 int chown (const char *filename, uid_t owner, gid_t group) {

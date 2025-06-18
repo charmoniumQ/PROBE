@@ -55,6 +55,10 @@ simple_commands = {
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
     "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
+    # skip million_stats because it takes a very long time.
+    # Re-enable once we hvae a faster analysis.
+    # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
+    # See https://github.com/charmoniumQ/PROBE/pull/135
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
@@ -194,25 +198,27 @@ def test_record(
     cmd = ["probe", "validate", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
 
+    # TODO: this doesn't work because we don't capture libraries currently.
     # if should_have_copy_files:
+    if False:
 
-    #     if does_buildah_work and does_podman_work:
-    #         cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
-    #         print(shlex.join(cmd))
-    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
-    #         assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
-    #         cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
-    #         print(shlex.join(cmd))
-    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
+        if does_buildah_work and does_podman_work:
+            cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
+            assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
+            cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
 
-    #     if does_buildah_work and does_docker_work:
-    #         cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
-    #         print(shlex.join(cmd))
-    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
-    #         assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
-    #         cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
-    #         print(shlex.join(cmd))
-    #         subprocess.run(cmd, check=True, cwd=scratch_directory)
+        if does_buildah_work and does_docker_work:
+            cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
+            assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
+            cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
 
 
 @pytest.mark.parametrize(
