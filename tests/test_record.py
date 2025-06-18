@@ -224,7 +224,7 @@ def test_record(
 @pytest.mark.parametrize(
     "command",
     [
-        pytest.param(val, id=key, marks=pytest.mark.xfail)
+        pytest.param(val, id=key)
         for key, val in complex_commands.items()
     ]
 )
@@ -247,7 +247,7 @@ def test_downstream_analyses(
     # stdout is huge
     subprocess.run(cmd, check=True, cwd=scratch_directory, stdout=subprocess.DEVNULL)
 
-    cmd = ["probe", "export", "ops-graph", "test.png"]
+    cmd = ["probe", "export", "hb-graph", "test.png"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 

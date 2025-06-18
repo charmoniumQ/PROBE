@@ -13,6 +13,7 @@ import typer
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
+from . import analysis
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
@@ -108,6 +109,28 @@ def hb_graph(
             hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
     hb_graph_module.label_nodes(probe_log, hbg, retain_ops == OpType.ALL)
     graph_utils.serialize_graph(hbg, output)
+
+    
+@export_app.command()
+def dataflow_graph(
+        output: Annotated[
+            pathlib.Path,
+            typer.Argument()
+        ] = pathlib.Path("dataflow-graph.png"),
+        path_to_probe_log: Annotated[
+            pathlib.Path,
+            typer.Argument(help="output file written by `probe record -o $file`."),
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Write a dataflow graph for probe_log.
+
+    Dataflow shows the name of each proceess, its read files, and its write files.
+    """
+    probe_log = parser.parse_probe_log(path_to_probe_log)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log, hbg)
+    graph_utils.serialize_graph(dataflow_graph, output)
 
 
 @export_app.command()
