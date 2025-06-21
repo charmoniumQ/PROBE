@@ -62,6 +62,6 @@ lint: lint-py lint-cli lint-lib
 compile: compile-cli compile-lib compile-tests
 
 test: compile
-    python -m pytest tests/ -ra --failed-first -v -W error --durations=0
+    python -m pytest tests/ probe_py/tests -ra --failed-first -v -W error --durations=0
 
 pre-commit: lint compile test

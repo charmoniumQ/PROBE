@@ -154,10 +154,12 @@
               python.pkgs.sqlalchemy
               python.pkgs.pyyaml
               python.pkgs.numpy
+              python.pkgs.tqdm
             ];
             nativeCheckInputs = [
               python.pkgs.mypy
               python.pkgs.types-pyyaml
+              python.pkgs.types-tqdm
               pkgs.ruff
             ];
             checkPhase = ''
@@ -245,6 +247,9 @@
                   pypkgs.xdg-base-dirs
                   pypkgs.pyyaml
                   pypkgs.types-pyyaml
+                  pypkgs.numpy
+                  pypkgs.tqdm
+                  pypkgs.types-tqdm
 
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil
