@@ -1,3 +1,4 @@
+
 import dataclasses
 import os
 import shlex
@@ -69,58 +70,49 @@ def retain_only(
         full_hb_graph: HbGraph,
         retain_node_predicate: typing.Callable[[OpNode, Op], bool],
 ) -> HbGraph:
-    """Retains only nodes satisfying the predicate AND nodes that connect to
-    other threads/execs/processes.
-
-    The latter are needed to retain the happened-before structure.
-
-    """
+    """Retains only nodes satisfying the predicate."""
     reduced_hb_graph = HbGraph()
     last_in_process = dict[tuple[Pid, ExecNo, Tid], OpNode]()
-
-    roots = graph_utils.get_roots(full_hb_graph)
-    reduced_hb_graph.add_nodes_from(roots)
-    for root in roots:
-        last_in_process[root.thread_triple()] = root
+    incoming_to_process = dict[tuple[Pid, ExecNo, Tid], list[tuple[OpNode, typing.Mapping[str, typing.Any]]]]()
 
     for node in tqdm.tqdm(
             networkx.topological_sort(full_hb_graph),
             total=len(full_hb_graph),
             desc="retain",
     ):
-        data = full_hb_graph.nodes(data=True)[node]
         node_triple = (node.pid, node.exec_no, node.tid)
-        interesting_predecessors = [
-            predecessor
-            for predecessor in full_hb_graph.predecessors(node)
-            if (predecessor.pid, predecessor.exec_no, predecessor.tid) != node_triple
-        ]
-        interesting_successors = any(
-            successor
-            for successor in full_hb_graph.successors(node)
-            if (successor.pid, successor.exec_no, successor.tid) != node_triple
-        )
-        if interesting_predecessors:
-            reduced_hb_graph.add_node(node, **data)
-            for predecessor in interesting_predecessors:
-                assert predecessor != node
-                reduced_hb_graph.add_edge(predecessor, node, **full_hb_graph.get_edge_data(predecessor, node))
-            if node_triple in last_in_process:
-                # NOT the first node, link to the last in process
-                assert last_in_process[node_triple] != node
-                reduced_hb_graph.add_edge(last_in_process[node_triple], node)
+
+        # If node satisfies predicate, copy node into new graph
+        if retain_node_predicate(node, probe_log.get_op(*node.op_quad())):
+            node_data = full_hb_graph.nodes(data=True)[node]
+            reduced_hb_graph.add_node(node, **node_data)
+
+            # Add link from previous node in this process, if any
+            # Note that iteration is in topo order,
+            # so this node happens-after the node of previous iterations.
+            if previous_node := last_in_process.get(node_triple):
+                reduced_hb_graph.add_edge(previous_node, node)
             last_in_process[node_triple] = node
-        elif interesting_successors:
-            reduced_hb_graph.add_node(node, **data)
-            assert last_in_process[node_triple] != node
-            reduced_hb_graph.add_edge(last_in_process[node_triple], node)
-            last_in_process[node_triple] = node
-            # We'll add the successor edges when we come 'round to it in the pre order traversal
-        elif retain_node_predicate(node, probe_log.get_op(*node.op_quad())):
-            reduced_hb_graph.add_node(node, **data)
-            assert last_in_process[node_triple] != node
-            reduced_hb_graph.add_edge(last_in_process[node_triple], node)
-            last_in_process[node_triple] = node
+
+            # Link up any out-of-process predecessors we accumulated up to this node
+            for (predecessor, edge_data) in incoming_to_process[node_triple]:
+                reduced_hb_graph.add_edge(predecessor, node, **edge_data)
+            del incoming_to_process[node_triple]
+
+        # Accumulate out-of-process predecessors
+        # Since we iterate in topo order,
+        # eventually nodes in the successor's process will be visisted (as "node").
+        # Once we find one of those which satisfies the retain_node_predicate,
+        # we will create edges from last_in_process[this node_triple] to a descendant of the successor node.
+        for successor in full_hb_graph.successors(node):
+            successor_triple = (successor.pid, successor.exec_no, successor.tid)
+            # Note that if node_triple not in last_in_process,
+            # none of the prior nodes in this process were retained,
+            # so the edge doesn't synchronize any retained nodes.
+            # In such case, we don't need to create an edge.
+            if successor_triple != node_triple and (previous_node := last_in_process.get(node_triple)):
+                edge_data = full_hb_graph.get_edge_data(node, successor)
+                incoming_to_process.setdefault(successor_triple, []).append((previous_node, edge_data))
 
     validate_hb_graph(reduced_hb_graph, False)
 

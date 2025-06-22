@@ -211,7 +211,11 @@
                 pkgs.clang
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
-            buildPhase = "pytest -v -W error .";
+            buildPhase = ''
+              make --directory=examples/
+              export RUST_BAKCTRACE=1
+              pytest -v -k -W error
+            '';
             installPhase = "mkdir $out";
           };
         };
