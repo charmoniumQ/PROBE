@@ -337,7 +337,7 @@ impl FfiFrom<C_Op> for OpInternal {
 pub struct Op {
     pub data: OpInternal,
     pub time: Timespec,
-    pub pthread_id: pthread_t,
+    pub pthread_id: u16,
     pub iso_c_thread_id: thrd_t,
 
     #[serde(serialize_with = "Op::serialize_type")]

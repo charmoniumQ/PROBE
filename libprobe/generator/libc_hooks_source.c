@@ -11,6 +11,7 @@
  */
 
 /* Need these typedefs to make pycparser parse the functions. They won't be used in libprov_middle.c */
+#include "src/pthread_helper.h"
 typedef void* FILE;
 typedef void* DIR;
 typedef void* pid_t;
@@ -2906,6 +2907,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
                 .task_id = -1,
                 .options = options,
                 .status = 0,
+                .cancelled = false,
                 .ferrno = 0,
             }},
             {0},
@@ -3025,6 +3027,7 @@ int pthread_create(pthread_t *restrict thread,
     void* call = ({
         struct PthreadHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct PthreadHelperArg)));
         real_arg->start_routine = start_routine;
+        real_arg->pthread_id = increment_pthread_id();
         real_arg->arg = arg;
         int ret = unwrapped_pthread_create(thread, attr, pthread_helper, real_arg);
     });
@@ -3045,23 +3048,37 @@ int pthread_create(pthread_t *restrict thread,
    });
 }
 
-int pthread_join(pthread_t thread, void **retval) {
-  void *pre_call = ({
-        int64_t thread_id = 0;
-        memcpy(&thread_id, &thread, sizeof(pthread_t)); /* Avoid type punning! */
+void pthread_exit(void* inner_ret) {
+    void* call = ({
+        struct PthreadReturnVal* pthread_return_val = EXPECT_NONNULL(malloc(sizeof(struct PthreadReturnVal)));
+        pthread_return_val->type_id = PTHREAD_RETURN_VAL_TYPE_ID;
+        pthread_return_val->pthread_id = get_pthread_id();
+        pthread_return_val->inner_ret = inner_ret;
+        unwrapped_pthread_exit(pthread_return_val);
+    });
+    bool noreturn = true;
+}
+
+int pthread_join(pthread_t thread, void **pthread_return) {
+    void* pre_call = ({
+        void* uncasted_return = NULL;
         struct Op op = {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_PTHREAD,
-                .task_id = thread_id,
+                .task_id = 0,
                 .options = 0,
                 .status = 0,
+                .cancelled = false,
                 .ferrno = 0,
             }},
             {0},
             0,
             0,
         };
+    });
+    void* call = ({
+        int ret = unwrapped_pthread_join(thread, &uncasted_return);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -3072,6 +3089,22 @@ int pthread_join(pthread_t thread, void **retval) {
             }
         } else {
             /* Success; parent */
+            struct PthreadReturnVal* pthread_return_val = uncasted_return;
+            if (pthread_return_val->type_id == PTHREAD_RETURN_VAL_TYPE_ID) {
+                op.data.wait.task_id = pthread_return_val->pthread_id;
+                if (pthread_return) {
+                    *pthread_return = pthread_return_val->inner_ret;
+                }
+                free(pthread_return_val);
+            } else {
+                DEBUG("Somehow pthread return value was not the type I was expecting.");
+                if (pthread_return) {
+                    *pthread_return = uncasted_return;
+                }
+            }
+            if (uncasted_return == PTHREAD_CANCELED) {
+                op.data.wait.cancelled = true;
+            }
             if (LIKELY(prov_log_is_enabled())) {
                 prov_log_record(op);
             }
@@ -3079,6 +3112,11 @@ int pthread_join(pthread_t thread, void **retval) {
    });
 }
 
+int pthread_cancel(pthread_t thread) {
+    void* pre_call = ({
+        DEBUG("pthread_cancel messes up the tracking of pthreads. Whoever joins this, won't know which thread they are joining.");
+    });
+}
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
 /* TODO: interpose munmap. see ../src/global_state.c, ../src/arena.c */
@@ -3098,9 +3136,7 @@ void exit (int status) {
         prov_log_try(op);
         prov_log_record(op);
     });
-    void* post_call = ({
-        __builtin_unreachable();
-    });
+    bool noreturn = true;
 }
 fn _exit = exit;
 fn _Exit = exit;

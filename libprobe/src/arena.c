@@ -90,10 +90,6 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     ARENA_CURRENT->capacity = capacity;
     ARENA_CURRENT->used = sizeof(struct Arena);
 
-    DEBUG("arena_calloc: instantiation=%ld, base_address=%p, used=%ld, capacity=%ld",
-          ARENA_CURRENT->instantiation, ARENA_CURRENT->base_address, ARENA_CURRENT->used,
-          ARENA_CURRENT->capacity);
-
     /* Update for next instantiation */
     arena_dir->__next_instantiation++;
 }
