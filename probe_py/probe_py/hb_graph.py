@@ -103,18 +103,22 @@ def retain_only(
         if interesting_predecessors:
             reduced_hb_graph.add_node(node, **data)
             for predecessor in interesting_predecessors:
+                assert predecessor != node
                 reduced_hb_graph.add_edge(predecessor, node, **full_hb_graph.get_edge_data(predecessor, node))
             if node_triple in last_in_process:
                 # NOT the first node, link to the last in process
+                assert last_in_process[node_triple] != node
                 reduced_hb_graph.add_edge(last_in_process[node_triple], node)
             last_in_process[node_triple] = node
         elif interesting_successors:
             reduced_hb_graph.add_node(node, **data)
+            assert last_in_process[node_triple] != node
             reduced_hb_graph.add_edge(last_in_process[node_triple], node)
             last_in_process[node_triple] = node
             # We'll add the successor edges when we come 'round to it in the pre order traversal
         elif retain_node_predicate(node, probe_log.get_op(*node.op_quad())):
             reduced_hb_graph.add_node(node, **data)
+            assert last_in_process[node_triple] != node
             reduced_hb_graph.add_edge(last_in_process[node_triple], node)
             last_in_process[node_triple] = node
 
@@ -195,7 +199,7 @@ def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> 
             case TaskType.TASK_PID:
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
-                    warnings.warn(f"Clone points to a process {target_pid} we didn't track")
+                    warnings.warn(f"Wait points to a process {target_pid} we didn't track")
                 else:
                     last_exec_no = max(probe_log.processes[target_pid].execs.keys())
                     last_op_no = len(probe_log.processes[target_pid].execs[last_exec_no].threads[target_pid.main_thread()].ops) - 1
@@ -248,7 +252,7 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                         else:
                             warnings.warn(
                                 f"I want to add an edge from last op of {tid} to main thread {pid}, but that would create a cycle;"
-                                "the last op of {pid} is likely the clone that creates {tid}"
+                                f"the last op of {pid} is likely the clone that creates {tid}"
                             )
 
 
