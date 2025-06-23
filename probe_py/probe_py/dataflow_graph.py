@@ -162,23 +162,53 @@ def hb_graph_to_dataflow_graph2(
                 raise RuntimeError()
 
     def add_close(op_node: hb_graph.OpNode, fd: int) -> None:
-        file_desc = proc_fd_to_fd[node.pid][fd]
-        file_desc.close_ops.append(node)
-        del proc_fd_to_fd[op_node.pid][fd]
-        if file_desc.access_mode != AccessMode.READ:
-            # Reads are handled at the open
-            # Everything else is handled at the close
-            add_access(file_desc.access_mode, op_node, file_desc.inode, file_desc.version)
+        if file_desc := proc_fd_to_fd[node.pid].get(fd):
+            file_desc = proc_fd_to_fd[node.pid][fd]
+            file_desc.close_ops.append(node)
+            del proc_fd_to_fd[op_node.pid][fd]
+            if file_desc.access_mode != AccessMode.READ:
+                # Reads are handled at the open
+                # Everything else is handled at the close
+                add_access(file_desc.access_mode, op_node, file_desc.inode, file_desc.version)
+        else:
+            warnings.warn(f"Process {op_node.pid} successfully closed an FD {fd} we never traced. This could come from pipe or pipe2.")
 
     for node in networkx.topological_sort(reduced_hb_graph):
         op = probe_log.get_op(*node.op_quad())
         match op.data:
             case ops.InitExecEpochOp():
                 add_node(node)
+                exe_inode = ptypes.InodeVersion.from_probe_path(op.data.exe).inode
+                add_access(AccessMode.READ, node, exe_inode)
+                proc_fd_to_fd[node.pid][0] = FileDescriptor(
+                    AccessMode.READ,
+                    node,
+                    [],
+                    ptypes.InodeVersion.from_probe_path(op.data.stdin).inode,
+                    True,
+                    0,
+                )
+                proc_fd_to_fd[node.pid][1] = FileDescriptor(
+                    AccessMode.WRITE,
+                    node,
+                    [],
+                    ptypes.InodeVersion.from_probe_path(op.data.stdout).inode,
+                    True,
+                    0,
+                )
+                proc_fd_to_fd[node.pid][2] = FileDescriptor(
+                    AccessMode.WRITE,
+                    node,
+                    [],
+                    ptypes.InodeVersion.from_probe_path(op.data.stderr).inode,
+                    True,
+                    0,
+                )
             case ops.OpenOp():
                 # TODO: Verify that inode_version confirms the story told by inode_epochs
                 inode = ptypes.InodeVersion.from_probe_path(op.data.path).inode
-                assert op.data.fd not in proc_fd_to_fd[node.pid]
+                if op.data.fd in proc_fd_to_fd[node.pid]:
+                    add_close(node, op.data.fd)
                 access_mode = AccessMode.from_open_flags(op.data.flags)
                 version = inode_to_version[inode]
                 inode_to_paths[inode].add(pathlib.Path(op.data.path.path.decode()))
@@ -193,19 +223,19 @@ def hb_graph_to_dataflow_graph2(
                     version,
                 )
             case ops.ExecOp():
-                for fd, file_desc in proc_fd_to_fd[node.pid].items():
+                for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
                     if file_desc.cloexec:
                         add_close(node, fd)
                 exe_inode = ptypes.InodeVersion.from_probe_path(op.data.path).inode
                 inode_to_paths[exe_inode].add(pathlib.Path(op.data.path.path.decode()))
-                # TODO: Move this as an incoming edge to the InitExecEpochOp
-                add_access(AccessMode.READ, node, exe_inode)
             case ops.DupOp():
-                assert op.data.old in proc_fd_to_fd[node.pid]
-                # dup2 and dup3 close the new FD, if it was open
-                if op.data.new in proc_fd_to_fd[node.pid]:
-                    add_close(node, op.data.new)
-                proc_fd_to_fd[node.pid][op.data.new] = proc_fd_to_fd[node.pid][op.data.old]
+                if old_file_desc := proc_fd_to_fd[node.pid].get(op.data.old):
+                    # dup2 and dup3 close the new FD, if it was open
+                    if op.data.new in list(proc_fd_to_fd[node.pid]):
+                        add_close(node, op.data.new)
+                    proc_fd_to_fd[node.pid][op.data.new] = old_file_desc
+                else:
+                    warnings.warn(f"Process {node.pid} successfully closed an FD {op.data.old} we never traced. This could come from pipe or pipe2.")
             case ops.CloseOp():
                 add_close(node, op.data.fd)
             case ops.CloneOp():
@@ -229,7 +259,7 @@ def hb_graph_to_dataflow_graph2(
             for successor in reduced_hb_graph.successors(node)
         )
         if is_last_op_in_process:
-            for fd, file_desc in proc_fd_to_fd[node.pid].items():
+            for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
                 add_close(node, fd)
 
     validate_dataflow_graph(probe_log, dataflow_graph)

@@ -265,17 +265,20 @@ static inline void emit_init_epoch_op() {
     size_t envc = 0;
     char* const* argv = read_null_delim_file("/proc/self/cmdline", &argc);
     char* const* env = read_null_delim_file("/proc/self/environ", &envc);
-    struct Op init_epoch_op = {
-        init_exec_epoch_op_code,
-        {.init_exec_epoch =
-             {
-                 .parent_pid = getppid(),
-                 .pid = getpid(),
-                 .epoch = get_exec_epoch(),
-                 .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, 0),
-                 .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
-                 .argv = arena_copy_argv(get_data_arena(), argv, argc),
-                 .env = arena_copy_argv(get_data_arena(), env, envc),
+    struct Op init_epoch_op =
+    { init_exec_epoch_op_code,
+      {.init_exec_epoch = {
+           .parent_pid = getppid(),
+           .pid = getpid(),
+           .epoch = get_exec_epoch(),
+           .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, 0),
+           .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
+           .argv = arena_copy_argv(get_data_arena(), argv, argc),
+           .env = arena_copy_argv(get_data_arena(), env, envc),
+           .stdin = create_path_lazy(AT_FDCWD, "/dev/stdin", 0),
+           .stdout = create_path_lazy(AT_FDCWD, "/dev/stdout", 0),
+           .stderr = create_path_lazy(AT_FDCWD, "/dev/stderr", 0),
+           .tty = create_path_lazy(AT_FDCWD, "/dev/tty", 0),
              }},
         {0},
         0,
