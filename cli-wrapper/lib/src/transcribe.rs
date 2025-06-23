@@ -287,7 +287,7 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
             log::error!("'{}' not valid UTF-8", file_stem.to_string_lossy());
             option_err("filename not valid UTF-8")
         })?,
-        16,
+        10
     )
     .map_err(|e| {
         log::error!(
