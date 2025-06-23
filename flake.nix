@@ -214,7 +214,7 @@
             buildPhase = ''
               make --directory=examples/
               export RUST_BAKCTRACE=1
-              pytest -v -k -W error
+              pytest -v -W error
             '';
             installPhase = "mkdir $out";
           };
