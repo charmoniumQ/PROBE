@@ -6,24 +6,8 @@ import json
 import tarfile
 import tempfile
 import contextlib
-import numpy
 from . import ops
-from .ptypes import ProbeLog, ProbeOptions, Inode, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec, Device
-
-
-def iv_from_file_name(host: Host, name: str) -> InodeVersion:
-    # See `libprobe/src/prov_utils.c:path_to_id_string()`
-    array = [
-        int(segment, 16)
-        for segment in name.split("-")
-    ]
-    assert len(array) == 6
-    return InodeVersion(
-        # TODO: use the correct host
-        Inode(host, Device(array[0], array[1]), array[2]),
-        numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
-        array[5],
-    )
+from .ptypes import ProbeLog, ProbeOptions, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
 @contextlib.contextmanager

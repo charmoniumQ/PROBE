@@ -154,10 +154,12 @@
               python.pkgs.sqlalchemy
               python.pkgs.pyyaml
               python.pkgs.numpy
+              python.pkgs.tqdm
             ];
             nativeCheckInputs = [
               python.pkgs.mypy
               python.pkgs.types-pyyaml
+              python.pkgs.types-tqdm
               pkgs.ruff
             ];
             checkPhase = ''
@@ -209,7 +211,11 @@
                 pkgs.clang
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
-            buildPhase = "pytest -v -W error .";
+            buildPhase = ''
+              make --directory=examples/
+              export RUST_BAKCTRACE=1
+              pytest -v -W error
+            '';
             installPhase = "mkdir $out";
           };
         };
@@ -245,6 +251,9 @@
                   pypkgs.xdg-base-dirs
                   pypkgs.pyyaml
                   pypkgs.types-pyyaml
+                  pypkgs.numpy
+                  pypkgs.tqdm
+                  pypkgs.types-tqdm
 
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil

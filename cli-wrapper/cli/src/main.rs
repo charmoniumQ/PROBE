@@ -131,7 +131,7 @@ fn inner_main() -> Result<ExitStatus> {
 
             let e = exec::Command::new(&cmd[0]).args(&cmd[1..]).exec();
 
-            Err(e).wrap_err("Shim failed to exec")
+            Err(e).wrap_err(format!("Shim failed to exec {:?}", cmd[0]))
         }
         Some((subcommand, args)) => {
             let args = args
