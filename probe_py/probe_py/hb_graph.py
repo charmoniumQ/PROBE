@@ -1,6 +1,5 @@
 import os
 import dataclasses
-import os
 import shlex
 import textwrap
 import typing
@@ -53,9 +52,9 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
 
     # Hook up synchronization edges
     for node in tqdm.tqdm(hb_graph.nodes(), "sync edges"):
+        _create_clone_edges(node, probe_log, hb_graph)
         _create_exec_edges(node, probe_log, hb_graph)
         _create_spawn_edges(node, probe_log, hb_graph)
-        _create_clone_edges(node, probe_log, hb_graph)
         _create_wait_edges(node, probe_log, hb_graph)
 
     _create_other_thread_edges(probe_log, hb_graph)
@@ -95,7 +94,7 @@ def retain_only(
             last_in_process[node_triple] = node
 
             # Link up any out-of-process predecessors we accumulated up to this node
-            for (predecessor, edge_data) in incoming_to_process[node_triple]:
+            for (predecessor, edge_data) in incoming_to_process.setdefault(node_triple, []):
                 reduced_hb_graph.add_edge(predecessor, node, **edge_data)
             del incoming_to_process[node_triple]
 
@@ -168,7 +167,7 @@ def _create_clone_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) ->
             case TaskType.TASK_PID:
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
-                    warnings.warn(f"Clone points to a process {target_pid} we didn't track")
+                    warnings.warn(f"Clone points to a process {target_pid} we didn't track {probe_log.processes.keys()}")
                 else:
                     target = OpNode(target_pid, initial_exec_no, target_pid.main_thread(), 0)
                     assert hb_graph.has_node(target)

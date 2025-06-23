@@ -63,7 +63,7 @@ def validate(
         warning_free = False
         console.print(warning, style="red")
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
+    dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
     if not warning_free:
         raise typer.Exit(code=1)
 
@@ -130,10 +130,10 @@ def dataflow_graph(
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     hb_graph_module.label_nodes(probe_log, hbg)
-    dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
-    dfg = dataflow_graph_module.reduce_dataflow_graph(probe_log, dfg)
+    dfg = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
     dataflow_graph_module.label_nodes(probe_log, dfg)
-    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
+    compressed_dfg = dfg
+    # compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
     graph_utils.serialize_graph(compressed_dfg, output)
 
 

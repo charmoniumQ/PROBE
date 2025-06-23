@@ -374,7 +374,7 @@ __attribute__((constructor)) void constructor() {
     init_process_obj();
     init_default_path();
     exec_epoch_inited = true;
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
+    EXPECT(== 0, pthread_atfork(NULL, &prov_log_save, &init_after_fork));
     init_log_arena();
     thread_inited = true;
     emit_init_epoch_op();
