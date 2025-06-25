@@ -252,7 +252,7 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "label"):
+    for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "HBG label"):
         op = probe_log.get_op(*node.op_quad())
         if len(list(hb_graph.predecessors(node))) == 0:
             data["label"] = "root"
