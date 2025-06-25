@@ -11,6 +11,7 @@
 #include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
 #include <sys/types.h> // for pid_t
 #include <unistd.h>    // for getpid, gettid, confstr, _CS_PATH
+#include <stdio.h>     // for stderr, stdin, stdout
 // IWYU pragma: no_include "bits/mman-linux.h"    for PROT_*
 // IWYU pragma: no_include "bits/pthreadtypes.h"  for pthread_mutex_t
 // IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
