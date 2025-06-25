@@ -51,7 +51,7 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
 
     /* Create a new mmap */
     snprintf(arena_dir->__dir_buffer + arena_dir->__dir_len,
-             arena_dir->__dir_buffer_max - arena_dir->__dir_len, "%016ld.dat",
+             arena_dir->__dir_buffer_max - arena_dir->__dir_len, "%016lx.dat",
              arena_dir->__next_instantiation);
     int fd = unwrapped_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
     ASSERTF(fd > 0, "returned_fd=%d (%s)", fd, arena_dir->__dir_buffer);

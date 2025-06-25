@@ -2418,9 +2418,6 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(spawn_op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* call = ({
@@ -2476,9 +2473,6 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(spawn_op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* call = ({
@@ -2517,9 +2511,6 @@ pid_t fork (void) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* post_call = ({
@@ -2558,9 +2549,6 @@ pid_t _Fork (void) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* post_call = ({
@@ -2630,9 +2618,6 @@ pid_t vfork (void) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* call = ({
@@ -3099,43 +3084,26 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset)
 /* TODO: interpose munmap. see ../src/global_state.c, ../src/arena.c */
 /* int munmap(void* addr, size_t length) { } */
 
-/* void exit (int status) { */
-/*     void* pre_call = ({ */
-/*         struct Op op = { */
-/*             exit_op_code, */
-/*             {.exit = { */
-/*                 .status = status, */
-/*                 .run_atexit_handlers = true, */
-/*             }}, */
-/*         }; */
-/*         prov_log_try(op); */
-/*         prov_log_record(op); */
-/*         term_process(); */
-/*     }); */
-/*     void* post_call = ({ */
-/*         __builtin_unreachable(); */
-/*     }); */
-/* } */
-
-/* void _exit(int status) { */
-/*     void* pre_call = ({ */
-/*         struct Op op = { */
-/*             exit_op_code, */
-/*             {.exit = { */
-/*                 .status = status, */
-/*                 .run_atexit_handlers = false, */
-/*             }}, */
-/*         }; */
-/*         prov_log_try(op); */
-/*         prov_log_record(op); */
-/*         term_process(); */
-/*     }); */
-/*     void* post_call = ({ */
-/*         __builtin_unreachable(); */
-/*     }); */
-/* } */
-
-/* fn _Exit = _exit; */
+void exit (int status) {
+    void* pre_call = ({struct Op op = {
+                           exit_op_code,
+                           {.exit =
+                                {
+                                    .status = status,
+                                }},
+                           {0},
+                           0,
+                           0,
+        };
+        prov_log_try(op);
+        prov_log_record(op);
+    });
+    void* post_call = ({
+        __builtin_unreachable();
+    });
+}
+fn _exit = exit;
+fn _Exit = exit;
 
 /*
 TODO: getcwd, getwd, chroot

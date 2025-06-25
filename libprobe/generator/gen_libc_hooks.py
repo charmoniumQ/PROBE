@@ -346,6 +346,18 @@ init_function_pointers = ParsedFunc(
     stmts=[
         *itertools.chain.from_iterable([
             [
+                pycparser.c_ast.FuncCall(
+                    name=pycparser.c_ast.ID(name="ASSERTF"),
+                    args=pycparser.c_ast.ExprList(
+                        exprs=[
+                            pycparser.c_ast.UnaryOp(
+                                op="!",
+                                expr=pycparser.c_ast.ID(name=func_prefix + func_name),
+                            ),
+                            pycparser.c_ast.Constant(type="string", value=f'"{func_prefix + func_name}(...) is already initialized"'),
+                        ],
+                    ),
+                ),
                 Assignment(
                     op='=',
                     lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
@@ -354,26 +366,27 @@ init_function_pointers = ParsedFunc(
                         args=pycparser.c_ast.ExprList(
                             exprs=[
                                 pycparser.c_ast.ID(name="RTLD_NEXT"),
-                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
+                                pycparser.c_ast.Constant(type="string", value=f'"{func_name}"'),
                             ],
                         ),
                     ),
                 ),
-                pycparser.c_ast.If(
-                    cond=pycparser.c_ast.UnaryOp(
-                        op="!",
-                        expr=pycparser.c_ast.ID(name=func_prefix + func_name),
-                    ),
-                    iftrue=pycparser.c_ast.FuncCall(
-                        name=pycparser.c_ast.ID("DEBUG"),
-                        args=pycparser.c_ast.ExprList(
-                            exprs=[
-                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '(...) not found"'),
-                            ],
-                        ),
-                    ),
-                    iffalse=None,
-                ),
+                # TODO: guard this with `#ifndef NDEBUG`
+                # pycparser.c_ast.If(
+                #     cond=pycparser.c_ast.UnaryOp(
+                #         op="!",
+                #         expr=pycparser.c_ast.ID(name=func_prefix + func_name),
+                #     ),
+                #     iftrue=pycparser.c_ast.FuncCall(
+                #         name=pycparser.c_ast.ID("DEBUG"),
+                #         args=pycparser.c_ast.ExprList(
+                #             exprs=[
+                #                 pycparser.c_ast.Constant(type="string", value=f'"{func_name}(...) not found"'),
+                #             ],
+                #         ),
+                #     ),
+                #     iffalse=None,
+                # ),
             ]
             for func_name, func in funcs.items()
         ]),

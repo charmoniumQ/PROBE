@@ -18,8 +18,8 @@
 #endif
 
 #define LOG(str, ...)                                                                              \
-    fprintf(stderr, "" SOURCE_VERSION ":" __FILE__ ":%d:%s() pid=%d.%d.%d " str "\n", __LINE__,    \
-            __func__, get_pid_safe(), get_exec_epoch_safe(), get_tid_safe(), ##__VA_ARGS__)
+    fprintf(stderr, "" SOURCE_VERSION " %d.%d.%d " __FILE__ ":%d:%s(): " str "\n", get_pid_safe(), \
+            get_exec_epoch_safe(), get_tid_safe(), __LINE__, __func__, ##__VA_ARGS__)
 
 #ifdef DEBUG_LOG
 #define DEBUG(str, ...) LOG("DEBUG " str, ##__VA_ARGS__)
