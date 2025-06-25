@@ -64,6 +64,9 @@ struct InitExecEpochOp {
     struct Path exe;
     char* const* argv;
     char* const* env;
+    struct Path stdin;
+    struct Path stdout;
+    struct Path stderr;
 };
 
 struct InitThreadOp {
