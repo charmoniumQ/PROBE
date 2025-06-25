@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 
+#include "debug_logging.h"
 #include "global_state.h"
 
 void* pthread_helper(void* restrict uncasted_arg) {
