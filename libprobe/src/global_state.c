@@ -5,13 +5,13 @@
 #include <limits.h>    // IWYU pragma: keep for PATH_MAX
 #include <pthread.h>   // for pthread_mutex_t
 #include <stdbool.h>   // for true, bool, false
+#include <stdio.h>     // for stderr, stdin, stdout
 #include <stdlib.h>    // for free
 #include <string.h>    // for memcpy, NULL, size_t, strnlen// for memcpy, NULL, size_t, strnlen
 #include <sys/mman.h>  // for mmap, PROT_*, MAP_*
 #include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
 #include <sys/types.h> // for pid_t
 #include <unistd.h>    // for getpid, gettid, confstr, _CS_PATH
-#include <stdio.h>     // for stderr, stdin, stdout
 // IWYU pragma: no_include "bits/mman-linux.h"    for PROT_*
 // IWYU pragma: no_include "bits/pthreadtypes.h"  for pthread_mutex_t
 // IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
