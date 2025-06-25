@@ -284,7 +284,7 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         .ok_or_else(|| option_err("Unable to parse as Unicode"))
         .wrap_err("Failed to parse filename to integer")?
         .parse::<usize>()
-        .map_err(|err| ProbeError::ParseIntError(err))
+        .map_err(ProbeError::ParseIntError)
 }
 
 /// this struct represents a `<TID>/data` probe record directory.
