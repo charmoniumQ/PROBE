@@ -1,4 +1,5 @@
 from __future__ import annotations
+import tqdm
 import dataclasses
 import pathlib
 import typing
@@ -28,7 +29,11 @@ def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[Prob
         } if (tmpdir / "inodes").exists() else {}
 
         processes = dict[Pid, Process]()
-        for pid_dir in (tmpdir / "pids").iterdir():
+        pid_entries = list((tmpdir / "pids").iterdir())
+        for pid_dir in tqdm.tqdm(
+                pid_entries,
+                desc="parsing pid dirs",
+        ):
             pid = Pid(pid_dir.name)
             execs = {}
             for epoch_dir in pid_dir.iterdir():

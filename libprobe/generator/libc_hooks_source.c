@@ -363,7 +363,7 @@ void closefrom (int lowfd) {
     });
 }
 
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html */
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Dup]licating-Descriptors.html */
 int dup (int old) {
     void* pre_call = ({
         struct Op op = {
@@ -390,13 +390,6 @@ int dup (int old) {
 }
 int dup2 (int old, int new) {
     void* pre_call = ({
-        struct Op close_op = {
-            close_op_code,
-            {.close = {new, 0, create_path_lazy(new, NULL, AT_EMPTY_PATH)}},
-            {0},
-            0,
-            0,
-        };
         struct Op dup_op = {
             dup_op_code,
             {.dup = {old, new, 0, 0}},
@@ -405,17 +398,14 @@ int dup2 (int old, int new) {
             0,
         };
         if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(close_op);
             prov_log_try(dup_op);
         }
     });
     void* post_call = ({
          if (LIKELY(prov_log_is_enabled())) {
              if (UNLIKELY(ret == -1)) {
-                 close_op.data.close.ferrno = call_errno;
                  dup_op.data.dup.ferrno = call_errno;
             }
-            prov_log_record(close_op);
             prov_log_record(dup_op);
         }
     });
@@ -424,13 +414,6 @@ int dup2 (int old, int new) {
 /* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
 int dup3 (int old, int new, int flags) {
     void* pre_call = ({
-        struct Op close_op = {
-            close_op_code,
-            {.close = {new, 0, create_path_lazy(new, NULL, AT_EMPTY_PATH)}},
-            {0},
-            0,
-            0,
-        };
         struct Op dup_op = {
             dup_op_code,
             {.dup = {old, new, flags, 0}},
@@ -439,17 +422,14 @@ int dup3 (int old, int new, int flags) {
             0,
         };
         if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(close_op);
             prov_log_try(dup_op);
         }
     });
     void* post_call = ({
          if (LIKELY(prov_log_is_enabled())) {
              if (UNLIKELY(ret == -1)) {
-                 close_op.data.close.ferrno = call_errno;
                  dup_op.data.dup.ferrno = call_errno;
             }
-            prov_log_record(close_op);
             prov_log_record(dup_op);
         }
     });

@@ -158,7 +158,7 @@ main() {
     echo "Starting automated ML pipeline setup and execution..."
     echo ""
     
-    trap cleanup EXIT
+    # trap cleanup EXIT
     
     check_python
     check_scripts

@@ -225,11 +225,10 @@ def test_record(
 
 @pytest.mark.parametrize(
     "command",
-    [
-        pytest.param(val, id=key)
-        for key, val in complex_commands.items()
-    ]
+    complex_commands.values(),
+    ids=complex_commands.keys(),
 )
+@pytest.mark.timeout(100)
 def test_downstream_analyses(
         scratch_directory: pathlib.Path,
         command: list[str],
