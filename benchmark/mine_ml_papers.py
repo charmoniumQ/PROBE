@@ -26,11 +26,21 @@ CACHE_DB = pathlib.Path(".cache/mine_ml_papers.db")
 @op
 def download(url: str) -> bytes:
     print(f"Downloading {url}")
-    with urllib.request.urlopen(url) as req:
-        data = req.read()
+    req = urllib.request.Request(
+        url,
+        headers={
+            # any modern browser-like UA works; tweak as you wish
+            "User-Agent": (
+                "Mozilla/5.0 (X11; MacOS) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0 Safari/537.36"
+            )
+        },
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = resp.read()
     print(f"Fetched {len(data)/1_048_576:.1f} MiB")
     return data
-
 
 @op
 def decompress_json_gz(blob: bytes) -> list[dict]:
