@@ -237,6 +237,7 @@ impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
+#[allow(clippy::large_enum_variant)]
 pub enum OpInternal {
     #[serde(untagged)]
     InitExecEpochOp(InitExecEpochOp),
