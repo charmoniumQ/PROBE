@@ -11,6 +11,7 @@
  */
 
 /* Need these typedefs to make pycparser parse the functions. They won't be used in libprov_middle.c */
+#include "src/pthread_helper.h"
 typedef void* FILE;
 typedef void* DIR;
 typedef void* pid_t;
@@ -28,7 +29,7 @@ typedef void* idtype;
 typedef void* id_t;
 typedef void* siginfo_t;
 typedef int bool;
-typedef int int64_t;
+typedef long int64_t;
 struct stat;
 struct utimebuf;
 typedef void* OpCode;
@@ -69,7 +70,7 @@ FILE * fopen (const char *filename, const char *opentype) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret == NULL) {
+            if (UNLIKELY(ret == NULL)) {
                 op.data.open.ferrno = call_errno;
             } else {
                 op.data.open.fd = fileno(ret);
@@ -109,7 +110,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret == NULL) {
+            if (UNLIKELY(ret == NULL)) {
                 open_op.data.open.ferrno = call_errno;
                 close_op.data.close.ferrno = call_errno;
             } else {
@@ -327,7 +328,7 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
         struct dirent* dirp;
         DEBUG("close_range %d %d %d -> close", lowfd, maxfd, flags);
         while ((dirp = unwrapped_readdir(dp)) != NULL) {
-            if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') {
+            if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 unsigned int fd = (unsigned int) strtol(dirp->d_name, NULL, 10);
                 if (lowfd <= fd && fd <= maxfd) {
                     /* Use the real (not unwrapped) close, so it gets logged as a normal close */
@@ -351,7 +352,7 @@ void closefrom (int lowfd) {
         struct dirent* dirp;
         DEBUG("closefrom %d -> close", lowfd);
         while ((dirp = unwrapped_readdir(dp)) != NULL) {
-            if ('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9') {
+            if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 int fd = (int) strtol(dirp->d_name, NULL, 10);
                 if (lowfd <= fd) {
                     /* Use the real (not unwrapped) close, so it gets logged as a normal close */
@@ -599,7 +600,7 @@ struct dirent * readdir (DIR *dirstream) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret == NULL) {
+            if (UNLIKELY(ret == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
@@ -632,7 +633,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret == NULL) {
+            if (UNLIKELY(ret == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
@@ -666,7 +667,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (*result == NULL) {
+            if (UNLIKELY(*result == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
@@ -699,7 +700,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (*result == NULL) {
+            if (UNLIKELY(*result == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
                 /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
@@ -759,7 +760,7 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -816,7 +817,7 @@ int scandirat(int dirfd, const char *restrict dirp,
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -873,7 +874,7 @@ int ftw (const char *filename, ftw_func func, int descriptors) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -899,7 +900,7 @@ int nftw (const char *filename, nftw_func func, int descriptors, int flag) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -928,7 +929,7 @@ int link (const char *oldname, const char *newname) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.hard_link.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -954,7 +955,7 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.hard_link.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -983,7 +984,7 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
 /*     }); */
 /*     void* post_call = ({ */
 /*         if (LIKELY(prov_log_is_enabled())) { */
-/*             if (ret != 0) { */
+/*             if (UNLIKELY(ret != 0)) { */
 /*                 op.data.symbolic_link.ferrno = call_errno; */
 /*             } */
 /*             prov_log_record(op); */
@@ -1011,7 +1012,7 @@ int symlinkat(const char *target, int newdirfd, const char *linkpath) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.symbolic_link.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1578,7 +1579,7 @@ int chown (const char *filename, uid_t owner, gid_t group) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1611,7 +1612,7 @@ int fchown (int filedes, uid_t owner, gid_t group) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1646,7 +1647,7 @@ int lchown(const char *pathname, uid_t owner, gid_t group) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1679,7 +1680,7 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1712,7 +1713,7 @@ int chmod (const char *filename, mode_t mode) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1742,7 +1743,7 @@ int fchmod (int filedes, mode_t mode) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1774,7 +1775,7 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1897,7 +1898,7 @@ int utimes (const char *filename, const struct timeval tvp[2]) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1932,7 +1933,7 @@ int lutimes (const char *filename, const struct timeval tvp[2]) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -1967,7 +1968,7 @@ int futimes (int fd, const struct timeval tvp[2]) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
+            if (UNLIKELY(ret != 0)) {
                 op.data.readdir.ferrno = call_errno;
             }
             prov_log_record(op);
@@ -2016,10 +2017,8 @@ int execv (const char *filename, char *const argv[]) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
     });
     void* call = ({
         int ret = unwrapped_execvpe(filename, argv, updated_env);
@@ -2078,10 +2077,8 @@ int execl (const char *filename, const char *arg0, ...) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
     });
     void* call = ({
         int ret = unwrapped_execvpe(filename, argv, updated_env);
@@ -2117,10 +2114,8 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
     });
     void* call = ({
         int ret = unwrapped_execvpe(filename, argv, updated_env);
@@ -2155,10 +2150,8 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
     });
     void* call = ({
         int ret = unwrapped_fexecve(fd, argv, updated_env);
@@ -2203,10 +2196,8 @@ int execle (const char *filename, const char *arg0, ...) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     void* call = ({
@@ -2256,10 +2247,8 @@ int execvp (const char *filename, char *const argv[]) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
     });
     void* call = ({
         int ret = unwrapped_execvpe(filename, argv, updated_env);
@@ -2316,10 +2305,8 @@ int execlp (const char *filename, const char *arg0, ...) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
     });
     void* call = ({
         int ret = unwrapped_execvpe(filename, argv, updated_env);
@@ -2370,10 +2357,8 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
             prov_log_record(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
+        prov_log_save();
     });
     void* call = ({
         int ret = unwrapped_execvpe(filename, argv, updated_env);
@@ -2520,7 +2505,8 @@ pid_t fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                init_after_fork();
+                /* Success; child
+                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2558,8 +2544,8 @@ pid_t _Fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child */
-                init_after_fork();
+                /* Success; child
+                 * init_after_fork() is called implicitly due to pthread_atfork handler. */;
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2630,7 +2616,8 @@ pid_t vfork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                init_after_fork();
+                /* Success; child
+                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2685,12 +2672,9 @@ int clone(
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
-            prov_log_save();
             if ((flags & CLONE_THREAD) != (flags & CLONE_VM)) {
                 NOT_IMPLEMENTED("I conflate cloning a new thread (resulting in a process with the same PID, new TID) with sharing the memory space. If CLONE_SIGHAND is set, then Linux asserts CLONE_THREAD == CLONE_VM; If it is not set and CLONE_THREAD != CLONE_VM, by a real application, I will consider disentangling the assumptions (required to support this combination).");
             }
-        } else {
-            prov_log_save();
         }
     });
     void* call = ({
@@ -2906,6 +2890,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
                 .task_id = -1,
                 .options = options,
                 .status = 0,
+                .cancelled = false,
                 .ferrno = 0,
             }},
             {0},
@@ -3025,6 +3010,7 @@ int pthread_create(pthread_t *restrict thread,
     void* call = ({
         struct PthreadHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct PthreadHelperArg)));
         real_arg->start_routine = start_routine;
+        real_arg->pthread_id = increment_pthread_id();
         real_arg->arg = arg;
         int ret = unwrapped_pthread_create(thread, attr, pthread_helper, real_arg);
     });
@@ -3045,23 +3031,37 @@ int pthread_create(pthread_t *restrict thread,
    });
 }
 
-int pthread_join(pthread_t thread, void **retval) {
-  void *pre_call = ({
-        int64_t thread_id = 0;
-        memcpy(&thread_id, &thread, sizeof(pthread_t)); /* Avoid type punning! */
+void pthread_exit(void* inner_ret) {
+    void* call = ({
+        struct PthreadReturnVal* pthread_return_val = EXPECT_NONNULL(malloc(sizeof(struct PthreadReturnVal)));
+        pthread_return_val->type_id = PTHREAD_RETURN_VAL_TYPE_ID;
+        pthread_return_val->pthread_id = get_pthread_id();
+        pthread_return_val->inner_ret = inner_ret;
+        unwrapped_pthread_exit(pthread_return_val);
+    });
+    bool noreturn = true;
+}
+
+int pthread_join(pthread_t thread, void **pthread_return) {
+    void* pre_call = ({
+        void* uncasted_return = NULL;
         struct Op op = {
             wait_op_code,
             {.wait = {
                 .task_type = TASK_PTHREAD,
-                .task_id = thread_id,
+                .task_id = 0,
                 .options = 0,
                 .status = 0,
+                .cancelled = false,
                 .ferrno = 0,
             }},
             {0},
             0,
             0,
         };
+    });
+    void* call = ({
+        int ret = unwrapped_pthread_join(thread, &uncasted_return);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -3072,6 +3072,22 @@ int pthread_join(pthread_t thread, void **retval) {
             }
         } else {
             /* Success; parent */
+            struct PthreadReturnVal* pthread_return_val = uncasted_return;
+            if (LIKELY(pthread_return_val->type_id == PTHREAD_RETURN_VAL_TYPE_ID)) {
+                op.data.wait.task_id = pthread_return_val->pthread_id;
+                if (pthread_return) {
+                    *pthread_return = pthread_return_val->inner_ret;
+                }
+                free(pthread_return_val);
+            } else {
+                DEBUG("Somehow pthread return value was not the type I was expecting.");
+                if (pthread_return) {
+                    *pthread_return = uncasted_return;
+                }
+            }
+            if (UNLIKELY(uncasted_return == PTHREAD_CANCELED)) {
+                op.data.wait.cancelled = true;
+            }
             if (LIKELY(prov_log_is_enabled())) {
                 prov_log_record(op);
             }
@@ -3079,10 +3095,15 @@ int pthread_join(pthread_t thread, void **retval) {
    });
 }
 
+int pthread_cancel(pthread_t thread) {
+    void* pre_call = ({
+        DEBUG("pthread_cancel messes up the tracking of pthreads. Whoever joins this, won't know which thread they are joining.");
+    });
+}
 
+/* TODO: Convert these to ops */
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
-/* TODO: interpose munmap. see ../src/global_state.c, ../src/arena.c */
-/* int munmap(void* addr, size_t length) { } */
+int munmap(void* addr, size_t length) { }
 
 void exit (int status) {
     void* pre_call = ({struct Op op = {
@@ -3098,9 +3119,7 @@ void exit (int status) {
         prov_log_try(op);
         prov_log_record(op);
     });
-    void* post_call = ({
-        __builtin_unreachable();
-    });
+    bool noreturn = true;
 }
 fn _exit = exit;
 fn _Exit = exit;

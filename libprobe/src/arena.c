@@ -17,9 +17,6 @@
 #include "debug_logging.h"           // for EXPECT, ASSERTF, EXPECT_NONNULL
 #include "util.h"                    // for ceil_log2, MAX
 
-/* TODO: Interpose munmap. See global_state.c, ../generator/libc_hooks_source.c */
-#define unwrapped_munmap munmap
-
 struct Arena {
     size_t instantiation;
     void* base_address;
@@ -89,10 +86,6 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     ARENA_CURRENT->base_address = base_address;
     ARENA_CURRENT->capacity = capacity;
     ARENA_CURRENT->used = sizeof(struct Arena);
-
-    DEBUG("arena_calloc: instantiation=%ld, base_address=%p, used=%ld, capacity=%ld",
-          ARENA_CURRENT->instantiation, ARENA_CURRENT->base_address, ARENA_CURRENT->used,
-          ARENA_CURRENT->capacity);
 
     /* Update for next instantiation */
     arena_dir->__next_instantiation++;

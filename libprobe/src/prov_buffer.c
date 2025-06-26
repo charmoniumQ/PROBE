@@ -4,7 +4,6 @@
 
 #include <fcntl.h>    // for AT_FDCWD, O_RDWR, O_CREAT
 #include <limits.h>   // IWYU pragma: keep for PATH_MAX
-#include <pthread.h>  // for pthread_self
 #include <sched.h>    // for CLONE_VFORK
 #include <stdbool.h>  // for bool, true
 #include <stdio.h>    // for fprintf, stderr
@@ -206,7 +205,7 @@ void prov_log_record(struct Op op) {
     //    EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));
     //}
     if (op.pthread_id == 0) {
-        op.pthread_id = pthread_self();
+        op.pthread_id = get_pthread_id();
     }
     if (op.iso_c_thread_id == 0) {
         op.iso_c_thread_id = thrd_current();
