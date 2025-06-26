@@ -277,27 +277,14 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
 /// isn't valid UTF-8, or the filename can't be parsed as an integer.
 // TODO: cleanup errors, better context
 fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
-    let file_stem = dir.as_ref().file_stem().ok_or_else(|| {
-        log::error!("'{}' has no file stem", dir.as_ref().to_string_lossy());
-        option_err("path has no file stem")
-    })?;
-
-    usize::from_str_radix(
-        file_stem.to_str().ok_or_else(|| {
-            log::error!("'{}' not valid UTF-8", file_stem.to_string_lossy());
-            option_err("filename not valid UTF-8")
-        })?,
-        16,
-    )
-    .map_err(|e| {
-        log::error!(
-            "Parsing filename '{}' to integer in {:?}",
-            file_stem.to_string_lossy(),
-            dir.as_ref().to_str(),
-        );
-        ProbeError::from(e)
-    })
-    .wrap_err("Failed to parse filename to integer")
+    dir.as_ref()
+        .file_stem()
+        .ok_or_else(|| option_err("File has no stem"))?
+        .to_str()
+        .ok_or_else(|| option_err("Unable to parse as Unicode"))
+        .wrap_err("Failed to parse filename to integer")?
+        .parse::<usize>()
+        .map_err(ProbeError::ParseIntError)
 }
 
 /// this struct represents a `<TID>/data` probe record directory.

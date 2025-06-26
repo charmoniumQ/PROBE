@@ -201,9 +201,10 @@ void prov_log_record(struct Op op) {
     }
 #endif
 
-    if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
-        EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));
-    }
+    // TODO: Time the performance of this
+    //if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
+    //    EXPECT(== 0, clock_gettime(CLOCK_MONOTONIC, &op.time));
+    //}
     if (op.pthread_id == 0) {
         op.pthread_id = pthread_self();
     }

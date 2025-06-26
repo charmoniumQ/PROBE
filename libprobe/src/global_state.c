@@ -5,6 +5,7 @@
 #include <limits.h>    // IWYU pragma: keep for PATH_MAX
 #include <pthread.h>   // for pthread_mutex_t
 #include <stdbool.h>   // for true, bool, false
+#include <stdio.h>     // for stderr, stdin, stdout
 #include <stdlib.h>    // for free
 #include <string.h>    // for memcpy, NULL, size_t, strnlen// for memcpy, NULL, size_t, strnlen
 #include <sys/mman.h>  // for mmap, PROT_*, MAP_*
@@ -276,6 +277,9 @@ static inline void emit_init_epoch_op() {
                  .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
                  .argv = arena_copy_argv(get_data_arena(), argv, argc),
                  .env = arena_copy_argv(get_data_arena(), env, envc),
+                 .stdin = create_path_lazy(AT_FDCWD, "/dev/stdin", 0),
+                 .stdout = create_path_lazy(AT_FDCWD, "/dev/stdout", 0),
+                 .stderr = create_path_lazy(AT_FDCWD, "/dev/stderr", 0),
              }},
         {0},
         0,

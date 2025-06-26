@@ -95,9 +95,11 @@ def retain_only(
             last_in_process[node_triple] = node
 
             # Link up any out-of-process predecessors we accumulated up to this node
-            for (predecessor, edge_data) in incoming_to_process[node_triple]:
+            incoming = incoming_to_process.get(node_triple, [])
+            for (predecessor, edge_data) in incoming:
                 reduced_hb_graph.add_edge(predecessor, node, **edge_data)
-            del incoming_to_process[node_triple]
+            if incoming:
+                del incoming_to_process[node_triple]
 
         # Accumulate out-of-process predecessors
         # Since we iterate in topo order,

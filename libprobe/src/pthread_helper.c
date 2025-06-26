@@ -4,20 +4,23 @@
 
 #include <stdlib.h>
 
+#include "debug_logging.h"
 #include "global_state.h"
 
-void* pthread_helper(void* restrict arg) {
+void* pthread_helper(void* restrict uncasted_arg) {
+    DEBUG("Intercepting new child pthread");
     ensure_thread_initted();
-    struct PthreadHelperArg* real_arg = arg;
-    void* ret = real_arg->start_routine(real_arg->arg);
-    free(real_arg);
+    struct PthreadHelperArg* pthread_helper_arg = uncasted_arg;
+    void* ret = pthread_helper_arg->start_routine(pthread_helper_arg->arg);
+    free(pthread_helper_arg);
     return ret;
 }
 
-int thrd_helper(void* restrict arg) {
+int thrd_helper(void* restrict uncasted_arg) {
+    DEBUG("Intercepting new child ISO C thread");
     ensure_thread_initted();
-    struct ThrdHelperArg* real_arg = arg;
-    int ret = real_arg->func(real_arg->arg);
-    free(real_arg);
+    struct ThrdHelperArg* thrd_helper_arg = uncasted_arg;
+    int ret = thrd_helper_arg->func(thrd_helper_arg->arg);
+    free(thrd_helper_arg);
     return ret;
 }

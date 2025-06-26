@@ -390,13 +390,6 @@ int dup (int old) {
 }
 int dup2 (int old, int new) {
     void* pre_call = ({
-        struct Op close_op = {
-            close_op_code,
-            {.close = {new, 0, create_path_lazy(new, NULL, AT_EMPTY_PATH)}},
-            {0},
-            0,
-            0,
-        };
         struct Op dup_op = {
             dup_op_code,
             {.dup = {old, new, 0, 0}},
@@ -405,17 +398,14 @@ int dup2 (int old, int new) {
             0,
         };
         if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(close_op);
             prov_log_try(dup_op);
         }
     });
     void* post_call = ({
          if (LIKELY(prov_log_is_enabled())) {
              if (UNLIKELY(ret == -1)) {
-                 close_op.data.close.ferrno = call_errno;
                  dup_op.data.dup.ferrno = call_errno;
             }
-            prov_log_record(close_op);
             prov_log_record(dup_op);
         }
     });
@@ -424,13 +414,6 @@ int dup2 (int old, int new) {
 /* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
 int dup3 (int old, int new, int flags) {
     void* pre_call = ({
-        struct Op close_op = {
-            close_op_code,
-            {.close = {new, 0, create_path_lazy(new, NULL, AT_EMPTY_PATH)}},
-            {0},
-            0,
-            0,
-        };
         struct Op dup_op = {
             dup_op_code,
             {.dup = {old, new, flags, 0}},
@@ -439,17 +422,14 @@ int dup3 (int old, int new, int flags) {
             0,
         };
         if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(close_op);
             prov_log_try(dup_op);
         }
     });
     void* post_call = ({
          if (LIKELY(prov_log_is_enabled())) {
              if (UNLIKELY(ret == -1)) {
-                 close_op.data.close.ferrno = call_errno;
                  dup_op.data.dup.ferrno = call_errno;
             }
-            prov_log_record(close_op);
             prov_log_record(dup_op);
         }
     });
@@ -2438,9 +2418,6 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(spawn_op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* call = ({
@@ -2496,9 +2473,6 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(spawn_op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* call = ({
@@ -2537,9 +2511,6 @@ pid_t fork (void) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* post_call = ({
@@ -2578,9 +2549,6 @@ pid_t _Fork (void) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* post_call = ({
@@ -2650,9 +2618,6 @@ pid_t vfork (void) {
         };
         if (LIKELY(prov_log_is_enabled())) {
             prov_log_try(op);
-            prov_log_save();
-        } else {
-            prov_log_save();
         }
     });
     void* call = ({
@@ -3119,43 +3084,26 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset)
 /* TODO: interpose munmap. see ../src/global_state.c, ../src/arena.c */
 /* int munmap(void* addr, size_t length) { } */
 
-/* void exit (int status) { */
-/*     void* pre_call = ({ */
-/*         struct Op op = { */
-/*             exit_op_code, */
-/*             {.exit = { */
-/*                 .status = status, */
-/*                 .run_atexit_handlers = true, */
-/*             }}, */
-/*         }; */
-/*         prov_log_try(op); */
-/*         prov_log_record(op); */
-/*         term_process(); */
-/*     }); */
-/*     void* post_call = ({ */
-/*         __builtin_unreachable(); */
-/*     }); */
-/* } */
-
-/* void _exit(int status) { */
-/*     void* pre_call = ({ */
-/*         struct Op op = { */
-/*             exit_op_code, */
-/*             {.exit = { */
-/*                 .status = status, */
-/*                 .run_atexit_handlers = false, */
-/*             }}, */
-/*         }; */
-/*         prov_log_try(op); */
-/*         prov_log_record(op); */
-/*         term_process(); */
-/*     }); */
-/*     void* post_call = ({ */
-/*         __builtin_unreachable(); */
-/*     }); */
-/* } */
-
-/* fn _Exit = _exit; */
+void exit (int status) {
+    void* pre_call = ({struct Op op = {
+                           exit_op_code,
+                           {.exit =
+                                {
+                                    .status = status,
+                                }},
+                           {0},
+                           0,
+                           0,
+        };
+        prov_log_try(op);
+        prov_log_record(op);
+    });
+    void* post_call = ({
+        __builtin_unreachable();
+    });
+}
+fn _exit = exit;
+fn _Exit = exit;
 
 /*
 TODO: getcwd, getwd, chroot
