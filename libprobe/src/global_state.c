@@ -96,8 +96,10 @@ const struct FixedPath* get_probe_dir() {
 static pid_t __pid = 0;
 static inline void init_pid(bool after_fork) {
     (void)after_fork;
-    ASSERTF(!!__pid == after_fork, "PID already initialized");
-    __pid = getpid();
+    ASSERTF(__pid != 0 || !after_fork, "If __pid is 0, after_fork should be false.");
+    pid_t tmp = getpid();
+    ASSERTF(__pid == 0 || (after_fork && __pid != tmp), "If __pid is non-zero, after_fork should be 1 and __pid (%d) should not be equal to actual pid (%d).", __pid, tmp);
+    __pid = tmp;
 }
 pid_t get_pid() { return EXPECT(!= 0, __pid); }
 pid_t get_pid_safe() { return getpid(); }
@@ -155,6 +157,7 @@ static inline void init_process_context() {
     __process_context = open_and_mmap(path_buf, true, sizeof(struct ProcessContext));
     /* We increment the epoch here, so if there is an exec later on, the epoch is already incremented when they see it. */
     __process_context->epoch_no += 1;
+    DEBUG("__process_context = %p {.epoch = %d, pid_arena_path = %s}", __process_context, __process_context->epoch_no, __process_context->pid_arena_path);
 }
 void uninit_process_context() {
     DEBUG("%p", __process_context);
