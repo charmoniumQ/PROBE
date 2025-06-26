@@ -331,8 +331,7 @@ static inline void check_function_pointers() {
     ASSERTF(unwrapped_ftruncate, "");
     ASSERTF(unwrapped_mkdirat, "");
     ASSERTF(unwrapped_mmap, "");
-    /* TODO: Interpose munmap. See arena.c, ../generator/libc_hooks_source.c */
-    /* ASSERTF(unwrapped_munmap, ""); */
+    ASSERTF(unwrapped_munmap, "");
     ASSERTF(unwrapped_openat, "");
     ASSERTF(unwrapped_statx, "");
 

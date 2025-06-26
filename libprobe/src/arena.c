@@ -17,9 +17,6 @@
 #include "debug_logging.h"           // for EXPECT, ASSERTF, EXPECT_NONNULL
 #include "util.h"                    // for ceil_log2, MAX
 
-/* TODO: Interpose munmap. See global_state.c, ../generator/libc_hooks_source.c */
-#define unwrapped_munmap munmap
-
 struct Arena {
     size_t instantiation;
     void* base_address;

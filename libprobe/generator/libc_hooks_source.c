@@ -29,7 +29,7 @@ typedef void* idtype;
 typedef void* id_t;
 typedef void* siginfo_t;
 typedef int bool;
-typedef int int64_t;
+typedef long int64_t;
 struct stat;
 struct utimebuf;
 typedef void* OpCode;
@@ -3101,9 +3101,9 @@ int pthread_cancel(pthread_t thread) {
     });
 }
 
+/* TODO: Convert these to ops */
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
-/* TODO: interpose munmap. see ../src/global_state.c, ../src/arena.c */
-/* int munmap(void* addr, size_t length) { } */
+int munmap(void* addr, size_t length) { }
 
 void exit (int status) {
     void* pre_call = ({struct Op op = {
