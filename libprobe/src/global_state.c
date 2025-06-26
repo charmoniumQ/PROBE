@@ -96,7 +96,7 @@ const struct FixedPath* get_probe_dir() {
 static pid_t __pid = 0;
 static inline void init_pid(bool after_fork) {
     (void)after_fork;
-    ASSERTF(!!__pid != 0 || after_fork, "__pid=%d, after_fork=%d", __pid, after_fork);
+    ASSERTF(!!__pid !=  after_fork, "__pid=%d, after_fork=%d", __pid, after_fork);
     pid_t tmp = getpid();
     ASSERTF(!after_fork || __pid != tmp,
             "If after_fork, old __pid (%d) should not be equal to new (actual) pid (%d).", __pid,
