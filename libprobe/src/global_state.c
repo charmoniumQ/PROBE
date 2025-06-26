@@ -96,13 +96,14 @@ const struct FixedPath* get_probe_dir() {
 static pid_t __pid = 0;
 static inline void init_pid(bool after_fork) {
     (void)after_fork;
-    ASSERTF(!!__pid !=  after_fork, "__pid=%d, after_fork=%d", __pid, after_fork);
+    ASSERTF(!!__pid == after_fork, "__pid=%d, after_fork=%d", __pid, after_fork);
     pid_t tmp = getpid();
     ASSERTF(!after_fork || __pid != tmp,
             "If after_fork, old __pid (%d) should not be equal to new (actual) pid (%d).", __pid,
             tmp);
     __pid = tmp;
 }
+
 pid_t get_pid() { return EXPECT(!= 0, __pid); }
 pid_t get_pid_safe() { return getpid(); }
 
@@ -163,8 +164,8 @@ static inline void init_process_context() {
           __process_context->epoch_no, __process_context->pid_arena_path);
 }
 void uninit_process_context() {
-    DEBUG("%p", __process_context);
-    /* munmap(__process_context, sizeof(struct ProcessContext)); */
+    /* TODO: */
+    /* unwrapped_munmap(__process_context, sizeof(struct ProcessContext)); */
 }
 static inline const struct ProcessContext* get_process_context() {
     return EXPECT_NONNULL(__process_context);
@@ -201,6 +202,7 @@ static inline void create_epoch_dir() {
 
 static struct FixedPath __default_path;
 static inline void init_default_path() {
+    ASSERTF(__default_path.bytes[0] == '\0', "__default_path already initialized");
     __default_path.len = EXPECT(!= 0, confstr(_CS_PATH, __default_path.bytes, PATH_MAX));
 }
 const char* get_default_path() {
@@ -267,7 +269,7 @@ static inline struct ThreadState* get_thread_state() {
     return EXPECT_NONNULL(pthread_getspecific(__thread_state_key));
 }
 void free_thread_state(void* arg) {
-    struct ThreadState* state = arg;
+    struct ThreadState* state = EXPECT_NONNULL(arg);
     /* TODO: Insert exit op */
     arena_sync(&state->data_arena);
     arena_sync(&state->ops_arena);
@@ -296,7 +298,8 @@ static inline void drop_threads_after_fork() {
     for (PthreadID pthread_id = 0; pthread_id < __pthread_id_counter; ++pthread_id) {
         uint8_t pthread_id_level0 = (pthread_id & 0xFF00) >> 8;
         uint8_t pthread_id_level1 = (pthread_id & 0x00FF);
-        struct ThreadState* state = (*__thread_table[pthread_id_level0])[pthread_id_level1];
+        ThreadTable1* level1 = EXPECT_NONNULL(__thread_table[pthread_id_level0]);
+        struct ThreadState* state = EXPECT_NONNULL((*level1)[pthread_id_level1]);
         arena_drop_after_fork(&state->data_arena);
         arena_drop_after_fork(&state->ops_arena);
         free(state);
@@ -394,7 +397,7 @@ bool is_thread_inited() { return !!pthread_getspecific(__thread_state_key); }
 bool is_proc_inited() {
     /* On forks, the PID will be changed from the parent,
      * "resetting" the iniialization status. */
-    return getpid() == get_pid();
+    return getpid() == __pid;
 }
 
 void init_thread(PthreadID pthread_id) {
@@ -411,6 +414,8 @@ void save_atexit() {
 }
 
 void init_after_fork() {
+    ASSERTF(!is_proc_inited(), "Proccess already initialized");
+    ASSERTF(__pid != 0, "Parent process not initialized");
     check_function_pointers();
     init_pid(true);
     uninit_process_context();
@@ -434,6 +439,7 @@ void ensure_thread_initted() {
 
 __attribute__((constructor)) void constructor() {
     DEBUG("Initializing exec epoch");
+    ASSERTF(!is_proc_inited(), "Proccess already initialized");
     init_function_pointers();
     check_function_pointers();
     init_pid(false);
