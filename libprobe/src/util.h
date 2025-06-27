@@ -95,3 +95,5 @@ __attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
     __attribute__((unused)) bool a = true;
     __attribute__((unused)) size_t b = 1;
 }
+
+__attribute__((visibility("hidden"))) unsigned int my_atoui(const char* s) __attribute__((nonnull));

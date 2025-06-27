@@ -329,7 +329,7 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
         DEBUG("close_range %d %d %d -> close", lowfd, maxfd, flags);
         while ((dirp = unwrapped_readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
-                unsigned int fd = (unsigned int) strtol(dirp->d_name, NULL, 10);
+                unsigned int fd = (unsigned int) my_atoui(dirp->d_name);
                 if (lowfd <= fd && fd <= maxfd) {
                     /* Use the real (not unwrapped) close, so it gets logged as a normal close */
                     if (flags == 0) {
@@ -353,7 +353,7 @@ void closefrom (int lowfd) {
         DEBUG("closefrom %d -> close", lowfd);
         while ((dirp = unwrapped_readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
-                int fd = (int) strtol(dirp->d_name, NULL, 10);
+                int fd = (int) my_atoui(dirp->d_name);
                 if (lowfd <= fd) {
                     /* Use the real (not unwrapped) close, so it gets logged as a normal close */
                     close(fd);

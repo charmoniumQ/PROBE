@@ -58,6 +58,8 @@ $(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 	nm --dynamic .build/libprobe.dbg.so | grep ' T ' | cut --fields=3 --delimiter=' ' > $(BUILD_DIR)/defined_symbols.txt
 
 check: compile_commands.json $(GENERATED_FILES)
+	python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=5
+	test GLIBC_2.34 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
 	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
 	echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1
