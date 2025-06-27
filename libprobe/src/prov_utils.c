@@ -131,8 +131,8 @@ const struct Path* op_to_path(const struct Op* op) {
         return &op->data.unlink.path;
     case rename_op_code:
         return &op->data.rename.src;
-    case mkdir_op_code:
-        return &op->data.mkdir.dst;
+    case mkfile_op_code:
+        return &op->data.mkfile.path;
     case readdir_op_code:
         return &op->data.readdir.dir;
     default:
@@ -192,8 +192,8 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
         return "unlink";
     case rename_op_code:
         return "rename";
-    case mkdir_op_code:
-        return "mkdir";
+    case mkfile_op_code:
+        return "mkfile";
     default:
         ASSERTF(FIRST_OP_CODE < op_code && op_code < LAST_OP_CODE, "Not a valid op_code: %d",
                 op_code);
