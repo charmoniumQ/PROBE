@@ -282,7 +282,7 @@ pub enum OpInternal {
     #[serde(untagged)]
     RenameOp(RenameOp),
     #[serde(untagged)]
-    MkdirOp(MkdirOp),
+    MkFileOp(MkFileOp),
 }
 
 impl FfiFrom<C_Op> for OpInternal {
@@ -327,7 +327,7 @@ impl FfiFrom<C_Op> for OpInternal {
             }
             C_OpCode_unlink_op_code => Self::UnlinkOp(unsafe { value.unlink }.ffi_into(ctx)?),
             C_OpCode_rename_op_code => Self::RenameOp(unsafe { value.rename }.ffi_into(ctx)?),
-            C_OpCode_mkdir_op_code => Self::MkdirOp(unsafe { value.mkdir }.ffi_into(ctx)?),
+            C_OpCode_mkfile_op_code => Self::MkFileOp(unsafe { value.mkfile }.ffi_into(ctx)?),
             _ => return Err(ProbeError::InvalidVariant(kind)),
         })
     }
