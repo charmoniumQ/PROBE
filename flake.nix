@@ -86,6 +86,7 @@
               pkgs.git
               (python.withPackages (pypkgs: [
                 pypkgs.pycparser
+                pypkgs.pyelftools
               ]))
             ];
             postUnpack = ''
@@ -265,6 +266,7 @@
 
                   # libprobe build time requirement
                   pypkgs.pycparser
+                  pypkgs.pyelftools
                 ]))
                 .out
 
