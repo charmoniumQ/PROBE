@@ -1,4 +1,5 @@
 CC ?= clang
+LD ?= ld
 VERSION ?= $(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
@@ -29,10 +30,10 @@ generated: $(GENERATED_FILES)
 .PHONY: generated
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
-	$(CC) -MJ $@.compile_command.json -flto    -fpic -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
+	$(LD) -shared --version-script=./generated/libc_hooks.map -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(CUSTOM_MUSLC)
 
 $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o)) $(MAKEFILE_LIST)
-	$(CC) -MJ $@.compile_command.json -fno-lto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
+	$(LD) -shared --version-script=./generated/libc_hooks.map -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o)) $(CUSTOM_MUSLC)
 
 $(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)
