@@ -1,17 +1,18 @@
 #define _GNU_SOURCE
 #include "global_state.h"
 
-#include <fcntl.h>     // for AT_FDCWD, O_CREAT, O_PATH, O_RD...
-#include <limits.h>    // IWYU pragma: keep for PATH_MAX
-#include <pthread.h>   // for pthread_mutex_t
-#include <stdbool.h>   // for true, bool, false
-#include <stdio.h>     // for stderr, stdin, stdout
-#include <stdlib.h>    // for free
-#include <string.h>    // for memcpy, NULL, size_t, strnlen// for memcpy, NULL, size_t, strnlen
-#include <sys/mman.h>  // for mmap, PROT_*, MAP_*
-#include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
-#include <sys/types.h> // for pid_t
-#include <unistd.h>    // for getpid, gettid, confstr, _CS_PATH
+#include <fcntl.h>       // for AT_FDCWD, O_CREAT, O_PATH, O_RD...
+#include <limits.h>      // IWYU pragma: keep for PATH_MAX
+#include <pthread.h>     // for pthread_mutex_t
+#include <stdbool.h>     // for true, bool, false
+#include <stdio.h>       // for stderr, stdin, stdout
+#include <stdlib.h>      // for free
+#include <string.h>      // for memcpy, NULL, size_t, strnlen// for memcpy, NULL, size_t, strnlen
+#include <sys/mman.h>    // for mmap, PROT_*, MAP_*
+#include <sys/stat.h>    // IWYU pragma: keep for STATX_BASIC_STATS, statx
+#include <sys/syscall.h> // for syscall() and SYS_* (used in libc init)
+#include <sys/types.h>   // for pid_t
+#include <unistd.h>      // for getpid, gettid, confstr, _CS_PATH
 // IWYU pragma: no_include "bits/mman-linux.h"    for PROT_*
 // IWYU pragma: no_include "bits/pthreadtypes.h"  for pthread_mutex_t
 // IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
@@ -27,6 +28,46 @@
 #include "prov_buffer.h"                  // for prov_log_try, prov_log_record, prov_log_save
 #include "prov_utils.h"                   // for do_init_ops
 #include "util.h"                         // for CHECK_SNPRINTF, list_dir, UNLIKELY
+
+#define ENVP_SIZE 256
+
+int noop() { return 0; }
+
+__attribute__((__weak__)) void _init();
+__attribute__((__weak__)) void _fini();
+
+typedef int lsm2_fn(int (*)(int,char **,char **), int, char **);
+int libc_start_main_stage2(int (*main)(int,char **,char **), int argc, char **argv);
+void __init_libc(char **envp, char *pn);
+
+void init_libc(void) {
+    static char* fake_argv[2] = { "PROBE", 0 };
+    static char* fake_envp[ENVP_SIZE] = { 0 };
+
+    int auxv_fd = syscall(SYS_open, "/proc/self/auxv", O_RDONLY, 0);
+    if (auxv_fd == -1) { // then open failed
+        static const char err_msg[] = "PROBE: unable to open /proc/self/auxv, aborting";
+        syscall(SYS_write, STDERR_FILENO, err_msg, sizeof(err_msg));
+        syscall(SYS_exit, -1);
+    }
+
+    long i = 0;
+    long bytes_read = 0;
+    do {
+        bytes_read = syscall(SYS_read, auxv_fd, fake_envp+i+1, ENVP_SIZE - i);
+        i += bytes_read;
+    } while (bytes_read <= 0);
+    syscall(SYS_close, auxv_fd);
+
+    __init_libc(fake_envp, fake_argv[0]);
+
+    /* Barrier against hoisting application code or anything using ssp
+     * or thread pointer prior to its initialization above. */
+    lsm2_fn *stage2 = libc_start_main_stage2;
+    __asm__ ( "" : "+r"(stage2) : : "memory" );
+
+    stage2(noop, 1, fake_argv);
+}
 
 #ifdef NDEBUG
 #define check_fixed_path(path)
@@ -437,6 +478,7 @@ void ensure_thread_initted() {
 }
 
 __attribute__((constructor)) void constructor() {
+    init_libc();
     DEBUG("Initializing exec epoch");
     ASSERTF(!is_proc_inited(), "Proccess already initialized");
     init_function_pointers();

@@ -234,6 +234,7 @@
             };
           in
             muslDevShell {
+              # craneLib.devShell {
               shellHook = let
                 musl = packages.custom-musl + "/lib";
               in ''
