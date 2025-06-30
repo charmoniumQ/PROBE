@@ -554,6 +554,8 @@ includes = """
 // IWYU pragma: no_include "bits/types/idtype_t.h" for idtype_t
 // IWYU pragma: no_include "bits/types/sigevent_t.h" for pthread_attr_t
 
+void closefrom(int);
+
 struct rusage;
 struct stat;
 struct statx;
@@ -694,4 +696,10 @@ const struct my_rusage null_usage = {0};
     "\n".join([
         func_name for func_name, _ in funcs.items()
     ])
+)
+(generated / "libc_hooks.map").write_text(
+    "{{\n\tglobal:\n{}\tlocal:\n\t\t*;\n}};\n"
+        .format("".join([
+        f"\t\t{func_name};\n" for func_name, _ in funcs.items()
+    ]))
 )
