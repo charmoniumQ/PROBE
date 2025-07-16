@@ -187,3 +187,14 @@ char* const* read_null_delim_file(const char* path, size_t* array_len) {
 
     return array;
 }
+
+unsigned int my_atoui(const char* s) {
+    /* I reimplemented atoi because the glibc one creates a dependency on __isoc23_strtol@GLIBC_2.38
+     * and I want to support older systems.
+     * TODO: Once we statically link against musl, this can be removed */
+    unsigned int n = 0;
+    for (; '0' <= *s && *s <= '9'; ++s) {
+        n = 10 * n - (*s - '0');
+    }
+    return n;
+}
