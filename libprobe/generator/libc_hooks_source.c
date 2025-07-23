@@ -3200,6 +3200,8 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
     });
 }
 
+char* getenv(const char* name) { }
+
 /*
 TODO: getcwd, getwd, chroot
 glob, glob64

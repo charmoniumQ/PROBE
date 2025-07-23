@@ -6,15 +6,17 @@
 #include <string.h>  // for memcpy, memcmp, strlen, strnlen
 // IWYU pragma: no_include "linux/limits.h"  for PATH_MAX
 
-#include "../generated/bindings.h" // for FixedPath, LD_PRELOAD_VAR, PROBE_...
-#include "arena.h"                 // for arena_calloc
-#include "debug_logging.h"         // for DEBUG, ASSERTF, EXPECT_NONNULL
-#include "global_state.h"          // for get_libprobe_path, get_probe_dir
+#include "../generated/bindings.h"      // for FixedPath, LD_PRELOAD_VAR, PROBE_...
+#include "../generated/libc_hooks.h"    // for unwrapped_getenv
+#include "arena.h"                      // for arena_calloc
+#include "debug_logging.h"              // for DEBUG, ASSERTF, EXPECT_NONNULL
+#include "global_state.h"               // for get_libprobe_path, get_probe_dir
 
 #include "env.h"
 
 extern char** environ;
 
+// TODO: deprecate printenv() and environ
 void printenv() {
     for (char** arg = environ; *arg; ++arg) {
         DEBUG("printenv: %s", *arg);
@@ -23,7 +25,7 @@ void printenv() {
 
 const char* getenv_copy(const char* name) {
     /* Validate input */
-    char* val = getenv(name);
+    char* val = unwrapped_getenv(name);
     DEBUG("Found env '%s' = '%s'", name, val);
     return val;
 }
