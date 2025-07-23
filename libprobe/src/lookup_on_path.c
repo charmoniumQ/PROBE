@@ -12,10 +12,11 @@
 #include "debug_logging.h"           // for DEBUG
 #include "global_state.h"            // for get_default_path
 #include "util.h"                    // for BORROWED, path_join
+#include "env.h"                     // for getenv_copu
 
 bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     size_t bin_name_length = strlen(bin_name);
-    char* env_path = getenv("PATH");
+    const char* env_path = getenv_copy("PATH");
 
     /*
      * If this variable isn't defined, the path list defaults

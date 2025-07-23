@@ -477,7 +477,7 @@ void ensure_thread_initted() {
     ASSERTF(is_thread_inited(), "Thread not initialized");
 }
 
-__attribute__((constructor)) void constructor() {
+__attribute__((constructor, no_stack_protector)) void constructor() {
     init_libc();
     DEBUG("Initializing exec epoch");
     ASSERTF(!is_proc_inited(), "Proccess already initialized");

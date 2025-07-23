@@ -2,11 +2,12 @@
 
 #define _GNU_SOURCE
 
-#include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
-#include <errno.h>        // for errno
-#include <stdio.h>        // for fprintf, stderr
-#include <stdlib.h>       // for exit, free
-#include <string.h>       // for strerror, strndup
+#include "global_state.h"               // for get_exec_epoch_safe, get_pid_safe, get_tid...
+#include "../generated/libc_hooks.h"    // for unwrapped_exit
+#include <errno.h>                      // for errno
+#include <stdio.h>                      // for fprintf, stderr
+#include <stdlib.h>                     // for exit, free
+#include <string.h>                     // for strerror, strndup
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1
@@ -29,12 +30,15 @@
 
 #define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
 
+/* TODO: replace assert with ASSERTF because ASSERTF calls unwrapped_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
         char* errno_str = strndup(strerror(errno), 4096);                                          \
         LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
-        free(errno_str);                                                                           \
-        exit(1);                                                                                   \
+        /* FIXME: fix free, but also remove strndup */\
+        /*free(errno_str);*/                                                                           \
+        unwrapped_exit(103);                                                                       \
+        __builtin_unreachable();                                                                   \
     })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
