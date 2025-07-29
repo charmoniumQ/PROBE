@@ -291,7 +291,7 @@ class ParsedFunc:
 
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
-ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument"])
+ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument", "-I."])
 orig_funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
@@ -354,26 +354,27 @@ init_function_pointers = ParsedFunc(
                         args=pycparser.c_ast.ExprList(
                             exprs=[
                                 pycparser.c_ast.ID(name="RTLD_NEXT"),
-                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '"'),
+                                pycparser.c_ast.Constant(type="string", value=f'"{func_name}"'),
                             ],
                         ),
                     ),
                 ),
-                pycparser.c_ast.If(
-                    cond=pycparser.c_ast.UnaryOp(
-                        op="!",
-                        expr=pycparser.c_ast.ID(name=func_prefix + func_name),
-                    ),
-                    iftrue=pycparser.c_ast.FuncCall(
-                        name=pycparser.c_ast.ID("DEBUG"),
-                        args=pycparser.c_ast.ExprList(
-                            exprs=[
-                                pycparser.c_ast.Constant(type="string", value='"' + func_name + '(...) not found"'),
-                            ],
-                        ),
-                    ),
-                    iffalse=None,
-                ),
+                # TODO: guard this with `#ifndef NDEBUG`
+                # pycparser.c_ast.If(
+                #     cond=pycparser.c_ast.UnaryOp(
+                #         op="!",
+                #         expr=pycparser.c_ast.ID(name=func_prefix + func_name),
+                #     ),
+                #     iftrue=pycparser.c_ast.FuncCall(
+                #         name=pycparser.c_ast.ID("DEBUG"),
+                #         args=pycparser.c_ast.ExprList(
+                #             exprs=[
+                #                 pycparser.c_ast.Constant(type="string", value=f'"{func_name}(...) not found"'),
+                #             ],
+                #         ),
+                #     ),
+                #     iffalse=None,
+                # ),
             ]
             for func_name, func in funcs.items()
         ]),
@@ -421,10 +422,13 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         #     ]),
         # ),
     ]
+
+    noreturn = bool(find_decl(func.stmts, "noreturn", func.name))
+
     # For some reason, Clang analyzer can suddenly prove that if execle returns, errno (call_errno) must be non-zero.
     # So this is a dead store.
     # But it can't prove that for the other execs
-    if func.name != "execle":
+    if func.name != "execle" and not noreturn:
         pre_call_stmts.insert(0, define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno")))
     post_call_stmts = []
 
@@ -435,14 +439,11 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
 
     pre_call_action = find_decl(func.stmts, "pre_call", func.name)
     if not ignore_actions and pre_call_action:
-        if isinstance(pre_call_action.init, Compound):
-            pre_call_stmts.extend(pre_call_action.init.block_items)
-        else:
-            pre_call_stmts.append(pre_call_action.init)
+        pre_call_stmts.extend(expect_type(Compound, pre_call_action.init).block_items)
 
     post_call_action = find_decl(func.stmts, "post_call", func.name)
-
-    if not ignore_actions and  post_call_action:
+    assert not noreturn or not post_call_action
+    if not ignore_actions and post_call_action:
         post_call_stmts.extend(
             expect_type(Compound, post_call_action.init).block_items,
         )
@@ -478,28 +479,37 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     else:
         call_stmts = expect_type(Compound, call_stmts_block.init).block_items
 
-    post_call_stmts.insert(
-        0,
-        define_var(c_ast_int, "call_errno", pycparser.c_ast.ID(name="errno")),
-    )
-
-    post_call_stmts.append(
-        Assignment(
-            op="=",
-            lvalue=pycparser.c_ast.ID(name="errno"),
-            rvalue=pycparser.c_ast.TernaryOp(
-                cond=pycparser.c_ast.ID(name="call_errno"),
-                iftrue=pycparser.c_ast.ID(name="call_errno"),
-                iffalse=pycparser.c_ast.ID(name="saved_errno"),
-            ) if func.name != "execle" else pycparser.c_ast.ID(name="call_errno"),
-            # See note above regarding execle
-        ),
-    )
-
-    if not is_void(func.return_type):
+    if noreturn:
+        assert is_void(func.return_type)
         post_call_stmts.append(
-            pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret"))
+            pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(name="__builtin_unreachable"),
+                args=pycparser.c_ast.ExprList(exprs=[]),
+            )
         )
+    else:
+        post_call_stmts.insert(
+            0,
+            define_var(c_ast_int, "call_errno", pycparser.c_ast.ID(name="errno")),
+        )
+
+        post_call_stmts.append(
+            Assignment(
+                op="=",
+                lvalue=pycparser.c_ast.ID(name="errno"),
+                rvalue=pycparser.c_ast.TernaryOp(
+                    cond=pycparser.c_ast.ID(name="call_errno"),
+                    iftrue=pycparser.c_ast.ID(name="call_errno"),
+                    iffalse=pycparser.c_ast.ID(name="saved_errno"),
+                ) if func.name != "execle" else pycparser.c_ast.ID(name="call_errno"),
+                # See note above regarding execle
+            ),
+        )
+
+        if not is_void(func.return_type):
+            post_call_stmts.append(
+                pycparser.c_ast.Return(expr=pycparser.c_ast.ID(name="ret"))
+            )
 
     return pre_call_stmts + call_stmts + post_call_stmts
 

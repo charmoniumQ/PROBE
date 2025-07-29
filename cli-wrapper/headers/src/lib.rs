@@ -46,7 +46,7 @@ pub struct ProcessTreeContext {
 
 #[repr(C)]
 pub struct ProcessContext {
-    pub epoch_no: u32,
+    pub epoch_no: u16,
     pub process_tree_path: FixedPath,
     pub pid_arena_path: FixedPath,
     pub enable_recording: bool,

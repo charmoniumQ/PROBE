@@ -248,11 +248,11 @@ def test_downstream_analyses(
     # stdout is huge
     subprocess.run(cmd, check=True, cwd=scratch_directory, stdout=subprocess.DEVNULL)
 
-    cmd = ["probe", "export", "hb-graph", "test.png"]
+    cmd = ["probe", "export", "hb-graph", "test.dot"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
-    cmd = ["probe", "export", "dataflow-graph", "test.png"]
+    cmd = ["probe", "export", "dataflow-graph", "test.dot"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 

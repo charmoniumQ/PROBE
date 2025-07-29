@@ -2,7 +2,6 @@
 
 #define _GNU_SOURCE
 
-#include <pthread.h>   // IWYU pragma: keep for pthread_t
 #include <stdbool.h>   // for bool, false
 #include <stddef.h>    // for size_t, NULL
 #include <stdint.h>    // for uint32_t, int32_t, uint64_t, int64_t
@@ -67,7 +66,6 @@ struct InitExecEpochOp {
     struct Path stdin;
     struct Path stdout;
     struct Path stderr;
-    struct Path tty;
 };
 
 struct InitThreadOp {
@@ -124,7 +122,6 @@ struct CloneOp {
 
 struct ExitOp {
     int status;
-    bool run_atexit_handlers;
 };
 
 struct AccessOp {
@@ -203,6 +200,7 @@ struct WaitOp {
     int64_t task_id;
     int options;
     int status;
+    bool cancelled;
     int ferrno;
 };
 
@@ -340,7 +338,7 @@ struct Op {
         struct MkdirOp mkdir;
     } data;
     struct timespec time;
-    pthread_t pthread_id;
+    uint16_t pthread_id;
     thrd_t iso_c_thread_id;
 };
 

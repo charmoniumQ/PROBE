@@ -59,7 +59,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
 
     _create_other_thread_edges(probe_log, hb_graph)
 
-    validate_hb_graph(hb_graph, False)
+    validate_hb_graph(hb_graph, True)
 
     return hb_graph
 
@@ -94,9 +94,11 @@ def retain_only(
             last_in_process[node_triple] = node
 
             # Link up any out-of-process predecessors we accumulated up to this node
-            for (predecessor, edge_data) in incoming_to_process.setdefault(node_triple, []):
+            incoming = incoming_to_process.get(node_triple, [])
+            for (predecessor, edge_data) in incoming:
                 reduced_hb_graph.add_edge(predecessor, node, **edge_data)
-            del incoming_to_process[node_triple]
+            if incoming:
+                del incoming_to_process[node_triple]
 
         # Accumulate out-of-process predecessors
         # Since we iterate in topo order,
@@ -172,8 +174,29 @@ def _create_clone_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) ->
                     target = OpNode(target_pid, initial_exec_no, target_pid.main_thread(), 0)
                     assert hb_graph.has_node(target)
                     hb_graph.add_edge(node, target)
-            case _:
-                warnings.warn("Clone edges between other kinds of threads are sound but not percise for now")
+            case TaskType.TASK_PTHREAD | TaskType.TASK_ISO_C_THREAD:
+                targets = get_first_task_nodes(probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id, False)
+                for target in targets:
+                    assert hb_graph.has_node(target)
+                    hb_graph.add_edge(node, target)
+
+
+def get_first_task_nodes(
+        probe_log: ProbeLog,
+        pid: Pid,
+        exec_no: ExecNo,
+        task_type: int,
+        task_id: int,
+        reverse: bool,
+) -> list[OpNode]:
+    targets = []
+    for tid, thread in probe_log.processes[pid].execs[exec_no].threads.items():
+        for op_no, other_op in enumerate(reversed(thread.ops) if reverse else thread.ops):
+            if (task_type == TaskType.TASK_PTHREAD and other_op.pthread_id == task_id) or \
+               (task_type == TaskType.TASK_ISO_C_THREAD and other_op.iso_c_thread_id == task_id):
+                targets.append(OpNode(pid, exec_no, tid, op_no))
+                break
+    return targets
 
 
 def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -193,16 +216,15 @@ def _create_wait_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                     warnings.warn(f"Wait points to a process {target_pid} we didn't track")
                 else:
                     last_exec_no = max(probe_log.processes[target_pid].execs.keys())
-                    last_exec = probe_log.processes[target_pid].execs[last_exec_no]
-                    for tid, thread in last_exec.threads.items():
-                        last_op_no = len(thread.ops) - 1
-                        target = OpNode(target_pid, last_exec_no, tid, last_op_no)
-                        assert hb_graph.has_node(target)
-                        hb_graph.add_edge(target, node)
-                        # TODO: If we guarantee every thread in every process links to the exit node,
-                        # we can just put one edge going from the exit node to the wait
-            case _:
-                warnings.warn("Wait edges between other kinds of threads are sound but not percise for now")
+                    last_op_no = len(probe_log.processes[target_pid].execs[last_exec_no].threads[target_pid.main_thread()].ops) - 1
+                    target = OpNode(target_pid, last_exec_no, target_pid.main_thread(), last_op_no)
+                    assert hb_graph.has_node(target)
+                    hb_graph.add_edge(target, node)
+            case TaskType.TASK_PTHREAD | TaskType.TASK_ISO_C_THREAD:
+                targets = get_first_task_nodes(probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id, True)
+                for target in targets:
+                    assert hb_graph.has_node(target)
+                    hb_graph.add_edge(target, node)
 
 
 def _create_exec_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) -> None:

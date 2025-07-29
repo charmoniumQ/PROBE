@@ -2,6 +2,8 @@
 
 #define _GNU_SOURCE
 
+#include <stdbool.h>   // for bool
+#include <stdint.h>    // for uint16_t
 #include <sys/types.h> // for pid_t
 
 #include "../generated/bindings.h" // for CopyFiles
@@ -23,6 +25,10 @@
  * In such case, client code should call get_$X_safe(), which will test if $X is initialized, and if not, return a sentinel value
  *
  */
+
+typedef uint16_t PthreadID;
+
+typedef uint16_t ExecEpoch;
 
 __attribute__((visibility("hidden"))) pid_t get_pid_safe();
 
@@ -46,9 +52,9 @@ __attribute__((visibility("hidden"))) struct InodeTable* get_read_inodes()
 __attribute__((visibility("hidden"))) struct InodeTable* get_copied_or_overwritten_inodes()
     __attribute__((returns_nonnull));
 
-__attribute__((visibility("hidden"))) int get_exec_epoch_safe();
+__attribute__((visibility("hidden"))) ExecEpoch get_exec_epoch_safe();
 
-__attribute__((visibility("hidden"))) int get_exec_epoch();
+__attribute__((visibility("hidden"))) ExecEpoch get_exec_epoch();
 
 __attribute__((visibility("hidden"))) struct ArenaDir* get_op_arena()
     __attribute__((returns_nonnull));
@@ -56,9 +62,17 @@ __attribute__((visibility("hidden"))) struct ArenaDir* get_op_arena()
 __attribute__((visibility("hidden"))) struct ArenaDir* get_data_arena()
     __attribute__((returns_nonnull));
 
+__attribute__((visibility("hidden"))) PthreadID get_pthread_id();
+
+__attribute__((visibility("hidden"))) PthreadID increment_pthread_id();
+
 __attribute__((visibility("hidden"))) const char* get_default_path()
     __attribute__((returns_nonnull));
 
 __attribute__((visibility("hidden"))) void ensure_thread_initted();
+
+__attribute__((visibility("hidden"))) void init_thread(PthreadID);
+
+__attribute__((visibility("hidden"))) bool is_thread_inited();
 
 __attribute__((visibility("hidden"))) void init_after_fork();
