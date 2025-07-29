@@ -2,7 +2,6 @@ from __future__ import annotations
 import collections.abc
 import tqdm
 import dataclasses
-import tqdm
 import itertools
 import typing
 import pathlib
