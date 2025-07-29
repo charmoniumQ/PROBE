@@ -1,6 +1,5 @@
-
-import dataclasses
 import os
+import dataclasses
 import shlex
 import textwrap
 import typing
@@ -53,9 +52,9 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
 
     # Hook up synchronization edges
     for node in tqdm.tqdm(hb_graph.nodes(), "sync edges"):
+        _create_clone_edges(node, probe_log, hb_graph)
         _create_exec_edges(node, probe_log, hb_graph)
         _create_spawn_edges(node, probe_log, hb_graph)
-        _create_clone_edges(node, probe_log, hb_graph)
         _create_wait_edges(node, probe_log, hb_graph)
 
     _create_other_thread_edges(probe_log, hb_graph)
@@ -170,7 +169,7 @@ def _create_clone_edges(node: OpNode, probe_log: ProbeLog, hb_graph: HbGraph) ->
             case TaskType.TASK_PID:
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
-                    warnings.warn(f"Clone points to a process {target_pid} we didn't track")
+                    warnings.warn(f"Clone points to a process {target_pid} we didn't track {probe_log.processes.keys()}")
                 else:
                     target = OpNode(target_pid, initial_exec_no, target_pid.main_thread(), 0)
                     assert hb_graph.has_node(target)
@@ -275,7 +274,7 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "label"):
+    for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "HBG label"):
         op = probe_log.get_op(*node.op_quad())
         if len(list(hb_graph.predecessors(node))) == 0:
             data["label"] = "root"
@@ -297,32 +296,20 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
                 ),
                 width=80,
             )
-            if op.data.ferrno != 0:
-                data["label"] += " error"
-                data["color"] = "red"
         elif isinstance(op.data, OpenOp):
             access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
             data["label"] = f"Open ({access}) {op.data.path.path.decode(errors='backslashreplace')}"
-            if op.data.ferrno != 0:
-                data["label"] += " error"
-                data["color"] = "red"
-            else:
-                data["label"] += f" fd={op.data.fd}"
+            data["label"] += f" fd={op.data.fd}"
         elif isinstance(op.data, CloseOp):
-            if op.data.ferrno != 0:
-                data["label"] = "Close error"
-                data["color"] = "red"
-            else:
-                data["label"] = f"Close fd={op.data.fd}"
+            data["label"] = f"Close fd={op.data.fd}"
         elif isinstance(op.data, DupOp):
-            if op.data.ferrno != 0:
-                data["label"] = "Dup faild"
-                data["color"] = "red"
-            else:
-                data["label"] = f"DupOp fd={op.data.old} → fd={op.data.new}"
+            data["label"] = f"DupOp fd={op.data.old} → fd={op.data.new}"
         else:
             data["label"] = f"{op.data.__class__.__name__}"
             data["labelfontsize"] = 8
+        if getattr(op.data, "ferrno", 0) != 0:
+            data["label"] += " (failed)"
+            data["color"] = "red"
         if add_op_no:
             data["label"] = f"{node.op_no}: " + data["label"]
 

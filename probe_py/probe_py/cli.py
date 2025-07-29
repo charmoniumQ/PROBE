@@ -13,7 +13,8 @@ import typer
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
-from . import analysis
+import warnings
+from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
@@ -33,6 +34,8 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 export_app = typer.Typer()
 app.add_typer(export_app, name="export")
 
+
+warnings.simplefilter("once")
 
 
 @app.command()
@@ -62,8 +65,8 @@ def validate(
     for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    hb_graph_module.probe_log_to_hb_graph(probe_log)
-    # dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
     if not warning_free:
         raise typer.Exit(code=1)
 
@@ -129,8 +132,16 @@ def dataflow_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    dataflow_graph = analysis.probe_log_to_dataflow_graph(probe_log, hbg)
-    graph_utils.serialize_graph(dataflow_graph, output)
+    hb_graph_module.label_nodes(probe_log, hbg)
+    dfg = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
+    print("done with dfg; starting compression")
+    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
+    print("done with compression; starting label")
+    dataflow_graph_module.label_nodes(probe_log, compressed_dfg)
+    print("done with label; starting serialize")
+    data = compressed_dfg.nodes(data=True)
+    graph_utils.serialize_graph(compressed_dfg, output, lambda node: data[node]["id"])
+    print("done with serialize")
 
 
 @export_app.command()

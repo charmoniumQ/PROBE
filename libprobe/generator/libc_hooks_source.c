@@ -364,7 +364,7 @@ void closefrom (int lowfd) {
     });
 }
 
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Duplicating-Descriptors.html */
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Dup]licating-Descriptors.html */
 int dup (int old) {
     void* pre_call = ({
         struct Op op = {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import collections.abc
-import dataclasses
 import tqdm
+import dataclasses
 import itertools
 import typing
 import pathlib
@@ -81,8 +81,9 @@ def hasse_diagram(
 def map_nodes(
         function: typing.Callable[[_Node], _Node2],
         graph: networkx.DiGraph[_Node],
+        check: bool = True,
 ) -> networkx.DiGraph[_Node2]:
-    dct = {node: function(node) for node in graph.nodes()}
+    dct = {node: function(node) for node in tqdm.tqdm(graph.nodes(), desc="nodes")}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
     return networkx.relabel_nodes(graph, dct)
 

@@ -68,7 +68,7 @@ def hyperparameter_tuning(X_train, y_train):
     grid_search = GridSearchCV(
         rf, param_grid, cv=3,
         scoring='neg_mean_squared_error',
-        n_jobs=-1, verbose=1
+        n_jobs=1, verbose=1
     )
 
     grid_search.fit(X_train, y_train)
