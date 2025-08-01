@@ -178,12 +178,24 @@ class ProbeLog:
     def get_op(self, pid: Pid, exec_no: ExecNo, tid: Tid, op_no: int) -> ops.Op:
         return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
 
-    def ops(self) -> typing.Iterator[ops.Op]:
-        for process in self.processes.values():
-            for exec in process.execs.values():
-                for thread in exec.threads.values():
-                    yield from thread.ops
+    def ops(self) -> typing.Iterator[tuple[Pid, ExecNo, Tid, int, ops.Op]]:
+        for pid, process in self.processes.items():
+            for epoch, exec in process.execs.items():
+                for tid, thread in exec.threads.items():
+                    for op_no, op in enumerate(thread.ops):
+                        yield pid, epoch, tid, op_no, op
 
+    def get_parent_pid_map(self) -> typing.Mapping[Pid, Pid]:
+        parent_pid_map = dict[Pid, Pid]()
+        for pid, _, _, _, op in self.ops():
+            match op.data:
+                case ops.CloneOp():
+                    if op.data.ferrno == 0 and op.data.task_type == TaskType.TASK_PID:
+                        parent_pid_map[Pid(op.data.task_id)] = pid
+                case ops.SpawnOp():
+                    if op.data.ferrno == 0:
+                        parent_pid_map[Pid(op.data.child_pid)] = pid
+        return parent_pid_map
 
 
 # TODO: implement this in probe_py.generated.ops
