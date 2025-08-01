@@ -227,6 +227,71 @@
           };
         };
         devShells = {
+          test = craneLib.devShell {
+            shellHook = ''
+              export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+              pushd $(git rev-parse --show-toplevel) > /dev/null
+              source ./setup_devshell.sh
+              popd > /dev/null
+            '';
+            packages = [
+              # Rust stuff
+              pkgs.cargo-deny
+              pkgs.cargo-audit
+              pkgs.cargo-machete
+              pkgs.cargo-hakari
+
+              (python.withPackages (pypkgs: [
+                # probe_py.manual runtime requirements
+                pypkgs.networkx
+                pypkgs.pydot
+                pypkgs.rich
+                pypkgs.typer
+                pypkgs.sqlalchemy
+                pypkgs.xdg-base-dirs
+                pypkgs.pyyaml
+                pypkgs.types-pyyaml
+                pypkgs.numpy
+                pypkgs.tqdm
+                pypkgs.types-tqdm
+                # probe_py.manual "dev time" requirements
+                pypkgs.psutil
+                pypkgs.pytest
+                pypkgs.pytest-timeout
+                pypkgs.mypy
+                pypkgs.ipython
+                pypkgs.xdg-base-dirs
+
+                # libprobe build time requirement
+                pypkgs.pycparser
+                pypkgs.pyelftools
+              ]))
+                .out
+
+              # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
+
+              # Replay tools
+              pkgs.buildah
+              pkgs.podman
+
+              # C tools
+              pkgs.clang-analyzer
+              pkgs.clang-tools # must go after clang-analyzer
+              pkgs.clang # must go after clang-tools
+              pkgs.cppcheck
+              pkgs.gnumake
+              pkgs.git
+              pkgs.include-what-you-use
+              pkgs.libclang
+              # pkgs.musl
+
+              pkgs.which
+              pkgs.coreutils
+              pkgs.alejandra
+              pkgs.just
+              pkgs.ruff
+            ];
+          };
           default = craneLib.devShell {
             shellHook = ''
               export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
@@ -255,6 +320,7 @@
                   pypkgs.numpy
                   pypkgs.tqdm
                   pypkgs.types-tqdm
+                  pypkgs.xdg-base-dirs
 
                   # probe_py.manual "dev time" requirements
                   pypkgs.psutil
@@ -262,7 +328,7 @@
                   pypkgs.pytest-timeout
                   pypkgs.mypy
                   pypkgs.ipython
-                  pypkgs.xdg-base-dirs
+                  pypkgs.xdot
 
                   # libprobe build time requirement
                   pypkgs.pycparser
@@ -299,7 +365,7 @@
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
               # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
-              ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
+              ;
           };
         };
       }

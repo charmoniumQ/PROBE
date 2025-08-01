@@ -7,8 +7,10 @@ import os
 import pathlib
 import random
 import socket
+import stat
 import typing
 import numpy
+import networkx
 from . import ops
 from . import consts
 
@@ -82,8 +84,14 @@ class Inode:
     host: Host
     device: Device
     number: int
+    mode: int
+
+    @property
+    def type(self) -> str:
+        return stat.filemode(self.mode)[0]
+
     def __str__(self) -> str:
-        return f"inode {self.number} on {self.device} @{self.host.name}"
+        return f"inode {self.type}{self.number} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -114,6 +122,7 @@ class InodeVersion:
                     os.minor(s.st_dev),
                 ),
                 s.st_ino,
+                s.st_mode,
             ),
             numpy.datetime64(s.st_mtime_ns, "ns"),
             s.st_size,
@@ -126,6 +135,7 @@ class InodeVersion:
                 Host.localhost(),
                 Device(path.device_major, path.device_minor),
                 path.inode,
+                path.mode,
             ),
             numpy.datetime64(path.mtime.sec * int(1e9) + path.mtime.nsec, "ns"),
             path.size,
@@ -144,6 +154,7 @@ class InodeVersion:
                 Host.localhost(),
                 Device(array[0], array[1]),
                 array[2],
+                0,
             ),
             numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
             array[5],
@@ -169,6 +180,20 @@ class Process:
 
 
 @dataclasses.dataclass(frozen=True)
+class OpQuad:
+    pid: Pid
+    exec_no: ExecNo
+    tid: Tid
+    op_no: int
+
+    def thread_triple(self) -> tuple[Pid, ExecNo, Tid]:
+        return (self.pid, self.exec_no, self.tid)
+
+    def __str__(self) -> str:
+        return f"PID {self.pid} Exec {self.exec_no} TID {self.tid} op {self.op_no}"
+
+
+@dataclasses.dataclass(frozen=True)
 class ProbeLog:
     processes: typing.Mapping[Pid, Process]
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
@@ -179,34 +204,34 @@ class ProbeLog:
     # I think we should have probe_log.ops[quad] and probe_log.ops -> iterator
     # Maybe drop probe_log.ops -> iterator
 
-    def get_op(self, pid: Pid, exec_no: ExecNo, tid: Tid, op_no: int) -> ops.Op:
-        return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
+    def get_op(self, op: OpQuad) -> ops.Op:
+        return self.processes[op.pid].execs[op.exec_no].threads[op.tid].ops[op.op_no]
 
-    def ops(self) -> typing.Iterator[tuple[Pid, ExecNo, Tid, int, ops.Op]]:
+    def ops(self) -> typing.Iterator[tuple[OpQuad, ops.Op]]:
         for pid, process in sorted(self.processes.items()):
             for epoch, exec in sorted(process.execs.items()):
                 for tid, thread in sorted(exec.threads.items()):
                     for op_no, op in enumerate(thread.ops):
-                        yield pid, epoch, tid, op_no, op
+                        yield OpQuad(pid, epoch, tid, op_no), op
 
     def get_root_pid(self) -> Pid:
-        for pid, _, _, _, op in self.ops():
+        for quad, op in self.ops():
             match op.data:
                 case ops.InitExecEpochOp():
                     if op.data.parent_pid == self.probe_options.parent_of_root:
-                        return Pid(pid)
+                        return Pid(quad.pid)
         raise RuntimeError("No root process found")
 
     def get_parent_pid_map(self) -> typing.Mapping[Pid, Pid]:
         parent_pid_map = dict[Pid, Pid]()
-        for pid, _, _, _, op in self.ops():
+        for quad, op in self.ops():
             match op.data:
                 case ops.CloneOp():
                     if op.data.ferrno == 0 and op.data.task_type == TaskType.TASK_PID:
-                        parent_pid_map[Pid(op.data.task_id)] = pid
+                        parent_pid_map[Pid(op.data.task_id)] = quad.pid
                 case ops.SpawnOp():
                     if op.data.ferrno == 0:
-                        parent_pid_map[Pid(op.data.child_pid)] = pid
+                        parent_pid_map[Pid(op.data.child_pid)] = quad.pid
         return parent_pid_map
 
 
@@ -220,3 +245,51 @@ class TaskType(enum.IntEnum):
 
 class InvalidProbeLog(Exception):
     pass
+
+
+class AccessMode(enum.IntEnum):
+    """In what way are we accessing the inode version?"""
+    EXEC = enum.auto()
+    DLOPEN = enum.auto()
+    READ = enum.auto()
+    WRITE = enum.auto()
+    READ_WRITE = enum.auto()
+    TRUNCATE_WRITE = enum.auto()
+
+    @property
+    def is_side_effect_free(self) -> bool:
+        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ}
+
+    @staticmethod
+    def from_open_flags(flags: int) -> "AccessMode":
+        access_mode = flags & os.O_ACCMODE
+        if access_mode == os.O_RDONLY:
+            return AccessMode.READ
+        elif flags & (os.O_TRUNC | os.O_CREAT):
+            return AccessMode.TRUNCATE_WRITE
+        elif access_mode == os.O_WRONLY:
+            return AccessMode.WRITE
+        elif access_mode == os.O_RDWR:
+            return AccessMode.READ_WRITE
+        else:
+            raise InvalidProbeLog(f"Invalid open flags: 0x{flags:x}")
+
+
+class Phase(enum.StrEnum):
+    BEGIN = enum.auto()
+    END = enum.auto()
+
+
+@dataclasses.dataclass
+class Access:
+    phase: Phase
+    mode: AccessMode
+    inode: Inode
+    path: pathlib.Path
+    op_node: OpQuad
+    fd: int | None
+
+if typing.TYPE_CHECKING:
+    HbGraph: typing.TypeAlias = networkx.DiGraph[OpQuad]
+else:
+    HbGraph = networkx.DiGraph
