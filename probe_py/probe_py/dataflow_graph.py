@@ -1,7 +1,6 @@
 from __future__ import annotations
 import tqdm
 import collections
-import copy
 import dataclasses
 import enum
 import os
@@ -21,10 +20,15 @@ _Node = typing.TypeVar("_Node")
 
 class AccessMode(enum.IntEnum):
     """In what way are we accessing the inode version?"""
+    EXEC = enum.auto()
+    DLOPEN = enum.auto()
     READ = enum.auto()
     WRITE = enum.auto()
     READ_WRITE = enum.auto()
     TRUNCATE_WRITE = enum.auto()
+
+    def is_side_effect_free(self) -> bool:
+        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ}
 
     @staticmethod
     def from_open_flags(flags: int) -> AccessMode:
@@ -77,30 +81,41 @@ else:
     EpochGraph = networkx.DiGraph
 
 
+class Phase(enum.StrEnum):
+    BEGIN = enum.auto()
+    END = enum.auto()
+
+
 @dataclasses.dataclass
-class FileDescriptor:
-    access_mode: AccessMode
-    open_op: hb_graph.OpNode
-    close_ops: list[hb_graph.OpNode]
+class Access:
+    phase: Phase
+    mode: AccessMode
     inode: ptypes.Inode
-    cloexec: bool
-    version: int
+    op_node: hb_graph.OpNode
 
 
-class PidState(enum.IntEnum):
-    READING = enum.auto()
-    WRITING = enum.auto()
-
-
-class FdTable(collections.UserDict[int, FileDescriptor]):
-    original_pid: ptypes.Pid
-
-
-def hb_graph_to_dataflow_graph2(
+def hb_graph_to_accesses(
         probe_log: ptypes.ProbeLog,
         hbg: hb_graph.HbGraph,
-        check: bool = False,
-) -> DataflowGraph:
+) -> collections.abc.Iterator[Access | hb_graph.OpNode]:
+    """Reduces a happens-before graph to an ordered list of accesses in one possible schedule."""
+
+    @dataclasses.dataclass
+    class FileDescriptor2:
+        mode: AccessMode
+        inode: ptypes.Inode
+        cloexec: bool
+
+    proc_fd_to_fd = collections.defaultdict[ptypes.Pid, dict[int, FileDescriptor2]](dict)
+
+    def close(fd: int, node: hb_graph.OpNode) -> collections.abc.Iterator[Access]:
+        if file_desc := proc_fd_to_fd[node.pid].get(fd):
+            file_desc = proc_fd_to_fd[node.pid][fd]
+            del proc_fd_to_fd[node.pid][fd]
+            yield Access(Phase.END, file_desc.mode, file_desc.inode, node)
+        else:
+            warnings.warn(f"Process {node.pid} successfully closed an FD {fd} we never traced. This could come from pipe or pipe2.")
+
     interesting_op_types = (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp, ops.SpawnOp, ops.InitExecEpochOp, ops.CloneOp)
     reduced_hb_graph = hb_graph.retain_only(
         probe_log,
@@ -108,13 +123,70 @@ def hb_graph_to_dataflow_graph2(
         lambda node, op: isinstance(op.data, interesting_op_types) and getattr(op.data, "ferrno", 0) == 0,
     )
 
+    for node in tqdm.tqdm(
+            networkx.topological_sort(reduced_hb_graph),
+            total=len(reduced_hb_graph),
+            desc="Finding DFG",
+    ):
+        yield node
+        op_data = probe_log.get_op(*node.op_quad()).data
+        match op_data:
+            case ops.OpenOp():
+                inode = ptypes.InodeVersion.from_probe_path(op_data.path).inode
+                mode = AccessMode.from_open_flags(op_data.flags)
+                if op_data.fd in proc_fd_to_fd[node.pid]:
+                    warnings.warn(f"Process {node.pid} closed FD {op_data.fd} without our knowledge.")
+                    close(op_data.fd, node)
+                proc_fd_to_fd[node.pid][op_data.fd] = FileDescriptor2(mode, inode, bool(op_data.flags & os.O_CLOEXEC))
+                yield Access(Phase.BEGIN, mode, inode, node)
+            case ops.ExecOp():
+                for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
+                    if file_desc.cloexec:
+                        close(fd, node)
+                exe_inode = ptypes.InodeVersion.from_probe_path(op_data.path).inode
+                yield Access(Phase.BEGIN, AccessMode.EXEC, exe_inode, node)
+                yield Access(Phase.END, AccessMode.EXEC, exe_inode, node)
+            case ops.CloseOp():
+                close(op_data.fd, node)
+            case ops.DupOp():
+                if old_file_desc := proc_fd_to_fd[node.pid].get(op_data.old):
+                    # dup2 and dup3 close the new FD, if it was open
+                    if op_data.new in list(proc_fd_to_fd[node.pid]):
+                        close(op_data.new, node)
+                    proc_fd_to_fd[node.pid][op_data.new] = old_file_desc
+                else:
+                    warnings.warn(f"Process {node.pid} successfully closed an FD {op_data.old} we never traced. This could come from pipe or pipe2.")
+            case ops.CloneOp():
+                if op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
+                    target = ptypes.Pid(op_data.task_id)
+                    if op_data.flags & os.CLONE_FILES:
+                        proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]
+                    else:
+                        proc_fd_to_fd[target] = {**proc_fd_to_fd[node.pid]}
+        is_last_op_in_process = not any(
+            successor.pid == node.pid
+            for successor in reduced_hb_graph.successors(node)
+        )
+        if is_last_op_in_process:
+            for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
+                close(fd, node)
+
+
+def accesses_to_dataflow_graph(
+        probe_log: ptypes.ProbeLog,
+        accesses_and_nodes: list[Access | hb_graph.OpNode],
+) -> DataflowGraph:
+
+    class PidState(enum.IntEnum):
+        READING = enum.auto()
+        WRITING = enum.auto()
+
+    parent_pid = probe_log.get_parent_pid_map()
     pid_to_state = collections.defaultdict[ptypes.Pid, PidState](lambda: PidState.READING)
     last_op_in_process = dict[ptypes.Pid, hb_graph.OpNode]()
-    proc_fd_to_fd = collections.defaultdict[ptypes.Pid, FdTable](lambda: FdTable())
     inode_to_version = collections.defaultdict[ptypes.Inode, int](lambda: 0)
     inode_to_paths = collections.defaultdict[ptypes.Inode, set[pathlib.Path]](set)
     dataflow_graph = DataflowGraph()
-    parent_pid = dict[ptypes.Pid, ptypes.Pid]()
 
     def add_node(node: hb_graph.OpNode) -> None:
         pid_to_state[node.pid] = PidState.READING
@@ -137,142 +209,68 @@ def hb_graph_to_dataflow_graph2(
             add_node(node)
         assert pid_to_state[node.pid] == desired_state
 
-    def add_access(
-            access: AccessMode,
-            op_node: hb_graph.OpNode,
-            inode: ptypes.Inode,
-            version_num: int | None = None,
-    ) -> None:
-        if version_num is None:
-            version_num = inode_to_version[inode]
-        version = InodeVersionNode(inode, version_num, frozenset(inode_to_paths[inode]))
-        next_version = InodeVersionNode(inode, version_num + 1, frozenset(inode_to_paths[inode]))
-        ensure_state(op_node, PidState.READING if access == AccessMode.READ else PidState.WRITING)
-        op_node = last_op_in_process[op_node.pid]
-        match access:
-            case AccessMode.WRITE:
-                dataflow_graph.add_edge(op_node, next_version)
-                dataflow_graph.add_edge(version, next_version)
-            case AccessMode.TRUNCATE_WRITE:
-                dataflow_graph.add_edge(op_node, next_version)
-            case AccessMode.READ_WRITE:
-                dataflow_graph.add_edge(version, op_node)
-                dataflow_graph.add_edge(op_node, next_version)
-            case AccessMode.READ:
-                dataflow_graph.add_edge(version, op_node)
-            case _:
-                raise RuntimeError()
+    for access_or_node in accesses_and_nodes:
+        match access_or_node:
+            case Access():
+                access = access_or_node
+                version_num = inode_to_version[access.inode]
+                version = InodeVersionNode(access.inode, version_num, frozenset(inode_to_paths[access.inode]))
+                next_version = InodeVersionNode(access.inode, version_num + 1, frozenset(inode_to_paths[access.inode]))
+                ensure_state(access.op_node, PidState.READING if access.mode.is_side_effect_free() else PidState.WRITING)
+                op_node = last_op_in_process[access.op_node.pid]
+                match access.mode:
+                    case AccessMode.WRITE | AccessMode.EXEC | AccessMode.DLOPEN:
+                        if access.phase == Phase.BEGIN:
+                            dataflow_graph.add_edge(op_node, next_version)
+                            dataflow_graph.add_edge(version, next_version)
+                    case AccessMode.TRUNCATE_WRITE:
+                        if access.phase == Phase.END:
+                            dataflow_graph.add_edge(op_node, next_version)
+                    case AccessMode.READ_WRITE:
+                        if access.phase == Phase.BEGIN:
+                            dataflow_graph.add_edge(version, op_node)
+                        if access.phase == Phase.END:
+                            dataflow_graph.add_edge(op_node, next_version)
+                    case AccessMode.READ:
+                        if access.phase == Phase.END:
+                            dataflow_graph.add_edge(version, op_node)
+                    case _:
+                        raise RuntimeError()
+            case hb_graph.OpNode():
+                node = access_or_node
+                op_data = probe_log.get_op(*node.op_quad()).data
+                match op_data:
+                    # us -> our child
+                    # Therefore, we have to be in writing mode
+                    case ops.CloneOp():
+                        if op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
+                            ensure_state(node, PidState.WRITING)
+                    case ops.SpawnOp():
+                        ensure_state(node, PidState.WRITING)
+                    case ops.InitExecEpochOp():
+                        add_node(node)
+    return dataflow_graph
 
-    def add_close(op_node: hb_graph.OpNode, fd: int) -> None:
-        if file_desc := proc_fd_to_fd[node.pid].get(fd):
-            file_desc = proc_fd_to_fd[node.pid][fd]
-            file_desc.close_ops.append(node)
-            del proc_fd_to_fd[op_node.pid][fd]
-            if file_desc.access_mode != AccessMode.READ:
-                # Reads are handled at the open
-                # Everything else is handled at the close
-                add_access(file_desc.access_mode, op_node, file_desc.inode, file_desc.version)
-        else:
-            pass
-            # warnings.warn(f"Process {op_node.pid} successfully closed an FD {fd} we never traced. This could come from pipe or pipe2.")
 
-    for node in tqdm.tqdm(
-            networkx.topological_sort(reduced_hb_graph),
-            total=len(reduced_hb_graph),
-            desc="Finding DFG",
-    ):
-        op = probe_log.get_op(*node.op_quad())
+def get_parent_pid_map(probe_log: ptypes.ProbeLog) -> typing.Mapping[ptypes.Pid, ptypes.Pid]:
+    parent_pid_map = dict[ptypes.Pid, ptypes.Pid]()
+    for pid, _, _, _, op in probe_log.ops():
         match op.data:
-            case ops.InitExecEpochOp():
-                add_node(node)
-                exe_inode = ptypes.InodeVersion.from_probe_path(op.data.exe).inode
-                add_access(AccessMode.READ, node, exe_inode)
-                proc_fd_to_fd[node.pid][0] = FileDescriptor(
-                    AccessMode.READ,
-                    node,
-                    [],
-                    ptypes.InodeVersion.from_probe_path(op.data.stdin).inode,
-                    True,
-                    0,
-                )
-                proc_fd_to_fd[node.pid][1] = FileDescriptor(
-                    AccessMode.WRITE,
-                    node,
-                    [],
-                    ptypes.InodeVersion.from_probe_path(op.data.stdout).inode,
-                    True,
-                    0,
-                )
-                proc_fd_to_fd[node.pid][2] = FileDescriptor(
-                    AccessMode.WRITE,
-                    node,
-                    [],
-                    ptypes.InodeVersion.from_probe_path(op.data.stderr).inode,
-                    True,
-                    0,
-                )
-            case ops.OpenOp():
-                # TODO: Verify that inode_version confirms the story told by inode_epochs
-                inode = ptypes.InodeVersion.from_probe_path(op.data.path).inode
-                if op.data.fd in proc_fd_to_fd[node.pid]:
-                    add_close(node, op.data.fd)
-                access_mode = AccessMode.from_open_flags(op.data.flags)
-                version = inode_to_version[inode]
-                inode_to_paths[inode].add(pathlib.Path(op.data.path.path.decode()))
-                if access_mode == AccessMode.READ:
-                    add_access(access_mode, node, inode, version)
-                proc_fd_to_fd[node.pid][op.data.fd] = FileDescriptor(
-                    access_mode,
-                    node,
-                    [],
-                    inode,
-                    bool(op.data.flags & os.O_CLOEXEC),
-                    version,
-                )
-            case ops.ExecOp():
-                for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
-                    if file_desc.cloexec:
-                        add_close(node, fd)
-                exe_inode = ptypes.InodeVersion.from_probe_path(op.data.path).inode
-                inode_to_paths[exe_inode].add(pathlib.Path(op.data.path.path.decode()))
-            case ops.DupOp():
-                if old_file_desc := proc_fd_to_fd[node.pid].get(op.data.old):
-                    # dup2 and dup3 close the new FD, if it was open
-                    if op.data.new in list(proc_fd_to_fd[node.pid]):
-                        add_close(node, op.data.new)
-                    proc_fd_to_fd[node.pid][op.data.new] = old_file_desc
-                else:
-                    pass
-                    # warnings.warn(f"Process {node.pid} successfully closed an FD {op.data.old} we never traced. This could come from pipe or pipe2.")
-            case ops.CloseOp():
-                add_close(node, op.data.fd)
             case ops.CloneOp():
-                if not (op.data.flags & os.CLONE_THREAD):
-                    target = ptypes.Pid(op.data.task_id)
-                    if op.data.flags & os.CLONE_FILES:
-                        proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]
-                    else:
-                        proc_fd_to_fd[target] = copy.deepcopy(proc_fd_to_fd[node.pid])
-                    ensure_state(node, PidState.WRITING)
-                    parent_pid[target] = node.pid
-            case ops.SpawnOp():
-                warnings.warn("Not implemented: track what the heck happens after a posix_spawn call")
-                target = ptypes.Pid(op.data.child_pid)
-                proc_fd_to_fd[target] = copy.deepcopy(proc_fd_to_fd[node.pid])
-                ensure_state(node, PidState.WRITING)
-                parent_pid[target] = node.pid
+                if op.data.task_type == ptypes.TaskType.TASK_PID and not (op.data.flags & os.CLONE_THREAD):
+                    parent_pid_map[ptypes.Pid(op.data.task_id)] = pid
+    return parent_pid_map
 
-        is_last_op_in_process = not any(
-            successor.pid == node.pid
-            for successor in reduced_hb_graph.successors(node)
-        )
-        if is_last_op_in_process:
-            for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
-                add_close(node, fd)
 
+def hb_graph_to_dataflow_graph2(
+        probe_log: ptypes.ProbeLog,
+        hbg: hb_graph.HbGraph,
+        check: bool = False,
+) -> DataflowGraph:
+    accesses = list(hb_graph_to_accesses(probe_log, hbg))
+    dataflow_graph = accesses_to_dataflow_graph(probe_log, accesses)
     print("done hard part of constructing DFG")
     if check:
-        print("checking")
         validate_dataflow_graph(probe_log, dataflow_graph)
     print("returning")
 
