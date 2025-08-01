@@ -1344,30 +1344,9 @@ int renameat2(int olddirfd, const char *oldpath,
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-Directories.html */
-int mkdir (const char *filename, mode_t mode) {
-    void* pre_call = ({
-        struct Op op = {
-            mkdir_op_code,
-            {.mkdir = {
-                .dst = create_path_lazy(AT_FDCWD, filename, 0),
-                .mode = mode,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.mkdir.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+int mkdir(const char* filename, mode_t mode) {
+    void* call = ({
+        int ret = mkdirat(AT_FDCWD, filename, mode);
     });
 }
 
@@ -1375,9 +1354,11 @@ int mkdir (const char *filename, mode_t mode) {
 int mkdirat(int dirfd, const char *pathname, mode_t mode) {
     void* pre_call = ({
         struct Op op = {
-            mkdir_op_code,
-            {.mkdir = {
-                .dst = create_path_lazy(dirfd, pathname, 0),
+            mkfile_op_code,
+            {.mkfile = {
+                .path = null_path,
+                .file_type = DirFileType,
+                .flags = 0,
                 .mode = mode,
                 .ferrno = 0,
             }},
@@ -1385,17 +1366,14 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode) {
             0,
             0,
         };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
+        prov_log_try(op);
     });
     void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.mkdir.ferrno = call_errno;
-            }
-            prov_log_record(op);
+        if (UNLIKELY(ret == -1)) {
+            op.data.mkfile.path = create_path_lazy(AT_FDCWD, pathname, 0),
+            op.data.mkfile.ferrno = call_errno;
         }
+        prov_log_record(op);
     });
 }
 
@@ -3105,16 +3083,17 @@ int pthread_cancel(pthread_t thread) {
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
 int munmap(void* addr, size_t length) { }
 
+/*
+ * Don't need to interpose exit because we have a destructor associated with pthread_create_key(...).
+ * The destructor will more likely always be fired, whereas exit(...) could not be hit (e.g., return from main() or not using libc for some weird reason).
 void exit (int status) {
-    void* pre_call = ({struct Op op = {
-                           exit_op_code,
-                           {.exit =
-                                {
-                                    .status = status,
-                                }},
-                           {0},
-                           0,
-                           0,
+    void* pre_call = ({
+        struct Op op = {
+            exit_op_code,
+            {.exit = {.status = status}},
+            {0},
+            0,
+            0,
         };
         prov_log_try(op);
         prov_log_record(op);
@@ -3123,6 +3102,103 @@ void exit (int status) {
 }
 fn _exit = exit;
 fn _Exit = exit;
+*/
+
+int pipe(int pipefd[2]) {
+    void* call = ({
+        int ret = pipe2(pipefd, 0);
+    });
+}
+
+int pipe2(int pipefd[2], int flags) {
+    void* pre_call = ({
+        struct Op mkfifo_op = {
+            mkfile_op_code,
+            {.mkfile = {
+                .path = create_path_lazy(pipefd[0], NULL, 0),
+                .file_type = FifoFileType,
+                .flags = flags,
+                .mode = 0,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        prov_log_try(mkfifo_op);
+    });
+    void* post_call = ({
+        /* A successful pipe call is equivalent to two opens on a fifo file into specific FDs */
+        if (UNLIKELY(ret != 0)) {
+            mkfifo_op.data.mkfile.ferrno = call_errno;
+            prov_log_record(mkfifo_op);
+        } else {
+            prov_log_record(mkfifo_op);
+            struct Op open_read_end_op = {
+                open_op_code,
+                {.open =
+                     {
+                         .path = create_path_lazy(pipefd[0], NULL, 0),
+                         .flags = O_RDONLY,
+                         .mode = 0,
+                         .fd = pipefd[0],
+                         .ferrno = 0,
+                     }},
+                {0},
+                0,
+                0,
+            };
+            struct Op open_write_end_op = {
+                open_op_code,
+                {.open = {
+                    .path = create_path_lazy(pipefd[1], NULL, 0),
+                    .flags = O_CREAT | O_TRUNC | O_WRONLY,
+                    .mode = 0,
+                    .fd = pipefd[1],
+                    .ferrno = 0,
+                }},
+                {0},
+                0,
+                0,
+            };
+            prov_log_try(open_read_end_op);
+            prov_log_try(open_write_end_op);
+            prov_log_record(open_read_end_op);
+            prov_log_record(open_write_end_op);
+        }
+    });
+}
+
+int mkfifo(const char* pathname, mode_t mode) {
+    void* call = ({
+        int ret = mkfifoat(AT_FDCWD, pathname, mode);
+    });
+}
+
+int mkfifoat(int fd, const char* pathname, mode_t mode) {
+    void* pre_call = ({
+        struct Op mkfifo_op = {
+            mkfile_op_code,
+            {.mkfile = {
+                .path = create_path_lazy(fd, pathname, 0),
+                .file_type = FifoFileType,
+                .flags = 0,
+                .mode = mode,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        prov_log_try(mkfifo_op);
+    });
+    void* post_call = ({
+        if (UNLIKELY(ret != 0)) {
+            mkfifo_op.data.mkfile.ferrno = call_errno;
+        }
+        prov_log_record(mkfifo_op);
+    });
+}
 
 /*
 TODO: getcwd, getwd, chroot

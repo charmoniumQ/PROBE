@@ -277,8 +277,15 @@ struct RenameOp {
     int ferrno;
 };
 
-struct MkdirOp {
-    struct Path dst;
+enum FileType {
+    DirFileType,
+    FifoFileType,
+};
+
+struct MkFileOp {
+    struct Path path;
+    enum FileType file_type;
+    int flags;
     mode_t mode;
     int ferrno;
 };
@@ -307,7 +314,7 @@ enum OpCode {
     symbolic_link_op_code,
     unlink_op_code,
     rename_op_code,
-    mkdir_op_code,
+    mkfile_op_code,
     LAST_OP_CODE,
 };
 
@@ -335,7 +342,7 @@ struct Op {
         struct SymbolicLinkOp symbolic_link;
         struct UnlinkOp unlink;
         struct RenameOp rename;
-        struct MkdirOp mkdir;
+        struct MkFileOp mkfile;
     } data;
     struct timespec time;
     uint16_t pthread_id;

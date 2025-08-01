@@ -53,7 +53,7 @@ fn should_prefix(name: &str) -> bool {
             "SymbolicLinkOp",
             "UnlinkOp",
             "RenameOp",
-            "MkdirOp",
+            "MkFileOp",
             "OpCode",
             "Op",
             "StatResult",
