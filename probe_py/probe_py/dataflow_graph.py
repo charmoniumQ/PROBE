@@ -176,6 +176,7 @@ def accesses_to_dataflow_graph(
         probe_log: ptypes.ProbeLog,
         accesses_and_nodes: list[Access | hb_graph.OpNode],
 ) -> DataflowGraph:
+    """Turn a list of accesses into a dataflow graph, by assigning a version at every access."""
 
     class PidState(enum.IntEnum):
         READING = enum.auto()
@@ -235,7 +236,7 @@ def accesses_to_dataflow_graph(
                         if access.phase == Phase.END:
                             dataflow_graph.add_edge(version, op_node)
                     case _:
-                        raise RuntimeError()
+                        raise TypeError()
             case hb_graph.OpNode():
                 node = access_or_node
                 op_data = probe_log.get_op(*node.op_quad()).data
@@ -253,6 +254,7 @@ def accesses_to_dataflow_graph(
 
 
 def get_parent_pid_map(probe_log: ptypes.ProbeLog) -> typing.Mapping[ptypes.Pid, ptypes.Pid]:
+    """Returns a map of PID -> parent PID."""
     parent_pid_map = dict[ptypes.Pid, ptypes.Pid]()
     for pid, _, _, _, op in probe_log.ops():
         match op.data:
