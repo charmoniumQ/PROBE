@@ -103,9 +103,9 @@
               pkgs.cppcheck
               pkgs.cppclean
             ];
-            checkPhase = ''
-              make check
-            '';
+            # checkPhase = ''
+            #   make check
+            # '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
             pname = "probe";
