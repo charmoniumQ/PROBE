@@ -133,15 +133,11 @@ def dataflow_graph(
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     hb_graph_module.label_nodes(probe_log, hbg)
-    dfg = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
-    print("done with dfg; starting compression")
+    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
     compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
-    print("done with compression; starting label")
-    dataflow_graph_module.label_nodes(probe_log, compressed_dfg)
-    print("done with label; starting serialize")
+    dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths)
     data = compressed_dfg.nodes(data=True)
     graph_utils.serialize_graph(compressed_dfg, output, lambda node: data[node]["id"])
-    print("done with serialize")
 
 
 @export_app.command()
