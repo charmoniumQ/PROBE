@@ -367,6 +367,7 @@ static inline void emit_init_epoch_op() {
                  .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
                  .argv = arena_copy_argv(get_data_arena(), argv, argc),
                  .env = arena_copy_argv(get_data_arena(), env, envc),
+                 // TODO: See if stdin, stderr, stdout are really necessary
                  .stdin = create_path_lazy(AT_FDCWD, "/dev/stdin", 0),
                  .stdout = create_path_lazy(AT_FDCWD, "/dev/stdout", 0),
                  .stderr = create_path_lazy(AT_FDCWD, "/dev/stderr", 0),

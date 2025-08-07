@@ -73,6 +73,8 @@ class Host:
 class Device:
     major_id: int
     minor_id: int
+    def __str__(self) -> str:
+        return f"device {self.major_id}_{self.minor_id}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,6 +82,8 @@ class Inode:
     host: Host
     device: Device
     number: int
+    def __str__(self) -> str:
+        return f"inode {self.number} on {self.device} at {self.host}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -179,11 +183,19 @@ class ProbeLog:
         return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
 
     def ops(self) -> typing.Iterator[tuple[Pid, ExecNo, Tid, int, ops.Op]]:
-        for pid, process in self.processes.items():
-            for epoch, exec in process.execs.items():
-                for tid, thread in exec.threads.items():
+        for pid, process in sorted(self.processes.items()):
+            for epoch, exec in sorted(process.execs.items()):
+                for tid, thread in sorted(exec.threads.items()):
                     for op_no, op in enumerate(thread.ops):
                         yield pid, epoch, tid, op_no, op
+
+    def get_root_pid(self) -> Pid:
+        for pid, _, _, _, op in self.ops():
+            match op.data:
+                case ops.InitExecEpochOp():
+                    if op.data.parent_pid == self.probe_options.parent_of_root:
+                        return Pid(pid)
+        raise RuntimeError("No root process found")
 
     def get_parent_pid_map(self) -> typing.Mapping[Pid, Pid]:
         parent_pid_map = dict[Pid, Pid]()
