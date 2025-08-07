@@ -161,7 +161,7 @@ static inline void init_process_context() {
     /* We increment the epoch here, so if there is an exec later on, the epoch is already incremented when they see it. */
     __process_context->epoch_no += 1;
     DEBUG("__process_context = %p {.epoch = %d, pid_arena_path = %s}", __process_context,
-          __process_context->epoch_no, __process_context->pid_arena_path);
+          __process_context->epoch_no, __process_context->pid_arena_path.bytes);
 }
 void uninit_process_context() {
     /* TODO: */
@@ -242,18 +242,18 @@ static inline void init_paths(struct ThreadState* state) {
     pid_t pid = get_pid();
     size_t exec_epoch = get_exec_epoch();
     state->ops_path.len =
-        CHECK_SNPRINTF(state->ops_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%d/%d",
+        CHECK_SNPRINTF(state->ops_path.bytes, PATH_MAX, "%s/" PIDS_SUBDIR "/%d/%zu/%d",
                        probe_dir->bytes, pid, exec_epoch, state->tid);
     check_fixed_path((&state->ops_path));
     checked_mkdir(state->ops_path.bytes);
 
     state->ops_path.len = CHECK_SNPRINTF(state->ops_path.bytes, PATH_MAX,
-                                         "%s/" PIDS_SUBDIR "/%d/%d/%d/" OPS_SUBDIR "/",
+                                         "%s/" PIDS_SUBDIR "/%d/%zu/%d/" OPS_SUBDIR "/",
                                          probe_dir->bytes, pid, exec_epoch, state->tid);
     check_fixed_path((&state->ops_path));
 
     state->data_path.len = CHECK_SNPRINTF(state->data_path.bytes, PATH_MAX,
-                                          "%s/" PIDS_SUBDIR "/%d/%d/%d/" DATA_SUBDIR "/",
+                                          "%s/" PIDS_SUBDIR "/%d/%zu/%d/" DATA_SUBDIR "/",
                                           probe_dir->bytes, pid, exec_epoch, state->tid);
     check_fixed_path((&state->data_path));
 }
