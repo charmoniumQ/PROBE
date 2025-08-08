@@ -3124,8 +3124,6 @@ void exit (int status) {
 fn _exit = exit;
 fn _Exit = exit;
 
-char* getenv(const char* name) { }
-
 /*
 TODO: getcwd, getwd, chroot
 glob, glob64
