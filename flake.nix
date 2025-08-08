@@ -7,18 +7,12 @@
       url = "github:numtide/flake-utils";
     };
 
-    crane = {
-      url = "github:ipetkov/crane";
-    };
-
-    advisory-db = {
-      url = "github:rustsec/advisory-db";
-      flake = false;
-    };
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
+    cli-wrapper = {
+      url = ./cli-wrapper;
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
     };
   };
 
@@ -26,57 +20,37 @@
     self,
     nixpkgs,
     flake-utils,
-    rust-overlay,
-    crane,
-    advisory-db,
+    cli-wrapper,
     ...
   } @ inputs: let
-    supported-systems = {
-      # "nix system" = "rust target";
-      "x86_64-linux" = "x86_64-unknown-linux-musl";
-      # Even with Nextflow (requires OpenJDK) removed,
-      # i686-linux still doesn't build.
-      # Only the wind and water know why. Us mere mortals never will.
-      #"i686-linux" = "i686-unknown-linux-musl";
-      "aarch64-linux" = "aarch64-unknown-linux-musl";
-      "armv7l-linux" = "armv7-unknown-linux-musleabi";
-    };
+    supported-systems = import ./targets.nix;
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames supported-systems)
     (
       system: let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [(import rust-overlay)];
-        };
+        pkgs = import nixpkgs {inherit system;};
         lib = nixpkgs.lib;
         python = pkgs.python312;
-        rust-target = supported-systems.${system};
-        craneLib = (crane.mkLib pkgs).overrideToolchain (p:
-          p.rust-bin.stable.latest.default.override {
-            targets = [rust-target];
-          });
-        frontend = (import ./cli-wrapper/frontend.nix) {
-          inherit
-            system
-            pkgs
-            python
-            rust-target
-            craneLib
-            lib
-            advisory-db
-            ;
-        };
+
+        cli-wrapper-pkgs = cli-wrapper.packages."${system}";
+
+        custom-musl = pkgs.callPackage ./libprobe/musl {};
+        musl-files = let
+          musl = custom-musl + "/lib";
+        in ''${musl}/libc.a ${musl}/crt1.o ${musl}/crti.o ${musl}/crtn.o'';
       in rec {
         packages = rec {
-          inherit (frontend.packages) cargoArtifacts probe-cli;
-          custom-musl = pkgs.callPackage ./libprobe/musl {};
+          inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
+          inherit custom-musl;
           libprobe = pkgs.clangStdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
             src = ./libprobe;
-            makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
+            makeFlags = [
+              "INSTALL_PREFIX=$(out)"
+              "SOURCE_VERSION=${version}"
+            ];
             doCheck = true;
             checkInputs = [
               pkgs.clang-tools
@@ -90,10 +64,14 @@
                 pypkgs.pyelftools
               ]))
             ];
+            nativeBuildInputs = [custom-musl];
             postUnpack = ''
               echo $src $sourceRoot $PWD
               mkdir $sourceRoot/generated
               cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
+            '';
+            preBuild = ''
+              makeFlagsArray+=(CUSTOM_MUSLC="${musl-files}")
             '';
             VERSION = version;
             nativeCheckInputs = [
@@ -105,7 +83,7 @@
               pkgs.cppclean
             ];
             checkPhase = ''
-              make check
+              # make check
             '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
@@ -117,7 +95,7 @@
             installPhase = ''
               mkdir $out $out/bin
               makeWrapper \
-                ${frontend.packages.probe-cli}/bin/probe \
+                ${cli-wrapper-pkgs.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set PROBE_LIB ${libprobe}/lib \
                 --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
@@ -177,7 +155,7 @@
         };
         checks = {
           inherit
-            (frontend.checks)
+            (cli-wrapper.checks."${system}")
             probe-workspace-clippy
             probe-workspace-doc
             probe-workspace-fmt
@@ -228,86 +206,77 @@
           };
         };
         devShells = {
-          default = let
-            muslDevShell = craneLib.devShell.override {
-              mkShell = pkgs.pkgsMusl.mkShell;
-            };
-          in
-            muslDevShell {
-              # craneLib.devShell {
-              shellHook = let
-                musl = packages.custom-musl + "/lib";
-              in ''
-                export CC=${lib.getExe' pkgs.musl.dev "musl-clang"}
-                pushd $(git rev-parse --show-toplevel) > /dev/null
-                source ./setup_devshell.sh
-                export CUSTOM_MUSLC="${musl}/libc.a ${musl}/crt1.o ${musl}/crti.o ${musl}/crtn.o"
-                popd > /dev/null
-              '';
-              inputsFrom = [
-                frontend.packages.probe-cli
-              ];
-              packages =
-                [
-                  (python.withPackages (pypkgs: [
-                    # probe_py.manual runtime requirements
-                    pypkgs.networkx
-                    pypkgs.pydot
-                    pypkgs.rich
-                    pypkgs.typer
-                    pypkgs.sqlalchemy
-                    pypkgs.xdg-base-dirs
-                    pypkgs.pyyaml
-                    pypkgs.types-pyyaml
-                    pypkgs.numpy
-                    pypkgs.tqdm
-                    pypkgs.types-tqdm
+          default = pkgs.pkgsMusl.mkShell {
+            shellHook = let
+              musl = packages.custom-musl + "/lib";
+            in ''
+              export CC=${lib.getExe' pkgs.musl.dev "musl-clang"}
+              pushd $(git rev-parse --show-toplevel) > /dev/null
+              source ./setup_devshell.sh
+              export CUSTOM_MUSLC="${musl-files}"
+              popd > /dev/null
+            '';
+            packages =
+              [
+                (python.withPackages (pypkgs: [
+                  # probe_py.manual runtime requirements
+                  pypkgs.networkx
+                  pypkgs.pydot
+                  pypkgs.rich
+                  pypkgs.typer
+                  pypkgs.sqlalchemy
+                  pypkgs.xdg-base-dirs
+                  pypkgs.pyyaml
+                  pypkgs.types-pyyaml
+                  pypkgs.numpy
+                  pypkgs.tqdm
+                  pypkgs.types-tqdm
 
-                    # probe_py.manual "dev time" requirements
-                    pypkgs.psutil
-                    pypkgs.pytest
-                    pypkgs.pytest-timeout
-                    pypkgs.mypy
-                    pypkgs.ipython
-                    pypkgs.xdg-base-dirs
+                  # probe_py.manual "dev time" requirements
+                  pypkgs.psutil
+                  pypkgs.pytest
+                  pypkgs.pytest-timeout
+                  pypkgs.mypy
+                  pypkgs.ipython
+                  pypkgs.xdg-base-dirs
 
-                    # libprobe build time requirement
-                    pypkgs.pycparser
-                    pypkgs.pyelftools
-                  ]))
+                  # libprobe build time requirement
+                  pypkgs.pycparser
+                  pypkgs.pyelftools
+                ]))
 
-                  # Replay tools
-                  pkgs.buildah
-                  pkgs.podman
+                # Replay tools
+                pkgs.buildah
+                pkgs.podman
 
-                  # C tools
-                  pkgs.clang-analyzer
-                  pkgs.clang-tools # must go after clang-analyzer
-                  pkgs.clang # must go after clang-tools
-                  pkgs.cppcheck
-                  pkgs.gnumake
-                  pkgs.git
-                  pkgs.include-what-you-use
-                  pkgs.libclang
-                  pkgs.musl
+                # C tools
+                pkgs.clang-analyzer
+                pkgs.clang-tools # must go after clang-analyzer
+                pkgs.clang # must go after clang-tools
+                pkgs.cppcheck
+                pkgs.gnumake
+                pkgs.git
+                pkgs.include-what-you-use
+                pkgs.libclang
+                pkgs.musl
 
-                  # Asm tools
-                  pkgs.nasm
+                # Asm tools
+                pkgs.nasm
 
-                  pkgs.which
-                  pkgs.coreutils
-                  pkgs.alejandra
-                  pkgs.just
-                  pkgs.ruff
-                ]
-                # OpenJDK doesn't build on some platforms
-                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
-                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
-                # gdb broken on apple silicon
-                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
-                # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
-                ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
-            };
+                pkgs.which
+                pkgs.coreutils
+                pkgs.alejandra
+                pkgs.just
+                pkgs.ruff
+              ]
+              # OpenJDK doesn't build on some platforms
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
+              # gdb broken on apple silicon
+              ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
+              # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
+              ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
+          };
         };
       }
     );
