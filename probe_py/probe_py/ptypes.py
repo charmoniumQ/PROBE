@@ -40,7 +40,7 @@ class Tid(int):
 
 @dataclasses.dataclass(frozen=True)
 class Host:
-    host_name: str
+    name: str
     uniquifier: int
 
     @functools.cache
@@ -73,6 +73,8 @@ class Host:
 class Device:
     major_id: int
     minor_id: int
+    def __str__(self) -> str:
+        return f"device {self.major_id}_{self.minor_id}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,6 +82,8 @@ class Inode:
     host: Host
     device: Device
     number: int
+    def __str__(self) -> str:
+        return f"inode {self.number} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -178,12 +182,32 @@ class ProbeLog:
     def get_op(self, pid: Pid, exec_no: ExecNo, tid: Tid, op_no: int) -> ops.Op:
         return self.processes[pid].execs[exec_no].threads[tid].ops[op_no]
 
-    def ops(self) -> typing.Iterator[ops.Op]:
-        for process in self.processes.values():
-            for exec in process.execs.values():
-                for thread in exec.threads.values():
-                    yield from thread.ops
+    def ops(self) -> typing.Iterator[tuple[Pid, ExecNo, Tid, int, ops.Op]]:
+        for pid, process in sorted(self.processes.items()):
+            for epoch, exec in sorted(process.execs.items()):
+                for tid, thread in sorted(exec.threads.items()):
+                    for op_no, op in enumerate(thread.ops):
+                        yield pid, epoch, tid, op_no, op
 
+    def get_root_pid(self) -> Pid:
+        for pid, _, _, _, op in self.ops():
+            match op.data:
+                case ops.InitExecEpochOp():
+                    if op.data.parent_pid == self.probe_options.parent_of_root:
+                        return Pid(pid)
+        raise RuntimeError("No root process found")
+
+    def get_parent_pid_map(self) -> typing.Mapping[Pid, Pid]:
+        parent_pid_map = dict[Pid, Pid]()
+        for pid, _, _, _, op in self.ops():
+            match op.data:
+                case ops.CloneOp():
+                    if op.data.ferrno == 0 and op.data.task_type == TaskType.TASK_PID:
+                        parent_pid_map[Pid(op.data.task_id)] = pid
+                case ops.SpawnOp():
+                    if op.data.ferrno == 0:
+                        parent_pid_map[Pid(op.data.child_pid)] = pid
+        return parent_pid_map
 
 
 # TODO: implement this in probe_py.generated.ops

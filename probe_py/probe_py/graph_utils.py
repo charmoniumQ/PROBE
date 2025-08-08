@@ -7,6 +7,7 @@ import typing
 import pathlib
 import random
 import networkx
+import urllib.parse
 import pydot
 from . import util
 
@@ -91,37 +92,30 @@ def map_nodes(
 def serialize_graph(
         graph: networkx.DiGraph[_Node],
         output: pathlib.Path,
-        name_mapper: typing.Callable[[_Node], str] = str,
+        name_mapper: typing.Callable[[_Node], str] | None = None,
+        cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
+    if name_mapper is None:
+        nodes_data = graph.nodes(data=True)
+        name_mapper = lambda node: nodes_data[node].get("id", str(node))
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
-    if output.suffix == ".dot":
-        pydot_graph.write_raw(output)
-    else:
-        pydot_graph.write_png(output)
 
-def serialize_graph_proc_tree(
-    graph: networkx.DiGraph[_Node],
-    output: pathlib.Path,
-    same_rank_groups: list[list[str]] | None = None,
-) -> None:
-    """
-    Serialize a networkx.DiGraph to .dot or .png, optionally forcing certain node groups
-    to share the same rank.
-    """
-    pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph)
     pydot_graph.set("rankdir", "TB")
 
-    if same_rank_groups:
-        for idx, group in enumerate(same_rank_groups):
-            subg = pydot.Subgraph('', rank='same')
-
-            for node_id in group:
-                existing_nodes = pydot_graph.get_node(node_id)
-                if existing_nodes:
-                    subg.add_node(existing_nodes[0])
-
-            pydot_graph.add_subgraph(subg)
+    clusters = dict[str, pydot.Subgraph]()
+    for node in pydot_graph.get_nodes():
+        cluster_name = node.get("cluster")
+        if cluster_name:
+            if cluster_name not in clusters:
+                cluster_subgraph = pydot.Subgraph(
+                    f"cluster_{cluster_name}",
+                    label=cluster_labels.get(cluster_name, cluster_name),
+                )
+                pydot_graph.add_subgraph(cluster_subgraph)
+            else:
+                cluster_subgraph = clusters[cluster_name]
+            cluster_subgraph.add_node(node)
 
     if output.suffix == ".dot":
         pydot_graph.write_raw(output)
