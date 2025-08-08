@@ -7,10 +7,10 @@ import os
 import pathlib
 import textwrap
 import typing
-import warnings
 import networkx
 from . import graph_utils
 from . import hb_graph
+from .hb_graph_accesses import hb_graph_to_accesses, Access, AccessMode, Phase
 from . import ops
 from . import ptypes
 
@@ -95,6 +95,7 @@ def accesses_to_dataflow_graph(
         match access_or_node:
             case Access():
                 access = access_or_node
+                print(access)
                 version_num = inode_to_version[access.inode]
                 inode_to_paths[access.inode].add(access.path)
                 version = InodeVersionNode(access.inode, version_num)
@@ -116,7 +117,7 @@ def accesses_to_dataflow_graph(
                             dataflow_graph.add_edge(op_node, next_version)
                             dataflow_graph.add_edge(version, next_version)
                     case AccessMode.READ | AccessMode.EXEC | AccessMode.DLOPEN:
-                        if access.phase == Phase.BEGIN:
+                        #if access.phase == Phase.BEGIN:
                             dataflow_graph.add_edge(version, op_node)
                     case _:
                         raise TypeError()
@@ -152,10 +153,12 @@ def hb_graph_to_dataflow_graph2(
 def combine_indistinguishable_inodes(
         dataflow_graph: DataflowGraph,
 ) -> CompressedDataflowGraph:
+    # dataflow_graph = networkx.transitive_reduction(dataflow_graph)
     def same_neighbors(
             node0: hb_graph.OpNode | InodeVersionNode,
             node1: hb_graph.OpNode | InodeVersionNode,
     ) -> bool:
+        return False
         return (
             isinstance(node0, InodeVersionNode)
             and
@@ -253,17 +256,19 @@ def label_nodes(
                             )
                             for arg in op.data.argv[:max_args]
                         )
-                        elipses = "\n..." if len(op.data.argv) > max_args else ""
-                        data["label"] = f"[{args}]{elipses}\nProcess {node.pid}"
+                        if len(op.data.argv) > max_args:
+                            args += "..."
+                        data["label"] = f"exec {args}"
                     elif node.pid == root_pid:
                         data["label"] = "Root process"
                     else:
-                        data["label"] = f"Process {node.pid}"
+                        data["label"] = ""
                 else:
-                    data["label"] = f"Process {node.pid} v{count[(node.pid, node.exec_no)]}"
+                    data["label"] = ""
                     count[(node.pid, node.exec_no)] += 1
                     # data["label"] += "\n" + type(op.data).__name__
                 data["id"] = str(node)
+                data["cluster"] = f"Process {node.pid}"
             case frozenset():
                 def shorten_path(input: pathlib.Path) -> str:
                     return ("/" if input.is_absolute() else "") + "/".join(
@@ -285,10 +290,3 @@ def label_nodes(
                 data["label"] = "\n".join(inode_labels)
                 data["shape"] = "rectangle"
                 data["id"] = str(hash(node))
-
-    for node0, node1, data in tqdm.tqdm(
-            dataflow_graph.edges(data=True),
-            desc="Labelling DFG edges",
-    ):
-        if isinstance(node0, hb_graph.OpNode) and isinstance(node1, hb_graph.OpNode) and node0.pid != node1.pid:
-            data["label"] = "fork"

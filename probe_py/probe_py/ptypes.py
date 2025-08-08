@@ -40,7 +40,7 @@ class Tid(int):
 
 @dataclasses.dataclass(frozen=True)
 class Host:
-    host_name: str
+    name: str
     uniquifier: int
 
     @functools.cache
@@ -83,7 +83,7 @@ class Inode:
     device: Device
     number: int
     def __str__(self) -> str:
-        return f"inode {self.number} on {self.device} at {self.host}"
+        return f"inode {self.number} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True)

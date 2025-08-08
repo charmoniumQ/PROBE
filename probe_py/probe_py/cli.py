@@ -136,8 +136,7 @@ def dataflow_graph(
     dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
     compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
     dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths)
-    data = compressed_dfg.nodes(data=True)
-    graph_utils.serialize_graph(compressed_dfg, output, lambda node: data[node]["id"])
+    graph_utils.serialize_graph(compressed_dfg, output)
 
 
 @export_app.command()
