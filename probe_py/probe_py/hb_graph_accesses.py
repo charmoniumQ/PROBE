@@ -24,7 +24,7 @@ class AccessMode(enum.IntEnum):
         return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ}
 
     @staticmethod
-    def from_open_flags(flags: int) -> AccessMode:
+    def from_open_flags(flags: int) -> "AccessMode":
         access_mode = flags & os.O_ACCMODE
         if access_mode == os.O_RDONLY:
             return AccessMode.READ
@@ -108,7 +108,7 @@ def hb_graph_to_accesses(
         op_data = probe_log.get_op(*node.op_quad()).data
         match op_data:
             case ops.InitExecEpochOp():
-                if node.pid == root_pid:
+                if node.exec_no == ptypes.initial_exec_no and node.pid == root_pid:
                     yield from openfd(0, AccessMode.READ, False, node, op_data.stdin)
                     yield from openfd(1, AccessMode.TRUNCATE_WRITE, False, node, op_data.stdout)
                     yield from openfd(2, AccessMode.TRUNCATE_WRITE, False, node, op_data.stderr)
@@ -149,7 +149,14 @@ def hb_graph_to_accesses(
             for fd in list(proc_fd_to_fd[node.pid].keys()):
                 yield from close(fd, node)
 
-    assert not proc_fd_to_fd, "somehow we still have open file descriptors at the end."
+    # for fd in [0, 1, 2]:
+    #     last_op_idx = len(probe_log.processes[root_pid].execs[ptypes.initial_exec_no].threads[root_pid.main_thread()].ops) - 1
+    #     last_op = hb_graph.OpNode(root_pid, ptypes.initial_exec_no, root_pid.main_thread(), last_op_idx)
+    #     if fd in proc_fd_to_fd.get(root_pid, {}):
+    #         close(fd, last_op)
+
+    for pid, fd_table in proc_fd_to_fd.items():
+        assert not fd_table, f"somehow we still have open file descriptors at the end. {pid} {fd_table}"
 
 
 def verify_access_list(

@@ -6,7 +6,7 @@ import typing
 import warnings
 import networkx
 import tqdm
-from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog
+from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion
 from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp
 from . import graph_utils
 
@@ -300,6 +300,8 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
             data["label"] = f"Open ({access}) {op.data.path.path.decode(errors='backslashreplace')}"
             data["label"] += f" fd={op.data.fd}"
+            data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
+            data["label"] += f"\n{op.data.path.path.decode()}"
         elif isinstance(op.data, CloseOp):
             data["label"] = f"Close fd={op.data.fd}"
         elif isinstance(op.data, DupOp):
