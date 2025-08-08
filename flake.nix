@@ -195,11 +195,6 @@
           };
         };
         devShells = {
-          test =
-            (pkgs.mkShellNoCC.override {
-              stdenv = pkgs.clangStdenv;
-            }) {
-            };
           default =
             (cli-wrapper.lib."${system}".craneLib.devShell.override {
               mkShell = pkgs.mkShellNoCC.override {
@@ -207,13 +202,11 @@
               };
             }) {
               shellHook = ''
+                export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
                 pushd $(git rev-parse --show-toplevel) > /dev/null
                 source ./setup_devshell.sh
                 popd > /dev/null
               '';
-              inputsFrom = [
-                cli-wrapper-pkgs.probe-cli
-              ];
               packages =
                 [
                   (python.withPackages (pypkgs: [
@@ -257,7 +250,6 @@
                   pkgs.git
                   pkgs.include-what-you-use
                   pkgs.libclang
-                  pkgs.musl
 
                   # Asm tools
                   pkgs.nasm
