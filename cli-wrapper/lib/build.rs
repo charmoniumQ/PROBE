@@ -7,7 +7,7 @@ use bindgen::callbacks::ParseCallbacks;
 
 fn find_in_cpath(name: &str) -> Result<PathBuf, String> {
     let cpath = env::var("CPATH").map_err(|_| {
-        "CPATH needs to be set (in unicode) so I can find include header files".to_owned()
+        "CPATH needs to be set (to valid UTF-8) so I can find include header files".to_owned()
     })?;
     Ok(cpath
         .split(':')
