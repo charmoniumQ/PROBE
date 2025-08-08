@@ -34,15 +34,9 @@
         python = pkgs.python312;
 
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
-
-        custom-musl = pkgs.callPackage ./libprobe/musl {};
-        musl-files = let
-          musl = custom-musl + "/lib";
-        in ''${musl}/libc.a ${musl}/crt1.o ${musl}/crti.o ${musl}/crtn.o'';
       in rec {
         packages = rec {
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
-          inherit custom-musl;
           libprobe = pkgs.clangStdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
@@ -64,14 +58,10 @@
                 pypkgs.pyelftools
               ]))
             ];
-            nativeBuildInputs = [custom-musl];
             postUnpack = ''
               echo $src $sourceRoot $PWD
               mkdir $sourceRoot/generated
               cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
-            '';
-            preBuild = ''
-              makeFlagsArray+=(CUSTOM_MUSLC="${musl-files}")
             '';
             VERSION = version;
             nativeCheckInputs = [
@@ -206,77 +196,86 @@
           };
         };
         devShells = {
-          default = pkgs.pkgsMusl.mkShell {
-            shellHook = let
-              musl = packages.custom-musl + "/lib";
-            in ''
-              export CC=${lib.getExe' pkgs.musl.dev "musl-clang"}
-              pushd $(git rev-parse --show-toplevel) > /dev/null
-              source ./setup_devshell.sh
-              export CUSTOM_MUSLC="${musl-files}"
-              popd > /dev/null
-            '';
-            packages =
-              [
-                (python.withPackages (pypkgs: [
-                  # probe_py.manual runtime requirements
-                  pypkgs.networkx
-                  pypkgs.pydot
-                  pypkgs.rich
-                  pypkgs.typer
-                  pypkgs.sqlalchemy
-                  pypkgs.xdg-base-dirs
-                  pypkgs.pyyaml
-                  pypkgs.types-pyyaml
-                  pypkgs.numpy
-                  pypkgs.tqdm
-                  pypkgs.types-tqdm
+          test =
+            (pkgs.mkShellNoCC.override {
+              stdenv = pkgs.clangStdenv;
+            }) {
+            };
+          default =
+            (cli-wrapper.lib."${system}".craneLib.devShell.override {
+              mkShell = pkgs.mkShellNoCC.override {
+                stdenv = pkgs.clangStdenv;
+              };
+            }) {
+              shellHook = ''
+                pushd $(git rev-parse --show-toplevel) > /dev/null
+                source ./setup_devshell.sh
+                popd > /dev/null
+              '';
+              inputsFrom = [
+                cli-wrapper-pkgs.probe-cli
+              ];
+              packages =
+                [
+                  (python.withPackages (pypkgs: [
+                    # probe_py.manual runtime requirements
+                    pypkgs.networkx
+                    pypkgs.pydot
+                    pypkgs.rich
+                    pypkgs.typer
+                    pypkgs.sqlalchemy
+                    pypkgs.xdg-base-dirs
+                    pypkgs.pyyaml
+                    pypkgs.types-pyyaml
+                    pypkgs.numpy
+                    pypkgs.tqdm
+                    pypkgs.types-tqdm
 
-                  # probe_py.manual "dev time" requirements
-                  pypkgs.psutil
-                  pypkgs.pytest
-                  pypkgs.pytest-timeout
-                  pypkgs.mypy
-                  pypkgs.ipython
-                  pypkgs.xdg-base-dirs
+                    # probe_py.manual "dev time" requirements
+                    pypkgs.psutil
+                    pypkgs.pytest
+                    pypkgs.pytest-timeout
+                    pypkgs.mypy
+                    pypkgs.ipython
+                    pypkgs.xdg-base-dirs
 
-                  # libprobe build time requirement
-                  pypkgs.pycparser
-                  pypkgs.pyelftools
-                ]))
+                    # libprobe build time requirement
+                    pypkgs.pycparser
+                    pypkgs.pyelftools
+                  ]))
 
-                # Replay tools
-                pkgs.buildah
-                pkgs.podman
+                  # Replay tools
+                  pkgs.buildah
+                  pkgs.podman
 
-                # C tools
-                pkgs.clang-analyzer
-                pkgs.clang-tools # must go after clang-analyzer
-                pkgs.clang # must go after clang-tools
-                pkgs.cppcheck
-                pkgs.gnumake
-                pkgs.git
-                pkgs.include-what-you-use
-                pkgs.libclang
-                pkgs.musl
+                  # C tools
+                  pkgs.clang-analyzer
+                  pkgs.clang-tools # must go after clang-analyzer
+                  pkgs.clang # must go after clang-tools
+                  pkgs.cppcheck
+                  pkgs.gnumake
+                  pkgs.git
+                  pkgs.include-what-you-use
+                  pkgs.libclang
+                  pkgs.musl
 
-                # Asm tools
-                pkgs.nasm
+                  # Asm tools
+                  pkgs.nasm
 
-                pkgs.which
-                pkgs.coreutils
-                pkgs.alejandra
-                pkgs.just
-                pkgs.ruff
-              ]
-              # OpenJDK doesn't build on some platforms
-              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
-              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
-              # gdb broken on apple silicon
-              ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
-              # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
-              ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
-          };
+                  pkgs.which
+                  pkgs.coreutils
+                  pkgs.alejandra
+                  pkgs.just
+                  pkgs.ruff
+                ]
+                # OpenJDK doesn't build on some platforms
+                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
+                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
+                # gdb broken on apple silicon
+                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
+                # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
+                ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
+            };
         };
       }
     );

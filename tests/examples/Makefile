@@ -17,12 +17,8 @@ all: $(filter-out minimal_libprobe.exe,$(SOURCE_FILES:.c=.exe)) minimal_libprobe
 %.exe: %.c
 	$(CC) $(CFLAGS) -o $@ $<
 
-minimal_libprobe.o: minimal_libprobe.c $(MAKEFILE_LIST)
-	$(CC) $(CFLAGS) -fpic -c -o $@ $<
-
-minimal_libprobe.so: minimal_libprobe.o minimal_libprobe.map $(MAKEFILE_LIST)
-	$(LD) -shared --version-script=minimal_libprobe.map -ldl -o $@ $< $(CUSTOM_MUSLC)
-
+%.so: %.c
+	$(CC) $(CFLAGS) -fpic -shared -o $@ $<
 
 clean:
 	touch tmp.so tmp.exe

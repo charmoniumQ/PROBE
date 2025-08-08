@@ -40,7 +40,6 @@
         inherit system;
         overlays = [(import rust-overlay)];
       };
-      lib = nixpkgs.lib;
       rust-target = supported-systems.${system};
       craneLib = (crane.mkLib pkgs).overrideToolchain (p:
         p.rust-bin.stable.latest.default.override {
@@ -50,6 +49,8 @@
       # See https://crane.dev/examples/quick-start-workspace.html
 
       src = craneLib.cleanCargoSource ./.;
+
+      lib = {inherit craneLib;};
 
       # Common arguments can be set here to avoid repeating them later
       commonArgs = {
@@ -94,9 +95,9 @@
         };
 
       fileSetForCrate = crates:
-        lib.fileset.toSource {
+        nixpkgs.lib.fileset.toSource {
           root = ./.;
-          fileset = lib.fileset.unions ([
+          fileset = nixpkgs.lib.fileset.unions ([
               ./Cargo.toml
               ./Cargo.lock
             ]
@@ -182,7 +183,6 @@
       in
         craneLib.devShell {
           shellHook = ''
-            export CC=${lib.getExe' pkgs.musl.dev "musl-clang"}
             pushd $(git rev-parse --show-toplevel) > /dev/null
             source ./setup_devshell.sh
             popd > /dev/null
