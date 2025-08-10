@@ -26,7 +26,7 @@ fn inner_main() -> Result<ExitStatus> {
     let matches = command!()
         .about("Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.")
         .propagate_version(true)
-        .allow_external_subcommands(true)
+        // .allow_external_subcommands(true)
         .subcommands([
             Command::new("record")
                 .args([
@@ -70,6 +70,13 @@ fn inner_main() -> Result<ExitStatus> {
                         .value_parser(value_parser!(PathBuf)),
                 ])
                 .about("Convert PROBE records to PROBE logs."),
+            Command::new("py").arg(
+                    arg!(<CMD> ... "arguments to probe_py")
+                        .required(true)
+                        .trailing_var_arg(true)
+                        .value_parser(value_parser!(OsString))
+                )
+                .about("Invoke PROBE's python tooling"),
             Command::new("__exec").hide(true).arg(
                 arg!(<CMD> ... "Command to run")
                     .required(true)
@@ -133,9 +140,9 @@ fn inner_main() -> Result<ExitStatus> {
 
             Err(e).wrap_err(format!("Shim failed to exec {:?}", cmd[0]))
         }
-        Some((subcommand, args)) => {
-            let args = args
-                .get_many::<OsString>("")
+        Some(("py", sub)) => {
+            let args = sub
+                .get_many::<OsString>("CMD")
                 .unwrap()
                 .cloned()
                 .collect::<Vec<_>>();
@@ -143,13 +150,30 @@ fn inner_main() -> Result<ExitStatus> {
             std::process::Command::new("python3")
                 .arg("-m")
                 .arg("probe_py.cli")
-                .arg(subcommand)
                 .args(&args)
                 .spawn()
                 .wrap_err("Unknown subcommand")?
                 .wait()
                 .wrap_err("Wait on subcommand failed")
         }
+        // Some((subcommand, args)) => {
+        //     let args = args
+        //         .get_many::<OsString>("")
+        //         .unwrap()
+        //         .cloned()
+        //         .collect::<Vec<_>>();
+        //
+        //     std::process::Command::new("python3")
+        //         .arg("-m")
+        //         .arg("probe_py.cli")
+        //         .arg(subcommand)
+        //         .args(&args)
+        //         .spawn()
+        //         .wrap_err("Unknown subcommand")?
+        //         .wait()
+        //         .wrap_err("Wait on subcommand failed")
+        // }
+        Some((cmd, _)) => unimplemented!("subcommand '{}' does not exit", cmd),
         None => Err(eyre!("Subcommand expected, try --help for more info")),
     }
 }
@@ -173,7 +197,7 @@ fn main() -> ExitCode {
             }
         }
         Err(err) => {
-            eprintln!("{:?}", err);
+            eprintln!("{err:?}");
             ExitCode::from(PROBE_EXIT_PRINTED_ERROR)
         }
     }

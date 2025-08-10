@@ -35,11 +35,10 @@
     ({                                                                                             \
         char* errno_str = strndup(strerror(errno), 4096);                                          \
         LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
-        /* FIXME: fix free, but also remove strndup */\
-        /*free(errno_str);*/                                                                           \
-        /* FIXME: check if unwrapped_exit == NULL and if so warn and syscall diectly */ \
-        unwrapped_exit(103);                                                                       \
-        __builtin_unreachable();                                                                   \
+        /* FIXME: fix free, but also remove strndup */                                             \
+        /*free(errno_str);*/                                                                       \
+        /* FIXME: check if unwrapped_exit == NULL and if so warn and syscall diectly */            \
+        exit(103);                                                                                 \
     })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */

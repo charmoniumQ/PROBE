@@ -208,6 +208,9 @@
                 source ./setup_devshell.sh
                 popd > /dev/null
               '';
+              inputsFrom = [
+                cli-wrapper-pkgs.probe-cli
+              ];
               packages =
                 [
                   (python.withPackages (pypkgs: [

@@ -191,7 +191,7 @@ def hb_graph_to_dataflow_graph2(
                     AccessMode.READ,
                     node,
                     [],
-                    ptypes.InodeVersion.from_probe_path(op.data.stdin).inode,
+                    ptypes.InodeVersion.from_probe_path(op.data.std_in).inode,
                     True,
                     0,
                 )
@@ -199,7 +199,7 @@ def hb_graph_to_dataflow_graph2(
                     AccessMode.WRITE,
                     node,
                     [],
-                    ptypes.InodeVersion.from_probe_path(op.data.stdout).inode,
+                    ptypes.InodeVersion.from_probe_path(op.data.std_out).inode,
                     True,
                     0,
                 )
@@ -207,7 +207,7 @@ def hb_graph_to_dataflow_graph2(
                     AccessMode.WRITE,
                     node,
                     [],
-                    ptypes.InodeVersion.from_probe_path(op.data.stderr).inode,
+                    ptypes.InodeVersion.from_probe_path(op.data.std_err).inode,
                     True,
                     0,
                 )

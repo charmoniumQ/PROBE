@@ -179,20 +179,5 @@
             partitionType = "count";
           });
       };
-      devShells.default = let
-      in
-        craneLib.devShell {
-          shellHook = ''
-            pushd $(git rev-parse --show-toplevel) > /dev/null
-            source ./setup_devshell.sh
-            popd > /dev/null
-          '';
-          inputsFrom = [
-            packages.probe-cli
-          ];
-          packages = [
-            pkgs.alejandra
-          ];
-        };
     });
 }
