@@ -62,7 +62,7 @@ check: compile_commands.json $(GENERATED_FILES)
 	test GLIBC_2.34 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
 	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
-	echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1
+	echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1 -Wno-macro-redefined
 	clang-tidy  $(SOURCE_FILES)
 	python3 ./check_unwrapped_fns.py $(SOURCE_FILES)
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
@@ -73,6 +73,12 @@ check: compile_commands.json $(GENERATED_FILES)
 # I have carefully ensured our static data is either thread-local or guarded by a mutex (at initialization time)
 # Nevertheless, selecting which warnings to flag is still a TODO in cppclean.
 # https://github.com/myint/cppclean/blob/aa73d06022533a3ff0a956910f2df9a54c233d88/cpp/find_warnings.py#L18
+
+# For some reason, include-what-you-use uses slightly different system headers and builtin definitions from Clang.
+# It finds a "macro redefined" warning whenever we include stdint.h.
+# Weird, but I'll just turn that off.
+# We already check that compilation warning when we compile with Clang.
+
 .PHONY: check
 
 deep-check:
