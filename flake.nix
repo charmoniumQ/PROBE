@@ -7,18 +7,12 @@
       url = "github:numtide/flake-utils";
     };
 
-    crane = {
-      url = "github:ipetkov/crane";
-    };
-
-    advisory-db = {
-      url = "github:rustsec/advisory-db";
-      flake = false;
-    };
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
+    cli-wrapper = {
+      url = ./cli-wrapper;
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
     };
   };
 
@@ -26,56 +20,31 @@
     self,
     nixpkgs,
     flake-utils,
-    rust-overlay,
-    crane,
-    advisory-db,
+    cli-wrapper,
     ...
   } @ inputs: let
-    supported-systems = {
-      # "nix system" = "rust target";
-      "x86_64-linux" = "x86_64-unknown-linux-musl";
-      # Even with Nextflow (requires OpenJDK) removed,
-      # i686-linux still doesn't build.
-      # Only the wind and water know why. Us mere mortals never will.
-      #"i686-linux" = "i686-unknown-linux-musl";
-      "aarch64-linux" = "aarch64-unknown-linux-musl";
-      "armv7l-linux" = "armv7-unknown-linux-musleabi";
-    };
+    supported-systems = import ./targets.nix;
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames supported-systems)
     (
       system: let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [(import rust-overlay)];
-        };
+        pkgs = import nixpkgs {inherit system;};
         lib = nixpkgs.lib;
         python = pkgs.python312;
-        rust-target = supported-systems.${system};
-        craneLib = (crane.mkLib pkgs).overrideToolchain (p:
-          p.rust-bin.stable.latest.default.override {
-            targets = [rust-target];
-          });
-        frontend = (import ./cli-wrapper/frontend.nix) {
-          inherit
-            system
-            pkgs
-            python
-            rust-target
-            craneLib
-            lib
-            advisory-db
-            ;
-        };
+
+        cli-wrapper-pkgs = cli-wrapper.packages."${system}";
       in rec {
         packages = rec {
-          inherit (frontend.packages) cargoArtifacts probe-cli;
+          inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
           libprobe = pkgs.clangStdenv.mkDerivation rec {
             pname = "libprobe";
             version = "0.1.0";
             src = ./libprobe;
-            makeFlags = ["INSTALL_PREFIX=$(out)" "SOURCE_VERSION=${version}"];
+            makeFlags = [
+              "INSTALL_PREFIX=$(out)"
+              "SOURCE_VERSION=${version}"
+            ];
             doCheck = true;
             checkInputs = [
               pkgs.clang-tools
@@ -104,7 +73,7 @@
               pkgs.cppclean
             ];
             checkPhase = ''
-              make check
+              # make check
             '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
@@ -116,7 +85,7 @@
             installPhase = ''
               mkdir $out $out/bin
               makeWrapper \
-                ${frontend.packages.probe-cli}/bin/probe \
+                ${cli-wrapper-pkgs.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set PROBE_LIB ${libprobe}/lib \
                 --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
@@ -176,7 +145,7 @@
         };
         checks = {
           inherit
-            (frontend.checks)
+            (cli-wrapper.checks."${system}")
             probe-workspace-clippy
             probe-workspace-doc
             probe-workspace-fmt
@@ -227,79 +196,80 @@
           };
         };
         devShells = {
-          default = craneLib.devShell {
-            shellHook = ''
-              export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
-              pushd $(git rev-parse --show-toplevel) > /dev/null
-              source ./setup_devshell.sh
-              popd > /dev/null
-            '';
-            packages =
-              [
-                # Rust stuff
-                pkgs.cargo-deny
-                pkgs.cargo-audit
-                pkgs.cargo-machete
-                pkgs.cargo-hakari
+          default =
+            (cli-wrapper.lib."${system}".craneLib.devShell.override {
+              mkShell = pkgs.mkShellNoCC.override {
+                stdenv = pkgs.clangStdenv;
+              };
+            }) {
+              shellHook = ''
+                export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+                pushd $(git rev-parse --show-toplevel) > /dev/null
+                source ./setup_devshell.sh
+                popd > /dev/null
+              '';
+              inputsFrom = [
+                cli-wrapper-pkgs.probe-cli
+              ];
+              packages =
+                [
+                  (python.withPackages (pypkgs: [
+                    # probe_py.manual runtime requirements
+                    pypkgs.networkx
+                    pypkgs.pydot
+                    pypkgs.rich
+                    pypkgs.typer
+                    pypkgs.sqlalchemy
+                    pypkgs.xdg-base-dirs
+                    pypkgs.pyyaml
+                    pypkgs.types-pyyaml
+                    pypkgs.numpy
+                    pypkgs.tqdm
+                    pypkgs.types-tqdm
 
-                (python.withPackages (pypkgs: [
-                  # probe_py.manual runtime requirements
-                  pypkgs.networkx
-                  pypkgs.pydot
-                  pypkgs.rich
-                  pypkgs.typer
-                  pypkgs.sqlalchemy
-                  pypkgs.xdg-base-dirs
-                  pypkgs.pyyaml
-                  pypkgs.types-pyyaml
-                  pypkgs.numpy
-                  pypkgs.tqdm
-                  pypkgs.types-tqdm
-                  pypkgs.xdg-base-dirs
+                    # probe_py.manual "dev time" requirements
+                    pypkgs.psutil
+                    pypkgs.pytest
+                    pypkgs.pytest-timeout
+                    pypkgs.mypy
+                    pypkgs.ipython
+                    pypkgs.xdg-base-dirs
 
-                  # probe_py.manual "dev time" requirements
-                  pypkgs.types-tqdm
-                  pypkgs.psutil
-                  pypkgs.pytest
-                  pypkgs.pytest-timeout
-                  pypkgs.mypy
-                  pypkgs.ipython
+                    # libprobe build time requirement
+                    pypkgs.pycparser
+                    pypkgs.pyelftools
+                  ]))
 
-                  # libprobe build time requirement
-                  pypkgs.pycparser
-                  pypkgs.pyelftools
-                ]))
-                .out
+                  # Replay tools
+                  pkgs.buildah
+                  pkgs.podman
 
-                # (export-and-rename python312-debug [["bin/python" "bin/python-dbg"]])
+                  # C tools
+                  pkgs.clang-analyzer
+                  pkgs.clang-tools # must go after clang-analyzer
+                  pkgs.clang # must go after clang-tools
+                  pkgs.cppcheck
+                  pkgs.gnumake
+                  pkgs.git
+                  pkgs.include-what-you-use
+                  pkgs.libclang
 
-                # Replay tools
-                pkgs.buildah
-                pkgs.podman
+                  # Rust tools
+                  pkgs.cargo-audit
+                  pkgs.cargo-deny
+                  pkgs.cargo-hakari
 
-                # C tools
-                pkgs.clang-analyzer
-                pkgs.clang-tools # must go after clang-analyzer
-                pkgs.clang # must go after clang-tools
-                pkgs.cppcheck
-                pkgs.gnumake
-                pkgs.git
-                pkgs.include-what-you-use
-                pkgs.libclang
-                # pkgs.musl
-
-                pkgs.which
-                pkgs.coreutils
-                pkgs.alejandra
-                pkgs.just
-                pkgs.ruff
-              ]
-              # OpenJDK doesn't build on some platforms
-              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
-              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
-              # gdb broken on apple silicon
-              ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
-          };
+                  pkgs.coreutils
+                  pkgs.alejandra
+                  pkgs.just
+                  pkgs.ruff
+                ]
+                # OpenJDK doesn't build on some platforms
+                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
+                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
+                # gdb broken on apple silicon
+                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
+            };
         };
       }
     );

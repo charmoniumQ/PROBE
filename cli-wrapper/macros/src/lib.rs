@@ -113,14 +113,11 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
             let msgs = field_idents
                 .iter()
                 .map(|field_ident| {
-                    format!(
-                        "Error calling ffi_into() on {} while creating {}",
-                        field_ident, new_name
-                    )
+                    format!("Error calling ffi_into() on {field_ident} while creating {new_name}")
                 })
                 .collect::<Vec<_>>();
 
-            let serialize_type_path = format!("{}::serialize_type", new_name);
+            let serialize_type_path = format!("{new_name}::serialize_type");
             let type_name = new_name.to_string();
 
             // This is rather bad macro hygiene, but this macro is only intend for probe_frontend's
