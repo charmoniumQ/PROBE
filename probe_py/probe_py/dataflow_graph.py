@@ -95,7 +95,6 @@ def accesses_to_dataflow_graph(
         match access_or_node:
             case Access():
                 access = access_or_node
-                print(access)
                 version_num = inode_to_version[access.inode]
                 inode_to_paths[access.inode].add(access.path)
                 version = InodeVersionNode(access.inode, version_num)
@@ -117,7 +116,7 @@ def accesses_to_dataflow_graph(
                             dataflow_graph.add_edge(op_node, next_version)
                             dataflow_graph.add_edge(version, next_version)
                     case AccessMode.READ | AccessMode.EXEC | AccessMode.DLOPEN:
-                        #if access.phase == Phase.BEGIN:
+                        if access.phase == Phase.BEGIN:
                             dataflow_graph.add_edge(version, op_node)
                     case _:
                         raise TypeError()
@@ -153,12 +152,11 @@ def hb_graph_to_dataflow_graph2(
 def combine_indistinguishable_inodes(
         dataflow_graph: DataflowGraph,
 ) -> CompressedDataflowGraph:
-    # dataflow_graph = networkx.transitive_reduction(dataflow_graph)
+    dataflow_graph = networkx.transitive_reduction(dataflow_graph)
     def same_neighbors(
             node0: hb_graph.OpNode | InodeVersionNode,
             node1: hb_graph.OpNode | InodeVersionNode,
     ) -> bool:
-        return False
         return (
             isinstance(node0, InodeVersionNode)
             and
