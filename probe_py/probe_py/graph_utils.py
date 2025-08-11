@@ -7,7 +7,6 @@ import typing
 import pathlib
 import random
 import networkx
-import urllib.parse
 import pydot
 from . import util
 
@@ -97,7 +96,7 @@ def serialize_graph(
 ) -> None:
     if name_mapper is None:
         nodes_data = graph.nodes(data=True)
-        name_mapper = lambda node: nodes_data[node].get("id", str(node))
+        name_mapper = typing.cast(typing.Callable[[_Node], str], lambda node: nodes_data[node].get("id", str(node)))
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
 
@@ -117,10 +116,7 @@ def serialize_graph(
                 cluster_subgraph = clusters[cluster_name]
             cluster_subgraph.add_node(node)
 
-    if output.suffix == ".dot":
-        pydot_graph.write_raw(output)
-    else:
-        pydot_graph.write_png(output)
+    pydot_graph.write(str(output), "raw")
 
 
 def add_self_loops(
