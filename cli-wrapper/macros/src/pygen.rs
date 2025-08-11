@@ -211,12 +211,12 @@ fn convert_to_pytype(ty: &syn::Type) -> MacroResult<String> {
 
                             match name.as_str() {
                                 // a rust vec is basically a list in python
-                                "Vec" => format!("list[{}]", py_generics),
+                                "Vec" => format!("list[{py_generics}]"),
 
                                 // Any type we don't know about gets passed through verbatim.
                                 // FIXME: this is really fragile, consider throwing a compiler
                                 // error instead.
-                                _ => format!("{}[{}]", name, py_generics),
+                                _ => format!("{name}[{py_generics}]"),
                             }
                         }
                     }
@@ -243,12 +243,12 @@ pub(crate) fn pygen_write_internal(path: syn::LitStr) -> MacroResult<()> {
             .into())
         }
     };
-    println!("Writing Python module to {:?}", path_str);
+    println!("Writing Python module to {path_str:?}");
 
     let mut file = match File::create(path_str) {
         Ok(x) => x,
         Err(e) => {
-            eprintln!("pygen IO error: {}", e);
+            eprintln!("pygen IO error: {e}");
             return Err(quote_spanned! {
                 path.span() =>
                 compile_error!("Failed to create pygen file");
@@ -269,7 +269,7 @@ pub(crate) fn pygen_write_internal(path: syn::LitStr) -> MacroResult<()> {
     );
 
     if let Err(e) = writeln!(file, "{}", pygen_file().read()) {
-        eprintln!("pygen IO error: {}", e);
+        eprintln!("pygen IO error: {e}");
         return Err(quote_spanned! {
             path.span() =>
             compile_error!("Failed to write pygen file");
