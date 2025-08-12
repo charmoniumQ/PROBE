@@ -101,7 +101,9 @@ def accesses_to_dataflow_graph(
                 version = InodeVersionNode(access.inode, version_num)
                 next_version = InodeVersionNode(access.inode, version_num + 1)
                 ensure_state(access.op_node, PidState.READING if access.mode.is_side_effect_free() else PidState.WRITING)
-                op_node = last_op_in_process[access.op_node.pid]
+                if (op_node := last_op_in_process.get(access.op_node.pid)) is None:
+                    warnings.warn(f"Can't find last node from process {access.op_node.pid}")
+                    continue
                 match access.mode:
                     case AccessMode.WRITE:
                         if access.phase == Phase.BEGIN:
