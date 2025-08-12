@@ -2,7 +2,7 @@ fn main() {
     let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
 
     let out_file = std::env::var_os("CBINDGEN_OUTFILE").expect("Must define CBINDGEN_OUTFILE");
-    println!("Writing C headers to $CBINDGEN_OUTFILE = {:?}", out_file);
+    println!("Writing C headers to $CBINDGEN_OUTFILE = {out_file:?}");
 
     cbindgen::Builder::new()
         .with_crate(crate_dir)

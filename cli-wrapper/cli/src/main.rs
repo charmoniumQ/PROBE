@@ -173,7 +173,7 @@ fn main() -> ExitCode {
             }
         }
         Err(err) => {
-            eprintln!("{:?}", err);
+            eprintln!("{err:?}");
             ExitCode::from(PROBE_EXIT_PRINTED_ERROR)
         }
     }
