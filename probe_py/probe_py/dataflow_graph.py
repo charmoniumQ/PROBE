@@ -269,6 +269,9 @@ def label_nodes(
                         data["label"] = ""
                 else:
                     data["label"] = ""
+                    if (node.pid, node.exec_no) not in count:
+                        warnings.warn(f"{node.pid, node.exec_no} never counted before")
+                        count[(node.pid, node.exec_no)] = 99
                     count[(node.pid, node.exec_no)] += 1
                     # data["label"] += "\n" + type(op.data).__name__
                 data["id"] = str(node)
