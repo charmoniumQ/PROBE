@@ -7,6 +7,7 @@ import os
 import pathlib
 import textwrap
 import typing
+import warnings
 import networkx
 from . import graph_utils
 from . import hb_graph
@@ -152,7 +153,10 @@ def hb_graph_to_dataflow_graph2(
 def combine_indistinguishable_inodes(
         dataflow_graph: DataflowGraph,
 ) -> CompressedDataflowGraph:
-    dataflow_graph = networkx.transitive_reduction(dataflow_graph)
+    if networkx.is_directed_acyclic_graph(dataflow_graph):
+        dataflow_graph = networkx.transitive_reduction(dataflow_graph)
+    else:
+        warnings.warn("Dataflow graph is cyclic")
     def same_neighbors(
             node0: hb_graph.OpNode | InodeVersionNode,
             node1: hb_graph.OpNode | InodeVersionNode,
