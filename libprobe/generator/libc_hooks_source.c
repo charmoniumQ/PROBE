@@ -3138,7 +3138,7 @@ int pipe2(int pipefd[2], int flags) {
                 open_op_code,
                 {.open =
                      {
-                         .path = create_path_lazy(pipefd[0], NULL, 0),
+                         .path = create_path_lazy(pipefd[0], NULL, AT_EMPTY_PATH),
                          .flags = O_RDONLY,
                          .mode = 0,
                          .fd = pipefd[0],
@@ -3151,7 +3151,7 @@ int pipe2(int pipefd[2], int flags) {
             struct Op open_write_end_op = {
                 open_op_code,
                 {.open = {
-                    .path = create_path_lazy(pipefd[1], NULL, 0),
+                    .path = create_path_lazy(pipefd[1], NULL, AT_EMPTY_PATH),
                     .flags = O_CREAT | O_TRUNC | O_WRONLY,
                     .mode = 0,
                     .fd = pipefd[1],

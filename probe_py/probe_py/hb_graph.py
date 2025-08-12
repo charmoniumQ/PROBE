@@ -105,11 +105,14 @@ def retain_only(
 def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))
-        raise InvalidProbeLog(f"Found a cycle in hb graph: {cycle}")
+        warnings.warn(f"Found a cycle in hb graph: {cycle}")
 
     if validate_roots:
-        graph_utils.get_root(hb_graph)
-        # TODO: Check that root pid and/or parent-pid is as expected.
+        sources = graph_utils.get_sources(hb_graph)
+        if len(sources) > 1:
+            warnings.warn(f"Too many sources {sources}")
+
+    # TODO: Check that root pid and/or parent-pid is as expected.
 
 
 def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -341,5 +344,4 @@ def _create_pipe_edges(
     for fifo in fifo_readers.keys() | fifo_writers.keys():
         for writer in fifo_writers.get(fifo, set()):
             for reader in fifo_readers.get(fifo, set()):
-                print(fifo, writer, reader)
-                hb_graph.add_edge(writer, reader)
+                graph_utils.add_edge_without_cycle(hb_graph, writer, reader)

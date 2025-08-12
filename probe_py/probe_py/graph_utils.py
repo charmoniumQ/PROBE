@@ -1,4 +1,5 @@
 from __future__ import annotations
+import abc
 import collections.abc
 import tqdm
 import dataclasses
@@ -19,7 +20,7 @@ _CoNode = typing.TypeVar("_CoNode", covariant=True)
 
 @dataclasses.dataclass(frozen=True)
 class Segment(typing.Generic[_CoNode]):
-    dag_tc: LazyTransitiveClosure[_CoNode]
+    dag_tc: ReachabilityOracle[_CoNode]
     upper_bound: frozenset[_CoNode]
     lower_bound: frozenset[_CoNode]
 
@@ -37,12 +38,12 @@ class Segment(typing.Generic[_CoNode]):
         assert not unbounded, \
             f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
 
-    def nodes(self) -> frozenset[_CoNode]:
-        return self.dag_tc.between(self.upper_bound, self.lower_bound)
+    def nodes(self) -> collections.abc.Iterable[_CoNode]:
+        return self.dag_tc.nodes_between(self.upper_bound, self.lower_bound)
 
     def overlaps(self, other: Segment[_CoNode]) -> bool:
         assert self.dag_tc is other.dag_tc
-        return bool(self.nodes() & other.nodes())
+        return bool(frozenset(self.nodes()) & frozenset(other.nodes()))
 
     @staticmethod
     def union(segments: typing.Sequence[Segment[_CoNode]]) -> Segment[_CoNode]:
@@ -150,6 +151,7 @@ def replace(digraph: networkx.DiGraph[_Node], old: _Node, new: _Node) -> None:
 def bfs_with_pruning(
         digraph: networkx.DiGraph[_Node],
         start: _Node,
+        left_to_right: bool = False
 ) -> typing.Generator[_Node, bool, None]:
     """BFS but send False to prune this branch"""
     queue = [start]
@@ -157,22 +159,25 @@ def bfs_with_pruning(
         node = queue.pop()
         continue_with_children = yield node
         if continue_with_children:
-            queue.extend(digraph.successors(node))
+            children = list(digraph.successors(node))
+            if left_to_right:
+                children = children[::-1]
+            queue.extend(children)
 
 
-def get_root(dag: networkx.DiGraph[_Node]) -> _Node:
-    roots = get_roots(dag)
-    if len(roots) != 1:
-        raise RuntimeError(f"No roots or too many roots: {roots}")
-    else:
-        return roots[0]
-
-
-def get_roots(dag: networkx.DiGraph[_Node]) -> list[_Node]:
+def get_sources(dag: networkx.DiGraph[_Node]) -> list[_Node]:
     return [
         node
         for node in dag.nodes()
         if dag.in_degree(node) == 0
+    ]
+
+
+def get_sinks(dag: networkx.DiGraph[_Node]) -> list[_Node]:
+    return [
+        node
+        for node in dag.nodes()
+        if dag.out_degree(node) == 0
     ]
 
 
@@ -185,142 +190,300 @@ def randomly_sample_edges(inp: networkx.DiGraph[_Node], factor: float, seed: int
     return out
 
 
-class LazyTransitiveClosure(typing.Generic[_Node]):
-    _dag: networkx.DiGraph[_Node]
-    _topological_generations: list[list[_Node]]
-    _rank: typing.Mapping[_Node, int]
-    _descendants: dict[_Node, tuple[int, set[_Node]]]
+class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
+    """
+    This datastructure answers reachability queries, is A reachable from B in dag.
 
-    def __init__(self, dag: networkx.DiGraph[_Node]) -> None:
-        self._dag = dag
-        self._topological_generations = [
-            list(layer)
-            for layer in networkx.topological_generations(self._dag)
-        ]
-        self._rank = {
-            node: layer_no
-            for layer_no, layer in enumerate(self._topological_generations)
-            for node in layer
-        }
-        self._descendants = {}
+    If you had only 1 reachability query, it would be best to DFS the graph from B, looking for A.
+    DFS might have to traverse the whole graph and touch every edge, O(V+E).
+    In fact, when A is _not_ a descendant of B (but we don't know that yet), if B is high up, then DFS approaches its worst case.
+    Let's say you have N queries, resulting in O(N(V+E)) to complete all queries.
 
-    def between(self, upper_bounds: frozenset[_Node], lower_bounds: frozenset[_Node]) -> frozenset[_Node]:
-        max_rank = max(self._rank[lower_bound] for lower_bound in lower_bounds)
-        descendants = set().union(*(
-            self.descendants(upper_bound, max_rank)
-            for upper_bound in upper_bounds
-        ))
-        return frozenset({
-            node
-            for node in descendants
-            if self.descendants(node, max_rank) & lower_bounds
-        })
+    If N gets to be larger than V, you're better off pre-computing reachability ahead of time.
+    Because DFS tells you "all of the Bs descendent from A", we need to do DFS for each node as a source, resulting in, O(V(V+E)).
+    This is conveniently implemented as [`networkx.transitive_closure`][source code].
 
-    def non_ancestors(self, candidates: frozenset[_Node], lower_bound: frozenset[_Node]) -> frozenset[_Node]:
-        max_rank = max(self._rank[bound] for bound in lower_bound)
-        return frozenset({
-            candidate
-            for candidate in candidates - lower_bound
-            if not self.descendants(candidate, max_rank) & lower_bound
-        })
+    [source code]: https://networkx.org/documentation/stable/_modules/networkx/algorithms/dag.html#transitive_closure
 
-    def non_descendants(self, candidates: frozenset[_Node], upper_bound: frozenset[_Node]) -> frozenset[_Node]:
-        max_rank = max(self._rank[candidate] for candidate in candidates)
-        descendants = set().union(*(
-            self.descendants(upper_bound, max_rank)
-            for upper_bound in upper_bound
-        ))
-        return frozenset(candidates - descendants - upper_bound)
+    However, if V is on the order of 10^4 (E must be at least V for a connected graph), then V^2 could be terribly slow.
+    There are more efficient datastructures for answering N queries, often involving some kind of preprocessing.
+    This class encapsulate the preprocessing datastructure, and offers a method to answer reachability.
+    """
 
-    def is_antichain(self, nodes: typing.Iterable[_Node]) -> bool:
-        max_rank = max(self._rank[node] for node in nodes)
+    @staticmethod
+    @abc.abstractmethod
+    def create(dag: networkx.DiGraph[_Node]) -> ReachabilityOracle[_Node]:
+        ...
+
+    @abc.abstractmethod
+    def is_reachable(self, u: _Node, v: _Node) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def nodes_between(
+            self,
+            u: collections.abc.Iterable[_Node],
+            v: collections.abc.Iterable[_Node],
+    ) -> collections.abc.Iterable[_Node]:
+        ...
+
+    def is_antichain(self, nodes: collections.abc.Iterable[_Node]) -> bool:
         return all(
-            node0 not in self.descendants(node1, max_rank) and node1 not in self.descendants(node0, max_rank)
+            not self.is_reachable(node0, node1)
             for node0, node1 in itertools.combinations(nodes, 2)
         )
 
-    def get_bottommost(self, nodes: collections.abc.Set[_Node]) -> frozenset[_Node]:
-        max_rank = max(self._rank[node] for node in nodes)
-        bottommost_nodes = set[_Node]()
-        sorted_nodes = self.sorted(nodes)[::-1]
-        for node in sorted_nodes:
-            if not self.descendants(node, max_rank) & bottommost_nodes:
-                bottommost_nodes.add(node)
-        return frozenset(bottommost_nodes)
+    def sorted(self, nodes: collections.abc.Iterable[_Node]) -> collections.abc.Sequence[_Node]:
+        return list(networkx.topological_sort(networkx.DiGraph(
+            (source, target)
+            for source in nodes
+            for target in nodes
+            if self.is_reachable(source, target)
+        )))
 
-    def get_uppermost(self, nodes: collections.abc.Set[_Node]) -> frozenset[_Node]:
-        max_rank = max(self._rank[node] for node in nodes)
+    def get_uppermost(self, nodes: collections.abc.Iterable[_Node]) -> frozenset[_Node]:
         uppermost_nodes = set[_Node]()
         covered_nodes = set[_Node]()
         sorted_nodes = self.sorted(nodes)
-        for node in sorted_nodes:
-            if node not in covered_nodes:
-                uppermost_nodes.add(node)
-                covered_nodes.update(self.descendants(node, max_rank))
+        for i, candidate in enumerate(sorted_nodes):
+            if candidate not in covered_nodes:
+                uppermost_nodes.add(candidate)
+                covered_nodes.update(
+                    descendant
+                    for descendant in sorted_nodes[i+1:]
+                    if self.is_reachable(candidate, descendant)
+                )
         return frozenset(uppermost_nodes)
 
-    def sorted(self, nodes: typing.Iterable[_Node]) -> list[_Node]:
-        return sorted(nodes, key=self._rank.__getitem__)
+    def get_bottommost(self, nodes: collections.abc.Iterable[_Node]) -> frozenset[_Node]:
+        bottom_nodes = set[_Node]()
+        covered_nodes = set[_Node]()
+        sorted_nodes = self.sorted(nodes)[::-1]
+        for i, candidate in enumerate(sorted_nodes):
+            if candidate not in covered_nodes:
+                bottom_nodes.add(candidate)
+                covered_nodes.update(
+                    ancestor
+                    for ancestor in sorted_nodes[i+1:]
+                    if self.is_reachable(ancestor, candidate)
+                )
+        return frozenset(bottom_nodes)
 
-    def is_reachable(self, src: _Node, dst: _Node) -> bool:
-        return dst in self.descendants(src, self._rank[dst])
+    def non_ancestors(
+            self,
+            candidates: collections.abc.Iterable[_Node],
+            lower_bounds: collections.abc.Iterable[_Node],
+    ) -> collections.abc.Iterable[_Node]:
+        return frozenset({
+            candidate
+            for candidate in candidates
+            if not any(
+                    self.is_reachable(candidate, lower_bound)
+                    for lower_bound in lower_bounds
+            )
+        })
 
-    def descendants(self, src: _Node, rank: int) -> frozenset[_Node]:
-        # Read the code as if descendants is True.
-        # Note that everythign is exactly reversed if descendants was false.
-        descendants = self._descendants
-        successors = self._dag.successors
-        def in_range(input_rank: int) -> bool:
-            return input_rank <= rank
+    def non_descendants(
+            self,
+            candidates: collections.abc.Iterable[_Node],
+            upper_bounds: collections.abc.Iterable[_Node],
+    ) -> collections.abc.Iterable[_Node]:
+        return frozenset({
+            candidate
+            for candidate in candidates
+            if not any(
+                    self.is_reachable(upper_bound, candidate)
+                    for upper_bound in upper_bounds
+            )
+        })
 
-        # stack will hold _paths from src_ not nodes
-        stack = [
-            [src]
+
+@dataclasses.dataclass(frozen=True)
+class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
+    dag_tc: networkx.DiGraph[_Node]
+
+    @staticmethod
+    def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
+        return PrecomputedReachabilityOracle(networkx.transitive_closure(dag))
+
+    def is_reachable(self, u: _Node, v: _Node) -> bool:
+        return v in self.dag_tc.successors(u)
+
+    def nodes_between(
+            self,
+            u: collections.abc.Iterable[_Node],
+            v: collections.abc.Iterable[_Node],
+    ) -> collections.abc.Iterable[_Node]:
+        raise NotImplementedError()
+
+
+def get_faces(planar_graph: networkx.PlanarEmbedding[_Node]) -> frozenset[tuple[_Node, ...]]:
+    faces = set()
+    covered_half_edges = set()
+    for half_edge in planar_graph.edges():
+        if half_edge not in covered_half_edges:
+            covered_half_edges.add(half_edge)
+            face = planar_graph.traverse_face(*half_edge)
+            faces.add(tuple(face))
+            if len(face) > 1:
+                for a, b in [*zip(face[:-1], face[1:]), (face[-1], face[0])]:
+                    covered_half_edges.add((a, b))
+    return frozenset(faces)
+
+
+@dataclasses.dataclass(frozen=True)
+class KamedaReachabilityOracle(ReachabilityOracle[_Node]):
+    """
+    This implementaiton uses Kameda's algorithm because it is the simplest and fastest.
+    The algorithm is described in [Kameda 1975] and on [Wikipedia].
+
+    [Kameda 1975]: https://doi.org/10.1016/0020-0190(75)90019-8
+    [Wikipedia]: https://en.wikipedia.org/wiki/Reachability#Kameda's_Algorithm
+
+    However, this only works on a struct subset of planar graphs.
+    Should the happens-before graphs violate this, alternative approaches may be found in the following survey papers:
+    - [He 2025](https://doi.org/10.1007/978-981-96-8295-9_4)
+    - [Yu 2010](https://doi.org/10.1007/978-1-4419-6045-0_6)
+    - [Zhang 2023](https://doi.org/10.1145/3555041.3589408)
+    """
+
+    left_label: typing.Mapping[_Node, int]
+    right_label: typing.Mapping[_Node, int]
+
+    @staticmethod
+    def create(dag: networkx.DiGraph[_Node]) -> ReachabilityOracle[_Node]:
+        if not networkx.is_directed_acyclic_graph(dag):
+            raise ValueError("Graph must be a DAG")
+        is_planar, planar_graph = networkx.check_planarity(dag)
+        if not is_planar:
+            raise ValueError("We use Kameda's algorithm, which only works for planar DFGs.")
+        assert planar_graph
+        sources = set(get_sources(dag))
+        sinks = set(get_sinks(dag))
+        faces = get_faces(planar_graph)
+        main_faces = [
+            face
+            for face in faces
+            if sources | sinks <= set(face)
         ]
+        if not main_faces:
+            raise ValueError(f"We use Kameda's algorithm, which only works for planar DFGs where the sources and sinks lie on the same face.\n{sources=}\n{sinks=}\n{faces=}")
+        main_face = main_faces[0]
+        main_face_labels = [
+            node in sources
+            for node in main_face
+            if node in sources | sinks
+        ]
+        switches = 0
+        for a, b in [*zip(main_face_labels[:-1], main_face_labels[1:]), (main_face_labels[-1], main_face_labels[0])]:
+            if a != b:
+                switches += 1
+        if switches > 2:
+            raise ValueError("The main face needs to be partitionable between sources and sinks.")
 
-        # Do DFS
-        while stack:
-            path = stack[-1]
-            assert path[0] == src
-            node = path[-1]
+        dag_aug = typing.cast(networkx.DiGraph[_Node | str], dag.copy())
 
-            if node in descendants and in_range(descendants[node][0]):
-                # already pre-computed, no work to do.
-                stack.pop()
+        # Augment graph: add new sources and sinks
+        source = "__KA_S__"
+        target = "__KA_T__"
+        dag_aug.add_node(source)
+        dag_aug.add_node(target)
+        for orig_node in dag.nodes():
+            if dag.in_degree(orig_node) == 0:
+                dag_aug.add_edge(source, orig_node)
+            if dag.out_degree(orig_node) == 0:
+                dag_aug.add_edge(orig_node, target)
 
+        i = len(dag_aug) - 1
+        left_label = {}
+        bfs = bfs_with_pruning(dag_aug, source, False)
+        while bfs:
+            try:
+                node = typing.cast(_Node, next(bfs))
+            except StopIteration:
+                break
+            bfs.send(True)
+            left_label[node] = i
+            i -= 1
+
+        # Second DFS: adjacencies right-to-left
+        i = len(dag_aug) - 1
+        right_label = {}
+        bfs = bfs_with_pruning(dag_aug, source, True)
+        while bfs:
+            try:
+                node = typing.cast(_Node, next(bfs))
+            except StopIteration:
+                break
+            bfs.send(True)
+            right_label[node] = i
+            i -= 1
+        return KamedaReachabilityOracle(left_label, right_label)
+
+    def is_reachable(self, u: _Node, v: _Node) -> bool:
+        u_left, u_right = self.left_label[u], self.right_label[u]
+        v_left, v_right = self.left_label[v], self.right_label[v]
+        # Both U components are less than both V components and at least one is strictly less.
+        return u_left <= v_left and u_right <= v_right and (u_left < v_left or u_right < v_right)
+
+    def nodes_between(
+            self,
+            u: collections.abc.Iterable[_Node],
+            v: collections.abc.Iterable[_Node],
+    ) -> collections.abc.Iterable[_Node]:
+        raise NotImplementedError()
+
+
+def add_edge_without_cycle(
+        dag: networkx.DiGraph[_Node],
+        source: _Node,
+        target: _Node,
+) -> None:
+    """
+    Add an edge from source to the earliest descendants of target without creating a cycle.
+
+    Consider:
+    0 -> 10, 20, 30;
+    10 -> 11;
+    20 -> 21;
+    30 -> 31;
+    If we add the edge 31 -> 0, that would create a cycle.
+    So we look at the children of 0.
+    We add the edge 31 -> 10.
+    We add the edge 31 -> 20.
+    31 -> 30 would create a cycle.
+    We recurse into 31's aunts and uncles.
+    Finding it doesn't have any, we quit.
+    """
+    assert networkx.is_directed_acyclic_graph(dag)
+    reachability = PrecomputedReachabilityOracle.create(dag)
+    if reachability.is_reachable(source, target):
+        # No cycle would be made anyway.
+        # Easy.
+        dag.add_edge(source, target)
+    else:
+        # Start from target
+        # See if each descendant can be used as a proxy for target.
+        # I.e., source -> proxy_target.
+        # If not, we will have to recurse into its children until a suitable target is found or the original source is found.
+        bfs = bfs_with_pruning(dag, target)
+        while bfs:
+            # Consider creating an edge from source -> proxy_target instead of source -> target.
+            try:
+                proxy_target = next(bfs)
+            except StopIteration:
+                break
+            if reachability.is_reachable(proxy_target, source):
+                # Upstream of source
+                # An edge here would create a cycle.
+                # We will recurse into the children to find a suitable proxy target.
+                bfs.send(True)
+            elif reachability.is_reachable(source, proxy_target) or proxy_target == source:
+                # Downstream of target (or equal to target).
+                # Time to stop.
+                bfs.send(False)
             else:
-                # Not already precomputed
-                # Recurse into successors
-                # But only those in range
-                successors_in_range = {
-                    successor
-                    for successor in successors(node)
-                    if in_range(self._rank[successor])
-                }
-                noncomputed_successors_in_range = {
-                    successor
-                    for successor in successors_in_range
-                    if successor not in descendants[successor][1] or not in_range(descendants[successor][0])
-                }
-                if noncomputed_successors_in_range:
-                    for successor in noncomputed_successors_in_range:
-                        stack.append([*path, successor])
-                else:
-                    descendants[node] = (
-                        rank,
-                        set.union(*(descendants[successor][1] for successor in successors_in_range)) if successors_in_range else set(),
-                    )
-
-        return frozenset(descendants[node][1])
-
-
-def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
-    tc: networkx.DiGraph[_Node] = networkx.DiGraph()
-    node_order = list(networkx.topological_sort(dag))[::-1]
-    for src in tqdm.tqdm(node_order, desc="TC"):
-        tc.add_node(src)
-        for child in dag.successors(src):
-            tc.add_edge(src, child)
-            for grandchild in dag.successors(child):
-                tc.add_edge(src, grandchild)
-    return tc
+                # Neither upstream nor downstream.
+                # We can put an edge here and quit.
+                dag.add_edge(source, proxy_target)
+                bfs.send(False)
