@@ -41,7 +41,7 @@ _V = typing.TypeVar("_V")
 def groupby_dict(
         data: typing.Iterable[_T],
         key_func: typing.Callable[[_T], _V],
-        value_func: typing.Callable[[_T], _U],
+        value_func: typing.Callable[[_T], _U] = typing.cast(typing.Callable[[_T], _U], lambda x: x),
 ) -> typing.Mapping[_V, typing.Sequence[_U]]:
     ret: dict[_V, list[_U]] = {}
     for key, group in itertools.groupby(data, key_func):
