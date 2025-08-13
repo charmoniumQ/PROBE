@@ -39,10 +39,10 @@ class Graph(typing.Generic[_Node]):
     def nodes(self, data: typing.Literal[True]) -> NodeDataView[_Node]: ...
 
     @typing.overload
-    def edges(self) -> EdgeView[tuple[_Node, _Node]]: ...
+    def edges(self) -> EdgeView[_Node]: ...
 
     @typing.overload
-    def edges(self, data: typing.Literal[False]) -> EdgeDataView[tuple[_Node, _Node]]: ...
+    def edges(self, data: typing.Literal[False]) -> EdgeDataView[_Node]: ...
 
     @typing.overload
     def edges(self, data: typing.Literal[True]) -> typing.Iterable[tuple[_Node, _Node, _dict]]: ...
@@ -136,3 +136,16 @@ def check_planarity(
 class PlanarEmbedding(Graph[_Node]):
     def traverse_face(self, a: _Node, b: _Node) -> list[_Node]:
         ...
+
+
+def set_edge_attributes(
+        graph: Graph[_Node],
+        edges: typing.Mapping[tuple[_Node, _Node], _dict],
+) -> None:
+    """This is the most elegant way to mutate edge attributes in this typed subset of networkx.
+
+    The other way, `graph.edges[a, b][label] = value` distastefully overloads
+    edges, which was previously declared as a method, i.e., `graph.edges()`.
+
+    """
+    ...

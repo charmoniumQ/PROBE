@@ -293,4 +293,4 @@ def label_nodes(
                 data["shape"] = "rectangle"
                 data["id"] = str(hash(node))
     for a, b in cycle:
-        dataflow_graph[a][b]["color"] = "red"
+        networkx.set_edge_attributes(dataflow_graph, {(a, b): {"color": "red"}})
