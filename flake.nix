@@ -263,8 +263,10 @@
                   pkgs.include-what-you-use
                   pkgs.libclang
 
-                  # Asm tools
-                  pkgs.nasm
+                  # rust tools
+                  pkgs.cargo-deny
+                  pkgs.cargo-audit
+                  pkgs.cargo-hakari
 
                   pkgs.which
                   pkgs.coreutils
