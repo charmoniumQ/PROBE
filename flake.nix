@@ -73,7 +73,7 @@
               pkgs.cppclean
             ];
             checkPhase = ''
-              # make check
+              make check
             '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
@@ -238,6 +238,15 @@
                     # libprobe build time requirement
                     pypkgs.pycparser
                     pypkgs.pyelftools
+
+                    # NOTE: a check-time input called "xvfb-run" is only available on linux
+                    ((pypkgs.xdot.overrideAttrs (prev: {
+                        checkPhase = null;
+                        installCheckPhase = null;
+                        nativeCheckInputs = [];
+                      })).override {
+                        xvfb-run = null;
+                      })
                   ]))
 
                   # Replay tools
@@ -267,9 +276,7 @@
                 ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
                 ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
                 # gdb broken on apple silicon
-                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
-                # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
-                ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
+                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
             };
         };
       }

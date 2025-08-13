@@ -2,12 +2,11 @@
 
 #define _GNU_SOURCE
 
-#include "global_state.h"               // for get_exec_epoch_safe, get_pid_safe, get_tid...
-#include "../generated/libc_hooks.h"    // for unwrapped_exit
-#include <errno.h>                      // for errno
-#include <stdio.h>                      // for fprintf, stderr
-#include <stdlib.h>                     // for exit, free
-#include <string.h>                     // for strerror, strndup
+#include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
+#include <errno.h>        // for errno
+#include <stdio.h>        // for fprintf, stderr
+#include <stdlib.h>       // for exit, free
+#include <string.h>       // for strerror, strndup
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1
