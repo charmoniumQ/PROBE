@@ -26,7 +26,6 @@ fn inner_main() -> Result<ExitStatus> {
     let matches = command!()
         .about("Generate or manipulate Provenance for Replay OBservation Engine (PROBE) logs.")
         .propagate_version(true)
-        // .allow_external_subcommands(true)
         .subcommands([
             Command::new("record")
                 .args([
@@ -156,23 +155,6 @@ fn inner_main() -> Result<ExitStatus> {
                 .wait()
                 .wrap_err("Wait on subcommand failed")
         }
-        // Some((subcommand, args)) => {
-        //     let args = args
-        //         .get_many::<OsString>("")
-        //         .unwrap()
-        //         .cloned()
-        //         .collect::<Vec<_>>();
-        //
-        //     std::process::Command::new("python3")
-        //         .arg("-m")
-        //         .arg("probe_py.cli")
-        //         .arg(subcommand)
-        //         .args(&args)
-        //         .spawn()
-        //         .wrap_err("Unknown subcommand")?
-        //         .wait()
-        //         .wrap_err("Wait on subcommand failed")
-        // }
         Some((cmd, _)) => unimplemented!("subcommand '{}' does not exit", cmd),
         None => Err(eyre!("Subcommand expected, try --help for more info")),
     }
