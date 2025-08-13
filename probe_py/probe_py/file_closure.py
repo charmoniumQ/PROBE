@@ -11,7 +11,7 @@ import warnings
 import pathlib
 import typing
 from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
-from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp
+from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
 from .consts import AT_FDCWD
 
 
@@ -130,27 +130,11 @@ def build_oci_image(
             )
 
 
-def copy_file_closure(
+def get_files(
         probe_log: ProbeLog,
-        destination: pathlib.Path,
-        copy: bool,
         verbose: bool,
         console: rich.console.Console,
-) -> None:
-    """Extract files used by the application recoreded in probe_log to destination
-
-    If the required file are recorded in probe_log, we will use that.
-    However, probe_log only captures files that get mutated _during the $cmd_.
-    We assume the rest of the files will not change between the time of `probe record $cmd` and `probe oci-image`.
-    (so probably run those back-to-back).
-    For the files not included in probe_log, we will use the current copy on-disk.
-    However, we will test to ensure it is the same version as recorded in probe_log.
-
-    `copy` refers to whether we should copy files from disk or symlink them.
-    """
-
-    to_copy = dict[pathlib.Path, Path | None]()
-    to_copy_exes = dict[pathlib.Path, Path | None]()
+) -> typing.Iterator[tuple[Op, pathlib.Path, Path | None]]:
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
             root_pid = get_root_pid(probe_log)
@@ -176,15 +160,43 @@ def copy_file_closure(
                         if op.data.ferrno == 0:
                             resolved_path = resolve_path(fds, path)
                             fds[op.data.fd] = resolved_path
-                            to_copy[resolved_path] = path
+                            yield op, resolved_path, path
                     elif isinstance(op.data, ExecOp):
                         path = op.data.path
                         if op.data.ferrno == 0:
                             resolved_path = resolve_path(fds, path)
-                            to_copy_exes[resolved_path] = path
+                            yield op, resolved_path, path
                     elif isinstance(op.data, CloseOp):
                         if op.data.fd in fds:
                             del fds[op.data.fd]
+
+
+def copy_file_closure(
+        probe_log: ProbeLog,
+        destination: pathlib.Path,
+        copy: bool,
+        verbose: bool,
+        console: rich.console.Console,
+) -> None:
+    """Extract files used by the application recoreded in probe_log to destination
+
+    If the required file are recorded in probe_log, we will use that.
+    However, probe_log only captures files that get mutated _during the $cmd_.
+    We assume the rest of the files will not change between the time of `probe record $cmd` and `probe oci-image`.
+    (so probably run those back-to-back).
+    For the files not included in probe_log, we will use the current copy on-disk.
+    However, we will test to ensure it is the same version as recorded in probe_log.
+
+    `copy` refers to whether we should copy files from disk or symlink them.
+    """
+    to_copy = dict[pathlib.Path, Path | None]()
+    to_copy_exes = dict[pathlib.Path, Path | None]()
+    for op, resolved_path, path in get_files(probe_log, verbose, console):
+        match op:
+            case OpenOp():
+                to_copy_exes[resolved_path] = path
+            case ExecOp():
+                to_copy_exes[resolved_path] = path
 
     shell = pathlib.Path(os.environ["SHELL"])
     to_copy_exes[shell] = None

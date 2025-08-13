@@ -51,7 +51,7 @@
               pkgs.cppcheck
               pkgs.include-what-you-use
             ];
-            buildInputs = [
+            nativeBuildInputs = [
               pkgs.git
               (python.withPackages (pypkgs: [
                 pypkgs.pycparser
