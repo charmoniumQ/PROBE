@@ -86,6 +86,12 @@ def accesses_to_dataflow_graph(
                 if (op_node := last_op_in_process.get(access.op_node.pid)) is None:
                     warnings.warn(f"Can't find last node from process {access.op_node.pid}")
                     continue
+                if access.inode.is_fifo:
+                    if not access.mode.is_side_effect_free and access.phase == ptypes.Phase.END:
+                        dataflow_graph.add_edge(op_node, version)
+                    elif access.mode.is_side_effect_free and access.phase == ptypes.Phase.BEGIN:
+                        dataflow_graph.add_edge(version, op_node)
+                        continue
                 match access.mode:
                     case ptypes.AccessMode.WRITE:
                         if access.phase == ptypes.Phase.BEGIN:
@@ -221,8 +227,15 @@ def label_nodes(
 ) -> None:
     count = dict[tuple[ptypes.Pid, ptypes.ExecNo], int]()
     root_pid = probe_log.get_root_pid()
+    if networkx.is_directed_acyclic_graph(dataflow_graph):
+        nodes = list(networkx.topological_sort(dataflow_graph))
+        cycle = []
+    else:
+        nodes = list(dataflow_graph.nodes())
+        cycle = list(networkx.find_cycle(dataflow_graph))
+        warnings.warn("Cycle shown in red")
     for node in tqdm.tqdm(
-            networkx.topological_sort(dataflow_graph),
+            nodes,
             total=len(dataflow_graph),
             desc="Labelling DFG nodes",
     ):
@@ -279,3 +292,5 @@ def label_nodes(
                 data["label"] = "\n".join(inode_labels)
                 data["shape"] = "rectangle"
                 data["id"] = str(hash(node))
+    for a, b in cycle:
+        dataflow_graph[a][b]["color"] = "red"

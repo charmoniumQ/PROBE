@@ -1,7 +1,6 @@
 import collections
 import os
 import shlex
-import stat
 import textwrap
 import typing
 import warnings
@@ -61,7 +60,7 @@ def retain_only(
             total=len(full_hb_graph),
             desc="retain",
     ):
-        node_triple = (node.pid, node.exec_no, node.tid)
+        thread = node.thread_triple()
 
         # If node satisfies predicate, copy node into new graph
         if retain_node_predicate(node, probe_log.get_op(node)):
@@ -71,16 +70,16 @@ def retain_only(
             # Add link from previous node in this process, if any
             # Note that iteration is in topo order,
             # so this node happens-after the node of previous iterations.
-            if previous_node := last_in_process.get(node_triple):
+            if previous_node := last_in_process.get(thread):
                 reduced_hb_graph.add_edge(previous_node, node)
-            last_in_process[node_triple] = node
+            last_in_process[thread] = node
 
             # Link up any out-of-process predecessors we accumulated up to this node
-            incoming = incoming_to_process.get(node_triple, [])
+            incoming = incoming_to_process.get(thread, [])
             for (predecessor, edge_data) in incoming:
                 reduced_hb_graph.add_edge(predecessor, node, **edge_data)
             if incoming:
-                del incoming_to_process[node_triple]
+                del incoming_to_process[thread]
 
         # Accumulate out-of-process predecessors
         # Since we iterate in topo order,
@@ -93,9 +92,14 @@ def retain_only(
             # none of the prior nodes in this process were retained,
             # so the edge doesn't synchronize any retained nodes.
             # In such case, we don't need to create an edge.
-            if successor_triple != node_triple and (previous_node := last_in_process.get(node_triple)):
+            if successor_triple != thread and (previous_node := last_in_process.get(thread)):
                 edge_data = full_hb_graph.get_edge_data(node, successor)
                 incoming_to_process.setdefault(successor_triple, []).append((previous_node, edge_data))
+
+    for thread, incoming in incoming_to_process.items():
+        for node, edge_data in incoming:
+            if predecessor2 := last_in_process.get(thread):
+                reduced_hb_graph.add_edge(predecessor2, node, **edge_data)
 
     validate_hb_graph(reduced_hb_graph, False)
 
@@ -261,14 +265,17 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
     for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "HBG label"):
         op = probe_log.get_op(node)
+        data.setdefault("label", "")
+        if add_op_no:
+            data["label"] += f"{node.op_no}: "
         if len(list(hb_graph.predecessors(node))) == 0:
-            data["label"] = "root"
+            data["label"] += "root"
         elif isinstance(op.data, InitExecEpochOp):
-            data["label"] = f"PID {node.pid} exec {node.exec_no}"
+            data["label"] += f"PID {node.pid} exec {node.exec_no}"
         elif isinstance(op.data, InitThreadOp):
-            data["label"] = f"TID {node.tid}"
+            data["label"] += f"TID {node.tid}"
         elif isinstance(op.data, ExecOp):
-            data["label"] = textwrap.fill(
+            data["label"] += textwrap.fill(
                 "exec " + textwrap.shorten(
                     shlex.join([
                         textwrap.shorten(
@@ -283,22 +290,20 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             )
         elif isinstance(op.data, OpenOp):
             access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
-            data["label"] = f"Open ({access}) {op.data.path.path.decode(errors='backslashreplace')}"
+            data["label"] += f"Open ({access}) {op.data.path.path.decode(errors='backslashreplace')}"
             data["label"] += f" fd={op.data.fd}"
             data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
             data["label"] += f"\n{op.data.path.path.decode()}"
         elif isinstance(op.data, CloseOp):
-            data["label"] = f"Close fd={op.data.fd}"
+            data["label"] += f"Close fd={op.data.fd}"
         elif isinstance(op.data, DupOp):
-            data["label"] = f"DupOp fd={op.data.old} → fd={op.data.new}"
+            data["label"] += f"DupOp fd={op.data.old} → fd={op.data.new}"
         else:
-            data["label"] = f"{op.data.__class__.__name__}"
+            data["label"] += f"{op.data.__class__.__name__}"
             data["labelfontsize"] = 8
         if getattr(op.data, "ferrno", 0) != 0:
             data["label"] += " (failed)"
             data["color"] = "red"
-        if add_op_no:
-            data["label"] = f"{node.op_no}: " + data["label"]
 
     for node0, node1, data in hb_graph.edges(data=True):
         if node0.pid != node1.pid or node0.tid != node1.tid:
@@ -326,22 +331,26 @@ def _create_pipe_edges(
         match access_or_op:
             case ptypes.Access():
                 access = access_or_op
-                print(stat.S_IFMT(access.inode.mode), access.inode)
-                if stat.S_ISFIFO(access.inode.mode):
-                    print(access)
                 if all([
                         access.phase == ptypes.Phase.BEGIN,
                         access.mode.is_side_effect_free,
-                        stat.S_ISFIFO(access.inode.mode),
+                        access.inode.is_fifo,
                 ]):
                     fifo_readers[access.inode].add(access.op_node)
                 elif all([
                         access.phase == ptypes.Phase.END,
                         not access.mode.is_side_effect_free,
-                        stat.S_ISFIFO(access.inode.mode),
+                        access.inode.is_fifo,
                 ]):
                     fifo_writers[access.inode].add(access.op_node)
+    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(hb_graph)
     for fifo in fifo_readers.keys() | fifo_writers.keys():
-        for writer in fifo_writers.get(fifo, set()):
-            for reader in fifo_readers.get(fifo, set()):
-                graph_utils.add_edge_without_cycle(hb_graph, writer, reader)
+        for writer in reachability_oracle.get_bottommost(fifo_writers.get(fifo, set())):
+            for reader in reachability_oracle.get_uppermost(fifo_readers.get(fifo, set())):
+                print(fifo, "wants", writer, "->", reader)
+                for source, target in graph_utils.add_edge_without_cycle(hb_graph, writer, reader, reachability_oracle):
+                    print(source, "->", target)
+                    hb_graph.add_edge(source, target, label="FIFO edge")
+                    # reachability_oracle.add_edge(source, target)
+                    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(hb_graph)
+                print()

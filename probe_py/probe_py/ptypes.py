@@ -90,6 +90,10 @@ class Inode:
     def type(self) -> str:
         return stat.filemode(self.mode)[0]
 
+    @property
+    def is_fifo(self) -> bool:
+        return stat.S_ISFIFO(self.mode)
+
     def __str__(self) -> str:
         return f"inode {self.type}{self.number} on {self.device} @{self.host.name}"
 

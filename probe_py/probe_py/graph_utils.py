@@ -3,6 +3,7 @@ import abc
 import collections.abc
 import tqdm
 import dataclasses
+import datetime
 import itertools
 import typing
 import pathlib
@@ -152,12 +153,26 @@ def bfs_with_pruning(
         digraph: networkx.DiGraph[_Node],
         start: _Node,
         left_to_right: bool = False
-) -> typing.Generator[_Node, bool, None]:
-    """BFS but send False to prune this branch"""
+) -> typing.Generator[_Node | None, bool | None, None]:
+    """BFS but send False to prune this branch
+
+        traversal = bfs_with_pruning
+        for node in traversal:
+            # work on node
+            traversal.send(condition) # send True to descend or False to prune
+    """
     queue = [start]
     while queue:
         node = queue.pop()
+        # When we yield, we do the body of the client's for-loop with "node"
+        # Until they do bfs.send(...)
+        # At which point we resume
         continue_with_children = yield node
+        # Now we resumed.
+        # When we yield this time, the caller's bfs.send(...) returns "None"
+        should_be_none = yield None
+        # Now the for-loop has wrapped around and we are back here.
+        assert should_be_none is None
         if continue_with_children:
             children = list(digraph.successors(node))
             if left_to_right:
@@ -222,10 +237,14 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
     @abc.abstractmethod
     def nodes_between(
             self,
-            u: collections.abc.Iterable[_Node],
-            v: collections.abc.Iterable[_Node],
+            upper_bounds: collections.abc.Iterable[_Node],
+            lower_bounds: collections.abc.Iterable[_Node],
     ) -> collections.abc.Iterable[_Node]:
         ...
+
+    @abc.abstractmethod
+    def add_edge(self, u: _Node, v: _Node) -> None:
+        """Keep datastructure up-to-date"""
 
     def is_antichain(self, nodes: collections.abc.Iterable[_Node]) -> bool:
         return all(
@@ -234,12 +253,16 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
         )
 
     def sorted(self, nodes: collections.abc.Iterable[_Node]) -> collections.abc.Sequence[_Node]:
-        return list(networkx.topological_sort(networkx.DiGraph(
+        dag: networkx.DiGraph[_Node] = networkx.DiGraph()
+        dag.add_nodes_from(nodes)
+        dag.add_edges_from([
             (source, target)
             for source in nodes
             for target in nodes
             if self.is_reachable(source, target)
-        )))
+            and source != target
+        ])
+        return list(networkx.topological_sort(dag))
 
     def get_uppermost(self, nodes: collections.abc.Iterable[_Node]) -> frozenset[_Node]:
         uppermost_nodes = set[_Node]()
@@ -253,6 +276,17 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
                     for descendant in sorted_nodes[i+1:]
                     if self.is_reachable(candidate, descendant)
                 )
+        assert all(
+            any(
+                uppermost_node == node or self.is_reachable(uppermost_node, node)
+                for uppermost_node in uppermost_nodes)
+            for node in nodes
+        )
+        assert not any(
+            self.is_reachable(a, b)
+            for a in uppermost_nodes
+            for b in uppermost_nodes
+        )
         return frozenset(uppermost_nodes)
 
     def get_bottommost(self, nodes: collections.abc.Iterable[_Node]) -> frozenset[_Node]:
@@ -267,6 +301,18 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
                     for ancestor in sorted_nodes[i+1:]
                     if self.is_reachable(ancestor, candidate)
                 )
+        assert all(
+            any(
+                bottom_node == node or self.is_reachable(node, bottom_node)
+                for bottom_node in bottom_nodes
+            )
+            for node in nodes
+        )
+        assert not any(
+            self.is_reachable(a, b)
+            for a in bottom_nodes
+            for b in bottom_nodes
+        )
         return frozenset(bottom_nodes)
 
     def non_ancestors(
@@ -304,17 +350,28 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
 
     @staticmethod
     def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
-        return PrecomputedReachabilityOracle(networkx.transitive_closure(dag))
+        start = datetime.datetime.now()
+        print("Computing transitive closure")
+        ret = networkx.transitive_closure(dag)
+        duration = datetime.datetime.now() - start
+        print(f"Done computing in {duration.total_seconds():.1f}sec")
+        return PrecomputedReachabilityOracle(ret)
 
     def is_reachable(self, u: _Node, v: _Node) -> bool:
         return v in self.dag_tc.successors(u)
 
     def nodes_between(
             self,
-            u: collections.abc.Iterable[_Node],
-            v: collections.abc.Iterable[_Node],
+            upper_bounds: collections.abc.Iterable[_Node],
+            lower_bounds: collections.abc.Iterable[_Node],
     ) -> collections.abc.Iterable[_Node]:
         raise NotImplementedError()
+
+    def add_edge(self, source: _Node, target: _Node) -> None:
+        if target not in self.dag_tc.successors(source):
+            for descendant_of_source in [*self.dag_tc.successors(source), source]:
+                for descendant_of_target in [*self.dag_tc.successors(target), target]:
+                    self.dag_tc.add_edge(descendant_of_source, descendant_of_target)
 
 
 def get_faces(planar_graph: networkx.PlanarEmbedding[_Node]) -> frozenset[tuple[_Node, ...]]:
@@ -331,159 +388,59 @@ def get_faces(planar_graph: networkx.PlanarEmbedding[_Node]) -> frozenset[tuple[
     return frozenset(faces)
 
 
-@dataclasses.dataclass(frozen=True)
-class KamedaReachabilityOracle(ReachabilityOracle[_Node]):
-    """
-    This implementaiton uses Kameda's algorithm because it is the simplest and fastest.
-    The algorithm is described in [Kameda 1975] and on [Wikipedia].
-
-    [Kameda 1975]: https://doi.org/10.1016/0020-0190(75)90019-8
-    [Wikipedia]: https://en.wikipedia.org/wiki/Reachability#Kameda's_Algorithm
-
-    However, this only works on a struct subset of planar graphs.
-    Should the happens-before graphs violate this, alternative approaches may be found in the following survey papers:
-    - [He 2025](https://doi.org/10.1007/978-981-96-8295-9_4)
-    - [Yu 2010](https://doi.org/10.1007/978-1-4419-6045-0_6)
-    - [Zhang 2023](https://doi.org/10.1145/3555041.3589408)
-    """
-
-    left_label: typing.Mapping[_Node, int]
-    right_label: typing.Mapping[_Node, int]
-
-    @staticmethod
-    def create(dag: networkx.DiGraph[_Node]) -> ReachabilityOracle[_Node]:
-        if not networkx.is_directed_acyclic_graph(dag):
-            raise ValueError("Graph must be a DAG")
-        is_planar, planar_graph = networkx.check_planarity(dag)
-        if not is_planar:
-            raise ValueError("We use Kameda's algorithm, which only works for planar DFGs.")
-        assert planar_graph
-        sources = set(get_sources(dag))
-        sinks = set(get_sinks(dag))
-        faces = get_faces(planar_graph)
-        main_faces = [
-            face
-            for face in faces
-            if sources | sinks <= set(face)
-        ]
-        if not main_faces:
-            raise ValueError(f"We use Kameda's algorithm, which only works for planar DFGs where the sources and sinks lie on the same face.\n{sources=}\n{sinks=}\n{faces=}")
-        main_face = main_faces[0]
-        main_face_labels = [
-            node in sources
-            for node in main_face
-            if node in sources | sinks
-        ]
-        switches = 0
-        for a, b in [*zip(main_face_labels[:-1], main_face_labels[1:]), (main_face_labels[-1], main_face_labels[0])]:
-            if a != b:
-                switches += 1
-        if switches > 2:
-            raise ValueError("The main face needs to be partitionable between sources and sinks.")
-
-        dag_aug = typing.cast(networkx.DiGraph[_Node | str], dag.copy())
-
-        # Augment graph: add new sources and sinks
-        source = "__KA_S__"
-        target = "__KA_T__"
-        dag_aug.add_node(source)
-        dag_aug.add_node(target)
-        for orig_node in dag.nodes():
-            if dag.in_degree(orig_node) == 0:
-                dag_aug.add_edge(source, orig_node)
-            if dag.out_degree(orig_node) == 0:
-                dag_aug.add_edge(orig_node, target)
-
-        i = len(dag_aug) - 1
-        left_label = {}
-        bfs = bfs_with_pruning(dag_aug, source, False)
-        while bfs:
-            try:
-                node = typing.cast(_Node, next(bfs))
-            except StopIteration:
-                break
-            bfs.send(True)
-            left_label[node] = i
-            i -= 1
-
-        # Second DFS: adjacencies right-to-left
-        i = len(dag_aug) - 1
-        right_label = {}
-        bfs = bfs_with_pruning(dag_aug, source, True)
-        while bfs:
-            try:
-                node = typing.cast(_Node, next(bfs))
-            except StopIteration:
-                break
-            bfs.send(True)
-            right_label[node] = i
-            i -= 1
-        return KamedaReachabilityOracle(left_label, right_label)
-
-    def is_reachable(self, u: _Node, v: _Node) -> bool:
-        u_left, u_right = self.left_label[u], self.right_label[u]
-        v_left, v_right = self.left_label[v], self.right_label[v]
-        # Both U components are less than both V components and at least one is strictly less.
-        return u_left <= v_left and u_right <= v_right and (u_left < v_left or u_right < v_right)
-
-    def nodes_between(
-            self,
-            u: collections.abc.Iterable[_Node],
-            v: collections.abc.Iterable[_Node],
-    ) -> collections.abc.Iterable[_Node]:
-        raise NotImplementedError()
-
-
 def add_edge_without_cycle(
         dag: networkx.DiGraph[_Node],
         source: _Node,
         target: _Node,
-) -> None:
+        reachability_oracle: ReachabilityOracle[_Node] | None = None,
+) -> collections.abc.Sequence[tuple[_Node, _Node]]:
     """
     Add an edge from source to the earliest descendants of target without creating a cycle.
 
-    Consider:
+    Consider the graph:
+
     0 -> 10, 20, 30;
     10 -> 11;
     20 -> 21;
     30 -> 31;
+
     If we add the edge 31 -> 0, that would create a cycle.
     So we look at the children of 0.
     We add the edge 31 -> 10.
     We add the edge 31 -> 20.
-    31 -> 30 would create a cycle.
-    We recurse into 31's aunts and uncles.
-    Finding it doesn't have any, we quit.
+    We don't add 31 -> 30, because that would create a cycle.
+    We recurse into 31's aunts and uncles, add edges to them, etc.
     """
-    assert networkx.is_directed_acyclic_graph(dag)
-    reachability = PrecomputedReachabilityOracle.create(dag)
-    if reachability.is_reachable(source, target):
+
+    if reachability_oracle is None:
+        assert networkx.is_directed_acyclic_graph(dag)
+        reachability_oracle = PrecomputedReachabilityOracle.create(dag)
+
+    if reachability_oracle.is_reachable(source, target):
         # No cycle would be made anyway.
         # Easy.
-        dag.add_edge(source, target)
+        return [(source, target)]
     else:
+        edges = []
         # Start from target
         # See if each descendant can be used as a proxy for target.
         # I.e., source -> proxy_target.
         # If not, we will have to recurse into its children until a suitable target is found or the original source is found.
         bfs = bfs_with_pruning(dag, target)
-        while bfs:
-            # Consider creating an edge from source -> proxy_target instead of source -> target.
-            try:
-                proxy_target = next(bfs)
-            except StopIteration:
-                break
-            if reachability.is_reachable(proxy_target, source):
+        for proxy_target in bfs:
+            assert proxy_target is not None
+            if reachability_oracle.is_reachable(proxy_target, source):
                 # Upstream of source
                 # An edge here would create a cycle.
                 # We will recurse into the children to find a suitable proxy target.
                 bfs.send(True)
-            elif reachability.is_reachable(source, proxy_target) or proxy_target == source:
+            elif reachability_oracle.is_reachable(source, proxy_target) or proxy_target == source:
                 # Downstream of target (or equal to target).
                 # Time to stop.
                 bfs.send(False)
             else:
-                # Neither upstream nor downstream.
+                # Neither upstpream nor downstream.
                 # We can put an edge here and quit.
-                dag.add_edge(source, proxy_target)
+                edges.append((source, proxy_target))
                 bfs.send(False)
+        return edges

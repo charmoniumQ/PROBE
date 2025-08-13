@@ -107,7 +107,7 @@ def hb_graph(
         case OpType.ALL:
             pass
         case OpType.MINIMAL:
-            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, _op: False)
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
         case OpType.FILE:
             hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
     hb_graph_module.label_nodes(probe_log, hbg, retain_ops == OpType.ALL)
