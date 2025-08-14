@@ -8,7 +8,7 @@
     };
 
     cli-wrapper = {
-      url = "path:cli-wrapper";
+      url = ./cli-wrapper;
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
