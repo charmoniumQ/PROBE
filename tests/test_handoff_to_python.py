@@ -3,6 +3,6 @@ import subprocess
 
 
 def test_handoff() -> None:
-    cmd = ["probe", "validate", "--help"]
+    cmd = ["probe", "py", "validate", "--help"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True)

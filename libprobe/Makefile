@@ -1,4 +1,5 @@
 CC ?= clang
+LD ?= ld
 VERSION ?= $(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
