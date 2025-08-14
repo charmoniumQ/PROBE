@@ -17,7 +17,7 @@
 // IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
 #include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
-#include "../generated/libc_hooks.h"      // for unwrapped_mkdirat, unwrapped_close
+#include "../generated/libc_hooks.h"      // for client_mkdirat, client_close
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
 #include "arena.h"                        // for arena_is_initialized, arena_create
 #include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG, ERROR
@@ -51,7 +51,7 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
 #define checked_mkdir(path)                                                                        \
     ({                                                                                             \
         DEBUG("mkdir '%s'", path);                                                                 \
-        int mkdir_ret = unwrapped_mkdirat(AT_FDCWD, path, 0777);                                   \
+        int mkdir_ret = client_mkdirat(AT_FDCWD, path, 0777);                                      \
         if (mkdir_ret == -1) {                                                                     \
             list_dir(path, 2);                                                                     \
             ERROR("Could not mkdir directory '%s'", path);                                         \
@@ -60,17 +60,17 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
 
 static inline void* open_and_mmap(const char* path, bool writable, size_t size) {
     DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
-    int fd = unwrapped_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
+    int fd = client_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
     if (UNLIKELY(fd == -1)) {
         ERROR("Could not open file at %s", path);
     }
     if (writable) {
-        EXPECT(== 0, unwrapped_ftruncate(fd, size));
+        EXPECT(== 0, client_ftruncate(fd, size));
     }
-    void* ret = EXPECT_NONNULL(unwrapped_mmap(
+    void* ret = EXPECT_NONNULL(client_mmap(
         NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ), MAP_SHARED, fd, 0));
     ASSERTF(ret != MAP_FAILED, "mmap did not succeed");
-    EXPECT(== 0, unwrapped_close(fd));
+    EXPECT(== 0, client_close(fd));
     return ret;
 }
 
@@ -164,7 +164,7 @@ static inline void init_process_context() {
 }
 void uninit_process_context() {
     /* TODO: */
-    /* unwrapped_munmap(__process_context, sizeof(struct ProcessContext)); */
+    /* client_munmap(__process_context, sizeof(struct ProcessContext)); */
 }
 static inline const struct ProcessContext* get_process_context() {
     return EXPECT_NONNULL(__process_context);
@@ -318,27 +318,27 @@ PthreadID get_pthread_id() { return get_thread_state()->pthread_id; }
 
 static inline void check_function_pointers() {
 #ifndef NDEBUG
-    /* We use these unwrapped_ function pointers in our code.
-     * The rest of the unwrapped_ function pointers are only used if the application (tracee) calls the corresponding libc (without unwrapped_ prefix) function.
+    /* We use these client_ function pointers in our code.
+     * The rest of the client_ function pointers are only used if the application (tracee) calls the corresponding libc (without client_ prefix) function.
      * */
-    ASSERTF(unwrapped_close, "");
-    ASSERTF(unwrapped_execvpe, "");
-    ASSERTF(unwrapped_faccessat, "");
-    ASSERTF(unwrapped_fcntl, "");
-    ASSERTF(unwrapped_fexecve, "");
-    ASSERTF(unwrapped_fork, "");
-    ASSERTF(unwrapped_ftruncate, "");
-    ASSERTF(unwrapped_mkdirat, "");
-    ASSERTF(unwrapped_mmap, "");
-    ASSERTF(unwrapped_munmap, "");
-    ASSERTF(unwrapped_openat, "");
-    ASSERTF(unwrapped_statx, "");
+    ASSERTF(client_close, "");
+    ASSERTF(client_execvpe, "");
+    ASSERTF(client_faccessat, "");
+    ASSERTF(client_fcntl, "");
+    ASSERTF(client_fexecve, "");
+    ASSERTF(client_fork, "");
+    ASSERTF(client_ftruncate, "");
+    ASSERTF(client_mkdirat, "");
+    ASSERTF(client_mmap, "");
+    ASSERTF(client_munmap, "");
+    ASSERTF(client_openat, "");
+    ASSERTF(client_statx, "");
 
     // assert that function pointers are callable
     struct statx buf;
-    EXPECT(== 0, unwrapped_statx(AT_FDCWD, ".", 0, STATX_BASIC_STATS, &buf));
-    int fd = EXPECT(> 0, unwrapped_openat(AT_FDCWD, ".", O_PATH));
-    EXPECT(== 0, unwrapped_close(fd));
+    EXPECT(== 0, client_statx(AT_FDCWD, ".", 0, STATX_BASIC_STATS, &buf));
+    int fd = EXPECT(> 0, client_openat(AT_FDCWD, ".", O_PATH));
+    EXPECT(== 0, client_close(fd));
 #endif
 }
 
@@ -348,7 +348,7 @@ static inline void emit_init_epoch_op() {
     if (!getcwd(cwd.bytes, PROBE_PATH_MAX)) {
         ERROR("");
     }
-    if (unwrapped_readlinkat(AT_FDCWD, "/proc/self/exe", exe.bytes, PROBE_PATH_MAX) < 0) {
+    if (client_readlinkat(AT_FDCWD, "/proc/self/exe", exe.bytes, PROBE_PATH_MAX) < 0) {
         ERROR("");
     }
     size_t argc = 0;

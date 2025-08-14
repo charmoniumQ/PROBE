@@ -29,14 +29,14 @@
 
 #define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
 
-/* TODO: replace assert with ASSERTF because ASSERTF calls unwrapped_exit() */
+/* TODO: replace assert with ASSERTF because ASSERTF calls client_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
         char* errno_str = strndup(strerror(errno), 4096);                                          \
         LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
         /* FIXME: fix free, but also remove strndup */                                             \
         /*free(errno_str);*/                                                                       \
-        /* FIXME: check if unwrapped_exit == NULL and if so warn and syscall diectly */            \
+        /* FIXME: check if client_exit == NULL and if so warn and syscall diectly */               \
         exit(103);                                                                                 \
     })
 

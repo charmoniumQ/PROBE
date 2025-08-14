@@ -3,7 +3,7 @@
  * It is a place-holder for C code and is processed by gen_libprov.py and put into libprov_middle.c.
  * It re-uses C's grammar, so I get syntax highlighting and I can parse it into fragments of C syntax easily.
  * Rationale: In this part of the project, there are many repetitions of code automatically generated.
- * For example, for each function $foo, we define a wrapper function $foo that calls the original function unwrapped_$foo with the same arguments.
+ * For example, for each function $foo, we define a wrapper function $foo that calls the original function client_$foo with the same arguments.
  * Just read libprov_middle.c.
  * I can more easily refactor how it works if I don't have to edit each individual instance.
  * gen_libprov.py reads the function signatures, and inside the function bodies, it looks for some specific variable declarations of the form: Type var_name = var_val;
@@ -184,7 +184,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
         }
     });
     void* call = ({
-        int ret = unwrapped_openat(dirfd, filename, flags, mode);
+        int ret = client_openat(dirfd, filename, flags, mode);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -227,7 +227,7 @@ int open (const char *filename, int flags, ...) {
         }
     });
     void* call = ({
-        int ret = unwrapped_open(filename, flags, mode);
+        int ret = client_open(filename, flags, mode);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -258,7 +258,7 @@ int __open_2 (const char *filename, int flags) {
         }
     });
     void* call = ({
-        int ret = unwrapped_open(filename, flags);
+        int ret = client_open(filename, flags);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -324,10 +324,10 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
     void* call = ({
         ASSERTF(flags == 0 || flags == CLOSE_RANGE_CLOEXEC,
                 "I haven't implemented CLOSE_RANGE_UNSHARE");
-        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
+        DIR* dp = EXPECT_NONNULL(client_opendir("/proc/self/fd"));
         struct dirent* dirp;
         DEBUG("close_range %d %d %d -> close", lowfd, maxfd, flags);
-        while ((dirp = unwrapped_readdir(dp)) != NULL) {
+        while ((dirp = client_readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 unsigned int fd = (unsigned int) my_atoui(dirp->d_name);
                 if (lowfd <= fd && fd <= maxfd) {
@@ -342,16 +342,16 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
                 }
             }
         }
-        unwrapped_closedir(dp);
+        client_closedir(dp);
         int ret = 0;
     });
 }
 void closefrom (int lowfd) {
     void* call = ({
-        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
+        DIR* dp = EXPECT_NONNULL(client_opendir("/proc/self/fd"));
         struct dirent* dirp;
         DEBUG("closefrom %d -> close", lowfd);
-        while ((dirp = unwrapped_readdir(dp)) != NULL) {
+        while ((dirp = client_readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 int fd = (int) my_atoui(dirp->d_name);
                 if (lowfd <= fd) {
@@ -360,7 +360,7 @@ void closefrom (int lowfd) {
                 }
             }
         }
-        unwrapped_closedir(dp);
+        client_closedir(dp);
     });
 }
 
@@ -461,11 +461,11 @@ int fcntl (int filedes, int command, ...) {
     void* call = ({
         int ret;
         if (has_int_arg) {
-            ret = unwrapped_fcntl(filedes, command, int_arg);
+            ret = client_fcntl(filedes, command, int_arg);
         } else if (has_ptr_arg) {
-            ret = unwrapped_fcntl(filedes, command, ptr_arg);
+            ret = client_fcntl(filedes, command, ptr_arg);
         } else {
-            ret = unwrapped_fcntl(filedes, command);
+            ret = client_fcntl(filedes, command);
         }
     });
 }
@@ -1999,7 +1999,7 @@ int execv (const char *filename, char *const argv[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         /*
@@ -2059,7 +2059,7 @@ int execl (const char *filename, const char *arg0, ...) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2096,7 +2096,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2132,7 +2132,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_fexecve(fd, argv, updated_env);
+        int ret = client_fexecve(fd, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2179,7 +2179,7 @@ int execle (const char *filename, const char *arg0, ...) {
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**)updated_env);
@@ -2229,7 +2229,7 @@ int execvp (const char *filename, char *const argv[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2287,7 +2287,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2339,7 +2339,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
@@ -2384,7 +2384,7 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
         }
     });
     void* call = ({
-        int ret = unwrapped_posix_spawn(pid, path, file_actions, attrp, argv, updated_env);
+        int ret = client_posix_spawn(pid, path, file_actions, attrp, argv, updated_env);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -2439,7 +2439,7 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
         }
     });
     void* call = ({
-        int ret = unwrapped_posix_spawnp(pid, file, file_actions, attrp, argv, updated_env);
+        int ret = client_posix_spawnp(pid, file, file_actions, attrp, argv, updated_env);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -2585,7 +2585,7 @@ pid_t vfork (void) {
         }
     });
     void* call = ({
-        int ret = unwrapped_fork();
+        int ret = client_fork();
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -2656,7 +2656,7 @@ int clone(
         }
     });
     void* call = ({
-        int ret = unwrapped_clone(fn, stack, flags, arg, parent_tid, tls, child_tid);
+        int ret = client_clone(fn, stack, flags, arg, parent_tid, tls, child_tid);
     });
     void* post_call = ({
         if (UNLIKELY(ret == -1)) {
@@ -2911,7 +2911,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
         struct ThrdHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct ThrdHelperArg)));
         real_arg->func = func;
         real_arg->arg = arg;
-        int ret = unwrapped_thrd_create(thr, thrd_helper, &real_arg);
+        int ret = client_thrd_create(thr, thrd_helper, &real_arg);
     });
     void* post_call = ({
         if (UNLIKELY(ret != thrd_success)) {
@@ -2990,7 +2990,7 @@ int pthread_create(pthread_t *restrict thread,
         real_arg->start_routine = start_routine;
         real_arg->pthread_id = increment_pthread_id();
         real_arg->arg = arg;
-        int ret = unwrapped_pthread_create(thread, attr, pthread_helper, real_arg);
+        int ret = client_pthread_create(thread, attr, pthread_helper, real_arg);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -3015,7 +3015,7 @@ void pthread_exit(void* inner_ret) {
         pthread_return_val->type_id = PTHREAD_RETURN_VAL_TYPE_ID;
         pthread_return_val->pthread_id = get_pthread_id();
         pthread_return_val->inner_ret = inner_ret;
-        unwrapped_pthread_exit(pthread_return_val);
+        client_pthread_exit(pthread_return_val);
     });
     bool noreturn = true;
 }
@@ -3039,7 +3039,7 @@ int pthread_join(pthread_t thread, void **pthread_return) {
         };
     });
     void* call = ({
-        int ret = unwrapped_pthread_join(thread, &uncasted_return);
+        int ret = client_pthread_join(thread, &uncasted_return);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {

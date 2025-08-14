@@ -65,7 +65,7 @@ check: compile_commands.json $(GENERATED_FILES)
 	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
 	echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1 -Wno-macro-redefined
 	clang-tidy  $(SOURCE_FILES)
-	python3 ./check_unwrapped_fns.py $(SOURCE_FILES)
+	python3 ./check_hooked_fns.py $(SOURCE_FILES)
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
 
 #	cppclean    $(SOURCE_FILES)
