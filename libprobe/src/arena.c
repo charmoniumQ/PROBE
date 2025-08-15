@@ -13,7 +13,7 @@
 #include <unistd.h>   // for getpagesize
 // IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
 
-#include "../generated/libc_hooks.h" // for unwrapped_close, unwrapped_ftru...
+#include "../generated/libc_hooks.h" // for client_close, client_ftru...
 #include "debug_logging.h"           // for EXPECT, ASSERTF, EXPECT_NONNULL
 #include "util.h"                    // for ceil_log2, MAX
 
@@ -50,16 +50,16 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     snprintf(arena_dir->__dir_buffer + arena_dir->__dir_len,
              arena_dir->__dir_buffer_max - arena_dir->__dir_len, "%016ld.dat",
              arena_dir->__next_instantiation);
-    int fd = unwrapped_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
+    int fd = client_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
     ASSERTF(fd > 0, "returned_fd=%d (%s)", fd, arena_dir->__dir_buffer);
 
-    EXPECT(== 0, unwrapped_ftruncate(fd, capacity));
+    EXPECT(== 0, client_ftruncate(fd, capacity));
 
-    void* base_address = unwrapped_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* base_address = client_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     ASSERTF(base_address != MAP_FAILED, "");
     /* mmap here corresponds to munmap in either arena_destroy or arena_uninstantiate_all_but_last */
 
-    EXPECT(== 0, unwrapped_close(fd));
+    EXPECT(== 0, client_close(fd));
 
     if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
         /* No more free slots in this block, as we've reached block size.
@@ -119,7 +119,7 @@ void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size)
 
 void arena_create(struct ArenaDir* arena_dir, char* dir_buffer, size_t dir_len,
                   size_t dir_buffer_max, size_t arena_capacity) {
-    EXPECT(== 0, unwrapped_mkdirat(AT_FDCWD, dir_buffer, 0777));
+    EXPECT(== 0, client_mkdirat(AT_FDCWD, dir_buffer, 0777));
     struct ArenaListElem* tail = EXPECT_NONNULL(malloc(sizeof(struct ArenaListElem)));
     /* malloc here corresponds to free in arena_destroy */
 
@@ -147,7 +147,7 @@ void arena_destroy(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
-                EXPECT(== 0, unwrapped_munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, client_munmap(arena->base_address, arena->capacity));
                 arena = NULL;
             }
         }
@@ -166,7 +166,7 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 // munmap but no mysnc
-                EXPECT(== 0, unwrapped_munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, client_munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;
             }
         }
@@ -200,7 +200,7 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
-                EXPECT(== 0, unwrapped_munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, client_munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;
             }
         }

@@ -109,9 +109,9 @@ def hb_graph_to_accesses(
         match op_data:
             case ops.InitExecEpochOp():
                 if node.exec_no == ptypes.initial_exec_no and node.pid == root_pid:
-                    yield from openfd(0, AccessMode.READ, False, node, op_data.stdin)
-                    yield from openfd(1, AccessMode.TRUNCATE_WRITE, False, node, op_data.stdout)
-                    yield from openfd(2, AccessMode.TRUNCATE_WRITE, False, node, op_data.stderr)
+                    yield from openfd(0, AccessMode.READ, False, node, op_data.std_in)
+                    yield from openfd(1, AccessMode.TRUNCATE_WRITE, False, node, op_data.std_out)
+                    yield from openfd(2, AccessMode.TRUNCATE_WRITE, False, node, op_data.std_err)
             case ops.OpenOp():
                 mode = AccessMode.from_open_flags(op_data.flags)
                 cloexec = bool(op_data.flags & os.O_CLOEXEC)
