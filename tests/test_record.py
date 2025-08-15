@@ -1,9 +1,14 @@
 import random
 import shutil
+import os
 import pathlib
 import shlex
 import subprocess
+import typing
 import pytest
+
+
+strace = True
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent
@@ -87,6 +92,7 @@ complex_commands = {
         # so we use echo_path to get the real echo executable
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
+    "c_hello_simplified": ["gcc", "-c", "test.c"],
     "c_hello": bash_multi(
         ["echo", c_hello_world, "redirect_to", "test.c"],
         ["gcc", "test.c"],
@@ -187,9 +193,9 @@ def test_record(
         compile_examples: None,
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("hello world")
+    (scratch_directory / "test.c").write_text("")
     print(scratch_directory)
 
-    (scratch_directory / "test_file.txt").write_text("hello world")
     subprocess.run(command, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
@@ -236,25 +242,58 @@ def test_downstream_analyses(
         does_docker_work: bool,
         does_buildah_work: bool,
 ) -> None:
-    (scratch_directory / "test_file.txt").write_text("hello world")
+    (scratch_directory / "test_file.txt").write_text("")
+    (scratch_directory / "test.c").write_text("")
     print(scratch_directory)
 
-    cmd = ["probe", "record", "--copy-files", "none", *command]
+    class PopenKwargs(typing.TypedDict):
+        check: bool
+        cwd: pathlib.Path
+        env: typing.Mapping[str, str]
+    args: PopenKwargs = dict(
+        check=True,
+        cwd=scratch_directory,
+        env={
+            **os.environ,
+            #"PYTHONWARNINGS": "error",
+        },
+    )
+
+    if strace:
+        strace_trace_arg = "!arch_prctl,brk,futex,getcwd,getdents,getegid,geteuid,getgid,getpgrp,getpid,getppid,getrandom,getresgid,getresuid,gettid,getuid,lseek,mprotect,prctl,pread64,prlimit64,read,rseq,rt_sigaction,rt_sigprocmask,set_robust_list,set_tid_address,sysinfo,uname,write"
+        cmd = [
+            "strace",
+            "--follow-forks",
+            "--output=strace.log",
+            "--trace",
+            strace_trace_arg,
+            "--string-limit=4096",
+            "--absolute-timestamps=precision:ms",
+            "--decode-fds",
+            "--summary",
+            *command,
+        ]
+        print(shlex.join(cmd))
+        subprocess.run(cmd, **args)
+
+        # See ltrace_eliminator.py for more help.
+
+    cmd = ["probe", "record", "--copy-files=none", *command]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    subprocess.run(cmd, **args)
 
     cmd = ["probe", "export", "debug-text"]
     print(shlex.join(cmd))
-    # stdout is huge
-    subprocess.run(cmd, check=True, cwd=scratch_directory, stdout=subprocess.DEVNULL)
+    with (scratch_directory / "debug-text.txt").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "export", "hb-graph", "test.dot"]
+    cmd = ["probe", "export", "hb-graph", "hb-graph.dot", "--retain-ops=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    subprocess.run(cmd, **args)
 
-    cmd = ["probe", "export", "dataflow-graph", "test.dot"]
+    cmd = ["probe", "export", "dataflow-graph", "dataflow-graph.dot"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    subprocess.run(cmd, **args)
 
 
 def test_fail(

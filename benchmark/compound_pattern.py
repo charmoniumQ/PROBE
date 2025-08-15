@@ -30,12 +30,67 @@ class CompoundPattern:
                     else:
                         if verbose:
                             print(f"Could not match {string!r} against any {key} of {self.name!s}")
-                        return None
+                            return None
             return CompoundMatch(self.name, match, submatches)
         else:
             if verbose:
                 print(f"Could not match {candidate!r} against root of {self.name!s}")
             return None
+
+
+function_name = "[A-Za-z0-9_.]+"
+ltrace_pattern = CompoundPattern(
+        pattern=re.compile(r"^(?P<line>.*)$"),
+        name="match-all",
+        subpatterns={
+            "line": [
+                CompoundPattern(
+                    pattern=re.compile(r"^(?P<pid>\d+) (?P<op>fname)@(?P<lib>[a-zA-Z0-9.-]*?)\((?P<args>.*?)(?:\) += (?P<ret>.*)|(?: <(?P<status>unfinished|no return) ...>))$".replace("fname", function_name)),
+                    subpatterns={
+                        "args": [
+                            CompoundPattern(
+                                pattern=re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)", (?:(?P<between_args>[^"]*), )?"(?P<target1>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
+                                name="2-str",
+                            ),
+                            CompoundPattern(
+                                pattern=re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
+                                name="1-str",
+                            ),
+                            CompoundPattern(
+                                pattern=re.compile(r'^(?P<all_args>[^"]*)$'),
+                                name="0-str",
+                            ),
+                            CompoundPattern(
+                                pattern=re.compile(r'^"(?P<target0>[^"]*)", \[(?P<cmd_args>.*)\]$'),
+                                name="execvp",
+                            ),
+                            CompoundPattern(
+                                pattern=re.compile(".*"),
+                                name="args",
+                            ),
+                        ],
+                    },
+                    name="call",
+                ),
+                CompoundPattern(
+                    pattern=re.compile(r"^(?P<pid>\d+) <\.\.\. (?P<op>fname) resumed> \)\s+= (?P<ret>.*)$".replace("fname", function_name)),
+                    name="resumed",
+                ),
+                CompoundPattern(
+                    pattern=re.compile(r"^(?P<pid>\d+) --- Called (?P<op>fname)\(\) ---$".replace("fname", function_name)),
+                    name="control-transferring-call",
+                ),
+                CompoundPattern(
+                    pattern=re.compile(r"^(?P<pid>\d+) --- (?P<signal>SIG.+) ---$"),
+                    name="signal",
+                ),
+                CompoundPattern(
+                    pattern=re.compile(r"^(?P<pid>\d+) +\+\+\+ exited \(status (?P<exit_code>\d+)\) \+\+\+$"),
+                    name="exit",
+                ),
+            ],
+        },
+    )
 
 
 @dataclasses.dataclass
