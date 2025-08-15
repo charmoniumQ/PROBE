@@ -42,6 +42,7 @@ typedef void* thrd_t;
 typedef void* thrd_start_t;
 typedef void* pthread_t;
 typedef void* pthread_attr_t;
+typedef void* pthread_key_t;
 typedef void* posix_spawn_file_actions_t;
 typedef void* posix_spawnattr_t;
 
@@ -3078,6 +3079,10 @@ int pthread_cancel(pthread_t thread) {
         DEBUG("pthread_cancel messes up the tracking of pthreads. Whoever joins this, won't know which thread they are joining.");
     });
 }
+
+int pthread_setspecific(pthread_key_t key, const void* pointer);
+void* pthread_getspecific(pthread_key_t key) { }
+int pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void)) { }
 
 /* TODO: Convert these to ops */
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
