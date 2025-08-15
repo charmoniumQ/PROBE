@@ -3080,7 +3080,7 @@ int pthread_cancel(pthread_t thread) {
     });
 }
 
-int pthread_setspecific(pthread_key_t key, const void* pointer);
+int pthread_setspecific(pthread_key_t key, const void* pointer) { }
 void* pthread_getspecific(pthread_key_t key) { }
 int pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void)) { }
 

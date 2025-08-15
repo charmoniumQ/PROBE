@@ -520,6 +520,7 @@ wrapper_func_declarations = [
         stmts=wrapper_func_body(func),
     ).definition(visibility="default")
     for _, func in funcs.items()
+    if func.stmts
 ]
 generated = pathlib.Path("generated")
 generated.mkdir(exist_ok=True)
