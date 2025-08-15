@@ -2,11 +2,13 @@
 
 #define _GNU_SOURCE
 
+#include <errno.h>  // for errno
+#include <stdio.h>  // for fprintf, stderr
+#include <stdlib.h> // for exit, free
+#include <string.h> // for strerror, strndup
+
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
-#include <errno.h>        // for errno
-#include <stdio.h>        // for fprintf, stderr
-#include <stdlib.h>       // for exit, free
-#include <string.h>       // for strerror, strndup
+#include "probe_libc.h"   // for client_exit_with_backup
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1
@@ -36,8 +38,7 @@
         LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
         /* FIXME: fix free, but also remove strndup */                                             \
         /*free(errno_str);*/                                                                       \
-        /* FIXME: check if client_exit == NULL and if so warn and syscall diectly */               \
-        exit(103);                                                                                 \
+        client_exit_with_backup(103);                                                              \
     })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */

@@ -3209,6 +3209,8 @@ void* pthread_getspecific(pthread_key_t key) { }
 int pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void)) { }
 int dirfd(DIR* dirp) { }
 int fileno(FILE* stream) { }
+char* strerror(int errnum) { }
+void exit(int status) { }
 
 /*
 TODO: getcwd, getwd, chroot
