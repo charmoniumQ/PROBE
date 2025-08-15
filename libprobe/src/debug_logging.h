@@ -4,7 +4,6 @@
 
 #include <errno.h>  // for errno
 #include <stdio.h>  // for fprintf, stderr
-#include <stdlib.h> // for exit, free
 #include <string.h> // for strerror, strndup
 
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
@@ -34,11 +33,11 @@
 /* TODO: replace assert with ASSERTF because ASSERTF calls client_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
-        char* errno_str = strndup(strerror(errno), 4096);                                          \
+        char* errno_str = strndup(strerror_with_backup(errno), 4096);                              \
         LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
         /* FIXME: fix free, but also remove strndup */                                             \
         /*free(errno_str);*/                                                                       \
-        client_exit_with_backup(103);                                                              \
+        exit_with_backup(103);                                                                     \
     })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
@@ -76,5 +75,5 @@ __attribute__((unused)) static inline void __mark_as_used__debug_logging_h() {
     fprintf(stderr, "hi");
     strndup("hi", 3);
     get_pid();
-    exit(1);
+    exit_with_backup(1);
 }
