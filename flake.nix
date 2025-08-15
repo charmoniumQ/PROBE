@@ -353,7 +353,6 @@
                 pkgs.libclang
                 # pkgs.musl
 
-                pkgs.which
                 pkgs.coreutils
                 pkgs.alejandra
                 pkgs.just

@@ -9,7 +9,7 @@ from collections.abc import Mapping
 import pathlib
 from util import check_returncode, flatten1
 from typing import Callable, cast, Any
-from compound_pattern import CompoundPattern
+from compound_pattern import CompoundPattern, ltrace_pattern
 import util
 import command
 from workloads import nix_path, cmd, nix, var, combine
@@ -381,54 +381,7 @@ class LTrace(AbstractTracer):
     # 3 execv@libc.so.6(args <unfinished ...>
     # 3 execve@libc.so.6(args <no return ...>
     # 3 <... fstat resumed> )  = 0
-    line_pattern = CompoundPattern(
-        pattern=re.compile(r"^(?P<line>.*)$"),
-        name="match-all",
-        subpatterns={
-            "line": [
-                CompoundPattern(
-                    pattern=re.compile(r"^(?P<pid>\d+) (?P<op>fname)@(?P<lib>[a-zA-Z0-9.-]*?)\((?P<args>.*?)(?:\) += (?P<ret>.*)|(?: <(?P<status>unfinished|no return) ...>))$".replace("fname", function_name)),
-                    subpatterns={
-                        "args": [
-                            CompoundPattern(
-                                pattern=re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)", (?:(?P<between_args>[^"]*), )?"(?P<target1>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
-                                name="2-str",
-                            ),
-                            CompoundPattern(
-                                pattern=re.compile(r'^(?:(?P<before_args>[^"]*), )?"(?P<target0>[^"]*)"(?:, (?P<after_args>[^"]*))?$'),
-                                name="1-str",
-                            ),
-                            CompoundPattern(
-                                pattern=re.compile(r'^(?P<all_args>[^"]*)$'),
-                                name="0-str",
-                            ),
-                            CompoundPattern(
-                                pattern=re.compile(r'^"(?P<target0>[^"]*)", \[(?P<cmd_args>.*)\]$'),
-                                name="execvp",
-                            ),
-                        ],
-                    },
-                    name="call",
-                ),
-                CompoundPattern(
-                    pattern=re.compile(r"^(?P<pid>\d+) <... (?P<op>fname) resumed> \) += (?P<ret>.*)$".replace("fname", function_name)),
-                    name="resumed",
-                ),
-                CompoundPattern(
-                    pattern=re.compile(r"^(?P<pid>\d+) --- Called (?P<op>fname)\(\) ---$".replace("fname", function_name)),
-                    name="control-transferring-call",
-                ),
-                CompoundPattern(
-                    pattern=re.compile(r"^(?P<pid>\d+) --- (?P<signal>SIG.+) ---$"),
-                    name="signal",
-                ),
-                CompoundPattern(
-                    pattern=re.compile(r"^(?P<pid>\d+) +\+\+\+ exited \(status (?P<exit_code>\d+)\) \+\+\+$"),
-                    name="exit",
-                ),
-            ],
-        },
-    )
+    line_pattern = ltrace_pattern
     use_get_dlib_on_exe = True
     group_processors = {
         "pid": int,

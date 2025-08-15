@@ -30,7 +30,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     _create_program_order_edges(probe_log, hb_graph)
 
     # Hook up synchronization edges
-    for node in tqdm.tqdm(hb_graph.nodes(), "sync edges"):
+    for node in hb_graph.nodes():
         _create_clone_edges(node, probe_log, hb_graph)
         _create_exec_edges(node, probe_log, hb_graph)
         _create_spawn_edges(node, probe_log, hb_graph)
@@ -122,7 +122,7 @@ def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
 def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     if not probe_log.processes:
         raise InvalidProbeLog("No processes tracked")
-    for pid, process in tqdm.tqdm(probe_log.processes.items(), "processes program order"):
+    for pid, process in probe_log.processes.items():
         if not process.execs:
             raise InvalidProbeLog(f"No exec epochs tracked for pid {pid}")
         for exec_no, exec_epoch in process.execs.items():
@@ -263,9 +263,10 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "HBG label"):
+    for node, data in hb_graph.nodes(data=True):
         op = probe_log.get_op(node)
         data.setdefault("label", "")
+        data["cluster"] = str(node.pid)
         if add_op_no:
             data["label"] += f"{node.op_no}: "
         if len(list(hb_graph.predecessors(node))) == 0:
@@ -325,9 +326,18 @@ def _create_pipe_edges(
 
     Unlike ordinary files, the reader of a pipe or FIFO has a way to wait until the last writer is done
     """
+    reduced_hb_graph = graph_utils.splice_out_nodes(hb_graph, lambda node: not isinstance(node, (
+        InitExecEpochOp,
+        OpenOp,
+        ExecOp,
+        CloseOp,
+        DupOp,
+        CloneOp,
+    )))
+
     fifo_readers = collections.defaultdict[Inode, set[OpQuad]](set)
     fifo_writers = collections.defaultdict[Inode, set[OpQuad]](set)
-    for access_or_op in hb_graph_to_accesses(probe_log, hb_graph):
+    for access_or_op in hb_graph_to_accesses(probe_log, reduced_hb_graph):
         match access_or_op:
             case ptypes.Access():
                 access = access_or_op
@@ -343,14 +353,16 @@ def _create_pipe_edges(
                         access.inode.is_fifo,
                 ]):
                     fifo_writers[access.inode].add(access.op_node)
-    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(hb_graph)
+
+    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(reduced_hb_graph)
     for fifo in fifo_readers.keys() | fifo_writers.keys():
         for writer in reachability_oracle.get_bottommost(fifo_writers.get(fifo, set())):
             for reader in reachability_oracle.get_uppermost(fifo_readers.get(fifo, set())):
                 print(fifo, "wants", writer, "->", reader)
-                for source, target in graph_utils.add_edge_without_cycle(hb_graph, writer, reader, reachability_oracle):
+                for source, target in graph_utils.add_edge_without_cycle(reduced_hb_graph, writer, reader, reachability_oracle):
                     print(source, "->", target)
+                    reduced_hb_graph.add_edge(source, target, label="FIFO edge")
                     hb_graph.add_edge(source, target, label="FIFO edge")
                     # reachability_oracle.add_edge(source, target)
-                    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(hb_graph)
+                    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(reduced_hb_graph)
                 print()

@@ -614,7 +614,7 @@ defines = """
 #include <dirent.h>                                          // for DIR, dirfd
 #include <dlfcn.h>                                           // for dlsym
 #include <errno.h>                                           // for errno
-#include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
+#include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE, O_CLOEXEC
 #include <ftw.h>                                             // for ftw, nftw
 #include <limits.h>                                          // IWYU pragma: keep for INT_MAX, PATH_MAX
 #include <linux/close_range.h>                               // for CLOSE_RANGE_CLOEXEC

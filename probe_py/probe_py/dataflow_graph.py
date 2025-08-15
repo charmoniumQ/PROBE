@@ -147,6 +147,7 @@ def combine_indistinguishable_inodes(
         dataflow_graph = networkx.transitive_reduction(dataflow_graph)
     else:
         warnings.warn("Dataflow graph is cyclic")
+        return dataflow_graph
     def same_neighbors(
             node0: ptypes.OpQuad | InodeVersionNode,
             node1: ptypes.OpQuad | InodeVersionNode,
@@ -234,11 +235,7 @@ def label_nodes(
         nodes = list(dataflow_graph.nodes())
         cycle = list(networkx.find_cycle(dataflow_graph))
         warnings.warn("Cycle shown in red")
-    for node in tqdm.tqdm(
-            nodes,
-            total=len(dataflow_graph),
-            desc="Labelling DFG nodes",
-    ):
+    for node in nodes:
         data = dataflow_graph.nodes(data=True)[node]
         match node:
             case ptypes.OpQuad():
@@ -294,3 +291,4 @@ def label_nodes(
                 data["id"] = str(hash(node))
     for a, b in cycle:
         networkx.set_edge_attributes(dataflow_graph, {(a, b): {"color": "red"}})
+        dataflow_graph.edges[a, b]["color"] = "red" # type: ignore

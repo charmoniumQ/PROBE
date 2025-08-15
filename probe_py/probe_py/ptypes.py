@@ -238,6 +238,14 @@ class ProbeLog:
                         parent_pid_map[Pid(op.data.child_pid)] = quad.pid
         return parent_pid_map
 
+    def n_ops(self) -> int:
+        total = 0
+        for pid, process in sorted(self.processes.items()):
+            for exid, exec_epoch in sorted(process.execs.items()):
+                for tid, thread in sorted(exec_epoch.threads.items()):
+                    total += len(thread.ops)
+        return total
+
 
 # TODO: implement this in probe_py.generated.ops
 class TaskType(enum.IntEnum):

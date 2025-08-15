@@ -59,3 +59,26 @@ def duplicates(elements: typing.Iterable[_T]) -> typing.Iterable[_T]:
         for elem, count in collections.Counter(elements).most_common()
         if count > 1
     ]
+
+
+
+def decode_nested_object(
+        obj: typing.Any,
+) -> typing.Any:
+    """Converts the bytes in a nested dict to a string"""
+    if isinstance(obj, dict):
+        return {
+            decode_nested_object(key): decode_nested_object(value)
+            for key, value in obj.items()
+        }
+    elif isinstance(obj, (set, list, tuple)):
+        return [
+            decode_nested_object(elem)
+            for elem in obj
+        ]
+    elif isinstance(obj, bytes):
+        return obj.decode(errors="surrogateescape")
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        raise TypeError(f"{type(obj)}: {obj}")

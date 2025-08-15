@@ -4,16 +4,18 @@ import enum
 import json
 import os
 import pathlib
+import pprint
 import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import typing
+import tqdm
 import typer
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
-import warnings
 from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
@@ -22,6 +24,7 @@ from . import ops
 from . import parser
 from . import scp as scp_module
 from . import ssh_argparser
+from . import util
 from . import validators
 from .persistent_provenance_db import get_engine
 
@@ -33,9 +36,6 @@ project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 app = typer.Typer(pretty_exceptions_show_locals=False)
 export_app = typer.Typer()
 app.add_typer(export_app, name="export")
-
-
-warnings.simplefilter("once")
 
 
 @app.command()
@@ -75,6 +75,7 @@ class OpType(enum.StrEnum):
     ALL = enum.auto()
     MINIMAL = enum.auto()
     FILE = enum.auto()
+    SUCCESSFUL = enum.auto()
 
 
 @export_app.command()
@@ -89,8 +90,12 @@ def hb_graph(
         ] = pathlib.Path("probe_log"),
         retain_ops: Annotated[
             OpType,
-            typer.Option(help="Which ops to include in the graph?")
+            typer.Option(help="Which ops to include in the graph? There are quite a few.")
         ] = OpType.MINIMAL,
+        show_op_number: Annotated[
+            bool,
+            typer.Option(help="Whether to show the op number in the output.")
+        ] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -110,7 +115,9 @@ def hb_graph(
             hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
         case OpType.FILE:
             hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
-    hb_graph_module.label_nodes(probe_log, hbg, retain_ops == OpType.ALL)
+        case OpType.SUCCESSFUL:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp))
+    hb_graph_module.label_nodes(probe_log, hbg, show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
     
@@ -223,23 +230,31 @@ def debug_text(
     """
     Write the data from probe_log in a human-readable manner.
     """
-    out_console = rich.console.Console()
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
-        for pid, process in sorted(probe_log.processes.items()):
-            out_console.rule(f"{pid}")
-            for exid, exec_epoch in sorted(process.execs.items()):
-                out_console.rule(f"{pid} {exid}")
-                for tid, thread in sorted(exec_epoch.threads.items()):
-                    out_console.rule(f"{pid} {exid} {tid}")
-                    for op_no, op in enumerate(thread.ops):
-                        out_console.print(op_no)
-                        rich.pretty.pprint(
-                            op.data,
-                            console=out_console,
-                            max_string=None,
-                        )
-        for ino_ver, path in sorted(probe_log.copied_files.items()):
-            out_console.print(
+        pid_len = max(len(str(pid)) for pid in probe_log.processes.keys())
+        with tqdm.tqdm(total=probe_log.n_ops(), desc="Printing ops") as pbar:
+            for pid, process in sorted(probe_log.processes.items()):
+                print(f"{pid: {pid_len}d} start of process")
+                max_exid = max(process.execs.keys())
+                exid_len = len(str(max_exid))
+                for exid, exec_epoch in sorted(process.execs.items()):
+                    print(f"{pid: {pid_len}d} start of exec {exid} / {max_exid}")
+                    tid_len = max(len(str(tid)) for tid in exec_epoch.threads.keys())
+                    for tid, thread in sorted(exec_epoch.threads.items()):
+                        print(f"{pid: {pid_len}d} {exid: {exid_len}d} start of thread {tid}")
+                        op_no_len = len(str(len(thread.ops)))
+                        for op_no, op in enumerate(thread.ops):
+                            pbar.update(1)
+                            prefix = f"{pid: {pid_len}d} {exid: {exid_len}d} {tid: {tid_len}d} {op_no: {op_no_len}d} "
+                            op_type = type(op.data).__name__
+                            op_data = json.dumps(util.decode_nested_object(dataclasses.asdict(op.data)), indent=2)
+                            print(f"{prefix}{op_type}")
+                            print(textwrap.indent(op_data, prefix=len(prefix) * " "))
+        for ino_ver, path in tqdm.tqdm(
+                sorted(probe_log.copied_files.items()),
+                desc="Printing inodes",
+        ):
+            print(
                 f"device={ino_ver.inode.device.major_id}.{ino_ver.inode.device.minor_id} inode={ino_ver.inode.number} mtime={ino_ver.mtime} -> {ino_ver.size} blob"
             )
 
@@ -441,34 +456,18 @@ def ops_jsonl(
 
     The format is subject to change as PROBE evolves. Use with caution!
     """
-
-    def filter_nested_dict(
-            dct: typing.Mapping[typing.Any, typing.Any],
-    ) -> typing.Mapping[typing.Any, typing.Any]:
-        """Converts the bytes in a nested dict to a string"""
-        return {
-            key: (
-                # If dict, Recurse self
-                filter_nested_dict(val) if isinstance(val, dict) else
-                # If bytes, decode to string
-                val.decode(errors="surrogateescape") if isinstance(val, bytes) else
-                # Else, do nothing
-                val
-            )
-            for key, val in dct.items()
-        }
     stdout_console = rich.console.Console()
     probe_log = parser.parse_probe_log(path_to_probe_log)
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
             for tid, thread in exec_epoch.threads.items():
-                for i, op in enumerate(thread.ops):
+                for op_no, op in enumerate(thread.ops):
                     stdout_console.print_json(json.dumps({
                         "pid": pid,
                         "tid": tid,
                         "exec_epoch_no": exec_epoch_no,
-                        "i": i,
-                        "op": filter_nested_dict(
+                        "op_no": op_no,
+                        "op": util.decode_nested_object(
                             dataclasses.asdict(op),
                         ),
                         "op_data_type": type(op.data).__name__,

@@ -440,6 +440,8 @@ int dup3 (int old, int new, int flags) {
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Control-Operations.html#index-fcntl-function */
 int fcntl (int filedes, int command, ...) {
     void* pre_call = ({
+            /* Parse args */
+
             bool has_int_arg = command == F_DUPFD || command == F_DUPFD_CLOEXEC || command == F_SETFD || command == F_SETFL || command == F_SETOWN || command == F_SETSIG || command == F_SETLEASE || command == F_NOTIFY || command == F_SETPIPE_SZ || command == F_ADD_SEALS;
             bool has_ptr_arg = command == F_SETLK || command == F_SETLKW || command == F_GETLK || command == F_OFD_SETLK || command == F_OFD_SETLKW || command == F_OFD_GETLK || command == F_GETOWN_EX || command == F_SETOWN_EX || command == F_GET_RW_HINT || command == F_SET_RW_HINT || command == F_GET_FILE_RW_HINT || command == F_SET_FILE_RW_HINT;
             /* Highlander assertion: there can only be one! */
@@ -448,7 +450,6 @@ int fcntl (int filedes, int command, ...) {
 
             int int_arg = 0;
             void* ptr_arg = NULL;
-
             va_list ap;
             va_start(ap, command);
             if (has_int_arg) {
@@ -457,6 +458,21 @@ int fcntl (int filedes, int command, ...) {
                 ptr_arg = va_arg(ap, __type_voidp);
             }
             va_end(ap);
+
+            /* Set up ops */
+            struct Op dup_op = {
+                dup_op_code,
+                {.dup = {filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
+                {0},
+                0,
+                0,
+            };
+            bool is_dup = command == F_DUPFD || command == F_DUPFD_CLOEXEC;
+            if (is_dup) {
+                if (LIKELY(prov_log_is_enabled())) {
+                    prov_log_try(dup_op);
+                }
+            }
         });
     void* call = ({
         int ret;
@@ -466,6 +482,18 @@ int fcntl (int filedes, int command, ...) {
             ret = unwrapped_fcntl(filedes, command, ptr_arg);
         } else {
             ret = unwrapped_fcntl(filedes, command);
+        }
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            if (is_dup) {
+                if (UNLIKELY(ret == -1)) {
+                    dup_op.data.dup.ferrno = call_errno;
+                } else {
+                    dup_op.data.dup.new = ret;
+                }
+                prov_log_record(dup_op);
+            }
         }
     });
 }
@@ -3200,8 +3228,128 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
     });
 }
 
+
+int mkstemp(char* template) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = null_path,
+                .flags = O_RDWR | O_CREAT | O_EXCL,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        prov_log_try(op);
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            if (LIKELY(call_errno == 0)) {
+                op.data.open.path = create_path_lazy(ret, NULL, 0);
+                op.data.open.fd = ret;
+            } else {
+
+                op.data.open.ferrno = call_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+}
+int mkostemp(char *template, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = null_path,
+                .flags = O_RDWR | O_CREAT | O_EXCL | flags,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        prov_log_try(op);
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            if (LIKELY(call_errno == 0)) {
+                op.data.open.path = create_path_lazy(ret, NULL, 0);
+                op.data.open.fd = ret;
+            } else {
+                op.data.open.ferrno = call_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+};
+int mkstemps(char *template, int suffixlen) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = null_path,
+                .flags = O_RDWR | O_CREAT | O_EXCL,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        prov_log_try(op);
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            if (LIKELY(call_errno == 0)) {
+                op.data.open.path = create_path_lazy(ret, NULL, 0);
+                op.data.open.fd = ret;
+            } else {
+                op.data.open.ferrno = call_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+};
+int mkostemps(char *template, int suffixlen, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = null_path,
+                .flags = O_RDWR | O_CREAT | O_EXCL | flags,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        prov_log_try(op);
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            if (LIKELY(call_errno == 0)) {
+                op.data.open.path = create_path_lazy(ret, NULL, 0);
+                op.data.open.fd = ret;
+            } else {
+                op.data.open.ferrno = call_errno;
+            }
+            prov_log_record(op);
+        }
+    });
+};
+
 /*
 TODO: getcwd, getwd, chroot
+getdents
 glob, glob64
 shm_open, shm_unlink, memfd_create
 mount, umount

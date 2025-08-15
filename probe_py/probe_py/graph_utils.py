@@ -85,7 +85,7 @@ def map_nodes(
         graph: networkx.DiGraph[_Node],
         check: bool = True,
 ) -> networkx.DiGraph[_Node2]:
-    dct = {node: function(node) for node in tqdm.tqdm(graph.nodes(), desc="nodes")}
+    dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
     return networkx.relabel_nodes(graph, dct)
 
@@ -444,3 +444,20 @@ def add_edge_without_cycle(
                 edges.append((source, proxy_target))
                 bfs.send(False)
         return edges
+
+
+def splice_out_nodes(
+        input_dag: networkx.DiGraph[_Node],
+        should_splice: typing.Callable[[_Node], bool],
+) -> networkx.DiGraph[_Node]:
+    output_dag = input_dag.copy()
+    for node in list(input_dag.nodes()):
+        if should_splice(node):
+            output_dag.add_edges_from([
+                (predecessor, successor)
+                for predecessor in output_dag.predecessors(node)
+                for successor in output_dag.predecessors(node)
+                if predecessor != node and successor != node
+            ])
+            output_dag.remove_node(node)
+    return output_dag
