@@ -45,6 +45,8 @@ typedef void* pthread_attr_t;
 typedef void* pthread_key_t;
 typedef void* posix_spawn_file_actions_t;
 typedef void* posix_spawnattr_t;
+typedef void DIR;
+typedef void FILE;
 
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
@@ -3080,10 +3082,6 @@ int pthread_cancel(pthread_t thread) {
     });
 }
 
-int pthread_setspecific(pthread_key_t key, const void* pointer) { }
-void* pthread_getspecific(pthread_key_t key) { }
-int pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void)) { }
-
 /* TODO: Convert these to ops */
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
 int munmap(void* addr, size_t length) { }
@@ -3204,6 +3202,13 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
         prov_log_record(mkfifo_op);
     });
 }
+
+// functions we're not interposing, but need for libprobe functionality
+int pthread_setspecific(pthread_key_t key, const void* pointer) { }
+void* pthread_getspecific(pthread_key_t key) { }
+int pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void)) { }
+int dirfd(DIR* dirp) { }
+int fileno(FILE* stream) { }
 
 /*
 TODO: getcwd, getwd, chroot
