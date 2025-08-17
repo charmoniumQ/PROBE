@@ -45,7 +45,6 @@ allowed = {
     "strncpy",
     "strndup",
     "strnlen",
-    "syscall",
     "thrd_current",
     "__tls_get_addr",
     "__vfprintf_chk",

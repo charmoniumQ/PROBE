@@ -2,6 +2,40 @@
 
 #define _GNU_SOURCE
 
-__attribute__((noreturn, visibility("hidden"))) void exit_with_backup(int status);
+#include <stddef.h>    // for size_t
+#include <sys/types.h> // for pid_t, ssize_t
 
-__attribute__((visibility("hidden"))) char* strerror_with_backup(int errnum);
+#define ATTR_HIDDEN __attribute__((visibility("hidden")))
+
+typedef struct {
+    int error;
+    char* value;
+} result_str;
+
+typedef struct {
+    int error;
+    int value;
+} result_int;
+
+typedef struct {
+    int error;
+    ssize_t value;
+} result_ssize_t;
+
+__attribute__((noreturn, visibility("hidden"))) void exit_with_backup(int status);
+ATTR_HIDDEN char* strerror_with_backup(int errnum);
+
+ATTR_HIDDEN int probe_libc_memcmp(const void* s1, const void* s2, size_t n);
+ATTR_HIDDEN void* probe_libc_memcpy(void* dest, const void* src, size_t n);
+ATTR_HIDDEN void* probe_libc_memset(void* s, int c, size_t n);
+
+ATTR_HIDDEN result_str probe_libc_getcwd(char* buf, size_t size);
+
+ATTR_HIDDEN pid_t probe_libc_getpid(void);
+ATTR_HIDDEN pid_t probe_libc_getppid(void);
+ATTR_HIDDEN pid_t probe_libc_gettid(void);
+
+ATTR_HIDDEN result_int probe_libc_dup(int oldfd);
+
+ATTR_HIDDEN result_ssize_t probe_libc_read(int fd, void* buf, size_t count);
+ATTR_HIDDEN result_ssize_t probe_libc_write(int fd, void* buf, size_t count);
