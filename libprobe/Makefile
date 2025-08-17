@@ -24,8 +24,11 @@ HEADER_FILES := $(GENERATED_HEADER_FILES) $(MANUAL_HEADER_FILES)
 TEST_FILES := $(wildcard tests/*.c)
 BUILD_DIR := .build
 
-all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so $(BUILD_DIR)/probe_libc_tests $(BUILD_DIR)/probe_libc_tests.dbg
+all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
+
+tests: $(BUILD_DIR)/probe_libc_tests $(BUILD_DIR)/probe_libc_tests.dbg
+.PHONY: tests
 
 generated: $(GENERATED_FILES)
 .PHONY: generated

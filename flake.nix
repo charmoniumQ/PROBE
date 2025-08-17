@@ -49,6 +49,7 @@
             checkInputs = [
               pkgs.clang-tools
               pkgs.cppcheck
+              pkgs.criterion
               pkgs.include-what-you-use
             ];
             nativeBuildInputs = [
