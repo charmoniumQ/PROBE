@@ -10,7 +10,9 @@
 #include <sys/syscall.h> // for SYS_dup, SYS_exit, SYS_getcwd
 // IWYU pragma: no_include "asm-generic/errno-base.h" for ENOENT
 
+#ifndef UNIT_TESTS
 #include "../generated/libc_hooks.h" // for client_exit, client_strerror
+#endif
 
 #ifndef __x86_64__
 #error "syscall shims only defined for x86_64 linux"
@@ -114,6 +116,9 @@ __attribute__((unused)) static uint64_t probe_syscall6(uint64_t sysnum, uint64_t
     return rax;
 }
 
+// probe_libc unit testing just #includes this file verbatim, but doesn't link
+// other parts of libprobe so we need to exclude externally dependent functions
+#ifndef UNIT_TESTS
 // TODO: consider a warning to stderr on failure; needs to be implemented with
 // raw syscalls, since calling any fallible code could cause infinite recursion
 void exit_with_backup(int status) {
@@ -134,6 +139,7 @@ char* strerror_with_backup(int errnum) {
     sprintf(backup_strerror_buf, "[ERRNO: %d]", errnum);
     return backup_strerror_buf;
 }
+#endif
 
 int probe_libc_memcmp(const void* s1, const void* s2, size_t n) {
     const unsigned char* c1 = (const unsigned char*)s1;
@@ -141,15 +147,17 @@ int probe_libc_memcmp(const void* s1, const void* s2, size_t n) {
 
     size_t i = 0;
     for (; (i + sizeof(size_t)) < n; i += sizeof(size_t)) {
-        if (*((size_t*)(((uintptr_t)c1) + i)) != *((size_t*)(((uintptr_t)c2) + i)))
+        if (*((size_t*)(((uintptr_t)c1) + i)) != *((size_t*)(((uintptr_t)c2) + i))) {
             break;
+        }
     }
     for (; i < n; ++i) {
         // type coercion is required since the spec requires that the bytes be
         // interpreted as unsigned chars, but negative values are meaningful
         int_fast16_t diff = ((int_fast16_t)c1[i]) - ((int_fast16_t)c2[i]);
-        if (diff)
+        if (diff) {
             return diff;
+        }
     }
 
     return 0;

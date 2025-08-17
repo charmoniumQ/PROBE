@@ -262,6 +262,7 @@
                   pkgs.git
                   pkgs.include-what-you-use
                   pkgs.libclang
+                  pkgs.criterion # unit testing framework
 
                   # rust tools
                   pkgs.cargo-deny
