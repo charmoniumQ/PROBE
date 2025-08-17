@@ -1,5 +1,6 @@
 
 // this exists solely for lsp and will get preprocessed out during build time
+#include <criterion/internal/assert.h>
 #ifndef SRC_INCLUDED
 #include <criterion/criterion.h>
 #include "probe_libc.h"
@@ -93,7 +94,7 @@ Test(memcmp, eq_fuzzing) {
     srand(69420);
 
     for (int i = 0; i < 10000; ++i) {
-        int size = rand() % 4096;
+        int size = rand() % 0x1000;
         int* buf1 = malloc(size * sizeof(int));
         int* buf2 = malloc(size * sizeof(int));
         for (int j = 0; j < size; ++j) {
@@ -125,6 +126,8 @@ Test(memcmp, eq_fuzzing) {
     }
 }
 
+
+
 Test(memcpy, aligned) {
     char* orig = "test1234**##@@!!";
     char new[16];
@@ -145,7 +148,7 @@ Test(memcpy, fuzzing) {
     srand(69420);
 
     for (int i = 0; i < 10000; ++i) {
-        int size = rand() % 4096;
+        int size = rand() % 0x1000;
         int* buf1 = malloc(size * sizeof(int));
         int* buf2 = malloc(size * sizeof(int));
         for (int j = 0; j < size; ++j) {
@@ -158,5 +161,52 @@ Test(memcpy, fuzzing) {
 
         free(buf1);
         free(buf2);
+    }
+}
+
+
+
+Test(memset, aligned) {
+    char buf[32] = {0};
+
+    probe_libc_memset(buf, 'A', 32);
+    for (int i = 0; i < 32; ++i) {
+        cr_assert(buf[i] == 'A', "Expected set byte at index %d", i);
+    }
+}
+
+Test(memset, unaligned) {
+    char buf[43] = {0};
+
+    probe_libc_memset(buf, 'A', 43);
+    for (int i = 0; i < 43; ++i) {
+        cr_assert(buf[i] == 'A', "Expected set byte at index %d", i);
+    }
+}
+
+Test(memset, zeros) {
+    for (int i = 0; i < 256; ++i) {
+        char* buf = malloc(i);
+        probe_libc_memset(buf, 0, i);
+        for (int j = 0; j < i; ++j) {
+            cr_assert(buf[j] == 0, "Expected zero byte at %d of buffer length %d", j, i);
+        }
+        free(buf);
+    }
+}
+
+Test(memset, fuzzing) {
+    srand(69420);
+
+    for (int i = 0; i < 10000; ++i) {
+        int x = rand() % 256;
+        int size = rand() % 0x1000;
+        char* buf_expected = malloc(size);
+        char* buf_actual = malloc(size);
+
+        memset(buf_expected, x, size);
+        probe_libc_memset(buf_actual, x, size);
+
+        cr_assert(memcmp(buf_expected, buf_actual, size) == 0, "Expected same result buffer");
     }
 }

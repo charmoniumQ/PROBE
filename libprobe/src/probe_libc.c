@@ -192,7 +192,7 @@ void* probe_libc_memset(void* s, int c, size_t n) {
 }
 
 result_str probe_libc_getcwd(char* buf, size_t size) {
-    int retval = probe_syscall2(SYS_getcwd, (uint64_t)buf, size);
+    int retval = probe_syscall2(SYS_getcwd, (uintptr_t)buf, size);
     if (retval >= 0) {
 
         // linux may return the string "(unreachable)" under weird
@@ -239,7 +239,7 @@ result_int probe_libc_dup(int oldfd) {
 }
 
 result_ssize_t probe_libc_read(int fd, void* buf, size_t count) {
-    ssize_t retval = probe_syscall3(SYS_read, fd, (uint64_t)buf, count);
+    ssize_t retval = probe_syscall3(SYS_read, fd, (uintptr_t)buf, count);
     if (retval >= 0) {
         return (result_ssize_t){
             .error = 0,
@@ -252,7 +252,7 @@ result_ssize_t probe_libc_read(int fd, void* buf, size_t count) {
 }
 
 result_ssize_t probe_libc_write(int fd, void* buf, size_t count) {
-    ssize_t retval = probe_syscall3(SYS_write, fd, (uint64_t)buf, count);
+    ssize_t retval = probe_syscall3(SYS_write, fd, (uintptr_t)buf, count);
     if (retval >= 0) {
         return (result_ssize_t){
             .error = 0,
@@ -262,4 +262,33 @@ result_ssize_t probe_libc_write(int fd, void* buf, size_t count) {
     return (result_ssize_t){
         .error = -retval,
     };
+}
+
+result_mem probe_libc_mmap2(void* addr, size_t len, int prot, int flags, int fd) {
+    ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, 0);
+    if (retval >= 0) {
+        return (result_mem){
+            .error = 0,
+            .value = (void*)retval,
+        };
+    }
+    return (result_mem){
+        .error = -retval,
+    };
+}
+
+result probe_libc_munmap(void* addr, size_t len) {
+    ssize_t retval = probe_syscall2(SYS_munmap, (uintptr_t)addr, len);
+    if (retval < 0) {
+        return -retval;
+    }
+    return 0;
+}
+
+result probe_libc_msync(void* addr, size_t len, int flags) {
+    ssize_t retval = probe_syscall3(SYS_msync, (uintptr_t)addr, len, flags);
+    if (retval < 0) {
+        return -retval;
+    }
+    return 0;
 }

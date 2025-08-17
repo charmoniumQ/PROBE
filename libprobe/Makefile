@@ -62,10 +62,10 @@ $(BUILD_DIR)/undefined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 $(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 	nm --dynamic .build/libprobe.dbg.so | grep ' T ' | cut --fields=3 --delimiter=' ' > $(BUILD_DIR)/defined_symbols.txt
 
-$(BUILD_DIR)/probe_libc_tests: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) $(MAKEFILE_LIST)
+$(BUILD_DIR)/probe_libc_tests: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) ./src/probe_libc.c  $(MAKEFILE_LIST)
 	$(CC) -MJ $@.compile_command.json -flto $(CFLAGS) $(OPTFLAGS) -o $@ -Isrc -lcriterion $<
 
-$(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) $(MAKEFILE_LIST)
+$(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) ./src/probe_libc.c $(MAKEFILE_LIST)
 	$(CC) -MJ $@.compile_command.json -fno-lto $(CFLAGS) $(DBGFLAGS) -o $@ -Isrc -lcriterion $<
 
 check: compile_commands.json $(BUILD_DIR)/probe_libc_tests $(GENERATED_FILES)
