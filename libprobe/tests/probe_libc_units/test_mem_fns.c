@@ -6,6 +6,7 @@
 #include "probe_libc.h"
 #endif
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -27,6 +28,13 @@ Test(memcmp, eq_prefix) {
     cr_assert(
         probe_libc_memcmp("test123", "test456", 4) == 0,
         "Expected first 4 bytes of strings to be equal"
+    );
+}
+
+Test(memcmp, neq_prefix) {
+    cr_assert(
+        probe_libc_memcmp("test123", "test456", 6) != 0,
+        "Expected difference at index 4"
     );
 }
 
@@ -58,6 +66,20 @@ Test(memcmp, gt_unaligned) {
     );
 }
 
+Test(memcmp, zero_valid) {
+    cr_assert(
+        probe_libc_memcmp("111", "222", 0) == 0,
+        "Expected length 0 comparison to always succeed"
+    );
+}
+
+Test(memcmp, zero_null) {
+    cr_assert(
+        probe_libc_memcmp(NULL, NULL, 0) == 0,
+        "Expected length 0 comparison to always succeed"
+    );
+}
+
 Test(memcmp, ne_fuzzing) {
     srand(69420);
 
@@ -69,22 +91,29 @@ Test(memcmp, ne_fuzzing) {
             buf2[j] = rand();
         }
 
-        int refrence = memcmp(buf1, buf2, 32);
+        int expected = memcmp(buf1, buf2, 32);
+        int actual = probe_libc_memcmp(buf1, buf2, 32);
 
-        if (refrence > 0) {
+        if (expected > 0) {
             cr_assert(
-                probe_libc_memcmp(buf1, buf2, 32) > 0,
-                "memcmp() > 0, probe_libc_memcmp() <= 0"
+                actual > 0,
+                "memcmp() returned %d but probe_libc_memcmp() returned %d",
+                expected,
+                actual
             );
-        } else if (refrence < 0) {
+        } else if (expected < 0) {
             cr_assert(
-                probe_libc_memcmp(buf1, buf2, 32) < 0,
-                "memcmp() < 0, probe_libc_memcmp() >= 0"
+                actual < 0,
+                "memcmp() returned %d but probe_libc_memcmp() returned %d",
+                expected,
+                actual
             );
         } else {
             cr_assert(
-                probe_libc_memcmp(buf1, buf2, 32) == 0,
-                "memcmp() == 0, probe_libc_memcmp() != 0"
+                actual == 0,
+                "memcmp() returned %d but probe_libc_memcmp() returned %d",
+                expected,
+                actual
             );
         }
     }
@@ -103,21 +132,29 @@ Test(memcmp, eq_fuzzing) {
             buf2[j] = x;
         }
 
-        int refrence = memcmp(buf1, buf2, size * sizeof(int));
-        if (refrence > 0) {
+        int expected = memcmp(buf1, buf2, size * sizeof(int));
+        int actual = probe_libc_memcmp(buf1, buf2, size * sizeof(int));
+
+        if (expected > 0) {
             cr_assert(
-                probe_libc_memcmp(buf1, buf2, size * sizeof(int)) > 0,
-                "memcmp() > 0, probe_libc_memcmp() <= 0"
+                actual > 0,
+                "memcmp() returned %d but probe_libc_memcmp() returned %d",
+                expected,
+                actual
             );
-        } else if (refrence < 0) {
+        } else if (expected < 0) {
             cr_assert(
-                probe_libc_memcmp(buf1, buf2, size * sizeof(int)) < 0,
-                "memcmp() < 0, probe_libc_memcmp() >= 0"
+                actual < 0,
+                "memcmp() returned %d but probe_libc_memcmp() returned %d",
+                expected,
+                actual
             );
         } else {
             cr_assert(
-                probe_libc_memcmp(buf1, buf2, size * sizeof(int)) == 0,
-                "memcmp() == 0, probe_libc_memcmp() != 0"
+                actual == 0,
+                "memcmp() returned %d but probe_libc_memcmp() returned %d",
+                expected,
+                actual
             );
         }
 
@@ -142,6 +179,23 @@ Test(memcpy, unaligned) {
 
     probe_libc_memcpy(new, orig, 19);
     cr_assert(memcmp(new, orig, 19) == 0, "Unaligned memcpy failed");
+}
+
+Test(memcpy, zero_valid) {
+    char* orig = "test1234";
+    char new[8] = {0};
+
+    probe_libc_memcpy(new, orig, 0);
+    for (int i = 0; i < 8; ++i) {
+        cr_assert(new[i] == 0, "byte at index %d set to %d (not 0)", i, new[i]);
+    }
+}
+
+Test(memcpy, zero_null) {
+    char* orig = "test1234";
+
+    probe_libc_memcpy(NULL, orig, 0);
+    probe_libc_memcpy(NULL, NULL, 0);
 }
 
 Test(memcpy, fuzzing) {
@@ -182,6 +236,19 @@ Test(memset, unaligned) {
     for (int i = 0; i < 43; ++i) {
         cr_assert(buf[i] == 'A', "Expected set byte at index %d", i);
     }
+}
+
+Test(memset, zero_valid) {
+    char buf[8] = {0};
+
+    probe_libc_memset(buf, 'B', 0);
+    for (int i = 0; i < 8; ++i) {
+        cr_assert(buf[i] == 0, "Byte at index %d set to %d (not 0)", i, buf[i]);
+    }
+}
+
+Test(memset, zero_null) {
+    probe_libc_memset(NULL, 'C', 0);
 }
 
 Test(memset, zeros) {

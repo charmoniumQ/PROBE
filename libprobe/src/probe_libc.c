@@ -7,6 +7,7 @@
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
 #include <stdio.h>       // for sprintf
+#include <stdlib.h>      // for malloc
 #include <sys/syscall.h> // for SYS_dup, SYS_exit, SYS_getcwd
 // IWYU pragma: no_include "asm-generic/errno-base.h" for ENOENT
 
@@ -164,11 +165,15 @@ int probe_libc_memcmp(const void* s1, const void* s2, size_t n) {
 }
 
 void* probe_libc_memcpy(void* dest, const void* src, size_t n) {
+    if (dest == NULL || n == 0) {
+        return dest;
+    }
 
     // compiler optimization hint that dest and src may not alias
     // (as specified by man memcpy)
-    if (dest == src)
+    if (dest == src) {
         __builtin_unreachable();
+    }
 
     size_t i = 0;
     for (; (i + sizeof(size_t)) < n; i += sizeof(size_t)) {
@@ -264,8 +269,8 @@ result_ssize_t probe_libc_write(int fd, void* buf, size_t count) {
     };
 }
 
-result_mem probe_libc_mmap2(void* addr, size_t len, int prot, int flags, int fd) {
-    ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, 0);
+result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) {
+    ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, /*offset*/ 0);
     if (retval >= 0) {
         return (result_mem){
             .error = 0,
@@ -291,4 +296,43 @@ result probe_libc_msync(void* addr, size_t len, int flags) {
         return -retval;
     }
     return 0;
+}
+
+result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
+    ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
+    if (retval >= 0) {
+        return (result_ssize_t){.error = 0, .value = retval};
+    }
+    return (result_ssize_t){
+        .error = -retval,
+    };
+}
+
+char* probe_libc_strncpy(char* dest, const char* src, size_t dsize) {
+    size_t i = 0;
+    for (; i < dsize; ++i) {
+        if (src[i] == '\0') {
+            break;
+        }
+        dest[i] = src[i];
+    }
+    for (; i < dsize; ++i) {
+        dest[i] = '\0';
+    }
+    return dest;
+}
+
+size_t probe_libc_strnlen(const char* s, size_t maxlen) {
+    size_t i = 0;
+    for (; i < maxlen && s[i] != '\0'; ++i)
+        ;
+    return i;
+}
+
+char* probe_libc_strndup(const char* s, size_t n) {
+    size_t size = probe_libc_strnlen(s, n);
+    char* new = malloc(size + 1);
+    probe_libc_memcpy(new, s, size);
+    new[size] = '\0';
+    return new;
 }
