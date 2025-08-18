@@ -1,7 +1,6 @@
 from __future__ import annotations
 import abc
 import collections.abc
-import tqdm
 import dataclasses
 import datetime
 import itertools
@@ -443,6 +442,10 @@ def add_edge_without_cycle(
                 # We can put an edge here and quit.
                 edges.append((source, proxy_target))
                 bfs.send(False)
+        # checking:
+        dag2 = dag.copy()
+        dag2.add_edges_from(edges)
+        assert networkx.is_directed_acyclic_graph(dag2)
         return edges
 
 

@@ -238,13 +238,15 @@ int open (const char *filename, int flags, ...) {
     });
 }
 fn open64 = open;
-int __open_2 (const char *filename, int flags) {
+int __open_2(const char* filename, int flags) = open;
+int __openat(const char* filename, int flags) = openat;
+int __openat_2(int fd, const char* file, int oflag) {
     void* pre_call = ({
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
-                .flags = flags,
+                .path = create_path_lazy(fd, file, (oflag & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
+                .flags = oflag,
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
@@ -258,7 +260,7 @@ int __open_2 (const char *filename, int flags) {
         }
     });
     void* call = ({
-        int ret = unwrapped_open(filename, flags);
+        int ret = unwrapped_openat(fd, file, oflag, 0);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -3386,6 +3388,9 @@ tmpnam, tmpnam_r, tempnam
 mktemp, mkstemp, mkdtemp
 truncate, truncate64, ftruncate, ftruncate64
 mknod
+
+https://github.com/bminor/glibc/blob/098e449df01cd1db950030c09af667a2ee039460/io/Versions#L117
+Also, cpp tests/examples/cat.c | grep open
 
 Possible:
 https://www.gnu.org/software/libc/manual/html_node/Standard-Locales.html

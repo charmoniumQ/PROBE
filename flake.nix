@@ -357,6 +357,7 @@
                 pkgs.alejandra
                 pkgs.just
                 pkgs.ruff
+                pkgs.ltrace
               ]
               # OpenJDK doesn't build on some platforms
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow

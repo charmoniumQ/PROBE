@@ -4,7 +4,6 @@ import os
 import pathlib
 import warnings
 import networkx
-import tqdm
 from . import ops
 from . import ptypes
 
@@ -30,7 +29,9 @@ def hb_graph_to_accesses(
             yield ptypes.Access(ptypes.Phase.END, file_desc.mode, file_desc.inode, file_desc.path, node, fd)
             del proc_fd_to_fd[node.pid][fd]
         else:
-            warnings.warn(f"Process {node.pid} successfully closed an FD {fd} we never traced at {node}.")
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"{node} successfully closed an FD {fd} we never traced.",
+            ))
 
     def openfd(
             fd: int,
@@ -41,21 +42,24 @@ def hb_graph_to_accesses(
     ) -> collections.abc.Iterator[ptypes.Access]:
         inode = ptypes.InodeVersion.from_probe_path(path).inode
         if fd in proc_fd_to_fd[node.pid]:
-            warnings.warn(f"Process {node.pid} closed FD {fd} without our knowledge before {node}.")
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"FD {fd} was without our knowledge before {node}.",
+            ))
             yield from close(fd, node)
         parsed_path = pathlib.Path(path.path.decode())
         proc_fd_to_fd[node.pid][fd] = FileDescriptor2(mode, inode, parsed_path, cloexec)
         yield ptypes.Access(ptypes.Phase.BEGIN, mode, inode, parsed_path, node, fd)
 
-    root_pid = probe_log.get_root_pid()
     for node in networkx.topological_sort(hbg):
         yield node
         op_data = probe_log.get_op(node).data
         match op_data:
             case ops.InitExecEpochOp():
-                if node.exec_no == ptypes.initial_exec_no and node.pid == root_pid:
+                if 0 not in proc_fd_to_fd[node.pid]:
                     yield from openfd(0, ptypes.AccessMode.READ, False, node, op_data.stdin)
+                if 1 not in proc_fd_to_fd[node.pid]:
                     yield from openfd(1, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.stdout)
+                if 2 not in proc_fd_to_fd[node.pid]:
                     yield from openfd(2, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.stderr)
             case ops.OpenOp():
                 if op_data.ferrno == 0:
@@ -83,7 +87,9 @@ def hb_graph_to_accesses(
                     if old_file_desc := proc_fd_to_fd[node.pid].get(op_data.old):
                         proc_fd_to_fd[node.pid][op_data.new] = old_file_desc
                     else:
-                        warnings.warn(f"Process {node.pid} successfully duped an FD {op_data.old} (-> {op_data.new}) we never traced in {node}.")
+                        warnings.warn(ptypes.UnusualProbeLog(
+                            f"{node} successfully duped an FD {op_data.old} (-> {op_data.new}) we never traced.",
+                        ))
             case ops.CloneOp():
                 if op_data.ferrno == 0:
                     if op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):

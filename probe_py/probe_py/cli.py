@@ -4,24 +4,24 @@ import enum
 import json
 import os
 import pathlib
-import pprint
 import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
-import typing
-import tqdm
-import typer
+import warnings
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
+import tqdm
+import typer
 from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
 from . import ops
 from . import parser
+from . import ptypes
 from . import scp as scp_module
 from . import ssh_argparser
 from . import util
@@ -38,6 +38,30 @@ export_app = typer.Typer()
 app.add_typer(export_app, name="export")
 
 
+@export_app.callback()
+def restore_sanity(
+        strict: Annotated[
+            bool,
+            typer.Option(
+                "--strict/--loose",
+                help="Whether to fail when PROBE generates warnings",
+            ),
+        ] = True,
+):
+    # Typer messes with the excepthook
+    sys.excepthook =  sys.__excepthook__
+    if strict:
+        warnings.filterwarnings(
+            "error",
+            category=ptypes.UnusualProbeLog,
+        )
+    else:
+        warnings.filterwarnings(
+            "always",
+            category=ptypes.UnusualProbeLog,
+        )
+
+
 @app.command()
 def validate(
         path_to_probe_log: Annotated[
@@ -50,8 +74,6 @@ def validate(
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
-    sys.excepthook =  sys.__excepthook__
-    warning_free = True
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
         for inode, contents in (probe_log.copied_files or {}).items():
             content_length = contents.stat().st_size
@@ -88,7 +110,7 @@ def hb_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        retain_ops: Annotated[
+        retain: Annotated[
             OpType,
             typer.Option(help="Which ops to include in the graph? There are quite a few.")
         ] = OpType.MINIMAL,
@@ -108,7 +130,7 @@ def hb_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    match retain_ops:
+    match retain:
         case OpType.ALL:
             pass
         case OpType.MINIMAL:
@@ -482,6 +504,7 @@ context_settings=dict(
 )
 def scp(cmd: list[str]) -> None:
     scp_module.scp_with_provenance(cmd)
+
 
 if __name__ == "__main__":
     app()

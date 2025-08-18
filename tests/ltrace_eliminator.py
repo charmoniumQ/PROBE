@@ -2,23 +2,24 @@ import shlex
 import collections
 import subprocess
 import pathlib
-project_root = pathlib.Path(__file__).resolve().parent.parent
 import sys
+project_root = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(
     0,
     str(project_root / "benchmark")
 )
-from compound_pattern import ltrace_pattern
+from compound_pattern import ltrace_pattern # type: ignore # noqa: E402
 
 log_file = pathlib.Path("ltrace.log")
 
+#
 ltrace_command = [
     "ltrace",
+    "-A5",
     "-f",
-    "-F",
-    f"{project_root}/benchmark/ltrace.conf",
-    "-s",
-    "4096",
+    "--indent=2",
+    "-s4096",
+    "-S"
     "-o",
     str(log_file),
     "-L",
@@ -26,64 +27,80 @@ ltrace_command = [
 ]
 
 command: list[str] = [
-    "bash", "-c", "gcc -c test.c"
+    "diff", "test_file.txt", "test_file.txt"
 ]
 
 
 excluded_functions = [
-    "_*",
-    "*alloc",
-    "malloc_*",
-    "*.localalias"
-    "free",
+    "*.constprop.0",
     "*.isra.0",
-    "alloc_perturb",
-    "getdelim",
-    "add_alias2.part.0",
-    "tsearch",
-    "*_module",
-    "tfind",
-    "getenv",
-    "str*",
-    "sysconf",
-    "mem*",
-    "getpagesize",
-    "cfree",
-    "sbrk",
-    "pthread_*",
-    "*getenv",
-    "brk",
+    "*.localalias"
     "*.part.0",
-    "new_composite_name",
-    "*textdomain",
-    "*_langinfo*",
-    "frame_dummy",
-    "xtrace_init",
-    "check_dev_tty",
-    "mbs*", "hash_*", "*_variable*", "*.constprop.0", "alias_*", "var_lookup", "*_word", "*_word_*", "word_*", "*_words", "procsub_*", "notify_and_cleanup", "*getc", "fgets*"
-    "execute_connection",
-    "*_internal",
-    "*_parser_*"
-    "brace_*"
-    "*printf*",
-    "*command*",
-    "*_frame",
-    "yyparse",
-    "parse_*",
-    "*_stream",
-    "sigemptyset*",
-    "*array*",
-    "*shell*",
-    "itos",
-    "*pipestatus*",
-    "param_*",
-    "*_list",
-    "list_*",
-    "*flush*",
     "*_builtin",
     "*_dollar_*",
-    "htab_*",
+    "*_frame",
+    "*_internal",
+    "*_langinfo*",
+    "*_list",
+    "*_module",
+    "*_parser_*"
+    "*_stream",
+    "*_variable*",
+    "*_word",
+    "*_word_*",
+    "*_words",
+    "*alloc",
+    "*array*",
+    "*command*",
+    "*flush*",
+    "*free",
+    "*getc",
+    "*getenv",
+    "*pipestatus*",
+    "*printf*",
+    "*shell*",
+    "*textdomain",
+    "*write",
+    "_*",
+    "add_alias2.part.0",
+    "alias_*",
+    "alloc_perturb",
     "bfd_*",
+    "bind_lastarg",
+    "brace_*"
+    "brk",
+    "cfree",
+    "check_dev_tty",
+    "execute_connection",
+    "fgets*"
+    "frame_dummy",
+    "getdelim",
+    "getenv",
+    "getpagesize",
+    "hash_*",
+    "htab_*",
+    "itos",
+    "list_*",
+    "malloc_*",
+    "mbs*",
+    "mem*",
+    "new_composite_name",
+    "notify_and_cleanup",
+    "param_*",
+    "parse_*",
+    "procsub_*",
+    "pthread_*",
+    "sbrk",
+    "sigadd*",
+    "sigemptyset*",
+    "str*",
+    "sysconf",
+    "tfind",
+    "tsearch",
+    "var_lookup",
+    "word_*",
+    "xtrace_init",
+    "yyparse",
 ]
 
 included_functions = [

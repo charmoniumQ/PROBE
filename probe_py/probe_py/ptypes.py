@@ -9,8 +9,8 @@ import random
 import socket
 import stat
 import typing
-import numpy
 import networkx
+import numpy
 from . import ops
 from . import consts
 
@@ -95,7 +95,7 @@ class Inode:
         return stat.S_ISFIFO(self.mode)
 
     def __str__(self) -> str:
-        return f"inode {self.type}{self.number} on {self.device} @{self.host.name}"
+        return f"inode {self.type.upper()} {self.number} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -198,6 +198,24 @@ class OpQuad:
 
 
 @dataclasses.dataclass(frozen=True)
+class OpQuint(OpQuad):
+    deduplicator: int
+
+    def deduplicate(self, other: OpQuad) -> OpQuint:
+        if self.quad() != other:
+            return OpQuint.from_quad(other, 0)
+        else:
+            return OpQuint.from_quad(other, self.deduplicator + 1)
+
+    @staticmethod
+    def from_quad(quad: OpQuad, deduplicator: int = 0) -> OpQuint:
+        return OpQuint(quad.pid, quad.exec_no, quad.tid, quad.op_no, deduplicator)
+
+    def quad(self) -> OpQuad:
+        return OpQuad(self.pid, self.exec_no, self.tid, self.op_no)
+
+
+@dataclasses.dataclass(frozen=True)
 class ProbeLog:
     processes: typing.Mapping[Pid, Process]
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
@@ -256,6 +274,10 @@ class TaskType(enum.IntEnum):
 
 
 class InvalidProbeLog(Exception):
+    pass
+
+
+class UnusualProbeLog(Warning):
     pass
 
 

@@ -1,3 +1,4 @@
+import collections
 import random
 import shutil
 import os
@@ -71,8 +72,13 @@ simple_commands = {
     "python_hello": ["python", "-c", "print(4)"],
 }
 
-complex_commands = {
-    "hello_world_pthreads": [str(example_path / "hello_world_pthreads.exe")],
+complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
+    "hello_world_pthreads": (
+        False,
+        None,
+        "",
+        [str(example_path / "hello_world_pthreads.exe")],),
+
     "mutex": [str(example_path / "mutex.exe")],
     "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
     "diff": ["diff", "test_file.txt", "test_file.txt"],
@@ -92,16 +98,30 @@ complex_commands = {
         # so we use echo_path to get the real echo executable
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
-    "c_hello_simplified": ["gcc", "-c", "test.c"],
-    "c_hello": bash_multi(
-        ["echo", c_hello_world, "redirect_to", "test.c"],
+    "c_hello_simplified": (
+        True,
+        pathlib.Path("test.c"),
+        "int main() { return 0; }",
         ["gcc", "test.c"],
-        ["./a.out"],
     ),
-    "java_subprocess_hello": bash_multi(
-        ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
-        ["javac", "HelloWorld.java"],
-        ["java", "HelloWorld"],
+    "c_hello": (
+        True,
+        pathlib.Path("test.c"),
+        c_hello_world,
+        bash_multi(
+            ["echo", c_hello_world, "redirect_to", "test.c"],
+            ["gcc", "test.c"],
+            ["./a.out"],
+        ),
+    ),
+    "java_subprocess_hello": (
+        True,
+        pathlib.Path("HelloWorld.java"),
+        java_subprocess_hello_world,
+        bash_multi(
+            ["javac", "HelloWorld.java"],
+            ["java", "HelloWorld"],
+        ),
     ),
     "bash_in_bash": bash_multi(
         bash_multi(
@@ -186,15 +206,22 @@ def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,
         debug: bool,
-        command: list[str],
+        command: list[str] | tuple[bool, pathlib.Path, str, list[str]],
         does_podman_work: bool,
         does_docker_work: bool,
         does_buildah_work: bool,
         compile_examples: None,
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("hello world")
-    (scratch_directory / "test.c").write_text("")
     print(scratch_directory)
+
+    if isinstance(command, tuple):
+        strict = command[0]
+        if command[1] is not None:
+            (scratch_directory / command[1]).write_text(command[2])
+        command = command[3]
+    else:
+        strict = True
 
     subprocess.run(command, check=True, cwd=scratch_directory)
 
@@ -203,7 +230,7 @@ def test_record(
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     should_have_copy_files = copy_files in {"eagerly", "lazily"}
-    cmd = ["probe", "validate", *(["--should-have-files"] if should_have_copy_files else [])]
+    cmd = ["probe", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
 
     # TODO: this doesn't work because we don't capture libraries currently.
@@ -237,26 +264,28 @@ def test_record(
 @pytest.mark.timeout(100)
 def test_downstream_analyses(
         scratch_directory: pathlib.Path,
-        command: list[str],
+        command: list[str] | tuple[bool, pathlib.Path, str, list[str]],
         does_podman_work: bool,
         does_docker_work: bool,
         does_buildah_work: bool,
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("")
-    (scratch_directory / "test.c").write_text("")
     print(scratch_directory)
+
+    if isinstance(command, tuple):
+        strict = command[0]
+        if command[1] is not None:
+            (scratch_directory / command[1]).write_text(command[2])
+        command = command[3]
+    else:
+        strict = True
 
     class PopenKwargs(typing.TypedDict):
         check: bool
         cwd: pathlib.Path
-        env: typing.Mapping[str, str]
     args: PopenKwargs = dict(
         check=True,
         cwd=scratch_directory,
-        env={
-            **os.environ,
-            #"PYTHONWARNINGS": "error",
-        },
     )
 
     if strace:
@@ -282,16 +311,16 @@ def test_downstream_analyses(
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
-    cmd = ["probe", "export", "debug-text"]
+    cmd = ["probe", "export", "--strict" if strict else "--loose", "debug-text"]
     print(shlex.join(cmd))
     with (scratch_directory / "debug-text.txt").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "export", "hb-graph", "hb-graph.dot", "--retain-ops=successful", "--show-op-number"]
+    cmd = ["probe", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
-    cmd = ["probe", "export", "dataflow-graph", "dataflow-graph.dot"]
+    cmd = ["probe", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 

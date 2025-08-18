@@ -1,5 +1,4 @@
 from __future__ import annotations
-import tqdm
 import collections
 import dataclasses
 import enum
@@ -29,8 +28,8 @@ class InodeVersionNode:
 
 
 if typing.TYPE_CHECKING:
-    DataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuad | InodeVersionNode]
-    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuad | frozenset[InodeVersionNode]]
+    DataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuint | InodeVersionNode]
+    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuint | frozenset[InodeVersionNode]]
 else:
     DataflowGraph = networkx.DiGraph
     CompressedDataflowGraph = networkx.DiGraph
@@ -48,32 +47,36 @@ def accesses_to_dataflow_graph(
 
     parent_pid = probe_log.get_parent_pid_map()
     pid_to_state = collections.defaultdict[ptypes.Pid, PidState](lambda: PidState.READING)
-    last_op_in_process = dict[ptypes.Pid, ptypes.OpQuad]()
+    last_op_in_process = dict[ptypes.Pid, ptypes.OpQuint]()
     inode_to_version = collections.defaultdict[ptypes.Inode, int](lambda: 0)
     inode_to_paths = collections.defaultdict[ptypes.Inode, set[pathlib.Path]](set)
     dataflow_graph = DataflowGraph()
 
-    def add_quad(quad: ptypes.OpQuad) -> None:
+    def add_quad(quad: ptypes.OpQuad, label: str) -> None:
         pid_to_state[quad.pid] = PidState.READING
         if program_order_predecessor := last_op_in_process.get(quad.pid):
-            dataflow_graph.add_edge(program_order_predecessor, quad)
+            quint = program_order_predecessor.deduplicate(quad)
+            dataflow_graph.add_edge(program_order_predecessor, quint, label=label + " (from pred)")
         else:
+            quint = ptypes.OpQuint.from_quad(quad)
             if parent := parent_pid.get(quad.pid):
-                dataflow_graph.add_edge(last_op_in_process[parent], quad)
+                dataflow_graph.add_edge(last_op_in_process[parent], quint, label=label + " (from parent)")
             else:
                 pass
                 # Found initial quad of root proc
-        last_op_in_process[quad.pid] = quad
+        last_op_in_process[quad.pid] = quint
 
-    def ensure_state(quad: ptypes.OpQuad, desired_state: PidState) -> None:
+    def ensure_state(quad: ptypes.OpQuad, desired_state: PidState) -> ptypes.OpQuint:
         if desired_state == PidState.WRITING and pid_to_state[quad.pid] == PidState.READING:
             # Reading -> writing for free
             pid_to_state[quad.pid] = PidState.WRITING
         elif desired_state == PidState.READING and pid_to_state[quad.pid] == PidState.WRITING:
             # Writing -> reading by starting a new quad.
-            add_quad(quad)
+            add_quad(quad, "r→w")
         assert pid_to_state[quad.pid] == desired_state
+        return last_op_in_process[quad.pid]
 
+    fifo_writers = collections.defaultdict(set)
     for access_or_quad in accesses_and_quads:
         match access_or_quad:
             case ptypes.Access():
@@ -82,35 +85,40 @@ def accesses_to_dataflow_graph(
                 inode_to_paths[access.inode].add(access.path)
                 version = InodeVersionNode(access.inode, version_num)
                 next_version = InodeVersionNode(access.inode, version_num + 1)
-                ensure_state(access.op_node, PidState.READING if access.mode.is_side_effect_free else PidState.WRITING)
-                if (op_node := last_op_in_process.get(access.op_node.pid)) is None:
-                    warnings.warn(f"Can't find last node from process {access.op_node.pid}")
-                    continue
                 if access.inode.is_fifo:
                     if not access.mode.is_side_effect_free and access.phase == ptypes.Phase.END:
-                        dataflow_graph.add_edge(op_node, version)
+                        fifo_writers[version].add(last_op_in_process[access.op_node.pid])
                     elif access.mode.is_side_effect_free and access.phase == ptypes.Phase.BEGIN:
-                        dataflow_graph.add_edge(version, op_node)
-                        continue
-                match access.mode:
-                    case ptypes.AccessMode.WRITE:
-                        if access.phase == ptypes.Phase.BEGIN:
-                            dataflow_graph.add_edge(op_node, next_version)
-                            dataflow_graph.add_edge(version, next_version)
-                    case ptypes.AccessMode.TRUNCATE_WRITE:
-                        if access.phase == ptypes.Phase.END:
-                            dataflow_graph.add_edge(op_node, next_version)
-                    case ptypes.AccessMode.READ_WRITE:
-                        if access.phase == ptypes.Phase.BEGIN:
-                            dataflow_graph.add_edge(version, op_node)
-                        if access.phase == ptypes.Phase.END:
-                            dataflow_graph.add_edge(op_node, next_version)
-                            dataflow_graph.add_edge(version, next_version)
-                    case ptypes.AccessMode.READ | ptypes.AccessMode.EXEC | ptypes.AccessMode.DLOPEN:
-                        if access.phase == ptypes.Phase.BEGIN:
-                            dataflow_graph.add_edge(version, op_node)
-                    case _:
-                        raise TypeError()
+                        quint = ensure_state(access.op_node, PidState.READING)
+                        dataflow_graph.add_edge(version, quint, label="read fifo")
+                else:
+                    match access.mode:
+                        case ptypes.AccessMode.WRITE:
+                            if access.phase == ptypes.Phase.BEGIN:
+                                quint = ensure_state(access.op_node, PidState.WRITING)
+                                dataflow_graph.add_edge(quint, next_version, label="mutating write")
+                                dataflow_graph.add_edge(version, next_version, label="mutating write")
+                                inode_to_version[access.inode] += 1
+                        case ptypes.AccessMode.TRUNCATE_WRITE:
+                            if access.phase == ptypes.Phase.END:
+                                quint = ensure_state(access.op_node, PidState.WRITING)
+                                dataflow_graph.add_edge(quint, next_version, label="truncating write")
+                                inode_to_version[access.inode] += 1
+                        case ptypes.AccessMode.READ_WRITE:
+                            if access.phase == ptypes.Phase.BEGIN:
+                                quint = ensure_state(access.op_node, PidState.READING)
+                                dataflow_graph.add_edge(version, quint, label="read & write")
+                            if access.phase == ptypes.Phase.END:
+                                quint = ensure_state(access.op_node, PidState.WRITING)
+                                dataflow_graph.add_edge(quint, next_version, label="read/write")
+                                dataflow_graph.add_edge(version, next_version, label="read/write")
+                                inode_to_version[access.inode] += 1
+                        case ptypes.AccessMode.READ | ptypes.AccessMode.EXEC | ptypes.AccessMode.DLOPEN:
+                            if access.phase == ptypes.Phase.BEGIN:
+                                quint = ensure_state(access.op_node, PidState.READING)
+                                dataflow_graph.add_edge(version, quint, label="read")
+                        case _:
+                            raise TypeError()
             case ptypes.OpQuad():
                 quad = access_or_quad
                 op_data = probe_log.get_op(quad).data
@@ -123,7 +131,14 @@ def accesses_to_dataflow_graph(
                     case ops.SpawnOp():
                         ensure_state(quad, PidState.WRITING)
                     case ops.InitExecEpochOp():
-                        add_quad(quad)
+                        add_quad(quad, "init")
+
+    for fifo, writers in fifo_writers.items():
+        reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(dataflow_graph)
+        for writer in reachability_oracle.get_uppermost(writers):
+            for source, target in graph_utils.add_edge_without_cycle(dataflow_graph, writer, fifo, reachability_oracle):
+                dataflow_graph.add_edge(source, target)
+
     inode_to_paths2 = {inode: frozenset(paths) for inode, paths in inode_to_paths.items()}
     return dataflow_graph, inode_to_paths2
 
@@ -143,11 +158,12 @@ def hb_graph_to_dataflow_graph2(
 def combine_indistinguishable_inodes(
         dataflow_graph: DataflowGraph,
 ) -> CompressedDataflowGraph:
-    if networkx.is_directed_acyclic_graph(dataflow_graph):
-        dataflow_graph = networkx.transitive_reduction(dataflow_graph)
-    else:
-        warnings.warn("Dataflow graph is cyclic")
-        return dataflow_graph
+    if not networkx.is_directed_acyclic_graph(dataflow_graph):
+        return graph_utils.map_nodes(
+            lambda node: frozenset([node]) if isinstance(node, InodeVersionNode) else node,
+            dataflow_graph,
+        )
+    dataflow_graph = networkx.transitive_reduction(dataflow_graph)
     def same_neighbors(
             node0: ptypes.OpQuad | InodeVersionNode,
             node1: ptypes.OpQuad | InodeVersionNode,
@@ -161,10 +177,10 @@ def combine_indistinguishable_inodes(
             and
             frozenset(dataflow_graph.successors(node0)) == frozenset(dataflow_graph.successors(node1))
         )
-    def node_mapper(node_set: frozenset[ptypes.OpQuad | InodeVersionNode]) -> ptypes.OpQuad | frozenset[InodeVersionNode]:
+    def node_mapper(node_set: frozenset[ptypes.OpQuint | InodeVersionNode]) -> ptypes.OpQuint | frozenset[InodeVersionNode]:
         first_node = next(iter(node_set))
-        if isinstance(first_node, ptypes.OpQuad):
-            assert all(isinstance(node, ptypes.OpQuad) for node in node_set)
+        if isinstance(first_node, ptypes.OpQuint):
+            assert all(isinstance(node, ptypes.OpQuint) for node in node_set)
             return first_node
         else:
             assert all(isinstance(node, InodeVersionNode) for node in node_set)
@@ -234,7 +250,9 @@ def label_nodes(
     else:
         nodes = list(dataflow_graph.nodes())
         cycle = list(networkx.find_cycle(dataflow_graph))
-        warnings.warn("Cycle shown in red")
+        warnings.warn(ptypes.UnusualProbeLog(
+            "Dataflow graph contains a cycle (marked in red).",
+        ))
     for node in nodes:
         data = dataflow_graph.nodes(data=True)[node]
         match node:
@@ -262,7 +280,9 @@ def label_nodes(
                 else:
                     data["label"] = ""
                     if (node.pid, node.exec_no) not in count:
-                        warnings.warn(f"{node.pid, node.exec_no} never counted before")
+                        warnings.warn(ptypes.UnusualProbeLog(
+                            f"{node.pid, node.exec_no} never counted before",
+                        ))
                         count[(node.pid, node.exec_no)] = 99
                     count[(node.pid, node.exec_no)] += 1
                     # data["label"] += "\n" + type(op.data).__name__
@@ -279,7 +299,7 @@ def label_nodes(
                 inode_labels = []
                 for inode_version in inode_versions[:max_inodes_per_set]:
                     inode_label = []
-                    inode_label.append(f"{inode_version.inode.number} v{inode_version.version}")
+                    inode_label.append(f"{inode_version.inode} v{inode_version.version}")
                     paths = inodes_to_path.get(inode_version.inode, frozenset[pathlib.Path]())
                     for path in sorted(paths, key=lambda path: len(str(path)))[:max_paths_per_inode]:
                         inode_label.append(shorten_path(path))

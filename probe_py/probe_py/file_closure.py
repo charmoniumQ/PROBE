@@ -10,6 +10,7 @@ import shutil
 import warnings
 import pathlib
 import typing
+from . import ptypes
 from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
 from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
 from .consts import AT_FDCWD
@@ -230,7 +231,9 @@ def copy_file_closure(
                 console.print(f"Skipping {resolved_path}")
         elif resolved_path.exists():
             if ino_ver is not None and InodeVersion.from_local_path(resolved_path) != ino_ver:
-                warnings.warn(f"{resolved_path} changed in between the time of `probe record` and now.")
+                warnings.warn(ptypes.UnusualProbeLog(
+                    f"{resolved_path} changed in between the time of `probe record` and now.",
+                ))
             if resolved_path.is_dir():
                 destination_path.mkdir(exist_ok=True, parents=True)
             elif copy:
