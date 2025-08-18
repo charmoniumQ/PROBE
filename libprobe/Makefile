@@ -78,7 +78,7 @@ check: compile_commands.json $(BUILD_DIR)/probe_libc_tests $(GENERATED_FILES)
 	python3 ./check_hooked_fns.py $(SOURCE_FILES)
 	python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
-	$(BUILD_DIR)/probe_libc_tests --verbose
+	$(BUILD_DIR)/probe_libc_tests
 
 #	cppclean    $(SOURCE_FILES)
 # Currently, cppclean does not provide a mechanism to disable warnings.

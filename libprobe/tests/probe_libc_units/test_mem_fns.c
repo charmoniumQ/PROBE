@@ -1,6 +1,5 @@
 
 // this exists solely for lsp and will get preprocessed out during build time
-#include <criterion/internal/assert.h>
 #ifndef SRC_INCLUDED
 #include <criterion/criterion.h>
 #include "probe_libc.h"
@@ -81,7 +80,7 @@ Test(memcmp, zero_null) {
 }
 
 Test(memcmp, ne_fuzzing) {
-    srand(69420);
+    srand(FUZZING_SEED);
 
     for (int i = 0; i < 10000; ++i) {
         int buf1[32];
@@ -120,7 +119,7 @@ Test(memcmp, ne_fuzzing) {
 }
 
 Test(memcmp, eq_fuzzing) {
-    srand(69420);
+    srand(FUZZING_SEED);
 
     for (int i = 0; i < 10000; ++i) {
         int size = rand() % 0x1000;
@@ -199,7 +198,7 @@ Test(memcpy, zero_null) {
 }
 
 Test(memcpy, fuzzing) {
-    srand(69420);
+    srand(FUZZING_SEED);
 
     for (int i = 0; i < 10000; ++i) {
         int size = rand() % 0x1000;
@@ -263,7 +262,7 @@ Test(memset, zeros) {
 }
 
 Test(memset, fuzzing) {
-    srand(69420);
+    srand(FUZZING_SEED);
 
     for (int i = 0; i < 10000; ++i) {
         int x = rand() % 256;

@@ -323,6 +323,9 @@ char* probe_libc_strncpy(char* dest, const char* src, size_t dsize) {
 }
 
 size_t probe_libc_strnlen(const char* s, size_t maxlen) {
+    if (s == NULL) {
+        return 0;
+    }
     size_t i = 0;
     for (; i < maxlen && s[i] != '\0'; ++i)
         ;
