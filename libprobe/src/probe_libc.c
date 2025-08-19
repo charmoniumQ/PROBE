@@ -51,6 +51,7 @@
 size_t auxilary[AUX_CNT] = {0};
 
 char** probe_environ = NULL;
+char* environ_buf = NULL;
 
 #if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
@@ -225,6 +226,11 @@ result probe_libc_init(void) {
     {
         if (probe_environ != NULL) {
             free(probe_environ);
+            probe_environ = NULL;
+        }
+        if (environ_buf != NULL) {
+            free(environ_buf);
+            environ_buf = NULL;
         }
 
         result_int environ_fd = probe_libc_open("/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
@@ -236,44 +242,66 @@ result probe_libc_init(void) {
         }
 
         size_t size = 4096;
+        size_t total_bytes = 0;
         result_ssize_t read_ret;
 
-        void* buf = malloc(size);
-        read_ret = read_all(environ_fd.value, buf, size);
+        environ_buf = calloc(size, sizeof(char));
+        if (environ_buf == NULL) {
+            WARNING("Unable to calloc environ buffer");
+            return ENOMEM;
+        }
+        read_ret = read_all(environ_fd.value, environ_buf, size);
         if (read_ret.error) {
             char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
             WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
             free(error_str);
-            free(buf);
             TRY_CLOSE(environ_fd.value, "/proc/self/environ");
             return read_ret.error;
         }
+        total_bytes += read_ret.value;
         // this means that there's still more environ to grab, so we'll realloc
         // it and try copying another chunk
         while (read_ret.value == 4096) {
             size += 4096;
-            void* new = realloc(buf, size);
+            void* new = realloc(environ_buf, size);
             if (new == NULL) {
-                char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
-                WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
-                free(error_str);
-                free(buf);
+                WARNING("Unable to realloc environ buffer");
                 TRY_CLOSE(environ_fd.value, "/proc/self/environ");
                 return ENOMEM;
             }
-            buf = new;
-            read_ret = read_all(environ_fd.value, (void*)((uintptr_t)buf + (size - 4096)), 4096);
+            environ_buf = new;
+            read_ret =
+                read_all(environ_fd.value, (void*)((uintptr_t)environ_buf + (size - 4096)), 4096);
             if (read_ret.error) {
                 char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
-                WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
+                WARNING("Unable to read environ buffer: (%d) %s", read_ret.error, error_str);
                 free(error_str);
-                free(buf);
                 TRY_CLOSE(environ_fd.value, "/proc/self/environ");
                 return read_ret.error;
             }
+            total_bytes += read_ret.value;
         }
-        probe_environ = buf;
         TRY_CLOSE(environ_fd.value, "/proc/self/environ");
+
+        size_t env_count = 0;
+        for (size_t i = 0; i < total_bytes; ++i) {
+            if (environ_buf[i] == '\0') {
+                ++env_count;
+            }
+        }
+
+        probe_environ = calloc(env_count + 1, sizeof(char*));
+        if (probe_environ == NULL) {
+            WARNING("Unable to calloc probe_environ");
+            return ENOMEM;
+        }
+
+        size_t buf_offset = 0;
+        for (size_t i = 0; buf_offset < total_bytes && i < env_count; ++i) {
+            probe_environ[i] = environ_buf + buf_offset;
+            buf_offset +=
+                (probe_libc_strnlen(environ_buf + buf_offset, total_bytes - buf_offset) + 1);
+        }
     }
 
     return 0;
@@ -465,4 +493,33 @@ char* probe_libc_strndup(const char* s, size_t n) {
     return new;
 }
 
+int probe_libc_strncmp(const char* a, const char* b, size_t n) {
+    size_t i = 0;
+    for (; a[i] != '\0' && b[i] != '\0' && i < n; ++i) {
+        int_fast16_t diff = (int_fast16_t)(unsigned char)a[i] - (int_fast16_t)(unsigned char)b[i];
+        if (diff) {
+            return diff;
+        }
+    }
+    if ((i == n) || (a[i] == '\0' && b[i] == '\0')) {
+        return 0;
+    }
+    return (int_fast16_t)(unsigned char)a[i] - (int_fast16_t)(unsigned char)b[i];
+}
+
 size_t probe_libc_getpagesize(void) { return auxilary[AT_PAGESZ]; }
+
+const char* probe_libc_getenv(const char* name) {
+    if (name == NULL) {
+        return NULL;
+    }
+
+    size_t name_len = probe_libc_strnlen(name, -1);
+    for (size_t i = 0; probe_environ[i] != NULL; ++i) {
+        const char* curr = probe_environ[i];
+        if (probe_libc_strncmp(name, curr, name_len) == 0 && curr[name_len] == '=') {
+            return curr + name_len + 1;
+        }
+    }
+    return NULL;
+}
