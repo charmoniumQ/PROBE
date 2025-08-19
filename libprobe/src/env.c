@@ -15,6 +15,7 @@
 
 extern char** environ;
 
+// TODO: deprecate printenv() and environ
 void printenv() {
     for (char** arg = environ; *arg; ++arg) {
         DEBUG("printenv: %s", *arg);

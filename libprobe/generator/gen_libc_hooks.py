@@ -558,7 +558,6 @@ struct rusage;
 struct stat;
 struct statx;
 struct utimbuf;
-struct timeval;
 
 /*
  * There is some bug with pycparser unable to parse inline function pointers.

@@ -3083,26 +3083,9 @@ int pthread_cancel(pthread_t thread) {
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
 int munmap(void* addr, size_t length) { }
 
-/*
- * Don't need to interpose exit because we have a destructor associated with pthread_create_key(...).
- * The destructor will more likely always be fired, whereas exit(...) could not be hit (e.g., return from main() or not using libc for some weird reason).
 void exit (int status) {
-    void* pre_call = ({
-        struct Op op = {
-            exit_op_code,
-            {.exit = {.status = status}},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(op);
-        prov_log_record(op);
-    });
     bool noreturn = true;
 }
-fn _exit = exit;
-fn _Exit = exit;
-*/
 
 int pipe(int pipefd[2]) {
     void* call = ({

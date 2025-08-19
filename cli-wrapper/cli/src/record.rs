@@ -30,7 +30,7 @@ pub fn record_no_transcribe(
     };
 
     if output.exists() {
-        if !overwrite {
+        if overwrite {
             bail!("output {:?} already exists", &output);
         } else if output.is_dir() {
             fs_extra::dir::remove(&output)?;
@@ -70,7 +70,7 @@ pub fn record_transcribe(
     };
 
     if output.exists() {
-        if !overwrite {
+        if overwrite {
             bail!("output {:?} already exists", &output);
         } else if output.is_dir() {
             fs_extra::dir::remove(&output)?;
@@ -120,7 +120,10 @@ impl Recorder {
     pub fn record(self) -> Result<(ExitStatus, tempfile::TempDir)> {
         // reading and canonicalizing path to libprobe
         let libprobe_path = fs::canonicalize(match std::env::var_os("PROBE_LIB") {
-            Some(x) => PathBuf::from(x),
+            Some(x) => {
+                log::debug!("Resolved PROBE_LIB to {}", x.to_string_lossy());
+                PathBuf::from(x)
+            }
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
         .wrap_err("unable to canonicalize libprobe path")?
@@ -187,7 +190,7 @@ impl Recorder {
                     OsString::from("="),
                     record_dir.path().into(),
                 ]))
-                // .arg("--init-eval-command=set environment LD_DEBUG=all")
+                .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__exec")
