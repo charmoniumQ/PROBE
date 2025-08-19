@@ -7,6 +7,7 @@ import os
 import pathlib
 import random
 import socket
+import stat
 import typing
 import numpy
 from . import ops
@@ -82,8 +83,18 @@ class Inode:
     host: Host
     device: Device
     number: int
+    mode: int
+
+    @property
+    def type(self) -> str:
+        return stat.filemode(self.mode)[0]
+
+    @property
+    def is_fifo(self) -> bool:
+        return stat.S_ISFIFO(self.mode)
+
     def __str__(self) -> str:
-        return f"inode {self.number} on {self.device} @{self.host.name}"
+        return f"inode {self.type.upper()} {self.number} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True)

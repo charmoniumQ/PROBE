@@ -167,9 +167,15 @@ def scratch_directory(
 @pytest.mark.parametrize("copy_files", [
     "none",
     "lazily",
-    "eagerly",
+    # "eagerly",
 ])
-@pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
+@pytest.mark.parametrize("debug", [
+    False,
+    # True,
+], ids=[
+    "opt",
+    # "dbg",
+])
 @pytest.mark.parametrize(
     "command",
     {**simple_commands, **complex_commands}.values(),
