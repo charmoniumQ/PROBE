@@ -1,14 +1,10 @@
-from __future__ import annotations
-try:
-    import polars
-    import bitmath  # type: ignore
-except ImportError:
-    pass
+import polars
 import typing
 import itertools
 import os
 import dataclasses
 import random
+import bitmath  # type: ignore
 import tempfile
 import contextlib
 import pathlib

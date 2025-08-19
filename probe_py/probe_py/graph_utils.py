@@ -86,7 +86,8 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    return networkx.relabel_nodes(graph, dct)
+    ret = networkx.relabel_nodes(graph, dct)
+    return typing.cast(networkx.DiGraph[_Node2], ret)
 
 
 def serialize_graph(
@@ -96,8 +97,10 @@ def serialize_graph(
         cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
     if name_mapper is None:
-        nodes_data = graph.nodes(data=True)
-        name_mapper = typing.cast(typing.Callable[[_Node], str], lambda node: nodes_data[node].get("id", str(node)))
+        name_mapper = typing.cast(
+            typing.Callable[[_Node], str],
+            lambda node: graph.nodes[node].get("id", str(node)),
+        )
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
 
@@ -351,7 +354,7 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
     def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
         start = datetime.datetime.now()
         print("Computing transitive closure")
-        ret = networkx.transitive_closure(dag)
+        ret = typing.cast(networkx.DiGraph[_Node], networkx.transitive_closure(dag))
         duration = datetime.datetime.now() - start
         print(f"Done computing in {duration.total_seconds():.1f}sec")
         return PrecomputedReachabilityOracle(ret)
@@ -472,7 +475,7 @@ def topological_sort_depth_first(
 ) -> typing.Iterable[_Node]:
     """Topological sort that breaks ties by depth first, and then by lowest child score."""
     queue = util.PriorityQueue[_Node, tuple[int, int]](
-        (node, (dag.in_degree(node), 0))
+        (node, (typing.cast(int, dag.in_degree(node)), 0))
         for node in dag.nodes()
     )
     counter = 0

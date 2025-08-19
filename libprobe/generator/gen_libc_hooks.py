@@ -415,12 +415,12 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             name=pycparser.c_ast.ID(name="ensure_thread_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
-        pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="DEBUG"),
-            args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value='"Interposed call"'),
-            ]),
-        ),
+        # pycparser.c_ast.FuncCall(
+        #     name=pycparser.c_ast.ID(name="DEBUG"),
+        #     args=pycparser.c_ast.ExprList(exprs=[
+        #         pycparser.c_ast.Constant(type="string", value='"Interposed call"'),
+        #     ]),
+        # ),
     ]
 
     noreturn = bool(find_decl(func.stmts, "noreturn", func.name))
@@ -614,7 +614,7 @@ defines = """
 #include <dirent.h>                                          // for DIR, dirfd
 #include <dlfcn.h>                                           // for dlsym
 #include <errno.h>                                           // for errno
-#include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE, O_CLOEXEC
+#include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
 #include <ftw.h>                                             // for ftw, nftw
 #include <limits.h>                                          // IWYU pragma: keep for INT_MAX, PATH_MAX
 #include <linux/close_range.h>                               // for CLOSE_RANGE_CLOEXEC

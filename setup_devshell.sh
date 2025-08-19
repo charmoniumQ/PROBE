@@ -34,4 +34,3 @@ export PATH="$project_root/cli-wrapper/target/debug:$PATH"
 
 # Add probe_py to the Python path
 export PYTHONPATH="$project_root/probe_py/:$PYTHONPATH"
-export MYPYPATH="$project_root/probe_py/mypy_stubs:$project_root/probe_py/:$MYPYPATH"
