@@ -34,6 +34,24 @@
 #define OK(x) {.error = 0, .value = (x)}
 #define ERR(e) {.error = (e)}
 
+#define TRY_CLOSE(fd, path)                                                                        \
+    ({                                                                                             \
+        result ret = probe_libc_close(fd);                                                         \
+        if (ret) {                                                                                 \
+            char* error_str = probe_libc_strndup(strerror_with_backup((int)ret), 4096);            \
+            WARNING("failed to close fd " path "with error: %s (%d)", error_str, ret);             \
+            free(error_str);                                                                       \
+        }                                                                                          \
+    })
+
+// HACK: technically the size of the auxiliary vector isn't defined, but muslc
+// uses a size_t[38] to store the values of the auxiliary vector (index
+// addressed)
+#define AUX_CNT 38
+size_t auxilary[AUX_CNT] = {0};
+
+char** probe_environ = NULL;
+
 #if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
 
@@ -155,14 +173,6 @@ char* strerror_with_backup(int errnum) {
     return backup_strerror_buf;
 }
 
-// HACK: technically the size of the auxiliary vector isn't defined, but muslc
-// uses a size_t[38] to store the values of the auxiliary vector (index
-// addressed)
-#define AUX_CNT 38
-size_t auxilary[AUX_CNT] = {0};
-
-char** probe_environ = NULL;
-
 static inline result_ssize_t read_all(int fd, void* buf, size_t n) {
     ssize_t total = 0;
     result_ssize_t curr;
@@ -184,7 +194,9 @@ result probe_libc_init(void) {
     {
         result_int auxv_fd = probe_libc_open("/proc/self/auxv", O_RDONLY | O_CLOEXEC, 0);
         if (auxv_fd.error) {
-
+            char* error_str = probe_libc_strndup(strerror_with_backup(auxv_fd.error), 4096);
+            WARNING("Unable to open /proc/self/auxv: (%d) %s", auxv_fd.error, error_str);
+            free(error_str);
             return auxv_fd.error;
         }
 
@@ -196,10 +208,13 @@ result probe_libc_init(void) {
         aux_entry buf[AUX_CNT] = {0};
         result_ssize_t read_ret = read_all(auxv_fd.value, buf, AUX_CNT * sizeof(aux_entry));
         if (read_ret.error) {
-            probe_libc_close(auxv_fd.value);
+            char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
+            WARNING("Unable to read auxv: (%d) %s", read_ret.error, error_str);
+            free(error_str);
+            TRY_CLOSE(auxv_fd.value, "/proc/self/auxv");
             return read_ret.error;
         }
-        probe_libc_close(auxv_fd.value);
+        TRY_CLOSE(auxv_fd.value, "/proc/self/auxv");
 
         for (size_t i = 0; i < AUX_CNT && buf[i].key != AT_NULL; ++i) {
             auxilary[buf[i].key] = buf[i].val;
@@ -214,6 +229,9 @@ result probe_libc_init(void) {
 
         result_int environ_fd = probe_libc_open("/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
         if (environ_fd.error) {
+            char* error_str = probe_libc_strndup(strerror_with_backup(environ_fd.error), 4096);
+            WARNING("Unable to open /proc/self/environ: (%d) %s", environ_fd.error, error_str);
+            free(error_str);
             return environ_fd.error;
         }
 
@@ -223,8 +241,11 @@ result probe_libc_init(void) {
         void* buf = malloc(size);
         read_ret = read_all(environ_fd.value, buf, size);
         if (read_ret.error) {
+            char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
+            WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
+            free(error_str);
             free(buf);
-            probe_libc_close(environ_fd.value);
+            TRY_CLOSE(environ_fd.value, "/proc/self/environ");
             return read_ret.error;
         }
         // this means that there's still more environ to grab, so we'll realloc
@@ -233,20 +254,26 @@ result probe_libc_init(void) {
             size += 4096;
             void* new = realloc(buf, size);
             if (new == NULL) {
+                char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
+                WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
+                free(error_str);
                 free(buf);
-                probe_libc_close(environ_fd.value);
+                TRY_CLOSE(environ_fd.value, "/proc/self/environ");
                 return ENOMEM;
             }
             buf = new;
             read_ret = read_all(environ_fd.value, (void*)((uintptr_t)buf + (size - 4096)), 4096);
             if (read_ret.error) {
+                char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
+                WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
+                free(error_str);
                 free(buf);
-                probe_libc_close(environ_fd.value);
+                TRY_CLOSE(environ_fd.value, "/proc/self/environ");
                 return read_ret.error;
             }
         }
         probe_environ = buf;
-        probe_libc_close(environ_fd.value);
+        TRY_CLOSE(environ_fd.value, "/proc/self/environ");
     }
 
     return 0;
@@ -427,15 +454,15 @@ size_t probe_libc_strnlen(const char* s, size_t maxlen) {
     return i;
 }
 
-result_str probe_libc_strndup(const char* s, size_t n) {
+char* probe_libc_strndup(const char* s, size_t n) {
     size_t size = probe_libc_strnlen(s, n);
     char* new = malloc(size + 1);
     if (new == NULL) {
-        return (result_str)ERR(ENOMEM);
+        return NULL;
     }
     probe_libc_memcpy(new, s, size);
     new[size] = '\0';
-    return (result_str)OK(new);
+    return new;
 }
 
 size_t probe_libc_getpagesize(void) { return auxilary[AT_PAGESZ]; }

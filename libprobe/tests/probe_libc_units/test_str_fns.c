@@ -187,86 +187,78 @@ Test(strncpy, fuzzing) {
 // Normal string with n less than length
 Test(strndup, partial_copy) {
     const char *src = "hello world";
-    result_str dup = probe_libc_strndup(src, 5);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
+    char *dup = probe_libc_strndup(src, 5);
 
-    cr_assert_not_null(dup.value, "Returned pointer is NULL");
-    cr_expect_str_eq(dup.value, "hello", "Expected 'hello', got '%s'", dup.value);
-    free(dup.value);
+    cr_assert_not_null(dup, "Returned pointer is NULL");
+    cr_expect_str_eq(dup, "hello", "Expected 'hello', got '%s'", dup);
+    free(dup);
 }
 
 // n longer than string
 Test(strndup, full_copy_shorter_n) {
     const char *src = "test";
-    result_str dup = probe_libc_strndup(src, 10);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
+    char *dup = probe_libc_strndup(src, 10);
 
-    cr_assert_not_null(dup.value);
-    cr_expect_str_eq(dup.value, "test");
-    free(dup.value);
+    cr_assert_not_null(dup);
+    cr_expect_str_eq(dup, "test");
+    free(dup);
 }
 
 // n equal to string length
 Test(strndup, exact_length_copy) {
     const char *src = "example";
-    result_str dup = probe_libc_strndup(src, 7);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
+    char *dup = probe_libc_strndup(src, 7);
 
-    cr_assert_not_null(dup.value);
-    cr_expect_str_eq(dup.value, "example");
-    free(dup.value);
+    cr_assert_not_null(dup);
+    cr_expect_str_eq(dup, "example");
+    free(dup);
 }
 
 // empty string
 Test(strndup, empty_string) {
     const char *src = "";
-    result_str dup = probe_libc_strndup(src, 5);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
+    char *dup = probe_libc_strndup(src, 5);
 
-    cr_assert_not_null(dup.value);
-    cr_expect_str_eq(dup.value, "");
-    free(dup.value);
+    cr_assert_not_null(dup);
+    cr_expect_str_eq(dup, "");
+    free(dup);
 }
 
 // n = 0
 Test(strndup, zero_length) {
     const char *src = "non-empty";
-    result_str dup = probe_libc_strndup(src, 0);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
+    char *dup = probe_libc_strndup(src, 0);
 
-    cr_assert_not_null(dup.value);
-    cr_expect_str_eq(dup.value, "", "Expected empty string, got '%s'", dup.value);
-    free(dup.value);
+    cr_assert_not_null(dup);
+    cr_expect_str_eq(dup, "", "Expected empty string, got '%s'", dup);
+    free(dup);
 }
 
 // NULL input returns dynamic empty string
 Test(strndup, src_null) {
-    result_str dup = probe_libc_strndup(NULL, 5);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
-    cr_assert_str_eq(dup.value, "", "Expected empty string, got '%s'", dup.value);
+    char *dup = probe_libc_strndup(NULL, 5);
+    cr_assert_str_eq(dup, "", "Expected empty string, got '%s'", dup);
 }
 
 // Returned string is null-terminated
 Test(strndup, string_is_null_terminated) {
     const char *src = "abcdef";
     size_t n = 3;
-    result_str dup = probe_libc_strndup(src, n);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
+    char *dup = probe_libc_strndup(src, n);
 
-    cr_assert_not_null(dup.value);
-    cr_expect_eq(dup.value[n], '\0', "String is not null-terminated");
-    free(dup.value);
+    cr_assert_not_null(dup);
+    cr_expect_eq(dup[n], '\0', "String is not null-terminated");
+    free(dup);
 }
 
 // Returned string is dynamically allocated (check writable)
 Test(strndup, result_is_writable) {
     const char *src = "write test";
-    result_str dup = probe_libc_strndup(src, 5);
-    cr_assert(dup.error == 0, "probe_libc_strndup failed to allocate new string");
+    char *dup = probe_libc_strndup(src, 5);
 
-    cr_assert_not_null(dup.value);
-    dup.value[0] = 'W';  // should not crash
-    free(dup.value);
+    cr_assert_not_null(dup);
+    dup[0] = 'W';  // should not crash
+    free(dup);
 }
 
 Test(strndup, fuzzing) {
@@ -279,14 +271,13 @@ Test(strndup, fuzzing) {
         memset(src, rand() % 256, rand() % 4096);
 
         char* expected = strndup(src, n);
-        result_str actual = probe_libc_strndup(src, n);
-        cr_assert(actual.error == 0, "probe_libc_strndup failed to allocate new string");
+        char* actual = probe_libc_strndup(src, n);
 
-        cr_assert_str_eq(expected, actual.value,
+        cr_assert_str_eq(expected, actual,
         "Expected strndup result: \"%.*s\", but got: \"%.*s\"",
-        (int)n, expected, (int)n, actual.value);
+        (int)n, expected, (int)n, actual);
 
         free(expected);
-        free(actual.value);
+        free(actual);
     }
 }
