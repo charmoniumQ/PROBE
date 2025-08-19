@@ -1,6 +1,6 @@
 from __future__ import annotations
 import abc
-import collections.abc
+import collections
 import dataclasses
 import datetime
 import itertools
@@ -464,3 +464,28 @@ def splice_out_nodes(
             ])
             output_dag.remove_node(node)
     return output_dag
+
+
+def topological_sort_depth_first(
+        dag: networkx.DiGraph[_Node],
+        score_children: typing.Callable[[_Node, _Node], int] = lambda _parent, _child: 0,
+) -> typing.Iterable[_Node]:
+    """Topological sort that breaks ties by depth first, and then by lowest child score."""
+    queue = util.PriorityQueue[_Node, tuple[int, int]](
+        (node, (dag.in_degree(node), 0))
+        for node in dag.nodes()
+    )
+    counter = 0
+    while queue:
+        (in_degree, tie_breaker), node = queue.pop()
+        if in_degree == 0:
+            yield node
+            # Since we handled the parent, we essentially removed it from the graph
+            # decrementing the in-degree of its children by one.
+            # To make it be depth first, we make it "win" all ties, among currently existing entries.
+            for child in sorted(dag.successors(node), key=lambda child: score_children(node, child)):
+                in_degree, tie_breaker = queue[child]
+                queue[child] = (in_degree - 1, -counter)
+        else:
+            raise RuntimeError(f"Cycle exists and includes {node}")
+        counter += 1

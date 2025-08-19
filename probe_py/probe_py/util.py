@@ -1,6 +1,8 @@
+import abc
 import collections
 import getpass
 import grp
+import heapq
 import itertools
 import os
 import pathlib
@@ -82,3 +84,77 @@ def decode_nested_object(
         return obj
     else:
         raise TypeError(f"{type(obj)}: {obj}")
+
+class Comparable(typing.Protocol):
+    """Protocol for annotating comparable types."""
+
+    @abc.abstractmethod
+    def __lt__(self, other: typing.Self, /) -> bool:
+        ...
+
+
+_Priority = typing.TypeVar("_Priority", bound=Comparable)
+_Task = typing.TypeVar("_Task", bound=collections.abc.Hashable)
+
+class PriorityQueue(typing.Generic[_Task, _Priority]):
+    """Minimum-priority queue
+
+    Use getitem and getitem to view and change a task's priority.
+
+    Get/set priority implies an additional constraint that each task can only be
+    in the queue once, and also the tasks should be hashable.
+
+    If the priorities are equal, order of extraction is order of insertion.
+
+    https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
+
+    """
+
+    _heap: list[tuple[_Priority, int, _Task]]
+    _priorities: dict[_Task, tuple[_Priority, int]]
+    _removed: set[int]
+    _counter: int = 0
+
+    def __init__(self, initial: typing.Iterable[tuple[_Task, _Priority]] = []) -> None:
+        self._heap = []
+        self._priorities = {}
+        self._removed = set()
+        for task, priority in initial:
+            if task in self._priorities:
+                raise RuntimeError(f"{task} is in the initial queue twice")
+            else:
+                self._heap.append((priority, self._counter, task))
+                self._priorities[task] = (priority, self._counter)
+                self._counter += 1
+        heapq.heapify(self._heap)
+
+    def add(self, task: _Task, priority: _Priority) -> None:
+        if task in self._priorities:
+            raise RuntimeError(f"{task} is already in priority queue")
+        else:
+            self._priorities[task] = (priority, self._counter)
+            heapq.heappush(self._heap, (priority, self._counter, task))
+            self._counter += 1
+
+    def pop(self) -> tuple[_Priority, _Task]:
+        counter = None
+        while counter is None or counter in self._removed:
+            priority, counter, task = heapq.heappop(self._heap)
+        return priority, task
+
+    def __bool__(self) -> bool:
+        while self._heap and self._heap[0][1] in self._removed:
+            heapq.heappop(self._heap)
+        return bool(self._heap)
+
+    def __delitem__(self, task: _Task) -> None:
+        _, counter = self._priorities[task]
+        del self._priorities[task]
+        self._removed.add(counter)
+
+    def __getitem__(self, task: _Task) -> _Priority:
+        return self._priorities[task][0]
+
+    def __setitem__(self, task: _Task, priority: _Priority) -> None:
+        del self[task]
+        self.add(task, priority)

@@ -238,7 +238,36 @@ int open (const char *filename, int flags, ...) {
     });
 }
 fn open64 = open;
-int __open_2(const char* filename, int flags) = open;
+int __open_2(const char* filename, int flags) {
+    void* pre_call = ({
+        struct Op op = {
+            open_op_code,
+            {.open = {
+                .path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
+                .flags = flags,
+                .mode = 0,
+                .fd = -1,
+                .ferrno = 0,
+            }},
+            {0},
+            0,
+            0,
+        };
+        if (LIKELY(prov_log_is_enabled())) {
+            prov_log_try(op);
+        }
+    });
+    void* call = ({
+        int ret = unwrapped_open(filename, flags);
+    });
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            op.data.open.ferrno = UNLIKELY(ret == -1) ? call_errno : 0;
+            op.data.open.fd = ret;
+            prov_log_record(op);
+        }
+    });
+}
 int __openat(const char* filename, int flags) = openat;
 int __openat_2(int fd, const char* file, int oflag) {
     void* pre_call = ({
@@ -3145,7 +3174,7 @@ int pipe2(int pipefd[2], int flags) {
         struct Op mkfifo_op = {
             mkfile_op_code,
             {.mkfile = {
-                .path = create_path_lazy(pipefd[0], NULL, 0),
+                .path = null_path,
                 .file_type = FifoFileType,
                 .flags = flags,
                 .mode = 0,
@@ -3163,6 +3192,7 @@ int pipe2(int pipefd[2], int flags) {
             mkfifo_op.data.mkfile.ferrno = call_errno;
             prov_log_record(mkfifo_op);
         } else {
+            mkfifo_op.data.mkfile.path = create_path_lazy(pipefd[0], NULL, AT_EMPTY_PATH);
             prov_log_record(mkfifo_op);
             struct Op open_read_end_op = {
                 open_op_code,

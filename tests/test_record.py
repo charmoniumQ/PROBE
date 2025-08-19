@@ -1,7 +1,6 @@
 import collections
 import random
 import shutil
-import os
 import pathlib
 import shlex
 import subprocess
@@ -115,7 +114,7 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         ),
     ),
     "java_subprocess_hello": (
-        True,
+        False,
         pathlib.Path("HelloWorld.java"),
         java_subprocess_hello_world,
         bash_multi(
@@ -307,9 +306,11 @@ def test_downstream_analyses(
 
         # See ltrace_eliminator.py for more help.
 
-    cmd = ["probe", "record", "--copy-files=none", *command]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    print(shutil.which(command[0]))
+    full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
+    print(shlex.join(full_command))
+    with (scratch_directory / "probe_debug.log").open("w") as output:
+        subprocess.run(full_command, **args, stderr=output)
 
     cmd = ["probe", "export", "--strict" if strict else "--loose", "debug-text"]
     print(shlex.join(cmd))

@@ -47,7 +47,7 @@ def restore_sanity(
                 help="Whether to fail when PROBE generates warnings",
             ),
         ] = True,
-):
+) -> None:
     # Typer messes with the excepthook
     sys.excepthook =  sys.__excepthook__
     if strict:

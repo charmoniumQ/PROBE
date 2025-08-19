@@ -3,7 +3,7 @@ import dataclasses
 import os
 import pathlib
 import warnings
-import networkx
+from . import graph_utils
 from . import ops
 from . import ptypes
 
@@ -43,14 +43,17 @@ def hb_graph_to_accesses(
         inode = ptypes.InodeVersion.from_probe_path(path).inode
         if fd in proc_fd_to_fd[node.pid]:
             warnings.warn(ptypes.UnusualProbeLog(
-                f"FD {fd} was without our knowledge before {node}.",
+                f"FD {fd} closed was without our knowledge before {node}.",
             ))
             yield from close(fd, node)
         parsed_path = pathlib.Path(path.path.decode())
         proc_fd_to_fd[node.pid][fd] = FileDescriptor2(mode, inode, parsed_path, cloexec)
         yield ptypes.Access(ptypes.Phase.BEGIN, mode, inode, parsed_path, node, fd)
 
-    for node in networkx.topological_sort(hbg):
+    for node in graph_utils.topological_sort_depth_first(
+            hbg,
+            score_children=lambda parent, child: 0 if parent.pid == child.pid else 1 if parent.pid < child.pid else 2,
+    ):
         yield node
         op_data = probe_log.get_op(node).data
         match op_data:
