@@ -266,12 +266,12 @@
                   pypkgs.ipython
                   # NOTE: a check-time input called "xvfb-run" is only available on linux
                   ((pypkgs.xdot.overrideAttrs (prev: {
-                    checkPhase = null;
-                    installCheckPhase = null;
-                    nativeCheckInputs = [];
-                  })).override {
-                    xvfb-run = null;
-                  })
+                      checkPhase = null;
+                      installCheckPhase = null;
+                      nativeCheckInputs = [];
+                    })).override {
+                      xvfb-run = null;
+                    })
 
                   # libprobe build time requirement
                   pypkgs.pycparser
@@ -306,8 +306,7 @@
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
               # gdb broken on apple silicon
-              ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
-                ;
+              ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
           };
         };
       }
