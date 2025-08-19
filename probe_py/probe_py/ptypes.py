@@ -128,6 +128,7 @@ class InodeVersion:
             ),
             numpy.datetime64(s.st_mtime_ns, "ns"),
             s.st_size,
+            s.st_mode,
         )
 
     @staticmethod
@@ -140,6 +141,7 @@ class InodeVersion:
             ),
             numpy.datetime64(path.mtime.sec * int(1e9) + path.mtime.nsec, "ns"),
             path.size,
+            path.mode,
         )
 
     @staticmethod
@@ -158,6 +160,7 @@ class InodeVersion:
             ),
             numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
             array[5],
+            0,
         )
 
 

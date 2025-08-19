@@ -33,11 +33,8 @@
 /* TODO: replace assert with ASSERTF because ASSERTF calls unwrapped_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
-        char* errno_str = strndup(strerror(errno), 4096);                                          \
-        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
-        /* FIXME: fix free, but also remove strndup */\
-        /*free(errno_str);*/                                                                           \
-        /* FIXME: check if unwrapped_exit == NULL and if so warn and syscall diectly */ \
+        LOG("ERROR " str " (errno=%d)", ##__VA_ARGS__, errno);                                     \
+        /* TODO: check if unwrapped_exit == NULL and if so warn and syscall diectly */             \
         unwrapped_exit(103);                                                                       \
         __builtin_unreachable();                                                                   \
     })
