@@ -557,6 +557,7 @@ includes = """
 struct rusage;
 struct stat;
 struct statx;
+struct timeval;
 struct utimbuf;
 
 /*

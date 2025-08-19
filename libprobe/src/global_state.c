@@ -5,7 +5,6 @@
 #include <limits.h>    // IWYU pragma: keep for PATH_MAX
 #include <pthread.h>   // for pthread_mutex_t
 #include <stdbool.h>   // for true, bool, false
-#include <stdio.h>     // for stderr, stdin, stdout
 #include <stdlib.h>    // for free
 #include <string.h>    // for memcpy, NULL, size_t, strnlen// for memcpy, NULL, size_t, strnlen
 #include <sys/mman.h>  // for mmap, PROT_*, MAP_*
