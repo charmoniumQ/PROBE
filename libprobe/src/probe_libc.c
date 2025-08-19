@@ -3,22 +3,38 @@
 #include "probe_libc.h"
 
 // for some reason it wants to use the underlying errno header, but like no.
-#include <errno.h>       // IWYU pragma: keep
+#include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM
+#include <fcntl.h>       // for O_RDONLY, O_CLOEXEC
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
 #include <stdio.h>       // for sprintf
 #include <stdlib.h>      // for malloc
+#include <sys/auxv.h>    // IWYU pragma: keep for AT_NULL, AT_PAGESZ
 #include <sys/syscall.h> // for SYS_dup, SYS_exit, SYS_getcwd
-// IWYU pragma: no_include "asm-generic/errno-base.h" for ENOENT
+#include <unistd.h>      // IWYU pragma: keep for getpid, gettid
+// IWYU pragma: no_include "asm-generic/errno-base.h" for ENOENT, ENOMEM
+// IWYU pragma: no_include "elf.h" for AT_NULL, AT_PAGESZS
 
+#include "../src/debug_logging.h" // for DEBUG, ERROR
 #ifndef UNIT_TESTS
 #include "../generated/libc_hooks.h" // for client_exit, client_strerror
+#else
+// our unit test framework uses a typical (sane) linking scheme and is allowed
+// to liberally use libc so we just alias any libprobe functions we use
+#define client_strerror strerror
+#define client_exit exit
+
+// FIXME: pid and tid, should no longer be needed after stage 3 migration, exec
+// epoch doesn't mean anything outside libprobe contexts
+#define get_pid_safe getpid
+#define get_exec_epoch_safe getpid
+#define get_tid_safe gettid
 #endif
 
-#ifndef __x86_64__
-#error "syscall shims only defined for x86_64 linux"
-#endif
+#define OK(x) {.error = 0, .value = (x)}
+#define ERR(e) {.error = (e)}
 
+#if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
 
 __attribute__((unused)) static uint64_t probe_syscall0(uint64_t sysnum) {
@@ -116,10 +132,8 @@ __attribute__((unused)) static uint64_t probe_syscall6(uint64_t sysnum, uint64_t
 
     return rax;
 }
+#endif
 
-// probe_libc unit testing just #includes this file verbatim, but doesn't link
-// other parts of libprobe so we need to exclude externally dependent functions
-#ifndef UNIT_TESTS
 // TODO: consider a warning to stderr on failure; needs to be implemented with
 // raw syscalls, since calling any fallible code could cause infinite recursion
 void exit_with_backup(int status) {
@@ -140,7 +154,103 @@ char* strerror_with_backup(int errnum) {
     sprintf(backup_strerror_buf, "[ERRNO: %d]", errnum);
     return backup_strerror_buf;
 }
-#endif
+
+// HACK: technically the size of the auxiliary vector isn't defined, but muslc
+// uses a size_t[38] to store the values of the auxiliary vector (index
+// addressed)
+#define AUX_CNT 38
+size_t auxilary[AUX_CNT] = {0};
+
+char** probe_environ = NULL;
+
+static inline result_ssize_t read_all(int fd, void* buf, size_t n) {
+    ssize_t total = 0;
+    result_ssize_t curr;
+    do {
+        curr = probe_libc_read(fd, buf, n - total);
+        if (curr.error) {
+            return curr;
+        }
+        total += curr.value;
+    } while (curr.value > 0);
+    return (result_ssize_t)OK(total);
+}
+
+// TODO: better error handling that specifies *where* something went wrong;
+// some debug statements would be good too, but want to keep the file
+// compileable with -DUNIT_TESTS for well... unit tests
+result probe_libc_init(void) {
+    // auxiliary vector initialization
+    {
+        result_int auxv_fd = probe_libc_open("/proc/self/auxv", O_RDONLY | O_CLOEXEC, 0);
+        if (auxv_fd.error) {
+
+            return auxv_fd.error;
+        }
+
+        typedef struct {
+            size_t key;
+            size_t val;
+        } aux_entry;
+
+        aux_entry buf[AUX_CNT] = {0};
+        result_ssize_t read_ret = read_all(auxv_fd.value, buf, AUX_CNT * sizeof(aux_entry));
+        if (read_ret.error) {
+            probe_libc_close(auxv_fd.value);
+            return read_ret.error;
+        }
+        probe_libc_close(auxv_fd.value);
+
+        for (size_t i = 0; i < AUX_CNT && buf[i].key != AT_NULL; ++i) {
+            auxilary[buf[i].key] = buf[i].val;
+        }
+    }
+
+    // probe_environ initialization
+    {
+        if (probe_environ != NULL) {
+            free(probe_environ);
+        }
+
+        result_int environ_fd = probe_libc_open("/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
+        if (environ_fd.error) {
+            return environ_fd.error;
+        }
+
+        size_t size = 4096;
+        result_ssize_t read_ret;
+
+        void* buf = malloc(size);
+        read_ret = read_all(environ_fd.value, buf, size);
+        if (read_ret.error) {
+            free(buf);
+            probe_libc_close(environ_fd.value);
+            return read_ret.error;
+        }
+        // this means that there's still more environ to grab, so we'll realloc
+        // it and try copying another chunk
+        while (read_ret.value == 4096) {
+            size += 4096;
+            void* new = realloc(buf, size);
+            if (new == NULL) {
+                free(buf);
+                probe_libc_close(environ_fd.value);
+                return ENOMEM;
+            }
+            buf = new;
+            read_ret = read_all(environ_fd.value, (void*)((uintptr_t)buf + (size - 4096)), 4096);
+            if (read_ret.error) {
+                free(buf);
+                probe_libc_close(environ_fd.value);
+                return read_ret.error;
+            }
+        }
+        probe_environ = buf;
+        probe_libc_close(environ_fd.value);
+    }
+
+    return 0;
+}
 
 int probe_libc_memcmp(const void* s1, const void* s2, size_t n) {
     const unsigned char* c1 = (const unsigned char*)s1;
@@ -207,21 +317,12 @@ result_str probe_libc_getcwd(char* buf, size_t size) {
         // just return an error code like all the other edgecases?
         // it would seem only god and linus knows
         if (buf[0] != '/') {
-            return (result_str){
-                .error = ENOENT,
-                .value = NULL,
-            };
+            return (result_str)ERR(ENOENT);
         }
 
-        return (result_str){
-            .error = 0,
-            .value = buf,
-        };
+        return (result_str)OK(buf);
     }
-    return (result_str){
-        .error = -retval,
-        .value = NULL,
-    };
+    return (result_str)ERR(-retval);
 }
 
 pid_t probe_libc_getpid(void) { return probe_syscall0(SYS_getpid); }
@@ -233,53 +334,49 @@ pid_t probe_libc_gettid(void) { return probe_syscall0(SYS_gettid); }
 result_int probe_libc_dup(int oldfd) {
     int retval = probe_syscall1(SYS_dup, oldfd);
     if (retval >= 0) {
-        return (result_int){
-            .error = 0,
-            .value = retval,
-        };
+        return (result_int)OK(retval);
     }
-    return (result_int){
-        .error = -retval,
-    };
+    return (result_int)ERR(-retval);
+}
+
+result_int probe_libc_open(const char* path, int flags, mode_t mode) {
+    ssize_t retval = probe_syscall3(SYS_open, (uintptr_t)path, flags, mode);
+    if (retval >= 0) {
+        return (result_int)OK(retval);
+    }
+    return (result_int)ERR(-retval);
+}
+
+result probe_libc_close(int fd) {
+    ssize_t retval = probe_syscall1(SYS_close, fd);
+    if (retval < 0) {
+        return -retval;
+    }
+    return 0;
 }
 
 result_ssize_t probe_libc_read(int fd, void* buf, size_t count) {
     ssize_t retval = probe_syscall3(SYS_read, fd, (uintptr_t)buf, count);
     if (retval >= 0) {
-        return (result_ssize_t){
-            .error = 0,
-            .value = retval,
-        };
+        return (result_ssize_t)OK(retval);
     }
-    return (result_ssize_t){
-        .error = -retval,
-    };
+    return (result_ssize_t)ERR(-retval);
 }
 
 result_ssize_t probe_libc_write(int fd, void* buf, size_t count) {
     ssize_t retval = probe_syscall3(SYS_write, fd, (uintptr_t)buf, count);
     if (retval >= 0) {
-        return (result_ssize_t){
-            .error = 0,
-            .value = retval,
-        };
+        return (result_ssize_t)OK(retval);
     }
-    return (result_ssize_t){
-        .error = -retval,
-    };
+    return (result_ssize_t)ERR(-retval);
 }
 
 result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) {
     ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, /*offset*/ 0);
     if (retval >= 0) {
-        return (result_mem){
-            .error = 0,
-            .value = (void*)retval,
-        };
+        return (result_mem)OK((void*)retval);
     }
-    return (result_mem){
-        .error = -retval,
-    };
+    return (result_mem)ERR(-retval);
 }
 
 result probe_libc_munmap(void* addr, size_t len) {
@@ -301,11 +398,9 @@ result probe_libc_msync(void* addr, size_t len, int flags) {
 result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
     ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
     if (retval >= 0) {
-        return (result_ssize_t){.error = 0, .value = retval};
+        return (result_ssize_t)OK(retval);
     }
-    return (result_ssize_t){
-        .error = -retval,
-    };
+    return (result_ssize_t)ERR(-retval);
 }
 
 char* probe_libc_strncpy(char* dest, const char* src, size_t dsize) {
@@ -332,10 +427,15 @@ size_t probe_libc_strnlen(const char* s, size_t maxlen) {
     return i;
 }
 
-char* probe_libc_strndup(const char* s, size_t n) {
+result_str probe_libc_strndup(const char* s, size_t n) {
     size_t size = probe_libc_strnlen(s, n);
     char* new = malloc(size + 1);
+    if (new == NULL) {
+        return (result_str)ERR(ENOMEM);
+    }
     probe_libc_memcpy(new, s, size);
     new[size] = '\0';
-    return new;
+    return (result_str)OK(new);
 }
+
+size_t probe_libc_getpagesize(void) { return auxilary[AT_PAGESZ]; }

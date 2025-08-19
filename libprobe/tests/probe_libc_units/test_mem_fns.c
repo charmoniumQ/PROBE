@@ -82,7 +82,7 @@ Test(memcmp, zero_null) {
 Test(memcmp, ne_fuzzing) {
     srand(FUZZING_SEED);
 
-    for (int i = 0; i < 10000; ++i) {
+    for (size_t i = 0; i < FUZZING_COUNT; ++i) {
         int buf1[32];
         int buf2[32];
         for (int j = 0; j < 32; ++j) {
@@ -121,7 +121,7 @@ Test(memcmp, ne_fuzzing) {
 Test(memcmp, eq_fuzzing) {
     srand(FUZZING_SEED);
 
-    for (int i = 0; i < 10000; ++i) {
+    for (size_t i = 0; i < FUZZING_COUNT; ++i) {
         int size = rand() % 0x1000;
         int* buf1 = malloc(size * sizeof(int));
         int* buf2 = malloc(size * sizeof(int));
@@ -200,7 +200,7 @@ Test(memcpy, zero_null) {
 Test(memcpy, fuzzing) {
     srand(FUZZING_SEED);
 
-    for (int i = 0; i < 10000; ++i) {
+    for (size_t i = 0; i < FUZZING_COUNT; ++i) {
         int size = rand() % 0x1000;
         int* buf1 = malloc(size * sizeof(int));
         int* buf2 = malloc(size * sizeof(int));
@@ -264,7 +264,7 @@ Test(memset, zeros) {
 Test(memset, fuzzing) {
     srand(FUZZING_SEED);
 
-    for (int i = 0; i < 10000; ++i) {
+    for (size_t i = 0; i < FUZZING_COUNT; ++i) {
         int x = rand() % 256;
         int size = rand() % 0x1000;
         char* buf_expected = malloc(size);

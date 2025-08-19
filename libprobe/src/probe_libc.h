@@ -30,6 +30,14 @@ typedef struct {
     void* value;
 } result_mem;
 
+// calling any probe_libc_* function before you call this *and* it returns zero
+// (this will require a functional /proc filesystem) is considered undefined
+// behavior, but at time of writing it only actually effects
+// probe_libc_getpagesize, probe_libc_getenv, and probe_environ
+ATTR_HIDDEN result probe_libc_init(void);
+
+extern char** probe_environ;
+
 __attribute__((noreturn, visibility("hidden"))) void exit_with_backup(int status);
 ATTR_HIDDEN char* strerror_with_backup(int errnum);
 
@@ -45,6 +53,8 @@ ATTR_HIDDEN pid_t probe_libc_gettid(void);
 
 ATTR_HIDDEN result_int probe_libc_dup(int oldfd);
 
+ATTR_HIDDEN result_int probe_libc_open(const char* path, int flags, mode_t mode);
+ATTR_HIDDEN result probe_libc_close(int fd);
 ATTR_HIDDEN result_ssize_t probe_libc_read(int fd, void* buf, size_t count);
 ATTR_HIDDEN result_ssize_t probe_libc_write(int fd, void* buf, size_t count);
 
@@ -59,4 +69,6 @@ ATTR_HIDDEN result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* off
 
 ATTR_HIDDEN char* probe_libc_strncpy(char* dest, const char* src, size_t dsize);
 ATTR_HIDDEN size_t probe_libc_strnlen(const char* s, size_t maxlen);
-ATTR_HIDDEN char* probe_libc_strndup(const char* s, size_t n);
+ATTR_HIDDEN result_str probe_libc_strndup(const char* s, size_t n);
+
+ATTR_HIDDEN size_t probe_libc_getpagesize(void);
