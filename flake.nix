@@ -255,14 +255,23 @@
                   pypkgs.numpy
                   pypkgs.tqdm
                   pypkgs.types-tqdm
+                  pypkgs.xdg-base-dirs
 
                   # probe_py.manual "dev time" requirements
+                  pypkgs.types-tqdm
                   pypkgs.psutil
                   pypkgs.pytest
                   pypkgs.pytest-timeout
                   pypkgs.mypy
                   pypkgs.ipython
-                  pypkgs.xdg-base-dirs
+                  # NOTE: a check-time input called "xvfb-run" is only available on linux
+                  ((pypkgs.xdot.overrideAttrs (prev: {
+                    checkPhase = null;
+                    installCheckPhase = null;
+                    nativeCheckInputs = [];
+                  })).override {
+                    xvfb-run = null;
+                  })
 
                   # libprobe build time requirement
                   pypkgs.pycparser
@@ -298,8 +307,7 @@
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
               # gdb broken on apple silicon
               ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
-              # while xdot isn't marked as linux only, it has a dependency (xvfb-run) that is
-              ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.xdot;
+                ;
           };
         };
       }
