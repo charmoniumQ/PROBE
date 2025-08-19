@@ -125,10 +125,10 @@ class InodeVersion:
                     os.minor(s.st_dev),
                 ),
                 s.st_ino,
+                s.st_mode,
             ),
             numpy.datetime64(s.st_mtime_ns, "ns"),
             s.st_size,
-            s.st_mode,
         )
 
     @staticmethod
@@ -138,10 +138,10 @@ class InodeVersion:
                 Host.localhost(),
                 Device(path.device_major, path.device_minor),
                 path.inode,
+                path.mode,
             ),
             numpy.datetime64(path.mtime.sec * int(1e9) + path.mtime.nsec, "ns"),
             path.size,
-            path.mode,
         )
 
     @staticmethod
@@ -157,10 +157,10 @@ class InodeVersion:
                 Host.localhost(),
                 Device(array[0], array[1]),
                 array[2],
+                0,
             ),
             numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
             array[5],
-            0,
         )
 
 
