@@ -305,7 +305,7 @@ funcs = {
         if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
     },
 }
-func_prefix = "unwrapped_"
+func_prefix = "client_"
 func_pointer_declarations = [
     Decl(
         name=func_prefix + func_name,
@@ -520,6 +520,7 @@ wrapper_func_declarations = [
         stmts=wrapper_func_body(func),
     ).definition(visibility="default")
     for _, func in funcs.items()
+    if func.stmts
 ]
 generated = pathlib.Path("generated")
 generated.mkdir(exist_ok=True)
