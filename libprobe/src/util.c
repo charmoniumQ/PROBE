@@ -1,15 +1,14 @@
 #define _GNU_SOURCE
 
-#include <dirent.h>       // for dirent
-#include <errno.h>        // for errno, EBADF
-#include <fcntl.h>        // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
-#include <limits.h>       // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
-#include <stdbool.h>      // for bool, false
-#include <stdlib.h>       // for malloc
-#include <string.h>       // for strcmp, strlen
-#include <sys/sendfile.h> // for sendfile
-#include <sys/stat.h>     // for S_IFDIR, S_IFMT, statx, STATX_TYPE
-#include <sys/types.h>    // for ssize_t, off_t
+#include <dirent.h>    // for dirent
+#include <errno.h>     // for errno, EBADF
+#include <fcntl.h>     // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
+#include <limits.h>    // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
+#include <stdbool.h>   // for bool, false
+#include <stdlib.h>    // for malloc
+#include <string.h>    // for strcmp
+#include <sys/stat.h>  // for S_IFDIR, S_IFMT, statx, STATX_TYPE
+#include <sys/types.h> // for ssize_t, off_t
 // IWYU pragma: no_include "asm-generic/errno-base.h"   for EBADF
 // IWYU pragma: no_include "bits/posix1_lim.h"          for SSIZE_MAX
 // IWYU pragma: no_include "linux/limits.h"             for PATH_MAX
@@ -41,10 +40,10 @@ OWNED const char* dirfd_path(int dirfd) {
 OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left,
                       ssize_t right_size, BORROWED const char* right) {
     if (left_size == -1) {
-        left_size = strlen(left);
+        left_size = probe_libc_strlen(left);
     }
     if (right_size == -1) {
-        right_size = strlen(right);
+        right_size = probe_libc_strlen(right);
     }
     if (!path_buf) {
         path_buf = EXPECT_NONNULL(malloc(left_size + right_size + 2));
@@ -95,10 +94,12 @@ int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* ds
         return -1;
     off_t copied = 0;
     while (copied < size) {
-        ssize_t written = sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
-        if (written < 0)
+        result_ssize_t written = probe_libc_sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
+        if (written.error) {
+            // FIXME: consider propagating the error value
             return -1;
-        copied += written;
+        }
+        copied += written.value;
     }
 
     EXPECT(== 0, client_close(src_fd));

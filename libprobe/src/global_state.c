@@ -6,8 +6,7 @@
 #include <pthread.h>   // for pthread_mutex_t
 #include <stdbool.h>   // for true, bool, false
 #include <stdlib.h>    // for free
-#include <string.h>    // for NULL, size_t, strnlen
-#include <sys/mman.h>  // for mmap, PROT_*, MAP_*
+#include <sys/mman.h>  // IWYU pragma: keep for PROT_*, MAP_*
 #include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
 #include <sys/types.h> // for pid_t
 #include <unistd.h>    // for confstr, _CS_PATH
@@ -42,7 +41,7 @@
 #endif
 
 void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
-    size_t str_len = strnlen(string, PATH_MAX);
+    size_t str_len = probe_libc_strnlen(string, PATH_MAX);
     probe_libc_memcpy(&path->bytes, string, str_len);
     path->len = str_len;
     check_fixed_path(path);
@@ -68,11 +67,11 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
     if (writable) {
         EXPECT(== 0, client_ftruncate(fd, size));
     }
-    void* ret = EXPECT_NONNULL(client_mmap(
-        NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ), MAP_SHARED, fd, 0));
-    ASSERTF(ret != MAP_FAILED, "mmap did not succeed");
+    result_mem ret = probe_libc_mmap(NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ),
+                                     MAP_SHARED, fd);
+    ASSERTF(ret.error == 0, "mmap failed");
     EXPECT(== 0, client_close(fd));
-    return ret;
+    return ret.value;
 }
 
 /*
@@ -165,7 +164,7 @@ static inline void init_process_context() {
 }
 void uninit_process_context() {
     /* TODO: */
-    /* client_munmap(__process_context, sizeof(struct ProcessContext)); */
+    /* probe_libc_munmap(__process_context, sizeof(struct ProcessContext)); */
 }
 static inline const struct ProcessContext* get_process_context() {
     return EXPECT_NONNULL(__process_context);
@@ -330,8 +329,6 @@ static inline void check_function_pointers() {
     ASSERTF(client_fork, "");
     ASSERTF(client_ftruncate, "");
     ASSERTF(client_mkdirat, "");
-    ASSERTF(client_mmap, "");
-    ASSERTF(client_munmap, "");
     ASSERTF(client_openat, "");
     ASSERTF(client_statx, "");
 

@@ -3,7 +3,6 @@
 #include <limits.h>  // IWYU pragma: keep for PATH_MAX
 #include <stdbool.h> // for bool, false, true
 #include <stdlib.h>  // for malloc
-#include <string.h>  // for strlen, strnlen
 // IWYU pragma: no_include "linux/limits.h"  for PATH_MAX
 
 #include "../generated/bindings.h" // for FixedPath, LD_PRELOAD_VAR, PROBE_...
@@ -68,7 +67,7 @@ char* const* update_env_with_probe_vars(char* const* env, size_t* new_env_size) 
             DEBUG("Found %s", new_env[idx]);
             found_ld_preload = true;
             const char* env_val = &new_env[idx][sizeof(LD_PRELOAD_VAR)];
-            size_t env_val_len = strnlen(env_val, PATH_MAX * 100);
+            size_t env_val_len = probe_libc_strnlen(env_val, PATH_MAX * 100);
             if (!search_on_colon_separated_path(env_val, libprobe_path->bytes,
                                                 libprobe_path->len)) {
                 DEBUG("Could not find \"%s\" on LD_PRELOAD", libprobe_path->bytes);
@@ -137,7 +136,7 @@ char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size
     char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
 
     for (size_t i = 0; i < argc; ++i) {
-        size_t length = strlen(argv[i]);
+        size_t length = probe_libc_strlen(argv[i]);
         argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
         probe_libc_memcpy(argv_copy[i], argv[i], length + 1);
         ASSERTF(!argv_copy[i][length], "");

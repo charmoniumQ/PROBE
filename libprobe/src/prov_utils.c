@@ -5,7 +5,7 @@
 #include <fcntl.h>         // for O_CREAT, AT_FDCWD, O_RDWR
 #include <limits.h>        // IWYU pragma: keep for PATH_MAX
 #include <stdbool.h>       // for bool, true, false
-#include <string.h>        // for strlen, strncpy
+#include <string.h>        // for strncpy
 #include <sys/resource.h>  // IWYU pragma: keep for rusage
 #include <sys/stat.h>      // IWYU pragma: keep for stat, statx, statx_timestamp
 #include <sys/sysmacros.h> // for major, minor
@@ -19,6 +19,7 @@
 #include "arena.h"                        // for arena_strndup
 #include "debug_logging.h"                // for DEBUG, EXPECT_NONNULL, NOT...
 #include "global_state.h"                 // for get_data_arena, get_exec_e...
+#include "probe_libc.h"                   // for probe_libc_strlen
 #include "prov_buffer.h"                  // for prov_log_record, prov_log_try
 #include "util.h"                         // for CHECK_SNPRINTF, BORROWED
 
@@ -208,8 +209,8 @@ int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
     strncpy(dest, op_str, size);
-    size -= strlen(op_str);
-    dest += strlen(op_str);
+    size -= probe_libc_strlen(op_str);
+    dest += probe_libc_strlen(op_str);
 
     dest[0] = ' ';
     dest++;

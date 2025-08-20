@@ -71,6 +71,7 @@ ATTR_HIDDEN char* probe_libc_strncpy(char* dest, const char* src, size_t dsize);
 ATTR_HIDDEN size_t probe_libc_strnlen(const char* s, size_t maxlen);
 ATTR_HIDDEN char* probe_libc_strndup(const char* s, size_t n);
 ATTR_HIDDEN int probe_libc_strncmp(const char* a, const char* b, size_t n);
+static inline size_t probe_libc_strlen(const char* s) { return probe_libc_strnlen(s, -1); }
 
 ATTR_HIDDEN size_t probe_libc_getpagesize(void);
 
