@@ -263,7 +263,6 @@
                   pkgs.include-what-you-use
                   pkgs.libclang
 
-
                   # rust tools
                   pkgs.cargo-deny
                   pkgs.cargo-audit
