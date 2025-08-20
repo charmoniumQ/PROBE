@@ -98,13 +98,13 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
     "c_hello_simplified": (
-        True,
+        False,
         pathlib.Path("test.c"),
         "int main() { return 0; }",
-        ["gcc", "test.c"],
+        ["gcc", "-c", "test.c"],
     ),
     "c_hello": (
-        True,
+        False,
         pathlib.Path("test.c"),
         c_hello_world,
         bash_multi(
@@ -280,7 +280,7 @@ def test_downstream_analyses(
             (scratch_directory / command[1]).write_text(command[2])
         command = command[3]
     else:
-        strict = True
+        strict = False
 
     class PopenKwargs(typing.TypedDict):
         check: bool

@@ -74,7 +74,9 @@ def hb_graph_to_accesses(
             yield Access(Phase.END, file_desc.mode, file_desc.inode, file_desc.path, node, fd)
             del proc_fd_to_fd[node.pid][fd]
         else:
-            warnings.warn(f"Process {node.pid} successfully closed an FD {fd} we never traced. This could come from pipe or pipe2.")
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"{node} successfully closed an FD {fd} we never traced. This could come from pipe or pipe2."
+            ))
 
     def openfd(
             fd: int,
@@ -85,7 +87,9 @@ def hb_graph_to_accesses(
     ) -> collections.abc.Iterator[Access]:
         inode = ptypes.InodeVersion.from_probe_path(path).inode
         if fd in proc_fd_to_fd[node.pid]:
-            warnings.warn(f"Process {node.pid} closed FD {fd} without our knowledge.")
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"Prior to {node}, process closed FD {fd} without our knowledge."
+            ))
             yield from close(fd, node)
         parsed_path = pathlib.Path(path.path.decode())
         proc_fd_to_fd[node.pid][fd] = FileDescriptor2(mode, inode, parsed_path, cloexec)
@@ -133,7 +137,9 @@ def hb_graph_to_accesses(
                         yield from close(op_data.new, node)
                     proc_fd_to_fd[node.pid][op_data.new] = old_file_desc
                 else:
-                    warnings.warn(f"Process {node.pid} successfully closed an FD {op_data.old} we never traced. This could come from pipe or pipe2.")
+                    warnings.warn(ptypes.UnusualProbeLog(
+                        f"Prior to {node}, process successfully closed an FD {op_data.old} we never traced. This could come from pipe or pipe2."
+                    ))
             case ops.CloneOp():
                 if op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
                     target = ptypes.Pid(op_data.task_id)
