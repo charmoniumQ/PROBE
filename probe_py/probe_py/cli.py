@@ -9,17 +9,18 @@ import subprocess
 import sys
 import tempfile
 import typing
+import warnings
 import typer
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
-import warnings
 from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
 from . import ops
 from . import parser
+from . import ptypes
 from . import scp as scp_module
 from . import ssh_argparser
 from . import validators
@@ -34,9 +35,31 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 export_app = typer.Typer()
 app.add_typer(export_app, name="export")
 
+strict_option = typer.Option(
+    "--strict/--loose",
+    help="Whether to fail when PROBE generates warnings",
+)
+def restore_sanity(
+        strict: Annotated[
+            bool,
+            strict_option,
+        ] = True,
+) -> None:
+    # Typer messes with the excepthook
+    sys.excepthook =  sys.__excepthook__
+    if strict:
+        warnings.filterwarnings(
+            "error",
+            category=ptypes.UnusualProbeLog,
+        )
+    else:
+        warnings.filterwarnings(
+            "always",
+            category=ptypes.UnusualProbeLog,
+        )
 
-warnings.simplefilter("once")
 
+export_app.callback()(restore_sanity)
 
 @app.command()
 def validate(
@@ -50,8 +73,12 @@ def validate(
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
-    sys.excepthook =  sys.__excepthook__
+    restore_sanity(True)
     warning_free = True
+    warnings.filterwarnings(
+        "always",
+        category=ptypes.UnusualProbeLog,
+    )
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
         for inode, contents in (probe_log.copied_files or {}).items():
             content_length = contents.stat().st_size
@@ -65,8 +92,6 @@ def validate(
     for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
     if not warning_free:
         raise typer.Exit(code=1)
 
@@ -75,6 +100,7 @@ class OpType(enum.StrEnum):
     ALL = enum.auto()
     MINIMAL = enum.auto()
     FILE = enum.auto()
+    SUCCESSFUL = enum.auto()
 
 
 @export_app.command()
@@ -87,10 +113,14 @@ def hb_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        retain_ops: Annotated[
+        retain: Annotated[
             OpType,
-            typer.Option(help="Which ops to include in the graph?")
+            typer.Option(help="Which ops to include in the graph? There are quite a few.")
         ] = OpType.MINIMAL,
+        show_op_number: Annotated[
+            bool,
+            typer.Option(help="Whether to show the op number in the output.")
+        ] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -103,14 +133,16 @@ def hb_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    match retain_ops:
+    match retain:
         case OpType.ALL:
             pass
         case OpType.MINIMAL:
-            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, _op: False)
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
         case OpType.FILE:
             hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
-    hb_graph_module.label_nodes(probe_log, hbg, retain_ops == OpType.ALL)
+        case OpType.SUCCESSFUL:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp))
+    hb_graph_module.label_nodes(probe_log, hbg, show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
     

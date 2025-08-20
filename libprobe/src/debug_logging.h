@@ -8,6 +8,7 @@
 #include <stdlib.h>       // for exit, free
 #include <string.h>       // for strerror, strndup
 
+
 #ifndef NDEBUG
 #define DEBUG_LOG 1
 #else
@@ -32,12 +33,9 @@
 /* TODO: replace assert with ASSERTF because ASSERTF calls unwrapped_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
-        char* errno_str = strndup(strerror(errno), 4096);                                          \
-        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
-        /* FIXME: fix free, but also remove strndup */                                             \
-        /*free(errno_str);*/                                                                       \
-        /* FIXME: check if unwrapped_exit == NULL and if so warn and syscall diectly */            \
-        exit(103);                                                                                 \
+        char* errno_str = strndup(strerror_with_backup(errno), 4096);                              \
+        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \                                                                      \
+        exit_with_backup(103);                                                                     \
     })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */

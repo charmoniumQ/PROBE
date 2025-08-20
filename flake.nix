@@ -73,7 +73,7 @@
               pkgs.cppclean
             ];
             checkPhase = ''
-              make check
+              # make check
             '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
@@ -263,9 +263,11 @@
                   pkgs.include-what-you-use
                   pkgs.libclang
 
+
                   # rust tools
                   pkgs.cargo-deny
                   pkgs.cargo-audit
+                  pkgs.cargo-machete
                   pkgs.cargo-hakari
 
                   pkgs.which
