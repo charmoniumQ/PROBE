@@ -33,6 +33,16 @@
         lib = nixpkgs.lib;
         python = pkgs.python312;
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
+        # Once a new release of [PyPI types-networkx] is rolled out
+        # containing [typeshed#14594] and [typeshed#14595], this can be replaced
+        # with the PyPI version. Unfortunately, building types-networkx from
+        # source is quite a pain, as the "normal" package source is actually
+        # generated from the typeshed source by stub_uploader.
+        #
+        # [typeshed#14594]: https://github.com/python/typeshed/pull/14594
+        # [typeshed#14595]: https://github.com/python/typeshed/pull/14595
+        # [PyPI types-networkx]: https://pypi.org/project/types-networkx/
+
         types-networkx = python.pkgs.buildPythonPackage rec {
           pname = "types-networkx";
           version = "3.5.0.20250819-dev";
