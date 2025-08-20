@@ -112,7 +112,7 @@
               pkgs.cppclean
             ];
             checkPhase = ''
-              # make check
+              make check
             '';
           };
           probe = pkgs.stdenv.mkDerivation rec {

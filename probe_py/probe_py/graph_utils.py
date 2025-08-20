@@ -99,7 +99,7 @@ def serialize_graph(
     if name_mapper is None:
         name_mapper = typing.cast(
             typing.Callable[[_Node], str],
-            lambda node: graph.nodes[node].get("id", str(node)),
+            lambda node: graph.nodes(data=True)[node].get("id", str(node)),
         )
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
@@ -376,7 +376,9 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
                     self.dag_tc.add_edge(descendant_of_source, descendant_of_target)
 
 
-def get_faces(planar_graph: networkx.PlanarEmbedding[_Node]) -> frozenset[tuple[_Node, ...]]:
+def get_faces(
+        planar_graph: networkx.PlanarEmbedding[_Node],
+) -> frozenset[tuple[_Node, ...]]:
     faces = set()
     covered_half_edges = set()
     for half_edge in planar_graph.edges():
@@ -475,7 +477,7 @@ def topological_sort_depth_first(
 ) -> typing.Iterable[_Node]:
     """Topological sort that breaks ties by depth first, and then by lowest child score."""
     queue = util.PriorityQueue[_Node, tuple[int, int]](
-        (node, (typing.cast(int, dag.in_degree(node)), 0))
+        (node, (dag.in_degree(node), 0))
         for node in dag.nodes()
     )
     counter = 0

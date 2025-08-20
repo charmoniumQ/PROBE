@@ -7,7 +7,7 @@ import warnings
 import networkx
 import tqdm
 from .hb_graph_accesses import hb_graph_to_accesses
-from .ptypes import Inode, TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
+from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
 from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp
 from . import graph_utils
 from . import ptypes
@@ -155,7 +155,7 @@ def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) ->
                 target_tid = Tid(op.data.task_id)
                 if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
                     warnings.warn(ptypes.UnusualProbeLog(
-                        f"Clone points to a thread {target_tid} we didn't track"
+                        f"Clone ({node}) points to a thread {target_tid} we didn't track"
                     ))
                 else:
                     target = OpQuad(node.pid, node.exec_no, target_tid, 0)
@@ -165,7 +165,7 @@ def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) ->
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
                     warnings.warn(ptypes.UnusualProbeLog(
-                        f"Clone points to a process {target_pid} we didn't track {probe_log.processes.keys()}"
+                        f"Clone ({node}) points to a process {target_pid} we didn't track {probe_log.processes.keys()}"
                     ))
                 else:
                     target = OpQuad(target_pid, initial_exec_no, target_pid.main_thread(), 0)
@@ -204,7 +204,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                 target_tid = Tid(op.data.task_id)
                 if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
                     warnings.warn(ptypes.UnusualProbeLog(
-                        f"Wait ({node}) points to a thread {target_tid} we didn't track"
+                        f"Wait ({node}) points to a thread {target_tid} we didn't track",
                     ))
                 else:
                     target = OpQuad(node.pid, node.exec_no, target_tid, len(probe_log.processes[node.pid].execs[node.exec_no].threads[target_tid].ops) - 1)
@@ -213,7 +213,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
                     warnings.warn(ptypes.UnusualProbeLog(
-                        f"Wait ({node}) points to a process {target_pid} we didn't track"
+                        f"Wait ({node}) points to a process {target_pid} we didn't track",
                     ))
                 else:
                     last_exec_no = max(probe_log.processes[target_pid].execs.keys())
@@ -358,8 +358,8 @@ def _create_pipe_edges(
         CloneOp,
     )))
 
-    fifo_readers = collections.defaultdict[Inode, set[OpQuad]](set)
-    fifo_writers = collections.defaultdict[Inode, set[OpQuad]](set)
+    fifo_readers = collections.defaultdict[ptypes.Inode, set[OpQuad]](set)
+    fifo_writers = collections.defaultdict[ptypes.Inode, set[OpQuad]](set)
     for access_or_op in hb_graph_to_accesses(probe_log, reduced_hb_graph):
         match access_or_op:
             case ptypes.Access():

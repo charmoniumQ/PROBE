@@ -2,12 +2,12 @@
 
 #define _GNU_SOURCE
 
-#include "../generated/libc_hooks.h" // IWYU pragma: keep for unwrapped_exit
-#include "global_state.h"            // for get_exec_epoch_safe, get_pid_safe, get_tid...
-#include <errno.h>                   // for errno
-#include <stdio.h>                   // for fprintf, stderr
-#include <stdlib.h>                  // for exit, free
-#include <string.h>                  // for strerror, strndup
+#include <errno.h>  // for errno
+#include <stdio.h>  // for fprintf, stderr
+#include <string.h> // for strerror, strndup
+
+#include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
+#include "probe_libc.h"   // IWYU pragma: keep
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1
@@ -30,13 +30,10 @@
 
 #define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
 
-/* TODO: replace assert with ASSERTF because ASSERTF calls unwrapped_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
-        LOG("ERROR " str " (errno=%d)", ##__VA_ARGS__, errno);                                     \
-        /* TODO: check if unwrapped_exit == NULL and if so warn and syscall diectly */             \
-        unwrapped_exit(103);                                                                       \
-        __builtin_unreachable();                                                                   \
+        LOG("ERROR " str " (%s)", ##__VA_ARGS__, strerror_with_backup(errno));                     \
+        exit_with_backup(103);                                                                     \
     })
 
 /* TODO: Replace EXPECT, ASSERTF, NOT_IMPLEMENTED with explicit error handling: { ERR(...); return -1; } */
@@ -74,5 +71,5 @@ __attribute__((unused)) static inline void __mark_as_used__debug_logging_h() {
     fprintf(stderr, "hi");
     strndup("hi", 3);
     get_pid();
-    exit(1);
+    exit_with_backup(1);
 }

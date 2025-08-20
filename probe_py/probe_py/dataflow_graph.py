@@ -46,7 +46,7 @@ def accesses_to_dataflow_graph(
         WRITING = enum.auto()
 
     parent_pid = probe_log.get_parent_pid_map()
-    pid_to_state = collections.defaultdict[ptypes.Pid, PidState](lambda: PidState.READING)
+    pid_to_state = dict[ptypes.Pid, PidState]()
     last_op_in_process = dict[ptypes.Pid, ptypes.OpQuint]()
     inode_to_version = collections.defaultdict[ptypes.Inode, int](lambda: 0)
     inode_to_paths = collections.defaultdict[ptypes.Inode, set[pathlib.Path]](set)
@@ -67,6 +67,11 @@ def accesses_to_dataflow_graph(
         last_op_in_process[quad.pid] = quint
 
     def ensure_state(quad: ptypes.OpQuad, desired_state: PidState) -> ptypes.OpQuint:
+        if quad.pid not in pid_to_state:
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"Encountered {quad}, but there are no nodes on process {quad.pid}.",
+            ))
+            add_quad(quad, "init")
         if desired_state == PidState.WRITING and pid_to_state[quad.pid] == PidState.READING:
             # Reading -> writing for free
             pid_to_state[quad.pid] = PidState.WRITING
@@ -310,4 +315,4 @@ def label_nodes(
                 data["shape"] = "rectangle"
                 data["id"] = str(hash(node))
     for a, b in cycle:
-        dataflow_graph.edges[a, b]["color"] = "red"
+        dataflow_graph.edges[a, b]["color"] = "red"  # type: ignore

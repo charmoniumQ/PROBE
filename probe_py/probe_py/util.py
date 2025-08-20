@@ -63,7 +63,6 @@ def duplicates(elements: typing.Iterable[_T]) -> typing.Iterable[_T]:
     ]
 
 
-
 def decode_nested_object(
         obj: typing.Any,
 ) -> typing.Any:
@@ -85,6 +84,7 @@ def decode_nested_object(
     else:
         raise TypeError(f"{type(obj)}: {obj}")
 
+
 class Comparable(typing.Protocol):
     """Protocol for annotating comparable types."""
 
@@ -95,6 +95,7 @@ class Comparable(typing.Protocol):
 
 _Priority = typing.TypeVar("_Priority", bound=Comparable)
 _Task = typing.TypeVar("_Task", bound=collections.abc.Hashable)
+
 
 class PriorityQueue(typing.Generic[_Task, _Priority]):
     """Minimum-priority queue

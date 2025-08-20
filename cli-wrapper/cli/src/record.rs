@@ -30,7 +30,7 @@ pub fn record_no_transcribe(
     };
 
     if output.exists() {
-        if overwrite {
+        if !overwrite {
             bail!("output {:?} already exists", &output);
         } else if output.is_dir() {
             fs_extra::dir::remove(&output)?;
@@ -70,7 +70,7 @@ pub fn record_transcribe(
     };
 
     if output.exists() {
-        if overwrite {
+        if !overwrite {
             bail!("output {:?} already exists", &output);
         } else if output.is_dir() {
             fs_extra::dir::remove(&output)?;

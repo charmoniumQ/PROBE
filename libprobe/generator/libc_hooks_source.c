@@ -3,7 +3,7 @@
  * It is a place-holder for C code and is processed by gen_libprov.py and put into libprov_middle.c.
  * It re-uses C's grammar, so I get syntax highlighting and I can parse it into fragments of C syntax easily.
  * Rationale: In this part of the project, there are many repetitions of code automatically generated.
- * For example, for each function $foo, we define a wrapper function $foo that calls the original function unwrapped_$foo with the same arguments.
+ * For example, for each function $foo, we define a wrapper function $foo that calls the original function client_$foo with the same arguments.
  * Just read libprov_middle.c.
  * I can more easily refactor how it works if I don't have to edit each individual instance.
  * gen_libprov.py reads the function signatures, and inside the function bodies, it looks for some specific variable declarations of the form: Type var_name = var_val;
@@ -11,44 +11,35 @@
  */
 
 /* Need these typedefs to make pycparser parse the functions. They won't be used in libprov_middle.c */
-#include "src/pthread_helper.h"
-typedef void* FILE;
 typedef void* DIR;
-typedef void* pid_t;
-typedef void* mode_t;
-typedef void* ftw_func;
-typedef void* nftw_func;
-typedef void* size_t;
-typedef void* ssize_t;
-typedef void* off_t;
+typedef void* FILE;
+typedef void* bool;
 typedef void* dev_t;
-typedef void* uid_t;
-typedef void* gid_t;
-typedef void* idtype_t;
-typedef void* idtype;
-typedef void* id_t;
-typedef void* siginfo_t;
-typedef int bool;
-typedef long int64_t;
-struct stat;
-struct utimebuf;
-typedef void* OpCode;
 typedef void* fn;
-typedef void* va_list;
-struct utimbuf;
-struct dirent;
-int __type_mode_t;
-typedef void* thrd_t;
-typedef void* thrd_start_t;
-typedef void* pthread_t;
-typedef void* pthread_attr_t;
+typedef void* ftw_func;
+typedef void* gid_t;
+typedef void* id_t;
+typedef void* idtype;
+typedef void* idtype_t;
+typedef void* int64_t;
+typedef void* mode_t;
+typedef void* nftw_func;
+typedef void* off_t;
+typedef void* pid_t;
 typedef void* posix_spawn_file_actions_t;
 typedef void* posix_spawnattr_t;
+typedef void* pthread_attr_t;
+typedef void* pthread_t;
+typedef void* siginfo_t;
+typedef void* size_t;
+typedef void* ssize_t;
+typedef void* thrd_start_t;
+typedef void* thrd_t;
+typedef void* uid_t;
+typedef void* va_list;
 
+int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
-
-struct PthreadHelperArg;
-struct ThrdHelperArg;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
@@ -157,14 +148,19 @@ int fcloseall(void) {
 /* Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html */
 int openat(int dirfd, const char *filename, int flags, ...) {
     void* pre_call = ({
-        bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & O_TMPFILE) == O_TMPFILE;
         mode_t mode = 0;
+        if (((flags & O_CREAT) != 0) || ((flags & O_TMPFILE) == O_TMPFILE)) {
+            va_list ap;
+            va_start(ap, flags);
+            mode = va_arg(ap, __type_mode_t);
+            va_end(ap);
+        }
         struct Op op = {
             open_op_code,
             {.open = {
                 .path = create_path_lazy(dirfd, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
                 .flags = flags,
-                .mode = 0,
+                .mode = mode,
                 .fd = -1,
                 .ferrno = 0,
             }},
@@ -172,19 +168,10 @@ int openat(int dirfd, const char *filename, int flags, ...) {
             0,
             0,
         };
-        if (LIKELY(prov_log_is_enabled())) {
-            if (has_mode_arg) {
-                va_list ap;
-                va_start(ap, flags);
-                mode = va_arg(ap, __type_mode_t);
-                va_end(ap);
-                op.data.open.mode = mode;
-            }
-            prov_log_try(op);
-        }
     });
     void* call = ({
-        int ret = unwrapped_openat(dirfd, filename, flags, mode);
+        // Need explicit call because variadic arg
+        int ret = client_openat(dirfd, filename, flags, mode);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -194,18 +181,27 @@ int openat(int dirfd, const char *filename, int flags, ...) {
         }
     });
 }
-
 fn openat64 = openat;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
-int open (const char *filename, int flags, ...) {
-    void* pre_call = ({
-        bool has_mode_arg = (flags & O_CREAT) != 0 || (flags & O_TMPFILE) == O_TMPFILE;
+int open(const char* filename, int flags, ...) {
+    void* call = ({
         mode_t mode = 0;
+        if (((flags & O_CREAT) != 0) || ((flags & O_TMPFILE) == O_TMPFILE)) {
+            va_list ap;
+            va_start(ap, flags);
+            mode = va_arg(ap, __type_mode_t);
+            va_end(ap);
+        }
+        int ret = openat(AT_FDCWD, filename, flags, mode);
+    });
+}
+int __openat_2(int fd, const char* file, int flags) {
+    void* pre_call = ({
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
+                .path = create_path_lazy(fd, file, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
                 .flags = flags,
                 .mode = 0,
                 .fd = -1,
@@ -215,19 +211,6 @@ int open (const char *filename, int flags, ...) {
             0,
             0,
         };
-        if (LIKELY(prov_log_is_enabled())) {
-            if (has_mode_arg) {
-                va_list ap;
-                va_start(ap, flags);
-                mode = va_arg(ap, __type_mode_t);
-                va_end(ap);
-                op.data.open.mode = mode;
-            }
-            prov_log_try(op);
-        }
-    });
-    void* call = ({
-        int ret = unwrapped_open(filename, flags, mode);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -239,98 +222,18 @@ int open (const char *filename, int flags, ...) {
 }
 fn open64 = open;
 int __open_2(const char* filename, int flags) {
-    void* pre_call = ({
-        struct Op op = {
-            open_op_code,
-            {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
-                .flags = flags,
-                .mode = 0,
-                .fd = -1,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
     void* call = ({
-        int ret = unwrapped_open(filename, flags);
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            op.data.open.ferrno = UNLIKELY(ret == -1) ? call_errno : 0;
-            op.data.open.fd = ret;
-            prov_log_record(op);
-        }
+        int ret = __openat_2(AT_FDCWD, filename, flags);
     });
 }
-int __openat(const char* filename, int flags) = openat;
-int __openat_2(int fd, const char* file, int oflag) {
-    void* pre_call = ({
-        struct Op op = {
-            open_op_code,
-            {.open = {
-                .path = create_path_lazy(fd, file, (oflag & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
-                .flags = oflag,
-                .mode = 0,
-                .fd = -1,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* call = ({
-        int ret = unwrapped_openat(fd, file, oflag, 0);
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            op.data.open.ferrno = UNLIKELY(ret == -1) ? call_errno : 0;
-            op.data.open.fd = ret;
-            prov_log_record(op);
-        }
-    });
-}
+fn __open64_2 = __open_2;
+fn __openat64_2 = __openat_2;
 int creat (const char *filename, mode_t mode) {
-    void* pre_call = ({
-        /**
-         * According to docs
-         * creat(foo, mode) == open(foo, O_WRONLY|O_CREAT|O_TRUNC, mode)
-         * Docs: https://man7.org/linux/man-pages/man3/creat.3p.html */
-        struct Op op = {
-            open_op_code,
-            {.open = {
-                .path = create_path_lazy(AT_FDCWD, filename, 0),
-                .flags = O_WRONLY | O_CREAT | O_TRUNC,
-                .mode = mode,
-                .fd = -1,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            op.data.open.ferrno = UNLIKELY(ret == -1) ? call_errno : 0;
-            op.data.open.fd = ret;
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = open(filename, O_CREAT|O_WRONLY|O_TRUNC, mode);
     });
 }
-fn create64 = creat;
+fn creat64 = creat;
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
@@ -355,14 +258,14 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
     void* call = ({
         ASSERTF(flags == 0 || flags == CLOSE_RANGE_CLOEXEC,
                 "I haven't implemented CLOSE_RANGE_UNSHARE");
-        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
+        DIR* dp = EXPECT_NONNULL(client_opendir("/proc/self/fd"));
         struct dirent* dirp;
         DEBUG("close_range %d %d %d -> close", lowfd, maxfd, flags);
-        while ((dirp = unwrapped_readdir(dp)) != NULL) {
+        while ((dirp = client_readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 unsigned int fd = (unsigned int) my_atoui(dirp->d_name);
                 if (lowfd <= fd && fd <= maxfd) {
-                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
+                    /* Use the real (not client) close, so it gets logged as a normal close */
                     if (flags == 0) {
                         close(fd);
                     } else if (flags == CLOSE_RANGE_CLOEXEC) {
@@ -373,25 +276,25 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
                 }
             }
         }
-        unwrapped_closedir(dp);
+        client_closedir(dp);
         int ret = 0;
     });
 }
 void closefrom (int lowfd) {
     void* call = ({
-        DIR* dp = EXPECT_NONNULL(unwrapped_opendir("/proc/self/fd"));
+        DIR* dp = EXPECT_NONNULL(client_opendir("/proc/self/fd"));
         struct dirent* dirp;
         DEBUG("closefrom %d -> close", lowfd);
-        while ((dirp = unwrapped_readdir(dp)) != NULL) {
+        while ((dirp = client_readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 int fd = (int) my_atoui(dirp->d_name);
                 if (lowfd <= fd) {
-                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
+                    /* Use the real (not client) close, so it gets logged as a normal close */
                     close(fd);
                 }
             }
         }
-        unwrapped_closedir(dp);
+        client_closedir(dp);
     });
 }
 
@@ -421,25 +324,8 @@ int dup (int old) {
     });
 }
 int dup2 (int old, int new) {
-    void* pre_call = ({
-        struct Op dup_op = {
-            dup_op_code,
-            {.dup = {old, new, 0, 0}},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(dup_op);
-        }
-    });
-    void* post_call = ({
-         if (LIKELY(prov_log_is_enabled())) {
-             if (UNLIKELY(ret == -1)) {
-                 dup_op.data.dup.ferrno = call_errno;
-            }
-            prov_log_record(dup_op);
-        }
+    void* call = ({
+        int ret = dup3(old, new, 0);
     });
 }
 
@@ -508,11 +394,11 @@ int fcntl (int filedes, int command, ...) {
     void* call = ({
         int ret;
         if (has_int_arg) {
-            ret = unwrapped_fcntl(filedes, command, int_arg);
+            ret = client_fcntl(filedes, command, int_arg);
         } else if (has_ptr_arg) {
-            ret = unwrapped_fcntl(filedes, command, ptr_arg);
+            ret = client_fcntl(filedes, command, ptr_arg);
         } else {
-            ret = unwrapped_fcntl(filedes, command);
+            ret = client_fcntl(filedes, command);
         }
     });
     void* post_call = ({
@@ -559,7 +445,7 @@ int fchdir (int filedes) {
         struct Op op = {
             chdir_op_code,
             {.chdir = {
-                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
+                .path = create_path_lazy(filedes, NULL, AT_EMPTY_PATH),
                 .ferrno = 0
             }},
             {0},
@@ -612,7 +498,7 @@ DIR * fdopendir (int fd) {
         struct Op op = {
             open_op_code,
             {.open = {
-                .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .path = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
                 .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
                 .mode = 0,
@@ -644,7 +530,7 @@ struct dirent * readdir (DIR *dirstream) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .dir = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -677,7 +563,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .dir = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -711,7 +597,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .dir = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -744,7 +630,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .dir = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
@@ -890,7 +776,7 @@ ssize_t getdents64 (int fd, void *buffer, size_t length) {
         struct Op op = {
             readdir_op_code,
             {.readdir = {
-                .dir = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .dir = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 .child = NULL,
                 .all_children = true,
             }},
@@ -970,29 +856,8 @@ int nftw (const char *filename, nftw_func func, int descriptors, int flag) {
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html */
 int link (const char *oldname, const char *newname) {
-    void* pre_call = ({
-        struct Op op = {
-            hard_link_op_code,
-            {.hard_link = {
-                .old = create_path_lazy(AT_FDCWD, oldname, 0),
-                .new = create_path_lazy(AT_FDCWD, newname, 0),
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret != 0)) {
-                op.data.hard_link.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = linkat(AT_FDCWD, oldname, AT_FDCWD, newname, 0);
     });
 }
 int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int flags) {
@@ -1082,36 +947,8 @@ int symlinkat(const char *target, int newdirfd, const char *linkpath) {
 /* TODO */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
 ssize_t readlink (const char *filename, char *buffer, size_t size) {
-    void* pre_call = ({
-        struct Op op = {
-            read_link_op_code,
-            {.read_link = {
-                .linkpath = create_path_lazy(AT_FDCWD, filename, 0),
-                .referent = NULL,
-                .truncation = false,
-                .recursive_dereference = false,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (LIKELY(ret != -1)) {
-                op.data.read_link.referent = arena_strndup(get_data_arena(), buffer, ret + 1);
-                ((char*)op.data.read_link.referent)[ret] = '\0';
-                // If the returned value equals bufsiz, then truncation may have occurred.
-                op.data.read_link.truncation = ((size_t) ret) == size;
-            } else {
-                op.data.read_link.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        ssize_t ret = readlinkat(AT_FDCWD, filename, buffer, size);
     });
 }
 ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size) {
@@ -1212,55 +1049,13 @@ char * realpath (const char *restrict name, char *restrict resolved) {
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html */
 int unlink (const char *filename) {
-    void* pre_call = ({
-        struct Op op = {
-            unlink_op_code,
-            {.unlink = {
-                .path = create_path_lazy(AT_FDCWD, filename, 0),
-                .unlink_type = 0,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.read_link.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = unlinkat(AT_FDCWD, filename, 0);
     });
 }
 int rmdir (const char *filename) {
-    void* pre_call = ({
-        struct Op op = {
-            unlink_op_code,
-            {.unlink = {
-                .path = create_path_lazy(AT_FDCWD, filename, 0),
-                .unlink_type = 1,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.unlink.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = remove(filename);
     });
 }
 int remove (const char *filename) {
@@ -1320,58 +1115,16 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Renaming-Files.html */
 int rename (const char *oldname, const char *newname) {
-    void* pre_call = ({
-        struct Op op = {
-            rename_op_code,
-            {.rename = {
-                .src = create_path_lazy(AT_FDCWD, oldname, 0),
-                .dst = create_path_lazy(AT_FDCWD, newname, 0),
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.rename.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = renameat2(AT_FDCWD, oldname, AT_FDCWD, newname, 0);
     });
 }
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/rename.2.html */
 int renameat(int olddirfd, const char *oldpath,
            int newdirfd, const char *newpath) {
-    void* pre_call = ({
-        struct Op op = {
-            rename_op_code,
-            {.rename = {
-                .src = create_path_lazy(olddirfd, oldpath, 0),
-                .dst = create_path_lazy(newdirfd, newpath, 0),
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.rename.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = renameat2(olddirfd, oldpath, newdirfd, newpath, 0);
     });
 }
 int renameat2(int olddirfd, const char *oldpath,
@@ -1438,32 +1191,8 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode) {
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html */
 int stat (const char *filename, struct stat *buf) {
-    void* pre_call = ({
-        struct Op op = {
-            stat_op_code,
-            {.stat = {
-                .path = create_path_lazy(AT_FDCWD, filename, 0),
-                .flags = 0,
-                .ferrno = 0,
-                .stat_result = {0},
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
-                op.data.stat.ferrno = call_errno;
-            } else {
-                stat_result_from_stat(&op.data.stat.stat_result, buf);
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = fstatat(AT_FDCWD, filename, buf, 0);
     });
 }
 int fstat (int filedes, struct stat *buf) {
@@ -1471,7 +1200,7 @@ int fstat (int filedes, struct stat *buf) {
         struct Op op = {
             stat_op_code,
             {.stat = {
-                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
+                .path = create_path_lazy(filedes, NULL, 0),
                 .flags = 0,
                 .stat_result = {0},
                 .ferrno = 0,
@@ -1496,12 +1225,19 @@ int fstat (int filedes, struct stat *buf) {
     });
 }
 int lstat (const char *filename, struct stat *buf) {
+    void* call = ({
+        int ret = fstatat(AT_FDCWD, filename, buf, AT_SYMLINK_NOFOLLOW);
+    });
+}
+fn newfstatat = fstatat;
+/* Docs: https://linux.die.net/man/2/fstatat */
+int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags) {
     void* pre_call = ({
         struct Op op = {
             stat_op_code,
             {.stat = {
-                .path = create_path_lazy(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW),
-                .flags = AT_SYMLINK_NOFOLLOW,
+                .path = create_path_lazy(dirfd, pathname, flags),
+                .flags = flags,
                 .stat_result = {0},
                 .ferrno = 0,
             }},
@@ -1556,71 +1292,10 @@ int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask
     });
 }
 
-/* Docs: https://linux.die.net/man/2/fstatat */
-int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags) {
-    void* pre_call = ({
-        struct Op op = {
-            stat_op_code,
-            {.stat = {
-                .path = create_path_lazy(dirfd, pathname, flags),
-                .flags = flags,
-                .stat_result = {0},
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (ret != 0) {
-                op.data.stat.ferrno = call_errno;
-            } else {
-                stat_result_from_stat(&op.data.stat.stat_result, buf);
-            }
-            prov_log_record(op);
-        }
-    });
-}
-
-fn newfstatat = fstatat;
-
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
 int chown (const char *filename, uid_t owner, gid_t group) {
-    void* pre_call = ({
-        struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
-                .path = create_path_lazy(AT_FDCWD, filename, 0),
-                .flags = 0,
-                .kind = MetadataOwnership,
-                .value = {
-                    .ownership = {
-                        .uid = owner,
-                        .gid = group,
-                    },
-                },
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret != 0)) {
-                op.data.readdir.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = fchownat(AT_FDCWD, filename, owner, group, 0);
     });
 }
 int fchown (int filedes, uid_t owner, gid_t group) {
@@ -1628,8 +1303,8 @@ int fchown (int filedes, uid_t owner, gid_t group) {
         struct Op op = {
             update_metadata_op_code,
             {.update_metadata = {
-                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
-                .flags = AT_EMPTY_PATH,
+                .path = create_path_lazy(filedes, NULL, 0),
+                .flags = 0,
                 .kind = MetadataOwnership,
                 .value = {
                     .ownership = {
@@ -1659,36 +1334,8 @@ int fchown (int filedes, uid_t owner, gid_t group) {
 
 // https://www.man7.org/linux/man-pages/man2/lchown.2.html
 int lchown(const char *pathname, uid_t owner, gid_t group) {
-    void* pre_call = ({
-        struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
-                .path = create_path_lazy(AT_FDCWD, pathname, AT_SYMLINK_NOFOLLOW),
-                .flags = AT_SYMLINK_NOFOLLOW,
-                .kind = MetadataOwnership,
-                .value = {
-                    .ownership = {
-                        .uid = owner,
-                        .gid = group,
-                    },
-                },
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret != 0)) {
-                op.data.readdir.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
     });
 }
 int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
@@ -1728,33 +1375,8 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Setting-Permissions.html  */
 int chmod (const char *filename, mode_t mode) {
-    void* pre_call = ({
-        struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
-                .path = create_path_lazy(AT_FDCWD, filename, 0),
-                .flags = 0,
-                .kind = MetadataMode,
-                .value = {
-                    .mode = mode,
-                },
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret != 0)) {
-                op.data.readdir.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = fchmodat(AT_FDCWD, filename, mode, 0);
     });
 }
 int fchmod (int filedes, mode_t mode) {
@@ -1762,8 +1384,8 @@ int fchmod (int filedes, mode_t mode) {
         struct Op op = {
             update_metadata_op_code,
             {.update_metadata = {
-                .path = create_path_lazy(filedes, "", AT_EMPTY_PATH),
-                .flags = AT_EMPTY_PATH,
+                .path = create_path_lazy(filedes, NULL, 0),
+                .flags = 0,
                 .kind = MetadataMode,
                 .value = {
                     .mode = mode,
@@ -1822,25 +1444,8 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Testing-File-Access.html */
 int access (const char *filename, int how) {
-    void* pre_call = ({
-        struct Op op = {
-            access_op_code,
-            {.access = {
-                create_path_lazy(AT_FDCWD, filename, 0), how, 0, 0}
-            },
-            {0},
-            0,
-            0,
-        };
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_try(op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            op.data.access.ferrno = ret == 0 ? 0 : call_errno;
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = faccessat(AT_FDCWD, filename, how, 0);
     });
 }
 
@@ -1982,7 +1587,7 @@ int futimes (int fd, const struct timeval tvp[2]) {
         struct Op op = {
             update_metadata_op_code,
             {.update_metadata = {
-                .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .path = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 .flags = AT_EMPTY_PATH,
                 .kind = MetadataTimes,
                 .value = { 0 },
@@ -2027,7 +1632,6 @@ char * tmpnam (char c[__PROBE_L_tmpnam]) { }
 char * tmpnam_r (char c[__PROBE_L_tmpnam]) { }
 char * tempnam (const char *dir, const char *prefix) { }
 char * mktemp (char *template) { }
-int mkstemp (char *template) { }
 char * mkdtemp (char *template) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html */
@@ -2058,7 +1662,7 @@ int execv (const char *filename, char *const argv[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         /*
@@ -2118,7 +1722,7 @@ int execl (const char *filename, const char *arg0, ...) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2155,7 +1759,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2175,7 +1779,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         struct Op op = {
             exec_op_code,
             {.exec = {
-                .path = create_path_lazy(fd, "", AT_EMPTY_PATH),
+                .path = create_path_lazy(fd, NULL, AT_EMPTY_PATH),
                 .ferrno = 0,
                 .argv = copied_argv,
                 .env = copied_updated_env,
@@ -2191,7 +1795,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_fexecve(fd, argv, updated_env);
+        int ret = client_fexecve(fd, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2238,7 +1842,7 @@ int execle (const char *filename, const char *arg0, ...) {
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**)updated_env);
@@ -2288,7 +1892,7 @@ int execvp (const char *filename, char *const argv[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2346,7 +1950,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -2398,7 +2002,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = unwrapped_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
         free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
@@ -2443,7 +2047,7 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
         }
     });
     void* call = ({
-        int ret = unwrapped_posix_spawn(pid, path, file_actions, attrp, argv, updated_env);
+        int ret = client_posix_spawn(pid, path, file_actions, attrp, argv, updated_env);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -2498,7 +2102,7 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
         }
     });
     void* call = ({
-        int ret = unwrapped_posix_spawnp(pid, file, file_actions, attrp, argv, updated_env);
+        int ret = client_posix_spawnp(pid, file, file_actions, attrp, argv, updated_env);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -2644,7 +2248,7 @@ pid_t vfork (void) {
         }
     });
     void* call = ({
-        int ret = unwrapped_fork();
+        int ret = client_fork();
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -2715,7 +2319,7 @@ int clone(
         }
     });
     void* call = ({
-        int ret = unwrapped_clone(fn, stack, flags, arg, parent_tid, tls, child_tid);
+        int ret = client_clone(fn, stack, flags, arg, parent_tid, tls, child_tid);
     });
     void* post_call = ({
         if (UNLIKELY(ret == -1)) {
@@ -2743,70 +2347,19 @@ int clone(
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Process-Completion.html */
 pid_t waitpid (pid_t pid, int *status_ptr, int options) {
-    void* pre_call = ({
-        int status;
-        if (status_ptr == NULL) {
-            status_ptr = &status;
-        }
-        struct Op op = {
-            wait_op_code,
-            {.wait = {
-                .task_type = TASK_PID,
-                .task_id = -1,
-                .options = options,
-                .status = 0,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(op);
+    void* call = ({
+        pid_t ret = wait4(pid, status_ptr, options, NULL);
     });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.wait.ferrno = call_errno;
-            } else {
-                op.data.wait.task_id = ret;
-                op.data.wait.status = *status_ptr;
-            }
-            prov_log_record(op);
-        }
-   });
 }
 pid_t wait (int *status_ptr) {
-    void* pre_call = ({
-        int status;
-        if (status_ptr == NULL) {
-            status_ptr = &status;
-        }
-        struct Op op = {
-            wait_op_code,
-            {.wait = {
-                .task_type = TASK_PID,
-                .task_id = -1,
-                .options = 0,
-                .status = 0,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(op);
+    void* call = ({
+        pid_t ret = wait4(-1, status_ptr, 0, NULL);
     });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                op.data.wait.ferrno = call_errno;
-            } else {
-                op.data.wait.task_id = ret;
-                op.data.wait.status = *status_ptr;
-            }
-            prov_log_record(op);
-        }
-   });
+}
+pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
+    void* call = ({
+        pid_t ret = wait4(-1, status_ptr, options, usage);
+    });
 }
 pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
     void* pre_call = ({
@@ -2828,61 +2381,6 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
             getrusage_op_code,
             {.getrusage = {
                 .waitpid_arg = pid,
-                .getrusage_arg = 0,
-                .usage = null_usage,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        if (usage) {
-            prov_log_try(getrusage_op);
-        }
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                wait_op.data.wait.ferrno = call_errno;
-                if (usage) {
-                    getrusage_op.data.getrusage.ferrno = call_errno;
-                }
-            } else {
-                wait_op.data.wait.task_id = ret;
-                wait_op.data.wait.status = *status_ptr;
-                if (usage) {
-                    copy_rusage(&getrusage_op.data.getrusage.usage, usage);
-                }
-            }
-            prov_log_record(wait_op);
-            if (usage) {
-                prov_log_record(getrusage_op);
-            }
-        }
-   });
-}
-
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/BSD-Wait-Functions.html */
-pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
-    void* pre_call = ({
-        struct Op wait_op = {
-            wait_op_code,
-            {.wait = {
-                .task_type = TASK_PID,
-                .task_id = -1,
-                .options = options,
-                .status = 0,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(wait_op);
-        struct Op getrusage_op = {
-            getrusage_op_code,
-            {.getrusage = {
-                .waitpid_arg = -1,
                 .getrusage_arg = 0,
                 .usage = null_usage,
                 .ferrno = 0,
@@ -2970,7 +2468,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
         struct ThrdHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct ThrdHelperArg)));
         real_arg->func = func;
         real_arg->arg = arg;
-        int ret = unwrapped_thrd_create(thr, thrd_helper, &real_arg);
+        int ret = client_thrd_create(thr, thrd_helper, &real_arg);
     });
     void* post_call = ({
         if (UNLIKELY(ret != thrd_success)) {
@@ -3049,7 +2547,7 @@ int pthread_create(pthread_t *restrict thread,
         real_arg->start_routine = start_routine;
         real_arg->pthread_id = increment_pthread_id();
         real_arg->arg = arg;
-        int ret = unwrapped_pthread_create(thread, attr, pthread_helper, real_arg);
+        int ret = client_pthread_create(thread, attr, pthread_helper, real_arg);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -3074,7 +2572,7 @@ void pthread_exit(void* inner_ret) {
         pthread_return_val->type_id = PTHREAD_RETURN_VAL_TYPE_ID;
         pthread_return_val->pthread_id = get_pthread_id();
         pthread_return_val->inner_ret = inner_ret;
-        unwrapped_pthread_exit(pthread_return_val);
+        client_pthread_exit(pthread_return_val);
     });
     bool noreturn = true;
 }
@@ -3098,7 +2596,7 @@ int pthread_join(pthread_t thread, void **pthread_return) {
         };
     });
     void* call = ({
-        int ret = unwrapped_pthread_join(thread, &uncasted_return);
+        int ret = client_pthread_join(thread, &uncasted_return);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -3243,35 +2741,13 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
     });
 }
 
+// functions we're not interposing, but need for libprobe functionality
+char* strerror(int errnum) { }
+void exit(int status) { }
 
 int mkstemp(char* template) {
-    void* pre_call = ({
-        struct Op op = {
-            open_op_code,
-            {.open = {
-                .path = null_path,
-                .flags = O_RDWR | O_CREAT | O_EXCL,
-                .mode = 0,
-                .fd = -1,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(op);
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (LIKELY(call_errno == 0)) {
-                op.data.open.path = create_path_lazy(ret, NULL, 0);
-                op.data.open.fd = ret;
-            } else {
-
-                op.data.open.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = mkostemp(template, 0);
     });
 }
 int mkostemp(char *template, int flags) {
@@ -3304,32 +2780,8 @@ int mkostemp(char *template, int flags) {
     });
 };
 int mkstemps(char *template, int suffixlen) {
-    void* pre_call = ({
-        struct Op op = {
-            open_op_code,
-            {.open = {
-                .path = null_path,
-                .flags = O_RDWR | O_CREAT | O_EXCL,
-                .mode = 0,
-                .fd = -1,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(op);
-    });
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (LIKELY(call_errno == 0)) {
-                op.data.open.path = create_path_lazy(ret, NULL, 0);
-                op.data.open.fd = ret;
-            } else {
-                op.data.open.ferrno = call_errno;
-            }
-            prov_log_record(op);
-        }
+    void* call = ({
+        int ret = mkostemps(template, suffixlen, 0);
     });
 };
 int mkostemps(char *template, int suffixlen, int flags) {

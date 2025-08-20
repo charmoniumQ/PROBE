@@ -259,8 +259,8 @@ class ProbeLog:
     def n_ops(self) -> int:
         total = 0
         for pid, process in sorted(self.processes.items()):
-            for exid, exec_epoch in sorted(process.execs.items()):
-                for tid, thread in sorted(exec_epoch.threads.items()):
+            for epoch, exec in sorted(process.execs.items()):
+                for tid, thread in sorted(exec.threads.items()):
                     total += len(thread.ops)
         return total
 

@@ -59,11 +59,11 @@ def hb_graph_to_accesses(
         match op_data:
             case ops.InitExecEpochOp():
                 if 0 not in proc_fd_to_fd[node.pid]:
-                    yield from openfd(0, ptypes.AccessMode.READ, False, node, op_data.stdin)
+                    yield from openfd(0, ptypes.AccessMode.READ, False, node, op_data.std_in)
                 if 1 not in proc_fd_to_fd[node.pid]:
-                    yield from openfd(1, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.stdout)
+                    yield from openfd(1, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.std_out)
                 if 2 not in proc_fd_to_fd[node.pid]:
-                    yield from openfd(2, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.stderr)
+                    yield from openfd(2, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.std_err)
             case ops.OpenOp():
                 if op_data.ferrno == 0:
                     mode = ptypes.AccessMode.from_open_flags(op_data.flags)
@@ -91,16 +91,15 @@ def hb_graph_to_accesses(
                         proc_fd_to_fd[node.pid][op_data.new] = old_file_desc
                     else:
                         warnings.warn(ptypes.UnusualProbeLog(
-                            f"{node} successfully duped an FD {op_data.old} (-> {op_data.new}) we never traced.",
+                            f"Dup ({node}) successfully duped an FD {op_data.old} (-> {op_data.new}) we never traced.",
                         ))
             case ops.CloneOp():
-                if op_data.ferrno == 0:
-                    if op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
-                        target = ptypes.Pid(op_data.task_id)
-                        if op_data.flags & os.CLONE_FILES:
-                            proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]
-                        else:
-                            proc_fd_to_fd[target] = {**proc_fd_to_fd[node.pid]}
+                if op_data.ferrno == 0 and op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
+                    target = ptypes.Pid(op_data.task_id)
+                    if op_data.flags & os.CLONE_FILES:
+                        proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]
+                    else:
+                        proc_fd_to_fd[target] = {**proc_fd_to_fd[node.pid]}
         is_last_op_in_process = not any(
             successor.pid == node.pid
             for successor in hbg.successors(node)

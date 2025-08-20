@@ -305,7 +305,7 @@ funcs = {
         if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
     },
 }
-func_prefix = "unwrapped_"
+func_prefix = "client_"
 func_pointer_declarations = [
     Decl(
         name=func_prefix + func_name,
@@ -520,6 +520,7 @@ wrapper_func_declarations = [
         stmts=wrapper_func_body(func),
     ).definition(visibility="default")
     for _, func in funcs.items()
+    if func.stmts
 ]
 generated = pathlib.Path("generated")
 generated.mkdir(exist_ok=True)
@@ -533,7 +534,7 @@ warning = """
  */
 """
 
-includes = """
+libc_hooks_h_preamble = """
 #pragma once
 
 #define _GNU_SOURCE
@@ -599,14 +600,14 @@ void init_function_pointers();
 """
 (generated / "libc_hooks.h").write_text(
     warning + "\n\n" +
-    includes.strip() + "\n\n" +
+    libc_hooks_h_preamble.strip() + "\n\n" +
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             *func_pointer_extern_declarations,
         ])
     )
 )
-defines = """
+libc_hooks_c_preamble = """
 #define _GNU_SOURCE
 
 #include "libc_hooks.h"
@@ -682,7 +683,7 @@ const struct my_rusage null_usage = {0};
 
 (generated / "libc_hooks.c").write_text(
     warning + "\n\n" +
-    defines.strip() + "\n\n" +
+    libc_hooks_c_preamble.strip() + "\n\n" +
     GccCGenerator().visit(
         pycparser.c_ast.FileAST(ext=[
             *func_pointer_declarations,

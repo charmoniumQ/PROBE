@@ -138,12 +138,18 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
 # This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
 @pytest.fixture(scope="session")
 def does_podman_work() -> bool:
-    return subprocess.run(["podman", "run", "--rm", "ubuntu:24.04", "pwd"], check=False).returncode == 0
+    return shutil.which("podman") is not None and subprocess.run(
+        ["podman", "run", "--rm", "ubuntu:24.04", "pwd"],
+        check=False
+    ).returncode == 0
 
 
 @pytest.fixture(scope="session")
 def does_docker_work() -> bool:
-    return subprocess.run(["docker", "run", "--rm", "ubuntu:24.04", "pwd"], check=False).returncode == 0
+    return shutil.which("docker") is not None and subprocess.run(
+        ["docker", "run", "--rm", "ubuntu:24.04", "pwd"],
+        check=False
+    ).returncode == 0
 
 
 @pytest.fixture(scope="session")
@@ -235,7 +241,7 @@ def test_record(
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     should_have_copy_files = copy_files in {"eagerly", "lazily"}
-    cmd = ["probe", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
+    cmd = ["probe", "py", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
 
     # TODO: this doesn't work because we don't capture libraries currently.
@@ -243,7 +249,7 @@ def test_record(
     if False:
 
         if does_buildah_work and does_podman_work:
-            cmd = ["probe", "export", "oci-image", "probe-command-test:latest"]
+            cmd = ["probe", "py", "export", "oci-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=scratch_directory)
             assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
@@ -252,7 +258,7 @@ def test_record(
             subprocess.run(cmd, check=True, cwd=scratch_directory)
 
         if does_buildah_work and does_docker_work:
-            cmd = ["probe", "export", "docker-image", "probe-command-test:latest"]
+            cmd = ["probe", "py", "export", "docker-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=scratch_directory)
             assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
@@ -318,16 +324,16 @@ def test_downstream_analyses(
     with (scratch_directory / "probe_debug.log").open("w") as output:
         subprocess.run(full_command, **args, stderr=output)
 
-    cmd = ["probe", "export", "--strict" if strict else "--loose", "debug-text"]
+    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "debug-text"]
     print(shlex.join(cmd))
     with (scratch_directory / "debug-text.txt").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
+    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
-    cmd = ["probe", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
+    cmd = ["probe", "py", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
