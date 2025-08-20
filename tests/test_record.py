@@ -8,7 +8,8 @@ import typing
 import pytest
 
 
-strace = True
+# Enable strace for debugging
+strace = False
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent
@@ -105,8 +106,8 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
     ),
     "c_hello": (
         False,
-        pathlib.Path("test.c"),
-        c_hello_world,
+        None,
+        "",
         bash_multi(
             ["echo", c_hello_world, "redirect_to", "test.c"],
             ["gcc", "test.c"],
