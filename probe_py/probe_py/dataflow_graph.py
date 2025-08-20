@@ -68,6 +68,9 @@ def accesses_to_dataflow_graph(
 
     def ensure_state(quad: ptypes.OpQuad, desired_state: PidState) -> ptypes.OpQuint:
         if quad.pid not in pid_to_state:
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"Encountered {quad}, but there are no nodes on process {quad.pid}.",
+            ))
             add_quad(quad, "init")
         if desired_state == PidState.WRITING and pid_to_state[quad.pid] == PidState.READING:
             # Reading -> writing for free
