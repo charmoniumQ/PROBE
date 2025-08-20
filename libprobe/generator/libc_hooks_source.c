@@ -11,44 +11,35 @@
  */
 
 /* Need these typedefs to make pycparser parse the functions. They won't be used in libprov_middle.c */
-#include "src/pthread_helper.h"
-typedef void* FILE;
 typedef void* DIR;
-typedef void* pid_t;
-typedef void* mode_t;
-typedef void* ftw_func;
-typedef void* nftw_func;
-typedef void* size_t;
-typedef void* ssize_t;
-typedef void* off_t;
+typedef void* FILE;
+typedef void* bool;
 typedef void* dev_t;
-typedef void* uid_t;
-typedef void* gid_t;
-typedef void* idtype_t;
-typedef void* idtype;
-typedef void* id_t;
-typedef void* siginfo_t;
-typedef int bool;
-typedef long int64_t;
-struct stat;
-struct utimebuf;
-typedef void* OpCode;
 typedef void* fn;
-typedef void* va_list;
-struct utimbuf;
-struct dirent;
-int __type_mode_t;
-typedef void* thrd_t;
-typedef void* thrd_start_t;
-typedef void* pthread_t;
-typedef void* pthread_attr_t;
+typedef void* ftw_func;
+typedef void* gid_t;
+typedef void* id_t;
+typedef void* idtype;
+typedef void* idtype_t;
+typedef void* int64_t;
+typedef void* mode_t;
+typedef void* nftw_func;
+typedef void* off_t;
+typedef void* pid_t;
 typedef void* posix_spawn_file_actions_t;
 typedef void* posix_spawnattr_t;
+typedef void* pthread_attr_t;
+typedef void* pthread_t;
+typedef void* siginfo_t;
+typedef void* size_t;
+typedef void* ssize_t;
+typedef void* thrd_start_t;
+typedef void* thrd_t;
+typedef void* uid_t;
+typedef void* va_list;
 
+int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
-
-struct PthreadHelperArg;
-struct ThrdHelperArg;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
 FILE * fopen (const char *filename, const char *opentype) {
@@ -79,11 +70,7 @@ FILE * fopen (const char *filename, const char *opentype) {
         }
     });
 }
-FILE* fopen64(const char* filename, const char* opentype) {
-    void* call = ({
-        FILE* ret = fopen(filename, opentype);
-    });
-}
+fn fopen64 = fopen;
 FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
         int original_fd = fileno(stream);
@@ -125,11 +112,7 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
         }
     });
 }
-FILE* freopen64(const char* filename, const char* opentype, FILE* stream) {
-    void* call = ({
-        FILE* ret = freopen(filename, opentype, stream);
-    });
-}
+fn freopen64 = freopen;
 
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
@@ -198,18 +181,7 @@ int openat(int dirfd, const char *filename, int flags, ...) {
         }
     });
 }
-int openat64(int dirfd, const char *filename, int flags, ...) {
-    void* call = ({
-        mode_t mode = 0;
-        if (((flags & O_CREAT) != 0) || ((flags & O_TMPFILE) == O_TMPFILE)) {
-            va_list ap;
-            va_start(ap, flags);
-            mode = va_arg(ap, __type_mode_t);
-            va_end(ap);
-        }
-        int ret = openat(dirfd, filename, flags, mode);
-    });
-}
+fn openat64 = openat;
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-and-Closing-Files.html */
 int open(const char* filename, int flags, ...) {
@@ -224,33 +196,13 @@ int open(const char* filename, int flags, ...) {
         int ret = openat(AT_FDCWD, filename, flags, mode);
     });
 }
-int open64(const char* filename, int flags, ...) {
-    void* call = ({
-        mode_t mode = 0;
-        if (((flags & O_CREAT) != 0) || ((flags & O_TMPFILE) == O_TMPFILE)) {
-            va_list ap;
-            va_start(ap, flags);
-            mode = va_arg(ap, __type_mode_t);
-            va_end(ap);
-        }
-        int ret = openat(AT_FDCWD, filename, flags, mode);
-    });
-}
+fn open64 = open;
 int __open_2(const char* filename, int flags) {
     void* call = ({
         int ret = __openat_2(AT_FDCWD, filename, flags);
     });
 }
-int __open64_2(const char* filename, int flags) {
-    void* call = ({
-        int ret = __openat_2(AT_FDCWD, filename, flags);
-    });
-}
-int __openat64_2(int fd, const char* file, int flags) {
-    void* call = ({
-        int ret = __openat_2(fd, file, flags);
-    });
-}
+fn __open64_2 = __open_2;
 int __openat_2(int fd, const char* file, int flags) {
     void* pre_call = ({
         struct Op op = {
@@ -275,16 +227,13 @@ int __openat_2(int fd, const char* file, int flags) {
         }
     });
 }
+fn __openat64_2 = __openat_2;
 int creat (const char *filename, mode_t mode) {
     void* call = ({
         int ret = open(filename, O_CREAT|O_WRONLY|O_TRUNC, mode);
     });
 }
-int creat64 (const char *filename, mode_t mode) {
-    void* call = ({
-        int ret = open(filename, O_CREAT|O_WRONLY|O_TRUNC, mode);
-    });
-}
+fn creat64 = creat;
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
