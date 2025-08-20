@@ -37,15 +37,14 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 export_app = typer.Typer()
 app.add_typer(export_app, name="export")
 
-
-@export_app.callback()
+strict_option = typer.Option(
+    "--strict/--loose",
+    help="Whether to fail when PROBE generates warnings",
+)
 def restore_sanity(
         strict: Annotated[
             bool,
-            typer.Option(
-                "--strict/--loose",
-                help="Whether to fail when PROBE generates warnings",
-            ),
+            strict_option,
         ] = True,
 ) -> None:
     # Typer messes with the excepthook
@@ -62,6 +61,8 @@ def restore_sanity(
         )
 
 
+export_app.callback()(restore_sanity)
+
 @app.command()
 def validate(
         path_to_probe_log: Annotated[
@@ -74,6 +75,12 @@ def validate(
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
+    restore_sanity(True)
+    warning_free = True
+    warnings.filterwarnings(
+        "always",
+        category=ptypes.UnusualProbeLog,
+    )
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
         for inode, contents in (probe_log.copied_files or {}).items():
             content_length = contents.stat().st_size
@@ -87,8 +94,6 @@ def validate(
     for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
-    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
     if not warning_free:
         raise typer.Exit(code=1)
 

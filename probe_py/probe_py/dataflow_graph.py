@@ -158,12 +158,10 @@ def hb_graph_to_dataflow_graph2(
 def combine_indistinguishable_inodes(
         dataflow_graph: DataflowGraph,
 ) -> CompressedDataflowGraph:
-    if not networkx.is_directed_acyclic_graph(dataflow_graph):
-        return graph_utils.map_nodes(
-            lambda node: frozenset([node]) if isinstance(node, InodeVersionNode) else node,
-            dataflow_graph,
-        )
-    dataflow_graph = networkx.transitive_reduction(dataflow_graph)
+    if networkx.is_directed_acyclic_graph(dataflow_graph):
+        dataflow_graph = networkx.transitive_reduction(dataflow_graph)
+    else:
+        warnings.warn(ptypes.UnusualProbeLog("Dataflow graph is cyclic"))
     def same_neighbors(
             node0: ptypes.OpQuad | InodeVersionNode,
             node1: ptypes.OpQuad | InodeVersionNode,
@@ -204,13 +202,13 @@ def validate_dataflow_graph(
 ) -> None:
     if not networkx.is_directed_acyclic_graph(dataflow_graph):
         cycle = list(networkx.find_cycle(dataflow_graph))
-        raise ptypes.InvalidProbeLog(f"Found a cycle in graph: {cycle}")
+        warnings.warn(ptypes.UnusualProbeLog(f"Found a cycle in graph: {cycle}"))
 
     if not networkx.is_weakly_connected(dataflow_graph):
-        raise ptypes.InvalidProbeLog(
+        warnings.warn(ptypes.UnusualProbeLog(
             "Graph is not weakly connected:"
             f" {'\n'.join(map(str, networkx.weakly_connected_components(dataflow_graph)))}"
-        )
+        ))
 
     inode_to_last_node: dict[ptypes.Inode, None | InodeVersionNode] = {
         inode: None
@@ -225,10 +223,12 @@ def validate_dataflow_graph(
                 version = inode_version.version
                 if last_node := inode_to_last_node.get(inode):
                     if version in {last_node.version, last_node.version + 1}:
-                        raise ptypes.InvalidProbeLog(f"We went from {last_node.version} to {version}")
+                        warnings.warn(ptypes.UnusualProbeLog(f"We went from {last_node.version} to {version}"))
                 else:
                     if version not in {0, 1}:
-                        raise ptypes.InvalidProbeLog(f"Version of an initial access should be 0 or 1 not {version} ")
+                        warnings.warn(ptypes.UnusualProbeLog(
+                            f"Version of an initial access should be 0 or 1 not {version}"
+                        ))
                 inode_to_last_node[inode] = inode_version
 
 

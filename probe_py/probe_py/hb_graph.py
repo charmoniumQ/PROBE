@@ -204,7 +204,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                 target_tid = Tid(op.data.task_id)
                 if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
                     warnings.warn(ptypes.UnusualProbeLog(
-                        f"Wait points to a thread {target_tid} we didn't track",
+                        f"Wait ({node}) points to a thread {target_tid} we didn't track"
                     ))
                 else:
                     target = OpQuad(node.pid, node.exec_no, target_tid, len(probe_log.processes[node.pid].execs[node.exec_no].threads[target_tid].ops) - 1)
@@ -213,7 +213,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
                     warnings.warn(ptypes.UnusualProbeLog(
-                        f"Wait points to a process {target_pid} we didn't track",
+                        f"Wait ({node}) points to a process {target_pid} we didn't track"
                     ))
                 else:
                     last_exec_no = max(probe_log.processes[target_pid].execs.keys())
@@ -234,7 +234,7 @@ def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
         next_exec_no = node.exec_no.next()
         if next_exec_no not in probe_log.processes[node.pid].execs:
             warnings.warn(ptypes.UnusualProbeLog(
-                f"Exec points to an exec epoch {next_exec_no} we didn't track"
+                f"Exec ({node}) points to an exec epoch {next_exec_no} we didn't track"
             ))
         else:
             target = OpQuad(node.pid, next_exec_no, node.pid.main_thread(), 0)
@@ -248,7 +248,7 @@ def _create_spawn_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) ->
         child_pid = Pid(op.data.child_pid)
         if child_pid not in probe_log.processes:
             warnings.warn(ptypes.UnusualProbeLog(
-                f"Spawn points to a pid {child_pid} we didn't track"
+                f"Spawn ({node}) points to a pid {child_pid} we didn't track"
             ))
         else:
             target = OpQuad(child_pid, initial_exec_no, child_pid.main_thread(), 0)

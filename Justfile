@@ -57,7 +57,7 @@ compile-tests:
 
 clean: clean-cli clean-lib clean-tests
 
-lint: lint-py lint-cli lint-lib
+lint: lint-py lint-cli lint-lib lint-nix
 
 compile: compile-cli compile-lib compile-tests
 
