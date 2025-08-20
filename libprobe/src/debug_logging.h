@@ -34,8 +34,7 @@
 /* TODO: replace assert with ASSERTF because ASSERTF calls client_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
-        char* errno_str = strndup(strerror_with_backup(errno), 4096);                              \
-        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
+        LOG("ERROR " str " (errno=%d)", ##__VA_ARGS__, errno);                                     \
         exit_with_backup(103);                                                                     \
     })
 
