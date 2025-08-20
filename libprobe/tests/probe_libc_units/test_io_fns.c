@@ -1,6 +1,5 @@
 
 // this exists solely for lsp and will get preprocessed out during build time
-#include <criterion/internal/assert.h>
 #ifndef SRC_INCLUDED
 #include <criterion/criterion.h>
 #include "probe_libc.h"
@@ -12,6 +11,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -707,4 +707,39 @@ Test(sendfile, large_copy_success) {
     free(buf);
     close(in_fd);
     close(out_fd);
+}
+
+// Out fd is a socketpair: Linux only feature
+Test(sendfile, out_fd_socketpair_success) {
+#ifdef __linux__
+    int sv[2];
+    cr_assert_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
+    int sock_r = sv[0], sock_w = sv[1];
+
+    char src_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    cr_assert_neq(in_fd, -1);
+    unlink(src_path);
+
+    const char msg[] = "socket sendfile\n";
+    write_all(in_fd, msg, sizeof(msg));
+
+    result_ssize_t n = probe_libc_sendfile(sock_w, in_fd, NULL, sizeof(msg));
+    cr_assert_eq(n.error, 0, "probe_libc_sendfile errored with: %s (%d)", strerror(n.error),
+                 n.error);
+    cr_assert_eq(n.value, (ssize_t)sizeof(msg), "Expected to send %zd, actually sent %zd",
+                 (ssize_t)sizeof(msg), n.value);
+
+    // Read back from the socket peer
+    char buf[64] = {0};
+    ssize_t r = read(sock_r, buf, sizeof(buf));
+    cr_expect_eq(r, (ssize_t)sizeof(msg));
+    cr_expect_arr_eq(buf, msg, sizeof(msg));
+
+    close(in_fd);
+    close(sock_r);
+    close(sock_w);
+#else
+    cr_skip("sendfile to socketpair only supported on Linux");
+#endif
 }
