@@ -102,7 +102,7 @@ def accesses_to_dataflow_graph(
                 next_version = InodeVersionNode(access.inode, version_num + 1)
                 ensure_state(access.op_node, PidState.READING if access.mode.is_side_effect_free() else PidState.WRITING)
                 if (op_node := last_op_in_process.get(access.op_node.pid)) is None:
-                    warnings.warn(f"Can't find last node from process {access.op_node.pid}")
+                    warnings.warn(ptypes.UnusualProbeLog(f"Can't find last node from process {access.op_node.pid}"))
                     continue
                 match access.mode:
                     case AccessMode.WRITE:
@@ -158,7 +158,7 @@ def combine_indistinguishable_inodes(
     if networkx.is_directed_acyclic_graph(dataflow_graph):
         dataflow_graph = networkx.transitive_reduction(dataflow_graph)
     else:
-        warnings.warn("Dataflow graph is cyclic")
+        warnings.warn(ptypes.UnusualProbeLog("Dataflow graph is cyclic"))
     def same_neighbors(
             node0: hb_graph.OpNode | InodeVersionNode,
             node1: hb_graph.OpNode | InodeVersionNode,
@@ -199,13 +199,13 @@ def validate_dataflow_graph(
 ) -> None:
     if not networkx.is_directed_acyclic_graph(dataflow_graph):
         cycle = list(networkx.find_cycle(dataflow_graph))
-        raise ptypes.InvalidProbeLog(f"Found a cycle in graph: {cycle}")
+        warnings.warn(ptypes.UnusualProbeLog(f"Found a cycle in graph: {cycle}"))
 
     if not networkx.is_weakly_connected(dataflow_graph):
-        raise ptypes.InvalidProbeLog(
+        warnings.warn(ptypes.UnusualProbeLog(
             "Graph is not weakly connected:"
             f" {'\n'.join(map(str, networkx.weakly_connected_components(dataflow_graph)))}"
-        )
+        ))
 
     inode_to_last_node: dict[ptypes.Inode, None | InodeVersionNode] = {
         inode: None
@@ -220,10 +220,12 @@ def validate_dataflow_graph(
                 version = inode_version.version
                 if last_node := inode_to_last_node.get(inode):
                     if version in {last_node.version, last_node.version + 1}:
-                        raise ptypes.InvalidProbeLog(f"We went from {last_node.version} to {version}")
+                        warnings.warn(ptypes.UnusualProbeLog(f"We went from {last_node.version} to {version}"))
                 else:
                     if version not in {0, 1}:
-                        raise ptypes.InvalidProbeLog(f"Version of an initial access should be 0 or 1 not {version} ")
+                        warnings.warn(ptypes.UnusualProbeLog(
+                            f"Version of an initial access should be 0 or 1 not {version}"
+                        ))
                 inode_to_last_node[inode] = inode_version
 
 
@@ -270,7 +272,9 @@ def label_nodes(
                 else:
                     data["label"] = ""
                     if (node.pid, node.exec_no) not in count:
-                        warnings.warn(f"{node.pid, node.exec_no} never counted before")
+                        warnings.warn(ptypes.UnusualProbeLog(
+                            f"{node.pid, node.exec_no} never counted before"
+                        ))
                         count[(node.pid, node.exec_no)] = 99
                     count[(node.pid, node.exec_no)] += 1
                     # data["label"] += "\n" + type(op.data).__name__

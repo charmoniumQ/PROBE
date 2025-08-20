@@ -558,8 +558,8 @@ libc_hooks_h_preamble = """
 struct rusage;
 struct stat;
 struct statx;
-struct utimbuf;
 struct timeval;
+struct utimbuf;
 
 /*
  * There is some bug with pycparser unable to parse inline function pointers.

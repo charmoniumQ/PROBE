@@ -7,6 +7,7 @@ import os
 import pathlib
 import random
 import socket
+import stat
 import typing
 import numpy
 from . import ops
@@ -82,8 +83,18 @@ class Inode:
     host: Host
     device: Device
     number: int
+    mode: int
+
+    @property
+    def type(self) -> str:
+        return stat.filemode(self.mode)[0]
+
+    @property
+    def is_fifo(self) -> bool:
+        return stat.S_ISFIFO(self.mode)
+
     def __str__(self) -> str:
-        return f"inode {self.number} on {self.device} @{self.host.name}"
+        return f"inode {self.type.upper()} {self.number} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -114,6 +125,7 @@ class InodeVersion:
                     os.minor(s.st_dev),
                 ),
                 s.st_ino,
+                s.st_mode,
             ),
             numpy.datetime64(s.st_mtime_ns, "ns"),
             s.st_size,
@@ -126,6 +138,7 @@ class InodeVersion:
                 Host.localhost(),
                 Device(path.device_major, path.device_minor),
                 path.inode,
+                path.mode,
             ),
             numpy.datetime64(path.mtime.sec * int(1e9) + path.mtime.nsec, "ns"),
             path.size,
@@ -144,6 +157,7 @@ class InodeVersion:
                 Host.localhost(),
                 Device(array[0], array[1]),
                 array[2],
+                0,
             ),
             numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
             array[5],
@@ -219,4 +233,8 @@ class TaskType(enum.IntEnum):
 
 
 class InvalidProbeLog(Exception):
+    pass
+
+
+class UnusualProbeLog(Warning):
     pass

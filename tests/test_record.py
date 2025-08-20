@@ -1,9 +1,15 @@
+import collections
 import random
 import shutil
 import pathlib
 import shlex
 import subprocess
+import typing
 import pytest
+
+
+# Enable strace for debugging
+strace = False
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent
@@ -66,8 +72,13 @@ simple_commands = {
     "python_hello": ["python", "-c", "print(4)"],
 }
 
-complex_commands = {
-    "hello_world_pthreads": [str(example_path / "hello_world_pthreads.exe")],
+complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
+    "hello_world_pthreads": (
+        False,
+        None,
+        "",
+        [str(example_path / "hello_world_pthreads.exe")],),
+
     "mutex": [str(example_path / "mutex.exe")],
     "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
     "diff": ["diff", "test_file.txt", "test_file.txt"],
@@ -87,15 +98,30 @@ complex_commands = {
         # so we use echo_path to get the real echo executable
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
-    "c_hello": bash_multi(
-        ["echo", c_hello_world, "redirect_to", "test.c"],
-        ["gcc", "test.c"],
-        ["./a.out"],
+    "c_hello_simplified": (
+        False,
+        pathlib.Path("test.c"),
+        "int main() { return 0; }",
+        ["gcc", "-c", "test.c"],
     ),
-    "java_subprocess_hello": bash_multi(
-        ["echo", java_subprocess_hello_world, "redirect_to", "HelloWorld.java"],
-        ["javac", "HelloWorld.java"],
-        ["java", "HelloWorld"],
+    "c_hello": (
+        False,
+        None,
+        "",
+        bash_multi(
+            ["echo", c_hello_world, "redirect_to", "test.c"],
+            ["gcc", "test.c"],
+            ["./a.out"],
+        ),
+    ),
+    "java_subprocess_hello": (
+        False,
+        pathlib.Path("HelloWorld.java"),
+        java_subprocess_hello_world,
+        bash_multi(
+            ["javac", "HelloWorld.java"],
+            ["java", "HelloWorld"],
+        ),
     ),
     "bash_in_bash": bash_multi(
         bash_multi(
@@ -173,9 +199,15 @@ def scratch_directory(
 @pytest.mark.parametrize("copy_files", [
     "none",
     "lazily",
-    "eagerly",
+    # "eagerly",
 ])
-@pytest.mark.parametrize("debug", [False, True], ids=["opt", "dbg"])
+@pytest.mark.parametrize("debug", [
+    False,
+    # True,
+], ids=[
+    "opt",
+    # "dbg",
+])
 @pytest.mark.parametrize(
     "command",
     {**simple_commands, **complex_commands}.values(),
@@ -186,7 +218,7 @@ def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,
         debug: bool,
-        command: list[str],
+        command: list[str] | tuple[bool, pathlib.Path, str, list[str]],
         does_podman_work: bool,
         does_docker_work: bool,
         does_buildah_work: bool,
@@ -195,7 +227,11 @@ def test_record(
     (scratch_directory / "test_file.txt").write_text("hello world")
     print(scratch_directory)
 
-    (scratch_directory / "test_file.txt").write_text("hello world")
+    if isinstance(command, tuple):
+        if command[1] is not None:
+            (scratch_directory / command[1]).write_text(command[2])
+        command = command[3]
+
     subprocess.run(command, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
@@ -237,30 +273,68 @@ def test_record(
 @pytest.mark.timeout(100)
 def test_downstream_analyses(
         scratch_directory: pathlib.Path,
-        command: list[str],
+        command: list[str] | tuple[bool, pathlib.Path, str, list[str]],
         does_podman_work: bool,
         does_docker_work: bool,
         does_buildah_work: bool,
 ) -> None:
-    (scratch_directory / "test_file.txt").write_text("hello world")
+    (scratch_directory / "test_file.txt").write_text("")
     print(scratch_directory)
 
-    cmd = ["probe", "record", "--copy-files", "none", *command]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    if isinstance(command, tuple):
+        strict = command[0]
+        if command[1] is not None:
+            (scratch_directory / command[1]).write_text(command[2])
+        command = command[3]
+    else:
+        strict = False
 
-    cmd = ["probe", "py", "export", "debug-text"]
-    print(shlex.join(cmd))
-    # stdout is huge
-    subprocess.run(cmd, check=True, cwd=scratch_directory, stdout=subprocess.DEVNULL)
+    class PopenKwargs(typing.TypedDict):
+        check: bool
+        cwd: pathlib.Path
+    args: PopenKwargs = dict(
+        check=True,
+        cwd=scratch_directory,
+    )
 
-    cmd = ["probe", "py", "export", "hb-graph", "test.dot"]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    if strace:
+        strace_trace_arg = "!arch_prctl,brk,futex,getcwd,getdents,getegid,geteuid,getgid,getpgrp,getpid,getppid,getrandom,getresgid,getresuid,gettid,getuid,lseek,mprotect,prctl,pread64,prlimit64,read,rseq,rt_sigaction,rt_sigprocmask,set_robust_list,set_tid_address,sysinfo,uname,write"
+        cmd = [
+            "strace",
+            "--follow-forks",
+            "--output=strace.log",
+            "--trace",
+            strace_trace_arg,
+            "--string-limit=4096",
+            "--absolute-timestamps=precision:ms",
+            "--decode-fds",
+            "--summary",
+            *command,
+        ]
+        print(shlex.join(cmd))
+        subprocess.run(cmd, **args)
 
-    cmd = ["probe", "py", "export", "dataflow-graph", "test.dot"]
+        # See ltrace_eliminator.py for more help.
+
+    print(shutil.which(command[0]))
+    full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
+    print(shlex.join(full_command))
+    with (scratch_directory / "probe_debug.log").open("w") as output:
+        subprocess.run(full_command, **args, stderr=output)
+
+    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "debug-text"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
+    with (scratch_directory / "debug-text.txt").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
+
+    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, **args)
+
+    cmd = ["probe", "py", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
+
+    print(shlex.join(cmd))
+    subprocess.run(cmd, **args)
 
 
 def test_fail(

@@ -9,6 +9,7 @@
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
 #include "probe_libc.h"   // IWYU pragma: keep
 
+
 #ifndef NDEBUG
 #define DEBUG_LOG 1
 #else
@@ -34,9 +35,7 @@
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
         char* errno_str = strndup(strerror_with_backup(errno), 4096);                              \
-        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
-        /* FIXME: fix free, but also remove strndup */                                             \
-        /*free(errno_str);*/                                                                       \
+        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \                                                                      \
         exit_with_backup(103);                                                                     \
     })
 
