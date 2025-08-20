@@ -175,10 +175,7 @@
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
-              python -c 'import probe_py'
-              ptyhon -c 'import sys; print(sys.path)'
-              ptyhon -m mypy --strict -c 'import networkx'
-              ptyhon -m mypy --strict --package probe_py
+              mypy --strict --package probe_py
               runHook postCheck
             '';
           };

@@ -85,10 +85,8 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in tqdm.tqdm(graph.nodes(), desc="nodes")}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    return typing.cast(
-        networkx.DiGraph[_Node2],
-        networkx.relabel_nodes(graph, dct),
-    )
+    ret = networkx.relabel_nodes(graph, dct)
+    return ret # type: ignore
 
 
 def serialize_graph(
