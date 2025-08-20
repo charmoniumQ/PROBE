@@ -2936,7 +2936,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
 int thrd_join (thrd_t thr, int *res) {
     void *pre_call = ({
         int64_t thread_id = 0;
-        memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
+        probe_libc_memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
         struct Op op = {
             wait_op_code,
             {.wait = {

@@ -6,11 +6,11 @@
 #include <pthread.h>   // for pthread_mutex_t
 #include <stdbool.h>   // for true, bool, false
 #include <stdlib.h>    // for free
-#include <string.h>    // for memcpy, NULL, size_t, strnlen// for memcpy, NULL, size_t, strnlen
+#include <string.h>    // for NULL, size_t, strnlen
 #include <sys/mman.h>  // for mmap, PROT_*, MAP_*
 #include <sys/stat.h>  // IWYU pragma: keep for STATX_BASIC_STATS, statx
 #include <sys/types.h> // for pid_t
-#include <unistd.h>    // for getpid, gettid, confstr, _CS_PATH
+#include <unistd.h>    // for confstr, _CS_PATH
 // IWYU pragma: no_include "bits/mman-linux.h"    for PROT_*
 // IWYU pragma: no_include "bits/pthreadtypes.h"  for pthread_mutex_t
 // IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
@@ -23,6 +23,7 @@
 #include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG, ERROR
 #include "env.h"                          // for getenv_copy
 #include "inode_table.h"                  // for inode_table_init, inode_table_i...
+#include "probe_libc.h"                   // for probe_libc_...
 #include "prov_buffer.h"                  // for prov_log_try, prov_log_record, prov_log_save
 #include "prov_utils.h"                   // for do_init_ops
 #include "util.h"                         // for CHECK_SNPRINTF, list_dir, UNLIKELY
@@ -42,7 +43,7 @@
 
 void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
     size_t str_len = strnlen(string, PATH_MAX);
-    memcpy(&path->bytes, string, str_len);
+    probe_libc_memcpy(&path->bytes, string, str_len);
     path->len = str_len;
     check_fixed_path(path);
 }
@@ -96,7 +97,7 @@ static pid_t __pid = 0;
 static inline void init_pid(bool after_fork) {
     (void)after_fork;
     ASSERTF(!!__pid == after_fork, "__pid=%d, after_fork=%d", __pid, after_fork);
-    pid_t tmp = getpid();
+    pid_t tmp = probe_libc_getpid();
     ASSERTF(!after_fork || __pid != tmp,
             "If after_fork, old __pid (%d) should not be equal to new (actual) pid (%d).", __pid,
             tmp);
@@ -104,7 +105,7 @@ static inline void init_pid(bool after_fork) {
 }
 
 pid_t get_pid() { return EXPECT(!= 0, __pid); }
-pid_t get_pid_safe() { return getpid(); }
+pid_t get_pid_safe() { return probe_libc_getpid(); }
 
 static struct InodeTable __read_inodes;
 static struct InodeTable __copied_or_overwritten_inodes;
@@ -131,12 +132,12 @@ static struct ProcessTreeContext* __process_tree_context = NULL;
 static inline void init_process_tree_context() {
     const struct FixedPath* probe_dir = get_probe_dir();
     char path_buf[PATH_MAX] = {0};
-    memcpy(path_buf, probe_dir->bytes, probe_dir->len);
+    probe_libc_memcpy(path_buf, probe_dir->bytes, probe_dir->len);
 
     /* Set up process tree context
      * Note that sizeof("abc") already includes 1 extra for the null byte. */
-    memcpy(path_buf + probe_dir->len, "/" PROCESS_TREE_CONTEXT_FILE "\0",
-           (sizeof(PROCESS_TREE_CONTEXT_FILE) + 1));
+    probe_libc_memcpy(path_buf + probe_dir->len, "/" PROCESS_TREE_CONTEXT_FILE "\0",
+                      (sizeof(PROCESS_TREE_CONTEXT_FILE) + 1));
     __process_tree_context = open_and_mmap(path_buf, false, sizeof(struct ProcessTreeContext));
 }
 static inline const struct ProcessTreeContext* get_process_tree_context() {
@@ -153,7 +154,7 @@ static inline void init_process_context() {
     const struct FixedPath* probe_dir = get_probe_dir();
     char path_buf[PATH_MAX] = {0};
     /* Set up process context */
-    memcpy(path_buf, probe_dir->bytes, probe_dir->len);
+    probe_libc_memcpy(path_buf, probe_dir->bytes, probe_dir->len);
     CHECK_SNPRINTF(path_buf + probe_dir->len, (int)(PATH_MAX - probe_dir->len),
                    "/" CONTEXT_SUBDIR "/%d", __pid);
     __process_context = open_and_mmap(path_buf, true, sizeof(struct ProcessContext));
@@ -184,7 +185,7 @@ enum CopyFiles get_copy_files_mode() { return get_process_tree_context()->copy_f
 static inline void create_epoch_dir() {
     char path_buf[PATH_MAX] = {0};
     const struct FixedPath* probe_dir = get_probe_dir();
-    memcpy(path_buf, probe_dir->bytes, probe_dir->len);
+    probe_libc_memcpy(path_buf, probe_dir->bytes, probe_dir->len);
 
     /* mkdir epoch */
     if (is_first_epoch()) {
@@ -231,7 +232,7 @@ struct ThreadState {
 typedef struct ThreadState* ThreadTable1[256];
 typedef ThreadTable1* ThreadTable0[256];
 ThreadTable0 __thread_table = {NULL};
-static inline void init_tid(struct ThreadState* state) { state->tid = gettid(); }
+static inline void init_tid(struct ThreadState* state) { state->tid = probe_libc_gettid(); }
 PthreadID increment_pthread_id() {
     return __atomic_add_fetch(&__pthread_id_counter, 1, __ATOMIC_RELAXED);
 }
@@ -313,7 +314,7 @@ static inline void drop_threads_after_fork() {
 struct ArenaDir* get_op_arena() { return &(get_thread_state()->ops_arena); }
 struct ArenaDir* get_data_arena() { return &(get_thread_state()->data_arena); }
 pid_t get_tid() { return get_thread_state()->tid; }
-pid_t get_tid_safe() { return gettid(); }
+pid_t get_tid_safe() { return probe_libc_gettid(); }
 PthreadID get_pthread_id() { return get_thread_state()->pthread_id; }
 
 static inline void check_function_pointers() {
@@ -345,7 +346,7 @@ static inline void check_function_pointers() {
 static inline void emit_init_epoch_op() {
     static struct FixedPath cwd = {0};
     static struct FixedPath exe = {0};
-    if (!getcwd(cwd.bytes, PROBE_PATH_MAX)) {
+    if (probe_libc_getcwd(cwd.bytes, PROBE_PATH_MAX).error) {
         ERROR("");
     }
     if (client_readlinkat(AT_FDCWD, "/proc/self/exe", exe.bytes, PROBE_PATH_MAX) < 0) {
@@ -359,8 +360,8 @@ static inline void emit_init_epoch_op() {
         init_exec_epoch_op_code,
         {.init_exec_epoch =
              {
-                 .parent_pid = getppid(),
-                 .pid = getpid(),
+                 .parent_pid = probe_libc_getppid(),
+                 .pid = probe_libc_getpid(),
                  .epoch = get_exec_epoch(),
                  .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, 0),
                  .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
@@ -395,7 +396,7 @@ bool is_thread_inited() { return !!pthread_getspecific(__thread_state_key); }
 bool is_proc_inited() {
     /* On forks, the PID will be changed from the parent,
      * "resetting" the iniialization status. */
-    return getpid() == __pid;
+    return probe_libc_getpid() == __pid;
 }
 
 void init_thread(PthreadID pthread_id) {
@@ -436,6 +437,10 @@ void ensure_thread_initted() {
 }
 
 __attribute__((constructor)) void constructor() {
+    DEBUG("Initializing internal libc");
+    if (probe_libc_init() != 0) {
+        ERROR("Failed to initialize probe_libc (no procfs?)");
+    }
     DEBUG("Initializing exec epoch");
     ASSERTF(!is_proc_inited(), "Proccess already initialized");
     init_function_pointers();

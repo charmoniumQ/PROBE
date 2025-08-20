@@ -8,13 +8,13 @@
 #include <stdint.h>   // for uintptr_t
 #include <stdio.h>    // for snprintf
 #include <stdlib.h>   // for free, malloc
-#include <string.h>   // for memcpy, strnlen
+#include <string.h>   // for strnlen
 #include <sys/mman.h> // for msync, munmap, MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
-#include <unistd.h>   // for getpagesize
 // IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
 
 #include "../generated/libc_hooks.h" // for client_close, client_ftru...
 #include "debug_logging.h"           // for EXPECT, ASSERTF, EXPECT_NONNULL
+#include "probe_libc.h"              // for probe_libc_...
 #include "util.h"                    // for ceil_log2, MAX
 
 struct Arena {
@@ -43,8 +43,8 @@ static inline size_t __arena_align(size_t offset, size_t alignment) {
 #define ARENA_CURRENT arena_dir->__tail->arena_list[arena_dir->__tail->next_free_slot - 1]
 
 static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_capacity) {
-    size_t capacity =
-        1 << MAX(ceil_log2(getpagesize()), ceil_log2(min_capacity + sizeof(struct Arena)));
+    size_t capacity = 1 << MAX(ceil_log2(probe_libc_getpagesize()),
+                               ceil_log2(min_capacity + sizeof(struct Arena)));
 
     /* Create a new mmap */
     snprintf(arena_dir->__dir_buffer + arena_dir->__dir_len,
@@ -113,7 +113,7 @@ void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_si
 void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size) {
     size_t length = strnlen(string, max_size);
     char* dst = EXPECT_NONNULL(arena_calloc(arena, length + 1, sizeof(char)));
-    memcpy(dst, string, length + 1);
+    probe_libc_memcpy(dst, string, length + 1);
     return dst;
 }
 

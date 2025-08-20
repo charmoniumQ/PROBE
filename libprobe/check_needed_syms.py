@@ -2,7 +2,6 @@ import subprocess
 import sys
 
 allowed = {
-    "bcmp",
     "calloc",
     "__confstr_chk",
     "__cxa_finalize",
@@ -13,18 +12,11 @@ allowed = {
     "__errno_location",
     "fileno",
     "free",
-    "__getcwd_chk",
-    "getenv",
-    "getpagesize",
-    "getpid",
-    "getppid",
-    "gettid",
     "__gmon_start__",
     "_ITM_deregisterTMCloneTable",
     "_ITM_registerTMCloneTable",
     "malloc",
     "memcpy",
-    "__memcpy_chk",
     "memset",
     "msync",
     "pthread_getspecific",
@@ -34,7 +26,6 @@ allowed = {
     "pthread_rwlock_unlock",
     "pthread_rwlock_wrlock",
     "pthread_setspecific",
-    "read",
     "realloc",
     "__register_atfork",
     "sendfile",
@@ -50,7 +41,6 @@ allowed = {
     "__vfprintf_chk",
     "__vsnprintf_chk",
     "__vsprintf_chk",
-    "write",
 }
 
 unneeded = allowed

@@ -7,7 +7,6 @@
 #include <sched.h>    // for CLONE_VFORK
 #include <stdbool.h>  // for bool, true
 #include <stdio.h>    // for fprintf, stderr
-#include <string.h>   // for memcpy, size_t
 #include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
 #include <threads.h>  // for thrd_current
 #include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
@@ -22,6 +21,7 @@
 #include "debug_logging.h"                // for DEBUG, ASSERTF, DEBUG_LOG
 #include "global_state.h"                 // for get_copied_or_overwritten_...
 #include "inode_table.h"                  // for inode_table_put_if_not_exists
+#include "probe_libc.h"                   // for probe_libc_memcpy
 #include "prov_utils.h"                   // for op_to_human_readable, op_t...
 #include "util.h"                         // for copy_file
 
@@ -215,7 +215,7 @@ void prov_log_record(struct Op op) {
      * Ideally, we would construct them in the arena (no copy necessary).
      * */
     struct Op* dest = arena_calloc(get_op_arena(), 1, sizeof(struct Op));
-    memcpy(dest, &op, sizeof(struct Op));
+    probe_libc_memcpy(dest, &op, sizeof(struct Op));
 
     /* TODO: Special handling of ops that affect process state */
 

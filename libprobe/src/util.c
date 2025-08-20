@@ -6,11 +6,10 @@
 #include <limits.h>       // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
 #include <stdbool.h>      // for bool, false
 #include <stdlib.h>       // for malloc
-#include <string.h>       // for memcpy, strcmp, strlen
+#include <string.h>       // for strcmp, strlen
 #include <sys/sendfile.h> // for sendfile
 #include <sys/stat.h>     // for S_IFDIR, S_IFMT, statx, STATX_TYPE
 #include <sys/types.h>    // for ssize_t, off_t
-#include <unistd.h>       // for write
 // IWYU pragma: no_include "asm-generic/errno-base.h"   for EBADF
 // IWYU pragma: no_include "bits/posix1_lim.h"          for SSIZE_MAX
 // IWYU pragma: no_include "linux/limits.h"             for PATH_MAX
@@ -18,6 +17,7 @@
 
 #include "../generated/libc_hooks.h" // for client_close, client_openat
 #include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
+#include "probe_libc.h"              // for probe_libc_...
 #include "util.h"                    // for BORROWED, OWNED, CHECK_SNPRINTF
 
 bool is_dir(const char* dir) {
@@ -49,9 +49,9 @@ OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const
     if (!path_buf) {
         path_buf = EXPECT_NONNULL(malloc(left_size + right_size + 2));
     }
-    memcpy(path_buf, left, left_size);
+    probe_libc_memcpy(path_buf, left, left_size);
     path_buf[left_size] = '/';
-    memcpy(path_buf + left_size + 1, right, right_size);
+    probe_libc_memcpy(path_buf + left_size + 1, right, right_size);
     path_buf[left_size + 1 + right_size] = '\0';
     return path_buf;
 }
@@ -111,7 +111,10 @@ void write_bytes(int dirfd, const char* path, const char* content, ssize_t size)
     int fd = EXPECT(> 0, client_openat(dirfd, path, O_RDWR | O_CREAT, 0666));
     ssize_t copied = 0;
     while (copied < size) {
-        copied += EXPECT(> 0, write(fd, content, size));
+        result_ssize_t res = probe_libc_write(fd, content, size);
+        // FIXME: you should really check for the error case all the time
+        ASSERTF(res.error == 0, "");
+        copied += res.value;
     }
     EXPECT(== 0, client_close(fd));
 }
@@ -133,13 +136,15 @@ char* read_file(const char* path, size_t* buffer_len, size_t* buffer_capacity) {
     char* buffer = EXPECT_NONNULL(malloc(*buffer_capacity));
     *buffer_len = 0;
     while (true) {
-        ssize_t ret = read(fd, buffer + *buffer_len, *buffer_capacity - *buffer_len);
-        if (ret == 0) {
-            break;
-        } else if (ret < 0) {
+        result_ssize_t ret =
+            probe_libc_read(fd, buffer + *buffer_len, *buffer_capacity - *buffer_len);
+        if (ret.error) {
             ERROR("");
+        }
+        if (ret.value == 0) {
+            break;
         } else {
-            *buffer_len += ret;
+            *buffer_len += ret.value;
             if (*buffer_len == *buffer_capacity) {
                 *buffer_capacity *= 2;
                 buffer = EXPECT_NONNULL(realloc(buffer, *buffer_capacity));

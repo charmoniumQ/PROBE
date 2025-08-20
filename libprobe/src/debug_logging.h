@@ -7,8 +7,7 @@
 #include <string.h> // for strerror, strndup
 
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
-#include "probe_libc.h"   // IWYU pragma: keep
-
+#include "probe_libc.h"   // IWYU pragma: keep for strerror_with_backup
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1
