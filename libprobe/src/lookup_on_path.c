@@ -7,7 +7,7 @@
 #include <string.h>  // for strlen
 #include <unistd.h>  // for X_OK
 
-#include "../generated/libc_hooks.h" // for unwrapped_faccessat
+#include "../generated/libc_hooks.h" // for client_faccessat
 #include "debug_logging.h"           // for DEBUG
 #include "env.h"                     // for getenv_copy
 #include "global_state.h"            // for get_default_path
@@ -36,7 +36,7 @@ bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
             ;
         if (size > 0) {
             path_join(bin_path, size, part, bin_name_length, bin_name);
-            int access_ret = unwrapped_faccessat(AT_FDCWD, bin_path, X_OK, 0);
+            int access_ret = client_faccessat(AT_FDCWD, bin_path, X_OK, 0);
             if (access_ret == 0) {
                 DEBUG("Found \"%s\"", bin_path);
                 return true;
