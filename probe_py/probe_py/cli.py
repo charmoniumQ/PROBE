@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import typing
 import warnings
 import typer
@@ -255,23 +256,31 @@ def debug_text(
     """
     Write the data from probe_log in a human-readable manner.
     """
-    out_console = rich.console.Console()
     with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
-        for pid, process in sorted(probe_log.processes.items()):
-            out_console.rule(f"{pid}")
-            for exid, exec_epoch in sorted(process.execs.items()):
-                out_console.rule(f"{pid} {exid}")
-                for tid, thread in sorted(exec_epoch.threads.items()):
-                    out_console.rule(f"{pid} {exid} {tid}")
-                    for op_no, op in enumerate(thread.ops):
-                        out_console.print(op_no)
-                        rich.pretty.pprint(
-                            op.data,
-                            console=out_console,
-                            max_string=None,
-                        )
-        for ino_ver, path in sorted(probe_log.copied_files.items()):
-            out_console.print(
+        pid_len = max(len(str(pid)) for pid in probe_log.processes.keys())
+        with tqdm.tqdm(total=probe_log.n_ops(), desc="Printing ops") as pbar:
+            for pid, process in sorted(probe_log.processes.items()):
+                print(f"{pid: {pid_len}d} start of process")
+                max_exid = max(process.execs.keys())
+                exid_len = len(str(max_exid))
+                for exid, exec_epoch in sorted(process.execs.items()):
+                    print(f"{pid: {pid_len}d} start of exec {exid} / {max_exid}")
+                    tid_len = max(len(str(tid)) for tid in exec_epoch.threads.keys())
+                    for tid, thread in sorted(exec_epoch.threads.items()):
+                        print(f"{pid: {pid_len}d} {exid: {exid_len}d} start of thread {tid}")
+                        op_no_len = len(str(len(thread.ops)))
+                        for op_no, op in enumerate(thread.ops):
+                            pbar.update(1)
+                            prefix = f"{pid: {pid_len}d} {exid: {exid_len}d} {tid: {tid_len}d} {op_no: {op_no_len}d} "
+                            op_type = type(op.data).__name__
+                            op_data = json.dumps(util.decode_nested_object(dataclasses.asdict(op.data)), indent=2)
+                            print(f"{prefix}{op_type}")
+                            print(textwrap.indent(op_data, prefix=len(prefix) * " "))
+        for ino_ver, path in tqdm.tqdm(
+                sorted(probe_log.copied_files.items()),
+                desc="Printing inodes",
+        ):
+            print(
                 f"device={ino_ver.inode.device.major_id}.{ino_ver.inode.device.minor_id} inode={ino_ver.inode.number} mtime={ino_ver.mtime} -> {ino_ver.size} blob"
             )
 
