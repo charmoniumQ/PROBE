@@ -282,7 +282,11 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    for node, data in tqdm.tqdm(hb_graph.nodes(data=True), "HBG label"):
+    node_view = typing.cast(
+        typing.Iterator[tuple[OpNode, graph_utils.GraphvizNodeAttributes]],
+        iter(hb_graph.nodes(data=True)),
+    )
+    for node, data in tqdm.tqdm(node_view, "HBG label"):
         op = probe_log.get_op(*node.op_quad())
         if len(list(hb_graph.predecessors(node))) == 0:
             data["label"] = "root"
@@ -323,7 +327,11 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
         if add_op_no:
             data["label"] = f"{node.op_no}: " + data["label"]
 
-    for node0, node1, data in hb_graph.edges(data=True):
+    edge_view = typing.cast(
+        typing.Iterator[tuple[OpNode, OpNode, graph_utils.GraphvizEdgeAttributes]],
+        hb_graph.edges(data=True),
+    )
+    for node0, node1, data in edge_view:
         if node0.pid != node1.pid or node0.tid != node1.tid:
             data["style"] = "dashed"
 

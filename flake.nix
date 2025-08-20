@@ -162,13 +162,11 @@
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
               python.pkgs.sqlalchemy
-              python.pkgs.pyyaml
               python.pkgs.numpy
               python.pkgs.tqdm
             ];
             nativeCheckInputs = [
               python.pkgs.mypy
-              python.pkgs.types-pyyaml
               python.pkgs.types-tqdm
               types-networkx
               pkgs.ruff
@@ -178,7 +176,9 @@
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
               python -c 'import probe_py'
-              mypy --strict --package probe_py
+              ptyhon -c 'import sys; print(sys.path)'
+              ptyhon -m mypy --strict -c 'import networkx'
+              ptyhon -m mypy --strict --package probe_py
               runHook postCheck
             '';
           };
@@ -268,7 +268,6 @@
                     pypkgs.typer
                     pypkgs.sqlalchemy
                     pypkgs.xdg-base-dirs
-                    pypkgs.pyyaml
                     pypkgs.numpy
                     pypkgs.tqdm
 
