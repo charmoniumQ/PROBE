@@ -19,3 +19,4 @@ Test(init, init) {
 #include "probe_libc_units/test_mem_fns.c"
 #include "probe_libc_units/test_get_fns.c"
 #include "probe_libc_units/test_str_fns.c"
+#include "probe_libc_units/test_io_fns.c"

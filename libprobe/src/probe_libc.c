@@ -174,7 +174,7 @@ char* strerror_with_backup(int errnum) {
     return backup_strerror_buf;
 }
 
-static inline result_ssize_t read_all(int fd, void* buf, size_t n) {
+static inline result_ssize_t probe_read_all(int fd, void* buf, size_t n) {
     ssize_t total = 0;
     result_ssize_t curr;
     do {
@@ -207,7 +207,7 @@ result probe_libc_init(void) {
         } aux_entry;
 
         aux_entry buf[AUX_CNT] = {0};
-        result_ssize_t read_ret = read_all(auxv_fd.value, buf, AUX_CNT * sizeof(aux_entry));
+        result_ssize_t read_ret = probe_read_all(auxv_fd.value, buf, AUX_CNT * sizeof(aux_entry));
         if (read_ret.error) {
             char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
             WARNING("Unable to read auxv: (%d) %s", read_ret.error, error_str);
@@ -250,7 +250,7 @@ result probe_libc_init(void) {
             WARNING("Unable to calloc environ buffer");
             return ENOMEM;
         }
-        read_ret = read_all(environ_fd.value, environ_buf, size);
+        read_ret = probe_read_all(environ_fd.value, environ_buf, size);
         if (read_ret.error) {
             char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
             WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
@@ -270,8 +270,8 @@ result probe_libc_init(void) {
                 return ENOMEM;
             }
             environ_buf = new;
-            read_ret =
-                read_all(environ_fd.value, (void*)((uintptr_t)environ_buf + (size - 4096)), 4096);
+            read_ret = probe_read_all(environ_fd.value,
+                                      (void*)((uintptr_t)environ_buf + (size - 4096)), 4096);
             if (read_ret.error) {
                 char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
                 WARNING("Unable to read environ buffer: (%d) %s", read_ret.error, error_str);
@@ -418,7 +418,7 @@ result_ssize_t probe_libc_read(int fd, void* buf, size_t count) {
     return (result_ssize_t)ERR(-retval);
 }
 
-result_ssize_t probe_libc_write(int fd, void* buf, size_t count) {
+result_ssize_t probe_libc_write(int fd, const void* buf, size_t count) {
     ssize_t retval = probe_syscall3(SYS_write, fd, (uintptr_t)buf, count);
     if (retval >= 0) {
         return (result_ssize_t)OK(retval);

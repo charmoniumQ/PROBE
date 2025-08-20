@@ -32,18 +32,15 @@ Test(get, getpagesize, .init = setup) {
 // simple (as compared to the mem* functions) unit tests are mostly just a
 // sanity check
 Test(get, getcwd) {
-    char buf[PATH_MAX] = {0};
     char expected[PATH_MAX] = {0};
     char actual[PATH_MAX] = {0};
 
     char* ret1 = getcwd(expected, PATH_MAX);
     int e = errno;
-    strncpy(buf, strerror(e), PATH_MAX);
-    cr_assert_not_null(ret1, "getcwd errored with %s (%d)", buf, e);
+    cr_assert_not_null(ret1, "getcwd errored with %s (%d)", strerror(e), e);
 
     result_str ret2 = probe_libc_getcwd(actual, PATH_MAX);
-    strncpy(buf, strerror(ret2.error), PATH_MAX);
-    cr_assert(ret2.error == 0, "probe_libc_getcwd errored with %s (%d)", buf, ret2.error);
+    cr_assert(ret2.error == 0, "probe_libc_getcwd errored with %s (%d)", strerror(ret2.error), ret2.error);
 
     cr_assert_str_eq(actual, expected, "got cwd %s but expected %s", actual, expected);
 }

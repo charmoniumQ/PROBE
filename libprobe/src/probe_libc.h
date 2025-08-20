@@ -56,7 +56,7 @@ ATTR_HIDDEN result_int probe_libc_dup(int oldfd);
 ATTR_HIDDEN result_int probe_libc_open(const char* path, int flags, mode_t mode);
 ATTR_HIDDEN result probe_libc_close(int fd);
 ATTR_HIDDEN result_ssize_t probe_libc_read(int fd, void* buf, size_t count);
-ATTR_HIDDEN result_ssize_t probe_libc_write(int fd, void* buf, size_t count);
+ATTR_HIDDEN result_ssize_t probe_libc_write(int fd, const void* buf, size_t count);
 
 // yes it's missing the offset parameter; it's unclear whether the syscall
 // implements offset in bytes or memory pages, and i don't think we actually
