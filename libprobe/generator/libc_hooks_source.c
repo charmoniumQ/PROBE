@@ -1631,8 +1631,6 @@ fn tmpfile64 = tmpfile;
 char * tmpnam (char c[__PROBE_L_tmpnam]) { }
 char * tmpnam_r (char c[__PROBE_L_tmpnam]) { }
 char * tempnam (const char *dir, const char *prefix) { }
-char * mktemp (char *template) { }
-int mkstemp (char *template) { }
 char * mkdtemp (char *template) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html */
@@ -2741,6 +2739,10 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
         prov_log_record(mkfifo_op);
     });
 }
+
+// functions we're not interposing, but need for libprobe functionality
+char* strerror(int errnum) { }
+void exit(int status) { }
 
 int mkstemp(char* template) {
     void* call = ({
