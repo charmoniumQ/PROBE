@@ -87,7 +87,7 @@ def map_nodes(
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
     ret = networkx.relabel_nodes(graph, dct)
-    return typing.cast(networkx.DiGraph[_Node2], ret)
+    return ret # type: ignore
 
 
 def serialize_graph(
@@ -494,3 +494,37 @@ def topological_sort_depth_first(
         else:
             raise RuntimeError(f"Cycle exists and includes {node}")
         counter += 1
+
+
+def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
+    tc: networkx.DiGraph[_Node] = networkx.DiGraph()
+    node_order = list(networkx.topological_sort(dag))[::-1]
+    for src in tqdm.tqdm(node_order, desc="TC"):
+        tc.add_node(src)
+        for child in dag.successors(src):
+            tc.add_edge(src, child)
+            for grandchild in dag.successors(child):
+                tc.add_edge(src, grandchild)
+    return tc
+
+
+class GraphvizAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    shape: str
+
+
+class GraphvizNodeAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    style: str
+
+
+class GraphvizEdgeAttributes(typing.TypedDict):
+    label: str
+    shape: str
+    color: str
+    style: str
+    labelfontsize: int
