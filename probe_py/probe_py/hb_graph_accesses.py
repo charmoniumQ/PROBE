@@ -94,13 +94,12 @@ def hb_graph_to_accesses(
                             f"{node} successfully duped an FD {op_data.old} (-> {op_data.new}) we never traced.",
                         ))
             case ops.CloneOp():
-                if op_data.ferrno == 0:
-                    if op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
-                        target = ptypes.Pid(op_data.task_id)
-                        if op_data.flags & os.CLONE_FILES:
-                            proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]
-                        else:
-                            proc_fd_to_fd[target] = {**proc_fd_to_fd[node.pid]}
+                if op_data.ferrno == 0 and op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
+                    target = ptypes.Pid(op_data.task_id)
+                    if op_data.flags & os.CLONE_FILES:
+                        proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]
+                    else:
+                        proc_fd_to_fd[target] = {**proc_fd_to_fd[node.pid]}
         is_last_op_in_process = not any(
             successor.pid == node.pid
             for successor in hbg.successors(node)

@@ -8,7 +8,6 @@ import textwrap
 import typing
 import warnings
 import networkx
-import tqdm
 from . import graph_utils
 from .hb_graph_accesses import hb_graph_to_accesses
 from . import ops
@@ -85,27 +84,31 @@ def accesses_to_dataflow_graph(
                 inode_to_paths[access.inode].add(access.path)
                 version = InodeVersionNode(access.inode, version_num)
                 next_version = InodeVersionNode(access.inode, version_num + 1)
-                ensure_state(access.op_node, PidState.READING if access.mode.is_side_effect_free else PidState.WRITING)
-                if (op_node := last_op_in_process.get(access.op_node.pid)) is None:
-                    warnings.warn(ptypes.UnusualProbeLog(f"Can't find last node from process {access.op_node.pid}"))
-                    continue
                 match access.mode:
                     case ptypes.AccessMode.WRITE:
                         if access.phase == ptypes.Phase.BEGIN:
-                            dataflow_graph.add_edge(op_node, next_version)
-                            dataflow_graph.add_edge(version, next_version)
+                            quint = ensure_state(access.op_node, PidState.WRITING)
+                            dataflow_graph.add_edge(quint, next_version, label="mutating write")
+                            dataflow_graph.add_edge(version, next_version, label="mutating write")
+                            inode_to_version[access.inode] += 1
                     case ptypes.AccessMode.TRUNCATE_WRITE:
                         if access.phase == ptypes.Phase.END:
-                            dataflow_graph.add_edge(op_node, next_version)
+                            quint = ensure_state(access.op_node, PidState.WRITING)
+                            dataflow_graph.add_edge(quint, next_version, label="truncating write")
+                            inode_to_version[access.inode] += 1
                     case ptypes.AccessMode.READ_WRITE:
                         if access.phase == ptypes.Phase.BEGIN:
-                            dataflow_graph.add_edge(version, op_node)
+                            quint = ensure_state(access.op_node, PidState.READING)
+                            dataflow_graph.add_edge(version, quint, label="read & write")
                         if access.phase == ptypes.Phase.END:
-                            dataflow_graph.add_edge(op_node, next_version)
-                            dataflow_graph.add_edge(version, next_version)
+                            quint = ensure_state(access.op_node, PidState.WRITING)
+                            dataflow_graph.add_edge(quint, next_version, label="read/write")
+                            dataflow_graph.add_edge(version, next_version, label="read/write")
+                            inode_to_version[access.inode] += 1
                     case ptypes.AccessMode.READ | ptypes.AccessMode.EXEC | ptypes.AccessMode.DLOPEN:
                         if access.phase == ptypes.Phase.BEGIN:
-                            dataflow_graph.add_edge(version, op_node)
+                            quint = ensure_state(access.op_node, PidState.READING)
+                            dataflow_graph.add_edge(version, quint, label="read")
                     case _:
                         raise TypeError()
             case ptypes.OpQuad():
@@ -227,16 +230,21 @@ def label_nodes(
 ) -> None:
     count = dict[tuple[ptypes.Pid, ptypes.ExecNo], int]()
     root_pid = probe_log.get_root_pid()
-    for node in tqdm.tqdm(
-            networkx.topological_sort(dataflow_graph),
-            total=len(dataflow_graph),
-            desc="Labelling DFG nodes",
-    ):
+    if networkx.is_directed_acyclic_graph(dataflow_graph):
+        nodes = list(networkx.topological_sort(dataflow_graph))
+        cycle = []
+    else:
+        nodes = list(dataflow_graph.nodes())
+        cycle = list(networkx.find_cycle(dataflow_graph))
+        warnings.warn(ptypes.UnusualProbeLog(
+            "Dataflow graph contains a cycle (marked in red).",
+        ))
+    for node in nodes:
         data = dataflow_graph.nodes(data=True)[node]
         match node:
             case ptypes.OpQuad():
                 data["shape"] = "oval"
-                op = probe_log.get_op(ptypes.OpQuad(node.pid, node.exec_no, node.pid.main_thread(), 0))
+                op = probe_log.get_op(node)
                 if node.op_no == 0:
                     count[(node.pid, node.exec_no)] = 1
                     if node.exec_no != 0:
@@ -259,7 +267,7 @@ def label_nodes(
                     data["label"] = ""
                     if (node.pid, node.exec_no) not in count:
                         warnings.warn(ptypes.UnusualProbeLog(
-                            f"{node.pid, node.exec_no} never counted before"
+                            f"{node.pid, node.exec_no} never counted before",
                         ))
                         count[(node.pid, node.exec_no)] = 99
                     count[(node.pid, node.exec_no)] += 1
@@ -277,7 +285,7 @@ def label_nodes(
                 inode_labels = []
                 for inode_version in inode_versions[:max_inodes_per_set]:
                     inode_label = []
-                    inode_label.append(f"{inode_version.inode.number} v{inode_version.version}")
+                    inode_label.append(f"{inode_version.inode} v{inode_version.version}")
                     paths = inodes_to_path.get(inode_version.inode, frozenset[pathlib.Path]())
                     for path in sorted(paths, key=lambda path: len(str(path)))[:max_paths_per_inode]:
                         inode_label.append(shorten_path(path))
@@ -287,3 +295,5 @@ def label_nodes(
                 data["label"] = "\n".join(inode_labels)
                 data["shape"] = "rectangle"
                 data["id"] = str(hash(node))
+    for a, b in cycle:
+        dataflow_graph.edges[a, b]["color"] = "red"  # type: ignore
