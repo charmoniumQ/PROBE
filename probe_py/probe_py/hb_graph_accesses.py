@@ -59,11 +59,11 @@ def hb_graph_to_accesses(
         match op_data:
             case ops.InitExecEpochOp():
                 if 0 not in proc_fd_to_fd[node.pid]:
-                    yield from openfd(0, ptypes.AccessMode.READ, False, node, op_data.stdin)
+                    yield from openfd(0, ptypes.AccessMode.READ, False, node, op_data.std_in)
                 if 1 not in proc_fd_to_fd[node.pid]:
-                    yield from openfd(1, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.stdout)
+                    yield from openfd(1, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.std_out)
                 if 2 not in proc_fd_to_fd[node.pid]:
-                    yield from openfd(2, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.stderr)
+                    yield from openfd(2, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.std_err)
             case ops.OpenOp():
                 if op_data.ferrno == 0:
                     mode = ptypes.AccessMode.from_open_flags(op_data.flags)

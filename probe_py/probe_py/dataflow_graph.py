@@ -8,6 +8,7 @@ import textwrap
 import typing
 import warnings
 import networkx
+import tqdm
 from . import graph_utils
 from .hb_graph_accesses import hb_graph_to_accesses
 from . import ops
@@ -84,26 +85,26 @@ def accesses_to_dataflow_graph(
                 inode_to_paths[access.inode].add(access.path)
                 version = InodeVersionNode(access.inode, version_num)
                 next_version = InodeVersionNode(access.inode, version_num + 1)
-                ensure_state(access.op_node, PidState.READING if access.mode.is_side_effect_free() else PidState.WRITING)
+                ensure_state(access.op_node, PidState.READING if access.mode.is_side_effect_free else PidState.WRITING)
                 if (op_node := last_op_in_process.get(access.op_node.pid)) is None:
                     warnings.warn(ptypes.UnusualProbeLog(f"Can't find last node from process {access.op_node.pid}"))
                     continue
                 match access.mode:
-                    case AccessMode.WRITE:
-                        if access.phase == Phase.BEGIN:
+                    case ptypes.AccessMode.WRITE:
+                        if access.phase == ptypes.Phase.BEGIN:
                             dataflow_graph.add_edge(op_node, next_version)
                             dataflow_graph.add_edge(version, next_version)
-                    case AccessMode.TRUNCATE_WRITE:
-                        if access.phase == Phase.END:
+                    case ptypes.AccessMode.TRUNCATE_WRITE:
+                        if access.phase == ptypes.Phase.END:
                             dataflow_graph.add_edge(op_node, next_version)
-                    case AccessMode.READ_WRITE:
-                        if access.phase == Phase.BEGIN:
+                    case ptypes.AccessMode.READ_WRITE:
+                        if access.phase == ptypes.Phase.BEGIN:
                             dataflow_graph.add_edge(version, op_node)
-                        if access.phase == Phase.END:
+                        if access.phase == ptypes.Phase.END:
                             dataflow_graph.add_edge(op_node, next_version)
                             dataflow_graph.add_edge(version, next_version)
-                    case AccessMode.READ | AccessMode.EXEC | AccessMode.DLOPEN:
-                        if access.phase == Phase.BEGIN:
+                    case ptypes.AccessMode.READ | ptypes.AccessMode.EXEC | ptypes.AccessMode.DLOPEN:
+                        if access.phase == ptypes.Phase.BEGIN:
                             dataflow_graph.add_edge(version, op_node)
                     case _:
                         raise TypeError()
@@ -233,9 +234,9 @@ def label_nodes(
     ):
         data = dataflow_graph.nodes(data=True)[node]
         match node:
-            case hb_graph.OpNode():
+            case ptypes.OpQuad():
                 data["shape"] = "oval"
-                op = probe_log.get_op(node.pid, node.exec_no, node.pid.main_thread(), 0)
+                op = probe_log.get_op(ptypes.OpQuad(node.pid, node.exec_no, node.pid.main_thread(), 0))
                 if node.op_no == 0:
                     count[(node.pid, node.exec_no)] = 1
                     if node.exec_no != 0:

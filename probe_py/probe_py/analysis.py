@@ -1,7 +1,6 @@
 import collections
 from .ptypes import ProbeLog, HbGraph, OpQuad
 from .ops import CloneOp, WaitOp
-from .hb_graph import HbGraph
 
 
 def get_max_parallelism_latest(hb_graph: HbGraph, probe_log: ProbeLog) -> int:

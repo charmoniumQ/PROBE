@@ -9,6 +9,7 @@ import random
 import socket
 import stat
 import typing
+import networkx
 import numpy
 from . import ops
 from . import consts
