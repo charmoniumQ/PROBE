@@ -1631,6 +1631,7 @@ fn tmpfile64 = tmpfile;
 char * tmpnam (char c[__PROBE_L_tmpnam]) { }
 char * tmpnam_r (char c[__PROBE_L_tmpnam]) { }
 char * tempnam (const char *dir, const char *prefix) { }
+char * mktemp (char *template) { }
 char * mkdtemp (char *template) { }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Executing-a-File.html */
