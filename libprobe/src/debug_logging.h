@@ -32,7 +32,7 @@
 
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
-        LOG("ERROR " str " (%s)", ##__VA_ARGS__, strerror(errno));                                 \
+        LOG("ERROR " str " (%s)", ##__VA_ARGS__, strerror_with_backup(errno));                     \
         exit_with_backup(103);                                                                     \
     })
 

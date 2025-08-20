@@ -196,13 +196,6 @@ int open(const char* filename, int flags, ...) {
         int ret = openat(AT_FDCWD, filename, flags, mode);
     });
 }
-fn open64 = open;
-int __open_2(const char* filename, int flags) {
-    void* call = ({
-        int ret = __openat_2(AT_FDCWD, filename, flags);
-    });
-}
-fn __open64_2 = __open_2;
 int __openat_2(int fd, const char* file, int flags) {
     void* pre_call = ({
         struct Op op = {
@@ -227,6 +220,13 @@ int __openat_2(int fd, const char* file, int flags) {
         }
     });
 }
+fn open64 = open;
+int __open_2(const char* filename, int flags) {
+    void* call = ({
+        int ret = __openat_2(AT_FDCWD, filename, flags);
+    });
+}
+fn __open64_2 = __open_2;
 fn __openat64_2 = __openat_2;
 int creat (const char *filename, mode_t mode) {
     void* call = ({
