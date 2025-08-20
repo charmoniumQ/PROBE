@@ -35,7 +35,7 @@
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
         char* errno_str = strndup(strerror_with_backup(errno), 4096);                              \
-        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \                                                                      \
+        LOG("ERROR " str " (errno=%d %s)", ##__VA_ARGS__, errno, errno_str);                       \
         exit_with_backup(103);                                                                     \
     })
 
