@@ -56,7 +56,7 @@ def test_podman_install() -> None:
                 "probe record ls",
 
                 # Test Rust -> Python handoff
-                "probe export debug-text",
+                "probe py export debug-text",
             ]),
         ],
         check=True,
