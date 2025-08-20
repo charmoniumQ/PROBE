@@ -108,7 +108,10 @@ int main() {
         if (file != NULL) {
             char buffer[50];
             char* ret = fgets(buffer, 50, file);
-            assert(ret);
+            if (ret == NULL) {
+                fprintf(stderr, "Could not read %s\n", filename);
+                perror("fgets");
+            }
             printf("File /tmp/%ld.txt content: %s", t, buffer);
             fclose(file);
         } else {

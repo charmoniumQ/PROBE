@@ -1,4 +1,4 @@
-/// transcribe probe record directories created by libprobe to log directories
+//! transcribe probe record directories created by libprobe to log directories
 
 /// Op definitions from `prov_ops.h`
 ///

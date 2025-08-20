@@ -1,31 +1,33 @@
-import typing
-import dataclasses
-import json
 from typing_extensions import Annotated
-import pathlib
-import subprocess
-import shutil
-import rich
-from probe_py.scp import scp_with_provenance
+import dataclasses
+import enum
+import json
 import os
-import typer
+import pathlib
+import shutil
+import subprocess
+import sys
 import tempfile
+import textwrap
+import typing
+import warnings
 import rich.console
 import rich.pretty
-from .parser import parse_probe_log, parse_probe_log_ctx
-from . import analysis
-from .workflows import MakefileGenerator, NextflowGenerator
+import sqlalchemy.orm
+import tqdm
+import typer
+from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
-from .ssh_argparser import parse_ssh_args
-import enum
-from .persistent_provenance_db import Process, ProcessInputs, ProcessThatWrites, get_engine
-from sqlalchemy.orm import Session
-from .analysis import ProcessNode, FileNode
-import shlex
-import datetime
-import random
-import socket
+from . import hb_graph as hb_graph_module
+from . import ops
+from . import parser
+from . import ptypes
+from . import scp as scp_module
+from . import ssh_argparser
+from . import util
+from . import validators
+from .persistent_provenance_db import get_engine
 
 
 console = rich.console.Console(stderr=True)
@@ -36,53 +38,92 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 export_app = typer.Typer()
 app.add_typer(export_app, name="export")
 
+strict_option = typer.Option(
+    "--strict/--loose",
+    help="Whether to fail when PROBE generates warnings",
+)
+def restore_sanity(
+        strict: Annotated[
+            bool,
+            strict_option,
+        ] = True,
+) -> None:
+    # Typer messes with the excepthook
+    sys.excepthook =  sys.__excepthook__
+    if strict:
+        warnings.filterwarnings(
+            "error",
+            category=ptypes.UnusualProbeLog,
+        )
+    else:
+        warnings.filterwarnings(
+            "always",
+            category=ptypes.UnusualProbeLog,
+        )
 
+
+export_app.callback()(restore_sanity)
 
 @app.command()
 def validate(
-        probe_log: Annotated[
+        path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
         should_have_files: Annotated[
             bool,
-            typer.Argument(help="Whether to check that the probe_log was run with --copy-files.")
+            typer.Option(help="Whether to check that the probe_log was run with copied files.")
         ] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
+    restore_sanity(True)
     warning_free = True
-    with parse_probe_log_ctx(probe_log) as parsed_probe_log:
-        for inode, contents in parsed_probe_log.inodes.items():
+    warnings.filterwarnings(
+        "always",
+        category=ptypes.UnusualProbeLog,
+    )
+    with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        for inode, contents in (probe_log.copied_files or {}).items():
             content_length = contents.stat().st_size
             if inode.size != content_length:
                 console.print(f"Blob for {inode} has actual size {content_length}", style="red")
                 warning_free = False
         # At this point, the inode storage is gone, but the probe_log is already in memory
-    if should_have_files and not parsed_probe_log.has_inodes:
+    if should_have_files and not probe_log.copied_files:
         warning_free = False
         console.print("No files stored in probe log", style="red")
-    process_graph = analysis.provlog_to_digraph(parsed_probe_log)
-    for warning in analysis.validate_provlog(parsed_probe_log):
-        warning_free = False
-        console.print(warning, style="red")
-    process_graph = analysis.provlog_to_digraph(parsed_probe_log)
-    for warning in analysis.validate_hb_graph(parsed_probe_log, process_graph):
+    for warning in validators.validate_probe_log(probe_log):
         warning_free = False
         console.print(warning, style="red")
     if not warning_free:
         raise typer.Exit(code=1)
 
 
+class OpType(enum.StrEnum):
+    ALL = enum.auto()
+    MINIMAL = enum.auto()
+    FILE = enum.auto()
+    SUCCESSFUL = enum.auto()
+
+
 @export_app.command()
-def ops_graph(
+def hb_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
         ] = pathlib.Path("ops-graph.png"),
-        probe_log: Annotated[
+        path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        retain: Annotated[
+            OpType,
+            typer.Option(help="Which ops to include in the graph? There are quite a few.")
+        ] = OpType.MINIMAL,
+        show_op_number: Annotated[
+            bool,
+            typer.Option(help="Whether to show the op number in the output.")
+        ] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -93,10 +134,19 @@ def ops_graph(
 
     Supports .png, .svg, and .dot
     """
-    prov_log = parse_probe_log(probe_log)
-    process_graph = analysis.provlog_to_digraph(prov_log)
-    analysis.color_hb_graph(prov_log, process_graph)
-    graph_utils.serialize_graph(process_graph, output)
+    probe_log = parser.parse_probe_log(path_to_probe_log)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    match retain:
+        case OpType.ALL:
+            pass
+        case OpType.MINIMAL:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
+        case OpType.FILE:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
+        case OpType.SUCCESSFUL:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp))
+    hb_graph_module.label_nodes(probe_log, hbg, show_op_number)
+    graph_utils.serialize_graph(hbg, output)
 
     
 @export_app.command()
@@ -105,7 +155,7 @@ def dataflow_graph(
             pathlib.Path,
             typer.Argument()
         ] = pathlib.Path("dataflow-graph.png"),
-        probe_log: Annotated[
+        path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -115,76 +165,92 @@ def dataflow_graph(
 
     Dataflow shows the name of each proceess, its read files, and its write files.
     """
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
-    graph_utils.serialize_graph(dataflow_graph, output)
+    probe_log = parser.parse_probe_log(path_to_probe_log)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    hb_graph_module.label_nodes(probe_log, hbg)
+    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
+    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
+    dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths)
+    graph_utils.serialize_graph(compressed_dfg, output)
 
-def get_host_name() -> int:
-    hostname = socket.gethostname()
-    rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
-    bits_per_hex_digit = 4
-    hex_digits = 8
-    random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
-    return random_number
 
 @export_app.command()
-def store_dataflow_graph(probe_log: Annotated[
+def store_dataflow_graph(path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"))->None:
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
+    # probe_log = parser.parse_probe_log(path_to_probe_log)
+    # hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    # dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
     engine = get_engine()
-    with Session(engine) as session:
-        for node in dataflow_graph.nodes():
-            if isinstance(node, ProcessNode):
-                print(node)
-                new_process = Process(process_id = int(node.pid), parent_process_id = 0, cmd = shlex.join(node.cmd), time = datetime.datetime.now())
-                session.add(new_process)
+    with sqlalchemy.orm.Session(engine) as session:
+        raise NotImplementedError()
+        # for node in dfg.nodes():
+            # if isinstance(node, ProcessNode):
+            #     new_process = Process(process_id = int(node.pid), parent_process_id = 0, cmd = shlex.join(node.cmd), time = datetime.datetime.now())
+            #     session.add(new_process)
 
-        for (node1, node2) in dataflow_graph.edges():
-            if isinstance(node1, ProcessNode) and isinstance(node2, ProcessNode):
-                parent_process_id = node1.pid
-                child_process = session.get(Process, node2.pid)
-                if child_process:
-                    child_process.parent_process_id = parent_process_id
+        # for (node1, node2) in dfg.edges():
+            # if isinstance(node1, ProcessNode) and isinstance(node2, ProcessNode):
+            #     parent_process_id = node1.pid
+            #     child_process = session.get(Process, node2.pid)
+            #     if child_process:
+            #         child_process.parent_process_id = parent_process_id
 
-            elif isinstance(node1, ProcessNode) and isinstance(node2, FileNode):
-                inode_info = node2.inodeOnDevice
-                host = get_host_name()
-                stat_info = os.stat(node2.file)
-                mtime = int(stat_info.st_mtime * 1_000_000_000)
-                size = stat_info.st_size
-                new_output_inode = ProcessThatWrites(inode = inode_info.inode, process_id = node1.pid, device_major = inode_info.device_major, device_minor  = inode_info.device_minor, host = host, path = node2.file, mtime = mtime, size = size)
-                session.add(new_output_inode)
+            # elif isinstance(node1, ProcessNode) and isinstance(node2, FileAccess):
+            #     inode_info = node2.inode_version
+            #     host = get_host_name()
+            #     stat_info = os.stat(node2.path)
+            #     mtime = int(stat_info.st_mtime * 1_000_000_000)
+            #     size = stat_info.st_size
+            #     new_output_inode = ProcessThatWrites(
+            #         inode=inode_info.inode,
+            #         process_id=node1.pid,
+            #         device=inode_info.inode.device,
+            #         host=host,
+            #         path=node2.path,
+            #         mtime=mtime,
+            #         size=size,
+            #     )
+            #     session.add(new_output_inode)
 
-            elif isinstance(node1, FileNode) and isinstance(node2, ProcessNode):
-                inode_info = node1.inodeOnDevice
-                host = get_host_name()
-                stat_info = os.stat(node1.file)
-                mtime = int(stat_info.st_mtime * 1_000_000_000)
-                size = stat_info.st_size
-                new_input_inode = ProcessInputs(inode = inode_info.inode, process_id=node2.pid, device_major=inode_info.device_major, device_minor= inode_info.device_minor, host = host, path = node1.file, mtime=mtime, size=size)
-                session.add(new_input_inode)
+            # elif isinstance(node1, FileAccess) and isinstance(node2, ProcessNode):
+            #     inode_info = node1.inode_version
+            #     host = get_host_name()
+            #     stat_info = os.stat(node1.path)
+            #     mtime = int(stat_info.st_mtime * 1_000_000_000)
+            #     size = stat_info.st_size
+            #     new_input_inode = ProcessInputs(
+            #         inode=inode_info.inode,
+            #         process_id=node2.pid,
+            #         device=inode_info.inode.device,
+            #         host=host,
+            #         path=node1.path,
+            #         mtime=mtime,
+            #         size=size,
+            #     )
+            #     session.add(new_input_inode)
 
-        root_process = None
-        for node in dataflow_graph.nodes():
-            if isinstance(node, ProcessNode):
-                pid = node.pid
-                process_record = session.get(Process, pid)
-                if process_record and process_record.parent_process_id == 0:
-                    if root_process is not None:
-                        print(f"Error: Two parent processes - {pid} and {root_process}")
-                        session.rollback()
-                        return
-                    else:
-                        root_process = pid
+        raise NotImplementedError()
+        # root_process = None
+        # for node in dataflow_graph_module.nodes():
+        #     if isinstance(node, ProcessNode):
+        #         pid = node.pid
+        #         process_record = session.get(Process, pid)
+        #         if process_record and process_record.parent_process_id == 0:
+        #             if root_process is not None:
+        #                 print(f"Error: Two parent processes - {pid} and {root_process}")
+        #                 session.rollback()
+        #                 return
+        #             else:
+        #                 root_process = pid
 
         session.commit()
 
+
 @export_app.command()
 def debug_text(
-        probe_log: Annotated[
+        path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -192,28 +258,39 @@ def debug_text(
     """
     Write the data from probe_log in a human-readable manner.
     """
-    out_console = rich.console.Console()
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        for pid, process in sorted(prov_log.processes.items()):
-            out_console.rule(f"{pid}")
-            for exid, exec_epoch in sorted(process.exec_epochs.items()):
-                out_console.rule(f"{pid} {exid}")
-                for tid, thread in sorted(exec_epoch.threads.items()):
-                    out_console.rule(f"{pid} {exid} {tid}")
-                    for op_no, op in enumerate(thread.ops):
-                        out_console.print(op_no)
-                        rich.pretty.pprint(
-                            op.data,
-                            console=console,
-                            max_string=40,
-                        )
-        for ivl, path in sorted(prov_log.inodes.items()):
-            out_console.print(f"device={ivl.device_major}.{ivl.device_minor} inode={ivl.inode} mtime={ivl.tv_sec}.{ivl.tv_nsec} -> {ivl.size} blob")
+    with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        pid_len = max(len(str(pid)) for pid in probe_log.processes.keys())
+        with tqdm.tqdm(total=probe_log.n_ops(), desc="Printing ops") as pbar:
+            for pid, process in sorted(probe_log.processes.items()):
+                print(f"{pid: {pid_len}d} start of process")
+                max_exid = max(process.execs.keys())
+                exid_len = len(str(max_exid))
+                for exid, exec_epoch in sorted(process.execs.items()):
+                    print(f"{pid: {pid_len}d} start of exec {exid} / {max_exid}")
+                    tid_len = max(len(str(tid)) for tid in exec_epoch.threads.keys())
+                    for tid, thread in sorted(exec_epoch.threads.items()):
+                        print(f"{pid: {pid_len}d} {exid: {exid_len}d} start of thread {tid}")
+                        op_no_len = len(str(len(thread.ops)))
+                        for op_no, op in enumerate(thread.ops):
+                            pbar.update(1)
+                            prefix = f"{pid: {pid_len}d} {exid: {exid_len}d} {tid: {tid_len}d} {op_no: {op_no_len}d} "
+                            op_type = type(op.data).__name__
+                            op_data = json.dumps(util.decode_nested_object(dataclasses.asdict(op.data)), indent=2)
+                            print(f"{prefix}{op_type}")
+                            print(textwrap.indent(op_data, prefix=len(prefix) * " "))
+        for ino_ver, path in tqdm.tqdm(
+                sorted(probe_log.copied_files.items()),
+                desc="Printing inodes",
+        ):
+            print(
+                f"device={ino_ver.inode.device.major_id}.{ino_ver.inode.device.minor_id} inode={ino_ver.inode.number} mtime={ino_ver.mtime} -> {ino_ver.size} blob"
+            )
+
 
 @export_app.command()
 def docker_image(
         image_name: str,
-        probe_log: Annotated[
+        path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -237,12 +314,12 @@ def docker_image(
     if image_name.count(":") != 1:
         console.print(f"Invalid image name {image_name}", style="red")
         raise typer.Exit(code=1)
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        if not prov_log.has_inodes:
+    with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
-            prov_log,
+            probe_log,
             image_name,
             True,
             verbose,
@@ -252,7 +329,7 @@ def docker_image(
 @export_app.command()
 def oci_image(
         image_name: str,
-        probe_log: Annotated[
+        path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -271,12 +348,12 @@ def oci_image(
         podman run --rm python-numpy:latest
 
     """
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        if not prov_log.has_inodes:
+    with parser.parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        if not probe_log.probe_options.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
-            prov_log,
+            probe_log,
             image_name,
             False,
             verbose,
@@ -297,11 +374,11 @@ def ssh(
     Wrap SSH and record provenance of the remote command.
     """
 
-    flags, destination, remote_host = parse_ssh_args(ssh_args)
+    flags, destination, remote_host = ssh_argparser.parse_ssh_args(ssh_args)
 
     ssh_cmd = ["ssh"] + flags
 
-    libprobe = pathlib.Path(os.environ["__PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
+    libprobe = pathlib.Path(os.environ["PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
     if not libprobe.exists():
         typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
         raise typer.Abort()
@@ -343,10 +420,10 @@ def ssh(
 
     subprocess.run(scp_cmd,check=True)
 
-    # Prepare the remote command with LD_PRELOAD and __PROBE_DIR
+    # Prepare the remote command with LD_PRELOAD and PROBE_DIR
     ld_preload = f"{remote_temp_dir}/{libprobe.name}"
 
-    env = ["env", f"LD_PRELOAD={ld_preload}", f"__PROBE_DIR={remote_probe_dir}"]
+    env = ["env", f"LD_PRELOAD={ld_preload}", f"PROBE_DIR={remote_probe_dir}"]
     proc = subprocess.run(ssh_cmd + [destination] + env + remote_host)
 
     # Download the provenance log from the remote machine
@@ -370,76 +447,34 @@ def ssh(
 
     raise typer.Exit(proc.returncode)
 
-class OutputFormat(str, enum.Enum):
-    makefile = "makefile"
-    nextflow = "nextflow"
 
 @export_app.command()
-def makefile(
-        output: Annotated[
-            pathlib.Path,
-            typer.Argument(),
-        ] = pathlib.Path("Makefile"),
-        probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
-) -> None:
-    """
-    Export the probe_log to a Makefile
-    """
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
-    g = MakefileGenerator()
-    output = pathlib.Path("Makefile")
-    script = g.generate_makefile(dataflow_graph)
-    output.write_text(script)
-
-@export_app.command()
-def nextflow(
-        output: Annotated[
-            pathlib.Path,
-            typer.Argument(),
-        ] = pathlib.Path("nextflow.nf"),
-        probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
-) -> None:
-    """
-    Export the probe_log to a Nextflow workflow
-    """
-    prov_log = parse_probe_log(probe_log)
-    dataflow_graph = analysis.provlog_to_dataflow_graph(prov_log)
-    g = NextflowGenerator()
-    output = pathlib.Path("nextflow.nf")
-    script = g.generate_workflow(dataflow_graph)
-    output.write_text(script)
-
-@export_app.command()
-def provlog_to_process_tree(
-        output: Annotated[
-            pathlib.Path,
-            typer.Argument()
-        ] = pathlib.Path("provlog-process-tree.png"),
-        probe_log: Annotated[
-            pathlib.Path,
-            typer.Argument(help="output file written by `probe record -o $file`."),
-        ] = pathlib.Path("probe_log"),
+def process_tree(
+    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.png"),
+    path_to_probe_log: Annotated[
+        pathlib.Path,
+        typer.Argument(help="output file written by `probe record -o $file`.")
+    ] = pathlib.Path("probe_log"),
 ) -> None:
     """
     Write a process tree from probe_log.
 
-    Digraphs shows the clone ops of the parent process and the children.
+    Digraph shows the clone ops of the parent process and the children.
     """
-    prov_log = parse_probe_log(probe_log)
-    digraph = analysis.provlog_to_process_tree(prov_log)
-    graph_utils.serialize_graph(digraph, output)
+    raise NotImplementedError()
+    # probe_log = parser.parse_probe_log(path_to_probe_log)
+    # hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    # pt = process_tree_module.hb_graph_to_process_tree(probe_log, hbg)
+    # graph_utils.serialize_graph_proc_tree(
+    #     pt,
+    #     output,
+    #     # same_rank_groups=same_rank_groups,
+    # )
 
 
 @export_app.command()
 def ops_jsonl(
-        probe_log: Annotated[
+        path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
@@ -466,9 +501,9 @@ def ops_jsonl(
             for key, val in dct.items()
         }
     stdout_console = rich.console.Console()
-    prov_log = parse_probe_log(probe_log)
-    for pid, process in prov_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.exec_epochs.items():
+    probe_log = parser.parse_probe_log(path_to_probe_log)
+    for pid, process in probe_log.processes.items():
+        for exec_epoch_no, exec_epoch in process.execs.items():
             for tid, thread in exec_epoch.threads.items():
                 for i, op in enumerate(thread.ops):
                     stdout_console.print_json(json.dumps({
@@ -490,8 +525,7 @@ context_settings=dict(
     ),
 )
 def scp(cmd: list[str]) -> None:
-    scp_with_provenance(cmd)
+    scp_module.scp_with_provenance(cmd)
 
 if __name__ == "__main__":
     app()
-

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import tqdm
+import dataclasses
 import pathlib
 import typing
 import json
@@ -6,53 +8,77 @@ import tarfile
 import tempfile
 import contextlib
 from . import ops
-from .ptypes import ProvLog, InodeVersionLog, ThreadProvLog, ExecEpochProvLog, ProcessProvLog
-from dataclasses import replace
+from .ptypes import ProbeLog, ProbeOptions, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
 @contextlib.contextmanager
-def parse_probe_log_ctx(
-        probe_log: pathlib.Path,
-) -> typing.Iterator[ProvLog]:
-    """Parse probe log; return provenance data and inode contents"""
+def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
+    """Parse probe log
+
+    In this contextmanager, copied_files are extracted onto the disk.
+
+    """
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
-        with tarfile.open(probe_log, mode="r") as tar:
+        with tarfile.open(path_to_probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")
-        has_inodes = (tmpdir / "info" / "copy_files").exists()
+        host = Host.localhost()
         inodes = {
-            InodeVersionLog(*[
-                int(segment, 16)
-                for segment in file.name.split("-")
-            ]): file
+            InodeVersion.from_id_string(file.name): file
             for file in (tmpdir / "inodes").iterdir()
         } if (tmpdir / "inodes").exists() else {}
 
-        processes = {}
-        for pid_dir in (tmpdir / "pids").iterdir():
-            pid = int(pid_dir.name)
-            epochs = {}
+        processes = dict[Pid, Process]()
+        pid_entries = list((tmpdir / "pids").iterdir())
+        for pid_dir in tqdm.tqdm(
+                pid_entries,
+                desc="parsing pid dirs",
+        ):
+            pid = Pid(pid_dir.name)
+            execs = {}
             for epoch_dir in pid_dir.iterdir():
-                epoch = int(epoch_dir.name)
-                tids = {}
+                exec_no = ExecNo(epoch_dir.name)
+                threads = {}
                 for tid_file in epoch_dir.iterdir():
-                    tid = int(tid_file.name)
-                    # read, split, comprehend, deserialize, extend
+                    tid = Tid(tid_file.name)
                     jsonlines = tid_file.read_text().strip().split("\n")
-                    tids[tid] = ThreadProvLog(tid, [json.loads(x, object_hook=op_hook) for x in jsonlines])
-                epochs[epoch] = ExecEpochProvLog(epoch, tids)
-            processes[pid] = ProcessProvLog(pid, epochs)
-        yield ProvLog(processes, inodes, has_inodes)
+                    ops_list = [
+                        json.loads(line, object_hook=_op_hook)
+                        for line in jsonlines
+                    ]
+                    threads[tid] = KernelThread(tid, ops_list)
+                execs[exec_no] = Exec(exec_no, threads)
+            processes[pid] = Process(pid, execs)
+
+        options = json.loads((tmpdir / "options.json").read_bytes())
+
+        yield ProbeLog(
+            processes,
+            inodes,
+            ProbeOptions(
+                copy_files=options["copy_files"] != 0,
+                parent_of_root=options["parent_of_root"],
+            ),
+            host,
+        )
+
 
 def parse_probe_log(
-        probe_log: pathlib.Path,
-) -> ProvLog:
-    """Parse probe log; return provenance data, but throw away inode contents"""
-    with parse_probe_log_ctx(probe_log) as prov_log:
-        return replace(prov_log, has_inodes=False, inodes={})
+        path_to_probe_log: pathlib.Path,
+) -> ProbeLog:
+    """Parse probe log.
+
+    Unlike parse_probe_ctx, the copied_files will not be accessible.
+    """
+    with parse_probe_log_ctx(path_to_probe_log) as probe_log:
+        return dataclasses.replace(
+            probe_log,
+            copied_files={},
+            probe_options=dataclasses.replace(probe_log.probe_options, copy_files=False),
+        )
 
 
-def op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
+def _op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
     ty: str = json_map["_type"]
     json_map.pop("_type")
 

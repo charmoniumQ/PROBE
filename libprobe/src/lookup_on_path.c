@@ -1,6 +1,21 @@
-static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
+#define _GNU_SOURCE
+
+#include "lookup_on_path.h"
+
+#include <fcntl.h>   // for AT_FDCWD
+#include <stdbool.h> // for bool, false, true
+#include <string.h>  // for strlen
+#include <unistd.h>  // for X_OK
+
+#include "../generated/libc_hooks.h" // for client_faccessat
+#include "debug_logging.h"           // for DEBUG
+#include "env.h"                     // for getenv_copy
+#include "global_state.h"            // for get_default_path
+#include "util.h"                    // for BORROWED, path_join
+
+bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     size_t bin_name_length = strlen(bin_name);
-    char* env_path = getenv("PATH");
+    const char* env_path = getenv_copy("PATH");
 
     /*
      * If this variable isn't defined, the path list defaults
@@ -11,34 +26,24 @@ static bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_pat
      *
      * -- https://man7.org/linux/man-pages/man3/exec.3.html
     */
-    char* path = strndup(env_path ? env_path : get_default_path(), sysconf(_SC_ARG_MAX));
+    const char* path = env_path ? env_path : get_default_path();
 
-    DEBUG("looking up \"%s\" on $PATH=\"%.50s...\"", bin_name, path);
-
-    char* saveptr = NULL;
-    const char *delim = ":";
-    char *path_seg;
-    path_seg = strtok_r(path, delim, &saveptr);
-    while (path_seg) {
-        path_join(bin_path, -1, path_seg, bin_name_length, bin_name);
-        struct Op op = {
-            access_op_code,
-            {.access = {create_path_lazy(AT_FDCWD, bin_path, 0), 0, 0, 0}},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(op);
-        int access_ret = unwrapped_faccessat(AT_FDCWD, bin_path, X_OK, 0);
-        if (access_ret == 0) {
-            prov_log_record(op);
-            return true;
-        } else {
-            op.data.access.ferrno = errno;
-            prov_log_record(op);
+    DEBUG("Looking for \"%s\" on $PATH=\"%.50s...\"", bin_name, path);
+    while (*path != '\0') {
+        const char* part = path;
+        size_t size = 0;
+        for (; *path != '\0' && *path != ':'; ++path, ++size)
+            ;
+        if (size > 0) {
+            path_join(bin_path, size, part, bin_name_length, bin_name);
+            int access_ret = client_faccessat(AT_FDCWD, bin_path, X_OK, 0);
+            if (access_ret == 0) {
+                DEBUG("Found \"%s\"", bin_path);
+                return true;
+            }
         }
-        path_seg = strtok_r(NULL, delim, &saveptr);
+        path++;
     }
-
+    DEBUG("None found");
     return false;
 }

@@ -5,15 +5,17 @@ use std::sync::OnceLock;
 
 use bindgen::callbacks::ParseCallbacks;
 
-fn find_in_cpath(name: &str) -> Result<PathBuf, &str> {
-    Ok(env::var("CPATH")
-        .map_err(|_| "CPATH needs to be set (in unicode) so I can find include header files")?
+fn find_in_cpath(name: &str) -> Result<PathBuf, String> {
+    let cpath = env::var("CPATH").map_err(|_| {
+        "CPATH needs to be set (to valid UTF-8) so I can find include header files".to_owned()
+    })?;
+    Ok(cpath
         .split(':')
         .map(|path_str| PathBuf::from(path_str).join(name))
         .filter(|path| path.exists())
         .collect::<Vec<_>>()
         .first()
-        .ok_or("name not found in CPATH")?
+        .ok_or_else(|| format!("name not found; CPATH={cpath}"))?
         .clone())
 }
 
@@ -34,6 +36,7 @@ fn should_prefix(name: &str) -> bool {
             "CloseOp",
             "ChdirOp",
             "ExecOp",
+            "SpawnOp",
             "CloneOp",
             "ExitOp",
             "AccessOp",
@@ -45,10 +48,16 @@ fn should_prefix(name: &str) -> bool {
             "MetadataValue",
             "UpdateMetadataOp",
             "ReadLinkOp",
+            "DupOp",
+            "HardLinkOp",
+            "SymbolicLinkOp",
+            "UnlinkOp",
+            "RenameOp",
+            "MkFileOp",
             "OpCode",
             "Op",
             "StatResult",
-            "rusage",
+            "my_rusage",
             "statx_timestamp",
             "timespec",
             "timeval",
@@ -76,7 +85,7 @@ fn no_derive(name: &str) -> bool {
 impl ParseCallbacks for LibprobeCallback {
     fn item_name(&self, _original_item_name: &str) -> Option<String> {
         if should_prefix(_original_item_name) {
-            Some(format!("C_{}", _original_item_name))
+            Some(format!("C_{_original_item_name}"))
         } else {
             None
         }
@@ -112,47 +121,6 @@ fn main() {
     // to bindgen, and lets you build up options for
     // the resulting bindings.
     let bindings = bindgen::Builder::default()
-        .header_contents(
-            "wrapper",
-            "
-            #define _GNU_SOURCE
-            #include <stdbool.h>
-            #include <stddef.h>
-            #include <stdint.h>
-            #include <sys/stat.h>
-            #include <sys/types.h>
-            #include <utime.h>
-            #include <threads.h>
-            #include <pthread.h>
-
-            // HACK: defining this manually instead of using <sys/resource.h> is
-            // a huge hack, but it greatly reduces the generated code complexity
-            // since in glibc all the long ints are unions over two types that
-            // both alias to long int, this is done for kernel-userland
-            // compatibility reasons that don't matter here.
-            struct rusage {
-                struct timeval ru_utime;
-                struct timeval ru_stime;
-                long int ru_maxrss;
-                long int ru_ixrss;
-                long int ru_idrss;
-                long int ru_isrss;
-                long int ru_minflt;
-                long int ru_majflt;
-                long int ru_nswap;
-                long int ru_inblock;
-                long int ru_oublock;
-                long int ru_msgsnd;
-                long int ru_msgrcv;
-                long int ru_nsignals;
-                long int ru_nvcsw;
-                long int ru_nivcsw;
-            };
-
-            #define BORROWED
-            #define OWNED
-            ",
-        )
         // The input header we would like to generate
         // bindings for.
         .header(

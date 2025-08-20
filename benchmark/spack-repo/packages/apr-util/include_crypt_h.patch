@@ -1,8 +1,0 @@
---- a/crypto/apr_passwd.c
-+++ b/crypto/apr_passwd.c
-@@ -27 +27 @@
--#if APR_HAVE_CRYPT_H
-+/* #if APR_HAVE_CRYPT_H */
-@@ -29,1 +29,1 @@
--#endif
-+/* #endif */

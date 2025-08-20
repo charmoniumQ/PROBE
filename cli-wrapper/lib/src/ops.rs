@@ -237,9 +237,8 @@ impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
+#[allow(clippy::large_enum_variant)]
 pub enum OpInternal {
-    #[serde(untagged)]
-    InitProcessOp(InitProcessOp),
     #[serde(untagged)]
     InitExecEpochOp(InitExecEpochOp),
     #[serde(untagged)]
@@ -252,6 +251,8 @@ pub enum OpInternal {
     ChdirOp(ChdirOp),
     #[serde(untagged)]
     ExecOp(ExecOp),
+    #[serde(untagged)]
+    SpawnOp(SpawnOp),
     #[serde(untagged)]
     CloneOp(CloneOp),
     #[serde(untagged)]
@@ -270,6 +271,18 @@ pub enum OpInternal {
     UpdateMetadataOp(UpdateMetadataOp),
     #[serde(untagged)]
     ReadLinkOp(ReadLinkOp),
+    #[serde(untagged)]
+    DupOp(DupOp),
+    #[serde(untagged)]
+    HardLinkOp(HardLinkOp),
+    #[serde(untagged)]
+    SymbolicLinkOp(SymbolicLinkOp),
+    #[serde(untagged)]
+    UnlinkOp(UnlinkOp),
+    #[serde(untagged)]
+    RenameOp(RenameOp),
+    #[serde(untagged)]
+    MkFileOp(MkFileOp),
 }
 
 impl FfiFrom<C_Op> for OpInternal {
@@ -279,9 +292,6 @@ impl FfiFrom<C_Op> for OpInternal {
 
         log::debug!("[unsafe] decoding Op tagged union [ OpCode={} ]", kind);
         Ok(match kind {
-            C_OpCode_init_process_op_code => {
-                Self::InitProcessOp(unsafe { value.init_process }.ffi_into(ctx)?)
-            }
             C_OpCode_init_exec_epoch_op_code => {
                 Self::InitExecEpochOp(unsafe { value.init_exec_epoch }.ffi_into(ctx)?)
             }
@@ -292,6 +302,7 @@ impl FfiFrom<C_Op> for OpInternal {
             C_OpCode_close_op_code => Self::CloseOp(unsafe { value.close }.ffi_into(ctx)?),
             C_OpCode_chdir_op_code => Self::ChdirOp(unsafe { value.chdir }.ffi_into(ctx)?),
             C_OpCode_exec_op_code => Self::ExecOp(unsafe { value.exec }.ffi_into(ctx)?),
+            C_OpCode_spawn_op_code => Self::SpawnOp(unsafe { value.spawn }.ffi_into(ctx)?),
             C_OpCode_clone_op_code => Self::CloneOp(unsafe { value.clone }.ffi_into(ctx)?),
             C_OpCode_exit_op_code => Self::ExitOp(unsafe { value.exit }.ffi_into(ctx)?),
             C_OpCode_access_op_code => Self::AccessOp(unsafe { value.access }.ffi_into(ctx)?),
@@ -307,6 +318,16 @@ impl FfiFrom<C_Op> for OpInternal {
             C_OpCode_read_link_op_code => {
                 Self::ReadLinkOp(unsafe { value.read_link }.ffi_into(ctx)?)
             }
+            C_OpCode_dup_op_code => Self::DupOp(unsafe { value.dup }.ffi_into(ctx)?),
+            C_OpCode_hard_link_op_code => {
+                Self::HardLinkOp(unsafe { value.hard_link }.ffi_into(ctx)?)
+            }
+            C_OpCode_symbolic_link_op_code => {
+                Self::SymbolicLinkOp(unsafe { value.symbolic_link }.ffi_into(ctx)?)
+            }
+            C_OpCode_unlink_op_code => Self::UnlinkOp(unsafe { value.unlink }.ffi_into(ctx)?),
+            C_OpCode_rename_op_code => Self::RenameOp(unsafe { value.rename }.ffi_into(ctx)?),
+            C_OpCode_mkfile_op_code => Self::MkFileOp(unsafe { value.mkfile }.ffi_into(ctx)?),
             _ => return Err(ProbeError::InvalidVariant(kind)),
         })
     }
@@ -316,7 +337,7 @@ impl FfiFrom<C_Op> for OpInternal {
 pub struct Op {
     pub data: OpInternal,
     pub time: Timespec,
-    pub pthread_id: pthread_t,
+    pub pthread_id: u16,
     pub iso_c_thread_id: thrd_t,
 
     #[serde(serialize_with = "Op::serialize_type")]

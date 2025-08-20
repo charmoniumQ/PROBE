@@ -1,51 +1,67 @@
-fix-nix:
+lint-nix:
     alejandra .
-
-fix-py: compile-cli
-    # fix-py depends on compile-cli for the autogen python code
-    #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
-    ruff check --fix probe_py/ tests/ libprobe/generator/
-
-fix-cli:
-    # cargo clippy refuses to run if unstaged inputs (fixes may be destructive)
-    # so we git add -A
-    env --chdir cli-wrapper git add -A
-    env --chdir cli-wrapper cargo clippy --fix --allow-staged -- --deny warnings
-    env --chdir cli-wrapper cargo fmt
-
-fix: fix-nix fix-py fix-cli
-
-check-py: compile-cli
-    # dmypy == daemon mypy; much faster on subsequent iterations.
-    dmypy run -- --strict --no-namespace-packages --pretty probe_py/ tests/ libprobe/generator/
-
-check-cli:
-    env --chdir cli-wrapper cargo doc --workspace
-
-check: check-py check-cli
-
-compile-lib:
-    make --directory=libprobe all
-
-compile-cli:
-    env --chdir=cli-wrapper cargo build --release
-    env --chdir=cli-wrapper cargo build
-
-compile-tests:
-    make --directory=tests/examples all
-
-compile: compile-lib compile-cli compile-tests
 
 test-nix:
     nix build .#probe-bundled
     nix flake check --all-systems
 
-test-native: compile
-    python -m pytest tests/ -ra --failed-first --maxfail=1 -v
+lint-py: compile-cli
+    # fix-py depends on compile-cli for the autogen python code
+    #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
+    ruff check --fix probe_py/ tests/ libprobe/generator/
+    # dmypy == daemon mypy; much faster on subsequent iterations.
+    dmypy run -- --strict --no-namespace-packages --pretty probe_py/ tests/ libprobe/generator/
 
-test: test-native
-# Unless you the user explicitly asks (`just test-nix`),
-# we don't really need to test-nix.
-# It runs the same checks as `just test` and `just check`, but in Nix.
+[working-directory: 'cli-wrapper']
+clean-cli:
+    cargo clean
 
-pre-commit: fix check compile test
+[working-directory: 'cli-wrapper']
+lint-cli:
+    # cargo clippy refuses to run if unstaged inputs (fixes may be destructive)
+    # so we git add -A
+    git add -A
+    cargo clippy --fix --allow-staged -- --deny warnings
+    cargo fmt
+    cargo doc --workspace
+    cargo deny check
+    cargo audit
+    cargo hakari generate
+    cargo hakari manage-deps
+
+[working-directory: 'cli-wrapper']
+compile-cli:
+    cargo build
+    cargo build --release
+
+[working-directory: 'libprobe']
+clean-lib:
+    make clean
+
+[working-directory: 'libprobe']
+lint-lib:
+    make format
+    make check
+
+[working-directory: 'libprobe']
+compile-lib: compile-cli
+    make all
+
+[working-directory: 'tests/examples']
+clean-tests:
+    make clean
+
+[working-directory: 'tests/examples']
+compile-tests:
+    make all
+
+clean: clean-cli clean-lib clean-tests
+
+lint: lint-py lint-cli lint-lib lint-nix
+
+compile: compile-cli compile-lib compile-tests
+
+test: compile
+    python -m pytest tests/ probe_py/tests -ra --failed-first -v -W error --durations=0 --maxfail=1
+
+pre-commit: lint compile test

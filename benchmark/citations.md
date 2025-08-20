@@ -1,0 +1,3 @@
+OpenCitations
+OpenAlex
+WebOfScience
