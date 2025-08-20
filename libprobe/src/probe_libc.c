@@ -19,12 +19,13 @@ void exit_with_backup(int status) {
 }
 
 char* strerror_with_backup(int errnum) {
-    static char backup_strerror_buf[32];
+// 9 bytes from the format string, max 20 bytes from stringing a 64-bit
+// integer, 1 for null byte, and two for good luck (and alignment)
+#define STRERROR_BUFFER 32
+    static char backup_strerror_buf[STRERROR_BUFFER];
     if (client_strerror) {
         return client_strerror(errnum);
     }
-    // 9 bytes from the format string, max 20 bytes from stringing a 64-bit
-    // integer, 1 for null byte, and two for good luck (and alignment)
-    sprintf(backup_strerror_buf, "[ERRNO: %d]", errnum);
+    snprintf(backup_strerror_buf, STRERROR_BUFFER, "[ERRNO: %d]", errnum);
     return backup_strerror_buf;
 }
