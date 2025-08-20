@@ -9,7 +9,6 @@
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
 #include "probe_libc.h"   // IWYU pragma: keep
 
-
 #ifndef NDEBUG
 #define DEBUG_LOG 1
 #else
