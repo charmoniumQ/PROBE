@@ -76,7 +76,8 @@ static void fill_pipe_to_eagain(int wfd) {
 Test(write, writes_all_bytes_to_regular_file) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
-    cr_assert_neq(fd, -1, "mkstemp failed");
+    cr_assert_neq(fd, -1);
+    unlink(path);
 
     const char msg[] = "hello\n";
     result_ssize_t n = probe_libc_write(fd, msg, sizeof(msg));
@@ -91,14 +92,14 @@ Test(write, writes_all_bytes_to_regular_file) {
     cr_expect_arr_eq(buf, msg, sizeof(msg));
 
     close(fd);
-    unlink(path);
 }
 
 // Zero-length writes should succeed and not change content.
 Test(write, zero_length_write_returns_zero_and_is_noop) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
-    cr_assert_neq(fd, -1, "mkstemp failed");
+    cr_assert_neq(fd, -1);
+    unlink(path);
 
     const char pre[] = "data";
     cr_assert_eq((ssize_t)write(fd, pre, sizeof(pre)), (ssize_t)sizeof(pre));
@@ -113,7 +114,6 @@ Test(write, zero_length_write_returns_zero_and_is_noop) {
     cr_expect_arr_eq(buf, pre, sizeof(pre));
 
     close(fd);
-    unlink(path);
 }
 
 
@@ -129,13 +129,14 @@ Test(write, closed_fd_sets_EBADF) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
     close(fd);
 
     const char msg[] = "x";
     result_ssize_t n = probe_libc_write(fd, msg, sizeof(msg));
-    cr_expect_eq(n.error, EBADF, "Expected EBADF on closed fd, got %d (%s)", n.error, strerror(n.error));
+    cr_expect_eq(n.error, EBADF, "Expected EBADF on closed fd, got %d (%s)", n.error,
+                 strerror(n.error));
 
-    unlink(path);
 }
 
 // Read-only fd.
@@ -147,13 +148,14 @@ Test(write, read_only_fd_sets_EBADF) {
 
     int rfd = open(path, O_RDONLY);
     cr_assert_neq(rfd, -1);
+    unlink(path);
 
     const char msg[] = "x";
     result_ssize_t n = probe_libc_write(rfd, msg, sizeof(msg));
-    cr_expect_eq(n.error, EBADF, "Expected EBADF on O_RDONLY fd, got %d (%s)", n.error, strerror(n.error));
+    cr_expect_eq(n.error, EBADF, "Expected EBADF on O_RDONLY fd, got %d (%s)", n.error,
+                 strerror(n.error));
 
     close(rfd);
-    unlink(path);
 }
 
 // NULL buffer with non-zero count -> EFAULT (kernel can't read from user memory).
@@ -161,12 +163,13 @@ Test(write, null_buffer_nonzero_count_sets_EFAULT) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     result_ssize_t n = probe_libc_write(fd, NULL, 1);
-    cr_expect_eq(n.error, EFAULT, "Expected EFAULT for NULL buffer, got %d (%s)", n.error, strerror(n.error));
+    cr_expect_eq(n.error, EFAULT, "Expected EFAULT for NULL buffer, got %d (%s)", n.error,
+                 strerror(n.error));
 
     close(fd);
-    unlink(path);
 }
 
 // O_APPEND semantics: write should append to end regardless of current offset.
@@ -182,6 +185,7 @@ Test(write, append_mode_writes_at_end) {
 
     int afd = open(path, O_WRONLY | O_APPEND);
     cr_assert_neq(afd, -1);
+    unlink(path);
 
     result_ssize_t n = probe_libc_write(afd, b, sizeof(b));
     cr_assert_eq(n.error, 0, "probe_libc_write errored with: %s (%d)", strerror(n.error), n.error);
@@ -195,7 +199,6 @@ Test(write, append_mode_writes_at_end) {
 
     close(afd);
     close(fd);
-    unlink(path);
 }
 
 // Pipe with no reader: should return EPIPE. We ignore SIGPIPE to avoid terminating the process.
@@ -243,6 +246,7 @@ Test(write, large_buffer_regular_file) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     const size_t N = 128 * 1024; // 128 KiB
     char *buf = malloc(N);
@@ -267,7 +271,6 @@ Test(write, large_buffer_regular_file) {
 
     free(buf);
     close(fd);
-    unlink(path);
 }
 
 
@@ -277,6 +280,7 @@ Test(read, reads_all_bytes_from_regular_file) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     const char msg[] = "hello\n";
     write_all(fd, msg, sizeof(msg));
@@ -288,7 +292,6 @@ Test(read, reads_all_bytes_from_regular_file) {
     cr_expect_arr_eq(buf, msg, sizeof(msg));
 
     close(fd);
-    unlink(path);
 }
 
 // EOF: should return 0
@@ -296,6 +299,7 @@ Test(read, eof_returns_zero) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
     // empty file
 
     char buf[16];
@@ -304,7 +308,6 @@ Test(read, eof_returns_zero) {
     cr_assert_eq(n.value, 0, "Expected 0 at EOF, got %zd", n.value);
 
     close(fd);
-    unlink(path);
 }
 
 // Zero-length read: should return 0 and not touch buffer
@@ -312,6 +315,7 @@ Test(read, zero_length_read_returns_zero_and_noop) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     char buf[8];
     memset(buf, 0xAA, sizeof(buf));
@@ -323,7 +327,6 @@ Test(read, zero_length_read_returns_zero_and_noop) {
         cr_expect_eq(buf[i], (char)0xAA, "Buffer modified on zero-length read at index %zu", i);
 
     close(fd);
-    unlink(path);
 }
 
 // Invalid fd
@@ -338,13 +341,13 @@ Test(read, closed_fd_sets_EBADF) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
     close(fd);
 
     char buf[4];
     result_ssize_t n = probe_libc_read(fd, buf, sizeof(buf));
     cr_expect_eq(n.error, EBADF, "Expected EBADF, got %d (%s)", n.error, strerror(n.error));
 
-    unlink(path);
 }
 
 // Write-only fd
@@ -356,13 +359,13 @@ Test(read, write_only_fd_sets_EBADF) {
 
     int fd = open(path, O_WRONLY);
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     char buf[4];
     result_ssize_t n = probe_libc_read(fd, buf, sizeof(buf));
     cr_expect_eq(n.error, EBADF, "Expected EBADF, got %d (%s)", n.error, strerror(n.error));
 
     close(fd);
-    unlink(path);
 }
 
 // NULL buffer
@@ -370,6 +373,7 @@ Test(read, null_buffer_nonzero_count_sets_EFAULT) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     // Ensure file has at least 1 byte so that the EFAULT condition doesn't get optimized out
     const char msg[] = "x";
@@ -379,7 +383,6 @@ Test(read, null_buffer_nonzero_count_sets_EFAULT) {
     cr_expect_eq(n.error, EFAULT, "Expected EFAULT, got %d (%s)", n.error, strerror(n.error));
 
     close(fd);
-    unlink(path);
 }
 
 // Pipe with no writer: returns 0 (EOF)
@@ -423,6 +426,7 @@ Test(read, partial_read_returns_less_than_count) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     const char msg[] = "hi";
     write_all(fd, msg, sizeof(msg));
@@ -430,11 +434,11 @@ Test(read, partial_read_returns_less_than_count) {
     char buf[16] = {0};
     result_ssize_t n = probe_libc_read(fd, buf, sizeof(buf));
     cr_assert_eq(n.error, 0, "probe_libc_read errored with: %s (%d)", strerror(n.error), n.error);
-    cr_assert_eq(n.value, (ssize_t)sizeof(msg), "Expected %zd, got %zd", (ssize_t)sizeof(msg), n.value);
+    cr_assert_eq(n.value, (ssize_t)sizeof(msg), "Expected %zd, got %zd", (ssize_t)sizeof(msg),
+                 n.value);
     cr_expect_arr_eq(buf, msg, sizeof(msg));
 
     close(fd);
-    unlink(path);
 }
 
 // Large buffer read
@@ -442,6 +446,7 @@ Test(read, large_buffer_regular_file) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
+    unlink(path);
 
     const size_t N = 128 * 1024; // 128 KiB
     char *src = malloc(N);
@@ -463,5 +468,243 @@ Test(read, large_buffer_regular_file) {
     free(src);
     free(dst);
     close(fd);
-    unlink(path);
+}
+
+
+
+// Basic success: copy small file fully
+Test(sendfile, copy_small_file_success) {
+    char src_path[128], dst_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(in_fd, -1);
+    cr_assert_neq(out_fd, -1);
+    unlink(src_path);
+    unlink(dst_path);
+
+    const char msg[] = "hello world\n";
+    write_all(in_fd, msg, sizeof(msg));
+
+    result_ssize_t n = probe_libc_sendfile(out_fd, in_fd, NULL, sizeof(msg));
+    cr_assert_eq(n.error, 0, "probe_libc_sendfile errored with: %s (%d)", strerror(n.error),
+                 n.error);
+    cr_assert_eq(n.value, (ssize_t)sizeof(msg), "Expected to send %zd, actually sent %zd",
+                 (ssize_t)sizeof(msg), n.value);
+
+    char buf[64] = {0};
+    size_t got = read_all(out_fd, buf, sizeof(buf));
+    cr_expect_eq(got, sizeof(msg));
+    cr_expect_arr_eq(buf, msg, sizeof(msg));
+
+    close(in_fd);
+    close(out_fd);
+}
+
+// Zero count: should return 0
+Test(sendfile, zero_count_returns_zero) {
+    char src_path[128], dst_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(in_fd, -1);
+    cr_assert_neq(out_fd, -1);
+    unlink(src_path);
+    unlink(dst_path);
+
+    const char msg[] = "x";
+    write_all(in_fd, msg, sizeof(msg));
+
+    result_ssize_t n = probe_libc_sendfile(out_fd, in_fd, NULL, 0);
+    cr_assert_eq(n.error, 0, "probe_libc_sendfile errored with: %s (%d)", strerror(n.error),
+                 n.error);
+    cr_assert_eq(n.value, 0, "Unexpectedly sent %zd", n.value);
+
+    close(in_fd);
+    close(out_fd);
+}
+
+// Partial copy when count > file size
+Test(sendfile, partial_copy_when_count_exceeds_file) {
+    char src_path[128], dst_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(in_fd, -1);
+    cr_assert_neq(out_fd, -1);
+    unlink(src_path);
+    unlink(dst_path);
+
+    const char msg[] = "abc";
+    write_all(in_fd, msg, sizeof(msg));
+
+    result_ssize_t n = probe_libc_sendfile(out_fd, in_fd, NULL, 1000);
+    cr_assert_eq(n.error, 0, "probe_libc_sendfile errored with: %s (%d)", strerror(n.error),
+                 n.error);
+    cr_assert_eq(n.value, (ssize_t)sizeof(msg), "Expected to send %zd, actually sent %zd",
+                 (ssize_t)sizeof(msg), n.value);
+
+    char buf[16] = {0};
+    size_t got = read_all(out_fd, buf, sizeof(buf));
+    cr_expect_eq(got, sizeof(msg));
+    cr_expect_arr_eq(buf, msg, sizeof(msg));
+
+    close(in_fd);
+    close(out_fd);
+}
+
+// With offset: should not advance in_fd’s file pointer
+Test(sendfile, with_offset_does_not_advance_file_position) {
+    char src_path[128], dst_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(in_fd, -1);
+    cr_assert_neq(out_fd, -1);
+    unlink(src_path);
+    unlink(dst_path);
+
+    const char msg[] = "abcdef";
+    write_all(in_fd, msg, sizeof(msg));
+
+    off_t off = 2;
+    result_ssize_t n = probe_libc_sendfile(out_fd, in_fd, &off, 3);
+    cr_assert_eq(n.error, 0, "probe_libc_sendfile errored with: %s (%d)", strerror(n.error),
+                 n.error);
+    cr_assert_eq(n.value, 3, "Expected to send 3, actually sent %zd", n.value);
+
+    // Verify copied substring
+    char buf[16] = {0};
+    size_t got = read_all(out_fd, buf, sizeof(buf));
+    cr_expect_eq(got, 3);
+    cr_expect_eq(buf[0], 'c');
+    cr_expect_eq(buf[1], 'd');
+    cr_expect_eq(buf[2], 'e');
+
+    // Verify original file offset unchanged (still at start)
+    off_t cur = lseek(in_fd, 0, SEEK_CUR);
+    cr_assert_eq(cur, 0, "Expected file offset to be unchanged");
+
+    close(in_fd);
+    close(out_fd);
+}
+
+// Invalid in_fd
+Test(sendfile, invalid_in_fd_sets_EBADF) {
+    char dst_path[128];
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(out_fd, -1);
+    unlink(dst_path);
+
+    result_ssize_t n = probe_libc_sendfile(out_fd, -1, NULL, 10);
+    cr_assert_eq(n.error, EBADF, "Expected EBADF, got %d (%s)", n.error, strerror(n.error));
+
+    close(out_fd);
+}
+
+// Invalid out_fd
+Test(sendfile, invalid_out_fd_sets_EBADF) {
+    char src_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    cr_assert_neq(in_fd, -1);
+    unlink(src_path);
+
+    const char msg[] = "data";
+    write_all(in_fd, msg, sizeof(msg));
+
+    result_ssize_t n = probe_libc_sendfile(-1, in_fd, NULL, sizeof(msg));
+    cr_assert_eq(n.error, EBADF, "Expected EBADF, got %d (%s)", n.error, strerror(n.error));
+
+    close(in_fd);
+}
+
+// Out fd not writable
+Test(sendfile, out_fd_not_writable_sets_EBADF) {
+    char src_path[128], dst_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    int wfd = mktemp_file(dst_path, sizeof(dst_path));
+    close(wfd);
+
+    int out_fd = open(dst_path, O_RDONLY);
+    cr_assert_neq(out_fd, -1);
+    unlink(src_path);
+    unlink(dst_path);
+
+    const char msg[] = "test";
+    write_all(in_fd, msg, sizeof(msg));
+
+    result_ssize_t n = probe_libc_sendfile(out_fd, in_fd, NULL, sizeof(msg));
+    cr_assert_eq(n.error, EBADF, "Expected EBADF, got %d (%s)", n.error, strerror(n.error));
+
+    close(in_fd);
+    close(out_fd);
+}
+
+// In fd not a regular file (pipe) should fail with EINVAL
+Test(sendfile, in_fd_not_regular_file_sets_EINVAL) {
+    int fds[2];
+    cr_assert_eq(pipe(fds), 0);
+    int r = fds[0], w = fds[1];
+
+    char dst_path[128];
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(out_fd, -1);
+    unlink(dst_path);
+
+    result_ssize_t n = probe_libc_sendfile(out_fd, r, NULL, 10);
+    cr_assert_eq(n.error, EINVAL, "Expected EINVAL, got %d (%s)", n.error, strerror(n.error));
+
+    close(r);
+    close(w);
+    close(out_fd);
+}
+
+// Invalid offset pointer (non-mapped memory) → EFAULT
+Test(sendfile, invalid_offset_pointer_sets_EFAULT) {
+    char src_path[128], dst_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(in_fd, -1);
+    cr_assert_neq(out_fd, -1);
+    unlink(src_path);
+    unlink(dst_path);
+
+    const char msg[] = "hello";
+    write_all(in_fd, msg, sizeof(msg));
+
+    off_t *bad_ptr = (off_t *)0x1; // invalid address
+    result_ssize_t n = probe_libc_sendfile(out_fd, in_fd, bad_ptr, sizeof(msg));
+    cr_assert_eq(n.error, EFAULT, "Expected EFAULT, got %d (%s)", n.error, strerror(n.error));
+
+    close(in_fd);
+    close(out_fd);
+}
+
+// Large copy
+Test(sendfile, large_copy_success) {
+    char src_path[128], dst_path[128];
+    int in_fd = mktemp_file(src_path, sizeof(src_path));
+    int out_fd = mktemp_file(dst_path, sizeof(dst_path));
+    cr_assert_neq(in_fd, -1);
+    cr_assert_neq(out_fd, -1);
+    unlink(src_path);
+    unlink(dst_path);
+
+    const size_t N = 128 * 1024;
+    char *buf = malloc(N);
+    cr_assert_not_null(buf);
+    for (size_t i = 0; i < N; i++) buf[i] = (char)(i & 0xFF);
+    write_all(in_fd, buf, N);
+
+    result_ssize_t n = probe_libc_sendfile(out_fd, in_fd, NULL, N);
+    cr_assert_eq(n.error, 0, "probe_libc_sendfile errored with: %s (%d)", strerror(n.error),
+                 n.error);
+    cr_assert_eq(n.value, (ssize_t)N, "Expected to send %zd, actually sent %zd", (ssize_t)N,
+                 n.value);
+
+    char check[256];
+    size_t got = read_all(out_fd, check, sizeof(check));
+    for (size_t i = 0; i < got; i++) {
+        cr_expect_eq((unsigned char)check[i], (unsigned char)(i & 0xFF));
+    }
+
+    free(buf);
+    close(in_fd);
+    close(out_fd);
 }
