@@ -1,7 +1,7 @@
 import collections
-from .ptypes import ProbeLog
+from .ptypes import ProbeLog, HbGraph, OpQuad
 from .ops import CloneOp, WaitOp
-from .hb_graph import HbGraph, OpNode
+from .hb_graph import HbGraph
 
 
 def get_max_parallelism_latest(hb_graph: HbGraph, probe_log: ProbeLog) -> int:
@@ -10,14 +10,14 @@ def get_max_parallelism_latest(hb_graph: HbGraph, probe_log: ProbeLog) -> int:
     counter = 1 
     max_counter = 1
     start_node = [node for node in hb_graph.nodes() if hb_graph.in_degree(node) == 0][0]
-    queue = collections.deque[tuple[OpNode, OpNode | None]]([(start_node, None)])  # (current_node, parent_node)
+    queue = collections.deque[tuple[OpQuad, OpQuad | None]]([(start_node, None)])  # (current_node, parent_node)
     while queue:
         node, parent = queue.popleft()
         if node in visited:
             continue
         if parent:
-            parent_op = probe_log.get_op(*parent.op_quad()).data
-        node_op = probe_log.get_op(*node.op_quad()).data
+            parent_op = probe_log.get_op(parent).data
+        node_op = probe_log.get_op(node).data
 
         visited.add(node)
 

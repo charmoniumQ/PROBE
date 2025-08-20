@@ -1,5 +1,4 @@
 from __future__ import annotations
-import tqdm
 import collections
 import dataclasses
 import enum
@@ -10,28 +9,12 @@ import typing
 import warnings
 import networkx
 from . import graph_utils
-from . import hb_graph
-from .hb_graph_accesses import hb_graph_to_accesses, Access, AccessMode, Phase
+from .hb_graph_accesses import hb_graph_to_accesses
 from . import ops
 from . import ptypes
 
 
 _Node = typing.TypeVar("_Node")
-
-
-@dataclasses.dataclass(frozen=True)
-class AccessEpoch[_Node]:
-    """An access epoch is a set of nodes, denoted by a segment, in which the node may be accessed."""
-    mode: AccessMode
-    bounds: graph_utils.Segment[_Node]
-    version: int | None = None
-
-
-@dataclasses.dataclass(frozen=True)
-class ExecNode:
-    """An exec, denoted by Pid and ExecNo"""
-    pid: ptypes.Pid
-    exec_no: ptypes.ExecNo
 
 
 @dataclasses.dataclass(frozen=True)
@@ -45,18 +28,16 @@ class InodeVersionNode:
 
 
 if typing.TYPE_CHECKING:
-    DataflowGraph: typing.TypeAlias = networkx.DiGraph[hb_graph.OpNode | InodeVersionNode]
-    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[hb_graph.OpNode | frozenset[InodeVersionNode]]
-    EpochGraph: typing.TypeAlias = networkx.DiGraph[AccessEpoch[hb_graph.OpNode]]
+    DataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuint | InodeVersionNode]
+    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuint | frozenset[InodeVersionNode]]
 else:
     DataflowGraph = networkx.DiGraph
     CompressedDataflowGraph = networkx.DiGraph
-    EpochGraph = networkx.DiGraph
 
 
 def accesses_to_dataflow_graph(
         probe_log: ptypes.ProbeLog,
-        accesses_and_nodes: list[Access | hb_graph.OpNode],
+        accesses_and_quads: list[ptypes.Access | ptypes.OpQuad],
 ) -> tuple[DataflowGraph, typing.Mapping[ptypes.Inode, frozenset[pathlib.Path]]]:
     """Turn a list of accesses into a dataflow graph, by assigning a version at every access."""
 
@@ -66,36 +47,39 @@ def accesses_to_dataflow_graph(
 
     parent_pid = probe_log.get_parent_pid_map()
     pid_to_state = collections.defaultdict[ptypes.Pid, PidState](lambda: PidState.READING)
-    last_op_in_process = dict[ptypes.Pid, hb_graph.OpNode]()
+    last_op_in_process = dict[ptypes.Pid, ptypes.OpQuint]()
     inode_to_version = collections.defaultdict[ptypes.Inode, int](lambda: 0)
     inode_to_paths = collections.defaultdict[ptypes.Inode, set[pathlib.Path]](set)
     dataflow_graph = DataflowGraph()
 
-    def add_node(node: hb_graph.OpNode) -> None:
-        pid_to_state[node.pid] = PidState.READING
-        if program_order_predecessor := last_op_in_process.get(node.pid):
-            dataflow_graph.add_edge(program_order_predecessor, node)
+    def add_quad(quad: ptypes.OpQuad, label: str) -> None:
+        pid_to_state[quad.pid] = PidState.READING
+        if program_order_predecessor := last_op_in_process.get(quad.pid):
+            quint = program_order_predecessor.deduplicate(quad)
+            dataflow_graph.add_edge(program_order_predecessor, quint, label=label + " (from pred)")
         else:
-            if parent := parent_pid.get(node.pid):
-                dataflow_graph.add_edge(last_op_in_process[parent], node)
+            quint = ptypes.OpQuint.from_quad(quad)
+            if parent := parent_pid.get(quad.pid):
+                dataflow_graph.add_edge(last_op_in_process[parent], quint, label=label + " (from parent)")
             else:
                 pass
-                # Found initial node of root proc
-        last_op_in_process[node.pid] = node
+                # Found initial quad of root proc
+        last_op_in_process[quad.pid] = quint
 
-    def ensure_state(node: hb_graph.OpNode, desired_state: PidState) -> None:
-        if desired_state == PidState.WRITING and pid_to_state[node.pid] == PidState.READING:
+    def ensure_state(quad: ptypes.OpQuad, desired_state: PidState) -> ptypes.OpQuint:
+        if desired_state == PidState.WRITING and pid_to_state[quad.pid] == PidState.READING:
             # Reading -> writing for free
-            pid_to_state[node.pid] = PidState.WRITING
-        elif desired_state == PidState.READING and pid_to_state[node.pid] == PidState.WRITING:
-            # Writing -> reading by starting a new node.
-            add_node(node)
-        assert pid_to_state[node.pid] == desired_state
+            pid_to_state[quad.pid] = PidState.WRITING
+        elif desired_state == PidState.READING and pid_to_state[quad.pid] == PidState.WRITING:
+            # Writing -> reading by starting a new quad.
+            add_quad(quad, "r→w")
+        assert pid_to_state[quad.pid] == desired_state
+        return last_op_in_process[quad.pid]
 
-    for access_or_node in accesses_and_nodes:
-        match access_or_node:
-            case Access():
-                access = access_or_node
+    for access_or_quad in accesses_and_quads:
+        match access_or_quad:
+            case ptypes.Access():
+                access = access_or_quad
                 version_num = inode_to_version[access.inode]
                 inode_to_paths[access.inode].add(access.path)
                 version = InodeVersionNode(access.inode, version_num)
@@ -123,26 +107,27 @@ def accesses_to_dataflow_graph(
                             dataflow_graph.add_edge(version, op_node)
                     case _:
                         raise TypeError()
-            case hb_graph.OpNode():
-                node = access_or_node
-                op_data = probe_log.get_op(*node.op_quad()).data
+            case ptypes.OpQuad():
+                quad = access_or_quad
+                op_data = probe_log.get_op(quad).data
                 match op_data:
                     # us -> our child
                     # Therefore, we have to be in writing mode
                     case ops.CloneOp():
                         if op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
-                            ensure_state(node, PidState.WRITING)
+                            ensure_state(quad, PidState.WRITING)
                     case ops.SpawnOp():
-                        ensure_state(node, PidState.WRITING)
+                        ensure_state(quad, PidState.WRITING)
                     case ops.InitExecEpochOp():
-                        add_node(node)
+                        add_quad(quad, "init")
+
     inode_to_paths2 = {inode: frozenset(paths) for inode, paths in inode_to_paths.items()}
     return dataflow_graph, inode_to_paths2
 
 
 def hb_graph_to_dataflow_graph2(
         probe_log: ptypes.ProbeLog,
-        hbg: hb_graph.HbGraph,
+        hbg: ptypes.HbGraph,
         check: bool = False,
 ) -> tuple[DataflowGraph, typing.Mapping[ptypes.Inode, frozenset[pathlib.Path]]]:
     accesses = list(hb_graph_to_accesses(probe_log, hbg))
@@ -160,8 +145,8 @@ def combine_indistinguishable_inodes(
     else:
         warnings.warn(ptypes.UnusualProbeLog("Dataflow graph is cyclic"))
     def same_neighbors(
-            node0: hb_graph.OpNode | InodeVersionNode,
-            node1: hb_graph.OpNode | InodeVersionNode,
+            node0: ptypes.OpQuad | InodeVersionNode,
+            node1: ptypes.OpQuad | InodeVersionNode,
     ) -> bool:
         return (
             isinstance(node0, InodeVersionNode)
@@ -172,10 +157,10 @@ def combine_indistinguishable_inodes(
             and
             frozenset(dataflow_graph.successors(node0)) == frozenset(dataflow_graph.successors(node1))
         )
-    def node_mapper(node_set: frozenset[hb_graph.OpNode | InodeVersionNode]) -> hb_graph.OpNode | frozenset[InodeVersionNode]:
+    def node_mapper(node_set: frozenset[ptypes.OpQuint | InodeVersionNode]) -> ptypes.OpQuint | frozenset[InodeVersionNode]:
         first_node = next(iter(node_set))
-        if isinstance(first_node, hb_graph.OpNode):
-            assert all(isinstance(node, hb_graph.OpNode) for node in node_set)
+        if isinstance(first_node, ptypes.OpQuint):
+            assert all(isinstance(node, ptypes.OpQuint) for node in node_set)
             return first_node
         else:
             assert all(isinstance(node, InodeVersionNode) for node in node_set)
