@@ -11,10 +11,11 @@ import tempfile
 import textwrap
 import typing
 import warnings
-import typer
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
+import tqdm
+import typer
 from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
@@ -24,6 +25,7 @@ from . import parser
 from . import ptypes
 from . import scp as scp_module
 from . import ssh_argparser
+from . import util
 from . import validators
 from .persistent_provenance_db import get_engine
 
