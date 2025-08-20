@@ -49,6 +49,7 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     snprintf(arena_dir->__dir_buffer + arena_dir->__dir_len,
              arena_dir->__dir_buffer_max - arena_dir->__dir_len, "%016ld.dat",
              arena_dir->__next_instantiation);
+
     result_int fd = probe_libc_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
     // FIXME: check in optimized too
     ASSERTF(fd.error == 0, "openat error=%d (%s)", fd.error, arena_dir->__dir_buffer);

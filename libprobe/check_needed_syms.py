@@ -33,7 +33,6 @@ allowed = {
     "__tls_get_addr",
     "__vfprintf_chk",
     "__vsnprintf_chk",
-    "__vsprintf_chk",
 }
 
 unneeded = allowed
@@ -51,7 +50,7 @@ for file in sys.argv[1:]:
 
     diff = needed - allowed
     if diff:
-        print(f"(Needed) ERROR: '{file}' had unallowed needed symbols: {diff}");
+        print(f"(Needed) ERROR: '{file}' had unallowed needed symbols: {diff}")
         sys.exit(1)
 
     reverse_diff = allowed - needed

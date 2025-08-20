@@ -75,7 +75,7 @@ check: compile_commands.json $(BUILD_DIR)/probe_libc_tests $(GENERATED_FILES)
 	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
 	echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1 -Wno-macro-redefined
 	clang-tidy  $(SOURCE_FILES)
-	python3 ./check_hooked_fns.py $(SOURCE_FILES)
+	python3 ./check_hooked_fns.py $(MANUAL_SOURCE_FILES)
 	python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
 	$(BUILD_DIR)/probe_libc_tests

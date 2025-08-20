@@ -2,7 +2,6 @@
 
 #include "probe_libc.h"
 
-// for some reason it wants to use the underlying errno header, but like no.
 #include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM
 #include <fcntl.h>       // for O_RDONLY, O_CLOEXEC
 #include <stddef.h>      // for size_t, NULL
