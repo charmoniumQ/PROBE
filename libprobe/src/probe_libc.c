@@ -402,6 +402,14 @@ result_int probe_libc_open(const char* path, int flags, mode_t mode) {
     return (result_int)ERR(-retval);
 }
 
+result_int probe_libc_openat(int dirfd, const char* path, int flags, mode_t mode) {
+    ssize_t retval = probe_syscall4(SYS_openat, dirfd, (uintptr_t)path, flags, mode);
+    if (retval >= 0) {
+        return (result_int)OK(retval);
+    }
+    return (result_int)ERR(-retval);
+}
+
 result probe_libc_close(int fd) {
     ssize_t retval = probe_syscall1(SYS_close, fd);
     if (retval < 0) {

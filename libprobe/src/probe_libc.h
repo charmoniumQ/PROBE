@@ -54,6 +54,7 @@ ATTR_HIDDEN pid_t probe_libc_gettid(void);
 ATTR_HIDDEN result_int probe_libc_dup(int oldfd);
 
 ATTR_HIDDEN result_int probe_libc_open(const char* path, int flags, mode_t mode);
+ATTR_HIDDEN result_int probe_libc_openat(int dirfd, const char* path, int flags, mode_t mode);
 ATTR_HIDDEN result probe_libc_close(int fd);
 ATTR_HIDDEN result_ssize_t probe_libc_read(int fd, void* buf, size_t count);
 ATTR_HIDDEN result_ssize_t probe_libc_write(int fd, const void* buf, size_t count);
@@ -71,7 +72,11 @@ ATTR_HIDDEN char* probe_libc_strncpy(char* dest, const char* src, size_t dsize);
 ATTR_HIDDEN size_t probe_libc_strnlen(const char* s, size_t maxlen);
 ATTR_HIDDEN char* probe_libc_strndup(const char* s, size_t n);
 ATTR_HIDDEN int probe_libc_strncmp(const char* a, const char* b, size_t n);
+
 static inline size_t probe_libc_strlen(const char* s) { return probe_libc_strnlen(s, -1); }
+static inline int probe_libc_strcmp(const char* a, const char* b) {
+    return probe_libc_strncmp(a, b, -1);
+}
 
 ATTR_HIDDEN size_t probe_libc_getpagesize(void);
 

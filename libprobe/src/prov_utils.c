@@ -5,7 +5,6 @@
 #include <fcntl.h>         // for O_CREAT, AT_FDCWD, O_RDWR
 #include <limits.h>        // IWYU pragma: keep for PATH_MAX
 #include <stdbool.h>       // for bool, true, false
-#include <string.h>        // for strncpy
 #include <sys/resource.h>  // IWYU pragma: keep for rusage
 #include <sys/stat.h>      // IWYU pragma: keep for stat, statx, statx_timestamp
 #include <sys/sysmacros.h> // for major, minor
@@ -208,7 +207,7 @@ int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
 }
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
-    strncpy(dest, op_str, size);
+    probe_libc_strncpy(dest, op_str, size);
     size -= probe_libc_strlen(op_str);
     dest += probe_libc_strlen(op_str);
 

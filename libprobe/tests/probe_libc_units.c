@@ -21,3 +21,4 @@ Test(init, init) {
 #include "probe_libc_units/test_map_fns.c"
 #include "probe_libc_units/test_mem_fns.c"
 #include "probe_libc_units/test_str_fns.c"
+// TODO: open, close, openat

@@ -49,16 +49,17 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     snprintf(arena_dir->__dir_buffer + arena_dir->__dir_len,
              arena_dir->__dir_buffer_max - arena_dir->__dir_len, "%016ld.dat",
              arena_dir->__next_instantiation);
-    int fd = client_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
-    ASSERTF(fd > 0, "returned_fd=%d (%s)", fd, arena_dir->__dir_buffer);
+    result_int fd = probe_libc_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
+    // FIXME: check in optimized too
+    ASSERTF(fd.error == 0, "openat error=%d (%s)", fd.error, arena_dir->__dir_buffer);
 
-    EXPECT(== 0, client_ftruncate(fd, capacity));
+    EXPECT(== 0, client_ftruncate(fd.value, capacity));
 
     /* mmap here corresponds to munmap in either arena_destroy or arena_uninstantiate_all_but_last */
     result_mem base_address =
-        probe_libc_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd);
+        probe_libc_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd.value);
     ASSERTF(base_address.error == 0, "");
-    EXPECT(== 0, client_close(fd));
+    EXPECT(== 0, client_close(fd.value));
 
     if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
         /* No more free slots in this block, as we've reached block size.

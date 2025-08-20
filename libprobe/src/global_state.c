@@ -60,17 +60,18 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
 
 static inline void* open_and_mmap(const char* path, bool writable, size_t size) {
     DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
-    int fd = client_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
-    if (UNLIKELY(fd == -1)) {
-        ERROR("Could not open file at %s", path);
+    result_int fd =
+        probe_libc_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
+    if (UNLIKELY(fd.error != 0)) {
+        ERROR("Could not open file at %s (error=%d)", path, fd.error);
     }
     if (writable) {
-        EXPECT(== 0, client_ftruncate(fd, size));
+        EXPECT(== 0, client_ftruncate(fd.value, size));
     }
     result_mem ret = probe_libc_mmap(NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ),
-                                     MAP_SHARED, fd);
+                                     MAP_SHARED, fd.value);
     ASSERTF(ret.error == 0, "mmap failed");
-    EXPECT(== 0, client_close(fd));
+    EXPECT(== 0, client_close(fd.value));
     return ret.value;
 }
 
@@ -335,8 +336,6 @@ static inline void check_function_pointers() {
     // assert that function pointers are callable
     struct statx buf;
     EXPECT(== 0, client_statx(AT_FDCWD, ".", 0, STATX_BASIC_STATS, &buf));
-    int fd = EXPECT(> 0, client_openat(AT_FDCWD, ".", O_PATH));
-    EXPECT(== 0, client_close(fd));
 #endif
 }
 

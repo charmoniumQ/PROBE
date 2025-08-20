@@ -6,7 +6,6 @@
 #include <limits.h>    // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
 #include <stdbool.h>   // for bool, false
 #include <stdlib.h>    // for malloc
-#include <string.h>    // for strcmp
 #include <sys/stat.h>  // for S_IFDIR, S_IFMT, statx, STATX_TYPE
 #include <sys/types.h> // for ssize_t, off_t
 // IWYU pragma: no_include "asm-generic/errno-base.h"   for EBADF
@@ -14,7 +13,7 @@
 // IWYU pragma: no_include "linux/limits.h"             for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"               for statx, STATX_TYPE
 
-#include "../generated/libc_hooks.h" // for client_close, client_openat
+#include "../generated/libc_hooks.h" // for client_close
 #include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
 #include "probe_libc.h"              // for probe_libc_...
 #include "util.h"                    // for BORROWED, OWNED, CHECK_SNPRINTF
@@ -68,7 +67,8 @@ void list_dir(const char* name, int indent) {
     while ((entry = client_readdir(dir))) {
         if (entry->d_type == DT_DIR) {
             char path[1024];
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            if (probe_libc_strcmp(entry->d_name, ".") == 0 ||
+                probe_libc_strcmp(entry->d_name, "..") == 0)
                 continue;
             CHECK_SNPRINTF(path, ((int)sizeof(path)), "%s/%s", name, entry->d_name);
             LOG("%*s%s/", indent, "", entry->d_name);
@@ -86,38 +86,41 @@ int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* ds
     ** Adapted from:
     ** https://stackoverflow.com/a/2180157
      */
-    int src_fd = client_openat(src_dirfd, src_path, O_RDONLY);
-    if (src_fd == -1)
+    // FIXME: consider propagating the error values for openat and sendfile
+    result_int src_fd = probe_libc_openat(src_dirfd, src_path, O_RDONLY, 0);
+    if (src_fd.error != 0)
         return -1;
-    int dst_fd = client_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
-    if (dst_fd == -1)
+    result_int dst_fd = probe_libc_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
+    if (dst_fd.error != 0)
         return -1;
     off_t copied = 0;
     while (copied < size) {
-        result_ssize_t written = probe_libc_sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
+        result_ssize_t written =
+            probe_libc_sendfile(dst_fd.value, src_fd.value, &copied, SSIZE_MAX);
         if (written.error) {
-            // FIXME: consider propagating the error value
             return -1;
         }
         copied += written.value;
     }
 
-    EXPECT(== 0, client_close(src_fd));
-    EXPECT(== 0, client_close(dst_fd));
+    EXPECT(== 0, client_close(src_fd.value));
+    EXPECT(== 0, client_close(dst_fd.value));
 
     return 0;
 }
 
 void write_bytes(int dirfd, const char* path, const char* content, ssize_t size) {
-    int fd = EXPECT(> 0, client_openat(dirfd, path, O_RDWR | O_CREAT, 0666));
+    result_int fd = probe_libc_openat(dirfd, path, O_RDWR | O_CREAT, 0666);
+    // FIXME: error on optimized too
+    ASSERTF(fd.error == 0, "");
     ssize_t copied = 0;
     while (copied < size) {
-        result_ssize_t res = probe_libc_write(fd, content, size);
-        // FIXME: you should really check for the error case all the time
+        result_ssize_t res = probe_libc_write(fd.value, content, size);
+        // FIXME: error on optimized too
         ASSERTF(res.error == 0, "");
         copied += res.value;
     }
-    EXPECT(== 0, client_close(fd));
+    EXPECT(== 0, client_close(fd.value));
 }
 
 unsigned char ceil_log2(unsigned int val) {
@@ -132,13 +135,14 @@ unsigned char ceil_log2(unsigned int val) {
 }
 
 char* read_file(const char* path, size_t* buffer_len, size_t* buffer_capacity) {
-    int fd = client_openat(AT_FDCWD, path, O_RDONLY);
+    result_int fd = probe_libc_openat(AT_FDCWD, path, O_RDONLY, 0);
+    // FIXME: error handling?
     *buffer_capacity = 4096;
     char* buffer = EXPECT_NONNULL(malloc(*buffer_capacity));
     *buffer_len = 0;
     while (true) {
         result_ssize_t ret =
-            probe_libc_read(fd, buffer + *buffer_len, *buffer_capacity - *buffer_len);
+            probe_libc_read(fd.value, buffer + *buffer_len, *buffer_capacity - *buffer_len);
         if (ret.error) {
             ERROR("");
         }
@@ -152,7 +156,7 @@ char* read_file(const char* path, size_t* buffer_len, size_t* buffer_capacity) {
             }
         }
     }
-    EXPECT(== 0, client_close(fd));
+    EXPECT(== 0, client_close(fd.value));
     return buffer;
 }
 
