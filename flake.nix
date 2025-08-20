@@ -213,6 +213,13 @@
               ];
               packages =
                 [
+
+                  # Rust tools
+                  pkgs.cargo-deny
+                  pkgs.cargo-audit
+                  pkgs.cargo-machete
+                  pkgs.cargo-hakari
+
                   (python.withPackages (pypkgs: [
                     # probe_py.manual runtime requirements
                     pypkgs.networkx
@@ -222,18 +229,16 @@
                     pypkgs.sqlalchemy
                     pypkgs.xdg-base-dirs
                     pypkgs.pyyaml
-                    pypkgs.types-pyyaml
                     pypkgs.numpy
                     pypkgs.tqdm
-                    pypkgs.types-tqdm
 
                     # probe_py.manual "dev time" requirements
-                    pypkgs.psutil
+                    pypkgs.types-tqdm
+                    pypkgs.types-pyyaml
                     pypkgs.pytest
                     pypkgs.pytest-timeout
                     pypkgs.mypy
                     pypkgs.ipython
-                    pypkgs.xdg-base-dirs
 
                     # libprobe build time requirement
                     pypkgs.pycparser
@@ -253,11 +258,6 @@
                   pkgs.git
                   pkgs.include-what-you-use
                   pkgs.libclang
-
-                  # Rust tools
-                  pkgs.cargo-audit
-                  pkgs.cargo-deny
-                  pkgs.cargo-hakari
 
                   pkgs.coreutils
                   pkgs.alejandra
