@@ -120,7 +120,10 @@ impl Recorder {
     pub fn record(self) -> Result<(ExitStatus, tempfile::TempDir)> {
         // reading and canonicalizing path to libprobe
         let libprobe_path = fs::canonicalize(match std::env::var_os("PROBE_LIB") {
-            Some(x) => PathBuf::from(x),
+            Some(x) => {
+                log::debug!("Resolved PROBE_LIB to {}", x.to_string_lossy());
+                PathBuf::from(x)
+            }
             None => return Err(eyre!("couldn't find libprobe, are you using the wrapper?")),
         })
         .wrap_err("unable to canonicalize libprobe path")?

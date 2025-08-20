@@ -75,6 +75,7 @@ class OpType(enum.StrEnum):
     ALL = enum.auto()
     MINIMAL = enum.auto()
     FILE = enum.auto()
+    SUCCESSFUL = enum.auto()
 
 
 @export_app.command()
@@ -87,10 +88,14 @@ def hb_graph(
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
-        retain_ops: Annotated[
+        retain: Annotated[
             OpType,
-            typer.Option(help="Which ops to include in the graph?")
+            typer.Option(help="Which ops to include in the graph? There are quite a few.")
         ] = OpType.MINIMAL,
+        show_op_number: Annotated[
+            bool,
+            typer.Option(help="Whether to show the op number in the output.")
+        ] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -103,14 +108,16 @@ def hb_graph(
     """
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    match retain_ops:
+    match retain:
         case OpType.ALL:
             pass
         case OpType.MINIMAL:
-            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, _op: False)
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
         case OpType.FILE:
             hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
-    hb_graph_module.label_nodes(probe_log, hbg, retain_ops == OpType.ALL)
+        case OpType.SUCCESSFUL:
+            hbg = hb_graph_module.retain_only(probe_log, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp))
+    hb_graph_module.label_nodes(probe_log, hbg, show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
     
