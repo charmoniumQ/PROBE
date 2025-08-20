@@ -213,7 +213,6 @@
               ];
               packages =
                 [
-
                   # Rust tools
                   pkgs.cargo-deny
                   pkgs.cargo-audit
