@@ -234,3 +234,7 @@ class TaskType(enum.IntEnum):
 
 class InvalidProbeLog(Exception):
     pass
+
+
+class UnusualProbeLog(Warning):
+    pass
