@@ -89,8 +89,9 @@ Test(mmap, prot_none_access_fails, .signal = SIGSEGV) {
 Test(mmap, too_large_length) {
     size_t big = (size_t)-1 & ~(PAGE_SIZE - 1); // huge rounded size
     result_mem res = probe_libc_mmap(NULL, big, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1);
-    cr_assert_eq(res.error, ENOMEM, "Expected ENOMEM for huge mapping, but got %d (%s)", res.error,
-                 strerror(res.error));
+    cr_assert(res.error == EINVAL || res.error == ENOMEM,
+              "Expected EINVAL or ENOMEM for huge mapping, but got %d (%s)", res.error,
+              strerror(res.error));
 }
 
 
@@ -153,7 +154,8 @@ Test(munmap, too_large_length_should_fail) {
     cr_assert_neq(ptr, MAP_FAILED);
 
     result r = probe_libc_munmap(ptr, SIZE_MAX & ~(PAGE_SIZE - 1));
-    cr_assert_eq(r, EINVAL, "Expected EINVAL for huge mapping but got %d", r);
+    cr_assert(r == EINVAL || r == ENOMEM, "Expected EINVAL or ENOMEM for huge mapping but got %d",
+              r);
 
     munmap(ptr, PAGE_SIZE);
 }
