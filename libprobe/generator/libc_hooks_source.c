@@ -265,7 +265,7 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 unsigned int fd = (unsigned int) my_atoui(dirp->d_name);
                 if (lowfd <= fd && fd <= maxfd) {
-                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
+                    /* Use the real (not client) close, so it gets logged as a normal close */
                     if (flags == 0) {
                         close(fd);
                     } else if (flags == CLOSE_RANGE_CLOEXEC) {
@@ -289,7 +289,7 @@ void closefrom (int lowfd) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 int fd = (int) my_atoui(dirp->d_name);
                 if (lowfd <= fd) {
-                    /* Use the real (not unwrapped) close, so it gets logged as a normal close */
+                    /* Use the real (not client) close, so it gets logged as a normal close */
                     close(fd);
                 }
             }
