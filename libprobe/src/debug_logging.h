@@ -31,7 +31,6 @@
 
 #define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
 
-/* TODO: replace assert with ASSERTF because ASSERTF calls client_exit() */
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
         LOG("ERROR " str " (%s)", ##__VA_ARGS__, strerror(errno));                                 \
