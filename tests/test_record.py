@@ -102,12 +102,12 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         True,
         pathlib.Path("test.c"),
         "int main() { return 0; }",
-        ["gcc", "test.c"],
+        ["gcc", "-c", "test.c"],
     ),
     "c_hello": (
         True,
-        pathlib.Path("test.c"),
-        c_hello_world,
+        None,
+        "",
         bash_multi(
             ["gcc", "test.c"],
             ["./a.out"],

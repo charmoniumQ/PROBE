@@ -155,6 +155,7 @@
             };
             propagatedBuildInputs = [
               python.pkgs.networkx
+              python.pkgs.pygraphviz
               python.pkgs.pydot
               python.pkgs.rich
               python.pkgs.typer
