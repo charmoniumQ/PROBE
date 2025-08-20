@@ -11,7 +11,7 @@
 #include <sys/mman.h> // IWYU pragma: keep for MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
 // IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
 
-#include "../generated/libc_hooks.h" // for client_close, client_ftru...
+#include "../generated/libc_hooks.h" // for client_ftruncate
 #include "debug_logging.h"           // for EXPECT, ASSERTF, EXPECT_NONNULL
 #include "probe_libc.h"              // for probe_libc_...
 #include "util.h"                    // for ceil_log2, MAX
@@ -60,7 +60,7 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     result_mem base_address =
         probe_libc_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd.value);
     ASSERTF(base_address.error == 0, "");
-    EXPECT(== 0, client_close(fd.value));
+    EXPECT(== 0, probe_libc_close(fd.value));
 
     if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
         /* No more free slots in this block, as we've reached block size.

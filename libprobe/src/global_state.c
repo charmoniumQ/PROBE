@@ -16,7 +16,7 @@
 // IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
 #include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
-#include "../generated/libc_hooks.h"      // for client_mkdirat, client_close
+#include "../generated/libc_hooks.h"      // for client_mkdirat
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
 #include "arena.h"                        // for arena_is_initialized, arena_create
 #include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG, ERROR
@@ -71,7 +71,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
     result_mem ret = probe_libc_mmap(NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ),
                                      MAP_SHARED, fd.value);
     ASSERTF(ret.error == 0, "mmap failed");
-    EXPECT(== 0, client_close(fd.value));
+    EXPECT(== 0, probe_libc_close(fd.value));
     return ret.value;
 }
 
@@ -322,7 +322,6 @@ static inline void check_function_pointers() {
     /* We use these client_ function pointers in our code.
      * The rest of the client_ function pointers are only used if the application (tracee) calls the corresponding libc (without client_ prefix) function.
      * */
-    ASSERTF(client_close, "");
     ASSERTF(client_execvpe, "");
     ASSERTF(client_faccessat, "");
     ASSERTF(client_fcntl, "");
@@ -330,7 +329,6 @@ static inline void check_function_pointers() {
     ASSERTF(client_fork, "");
     ASSERTF(client_ftruncate, "");
     ASSERTF(client_mkdirat, "");
-    ASSERTF(client_openat, "");
     ASSERTF(client_statx, "");
 
     // assert that function pointers are callable

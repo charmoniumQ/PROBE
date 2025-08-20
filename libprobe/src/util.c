@@ -13,7 +13,7 @@
 // IWYU pragma: no_include "linux/limits.h"             for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"               for statx, STATX_TYPE
 
-#include "../generated/libc_hooks.h" // for client_close
+#include "../generated/libc_hooks.h" // for client_...
 #include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
 #include "probe_libc.h"              // for probe_libc_...
 #include "util.h"                    // for BORROWED, OWNED, CHECK_SNPRINTF
@@ -103,8 +103,8 @@ int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* ds
         copied += written.value;
     }
 
-    EXPECT(== 0, client_close(src_fd.value));
-    EXPECT(== 0, client_close(dst_fd.value));
+    EXPECT(== 0, probe_libc_close(src_fd.value));
+    EXPECT(== 0, probe_libc_close(dst_fd.value));
 
     return 0;
 }
@@ -120,7 +120,7 @@ void write_bytes(int dirfd, const char* path, const char* content, ssize_t size)
         ASSERTF(res.error == 0, "");
         copied += res.value;
     }
-    EXPECT(== 0, client_close(fd.value));
+    EXPECT(== 0, probe_libc_close(fd.value));
 }
 
 unsigned char ceil_log2(unsigned int val) {
@@ -156,7 +156,7 @@ char* read_file(const char* path, size_t* buffer_len, size_t* buffer_capacity) {
             }
         }
     }
-    EXPECT(== 0, client_close(fd.value));
+    EXPECT(== 0, probe_libc_close(fd.value));
     return buffer;
 }
 
