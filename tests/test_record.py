@@ -332,7 +332,6 @@ def test_downstream_analyses(
     subprocess.run(cmd, **args)
 
     cmd = ["probe", "py", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
-
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
