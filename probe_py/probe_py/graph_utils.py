@@ -85,7 +85,8 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in tqdm.tqdm(graph.nodes(), desc="nodes")}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    return networkx.relabel_nodes(graph, dct)
+    ret = networkx.relabel_nodes(graph, dct)
+    return ret # type: ignore
 
 
 def serialize_graph(
@@ -324,3 +325,25 @@ def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_No
             for grandchild in dag.successors(child):
                 tc.add_edge(src, grandchild)
     return tc
+
+
+class GraphvizAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    shape: str
+
+
+class GraphvizNodeAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    style: str
+
+
+class GraphvizEdgeAttributes(typing.TypedDict):
+    label: str
+    shape: str
+    color: str
+    style: str
+    labelfontsize: int
