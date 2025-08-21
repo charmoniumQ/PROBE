@@ -266,8 +266,6 @@ pub enum OpInternal {
     #[serde(untagged)]
     WaitOp(WaitOp),
     #[serde(untagged)]
-    GetRUsageOp(GetRUsageOp),
-    #[serde(untagged)]
     UpdateMetadataOp(UpdateMetadataOp),
     #[serde(untagged)]
     ReadLinkOp(ReadLinkOp),
@@ -309,9 +307,6 @@ impl FfiFrom<C_Op> for OpInternal {
             C_OpCode_stat_op_code => Self::StatOp(unsafe { value.stat }.ffi_into(ctx)?),
             C_OpCode_readdir_op_code => Self::ReaddirOp(unsafe { value.readdir }.ffi_into(ctx)?),
             C_OpCode_wait_op_code => Self::WaitOp(unsafe { value.wait }.ffi_into(ctx)?),
-            C_OpCode_getrusage_op_code => {
-                Self::GetRUsageOp(unsafe { value.getrusage }.ffi_into(ctx)?)
-            }
             C_OpCode_update_metadata_op_code => {
                 Self::UpdateMetadataOp(unsafe { value.update_metadata }.ffi_into(ctx)?)
             }
@@ -392,14 +387,4 @@ mod tests {
         assert_eq!(libc::AT_FDCWD, -100);
     }
 
-    // since we're defining a custom version of the rusage struct (indirectly through rust-bindgen)
-    // we should at least check that they're the same size.
-    // FIXME: muslc has a different sized rusage struct so libc::rusage doesn't match
-    // #[test]
-    // fn rusage_size() {
-    //     assert_eq!(
-    //         std::mem::size_of::<libc::rusage>(),
-    //         std::mem::size_of::<C_rusage>()
-    //     );
-    // }
 }

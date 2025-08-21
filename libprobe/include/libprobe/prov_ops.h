@@ -201,12 +201,6 @@ struct WaitOp {
     int options;
     int status;
     bool cancelled;
-    int ferrno;
-};
-
-struct GetRUsageOp {
-    pid_t waitpid_arg;
-    int getrusage_arg;
     struct my_rusage usage;
     int ferrno;
 };
@@ -306,7 +300,6 @@ enum OpCode {
     stat_op_code,
     readdir_op_code,
     wait_op_code,
-    getrusage_op_code,
     update_metadata_op_code,
     read_link_op_code,
     dup_op_code,
@@ -334,7 +327,6 @@ struct Op {
         struct StatOp stat;
         struct ReaddirOp readdir;
         struct WaitOp wait;
-        struct GetRUsageOp getrusage;
         struct UpdateMetadataOp update_metadata;
         struct ReadLinkOp read_link;
         struct DupOp dup;

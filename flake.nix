@@ -286,6 +286,7 @@
                     pypkgs.pytest-timeout
                     pypkgs.mypy
                     pypkgs.ipython
+                    pypkgs.ipdb
 
                     # libprobe build time requirement
                     pypkgs.pycparser

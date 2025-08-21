@@ -13,8 +13,6 @@ from . import util
 
 
 _Node = typing.TypeVar("_Node")
-
-
 _CoNode = typing.TypeVar("_CoNode", covariant=True)
 
 
@@ -86,8 +84,8 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    ret = networkx.relabel_nodes(graph, dct)
-    return ret # type: ignore
+    ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
+    return ret
 
 
 def serialize_graph(
@@ -354,7 +352,7 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
     def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
         start = datetime.datetime.now()
         print("Computing transitive closure")
-        ret = typing.cast(networkx.DiGraph[_Node], networkx.transitive_closure(dag))
+        ret = typing.cast("networkx.DiGraph[_Node]", networkx.transitive_closure(dag))
         duration = datetime.datetime.now() - start
         print(f"Done computing in {duration.total_seconds():.1f}sec")
         return PrecomputedReachabilityOracle(ret)

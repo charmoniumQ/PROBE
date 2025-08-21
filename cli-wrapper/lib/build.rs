@@ -43,7 +43,6 @@ fn should_prefix(name: &str) -> bool {
             "StatOp",
             "ReaddirOp",
             "WaitOp",
-            "GetRUsageOp",
             "MetadataKind",
             "MetadataValue",
             "UpdateMetadataOp",

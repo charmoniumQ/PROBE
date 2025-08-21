@@ -41,11 +41,19 @@ strict_option = typer.Option(
     "--strict/--loose",
     help="Whether to fail when PROBE generates warnings",
 )
+debug_option = typer.Option(
+    "--debug/--no-debug",
+    help="Whether to fail when PROBE generates warnings",
+)
 def restore_sanity(
         strict: Annotated[
             bool,
             strict_option,
         ] = True,
+        debug: Annotated[
+            bool,
+            debug_option,
+        ] = False,
 ) -> None:
     # Typer messes with the excepthook
     sys.excepthook =  sys.__excepthook__
@@ -59,9 +67,13 @@ def restore_sanity(
             "always",
             category=ptypes.UnusualProbeLog,
         )
+    if debug:
+        import ipdb  # type: ignore
+        ipdb.sset_trace()
 
 
 export_app.callback()(restore_sanity)
+
 
 @app.command()
 def validate(
