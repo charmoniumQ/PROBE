@@ -14,7 +14,6 @@ allowed = {
     "__tls_get_addr",
     "__vfprintf_chk",
     "__vsnprintf_chk",
-    "__vsprintf_chk",
     "calloc",
     "dirfd",
     "dlsym",

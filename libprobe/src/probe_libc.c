@@ -35,7 +35,8 @@
     ({                                                                                             \
         result ret = probe_libc_close(fd);                                                         \
         if (ret) {                                                                                 \
-            WARNING("failed to close fd " path "with error: %s (%d)", strerror_with_backup((int)ret), ret);             \
+            WARNING("failed to close fd " path "with error: %s (%d)",                              \
+                    strerror_with_backup((int)ret), ret);                                          \
         }                                                                                          \
     })
 
@@ -193,7 +194,8 @@ result probe_libc_init(void) {
     {
         result_int auxv_fd = probe_libc_open("/proc/self/auxv", O_RDONLY | O_CLOEXEC, 0);
         if (auxv_fd.error) {
-            WARNING("Unable to open /proc/self/auxv: (%d) %s", auxv_fd.error, strerror_with_backup(auxv_fd.error));
+            WARNING("Unable to open /proc/self/auxv: (%d) %s", auxv_fd.error,
+                    strerror_with_backup(auxv_fd.error));
             return auxv_fd.error;
         }
 
@@ -205,7 +207,8 @@ result probe_libc_init(void) {
         aux_entry buf[AUX_CNT] = {0};
         result_ssize_t read_ret = probe_read_all(auxv_fd.value, buf, AUX_CNT * sizeof(aux_entry));
         if (read_ret.error) {
-            WARNING("Unable to read auxv: (%d) %s", read_ret.error, strerror_with_backup(read_ret.error));
+            WARNING("Unable to read auxv: (%d) %s", read_ret.error,
+                    strerror_with_backup(read_ret.error));
             TRY_CLOSE(auxv_fd.value, "/proc/self/auxv");
             return read_ret.error;
         }
@@ -229,7 +232,8 @@ result probe_libc_init(void) {
 
         result_int environ_fd = probe_libc_open("/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
         if (environ_fd.error) {
-            WARNING("Unable to open /proc/self/environ: (%d) %s", environ_fd.error, strerror_with_backup(environ_fd.error));
+            WARNING("Unable to open /proc/self/environ: (%d) %s", environ_fd.error,
+                    strerror_with_backup(environ_fd.error));
             return environ_fd.error;
         }
 
@@ -245,7 +249,8 @@ result probe_libc_init(void) {
         }
         read_ret = probe_read_all(environ_fd.value, environ_buf, size);
         if (read_ret.error) {
-            WARNING("Unable to read environ: (%d) %s", read_ret.error, strerror_with_backup(read_ret.error));
+            WARNING("Unable to read environ: (%d) %s", read_ret.error,
+                    strerror_with_backup(read_ret.error));
             TRY_CLOSE(environ_fd.value, "/proc/self/environ");
             return read_ret.error;
         }
@@ -261,10 +266,11 @@ result probe_libc_init(void) {
                 return ENOMEM;
             }
             environ_buf = new;
-            read_ret = probe_read_all(environ_fd.value,
-                                      (void*)((uintptr_t)environ_buf + (size - INCREMENT)), INCREMENT);
+            read_ret = probe_read_all(
+                environ_fd.value, (void*)((uintptr_t)environ_buf + (size - INCREMENT)), INCREMENT);
             if (read_ret.error) {
-                WARNING("Unable to read environ buffer: (%d) %s", read_ret.error, strerror_with_backup(read_ret.error));
+                WARNING("Unable to read environ buffer: (%d) %s", read_ret.error,
+                        strerror_with_backup(read_ret.error));
                 TRY_CLOSE(environ_fd.value, "/proc/self/environ");
                 return read_ret.error;
             }
