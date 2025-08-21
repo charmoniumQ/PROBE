@@ -214,6 +214,12 @@
               ];
               packages =
                 [
+                  # Rust tools
+                  pkgs.cargo-deny
+                  pkgs.cargo-audit
+                  pkgs.cargo-machete
+                  pkgs.cargo-hakari
+
                   (python.withPackages (pypkgs: [
                     # probe_py.manual runtime requirements
                     pypkgs.networkx
@@ -223,31 +229,20 @@
                     pypkgs.sqlalchemy
                     pypkgs.xdg-base-dirs
                     pypkgs.pyyaml
-                    pypkgs.types-pyyaml
                     pypkgs.numpy
                     pypkgs.tqdm
-                    pypkgs.types-tqdm
 
                     # probe_py.manual "dev time" requirements
-                    pypkgs.psutil
+                    pypkgs.types-tqdm
+                    pypkgs.types-pyyaml
                     pypkgs.pytest
                     pypkgs.pytest-timeout
                     pypkgs.mypy
                     pypkgs.ipython
-                    pypkgs.xdg-base-dirs
 
                     # libprobe build time requirement
                     pypkgs.pycparser
                     pypkgs.pyelftools
-
-                    # NOTE: a check-time input called "xvfb-run" is only available on linux
-                    ((pypkgs.xdot.overrideAttrs (prev: {
-                        checkPhase = null;
-                        installCheckPhase = null;
-                        nativeCheckInputs = [];
-                      })).override {
-                        xvfb-run = null;
-                      })
                   ]))
 
                   # Replay tools
@@ -265,13 +260,6 @@
                   pkgs.libclang
                   pkgs.criterion # unit testing framework
 
-                  # rust tools
-                  pkgs.cargo-deny
-                  pkgs.cargo-audit
-                  pkgs.cargo-machete
-                  pkgs.cargo-hakari
-
-                  pkgs.which
                   pkgs.coreutils
                   pkgs.alejandra
                   pkgs.just

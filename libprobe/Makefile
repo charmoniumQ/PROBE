@@ -1,5 +1,4 @@
 CC ?= clang
-LD ?= ld
 VERSION ?= $(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
@@ -21,7 +20,6 @@ MANUAL_SOURCE_FILES := $(wildcard src/*.c)
 MANUAL_HEADER_FILES := $(wildcard src/*.h) $(wildcard include/libprobe/*.h)
 SOURCE_FILES := $(GENERATED_SOURCE_FILES) $(MANUAL_SOURCE_FILES)
 HEADER_FILES := $(GENERATED_HEADER_FILES) $(MANUAL_HEADER_FILES)
-TEST_FILES := $(wildcard tests/*.c)
 BUILD_DIR := .build
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
