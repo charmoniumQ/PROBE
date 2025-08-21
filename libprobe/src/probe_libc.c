@@ -22,10 +22,8 @@
 // to liberally use libc so we just alias any libprobe functions we use
 #define client_strerror strerror
 #define client_exit exit
-
-// FIXME: pid and tid, should no longer be needed after stage 3 migration, exec
-// epoch doesn't mean anything outside libprobe contexts
 #define get_pid_safe getpid
+// HACK: exec epoch doesn't mean anything outside libprobe
 #define get_exec_epoch_safe getpid
 #define get_tid_safe gettid
 #endif
@@ -37,9 +35,7 @@
     ({                                                                                             \
         result ret = probe_libc_close(fd);                                                         \
         if (ret) {                                                                                 \
-            char* error_str = probe_libc_strndup(strerror_with_backup((int)ret), 4096);            \
-            WARNING("failed to close fd " path "with error: %s (%d)", error_str, ret);             \
-            free(error_str);                                                                       \
+            WARNING("failed to close fd " path "with error: %s (%d)", strerror_with_backup((int)ret), ret);             \
         }                                                                                          \
     })
 
@@ -162,16 +158,19 @@ void exit_with_backup(int status) {
     __builtin_unreachable();
 }
 
+// 9 bytes from the format string, max 20 bytes from stringing a 64-bit
+// integer, 1 for null byte, and two for good luck (and alignment)
+#define STRERROR_BUFFER 32
 char* strerror_with_backup(int errnum) {
-    static char backup_strerror_buf[32];
+    static char backup_strerror_buf[STRERROR_BUFFER];
     if (client_strerror) {
         return client_strerror(errnum);
     }
-    // 9 bytes from the format string, max 20 bytes from stringing a 64-bit
-    // integer, 1 for null byte, and two for good luck (and alignment)
-    sprintf(backup_strerror_buf, "[ERRNO: %d]", errnum);
+
+    snprintf(backup_strerror_buf, STRERROR_BUFFER, "[ERRNO: %d]", errnum);
     return backup_strerror_buf;
 }
+#undef STRERROR_BUFFER
 
 static inline result_ssize_t probe_read_all(int fd, void* buf, size_t n) {
     ssize_t total = 0;
@@ -194,9 +193,7 @@ result probe_libc_init(void) {
     {
         result_int auxv_fd = probe_libc_open("/proc/self/auxv", O_RDONLY | O_CLOEXEC, 0);
         if (auxv_fd.error) {
-            char* error_str = probe_libc_strndup(strerror_with_backup(auxv_fd.error), 4096);
-            WARNING("Unable to open /proc/self/auxv: (%d) %s", auxv_fd.error, error_str);
-            free(error_str);
+            WARNING("Unable to open /proc/self/auxv: (%d) %s", auxv_fd.error, strerror_with_backup(auxv_fd.error));
             return auxv_fd.error;
         }
 
@@ -208,9 +205,7 @@ result probe_libc_init(void) {
         aux_entry buf[AUX_CNT] = {0};
         result_ssize_t read_ret = probe_read_all(auxv_fd.value, buf, AUX_CNT * sizeof(aux_entry));
         if (read_ret.error) {
-            char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
-            WARNING("Unable to read auxv: (%d) %s", read_ret.error, error_str);
-            free(error_str);
+            WARNING("Unable to read auxv: (%d) %s", read_ret.error, strerror_with_backup(read_ret.error));
             TRY_CLOSE(auxv_fd.value, "/proc/self/auxv");
             return read_ret.error;
         }
@@ -234,13 +229,12 @@ result probe_libc_init(void) {
 
         result_int environ_fd = probe_libc_open("/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
         if (environ_fd.error) {
-            char* error_str = probe_libc_strndup(strerror_with_backup(environ_fd.error), 4096);
-            WARNING("Unable to open /proc/self/environ: (%d) %s", environ_fd.error, error_str);
-            free(error_str);
+            WARNING("Unable to open /proc/self/environ: (%d) %s", environ_fd.error, strerror_with_backup(environ_fd.error));
             return environ_fd.error;
         }
 
-        size_t size = 4096;
+        static const size_t INCREMENT = 4096;
+        size_t size = INCREMENT;
         size_t total_bytes = 0;
         result_ssize_t read_ret;
 
@@ -251,17 +245,15 @@ result probe_libc_init(void) {
         }
         read_ret = probe_read_all(environ_fd.value, environ_buf, size);
         if (read_ret.error) {
-            char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
-            WARNING("Unable to read environ: (%d) %s", read_ret.error, error_str);
-            free(error_str);
+            WARNING("Unable to read environ: (%d) %s", read_ret.error, strerror_with_backup(read_ret.error));
             TRY_CLOSE(environ_fd.value, "/proc/self/environ");
             return read_ret.error;
         }
         total_bytes += read_ret.value;
         // this means that there's still more environ to grab, so we'll realloc
         // it and try copying another chunk
-        while (read_ret.value == 4096) {
-            size += 4096;
+        while (read_ret.value == INCREMENT) {
+            size += INCREMENT;
             void* new = realloc(environ_buf, size);
             if (new == NULL) {
                 WARNING("Unable to realloc environ buffer");
@@ -270,11 +262,9 @@ result probe_libc_init(void) {
             }
             environ_buf = new;
             read_ret = probe_read_all(environ_fd.value,
-                                      (void*)((uintptr_t)environ_buf + (size - 4096)), 4096);
+                                      (void*)((uintptr_t)environ_buf + (size - INCREMENT)), INCREMENT);
             if (read_ret.error) {
-                char* error_str = probe_libc_strndup(strerror_with_backup(read_ret.error), 4096);
-                WARNING("Unable to read environ buffer: (%d) %s", read_ret.error, error_str);
-                free(error_str);
+                WARNING("Unable to read environ buffer: (%d) %s", read_ret.error, strerror_with_backup(read_ret.error));
                 TRY_CLOSE(environ_fd.value, "/proc/self/environ");
                 return read_ret.error;
             }
