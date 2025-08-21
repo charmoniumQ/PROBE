@@ -499,7 +499,7 @@ def topological_sort_depth_first(
 def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
     tc: networkx.DiGraph[_Node] = networkx.DiGraph()
     node_order = list(networkx.topological_sort(dag))[::-1]
-    for src in tqdm.tqdm(node_order, desc="TC"):
+    for src in node_order:
         tc.add_node(src)
         for child in dag.successors(src):
             tc.add_edge(src, child)
@@ -520,6 +520,7 @@ class GraphvizNodeAttributes(typing.TypedDict):
     labelfontsize: int
     color: str
     style: str
+    cluster: str
 
 
 class GraphvizEdgeAttributes(typing.TypedDict):

@@ -280,10 +280,10 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
     node_view = typing.cast(
-        typing.Iterator[tuple[OpNode, graph_utils.GraphvizNodeAttributes]],
+        typing.Iterator[tuple[OpQuad, graph_utils.GraphvizNodeAttributes]],
         iter(hb_graph.nodes(data=True)),
     )
-    for node, data in data:
+    for node, data in node_view:
         op = probe_log.get_op(node)
         data.setdefault("label", "")
         data["cluster"] = str(node.pid)
@@ -332,12 +332,12 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             data["color"] = "red"
 
     edge_view = typing.cast(
-        typing.Iterator[tuple[OpNode, OpNode, graph_utils.GraphvizEdgeAttributes]],
+        typing.Iterator[tuple[OpQuad, OpQuad, graph_utils.GraphvizEdgeAttributes]],
         hb_graph.edges(data=True),
     )
-    for node0, node1, data in edge_view:
+    for node0, node1, edge_data in edge_view:
         if node0.pid != node1.pid or node0.tid != node1.tid:
-            data["style"] = "dashed"
+            edge_data["style"] = "dashed"
 
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))

@@ -315,4 +315,4 @@ def label_nodes(
                 data["shape"] = "rectangle"
                 data["id"] = str(hash(node))
     for a, b in cycle:
-        dataflow_graph.edges[a, b]["color"] = "red"  # type: ignore
+        dataflow_graph.edges[a, b]["color"] = "red"

@@ -109,6 +109,7 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         None,
         "",
         bash_multi(
+            ["echo", c_hello_world, "redirect_to", "test.c"],
             ["gcc", "test.c"],
             ["./a.out"],
         ),

@@ -32,46 +32,6 @@
         pkgs = import nixpkgs {inherit system;};
         lib = nixpkgs.lib;
         python = pkgs.python312;
-        types-networkx = python.pkgs.buildPythonPackage rec {
-          pname = "types-networkx";
-          version = "3.5.0.20250819-dev";
-          pyproject = true;
-          nativeBuildInputs = [ python.pkgs.setuptools ];
-          src = pkgs.runCommand "types-networkx-source" {
-            nativeBuildInputs = [pkgs.git];
-            STUB_UPLOADER = pkgs.fetchFromGitHub {
-              owner = "typeshed-internal";
-              repo = "stub_uploader";
-              rev = "14ba80054d0c182743832a5bf72423bb8b303aab";
-              hash = "sha256-Um8ydeBX1IhASSMgu5M49JsVCkUK1vr/JQuh2LhatXU=";
-            };
-            PYTHON = python.withPackages (pypkgs: [
-              pypkgs.packaging
-              pypkgs.requests
-              pypkgs.tomli
-            ]);
-            TYPESHED = builtins.toString (pkgs.fetchFromGitHub {
-              owner = "charmoniumQ";
-              repo = "typeshed";
-              rev = "781387630f225ffb1c20ea8d0f0692b2ec885269";
-              hash = "sha256-haa7armNi3b6OKkj3hNSwzHTzKcwXMYs52mfosoykDg=";
-            });
-          } ''
-            set -x
-            cp -r $STUB_UPLOADER stub_uploader
-            find stub_uploader -type f | xargs -n 1 chmod +rw
-            find stub_uploader -type d | xargs -n 1 chmod +rwx
-            cd stub_uploader
-            patch -p1 <${./probe_py/stub_uploader.diff}
-            cp -r $TYPESHED typeshed
-            find typeshed -type f | xargs chmod +rw
-            find typeshed -type d | xargs chmod +rwx
-            mkdir tmp
-            $PYTHON/bin/python -m stub_uploader.build_wheel --build-dir tmp typeshed networkx ${version}
-            mkdir $out
-            cp -r tmp/* $out
-          '';
-        };
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # Once a new release of [PyPI types-networkx] is rolled out
         # containing [typeshed#14594] and [typeshed#14595], this can be replaced
@@ -82,7 +42,6 @@
         # [typeshed#14594]: https://github.com/python/typeshed/pull/14594
         # [typeshed#14595]: https://github.com/python/typeshed/pull/14595
         # [PyPI types-networkx]: https://pypi.org/project/types-networkx/
-
         types-networkx = python.pkgs.buildPythonPackage rec {
           pname = "types-networkx";
           version = "3.5.0.20250819-dev";
@@ -105,8 +64,8 @@
               TYPESHED = builtins.toString (pkgs.fetchFromGitHub {
                 owner = "charmoniumQ";
                 repo = "typeshed";
-                rev = "781387630f225ffb1c20ea8d0f0692b2ec885269";
-                hash = "sha256-haa7armNi3b6OKkj3hNSwzHTzKcwXMYs52mfosoykDg=";
+                rev = "c48e28ac93fbc5f78ee8704954d77a3bad0cbf84";
+                hash = "sha256-eM/PYCdK0N7ZQGf/MM2fu2ij69zrl+dQRw0qPYmUbcc=";
               });
             } ''
               set -x
