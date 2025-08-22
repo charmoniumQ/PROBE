@@ -4,6 +4,7 @@
 
 #include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM
 #include <fcntl.h>       // for O_RDONLY, O_CLOEXEC
+#include <linux/prctl.h> // for PR_*
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
 #include <stdio.h>       // for sprintf
@@ -192,31 +193,35 @@ static inline result_ssize_t probe_read_all(int fd, void* buf, size_t n) {
 result probe_libc_init(void) {
     // auxiliary vector initialization
     {
-        result_int auxv_fd = probe_libc_open("/proc/self/auxv", O_RDONLY | O_CLOEXEC, 0);
-        if (auxv_fd.error) {
-            WARNING("Unable to open /proc/self/auxv: (%d) %s", auxv_fd.error,
-                    strerror_with_backup(auxv_fd.error));
-            return auxv_fd.error;
-        }
-
         typedef struct {
             size_t key;
             size_t val;
         } aux_entry;
 
-        aux_entry buf[AUX_CNT] = {0};
-        result_ssize_t read_ret = probe_read_all(auxv_fd.value, buf, AUX_CNT * sizeof(aux_entry));
-        if (read_ret.error) {
-            WARNING("Unable to read auxv: (%d) %s", read_ret.error,
-                    strerror_with_backup(read_ret.error));
-            TRY_CLOSE(auxv_fd.value, "/proc/self/auxv");
-            return read_ret.error;
+        aux_entry tmp;
+        ssize_t size = probe_syscall5(SYS_prctl, PR_GET_AUXV, (uintptr_t)&tmp, /*size*/ 0, 0, 0);
+        if (size < 0) {
+            // the only listed error condition for PR_GET_AUXV is EFAULT for an
+            // invalid address, so an error here implies some kind of kernel
+            // state corruption
+            ERROR("failed to PR_GET_AUXV; something is broken in the kernel");
         }
-        TRY_CLOSE(auxv_fd.value, "/proc/self/auxv");
 
-        for (size_t i = 0; i < AUX_CNT && buf[i].key != AT_NULL; ++i) {
+        aux_entry* buf = calloc(size, 1);
+        if (buf == NULL) {
+            WARNING("falied to allocate buffer for auxilary vector");
+            return ENOMEM;
+        }
+        size = probe_syscall5(SYS_prctl, PR_GET_AUXV, (uintptr_t)buf, size, 0, 0);
+        if (size < 0) {
+            ERROR("failed to PR_GET_AUXV; either calloc or the kernel is corrupted");
+        }
+
+        size_t entries = (size / sizeof(aux_entry));
+        for (size_t i = 0; i < entries && i < AUX_CNT; ++i) {
             auxilary[buf[i].key] = buf[i].val;
         }
+        free(buf);
     }
 
     // probe_environ initialization

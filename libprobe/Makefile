@@ -66,7 +66,7 @@ $(BUILD_DIR)/probe_libc_tests: ./tests/probe_libc_units.c $(wildcard ./tests/pro
 $(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) ./src/probe_libc.c $(MAKEFILE_LIST)
 	$(CC) -MJ $@.compile_command.json -fno-lto $(CFLAGS) $(DBGFLAGS) -o $@ -Isrc -lcriterion $<
 
-check: compile_commands.json $(BUILD_DIR)/probe_libc_tests $(GENERATED_FILES)
+check: compile_commands.json $(GENERATED_FILES) tests
 	python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=5
 	test GLIBC_2.34 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
