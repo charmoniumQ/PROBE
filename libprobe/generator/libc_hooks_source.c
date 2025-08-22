@@ -303,7 +303,7 @@ int dup (int old) {
     void* pre_call = ({
         struct Op op = {
             dup_op_code,
-            {.dup = {old, 0, 0, 0}},
+            {.dup = {null_path, old, 0, 0, 0}},
             {0},
             0,
             0,
@@ -318,6 +318,7 @@ int dup (int old) {
                 op.data.dup.ferrno = call_errno;
             } else {
                 op.data.dup.new = ret;
+                op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
             }
             prov_log_record(op);
         }
@@ -334,7 +335,7 @@ int dup3 (int old, int new, int flags) {
     void* pre_call = ({
         struct Op dup_op = {
             dup_op_code,
-            {.dup = {old, new, flags, 0}},
+            {.dup = {null_path, old, new, flags, 0}},
             {0},
             0,
             0,
@@ -347,7 +348,9 @@ int dup3 (int old, int new, int flags) {
          if (LIKELY(prov_log_is_enabled())) {
              if (UNLIKELY(ret == -1)) {
                  dup_op.data.dup.ferrno = call_errno;
-            }
+             } else {
+                 dup_op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
+             }
             prov_log_record(dup_op);
         }
     });
@@ -379,7 +382,7 @@ int fcntl (int filedes, int command, ...) {
             /* Set up ops */
             struct Op dup_op = {
                 dup_op_code,
-                {.dup = {filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
+                {.dup = {null_path, filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
                 {0},
                 0,
                 0,
@@ -408,6 +411,7 @@ int fcntl (int filedes, int command, ...) {
                     dup_op.data.dup.ferrno = call_errno;
                 } else {
                     dup_op.data.dup.new = ret;
+                    dup_op.data.dup.path = create_path_lazy(filedes, NULL, AT_EMPTY_PATH);
                 }
                 prov_log_record(dup_op);
             }

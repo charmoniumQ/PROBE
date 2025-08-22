@@ -3,6 +3,7 @@ import random
 import shutil
 import pathlib
 import shlex
+import stat
 import subprocess
 import typing
 import pytest
@@ -188,11 +189,11 @@ def scratch_directory(
     completion for manual inspection. It gets cleared every re-test however.
 
     """
-    suffix: str = request.node.nodeid.replace("/", "_")
+    suffix: str = request.node.nodeid.partition("::")[-1].replace("[", "/").replace("]", "/")
     scratch_dir = scratch_directory_parent / suffix
     if scratch_dir.exists():
         shutil.rmtree(scratch_dir)
-    scratch_dir.mkdir()
+    scratch_dir.mkdir(parents=True)
     return scratch_dir
 
 
@@ -319,24 +320,34 @@ def test_downstream_analyses(
 
         # See ltrace_eliminator.py for more help.
 
+    script = scratch_directory / "script.sh"
+    script.write_text("")
+    script.chmod(stat.S_IXUSR | script.stat().st_mode)
+
     print(shutil.which(command[0]))
-    full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
-    print(shlex.join(full_command))
+    cmd = ["probe", "record", "--debug", "--copy-files=none", *command]
+    print(shlex.join(cmd))
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "probe_debug.log").open("w") as output:
-        subprocess.run(full_command, **args, stderr=output)
+        subprocess.run(cmd, **args, stderr=output)
 
     cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "debug-text"]
     print(shlex.join(cmd))
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "debug-text.txt").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
     cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
+    with (scratch_directory / "hb-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
     cmd = ["probe", "py", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
+    with (scratch_directory / "dataflow-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
 
 def test_fail(

@@ -1,12 +1,11 @@
-import collections
 import os
 import shlex
 import textwrap
 import typing
 import warnings
+import charmonium.time_block
 import networkx
 import tqdm
-from .hb_graph_accesses import hb_graph_to_accesses
 from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
 from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp
 from . import graph_utils
@@ -24,6 +23,7 @@ This can be due to program ordering or synchronization.
 """
 
 
+@charmonium.time_block.decor()
 def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     hb_graph = HbGraph()
 
@@ -38,13 +38,12 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
 
     _create_other_thread_edges(probe_log, hb_graph)
 
-    _create_pipe_edges(probe_log, hb_graph)
-
     validate_hb_graph(hb_graph, True)
 
     return hb_graph
 
 
+@charmonium.time_block.decor()
 def retain_only(
         probe_log: ProbeLog,
         full_hb_graph: HbGraph,
@@ -106,6 +105,7 @@ def retain_only(
     return reduced_hb_graph
 
 
+@charmonium.time_block.decor()
 def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))
@@ -278,6 +278,7 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                             ))
 
 
+@charmonium.time_block.decor()
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
     node_view = typing.cast(
         typing.Iterator[tuple[OpQuad, graph_utils.GraphvizNodeAttributes]],
@@ -346,50 +347,3 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             warnings.warn(ptypes.UnusualProbeLog(
                 "Cycle shown in red",
             ))
-
-
-def _create_pipe_edges(
-        probe_log: ProbeLog,
-        hb_graph: HbGraph,
-) -> None:
-    """
-    Create an edge from the last op which could hold the write-end of a pipe or FIFO to the open op of the write end.
-
-    Unlike ordinary files, the reader of a pipe or FIFO has a way to wait until the last writer is done
-    """
-    reduced_hb_graph = graph_utils.splice_out_nodes(hb_graph, lambda node: not isinstance(node, (
-        InitExecEpochOp,
-        OpenOp,
-        ExecOp,
-        CloseOp,
-        DupOp,
-        CloneOp,
-    )))
-
-    fifo_readers = collections.defaultdict[ptypes.Inode, set[OpQuad]](set)
-    fifo_writers = collections.defaultdict[ptypes.Inode, set[OpQuad]](set)
-    for access_or_op in hb_graph_to_accesses(probe_log, reduced_hb_graph):
-        match access_or_op:
-            case ptypes.Access():
-                access = access_or_op
-                if all([
-                        access.phase == ptypes.Phase.BEGIN,
-                        access.mode.is_side_effect_free,
-                        access.inode.is_fifo,
-                ]):
-                    fifo_readers[access.inode].add(access.op_node)
-                elif all([
-                        access.phase == ptypes.Phase.END,
-                        not access.mode.is_side_effect_free,
-                        access.inode.is_fifo,
-                ]):
-                    fifo_writers[access.inode].add(access.op_node)
-
-    for fifo in fifo_readers.keys() | fifo_writers.keys():
-        reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(reduced_hb_graph)
-        for writer in reachability_oracle.get_bottommost(fifo_writers.get(fifo, set())):
-            for reader in reachability_oracle.get_uppermost(fifo_readers.get(fifo, set())):
-                for source, target in graph_utils.add_edge_without_cycle(reduced_hb_graph, writer, reader, reachability_oracle):
-                    reduced_hb_graph.add_edge(source, target, label="FIFO edge")
-                    hb_graph.add_edge(source, target, label="FIFO edge")
-                    # reachability_oracle.add_edge(source, target)

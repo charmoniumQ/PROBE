@@ -6,9 +6,22 @@
     flake-utils = {
       url = "github:numtide/flake-utils";
     };
-
     cli-wrapper = {
       url = ./cli-wrapper;
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
+    charmonium-time-block = {
+      url = "github:charmoniumQ/charmonium.time_block";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
+    noworkflow = {
+      url = "github:charmoniumQ/noworkflow/update-pkgs";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
@@ -21,8 +34,10 @@
     nixpkgs,
     flake-utils,
     cli-wrapper,
+    charmonium-time-block,
+    noworkflow,
     ...
-  } @ inputs: let
+  }: let
     supported-systems = import ./targets.nix;
   in
     flake-utils.lib.eachSystem
@@ -33,6 +48,9 @@
         lib = nixpkgs.lib;
         python = pkgs.python312;
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
+        noworkflow-pkg = noworkflow.packages."${system}".noworkflow-bin;
+
         # Once a new release of [PyPI types-networkx] is rolled out
         # containing [typeshed#14594] and [typeshed#14595], this can be replaced
         # with the PyPI version. Unfortunately, building types-networkx from
@@ -173,6 +191,7 @@
               python.pkgs.sqlalchemy
               python.pkgs.numpy
               python.pkgs.tqdm
+              charmonium-time-block-pkg
             ];
             nativeCheckInputs = [
               python.pkgs.mypy
@@ -281,6 +300,7 @@
 
                     # probe_py.manual "dev time" requirements
                     types-networkx
+                    charmonium-time-block-pkg
                     pypkgs.types-tqdm
                     pypkgs.pytest
                     pypkgs.pytest-timeout
@@ -311,6 +331,7 @@
                   pkgs.alejandra
                   pkgs.just
                   pkgs.ruff
+                  noworkflow-pkg
                 ]
                 # OpenJDK doesn't build on some platforms
                 ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow

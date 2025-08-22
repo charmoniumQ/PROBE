@@ -241,6 +241,7 @@ struct ReadLinkOp {
 };
 
 struct DupOp {
+    struct Path path;
     int old;
     int new;
     int flags;

@@ -10,6 +10,7 @@ import sys
 import tempfile
 import textwrap
 import warnings
+import charmonium.time_block
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
@@ -76,6 +77,7 @@ export_app.callback()(restore_sanity)
 
 
 @app.command()
+@charmonium.time_block.decor()
 def validate(
         path_to_probe_log: Annotated[
             pathlib.Path,
@@ -118,11 +120,12 @@ class OpType(enum.StrEnum):
 
 
 @export_app.command()
+@charmonium.time_block.decor()
 def hb_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("ops-graph.png"),
+        ] = pathlib.Path("hb-graph.dot"),
         path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
@@ -161,15 +164,24 @@ def hb_graph(
 
     
 @export_app.command()
+@charmonium.time_block.decor()
 def dataflow_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("dataflow-graph.png"),
+        ] = pathlib.Path("dataflow-graph.dot"),
         path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        ignore_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*",
+        relative_to: Annotated[
+            pathlib.Path,
+            typer.Option(help="Path in which to write the inodes relative to"),
+        ] = pathlib.Path().resolve(),
 ) -> None:
     """
     Write a dataflow graph for probe_log.
@@ -179,9 +191,10 @@ def dataflow_graph(
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     hb_graph_module.label_nodes(probe_log, hbg)
-    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
+    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg)
+    dfg = dataflow_graph_module.filter_paths(dfg, inode_to_paths, ignore_paths.split(","))
     compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
-    dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths)
+    dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths, relative_to=relative_to)
     graph_utils.serialize_graph(compressed_dfg, output)
 
 
@@ -461,7 +474,7 @@ def ssh(
 
 @export_app.command()
 def process_tree(
-    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.png"),
+    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.dot"),
     path_to_probe_log: Annotated[
         pathlib.Path,
         typer.Argument(help="output file written by `probe record -o $file`.")
