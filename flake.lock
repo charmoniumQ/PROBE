@@ -16,6 +16,29 @@
         "type": "github"
       }
     },
+    "charmonium-time-block": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1755754141,
+        "narHash": "sha256-PzXHKUZvostIJvvG5t5SN5p0NbpZvZcnDhW4BDZAMew=",
+        "owner": "charmoniumQ",
+        "repo": "charmonium.time_block",
+        "rev": "9f533ef55205909953bf8082961b58fcb59b473e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "charmoniumQ",
+        "repo": "charmonium.time_block",
+        "type": "github"
+      }
+    },
     "cli-wrapper": {
       "inputs": {
         "advisory-db": "advisory-db",
@@ -87,11 +110,37 @@
         "type": "github"
       }
     },
+    "noworkflow": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1755887383,
+        "narHash": "sha256-9FyfX4DO4TEJM1ogNjpNJa31ynxab2354lVKce7QHBo=",
+        "owner": "charmoniumQ",
+        "repo": "noworkflow",
+        "rev": "d48b397ad6b965affc52b0ab3ca72bd1e499766e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "charmoniumQ",
+        "ref": "update-pkgs",
+        "repo": "noworkflow",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
+        "charmonium-time-block": "charmonium-time-block",
         "cli-wrapper": "cli-wrapper",
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "noworkflow": "noworkflow"
       }
     },
     "rust-overlay": {

@@ -137,10 +137,19 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
             heapq.heappush(self._heap, (priority, self._counter, task))
             self._counter += 1
 
+    def peek(self) -> tuple[_Priority, _Task] | None:
+        while self._heap and self._heap[0][1] in self._removed:
+            heapq.heappop(self._heap)
+        if self._heap:
+            return (self._heap[0][0], self._heap[0][2])
+        else:
+            return None
+
     def pop(self) -> tuple[_Priority, _Task]:
         counter = None
         while counter is None or counter in self._removed:
             priority, counter, task = heapq.heappop(self._heap)
+        #assert (priority, counter) <= min(self._heap)[:2]
         return priority, task
 
     def __bool__(self) -> bool:
@@ -159,3 +168,22 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
     def __setitem__(self, task: _Task, priority: _Priority) -> None:
         del self[task]
         self.add(task, priority)
+
+
+def common_ancestor(path0: pathlib.Path, path1: pathlib.Path) -> pathlib.Path:
+    if path0.is_absolute() != path1.is_absolute():
+        raise ValueError(f"{path0=} and {path1=} should both be absolute or both be relative.")
+    for i, (part0, part1) in enumerate(itertools.zip_longest(path0.parts, path1.parts)):
+        if part0 != part1:
+            break
+    ret = pathlib.Path(path0.parts[0]).joinpath(*path0.parts[1:i])
+    assert path0.is_relative_to(ret) and path1.is_relative_to(ret), f"{ret} {path0} {path1}"
+    return ret
+
+
+def relative_to(dest: pathlib.Path, source: pathlib.Path) -> pathlib.Path:
+    ancestor = common_ancestor(dest, source)
+    for _ in range(len(source.parts) - len(ancestor.parts)):
+        source = source / ".."
+    assert source.resolve() == ancestor, f"{source} {source.resolve()} {ancestor}"
+    return source / dest.relative_to(ancestor)

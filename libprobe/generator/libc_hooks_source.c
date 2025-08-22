@@ -303,7 +303,7 @@ int dup (int old) {
     void* pre_call = ({
         struct Op op = {
             dup_op_code,
-            {.dup = {old, 0, 0, 0}},
+            {.dup = {null_path, old, 0, 0, 0}},
             {0},
             0,
             0,
@@ -318,6 +318,7 @@ int dup (int old) {
                 op.data.dup.ferrno = call_errno;
             } else {
                 op.data.dup.new = ret;
+                op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
             }
             prov_log_record(op);
         }
@@ -334,7 +335,7 @@ int dup3 (int old, int new, int flags) {
     void* pre_call = ({
         struct Op dup_op = {
             dup_op_code,
-            {.dup = {old, new, flags, 0}},
+            {.dup = {null_path, old, new, flags, 0}},
             {0},
             0,
             0,
@@ -347,7 +348,9 @@ int dup3 (int old, int new, int flags) {
          if (LIKELY(prov_log_is_enabled())) {
              if (UNLIKELY(ret == -1)) {
                  dup_op.data.dup.ferrno = call_errno;
-            }
+             } else {
+                 dup_op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
+             }
             prov_log_record(dup_op);
         }
     });
@@ -379,7 +382,7 @@ int fcntl (int filedes, int command, ...) {
             /* Set up ops */
             struct Op dup_op = {
                 dup_op_code,
-                {.dup = {filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
+                {.dup = {null_path, filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
                 {0},
                 0,
                 0,
@@ -408,6 +411,7 @@ int fcntl (int filedes, int command, ...) {
                     dup_op.data.dup.ferrno = call_errno;
                 } else {
                     dup_op.data.dup.new = ret;
+                    dup_op.data.dup.path = create_path_lazy(filedes, NULL, AT_EMPTY_PATH);
                 }
                 prov_log_record(dup_op);
             }
@@ -2366,22 +2370,10 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
         struct Op wait_op = {
             wait_op_code,
             {.wait = {
-                .task_type = TASK_TID,
+                .task_type = TASK_PID,
                 .task_id = -1,
                 .options = options,
                 .status = 0,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(wait_op);
-        struct Op getrusage_op = {
-            getrusage_op_code,
-            {.getrusage = {
-                .waitpid_arg = pid,
-                .getrusage_arg = 0,
                 .usage = null_usage,
                 .ferrno = 0,
             }},
@@ -2389,28 +2381,24 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
             0,
             0,
         };
-        if (usage) {
-            prov_log_try(getrusage_op);
+        int real_status = 0;
+        if (!status_ptr) {
+            status_ptr = &real_status;
         }
+        prov_log_try(wait_op);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
             if (UNLIKELY(ret == -1)) {
                 wait_op.data.wait.ferrno = call_errno;
-                if (usage) {
-                    getrusage_op.data.getrusage.ferrno = call_errno;
-                }
             } else {
                 wait_op.data.wait.task_id = ret;
-                wait_op.data.wait.status = *status_ptr;
+                wait_op.data.wait.status = status_ptr ? *status_ptr : real_status;
                 if (usage) {
-                    copy_rusage(&getrusage_op.data.getrusage.usage, usage);
+                    copy_rusage(&wait_op.data.wait.usage, usage);
                 }
             }
             prov_log_record(wait_op);
-            if (usage) {
-                prov_log_record(getrusage_op);
-            }
         }
    });
 }
@@ -2426,6 +2414,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
                 .options = options,
                 .status = 0,
                 .cancelled = false,
+                .usage = null_usage,
                 .ferrno = 0,
             }},
             {0},

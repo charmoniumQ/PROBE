@@ -291,8 +291,16 @@ class AccessMode(enum.IntEnum):
     TRUNCATE_WRITE = enum.auto()
 
     @property
-    def is_side_effect_free(self) -> bool:
-        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ}
+    def has_input(self) -> bool:
+        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ, AccessMode.READ_WRITE}
+
+    @property
+    def is_mutation(self) -> bool:
+        return self in {AccessMode.WRITE, AccessMode.READ_WRITE}
+
+    @property
+    def has_output(self) -> bool:
+        return self in {AccessMode.WRITE, AccessMode.READ_WRITE, AccessMode.TRUNCATE_WRITE}
 
     @staticmethod
     def from_open_flags(flags: int) -> "AccessMode":

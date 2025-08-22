@@ -9,8 +9,8 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import typing
 import warnings
+import charmonium.time_block
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
@@ -42,11 +42,19 @@ strict_option = typer.Option(
     "--strict/--loose",
     help="Whether to fail when PROBE generates warnings",
 )
+debug_option = typer.Option(
+    "--debug/--no-debug",
+    help="Whether to fail when PROBE generates warnings",
+)
 def restore_sanity(
         strict: Annotated[
             bool,
             strict_option,
         ] = True,
+        debug: Annotated[
+            bool,
+            debug_option,
+        ] = False,
 ) -> None:
     # Typer messes with the excepthook
     sys.excepthook =  sys.__excepthook__
@@ -60,11 +68,16 @@ def restore_sanity(
             "always",
             category=ptypes.UnusualProbeLog,
         )
+    if debug:
+        import ipdb  # type: ignore
+        ipdb.sset_trace()
 
 
 export_app.callback()(restore_sanity)
 
+
 @app.command()
+@charmonium.time_block.decor()
 def validate(
         path_to_probe_log: Annotated[
             pathlib.Path,
@@ -107,11 +120,12 @@ class OpType(enum.StrEnum):
 
 
 @export_app.command()
+@charmonium.time_block.decor()
 def hb_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("ops-graph.png"),
+        ] = pathlib.Path("hb-graph.dot"),
         path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
@@ -150,15 +164,24 @@ def hb_graph(
 
     
 @export_app.command()
+@charmonium.time_block.decor()
 def dataflow_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("dataflow-graph.png"),
+        ] = pathlib.Path("dataflow-graph.dot"),
         path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        ignore_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*",
+        relative_to: Annotated[
+            pathlib.Path,
+            typer.Option(help="Path in which to write the inodes relative to"),
+        ] = pathlib.Path().resolve(),
 ) -> None:
     """
     Write a dataflow graph for probe_log.
@@ -168,9 +191,10 @@ def dataflow_graph(
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     hb_graph_module.label_nodes(probe_log, hbg)
-    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log, hbg)
+    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg)
+    dfg = dataflow_graph_module.filter_paths(dfg, inode_to_paths, ignore_paths.split(","))
     compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
-    dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths)
+    dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths, relative_to=relative_to)
     graph_utils.serialize_graph(compressed_dfg, output)
 
 
@@ -450,7 +474,7 @@ def ssh(
 
 @export_app.command()
 def process_tree(
-    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.png"),
+    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.dot"),
     path_to_probe_log: Annotated[
         pathlib.Path,
         typer.Argument(help="output file written by `probe record -o $file`.")
@@ -484,34 +508,18 @@ def ops_jsonl(
 
     The format is subject to change as PROBE evolves. Use with caution!
     """
-
-    def filter_nested_dict(
-            dct: typing.Mapping[typing.Any, typing.Any],
-    ) -> typing.Mapping[typing.Any, typing.Any]:
-        """Converts the bytes in a nested dict to a string"""
-        return {
-            key: (
-                # If dict, Recurse self
-                filter_nested_dict(val) if isinstance(val, dict) else
-                # If bytes, decode to string
-                val.decode(errors="surrogateescape") if isinstance(val, bytes) else
-                # Else, do nothing
-                val
-            )
-            for key, val in dct.items()
-        }
     stdout_console = rich.console.Console()
     probe_log = parser.parse_probe_log(path_to_probe_log)
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
             for tid, thread in exec_epoch.threads.items():
-                for i, op in enumerate(thread.ops):
+                for op_no, op in enumerate(thread.ops):
                     stdout_console.print_json(json.dumps({
                         "pid": pid,
                         "tid": tid,
                         "exec_epoch_no": exec_epoch_no,
-                        "i": i,
-                        "op": filter_nested_dict(
+                        "op_no": op_no,
+                        "op": util.decode_nested_object(
                             dataclasses.asdict(op),
                         ),
                         "op_data_type": type(op.data).__name__,
@@ -526,6 +534,7 @@ context_settings=dict(
 )
 def scp(cmd: list[str]) -> None:
     scp_module.scp_with_provenance(cmd)
+
 
 if __name__ == "__main__":
     app()
