@@ -4,17 +4,18 @@
 
 #include <fcntl.h>   // for AT_FDCWD
 #include <stdbool.h> // for bool, false, true
-#include <string.h>  // for strlen
+#include <stddef.h>  // for size_t
 #include <unistd.h>  // for X_OK
 
 #include "../generated/libc_hooks.h" // for client_faccessat
 #include "debug_logging.h"           // for DEBUG
 #include "env.h"                     // for getenv_copy
 #include "global_state.h"            // for get_default_path
+#include "probe_libc.h"              // for probe_libc_strlen
 #include "util.h"                    // for BORROWED, path_join
 
 bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
-    size_t bin_name_length = strlen(bin_name);
+    size_t bin_name_length = probe_libc_strlen(bin_name);
     const char* env_path = getenv_copy("PATH");
 
     /*
