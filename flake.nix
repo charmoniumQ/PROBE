@@ -182,6 +182,7 @@
               python.pkgs.sqlalchemy
               python.pkgs.numpy
               python.pkgs.tqdm
+              python.pkgs.frozendict
               charmonium-time-block-pkg
             ];
             nativeCheckInputs = [
@@ -288,6 +289,7 @@
                     pypkgs.xdg-base-dirs
                     pypkgs.numpy
                     pypkgs.tqdm
+                    pypkgs.frozendict
 
                     # probe_py.manual "dev time" requirements
                     types-networkx

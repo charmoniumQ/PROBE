@@ -77,7 +77,6 @@ struct OpenOp {
     int flags;
     mode_t mode;
     int32_t fd;
-    bool pipe;
     int ferrno;
     /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
 };

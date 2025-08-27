@@ -14,14 +14,13 @@ from . import util
 
 
 _Node = typing.TypeVar("_Node")
-_CoNode = typing.TypeVar("_CoNode", covariant=True)
 
 
 @dataclasses.dataclass(frozen=True)
-class Segment(typing.Generic[_CoNode]):
-    dag_tc: ReachabilityOracle[_CoNode]
-    upper_bound: frozenset[_CoNode]
-    lower_bound: frozenset[_CoNode]
+class Segment(typing.Generic[_Node]):
+    dag_tc: ReachabilityOracle[_Node]
+    upper_bound: frozenset[_Node]
+    lower_bound: frozenset[_Node]
 
     def __post_init__(self) -> None:
         assert self.upper_bound
@@ -37,15 +36,16 @@ class Segment(typing.Generic[_CoNode]):
         assert not unbounded, \
             f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
 
-    def nodes(self) -> collections.abc.Iterable[_CoNode]:
-        return self.dag_tc.nodes_between(self.upper_bound, self.lower_bound)
+    @staticmethod
+    def singleton(dag_tc: ReachabilityOracle[_Node], node: _Node) -> Segment[_Node]:
+        return Segment(dag_tc, frozenset({node}), frozenset({node}))
 
-    def overlaps(self, other: Segment[_CoNode]) -> bool:
-        assert self.dag_tc is other.dag_tc
-        return bool(frozenset(self.nodes()) & frozenset(other.nodes()))
+    def __bool__(self) -> bool:
+        "Whether the segment is non-empty"
+        return bool(self.upper_bound)
 
     @staticmethod
-    def union(segments: typing.Sequence[Segment[_CoNode]]) -> Segment[_CoNode]:
+    def union(*segments: Segment[_Node]) -> Segment[_Node]:
         assert segments
         dag_tc = segments[0].dag_tc
         assert all(segment.dag_tc is dag_tc for segment in segments)
@@ -61,7 +61,7 @@ class Segment(typing.Generic[_CoNode]):
         ))
         return Segment(dag_tc, frozenset(upper_bound), frozenset(lower_bound))
 
-    def all_greater_than(self, other: Segment[_CoNode]) -> bool:
+    def all_greater_than(self, other: Segment[_Node]) -> bool:
         other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = \
             self.dag_tc.non_descendants(other.upper_bound, self.lower_bound)
         return not other_upper_bounds_that_are_not_descendent_of_self_lower_bounds

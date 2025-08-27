@@ -266,7 +266,7 @@ class ProbeLog:
 
 
 # TODO: implement this in probe_py.generated.ops
-class TaskType(enum.Enum):
+class TaskType(enum.IntEnum):
     TASK_PID = 0
     TASK_TID = 1
     TASK_ISO_C_THREAD = 2
