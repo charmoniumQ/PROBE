@@ -266,11 +266,17 @@ class ProbeLog:
 
 
 # TODO: implement this in probe_py.generated.ops
-class TaskType(enum.IntEnum):
+class TaskType(enum.Enum):
     TASK_PID = 0
     TASK_TID = 1
     TASK_ISO_C_THREAD = 2
     TASK_PTHREAD = 3
+
+
+class FileType(enum.Enum):
+    DIR = 0
+    FIFO = 1
+    PIPE = 2
 
 
 class InvalidProbeLog(Exception):
@@ -281,7 +287,7 @@ class UnusualProbeLog(Warning):
     pass
 
 
-class AccessMode(enum.IntEnum):
+class AccessMode(enum.Enum):
     """In what way are we accessing the inode version?"""
     EXEC = enum.auto()
     DLOPEN = enum.auto()
@@ -291,15 +297,11 @@ class AccessMode(enum.IntEnum):
     TRUNCATE_WRITE = enum.auto()
 
     @property
-    def has_input(self) -> bool:
+    def is_read(self) -> bool:
         return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ, AccessMode.READ_WRITE}
 
     @property
-    def is_mutation(self) -> bool:
-        return self in {AccessMode.WRITE, AccessMode.READ_WRITE}
-
-    @property
-    def has_output(self) -> bool:
+    def is_write(self) -> bool:
         return self in {AccessMode.WRITE, AccessMode.READ_WRITE, AccessMode.TRUNCATE_WRITE}
 
     @staticmethod

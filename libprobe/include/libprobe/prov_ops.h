@@ -77,6 +77,7 @@ struct OpenOp {
     int flags;
     mode_t mode;
     int32_t fd;
+    bool pipe;
     int ferrno;
     /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
 };
@@ -120,7 +121,11 @@ struct CloneOp {
     int ferrno;
 };
 
-struct ExitOp {
+struct ExitProcessOp {
+    int status;
+};
+
+struct ExitThreadOp {
     int status;
 };
 
@@ -275,6 +280,7 @@ struct RenameOp {
 enum FileType {
     DirFileType,
     FifoFileType,
+    PipeFileType,
 };
 
 struct MkFileOp {
@@ -296,7 +302,8 @@ enum OpCode {
     exec_op_code,
     spawn_op_code,
     clone_op_code,
-    exit_op_code,
+    exit_thread_op_code,
+    exit_process_op_code,
     access_op_code,
     stat_op_code,
     readdir_op_code,
@@ -323,7 +330,8 @@ struct Op {
         struct ExecOp exec;
         struct SpawnOp spawn;
         struct CloneOp clone;
-        struct ExitOp exit;
+        struct ExitThreadOp exit_thread;
+        struct ExitProcessOp exit_process;
         struct AccessOp access;
         struct StatOp stat;
         struct ReaddirOp readdir;

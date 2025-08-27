@@ -44,18 +44,9 @@ strict_option = typer.Option(
 )
 debug_option = typer.Option(
     "--debug/--no-debug",
-    help="Whether to fail when PROBE generates warnings",
+    help="Whether to enter a debugger on errors",
 )
-def restore_sanity(
-        strict: Annotated[
-            bool,
-            strict_option,
-        ] = True,
-        debug: Annotated[
-            bool,
-            debug_option,
-        ] = False,
-) -> None:
+def restore_sanity(strict: bool, debug: bool) -> None:
     # Typer messes with the excepthook
     sys.excepthook =  sys.__excepthook__
     if strict:
@@ -73,11 +64,8 @@ def restore_sanity(
         ipdb.sset_trace()
 
 
-export_app.callback()(restore_sanity)
-
-
 @app.command()
-@charmonium.time_block.decor()
+@charmonium.time_block.decor(print_start=False)
 def validate(
         path_to_probe_log: Annotated[
             pathlib.Path,
@@ -87,9 +75,11 @@ def validate(
             bool,
             typer.Option(help="Whether to check that the probe_log was run with copied files.")
         ] = False,
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
-    restore_sanity(True)
+    restore_sanity(strict, debug)
     warning_free = True
     warnings.filterwarnings(
         "always",
@@ -120,7 +110,7 @@ class OpType(enum.StrEnum):
 
 
 @export_app.command()
-@charmonium.time_block.decor()
+@charmonium.time_block.decor(print_start=False)
 def hb_graph(
         output: Annotated[
             pathlib.Path,
@@ -133,11 +123,13 @@ def hb_graph(
         retain: Annotated[
             OpType,
             typer.Option(help="Which ops to include in the graph? There are quite a few.")
-        ] = OpType.MINIMAL,
+        ] = OpType.SUCCESSFUL,
         show_op_number: Annotated[
             bool,
             typer.Option(help="Whether to show the op number in the output.")
         ] = False,
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -148,6 +140,7 @@ def hb_graph(
 
     Supports .png, .svg, and .dot
     """
+    restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     match retain:
@@ -164,7 +157,7 @@ def hb_graph(
 
     
 @export_app.command()
-@charmonium.time_block.decor()
+@charmonium.time_block.decor(print_start=False)
 def dataflow_graph(
         output: Annotated[
             pathlib.Path,
@@ -182,19 +175,32 @@ def dataflow_graph(
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
         ] = pathlib.Path().resolve(),
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
 ) -> None:
     """
     Write a dataflow graph for probe_log.
 
     Dataflow shows the name of each proceess, its read files, and its write files.
     """
+    restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    hbg = hb_graph_module.retain_only(probe_log, hbg, dataflow_graph_module._retain_pred)
     hb_graph_module.label_nodes(probe_log, hbg)
-    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg)
-    dfg = dataflow_graph_module.filter_paths(dfg, inode_to_paths, ignore_paths.split(","))
-    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
-    dataflow_graph_module.label_nodes(probe_log, compressed_dfg, inode_to_paths, relative_to=relative_to)
+    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(hbg)
+    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph(
+        probe_log, hbg, reachability_oracle
+    )
+    dfg = dataflow_graph_module.filter_paths(
+        dfg, inode_to_paths, ignore_paths.split(",")
+    )
+    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(
+        probe_log, hbg, reachability_oracle, dfg,
+    )
+    dataflow_graph_module.label_nodes(
+        probe_log, compressed_dfg, inode_to_paths, relative_to=relative_to
+    )
     graph_utils.serialize_graph(compressed_dfg, output)
 
 

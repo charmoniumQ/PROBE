@@ -2557,6 +2557,14 @@ int pthread_create(pthread_t *restrict thread,
 
 void pthread_exit(void* inner_ret) {
     void* call = ({
+        struct Op op = {
+            exit_thread_op_code,
+            {.exit_thread = {0}},
+            {0},
+            0,
+            0,
+        };
+        prov_log_record(op);
         struct PthreadReturnVal* pthread_return_val = EXPECT_NONNULL(malloc(sizeof(struct PthreadReturnVal)));
         pthread_return_val->type_id = PTHREAD_RETURN_VAL_TYPE_ID;
         pthread_return_val->pthread_id = get_pthread_id();
@@ -2629,10 +2637,6 @@ int pthread_cancel(pthread_t thread) {
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
 int munmap(void* addr, size_t length) { }
 
-void exit (int status) {
-    bool noreturn = true;
-}
-
 int pipe(int pipefd[2]) {
     void* call = ({
         int ret = pipe2(pipefd, 0);
@@ -2645,7 +2649,7 @@ int pipe2(int pipefd[2], int flags) {
             mkfile_op_code,
             {.mkfile = {
                 .path = null_path,
-                .file_type = FifoFileType,
+                .file_type = PipeFileType,
                 .flags = flags,
                 .mode = 0,
                 .ferrno = 0,
@@ -2666,14 +2670,13 @@ int pipe2(int pipefd[2], int flags) {
             prov_log_record(mkfifo_op);
             struct Op open_read_end_op = {
                 open_op_code,
-                {.open =
-                     {
-                         .path = create_path_lazy(pipefd[0], NULL, AT_EMPTY_PATH),
-                         .flags = O_RDONLY,
-                         .mode = 0,
-                         .fd = pipefd[0],
-                         .ferrno = 0,
-                     }},
+                {.open = {
+                    .path = create_path_lazy(pipefd[0], NULL, AT_EMPTY_PATH),
+                    .flags = O_RDONLY,
+                    .mode = 0,
+                    .fd = pipefd[0],
+                    .ferrno = 0,
+                }},
                 {0},
                 0,
                 0,
@@ -2732,7 +2735,19 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
 
 // functions we're not interposing, but need for libprobe functionality
 char* strerror(int errnum) { }
-void exit(int status) { }
+void exit(int status) {
+    void* precall = ({
+        struct Op op = {
+            exit_process_op_code,
+            {.exit_process = {status}},
+            {0},
+            0,
+            0,
+        };
+        prov_log_record(op);
+    });
+    bool noreturn = true;
+}
 
 int mkstemp(char* template) {
     void* call = ({

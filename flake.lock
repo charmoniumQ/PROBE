@@ -110,37 +110,12 @@
         "type": "github"
       }
     },
-    "noworkflow": {
-      "inputs": {
-        "flake-utils": [
-          "flake-utils"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1755887383,
-        "narHash": "sha256-9FyfX4DO4TEJM1ogNjpNJa31ynxab2354lVKce7QHBo=",
-        "owner": "charmoniumQ",
-        "repo": "noworkflow",
-        "rev": "d48b397ad6b965affc52b0ab3ca72bd1e499766e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "charmoniumQ",
-        "ref": "update-pkgs",
-        "repo": "noworkflow",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "charmonium-time-block": "charmonium-time-block",
         "cli-wrapper": "cli-wrapper",
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs",
-        "noworkflow": "noworkflow"
+        "nixpkgs": "nixpkgs"
       }
     },
     "rust-overlay": {

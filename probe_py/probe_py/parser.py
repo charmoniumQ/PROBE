@@ -21,7 +21,7 @@ def parse_probe_log_ctx(
     In this contextmanager, copied_files are extracted onto the disk.
 
     """
-    with tempfile.TemporaryDirectory() as _tmpdir, charmonium.time_block.ctx("parse_probe_log_ctx"):
+    with tempfile.TemporaryDirectory() as _tmpdir, charmonium.time_block.ctx("parse_probe_log_ctx", print_start=False):
         tmpdir = pathlib.Path(_tmpdir)
         with tarfile.open(path_to_probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")

@@ -2,6 +2,7 @@ from __future__ import annotations
 import abc
 import collections
 import dataclasses
+import functools
 import itertools
 import typing
 import pathlib
@@ -393,12 +394,13 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
                 for descendant_of_target in [*self.dag_tc.successors(target), target]:
                     self.dag_tc.add_edge(descendant_of_source, descendant_of_target)
 
+    @functools.cache
     def n_paths(self, source: _Node, destination: _Node) -> int:
         if self.dag.in_degree(destination) == 1:
             return int(self.is_reachable(source, destination))
         else:
             return sum(
-                self.n_paths(source, predecessor)
+                1 if predecessor == source else self.n_paths(source, predecessor)
                 for predecessor in self.dag.predecessors(destination)
             )
 
@@ -481,7 +483,7 @@ def add_edge_without_cycle(
         return edges
 
 
-@charmonium.time_block.decor()
+@charmonium.time_block.decor(print_start=False)
 def splice_out_nodes(
         input_dag: networkx.DiGraph[_Node],
         should_splice: typing.Callable[[_Node], bool],
@@ -503,40 +505,69 @@ def topological_sort_depth_first(
         dag: networkx.DiGraph[_Node],
         starting_node: _Node | None = None,
         score_children: typing.Callable[[_Node, _Node], int] = lambda _parent, _child: 0,
-        degree_func: typing.Callable[[_Node], int] | None = None,
+        reachability_oracle: ReachabilityOracle[_Node] | None = None
 ) -> typing.Generator[_Node | None, bool | None, None]:
-    """Topological sort that breaks ties by depth first, and then by lowest child score."""
-    degree_func = dag.in_degree if degree_func is None else degree_func
-    queue = util.PriorityQueue[_Node, tuple[int, int]](
-        (node, (degree_func(node), 0))
-        for node in dag.nodes()
-    )
-    if starting_node:
+    """Topological sort that breaks ties by depth first, and then by lowest child score.
+
+    If `starting_node` is given, iterate only over nodes reachable from
+    starting_node. We don't load up all nodes in the graph ahead-of-time; we
+    start exploring from starting_node. We need a reachability oracle to
+    determine when all the paths from starting_node to node have been hit (there
+    could be paths ending in node that don't go through starting node).
+
+    See `search_with_pruning` for example of how to iterate and prune.
+
+    """
+
+    degree_func2: typing.Callable[[_Node], int]
+    if starting_node is None:
+        degree_func2 = dag.in_degree
+    else:
+        assert reachability_oracle is not None
+        degree_func2 = functools.partial(reachability_oracle.n_paths, starting_node)
+
+    queue = util.PriorityQueue[_Node, tuple[int, int]]()
+
+    if starting_node is not None:
         queue[starting_node] = (0, -1)
         assert queue.peek() == ((0, -1), starting_node)
+    else:
+        for node in dag.nodes():
+            queue[node] = (degree_func2(node), 0)
+        # Because queue is sorted,
+        # Iteration will start from one of the zero-degree ndoes
+
     counter = 0
     seen = set()
     while queue:
         (in_degree, tie_breaker), node = queue.pop()
-        assert node is not None
-        if in_degree == 0:
-            #assert all(predecessor in seen for predecessor in dag.predecessors(node))
-            continue_with_children = yield node
-            seen.add(node)
-            should_be_none = yield None
-            assert should_be_none is None
+        if in_degree != 0:
+            break
+        if starting_node is None:
+            assert all(predecessor in seen for predecessor in dag.predecessors(node))
+        else:
+            assert reachability_oracle
+            assert all(predecessor in seen for predecessor in dag.predecessors(node) if reachability_oracle.is_reachable(starting_node, predecessor))
+        seen.add(node)
 
-            # Since we handled the parent, we essentially removed it from the graph
-            # decrementing the in-degree of its children by one.
-            # To make it be depth first, we make it "win" all ties, among currently existing entries.
-            if continue_with_children:
-                for child in sorted(dag.successors(node), key=lambda child: score_children(node, child)):
+        continue_with_children = yield node
+        should_be_none = yield None
+        assert should_be_none is None
+
+        # Since we handled the parent, we essentially removed it from the graph
+        # decrementing the in-degree of its children by one.
+        # To make it be depth first, we make it "win" all ties, among currently existing entries.
+        if continue_with_children:
+            for child in sorted(dag.successors(node), key=lambda child: score_children(node, child)):
+                if child in queue:
                     in_degree, tie_breaker = queue[child]
                     queue[child] = (in_degree - 1, -counter)
+                else:
+                    queue[child] = (degree_func2(child) - 1, -counter)
         counter += 1
 
 
-@charmonium.time_block.decor()
+@charmonium.time_block.decor(print_start=False)
 def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
     tc: networkx.DiGraph[_Node] = networkx.DiGraph()
     node_order = list(networkx.topological_sort(dag))[::-1]
@@ -549,7 +580,7 @@ def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_No
     return tc
 
 
-def combine_structurally_equivalent(
+def combine_isomorphic_nodes(
     graph: networkx.DiGraph[_Node],
     combinable: typing.Callable[[_Node], bool],
 ) -> networkx.DiGraph[frozenset[_Node] | _Node]:

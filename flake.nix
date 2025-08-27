@@ -20,13 +20,6 @@
         flake-utils.follows = "flake-utils";
       };
     };
-    noworkflow = {
-      url = "github:charmoniumQ/noworkflow/update-pkgs";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-      };
-    };
   };
 
   outputs = {
@@ -35,7 +28,6 @@
     flake-utils,
     cli-wrapper,
     charmonium-time-block,
-    noworkflow,
     ...
   }: let
     supported-systems = import ./targets.nix;
@@ -45,11 +37,10 @@
     (
       system: let
         pkgs = import nixpkgs {inherit system;};
-        lib = nixpkgs.lib;
+        inherit (nixpkgs) lib;
         python = pkgs.python312;
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
-        noworkflow-pkg = noworkflow.packages."${system}".noworkflow-bin;
 
         # Once a new release of [PyPI types-networkx] is rolled out
         # containing [typeshed#14594] and [typeshed#14595], this can be replaced
@@ -307,6 +298,7 @@
                     pypkgs.mypy
                     pypkgs.ipython
                     pypkgs.ipdb
+                    pypkgs.line-profiler
 
                     # libprobe build time requirement
                     pypkgs.pycparser
@@ -331,7 +323,6 @@
                   pkgs.alejandra
                   pkgs.just
                   pkgs.ruff
-                  noworkflow-pkg
                 ]
                 # OpenJDK doesn't build on some platforms
                 ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow

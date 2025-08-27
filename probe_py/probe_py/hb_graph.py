@@ -23,7 +23,7 @@ This can be due to program ordering or synchronization.
 """
 
 
-@charmonium.time_block.decor()
+@charmonium.time_block.decor(print_start=False)
 def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     hb_graph = HbGraph()
 
@@ -43,7 +43,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     return hb_graph
 
 
-@charmonium.time_block.decor()
+@charmonium.time_block.decor(print_start=False)
 def retain_only(
         probe_log: ProbeLog,
         full_hb_graph: HbGraph,
@@ -105,7 +105,6 @@ def retain_only(
     return reduced_hb_graph
 
 
-@charmonium.time_block.decor()
 def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))
@@ -278,7 +277,6 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                             ))
 
 
-@charmonium.time_block.decor()
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
     node_view = typing.cast(
         typing.Iterator[tuple[OpQuad, graph_utils.GraphvizNodeAttributes]],
