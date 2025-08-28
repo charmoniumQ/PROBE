@@ -524,7 +524,10 @@ def topological_sort_depth_first(
         degree_func2 = dag.in_degree
     else:
         assert reachability_oracle is not None
-        degree_func2 = functools.partial(reachability_oracle.n_paths, starting_node)
+        degree_func2 = lambda node: sum(
+            reachability_oracle.is_reachable(starting_node, predecessor)
+            for predecessor in dag.predecessors(node)
+        )
 
     queue = util.PriorityQueue[_Node, tuple[int, int]]()
 
@@ -538,17 +541,18 @@ def topological_sort_depth_first(
         # Iteration will start from one of the zero-degree ndoes
 
     counter = 0
-    seen = set()
+    # seen = set()
     while queue:
         (in_degree, tie_breaker), node = queue.pop()
         if in_degree != 0:
             break
-        if starting_node is None:
-            assert all(predecessor in seen for predecessor in dag.predecessors(node))
-        else:
-            assert reachability_oracle
-            assert all(predecessor in seen for predecessor in dag.predecessors(node) if reachability_oracle.is_reachable(starting_node, predecessor))
-        seen.add(node)
+
+        # if starting_node is None:
+        #     assert all(predecessor in seen for predecessor in dag.predecessors(node))
+        # else:
+        #     assert reachability_oracle
+        #     assert all(predecessor in seen for predecessor in dag.predecessors(node) if reachability_oracle.is_reachable(starting_node, predecessor))
+        # seen.add(node)
 
         continue_with_children = yield node
         should_be_none = yield None

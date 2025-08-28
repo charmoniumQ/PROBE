@@ -38,7 +38,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
 
     _create_other_thread_edges(probe_log, hb_graph)
 
-    validate_hb_graph(hb_graph, True)
+    validate_hb_graph(probe_log, hb_graph, True)
 
     return hb_graph
 
@@ -100,12 +100,16 @@ def retain_only(
             if predecessor2 := last_in_process.get(thread):
                 reduced_hb_graph.add_edge(predecessor2, node, **edge_data)
 
-    validate_hb_graph(reduced_hb_graph, False)
+    validate_hb_graph(probe_log, reduced_hb_graph, False)
 
     return reduced_hb_graph
 
 
-def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
+def validate_hb_graph(
+        probe_log: ptypes.ProbeLog,
+        hb_graph: HbGraph,
+        validate_roots: bool,
+) -> None:
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))
         warnings.warn(ptypes.UnusualProbeLog(
