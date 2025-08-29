@@ -3,6 +3,7 @@ import shlex
 import textwrap
 import typing
 import warnings
+import charmonium.time_block
 import networkx
 import tqdm
 from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
@@ -22,6 +23,7 @@ This can be due to program ordering or synchronization.
 """
 
 
+@charmonium.time_block.decor(print_start=False)
 def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     hb_graph = HbGraph()
 
@@ -36,11 +38,12 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
 
     _create_other_thread_edges(probe_log, hb_graph)
 
-    validate_hb_graph(hb_graph, True)
+    validate_hb_graph(probe_log, hb_graph, True)
 
     return hb_graph
 
 
+@charmonium.time_block.decor(print_start=False)
 def retain_only(
         probe_log: ProbeLog,
         full_hb_graph: HbGraph,
@@ -97,12 +100,16 @@ def retain_only(
             if predecessor2 := last_in_process.get(thread):
                 reduced_hb_graph.add_edge(predecessor2, node, **edge_data)
 
-    validate_hb_graph(reduced_hb_graph, False)
+    validate_hb_graph(probe_log, reduced_hb_graph, False)
 
     return reduced_hb_graph
 
 
-def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
+def validate_hb_graph(
+        probe_log: ptypes.ProbeLog,
+        hb_graph: HbGraph,
+        validate_roots: bool,
+) -> None:
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))
         warnings.warn(ptypes.UnusualProbeLog(
@@ -230,7 +237,7 @@ def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
         next_exec_no = node.exec_no.next()
         if next_exec_no not in probe_log.processes[node.pid].execs:
             warnings.warn(ptypes.UnusualProbeLog(
-                f"Exec points to an exec epoch {next_exec_no} we didn't track"
+                f"Exec ({node}) points to an exec epoch {next_exec_no} we didn't track"
             ))
         else:
             target = OpQuad(node.pid, next_exec_no, node.pid.main_thread(), 0)
@@ -275,7 +282,11 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    for node, data in hb_graph.nodes(data=True):
+    node_view = typing.cast(
+        typing.Iterator[tuple[OpQuad, graph_utils.GraphvizNodeAttributes]],
+        iter(hb_graph.nodes(data=True)),
+    )
+    for node, data in node_view:
         op = probe_log.get_op(node)
         data.setdefault("label", "")
         data["cluster"] = str(node.pid)
@@ -323,9 +334,13 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             data["label"] += " (failed)"
             data["color"] = "red"
 
-    for node0, node1, data in hb_graph.edges(data=True):
+    edge_view = typing.cast(
+        typing.Iterator[tuple[OpQuad, OpQuad, graph_utils.GraphvizEdgeAttributes]],
+        hb_graph.edges(data=True),
+    )
+    for node0, node1, edge_data in edge_view:
         if node0.pid != node1.pid or node0.tid != node1.tid:
-            data["style"] = "dashed"
+            edge_data["style"] = "dashed"
 
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))

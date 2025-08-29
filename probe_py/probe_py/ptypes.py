@@ -273,6 +273,12 @@ class TaskType(enum.IntEnum):
     TASK_PTHREAD = 3
 
 
+class FileType(enum.Enum):
+    DIR = 0
+    FIFO = 1
+    PIPE = 2
+
+
 class InvalidProbeLog(Exception):
     pass
 
@@ -281,7 +287,7 @@ class UnusualProbeLog(Warning):
     pass
 
 
-class AccessMode(enum.IntEnum):
+class AccessMode(enum.Enum):
     """In what way are we accessing the inode version?"""
     EXEC = enum.auto()
     DLOPEN = enum.auto()
@@ -291,8 +297,12 @@ class AccessMode(enum.IntEnum):
     TRUNCATE_WRITE = enum.auto()
 
     @property
-    def is_side_effect_free(self) -> bool:
-        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ}
+    def is_read(self) -> bool:
+        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ, AccessMode.READ_WRITE}
+
+    @property
+    def is_write(self) -> bool:
+        return self in {AccessMode.WRITE, AccessMode.READ_WRITE, AccessMode.TRUNCATE_WRITE}
 
     @staticmethod
     def from_open_flags(flags: int) -> "AccessMode":
