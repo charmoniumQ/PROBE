@@ -2819,7 +2819,21 @@ int mkostemps(char *template, int suffixlen, int flags) {
 };
 
 /*
-TODO: getcwd, getwd, chroot
+TODO:
+
+Reads and writes:
+read
+4 p(read|write)(|64)
+8 p(read|write)v(|2|64|64v2)
+1 copy_file_range
+4 aio_(read|write)(|64)
+2 lio_listio(|64)
+https://sourceware.org/glibc/manual/2.41/html_node/Low_002dLevel-I_002fO.html
+
+mmap, mmap64, munmap, shm_open, shm_unlink, memfd_create
+
+File locks through fcntl
+getcwd, getwd, chroot
 getdents
 glob, glob64
 shm_open, shm_unlink, memfd_create

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import collections
 import dataclasses
+import enum
 import fnmatch
 import itertools
 import os
@@ -27,7 +28,7 @@ class InodeVersionNode:
     """A particular version of the inode"""
     inode: ptypes.Inode
     version: int
-    deduplicator: tuple[int, int] | None = None
+    deduplicator: int | None = None
 
     def __str__(self) -> str:
         return f"{self.inode} version {self.version}"
@@ -245,7 +246,7 @@ def find_closes(
                         cloexecs[quad.pid][op_data.new] = bool(op_data.flags & os.O_CLOEXEC)
                         print(f"    Dup {op_data.old} -> {op_data.new} {fds_to_watch}")
                     else:
-                        print(f"    Subsequent dup of a different {op.data.old} pruned")
+                        print(f"    Subsequent dup of a different {op_data.old} pruned")
                         assert quads.send(False) is None
                         continue
             case ops.CloneOp():
@@ -283,7 +284,7 @@ def find_closes(
         })
 
     if any(fds_to_watch.values()):
-        raise ptypes.InvalidProbeLog(f"We don't know where {fds_to_watch_filtered} got closed.")
+        raise ptypes.InvalidProbeLog(f"We don't know where {fds_to_watch} got closed.")
 
     assert opens.keys() == closes.keys()
 
@@ -313,6 +314,25 @@ def add_inode_segments(
         concurrent_segments: It[SegmentInfo],
         version: int,
 ) -> int:
+    # TODO: This algorithm might create more cycles than necessary in some cases.
+    # We consider a topological generation of segments at a time.
+    # Everything in a future generaitno happens-after everything in the current generation.
+    # But that doesn't mean everything in the current generation is concurrent/unordered. Maybe it does?
+    # In either case, taking apart the SegmentsPerProcess into individual Segments of OpQuads may yield finer-grained dependencies.
+    # A future algorithm might, get all the read-segments and write-segments for the whole time (not just one topo generation; so in obviating order_segments),
+    # Let W := all segments (not segments_per_process) in which inode was written
+    # Likewise, R := was read. Read-write?
+    # Let G be the dag induced by the partial order of U union W based on the relation(a, b):
+    # all of the last of a happen before any of the first of b.
+    # While a and b are within one pid, they may be in different threads, and may have multiple firsts and lasts.
+    # G2 := transitive reduction of G
+    # The w->r edges of G2 become "major versions".
+    # Reads will see the major version emenating from dominating, ancestral Ws (Ws that are not after another ancestral W).
+    # But for each pair of write and read, we will introduce an "intermediate versions" if last of w do not all happen-before any of the first of r.
+    # For every segment, either A is completely first, B is completely first, or idk. The former become edges, the middle anti-edges, and the latter, intermediate versions.
+    # Even when neither happens before the other, still some sub-sequences may happen-before other sub-sequences.
+    # That is a refinement for later.
+
     print(f"  Concurrent segments for {inode} {version}")
     union_read_segments = SegmentsPerProcess.union(*[
         segment
@@ -324,35 +344,50 @@ def add_inode_segments(
         for access, _, segment in concurrent_segments
         if access.is_write
     ])
+    truncating_writes = {
+        segment: access
+        for access, _, segment in concurrent_segments
+        if access.is_write
+    }
+    # FIXME: Handle truncating writes separately from writes
 
     print(f"    Readers: {sorted(union_read_segments.segments.keys())}")
     print(f"    Writers: {sorted(union_write_segments.segments.keys())}")
 
+    initial_version = version
+
     # Past writes -> current reads
     inode_version = InodeVersionNode(inode, version)
-    for read_no, (read_process, read_segment) in enumerate(union_read_segments.segments.items()):
+    for read_process, read_segment in union_read_segments.segments.items():
         for read_node in read_segment.upper_bound:
-            dataflow_graph.add_edge(read_node, inode_version)
+            dataflow_graph.add_edge(inode_version, read_node)
 
     # Current writes -> current reads
     if union_read_segments and union_write_segments:
         version += 1
         inode_version = InodeVersionNode(inode, version)
-        for write_no, (write_process, write_segment) in enumerate(union_write_segments.segments.items()):
-            for read_no, (read_process, read_segment) in enumerate(union_read_segments.segments.items()):
+        deduplicator = 0
+        for write_process, write_segment in union_write_segments.segments.items():
+            for read_process, read_segment in union_read_segments.segments.items():
                 if write_process != read_process:
                     for write_node in write_segment.lower_bound:
                         for read_node in read_segment.upper_bound:
-                            dataflow_graph.add_edge(write_node, inode_version)
-                            dataflow_graph.add_edge(inode_version, read_node)
-
-    # Current writes -> future reads
-    if union_write_segments:
+                            if not hb_oracle.is_reachable(read_node, write_node):
+                                inode_version = InodeVersionNode(inode, version, deduplicator)
+                                deduplicator += 1
+                                dataflow_graph.add_edge(write_node, inode_version)
+                                dataflow_graph.add_edge(inode_version, read_node)
+    elif union_write_segments:
+        # If we did concurrent writes -> concurrent reads, we already handled this case
+        # Current writes -> future reads
         version += 1
         inode_version = InodeVersionNode(inode, version)
-        for write_no, (write_process, write_segment) in enumerate(union_write_segments.segments.items()):
+        initial_inode_version = InodeVersionNode(inode, initial_version)
+        for write_process, write_segment in union_write_segments.segments.items():
             for write_node in write_segment.lower_bound:
-                dataflow_graph.add_edge(write_node, InodeVersionNode(inode, version))
+                dataflow_graph.add_edge(write_node, inode_version)
+                if access != ptypes.AccessMode.TRUNCATE_WRITE:
+                    dataflow_graph.add_edge(initial_inode_version, inode_version)
 
     return version
 
@@ -363,8 +398,8 @@ def combine_indistinguishable_inodes(
         hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
         dataflow_graph: DataflowGraph,
 ) -> CompressedDataflowGraph:
-    if not networkx.is_directed_acyclic_graph(dataflow_graph):
-        warnings.warn(ptypes.UnusualProbeLog("Dataflow graph is cyclic"))
+    # FIXME: Make the elimination optional at a CLI level
+    # Note the type still has to be converted from DataflowGraph to CompressedDataflowGraph
     n_ops = sum(
         isinstance(node, ptypes.OpQuad)
         for node in dataflow_graph.nodes()
@@ -385,6 +420,10 @@ def combine_indistinguishable_inodes(
             dataflow_graph2,
             lambda node: isinstance(node, InodeVersionNode),
         )
+        # dataflow_graph3 = graph_utils.map_nodes(
+        #     lambda node: node if isinstance(node, ProcessState) else frozenset({node}),
+        #     dataflow_graph2
+        # )
     n_inodes2 = sum(
         isinstance(node, frozenset)
         for node in dataflow_graph3.nodes()
@@ -392,11 +431,7 @@ def combine_indistinguishable_inodes(
     print(f"Combined isomorphic inodes {n_inodes} -> {n_inodes2}")
     n_edges = len(dataflow_graph.edges())
     with charmonium.time_block.ctx("transitive reduction", print_start=False):
-        if networkx.is_directed_acyclic_graph(dataflow_graph3):
-            dataflow_graph4 = networkx.transitive_reduction(dataflow_graph3)
-        else:
-            warnings.warn(ptypes.UnusualProbeLog("Cannot do reduction on cyclic graph"))
-            dataflow_graph4 = dataflow_graph3
+        dataflow_graph4 = graph_utils.transitive_reduction_cyclic_graph(dataflow_graph3)
     n_edges2 = len(dataflow_graph4.edges())
     print(f"Transitive reduction {n_edges} -> {n_edges2}")
     return typing.cast(CompressedDataflowGraph, dataflow_graph4)
@@ -414,7 +449,7 @@ def combine_adjacent_ops(
     for pid, process in sorted(probe_log.processes.items()):
         last_state: ProcessState | None = None
         for exec_no, exec in sorted(process.execs.items()):
-            for deduplicator, (inputs, outputs, quads) in enumerate(get_read_write_batches_simple(
+            for deduplicator, (inputs, outputs, quads) in enumerate(get_read_write_batches(
                     hbg,
                     hb_oracle,
                     dataflow_graph,
@@ -510,6 +545,18 @@ def get_read_write_batches_simple(
             assert quads.send(False) is None
 
 
+class _State(enum.Enum):
+    READ = enum.auto()
+    READ_WRITE = enum.auto()
+    WRITE = enum.auto()
+    def next(self) -> _State:
+        return {
+            _State.READ: _State.READ_WRITE,
+            _State.READ_WRITE: _State.WRITE,
+            _State.WRITE: _State.READ,
+        }[self]
+
+
 def get_read_write_batches(
         hbg: ptypes.HbGraph,
         hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
@@ -530,21 +577,50 @@ def get_read_write_batches(
     assert hb_oracle.is_reachable(first_quad, last_quad)
     queue: dict[int, set[ptypes.OpQuad]] = collections.defaultdict(set, [(0, {first_quad})])
     queue_inverse = {first_quad: 0}
-    reading_mode = True # else writing_mode
+    state = _State.READ
     inputs = []
     outputs = []
     incorporated_quads = set()
     last_queue_0 = frozenset[ptypes.OpQuad]()
     last_last_queue_0 = frozenset[ptypes.OpQuad]()
+    last_last_last_queue_0 = frozenset[ptypes.OpQuad]()
 
-    #print(f"Coalescing {pid} {exec.exec_no}")
+    print(f"Coalescing {pid} {exec.exec_no}")
+
+    def remove(quad: ptypes.OpQuad) -> None:
+        print("      Removed")
+        degree = queue_inverse[quad]
+        del queue_inverse[quad]
+        queue[degree].remove(quad)
+
+    def enqueue_successors(quad: ptypes.OpQuad) -> bool:
+        print("      Enqueue Successors:")
+        mini_progress = False
+        for successor in hbg.successors(quad):
+            if successor in queue_inverse:
+                in_degree = queue_inverse[successor]
+                queue[in_degree].remove(successor)
+                in_degree -= 1
+            else:
+                in_degree = sum(
+                    hb_oracle.is_reachable(first_quad, predecessor_of_successor)
+                    for predecessor_of_successor in hbg.predecessors(successor)
+                    if predecessor_of_successor != quad
+                )
+            #print(f"      {successor} {in_degree=}")
+            assert in_degree >= 0
+            queue_inverse[successor] = in_degree
+            queue[in_degree].add(successor)
+            mini_progress = in_degree == 0 or mini_progress
+        return mini_progress
 
     while queue[0]:
-        #print(f"  {reading_mode=}")
+        print(f"  state={state.name}")
 
         # Detect if we are stuck in an infinite loop
-        if queue[0] == last_last_queue_0:
+        if queue[0] == last_last_last_queue_0:
             raise RuntimeError("No progress made")
+        last_last_last_queue_0 = last_last_queue_0
         last_last_queue_0 = last_queue_0
         last_queue_0 = frozenset(queue[0])
 
@@ -553,7 +629,7 @@ def get_read_write_batches(
         while progress:
             progress = False
             for quad in list(queue[0]):
-                #print(f"    {quad=}")
+                print(f"    {quad=}")
                 # FIXME: This should include previous exec / next exec
                 # Often, files will get passed from one to another.
                 # But when I included the ExecOp, it broke this algorithm.
@@ -572,84 +648,76 @@ def get_read_write_batches(
                 ]
 
                 if (not hb_oracle.is_reachable(quad, last_quad)) and quad != last_quad and quad != first_quad:
-                    # Not related to us, and neither are the descendents
-                    # Toss in the bin
-                    queue[0].remove(quad)
-                    del queue_inverse[quad]
-                    #print("    Not reachable; prune")
-                    continue
+                    print("      Not ancestor of last_quad")
+                    remove(quad)
                 elif quad.pid != pid or quad.exec_no != exec.exec_no:
-                    # Not related to us, but the descendents are
-                    # Toss in the bin, but add descendants
-                    queue[0].remove(quad)
-                    del queue_inverse[quad]
-                    #print("    Wrong pid; pop & still follow children")
+                    print("      Other process, but ancestor of last_quad")
+                    remove(quad)
+                    progress = enqueue_successors(quad) or progress
                 elif quad not in dataflow_graph.nodes():
+                    print("      No dataflow connections")
                     # No dataflow connections, but it could still be pointed to.
                     incorporated_quads.add(quad)
-                    queue[0].remove(quad)
-                    del queue_inverse[quad]
-                    #print("    Not in dataflow; pop & add children")
-                elif dataflow_inputs and dataflow_outputs:
-                    raise ptypes.InvalidProbeLog(
-                        "Current coalescing algorithm can't handle a node with simultaneous dataflow inputs and dataflow outputs.\n"
-                        f"{quad=}\n"
-                        f"{dataflow_inputs=}\n"
-                        f"{dataflow_outputs=}\n"
-                    )
+                    remove(quad)
+                    progress = enqueue_successors(quad) or progress
                 elif (
-                        (reading_mode and not dataflow_outputs) or
-                        (not reading_mode and not dataflow_inputs)
+                        (state == _State.READ and not dataflow_outputs) or
+                        (state == _State.READ_WRITE and dataflow_inputs and dataflow_outputs) or
+                        (state == _State.WRITE and not dataflow_inputs)
                 ):
-                    # In the process, up next, in the right mode
-                    # Remove, process, add children
+                    print("      Matches state")
                     incorporated_quads.add(quad)
-                    queue[0].remove(quad)
-                    del queue_inverse[quad]
-                    if reading_mode:
-                        inputs.extend(dataflow_inputs)
-                    else:
-                        outputs.extend(dataflow_outputs)
-                    #print("    Correct mode; pop & add children")
+                    remove(quad)
+                    progress = enqueue_successors(quad) or progress
+                    inputs.extend(dataflow_inputs)
+                    outputs.extend(dataflow_outputs)
+
+                    # Bit of a special case, since we can only take one node in READ_WRITE mode.
+                    if state == _State.READ_WRITE:
+                        break
                 else:
-                    # In the right process, but not the right mode
-                    # Leave in the queue
-                    #print("    Incorrect mode; skip for now")
-                    continue
+                    print("      Doesn't match state")
+                    pass
+            # No more progress can be made
+            # because READ_WRITE only takes one node.
+            # Otherwise, we keep trying to make progress
+            if state == _State.READ_WRITE:
+                break
 
-                #print("    Successors:")
-                for successor in hbg.successors(quad):
-                    if successor in queue_inverse:
-                        in_degree = queue_inverse[successor]
-                        queue[in_degree].remove(successor)
-                        in_degree -= 1
-                    else:
-                        in_degree = sum(
-                            hb_oracle.is_reachable(first_quad, predecessor_of_successor)
-                            for predecessor_of_successor in hbg.predecessors(successor)
-                            if predecessor_of_successor != quad
-                        )
-                    #print(f"      {successor} {in_degree=}")
-                    assert in_degree >= 0
-                    queue_inverse[successor] = in_degree
-                    queue[in_degree].add(successor)
-                    progress = progress or in_degree == 0
-
-        if reading_mode:
-            reading_mode = False
-        else:
-            reading_mode = True
+        if state == _State.WRITE:
             yield tuple(inputs), tuple(outputs), frozenset(incorporated_quads)
+            print("  Yielding bundle:")
+            print("    input")
+            for input in inputs:
+                print(f"     {input}")
+            print("    output")
+            for output in outputs:
+                print(f"      {output}")
+            print("    incorporated_quads")
+            for quad in incorporated_quads:
+                print(f"      {quad}")
             inputs.clear()
             outputs.clear()
             incorporated_quads.clear()
 
+        state = state.next()
 
     if incorporated_quads:
         yield tuple(inputs), tuple(outputs), frozenset(incorporated_quads)
+        print("  Yielding bundle:")
+        print("    input")
+        for input in inputs:
+            print(f"      {input}")
+        print("    output")
+        for output in outputs:
+            print(f"      {output}")
+        print("    incorporated_quads")
+        for quad in sorted(incorporated_quads, key=lambda node: node.op_no):
+            print(f"      {quad}")
     else:
         assert not inputs
         assert not outputs
+
     if any(queue.values()):
         queue = {
             in_degree: in_degree_queue
@@ -807,13 +875,11 @@ def label_nodes(
                 for inode_version in inode_versions[:max_inodes_per_set]:
                     inode_label = []
                     paths = inode_to_path.get(inode_version.inode, frozenset[pathlib.Path]())
-                    for path in sorted(paths, key=lambda path: len(str(path)))[:max_paths_per_inode]:
+                    for path in sorted(set(paths), key=lambda path: len(str(path)))[:max_paths_per_inode]:
                         inode_label.append(shorten_path(path))
                     inode_labels.append("\n".join(inode_label).strip() + f" v{inode_version.version}")
                 if len(inode_versions) > max_inodes_per_set:
                     inode_labels.append("...other inodes")
-                if inode_version.inode.is_fifo:
-                    inode_label.append("(fifo)")
                 data["label"] = "\n".join(inode_labels)
                 data["shape"] = "rectangle"
                 data["id"] = str(hash(node))

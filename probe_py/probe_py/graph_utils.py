@@ -501,6 +501,18 @@ def splice_out_nodes(
     return output_dag
 
 
+def _n_paths(
+        dag: networkx.DiGraph[_Node],
+        reachability_oracle: ReachabilityOracle[_Node],
+        source: _Node,
+        destination: _Node,
+) -> int:
+    return sum(
+            int(reachability_oracle.is_reachable(source, predecessor))
+            for predecessor in dag.predecessors(destination)
+        )
+
+
 def topological_sort_depth_first(
         dag: networkx.DiGraph[_Node],
         starting_node: _Node | None = None,
@@ -524,10 +536,7 @@ def topological_sort_depth_first(
         degree_func2 = dag.in_degree
     else:
         assert reachability_oracle is not None
-        degree_func2 = lambda node: sum(
-            reachability_oracle.is_reachable(starting_node, predecessor)
-            for predecessor in dag.predecessors(node)
-        )
+        degree_func2 = functools.partial(_n_paths, dag, reachability_oracle, starting_node)
 
     queue = util.PriorityQueue[_Node, tuple[int, int]]()
 
@@ -625,6 +634,29 @@ def combine_isomorphic_nodes(
         for successor in graph.successors(node)
     )
     return ret
+
+
+def try_find_cycle(
+        digraph: networkx.DiGraph[_Node],
+        source: _Node | None = None,
+) -> list[tuple[_Node, _Node]] | None:
+    try:
+        cycle = networkx.find_cycle(digraph, source)
+    except networkx.NetworkXNoCycle:
+        return None
+    else:
+        return typing.cast(list[tuple[_Node, _Node]], cycle)
+
+
+def transitive_reduction_cyclic_graph(digraph: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
+    edge_bank = []
+    while (cycle := try_find_cycle(digraph)) is not None:
+        edge_bank.append(cycle[0])
+    digraph = networkx.transitive_reduction(digraph)
+    for edge in edge_bank:
+        digraph.add_edge(*edge)
+        assert try_find_cycle(digraph, edge[0])
+    return digraph
 
 
 class GraphvizAttributes(typing.TypedDict):
