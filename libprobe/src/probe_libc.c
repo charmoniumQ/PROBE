@@ -32,6 +32,22 @@
 #define OK(x) {.error = 0, .value = (x)}
 #define ERR(e) {.error = (e)}
 
+#define SYSCALL_ERROR_RESULT(res_type, value)                                                      \
+    ({                                                                                             \
+        if ((value) < 0) {                                                                         \
+            return (res_type)ERR(-(value));                                                        \
+        }                                                                                          \
+        return (res_type)OK((value));                                                              \
+    })
+
+#define SYSCALL_ERROR_OPTION(value)                                                                \
+    ({                                                                                             \
+        if ((value) < 0) {                                                                         \
+            return -(value);                                                                       \
+        }                                                                                          \
+        return 0;                                                                                  \
+    })
+
 #define TRY_CLOSE(fd, path)                                                                        \
     ({                                                                                             \
         result ret = probe_libc_close(fd);                                                         \
@@ -388,82 +404,56 @@ pid_t probe_libc_gettid(void) { return probe_syscall0(SYS_gettid); }
 
 result_int probe_libc_dup(int oldfd) {
     int retval = probe_syscall1(SYS_dup, oldfd);
-    if (retval >= 0) {
-        return (result_int)OK(retval);
-    }
-    return (result_int)ERR(-retval);
+    SYSCALL_ERROR_RESULT(result_int, retval);
 }
 
 result_int probe_libc_open(const char* path, int flags, mode_t mode) {
     ssize_t retval = probe_syscall3(SYS_open, (uintptr_t)path, flags, mode);
-    if (retval >= 0) {
-        return (result_int)OK(retval);
-    }
-    return (result_int)ERR(-retval);
+    SYSCALL_ERROR_RESULT(result_int, retval);
 }
 
 result_int probe_libc_openat(int dirfd, const char* path, int flags, mode_t mode) {
     ssize_t retval = probe_syscall4(SYS_openat, dirfd, (uintptr_t)path, flags, mode);
-    if (retval >= 0) {
-        return (result_int)OK(retval);
-    }
-    return (result_int)ERR(-retval);
+    SYSCALL_ERROR_RESULT(result_int, retval);
 }
 
 result probe_libc_close(int fd) {
     ssize_t retval = probe_syscall1(SYS_close, fd);
-    if (retval < 0) {
-        return -retval;
-    }
-    return 0;
+    SYSCALL_ERROR_OPTION(retval);
 }
 
 result_ssize_t probe_libc_read(int fd, void* buf, size_t count) {
     ssize_t retval = probe_syscall3(SYS_read, fd, (uintptr_t)buf, count);
-    if (retval >= 0) {
-        return (result_ssize_t)OK(retval);
-    }
-    return (result_ssize_t)ERR(-retval);
+    SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
 result_ssize_t probe_libc_write(int fd, const void* buf, size_t count) {
     ssize_t retval = probe_syscall3(SYS_write, fd, (uintptr_t)buf, count);
-    if (retval >= 0) {
-        return (result_ssize_t)OK(retval);
-    }
-    return (result_ssize_t)ERR(-retval);
+    SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
 result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) {
     ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, /*offset*/ 0);
-    if (retval >= 0) {
-        return (result_mem)OK((void*)retval);
+    // can't use SYSCALL_ERROR_WRAPPER because of the type coercion
+    if (retval < 0) {
+        return (result_mem)ERR(-retval);
     }
-    return (result_mem)ERR(-retval);
+    return (result_mem)OK((void*)retval);
 }
 
 result probe_libc_munmap(void* addr, size_t len) {
     ssize_t retval = probe_syscall2(SYS_munmap, (uintptr_t)addr, len);
-    if (retval < 0) {
-        return -retval;
-    }
-    return 0;
+    SYSCALL_ERROR_OPTION(retval);
 }
 
 result probe_libc_msync(void* addr, size_t len, int flags) {
     ssize_t retval = probe_syscall3(SYS_msync, (uintptr_t)addr, len, flags);
-    if (retval < 0) {
-        return -retval;
-    }
-    return 0;
+    SYSCALL_ERROR_OPTION(retval);
 }
 
 result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
     ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
-    if (retval >= 0) {
-        return (result_ssize_t)OK(retval);
-    }
-    return (result_ssize_t)ERR(-retval);
+    SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
 char* probe_libc_strncpy(char* dest, const char* src, size_t dsize) {
