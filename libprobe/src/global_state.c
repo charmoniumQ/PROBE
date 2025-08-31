@@ -16,7 +16,7 @@
 // IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
 #include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
-#include "../generated/libc_hooks.h"      // for client_mkdirat
+#include "../generated/libc_hooks.h"      // for client_...
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
 #include "arena.h"                        // for arena_is_initialized, arena_create
 #include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG, ERROR
@@ -51,8 +51,8 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
 #define checked_mkdir(path)                                                                        \
     ({                                                                                             \
         DEBUG("mkdir '%s'", path);                                                                 \
-        int mkdir_ret = client_mkdirat(AT_FDCWD, path, 0777);                                      \
-        if (mkdir_ret == -1) {                                                                     \
+        result mkdir_ret = probe_libc_mkdirat(AT_FDCWD, path, 0777);                               \
+        if (mkdir_ret != 0) {                                                                      \
             list_dir(path, 2);                                                                     \
             ERROR("Could not mkdir directory '%s'", path);                                         \
         }                                                                                          \
@@ -66,7 +66,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
         ERROR("Could not open file at %s (error=%d)", path, fd.error);
     }
     if (writable) {
-        EXPECT(== 0, client_ftruncate(fd.value, size));
+        EXPECT(== 0, probe_libc_ftruncate(fd.value, size));
     }
     result_mem ret = probe_libc_mmap(NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ),
                                      MAP_SHARED, fd.value);
@@ -323,17 +323,8 @@ static inline void check_function_pointers() {
      * The rest of the client_ function pointers are only used if the application (tracee) calls the corresponding libc (without client_ prefix) function.
      * */
     ASSERTF(client_execvpe, "");
-    ASSERTF(client_faccessat, "");
-    ASSERTF(client_fcntl, "");
     ASSERTF(client_fexecve, "");
     ASSERTF(client_fork, "");
-    ASSERTF(client_ftruncate, "");
-    ASSERTF(client_mkdirat, "");
-    ASSERTF(client_statx, "");
-
-    // assert that function pointers are callable
-    struct statx buf;
-    EXPECT(== 0, client_statx(AT_FDCWD, ".", 0, STATX_BASIC_STATS, &buf));
 #endif
 }
 

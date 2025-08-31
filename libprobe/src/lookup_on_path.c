@@ -7,12 +7,11 @@
 #include <stddef.h>  // for size_t
 #include <unistd.h>  // for X_OK
 
-#include "../generated/libc_hooks.h" // for client_faccessat
-#include "debug_logging.h"           // for DEBUG
-#include "env.h"                     // for getenv_copy
-#include "global_state.h"            // for get_default_path
-#include "probe_libc.h"              // for probe_libc_strlen
-#include "util.h"                    // for BORROWED, path_join
+#include "debug_logging.h" // for DEBUG
+#include "env.h"           // for getenv_copy
+#include "global_state.h"  // for get_default_path
+#include "probe_libc.h"    // for probe_libc_strlen
+#include "util.h"          // for BORROWED, path_join
 
 bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     size_t bin_name_length = probe_libc_strlen(bin_name);
@@ -37,7 +36,7 @@ bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
             ;
         if (size > 0) {
             path_join(bin_path, size, part, bin_name_length, bin_name);
-            int access_ret = client_faccessat(AT_FDCWD, bin_path, X_OK, 0);
+            result access_ret = probe_libc_faccessat(AT_FDCWD, bin_path, X_OK);
             if (access_ret == 0) {
                 DEBUG("Found \"%s\"", bin_path);
                 return true;

@@ -1,7 +1,6 @@
 #define _GNU_SOURCE
 
 #include <dirent.h>    // for dirent
-#include <errno.h>     // for errno, EBADF
 #include <fcntl.h>     // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
 #include <limits.h>    // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
 #include <stdbool.h>   // for bool, false
@@ -20,7 +19,7 @@
 
 bool is_dir(const char* dir) {
     struct statx statx_buf;
-    int statx_ret = client_statx(AT_FDCWD, dir, 0, STATX_TYPE, &statx_buf);
+    result statx_ret = probe_libc_statx(AT_FDCWD, dir, 0, STATX_TYPE, &statx_buf);
     if (statx_ret != 0) {
         return false;
     } else {
@@ -54,7 +53,7 @@ OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const
     return path_buf;
 }
 
-int fd_is_valid(int fd) { return client_fcntl(fd, F_GETFD) != -1 || errno != EBADF; }
+int fd_is_valid(int fd) { return probe_libc_fcntl(fd, F_GETFD, 0).error != EBADF; }
 
 void list_dir(const char* name, int indent) {
     // https://stackoverflow.com/a/8438663

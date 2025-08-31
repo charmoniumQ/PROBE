@@ -432,6 +432,32 @@ result_ssize_t probe_libc_write(int fd, const void* buf, size_t count) {
     SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
+result probe_libc_ftruncate(int fd, off_t length) {
+    ssize_t retval = probe_syscall2(SYS_ftruncate, fd, length);
+    SYSCALL_ERROR_OPTION(retval);
+}
+
+result probe_libc_statx(int dirfd, const char* path, int flags, unsigned int mask, void* statxbuf) {
+    ssize_t retval =
+        probe_syscall5(SYS_statx, dirfd, (uintptr_t)path, flags, mask, (uintptr_t)statxbuf);
+    SYSCALL_ERROR_OPTION(retval);
+}
+
+result probe_libc_mkdirat(int dirfd, const char* path, mode_t mode) {
+    ssize_t retval = probe_syscall3(SYS_mkdirat, dirfd, (uintptr_t)path, mode);
+    SYSCALL_ERROR_OPTION(retval);
+}
+
+result probe_libc_faccessat(int dirfd, const char* path, int mode) {
+    ssize_t retval = probe_syscall3(SYS_faccessat, dirfd, (uintptr_t)path, mode);
+    SYSCALL_ERROR_OPTION(retval);
+}
+
+result_int probe_libc_fcntl(int fd, int op, unsigned long arg) {
+    ssize_t retval = probe_syscall3(SYS_fcntl, fd, op, arg);
+    SYSCALL_ERROR_RESULT(result_int, retval);
+}
+
 result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) {
     ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, /*offset*/ 0);
     // can't use SYSCALL_ERROR_WRAPPER because of the type coercion

@@ -13,7 +13,6 @@
 // IWYU pragma: no_include "linux/limits.h"                  for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
 
-#include "../generated/libc_hooks.h"      // for client_statx
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
 #include "arena.h"                        // for arena_strndup
 #include "debug_logging.h"                // for DEBUG, EXPECT_NONNULL, NOT...
@@ -52,10 +51,10 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
         struct statx statx_buf;
-        int stat_ret = client_statx(dirfd, path, flags,
-                                    STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
-                                        STATX_CTIME | STATX_SIZE,
-                                    &statx_buf);
+        result stat_ret = probe_libc_statx(dirfd, path, flags,
+                                           STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
+                                               STATX_CTIME | STATX_SIZE,
+                                           &statx_buf);
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;

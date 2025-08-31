@@ -15,7 +15,6 @@
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
 #include "../generated/bindings.h"        // for CopyFiles
-#include "../generated/libc_hooks.h"      // for client_faccessat
 #include "../include/libprobe/prov_ops.h" // for Op, Path, OpCode, Op::(ano...
 #include "arena.h"                        // for arena_sync, arena_calloc
 #include "debug_logging.h"                // for DEBUG, ASSERTF, DEBUG_LOG
@@ -54,7 +53,7 @@ static int copy_to_store(const struct Path* path) {
     ** But it may have been already called in a different process!
     ** Especially coreutils used in every script.
      */
-    int access = client_faccessat(AT_FDCWD, store_path.bytes, F_OK, 0);
+    result access = probe_libc_faccessat(AT_FDCWD, store_path.bytes, F_OK);
     if (access == 0) {
         DEBUG("Already exists %s %ld", path->path, path->inode);
         return 0;

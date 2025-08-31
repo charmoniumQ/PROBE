@@ -58,6 +58,18 @@ ATTR_HIDDEN result_int probe_libc_openat(int dirfd, const char* path, int flags,
 ATTR_HIDDEN result probe_libc_close(int fd);
 ATTR_HIDDEN result_ssize_t probe_libc_read(int fd, void* buf, size_t count);
 ATTR_HIDDEN result_ssize_t probe_libc_write(int fd, const void* buf, size_t count);
+ATTR_HIDDEN result probe_libc_ftruncate(int fd, off_t length);
+ATTR_HIDDEN result probe_libc_statx(int dirfd, const char* path, int flags, unsigned int mask,
+                                    void* statxbuf);
+ATTR_HIDDEN result probe_libc_mkdirat(int dirfd, const char* path, mode_t mode);
+
+// implementing the flags parameter without soundness bugs requires using the
+// faccessat2 syscall under the hood, which was only added in 2020, and we're
+// not using it anywhere, so it's just been omitted
+ATTR_HIDDEN result probe_libc_faccessat(int dirfd, const char* path, int mode);
+
+// normally arg is a vararg, can be set to 0 for ops that don't use it
+ATTR_HIDDEN result_int probe_libc_fcntl(int fd, int op, unsigned long arg);
 
 // yes it's missing the offset parameter; it's unclear whether the syscall
 // implements offset in bytes or memory pages, and i don't think we actually
