@@ -2,7 +2,7 @@
 
 #include "probe_libc.h"
 
-#include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM
+#include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM¸ EWOULDBLOCK
 #include <fcntl.h>       // for O_RDONLY, O_CLOEXEC
 #include <linux/prctl.h> // for PR_*
 #include <stddef.h>      // for size_t, NULL
@@ -12,7 +12,8 @@
 #include <sys/auxv.h>    // IWYU pragma: keep for AT_NULL, AT_PAGESZ
 #include <sys/syscall.h> // for SYS_dup, SYS_exit, SYS_getcwd
 #include <unistd.h>      // IWYU pragma: keep for getpid, gettid
-// IWYU pragma: no_include "asm-generic/errno-base.h" for ENOENT, ENOMEM
+// IWYU pragma: no_include "asm-generic/errno-base.h" for ENOENT, ENOMEM, EWOULDBLOCK
+// IWYU pragma: no_include "asm-generic/errno.h" for EWOULDBLOCK
 // IWYU pragma: no_include "elf.h" for AT_NULL, AT_PAGESZS
 
 #include "../src/debug_logging.h" // for DEBUG, ERROR
@@ -69,7 +70,7 @@ char* environ_buf = NULL;
 #if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
 
-__attribute__((unused)) static uint64_t probe_syscall0(uint64_t sysnum) {
+static uint64_t probe_syscall0(uint64_t sysnum) {
     SYSCALL_REG(rax) = sysnum;
 
     __asm__ __volatile__("syscall" : "+r"(rax) : : "memory", "cc", "rcx", "r11");
@@ -77,7 +78,7 @@ __attribute__((unused)) static uint64_t probe_syscall0(uint64_t sysnum) {
     return rax;
 }
 
-__attribute__((unused)) static uint64_t probe_syscall1(uint64_t sysnum, uint64_t arg1) {
+static uint64_t probe_syscall1(uint64_t sysnum, uint64_t arg1) {
     SYSCALL_REG(rax) = sysnum;
     SYSCALL_REG(rdi) = arg1;
 
@@ -86,8 +87,7 @@ __attribute__((unused)) static uint64_t probe_syscall1(uint64_t sysnum, uint64_t
     return rax;
 }
 
-__attribute__((unused)) static uint64_t probe_syscall2(uint64_t sysnum, uint64_t arg1,
-                                                       uint64_t arg2) {
+static uint64_t probe_syscall2(uint64_t sysnum, uint64_t arg1, uint64_t arg2) {
     SYSCALL_REG(rax) = sysnum;
     SYSCALL_REG(rdi) = arg1;
     SYSCALL_REG(rsi) = arg2;
@@ -97,8 +97,7 @@ __attribute__((unused)) static uint64_t probe_syscall2(uint64_t sysnum, uint64_t
     return rax;
 }
 
-__attribute__((unused)) static uint64_t probe_syscall3(uint64_t sysnum, uint64_t arg1,
-                                                       uint64_t arg2, uint64_t arg3) {
+static uint64_t probe_syscall3(uint64_t sysnum, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
     SYSCALL_REG(rax) = sysnum;
     SYSCALL_REG(rdi) = arg1;
     SYSCALL_REG(rsi) = arg2;
@@ -112,8 +111,8 @@ __attribute__((unused)) static uint64_t probe_syscall3(uint64_t sysnum, uint64_t
     return rax;
 }
 
-__attribute__((unused)) static uint64_t
-probe_syscall4(uint64_t sysnum, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
+static uint64_t probe_syscall4(uint64_t sysnum, uint64_t arg1, uint64_t arg2, uint64_t arg3,
+                               uint64_t arg4) {
     SYSCALL_REG(rax) = sysnum;
     SYSCALL_REG(rdi) = arg1;
     SYSCALL_REG(rsi) = arg2;
@@ -128,9 +127,8 @@ probe_syscall4(uint64_t sysnum, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
     return rax;
 }
 
-__attribute__((unused)) static uint64_t probe_syscall5(uint64_t sysnum, uint64_t arg1,
-                                                       uint64_t arg2, uint64_t arg3, uint64_t arg4,
-                                                       uint64_t arg5) {
+static uint64_t probe_syscall5(uint64_t sysnum, uint64_t arg1, uint64_t arg2, uint64_t arg3,
+                               uint64_t arg4, uint64_t arg5) {
     SYSCALL_REG(rax) = sysnum;
     SYSCALL_REG(rdi) = arg1;
     SYSCALL_REG(rsi) = arg2;
@@ -146,9 +144,8 @@ __attribute__((unused)) static uint64_t probe_syscall5(uint64_t sysnum, uint64_t
     return rax;
 }
 
-__attribute__((unused)) static uint64_t probe_syscall6(uint64_t sysnum, uint64_t arg1,
-                                                       uint64_t arg2, uint64_t arg3, uint64_t arg4,
-                                                       uint64_t arg5, uint64_t arg6) {
+static uint64_t probe_syscall6(uint64_t sysnum, uint64_t arg1, uint64_t arg2, uint64_t arg3,
+                               uint64_t arg4, uint64_t arg5, uint64_t arg6) {
     SYSCALL_REG(rax) = sysnum;
     SYSCALL_REG(rdi) = arg1;
     SYSCALL_REG(rsi) = arg2;
@@ -165,43 +162,6 @@ __attribute__((unused)) static uint64_t probe_syscall6(uint64_t sysnum, uint64_t
     return rax;
 }
 #endif
-
-// TODO: consider a warning to stderr on failure; needs to be implemented with
-// raw syscalls, since calling any fallible code could cause infinite recursion
-void exit_with_backup(int status) {
-    if (client_exit) {
-        client_exit(status);
-    }
-    probe_syscall1(SYS_exit, status);
-    __builtin_unreachable();
-}
-
-// 9 bytes from the format string, max 20 bytes from stringing a 64-bit
-// integer, 1 for null byte, and two for good luck (and alignment)
-#define STRERROR_BUFFER 32
-char* strerror_with_backup(int errnum) {
-    static char backup_strerror_buf[STRERROR_BUFFER];
-    if (client_strerror) {
-        return client_strerror(errnum);
-    }
-
-    snprintf(backup_strerror_buf, STRERROR_BUFFER, "[ERRNO: %d]", errnum);
-    return backup_strerror_buf;
-}
-#undef STRERROR_BUFFER
-
-static inline result_ssize_t probe_read_all(int fd, void* buf, size_t n) {
-    ssize_t total = 0;
-    result_ssize_t curr;
-    do {
-        curr = probe_libc_read(fd, buf, n - total);
-        if (curr.error) {
-            return curr;
-        }
-        total += curr.value;
-    } while (curr.value > 0);
-    return (result_ssize_t)OK(total);
-}
 
 // TODO: better error handling that specifies *where* something went wrong;
 // some debug statements would be good too, but want to keep the file
@@ -258,50 +218,16 @@ result probe_libc_init(void) {
                     strerror_with_backup(environ_fd.error));
             return environ_fd.error;
         }
-
-        static const size_t INCREMENT = 4096;
-        size_t size = INCREMENT;
-        size_t total_bytes = 0;
-        result_ssize_t read_ret;
-
-        environ_buf = calloc(size, sizeof(char));
-        if (environ_buf == NULL) {
-            WARNING("Unable to calloc environ buffer");
-            return ENOMEM;
-        }
-        read_ret = probe_read_all(environ_fd.value, environ_buf, size);
-        if (read_ret.error) {
-            WARNING("Unable to read environ: (%d) %s", read_ret.error,
-                    strerror_with_backup(read_ret.error));
-            TRY_CLOSE(environ_fd.value, "/proc/self/environ");
-            return read_ret.error;
-        }
-        total_bytes += read_ret.value;
-        // this means that there's still more environ to grab, so we'll realloc
-        // it and try copying another chunk
-        while (read_ret.value == INCREMENT) {
-            size += INCREMENT;
-            void* new = realloc(environ_buf, size);
-            if (new == NULL) {
-                WARNING("Unable to realloc environ buffer");
-                TRY_CLOSE(environ_fd.value, "/proc/self/environ");
-                return ENOMEM;
-            }
-            environ_buf = new;
-            read_ret = probe_read_all(
-                environ_fd.value, (void*)((uintptr_t)environ_buf + (size - INCREMENT)), INCREMENT);
-            if (read_ret.error) {
-                WARNING("Unable to read environ buffer: (%d) %s", read_ret.error,
-                        strerror_with_backup(read_ret.error));
-                TRY_CLOSE(environ_fd.value, "/proc/self/environ");
-                return read_ret.error;
-            }
-            total_bytes += read_ret.value;
+        result_sized_mem buf = probe_read_all_alloc(environ_fd.value);
+        if (buf.error) {
+            WARNING("Unable to allocate and read /proc/self/environ: (%d) %s", buf.error,
+                    strerror_with_backup(buf.error));
         }
         TRY_CLOSE(environ_fd.value, "/proc/self/environ");
+        environ_buf = buf.value;
 
         size_t env_count = 0;
-        for (size_t i = 0; i < total_bytes; ++i) {
+        for (size_t i = 0; i < buf.size; ++i) {
             if (environ_buf[i] == '\0') {
                 ++env_count;
             }
@@ -314,15 +240,44 @@ result probe_libc_init(void) {
         }
 
         size_t buf_offset = 0;
-        for (size_t i = 0; buf_offset < total_bytes && i < env_count; ++i) {
+        for (size_t i = 0; buf_offset < buf.size && i < env_count; ++i) {
             probe_environ[i] = environ_buf + buf_offset;
-            buf_offset +=
-                (probe_libc_strnlen(environ_buf + buf_offset, total_bytes - buf_offset) + 1);
+            buf_offset += (probe_libc_strnlen(environ_buf + buf_offset, buf.size - buf_offset) + 1);
         }
     }
 
     return 0;
 }
+
+void exit_with_backup(int status) {
+    static uint_fast8_t reenter = 0;
+    if (reenter != 0) {
+        probe_syscall1(SYS_exit, status);
+        __builtin_unreachable();
+    }
+    reenter = 1;
+
+    if (client_exit) {
+        client_exit(status);
+    }
+    WARNING("unable to aquire client_exit, atexit handlers not run");
+    probe_syscall1(SYS_exit, status);
+    __builtin_unreachable();
+}
+
+// 9 bytes from the format string, max 20 bytes from stringing a 64-bit
+// integer, 1 for null byte, and two for good luck (and alignment)
+#define STRERROR_BUFFER 32
+char* strerror_with_backup(int errnum) {
+    static char backup_strerror_buf[STRERROR_BUFFER];
+    if (client_strerror) {
+        return client_strerror(errnum);
+    }
+
+    snprintf(backup_strerror_buf, STRERROR_BUFFER, "[ERRNO: %d]", errnum);
+    return backup_strerror_buf;
+}
+#undef STRERROR_BUFFER
 
 int probe_libc_memcmp(const void* s1, const void* s2, size_t n) {
     const unsigned char* c1 = (const unsigned char*)s1;
@@ -452,6 +407,72 @@ result probe_libc_faccessat(int dirfd, const char* path, int mode) {
 result_int probe_libc_fcntl(int fd, int op, unsigned long arg) {
     ssize_t retval = probe_syscall3(SYS_fcntl, fd, op, arg);
     SYSCALL_ERROR_RESULT(result_int, retval);
+}
+
+result_ssize_t probe_read_all(int fd, void* buf, size_t n) {
+    ssize_t total = 0;
+    result_ssize_t curr;
+    do {
+        curr = probe_libc_read(fd, buf, n - total);
+        if (curr.error != 0 &&
+            (curr.error != EINTR || curr.error != EAGAIN || curr.error != EWOULDBLOCK)) {
+            return curr;
+        }
+        total += curr.value;
+    } while (curr.value > 0);
+    return (result_ssize_t)OK(total);
+}
+
+result_sized_mem probe_read_all_alloc(int fd) {
+    static const size_t INCREMENT = 4096;
+
+    size_t alloc_size = INCREMENT;
+    size_t bytes_read = 0;
+    result_ssize_t read_ret;
+
+    void* buf = malloc(alloc_size);
+    if (buf == NULL) {
+        return (result_sized_mem)ERR(ENOMEM);
+    }
+    // after this point if you don't return buf, free it before you return
+
+    read_ret = probe_read_all(fd, buf, INCREMENT);
+    if (read_ret.error) {
+        free(buf);
+        return (result_sized_mem)ERR(read_ret.error);
+    }
+    bytes_read += read_ret.value;
+
+    // this means there's still more bytes to grab, so we'll realloc and try to
+    // read another INCREMENT
+    while (read_ret.value == INCREMENT) {
+        alloc_size += INCREMENT;
+        void* new_buf = realloc(buf, alloc_size);
+        if (new_buf == NULL) {
+            free(buf);
+            return (result_sized_mem)ERR(ENOMEM);
+        }
+        buf = new_buf;
+
+        read_ret = probe_read_all(fd, buf + (alloc_size - INCREMENT), INCREMENT);
+        if (read_ret.error) {
+            free(buf);
+            return (result_sized_mem)ERR(read_ret.error);
+        }
+        bytes_read += read_ret.value;
+    }
+    if (bytes_read != 0) {
+        void* new_buf = realloc(buf, bytes_read);
+        if (new_buf != NULL) {
+            buf = new_buf;
+        }
+    }
+
+    return (result_sized_mem){
+        .error = 0,
+        .size = bytes_read,
+        .value = buf,
+    };
 }
 
 result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) {

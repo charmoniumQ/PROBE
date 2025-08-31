@@ -30,6 +30,12 @@ typedef struct {
     void* value;
 } result_mem;
 
+typedef struct {
+    int error;
+    size_t size;
+    void* value;
+} result_sized_mem;
+
 // calling any probe_libc_* function before you call this *and* it returns zero
 // (this will require a functional /proc filesystem) is considered undefined
 // behavior, but at time of writing it only actually effects
@@ -69,6 +75,9 @@ ATTR_HIDDEN result probe_libc_faccessat(int dirfd, const char* path, int mode);
 
 // normally arg is a vararg, can be set to 0 for ops that don't use it
 ATTR_HIDDEN result_int probe_libc_fcntl(int fd, int op, unsigned long arg);
+
+ATTR_HIDDEN result_ssize_t probe_read_all(int fd, void* buf, size_t n);
+ATTR_HIDDEN result_sized_mem probe_read_all_alloc(int fd);
 
 // yes it's missing the offset parameter; it's unclear whether the syscall
 // implements offset in bytes or memory pages, and i don't think we actually
