@@ -53,7 +53,6 @@ ATTR_HIDDEN pid_t probe_libc_gettid(void);
 
 ATTR_HIDDEN result_int probe_libc_dup(int oldfd);
 
-ATTR_HIDDEN result_int probe_libc_open(const char* path, int flags, mode_t mode);
 ATTR_HIDDEN result_int probe_libc_openat(int dirfd, const char* path, int flags, mode_t mode);
 ATTR_HIDDEN result probe_libc_close(int fd);
 ATTR_HIDDEN result_ssize_t probe_libc_read(int fd, void* buf, size_t count);

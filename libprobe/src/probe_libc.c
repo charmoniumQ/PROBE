@@ -251,7 +251,8 @@ result probe_libc_init(void) {
             environ_buf = NULL;
         }
 
-        result_int environ_fd = probe_libc_open("/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
+        result_int environ_fd =
+            probe_libc_openat(AT_FDCWD, "/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
         if (environ_fd.error) {
             WARNING("Unable to open /proc/self/environ: (%d) %s", environ_fd.error,
                     strerror_with_backup(environ_fd.error));
@@ -404,11 +405,6 @@ pid_t probe_libc_gettid(void) { return probe_syscall0(SYS_gettid); }
 
 result_int probe_libc_dup(int oldfd) {
     int retval = probe_syscall1(SYS_dup, oldfd);
-    SYSCALL_ERROR_RESULT(result_int, retval);
-}
-
-result_int probe_libc_open(const char* path, int flags, mode_t mode) {
-    ssize_t retval = probe_syscall3(SYS_open, (uintptr_t)path, flags, mode);
     SYSCALL_ERROR_RESULT(result_int, retval);
 }
 
