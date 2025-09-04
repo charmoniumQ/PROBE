@@ -282,7 +282,7 @@ size_t probe_libc_memcount(const char* s, size_t maxlen, char delim) {
         return 0;
     }
     size_t count = 0;
-    for (const char *ptr = s; ptr < s + maxlen; ++ptr)
+    for (const char* ptr = s; ptr < s + maxlen; ++ptr)
         count += (*ptr == delim);
     return count;
 }
