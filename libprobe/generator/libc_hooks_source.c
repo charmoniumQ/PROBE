@@ -1640,7 +1640,7 @@ int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
-        char* const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char* const* updated_env = update_env_with_probe_vars(probe_environ, &envc);
         /* TODO: Avoid this copy */
         char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
@@ -1701,7 +1701,7 @@ int execl (const char *filename, const char *arg0, ...) {
         argv[argc] = NULL;
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char * const* updated_env = update_env_with_probe_vars(probe_environ, &envc);
         char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
@@ -1868,7 +1868,7 @@ int execvp (const char *filename, char *const argv[]) {
         }
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char * const* updated_env = update_env_with_probe_vars(probe_environ, &envc);
         char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
@@ -1926,7 +1926,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         va_end(ap);
         char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
+        char * const* updated_env = update_env_with_probe_vars(probe_environ, &envc);
         char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
             exec_op_code,
@@ -2490,7 +2490,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
 int thrd_join (thrd_t thr, int *res) {
     void *pre_call = ({
         int64_t thread_id = 0;
-        memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
+        probe_libc_memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
         struct Op op = {
             wait_op_code,
             {.wait = {

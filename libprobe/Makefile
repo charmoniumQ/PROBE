@@ -25,6 +25,9 @@ BUILD_DIR := .build
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
 
+tests: $(BUILD_DIR)/probe_libc_tests $(BUILD_DIR)/probe_libc_tests.dbg
+.PHONY: tests
+
 generated: $(GENERATED_FILES)
 .PHONY: generated
 
@@ -57,7 +60,13 @@ $(BUILD_DIR)/undefined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 $(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 	nm --dynamic .build/libprobe.dbg.so | grep ' T ' | cut --fields=3 --delimiter=' ' > $(BUILD_DIR)/defined_symbols.txt
 
-check: compile_commands.json $(GENERATED_FILES)
+$(BUILD_DIR)/probe_libc_tests: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) ./src/probe_libc.c  $(MAKEFILE_LIST)
+	$(CC) -MJ $@.compile_command.json -flto $(CFLAGS) $(OPTFLAGS) -o $@ -Isrc -lcriterion $<
+
+$(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) ./src/probe_libc.c $(MAKEFILE_LIST)
+	$(CC) -MJ $@.compile_command.json -fno-lto $(CFLAGS) $(DBGFLAGS) -o $@ -Isrc -lcriterion $<
+
+check: compile_commands.json $(GENERATED_FILES) tests
 	python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=5
 	test GLIBC_2.34 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
@@ -67,6 +76,7 @@ check: compile_commands.json $(GENERATED_FILES)
 	python3 ./check_hooked_fns.py $(MANUAL_SOURCE_FILES)
 	python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
+	$(BUILD_DIR)/probe_libc_tests --verbose --timeout 5
 
 #	cppclean    $(SOURCE_FILES)
 # Currently, cppclean does not provide a mechanism to disable warnings.

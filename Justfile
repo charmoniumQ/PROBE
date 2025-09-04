@@ -44,6 +44,10 @@ lint-lib:
     make check
 
 [working-directory: 'libprobe']
+test-lib:
+    make tests
+
+[working-directory: 'libprobe']
 compile-lib: compile-cli
     make all
 
