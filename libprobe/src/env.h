@@ -1,9 +1,9 @@
 #pragma once
-
-#include "src/probe_libc.h"
 #define _GNU_SOURCE
 
-#include <stddef.h> // for size_t
+#include "probe_libc.h" // for result_sized_mem
+#include <stddef.h>     // for size_t
+
 struct ArenaDir;
 
 __attribute__((visibility("hidden"))) char* _Nullable const* _Nonnull update_env_with_probe_vars(
