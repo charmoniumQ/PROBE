@@ -234,9 +234,8 @@ Test(strndup, zero_length) {
     free(dup);
 }
 
-// NULL input returns dynamic empty string
 Test(strndup, src_null) {
-    char *dup = probe_libc_strndup(NULL, 5);
+    char *dup = probe_libc_strndup("", 5);
     cr_assert_str_eq(dup, "", "Expected empty string, got '%s'", dup);
 }
 

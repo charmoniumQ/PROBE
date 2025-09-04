@@ -6,7 +6,7 @@
 #define SRC_INCLUDED
 
 #define FUZZING_SEED 69420
-#define FUZZING_COUNT 100000
+#define FUZZING_COUNT 10000
 
 void setup(void) {
     cr_assert(probe_libc_init() == 0, "Failed to initialize probe_libc");

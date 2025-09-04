@@ -20,9 +20,8 @@
 #include "debug_logging.h"                // for DEBUG, ASSERTF, DEBUG_LOG
 #include "global_state.h"                 // for get_copied_or_overwritten_...
 #include "inode_table.h"                  // for inode_table_put_if_not_exists
-#include "probe_libc.h"                   // for probe_libc_memcpy
+#include "probe_libc.h"                   // for probe_libc_memcpy, probe_copy_file
 #include "prov_utils.h"                   // for op_to_human_readable, op_t...
-#include "util.h"                         // for copy_file
 
 void prov_log_save() {
     /* TODO: ensure we call Arena save in atexit, pthread_cleanup_push */

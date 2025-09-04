@@ -199,6 +199,9 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
         NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
+
+static const size_t MAX_OPCODE_STRING_LENGTH = 100;
+
 int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
     return CHECK_SNPRINTF(
         buffer, buffer_length, "dirfd=%d, path=\"%s\", stat_valid=%d, dirfd_valid=%d",
@@ -207,8 +210,8 @@ int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
     probe_libc_strncpy(dest, op_str, size);
-    size -= probe_libc_strlen(op_str);
-    dest += probe_libc_strlen(op_str);
+    size -= probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
+    dest += probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
 
     dest[0] = ' ';
     dest++;

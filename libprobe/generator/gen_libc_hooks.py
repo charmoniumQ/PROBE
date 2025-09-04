@@ -631,7 +631,7 @@ libc_hooks_c_preamble = """
 #include <sys/time.h>                                        // for futimes
 #include <sys/wait.h>                                        // for wait, wait3
 #include <threads.h>                                         // for thrd_t
-#include <unistd.h>                                          // for environ
+#include <unistd.h>                                          // for vfork, access, chdir
 #include <utime.h>                                           // for utimbuf
 // IWYU pragma: no_include "bits/statx-generic.h"               for statx
 // IWYU pragma: no_include "bits/types/siginfo_t.h"             for si_pid, si_status

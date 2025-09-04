@@ -71,7 +71,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
     result_mem ret = probe_libc_mmap(NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ),
                                      MAP_SHARED, fd.value);
     ASSERTF(ret.error == 0, "mmap failed");
-    EXPECT(== 0, probe_libc_close(fd.value));
+    probe_libc_close(fd.value);
     return ret.value;
 }
 
@@ -82,7 +82,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
 static struct FixedPath __probe_dir = {0};
 static inline void init_probe_dir() {
     ASSERTF(__probe_dir.bytes[0] == '\0', "__probe_dir already initialized");
-    const char* __probe_private_dir_env_val = getenv_copy(PROBE_DIR_VAR);
+    const char* __probe_private_dir_env_val = probe_libc_getenv(PROBE_DIR_VAR);
     if (UNLIKELY(!__probe_private_dir_env_val)) {
         ERROR("env " PROBE_DIR_VAR " is not set");
     }

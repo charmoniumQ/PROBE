@@ -38,10 +38,10 @@ OWNED const char* dirfd_path(int dirfd) {
 OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left,
                       ssize_t right_size, BORROWED const char* right) {
     if (left_size == -1) {
-        left_size = probe_libc_strlen(left);
+        left_size = probe_libc_strnlen(left, PATH_MAX);
     }
     if (right_size == -1) {
-        right_size = probe_libc_strlen(right);
+        right_size = probe_libc_strnlen(right, PATH_MAX);
     }
     if (!path_buf) {
         path_buf = EXPECT_NONNULL(malloc(left_size + right_size + 2));
@@ -66,8 +66,8 @@ void list_dir(const char* name, int indent) {
     while ((entry = client_readdir(dir))) {
         if (entry->d_type == DT_DIR) {
             char path[1024];
-            if (probe_libc_strcmp(entry->d_name, ".") == 0 ||
-                probe_libc_strcmp(entry->d_name, "..") == 0)
+            if (probe_libc_memcmp(entry->d_name, ".", 2) == 0 ||
+                probe_libc_memcmp(entry->d_name, "..", 3) == 0)
                 continue;
             CHECK_SNPRINTF(path, ((int)sizeof(path)), "%s/%s", name, entry->d_name);
             LOG("%*s%s/", indent, "", entry->d_name);
@@ -102,8 +102,8 @@ int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* ds
         copied += written.value;
     }
 
-    EXPECT(== 0, probe_libc_close(src_fd.value));
-    EXPECT(== 0, probe_libc_close(dst_fd.value));
+    probe_libc_close(src_fd.value);
+    probe_libc_close(dst_fd.value);
 
     return 0;
 }
@@ -119,7 +119,7 @@ void write_bytes(int dirfd, const char* path, const char* content, ssize_t size)
         ASSERTF(res.error == 0, "");
         copied += res.value;
     }
-    EXPECT(== 0, probe_libc_close(fd.value));
+    probe_libc_close(fd.value);
 }
 
 unsigned char ceil_log2(unsigned int val) {
@@ -155,7 +155,7 @@ char* read_file(const char* path, size_t* buffer_len, size_t* buffer_capacity) {
             }
         }
     }
-    EXPECT(== 0, probe_libc_close(fd.value));
+    probe_libc_close(fd.value);
     return buffer;
 }
 

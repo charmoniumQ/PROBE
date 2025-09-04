@@ -4,6 +4,7 @@
 
 #include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM¸ EWOULDBLOCK
 #include <fcntl.h>       // for O_RDONLY, O_CLOEXEC
+#include <limits.h>      // IWYU pragma: keep for SSIZE_MAX
 #include <linux/prctl.h> // for PR_*
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
@@ -15,6 +16,7 @@
 // IWYU pragma: no_include "asm-generic/errno-base.h" for ENOENT, ENOMEM, EWOULDBLOCK
 // IWYU pragma: no_include "asm-generic/errno.h" for EWOULDBLOCK
 // IWYU pragma: no_include "elf.h" for AT_NULL, AT_PAGESZS
+// IWYU pragma: no_include "bits/posix1_lim.h" for SSIZE_MAX
 
 #include "../src/debug_logging.h" // for DEBUG, ERROR
 #ifndef UNIT_TESTS
@@ -49,23 +51,11 @@
         return 0;                                                                                  \
     })
 
-#define TRY_CLOSE(fd, path)                                                                        \
-    ({                                                                                             \
-        result ret = probe_libc_close(fd);                                                         \
-        if (ret) {                                                                                 \
-            WARNING("failed to close fd " path "with error: %s (%d)",                              \
-                    strerror_with_backup((int)ret), ret);                                          \
-        }                                                                                          \
-    })
-
 // HACK: technically the size of the auxiliary vector isn't defined, but muslc
 // uses a size_t[38] to store the values of the auxiliary vector (index
 // addressed)
 #define AUX_CNT 38
 size_t auxilary[AUX_CNT] = {0};
-
-char** probe_environ = NULL;
-char* environ_buf = NULL;
 
 #if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
@@ -200,52 +190,6 @@ result probe_libc_init(void) {
         free(buf);
     }
 
-    // probe_environ initialization
-    {
-        if (probe_environ != NULL) {
-            free(probe_environ);
-            probe_environ = NULL;
-        }
-        if (environ_buf != NULL) {
-            free(environ_buf);
-            environ_buf = NULL;
-        }
-
-        result_int environ_fd =
-            probe_libc_openat(AT_FDCWD, "/proc/self/environ", O_RDONLY | O_CLOEXEC, 0);
-        if (environ_fd.error) {
-            WARNING("Unable to open /proc/self/environ: (%d) %s", environ_fd.error,
-                    strerror_with_backup(environ_fd.error));
-            return environ_fd.error;
-        }
-        result_sized_mem buf = probe_read_all_alloc(environ_fd.value);
-        if (buf.error) {
-            WARNING("Unable to allocate and read /proc/self/environ: (%d) %s", buf.error,
-                    strerror_with_backup(buf.error));
-        }
-        TRY_CLOSE(environ_fd.value, "/proc/self/environ");
-        environ_buf = buf.value;
-
-        size_t env_count = 0;
-        for (size_t i = 0; i < buf.size; ++i) {
-            if (environ_buf[i] == '\0') {
-                ++env_count;
-            }
-        }
-
-        probe_environ = calloc(env_count + 1, sizeof(char*));
-        if (probe_environ == NULL) {
-            WARNING("Unable to calloc probe_environ");
-            return ENOMEM;
-        }
-
-        size_t buf_offset = 0;
-        for (size_t i = 0; buf_offset < buf.size && i < env_count; ++i) {
-            probe_environ[i] = environ_buf + buf_offset;
-            buf_offset += (probe_libc_strnlen(environ_buf + buf_offset, buf.size - buf_offset) + 1);
-        }
-    }
-
     return 0;
 }
 
@@ -333,6 +277,16 @@ void* probe_libc_memset(void* s, int c, size_t n) {
     return s;
 }
 
+size_t probe_libc_memcount(const char* s, size_t maxlen, char delim) {
+    if (s == NULL) {
+        return 0;
+    }
+    size_t count = 0;
+    for (const char *ptr = s; ptr < s + maxlen; ++ptr)
+        count += (*ptr == delim);
+    return count;
+}
+
 result_str probe_libc_getcwd(char* buf, size_t size) {
     int retval = probe_syscall2(SYS_getcwd, (uintptr_t)buf, size);
     if (retval >= 0) {
@@ -368,9 +322,12 @@ result_int probe_libc_openat(int dirfd, const char* path, int flags, mode_t mode
     SYSCALL_ERROR_RESULT(result_int, retval);
 }
 
-result probe_libc_close(int fd) {
+void probe_libc_close(int fd) {
     ssize_t retval = probe_syscall1(SYS_close, fd);
-    SYSCALL_ERROR_OPTION(retval);
+    if (retval) {
+        WARNING("failed to close fd %d with error: %s (%zd)", fd, strerror_with_backup((int)retval),
+                retval);
+    }
 }
 
 result_ssize_t probe_libc_read(int fd, void* buf, size_t count) {
@@ -474,6 +431,52 @@ result_sized_mem probe_read_all_alloc(int fd) {
         .value = buf,
     };
 }
+result_sized_mem probe_read_all_alloc_path(int dirfd, const char* path) {
+    result_int fd = probe_libc_openat(dirfd, path, O_RDONLY, 0);
+    if (fd.error) {
+        return (result_sized_mem)ERR(fd.error);
+    }
+    result_sized_mem ret = probe_read_all_alloc(fd.value);
+    probe_libc_close(fd.value);
+    return ret;
+}
+
+result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
+    ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
+    SYSCALL_ERROR_RESULT(result_ssize_t, retval);
+}
+
+result probe_copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path,
+                       ssize_t size) {
+    // See https://stackoverflow.com/a/2180157
+
+    result_int src_fd = probe_libc_openat(src_dirfd, src_path, O_RDONLY, 0);
+    if (src_fd.error)
+        return (result)src_fd.error;
+
+    result_int dst_fd = probe_libc_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
+    if (dst_fd.error) {
+        probe_libc_close(src_fd.value);
+        return (result)dst_fd.error;
+    }
+
+    off_t copied = 0;
+    while (copied < size) {
+        result_ssize_t written =
+            probe_libc_sendfile(dst_fd.value, src_fd.value, &copied, SSIZE_MAX);
+        if (written.error) {
+            probe_libc_close(src_fd.value);
+            probe_libc_close(dst_fd.value);
+            return written.error;
+        }
+        copied += written.value;
+    }
+
+    probe_libc_close(src_fd.value);
+    probe_libc_close(dst_fd.value);
+
+    return 0;
+}
 
 result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) {
     ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, /*offset*/ 0);
@@ -492,11 +495,6 @@ result probe_libc_munmap(void* addr, size_t len) {
 result probe_libc_msync(void* addr, size_t len, int flags) {
     ssize_t retval = probe_syscall3(SYS_msync, (uintptr_t)addr, len, flags);
     SYSCALL_ERROR_OPTION(retval);
-}
-
-result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
-    ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
-    SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
 char* probe_libc_strncpy(char* dest, const char* src, size_t dsize) {
@@ -534,18 +532,29 @@ char* probe_libc_strndup(const char* s, size_t n) {
     return new;
 }
 
-int probe_libc_strncmp(const char* a, const char* b, size_t n) {
+int probe_libc_strncmp(const char* a, const char* b, size_t maxlen) {
     size_t i = 0;
-    for (; a[i] != '\0' && b[i] != '\0' && i < n; ++i) {
+    for (; a[i] != '\0' && b[i] != '\0' && i < maxlen; ++i) {
         int_fast16_t diff = (int_fast16_t)(unsigned char)a[i] - (int_fast16_t)(unsigned char)b[i];
         if (diff) {
             return diff;
         }
     }
-    if ((i == n) || (a[i] == '\0' && b[i] == '\0')) {
+    if ((i == maxlen) || (a[i] == '\0' && b[i] == '\0')) {
         return 0;
     }
     return (int_fast16_t)(unsigned char)a[i] - (int_fast16_t)(unsigned char)b[i];
+}
+
+size_t probe_libc_strnfind(const char* string, size_t maxlen, char delim) {
+    if (string == NULL) {
+        return 0;
+    }
+    size_t index = 0;
+    for (; index < maxlen && string[index]; ++index)
+        if (string[index] == delim)
+            break;
+    return index;
 }
 
 size_t probe_libc_getpagesize(void) { return auxilary[AT_PAGESZ]; }
@@ -556,7 +565,7 @@ const char* probe_libc_getenv(const char* name) {
     }
 
     size_t name_len = probe_libc_strnlen(name, -1);
-    for (size_t i = 0; probe_environ[i] != NULL; ++i) {
+    for (size_t i = 0; probe_environ != NULL; ++i) {
         const char* curr = probe_environ[i];
         if (probe_libc_strncmp(name, curr, name_len) == 0 && curr[name_len] == '=') {
             return curr + name_len + 1;

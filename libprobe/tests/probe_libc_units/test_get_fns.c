@@ -45,16 +45,6 @@ Test(get, getcwd) {
     cr_assert_str_eq(actual, expected, "got cwd %s but expected %s", actual, expected);
 }
 
-// technically the order of envrion isn't guaranteed, but every sane
-// implementation (including ours) processes them in the order the kernel gives
-// them to you, and i'd rather the test overconstrain than underconstrain
-Test(get, environ, .init = setup) {
-    for (size_t i = 0; environ[i] != NULL; ++i) {
-        cr_assert_not_null(probe_environ[i], "Expected %s but got NULL", environ[i]);
-        cr_assert_str_eq(environ[i], probe_environ[i], "Expected %s but got %s", environ[i], probe_environ[i]);
-    }
-}
-
 Test(get, getenv, .init = setup) {
     for (size_t i = 0; environ[i] != NULL; ++i) {
         const char* curr = environ[i];

@@ -13,13 +13,6 @@
 
 #include "env.h"
 
-const char* getenv_copy(const char* name) {
-    /* Validate input */
-    const char* val = probe_libc_getenv(name);
-    DEBUG("Found env '%s' = '%s'", name, val);
-    return val;
-}
-
 bool search_on_colon_separated_path(const char* path, const char* needle, size_t needle_len) {
     while (*path != '\0') {
         const char* part = path;
@@ -125,6 +118,9 @@ char* const* update_env_with_probe_vars(char* const* env, size_t* new_env_size) 
     return new_env;
 }
 
+// getconf -a | grep ARG_MAX
+#define ARG_MAX 2505728
+
 char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size_t argc) {
     if (argc == 0) {
         /* Compute argc and store in argc */
@@ -136,7 +132,7 @@ char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size
     char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
 
     for (size_t i = 0; i < argc; ++i) {
-        size_t length = probe_libc_strlen(argv[i]);
+        size_t length = probe_libc_strnlen(argv[i], ARG_MAX);
         argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
         probe_libc_memcpy(argv_copy[i], argv[i], length + 1);
         ASSERTF(!argv_copy[i][length], "");

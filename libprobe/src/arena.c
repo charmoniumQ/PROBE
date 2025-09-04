@@ -60,7 +60,7 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     result_mem base_address =
         probe_libc_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd.value);
     ASSERTF(base_address.error == 0, "");
-    EXPECT(== 0, probe_libc_close(fd.value));
+    probe_libc_close(fd.value);
 
     if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
         /* No more free slots in this block, as we've reached block size.

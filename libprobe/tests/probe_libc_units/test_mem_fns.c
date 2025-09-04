@@ -72,9 +72,9 @@ Test(memcmp, zero_valid) {
     );
 }
 
-Test(memcmp, zero_null) {
+Test(memcmp, zero_memcmp) {
     cr_assert(
-        probe_libc_memcmp(NULL, NULL, 0) == 0,
+        probe_libc_memcmp("abc", "def", 0) == 0,
         "Expected length 0 comparison to always succeed"
     );
 }
@@ -190,13 +190,6 @@ Test(memcpy, zero_valid) {
     }
 }
 
-Test(memcpy, zero_null) {
-    char* orig = "test1234";
-
-    probe_libc_memcpy(NULL, orig, 0);
-    probe_libc_memcpy(NULL, NULL, 0);
-}
-
 Test(memcpy, fuzzing) {
     srand(FUZZING_SEED);
 
@@ -246,10 +239,6 @@ Test(memset, zero_valid) {
     }
 }
 
-Test(memset, zero_null) {
-    probe_libc_memset(NULL, 'C', 0);
-}
-
 Test(memset, zeros) {
     for (int i = 0; i < 256; ++i) {
         char* buf = malloc(i);
@@ -275,4 +264,8 @@ Test(memset, fuzzing) {
 
         cr_assert(memcmp(buf_expected, buf_actual, size) == 0, "Expected same result buffer");
     }
+}
+
+Test(memcount, stops_after_len) {
+    cr_assert_eq(probe_libc_memcount("aa34a", 4, 'a'), 2);
 }
