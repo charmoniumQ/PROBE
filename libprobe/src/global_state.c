@@ -342,10 +342,10 @@ static inline void emit_init_epoch_op() {
     if (client_readlinkat(AT_FDCWD, "/proc/self/exe", exe.bytes, PROBE_PATH_MAX) < 0) {
         ERROR("");
     }
-    size_t argc = 0;
-    size_t envc = 0;
-    char* const* argv = read_null_delim_file("/proc/self/cmdline", &argc);
-    char* const* env = read_null_delim_file("/proc/self/environ", &envc);
+    result_sized_mem cmdline = probe_read_all_alloc_path(AT_FDCWD, "/proc/self/cmdline");
+    if (cmdline.error) {
+        ERROR("");
+    }
     struct Op init_epoch_op = {
         init_exec_epoch_op_code,
         {.init_exec_epoch =
@@ -355,8 +355,8 @@ static inline void emit_init_epoch_op() {
                  .epoch = get_exec_epoch(),
                  .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, 0),
                  .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
-                 .argv = arena_copy_argv(get_data_arena(), argv, argc),
-                 .env = arena_copy_argv(get_data_arena(), env, envc),
+                 .argv = arena_copy_cmdline(get_data_arena(), cmdline),
+                 .env = arena_copy_argv(get_data_arena(), probe_environ, 0),
                  .std_in = create_path_lazy(AT_FDCWD, "/dev/stdin", 0),
                  .std_out = create_path_lazy(AT_FDCWD, "/dev/stdout", 0),
                  .std_err = create_path_lazy(AT_FDCWD, "/dev/stderr", 0),
@@ -367,10 +367,7 @@ static inline void emit_init_epoch_op() {
     };
     prov_log_try(init_epoch_op);
     prov_log_record(init_epoch_op);
-    free((void*)argv[0]);
-    free((void*)argv);
-    free((void*)env[0]);
-    free((void*)env);
+    free(cmdline.value);
 }
 
 static inline void emit_init_thread_op() {
@@ -450,4 +447,5 @@ __attribute__((constructor)) void constructor() {
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
     emit_init_thread_op();
+    DEBUG("Done with construction");
 }

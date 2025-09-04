@@ -79,49 +79,6 @@ void list_dir(const char* name, int indent) {
     client_closedir(dir);
 }
 
-int copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path,
-              ssize_t size) {
-    /*
-    ** Adapted from:
-    ** https://stackoverflow.com/a/2180157
-     */
-    // FIXME: consider propagating the error values for openat and sendfile
-    result_int src_fd = probe_libc_openat(src_dirfd, src_path, O_RDONLY, 0);
-    if (src_fd.error != 0)
-        return -1;
-    result_int dst_fd = probe_libc_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
-    if (dst_fd.error != 0)
-        return -1;
-    off_t copied = 0;
-    while (copied < size) {
-        result_ssize_t written =
-            probe_libc_sendfile(dst_fd.value, src_fd.value, &copied, SSIZE_MAX);
-        if (written.error) {
-            return -1;
-        }
-        copied += written.value;
-    }
-
-    probe_libc_close(src_fd.value);
-    probe_libc_close(dst_fd.value);
-
-    return 0;
-}
-
-void write_bytes(int dirfd, const char* path, const char* content, ssize_t size) {
-    result_int fd = probe_libc_openat(dirfd, path, O_RDWR | O_CREAT, 0666);
-    // FIXME: error on optimized too
-    ASSERTF(fd.error == 0, "");
-    ssize_t copied = 0;
-    while (copied < size) {
-        result_ssize_t res = probe_libc_write(fd.value, content, size);
-        // FIXME: error on optimized too
-        ASSERTF(res.error == 0, "");
-        copied += res.value;
-    }
-    probe_libc_close(fd.value);
-}
-
 unsigned char ceil_log2(unsigned int val) {
     unsigned int ret = 0;
     bool is_greater = false;
@@ -131,70 +88,6 @@ unsigned char ceil_log2(unsigned int val) {
         ret++;
     }
     return ret + is_greater;
-}
-
-char* read_file(const char* path, size_t* buffer_len, size_t* buffer_capacity) {
-    result_int fd = probe_libc_openat(AT_FDCWD, path, O_RDONLY, 0);
-    // FIXME: error handling?
-    *buffer_capacity = 4096;
-    char* buffer = EXPECT_NONNULL(malloc(*buffer_capacity));
-    *buffer_len = 0;
-    while (true) {
-        result_ssize_t ret =
-            probe_libc_read(fd.value, buffer + *buffer_len, *buffer_capacity - *buffer_len);
-        if (ret.error) {
-            ERROR("");
-        }
-        if (ret.value == 0) {
-            break;
-        } else {
-            *buffer_len += ret.value;
-            if (*buffer_len == *buffer_capacity) {
-                *buffer_capacity *= 2;
-                buffer = EXPECT_NONNULL(realloc(buffer, *buffer_capacity));
-            }
-        }
-    }
-    probe_libc_close(fd.value);
-    return buffer;
-}
-
-char* const* read_null_delim_file(const char* path, size_t* array_len) {
-    size_t buffer_len;
-    size_t buffer_capacity;
-    char* buffer = read_file(path, &buffer_len, &buffer_capacity);
-    ASSERTF(buffer[buffer_len - 1] == '\0', "");
-
-    /* Count array elements */
-    *array_len = 0;
-    for (size_t buffer_idx = 0; buffer_idx < buffer_len; ++buffer_idx) {
-        if (buffer[buffer_idx] == '\0') {
-            ++*array_len;
-        }
-    }
-
-    /* Copy array elements */
-    char** array = EXPECT_NONNULL(malloc((*array_len + 1 /* trailing NULL */) * sizeof(char*)));
-    array[*array_len] = NULL; /* trailing NULL */
-    size_t buffer_idx = 0;
-    size_t array_idx = 0;
-    while (true) {
-        array[array_idx] = &buffer[buffer_idx];
-        array_idx += 1;
-
-        if (array_idx == *array_len) {
-            break;
-        }
-
-        /* Find next NULL */
-        while (buffer[buffer_idx]) {
-            ++buffer_idx;
-        }
-        ++buffer_idx;
-        ASSERTF(buffer[buffer_idx], "buffer[%ld] should not equal \\0", buffer_idx);
-    }
-
-    return array;
 }
 
 unsigned int my_atoui(const char* s) {

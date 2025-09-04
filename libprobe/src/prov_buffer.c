@@ -63,8 +63,8 @@ static int copy_to_store(const struct Path* path) {
         return 0;
     } else if ((path->mode & S_IFMT) == S_IFREG) {
         DEBUG("Copying regular file %s %ld", path->path, path->inode);
-        return copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, AT_FDCWD,
-                         store_path.bytes, path->size);
+        return (int)probe_copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, AT_FDCWD,
+                                    store_path.bytes, path->size);
     } else if ((path->mode & S_IFMT) == S_IFCHR) {
         DEBUG("Copying block device file %s %ld", path->path, path->inode);
         // TODO

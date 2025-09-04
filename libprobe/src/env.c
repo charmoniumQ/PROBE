@@ -143,3 +143,23 @@ char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size
 
     return argv_copy;
 }
+
+char* const* arena_copy_cmdline(struct ArenaDir* arena_dir, result_sized_mem cmdline) {
+    size_t argc = probe_libc_memcount(cmdline.value, cmdline.size, '\0');
+
+    char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
+
+    const char* ptr = cmdline.value;
+    for (size_t i = 0; i < argc; ++i) {
+        size_t length = probe_libc_strnlen(ptr, cmdline.size);
+        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
+        probe_libc_memcpy(argv_copy[i], ptr, length + 1);
+        ASSERTF(!argv_copy[i][length], "");
+        ptr += length;
+    }
+
+    ASSERTF(!*ptr, "");
+    argv_copy[argc] = NULL;
+
+    return argv_copy;
+}
