@@ -344,11 +344,11 @@ def add_inode_segments(
         for access, _, segment in concurrent_segments
         if access.is_write
     ])
-    truncating_writes = {
-        segment: access
+    mutating_writes = SegmentsPerProcess.union(*[
+        segment
         for access, _, segment in concurrent_segments
-        if access.is_write
-    }
+        if access.is_write and access != ptypes.AccessMode.TRUNCATE_WRITE
+    ])
     # FIXME: Handle truncating writes separately from writes
 
     print(f"    Readers: {sorted(union_read_segments.segments.keys())}")
@@ -366,6 +366,7 @@ def add_inode_segments(
     if union_read_segments and union_write_segments:
         version += 1
         inode_version = InodeVersionNode(inode, version)
+        initial_inode_version = InodeVersionNode(inode, initial_version)
         deduplicator = 0
         for write_process, write_segment in union_write_segments.segments.items():
             for read_process, read_segment in union_read_segments.segments.items():
@@ -377,7 +378,10 @@ def add_inode_segments(
                                 deduplicator += 1
                                 dataflow_graph.add_edge(write_node, inode_version)
                                 dataflow_graph.add_edge(inode_version, read_node)
-    elif union_write_segments:
+            if write_segment in mutating_writes.segments.values():
+                dataflow_graph.add_edge(initial_inode_version, inode_version)
+
+    if union_write_segments:
         # If we did concurrent writes -> concurrent reads, we already handled this case
         # Current writes -> future reads
         version += 1
@@ -386,8 +390,8 @@ def add_inode_segments(
         for write_process, write_segment in union_write_segments.segments.items():
             for write_node in write_segment.lower_bound:
                 dataflow_graph.add_edge(write_node, inode_version)
-                if access != ptypes.AccessMode.TRUNCATE_WRITE:
-                    dataflow_graph.add_edge(initial_inode_version, inode_version)
+            if write_segment in mutating_writes.segments.values():
+                dataflow_graph.add_edge(initial_inode_version, inode_version)
 
     return version
 

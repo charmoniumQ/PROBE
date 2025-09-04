@@ -101,10 +101,8 @@ def serialize_graph(
         cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
     if name_mapper is None:
-        name_mapper = typing.cast(
-            typing.Callable[[_Node], str],
-            lambda node: graph.nodes(data=True)[node].get("id", str(node)),
-        )
+        def name_mapper(node: _Node) -> str:
+            return str(graph.nodes(data=True)[node].get("id", node))
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
 
@@ -483,7 +481,28 @@ def add_edge_without_cycle(
         return edges
 
 
-@charmonium.time_block.decor(print_start=False)
+class GraphvizAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    shape: str
+
+
+class GraphvizNodeAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    style: str
+
+
+class GraphvizEdgeAttributes(typing.TypedDict):
+    label: str
+    shape: str
+    color: str
+    style: str
+    labelfontsize: int
+
+
 def splice_out_nodes(
         input_dag: networkx.DiGraph[_Node],
         should_splice: typing.Callable[[_Node], bool],
@@ -648,6 +667,7 @@ def try_find_cycle(
         return typing.cast(list[tuple[_Node, _Node]], cycle)
 
 
+
 def transitive_reduction_cyclic_graph(digraph: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
     edge_bank = []
     while (cycle := try_find_cycle(digraph)) is not None:
@@ -657,26 +677,3 @@ def transitive_reduction_cyclic_graph(digraph: networkx.DiGraph[_Node]) -> netwo
         digraph.add_edge(*edge)
         assert try_find_cycle(digraph, edge[0])
     return digraph
-
-
-class GraphvizAttributes(typing.TypedDict):
-    label: str
-    labelfontsize: int
-    color: str
-    shape: str
-
-
-class GraphvizNodeAttributes(typing.TypedDict):
-    label: str
-    labelfontsize: int
-    color: str
-    style: str
-    cluster: str
-
-
-class GraphvizEdgeAttributes(typing.TypedDict):
-    label: str
-    shape: str
-    color: str
-    style: str
-    labelfontsize: int

@@ -282,11 +282,7 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    node_view = typing.cast(
-        typing.Iterator[tuple[OpQuad, graph_utils.GraphvizNodeAttributes]],
-        iter(hb_graph.nodes(data=True)),
-    )
-    for node, data in node_view:
+    for node, data in hb_graph.nodes(data=True):
         op = probe_log.get_op(node)
         data.setdefault("label", "")
         data["cluster"] = str(node.pid)
@@ -334,11 +330,7 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             data["label"] += " (failed)"
             data["color"] = "red"
 
-    edge_view = typing.cast(
-        typing.Iterator[tuple[OpQuad, OpQuad, graph_utils.GraphvizEdgeAttributes]],
-        hb_graph.edges(data=True),
-    )
-    for node0, node1, edge_data in edge_view:
+    for node0, node1, edge_data in hb_graph.edges(data=True):
         if node0.pid != node1.pid or node0.tid != node1.tid:
             edge_data["style"] = "dashed"
 
