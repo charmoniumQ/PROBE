@@ -2,11 +2,12 @@ from __future__ import annotations
 import abc
 import collections
 import dataclasses
-import datetime
+import functools
 import itertools
 import typing
 import pathlib
 import random
+import charmonium.time_block
 import networkx
 import pydot
 from . import util
@@ -15,14 +16,11 @@ from . import util
 _Node = typing.TypeVar("_Node")
 
 
-_CoNode = typing.TypeVar("_CoNode", covariant=True)
-
-
 @dataclasses.dataclass(frozen=True)
-class Segment(typing.Generic[_CoNode]):
-    dag_tc: ReachabilityOracle[_CoNode]
-    upper_bound: frozenset[_CoNode]
-    lower_bound: frozenset[_CoNode]
+class Segment(typing.Generic[_Node]):
+    dag_tc: ReachabilityOracle[_Node]
+    upper_bound: frozenset[_Node]
+    lower_bound: frozenset[_Node]
 
     def __post_init__(self) -> None:
         assert self.upper_bound
@@ -38,15 +36,16 @@ class Segment(typing.Generic[_CoNode]):
         assert not unbounded, \
             f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
 
-    def nodes(self) -> collections.abc.Iterable[_CoNode]:
-        return self.dag_tc.nodes_between(self.upper_bound, self.lower_bound)
+    @staticmethod
+    def singleton(dag_tc: ReachabilityOracle[_Node], node: _Node) -> Segment[_Node]:
+        return Segment(dag_tc, frozenset({node}), frozenset({node}))
 
-    def overlaps(self, other: Segment[_CoNode]) -> bool:
-        assert self.dag_tc is other.dag_tc
-        return bool(frozenset(self.nodes()) & frozenset(other.nodes()))
+    def __bool__(self) -> bool:
+        "Whether the segment is non-empty"
+        return bool(self.upper_bound)
 
     @staticmethod
-    def union(segments: typing.Sequence[Segment[_CoNode]]) -> Segment[_CoNode]:
+    def union(*segments: Segment[_Node]) -> Segment[_Node]:
         assert segments
         dag_tc = segments[0].dag_tc
         assert all(segment.dag_tc is dag_tc for segment in segments)
@@ -61,6 +60,11 @@ class Segment(typing.Generic[_CoNode]):
             for node in segment.lower_bound
         ))
         return Segment(dag_tc, frozenset(upper_bound), frozenset(lower_bound))
+
+    def all_greater_than(self, other: Segment[_Node]) -> bool:
+        other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = \
+            self.dag_tc.non_descendants(other.upper_bound, self.lower_bound)
+        return not other_upper_bounds_that_are_not_descendent_of_self_lower_bounds
 
 
 _Node2 = typing.TypeVar("_Node2")
@@ -86,7 +90,8 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    return networkx.relabel_nodes(graph, dct)
+    ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
+    return ret
 
 
 def serialize_graph(
@@ -96,10 +101,8 @@ def serialize_graph(
         cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
     if name_mapper is None:
-        name_mapper = typing.cast(
-            typing.Callable[[_Node], str],
-            lambda node: graph.nodes(data=True)[node].get("id", str(node)),
-        )
+        def name_mapper(node: _Node) -> str:
+            return str(graph.nodes(data=True)[node].get("id", node))
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
 
@@ -150,19 +153,21 @@ def replace(digraph: networkx.DiGraph[_Node], old: _Node, new: _Node) -> None:
     digraph.remove_node(old)
 
 
-def bfs_with_pruning(
+def search_with_pruning(
         digraph: networkx.DiGraph[_Node],
         start: _Node,
-        left_to_right: bool = False
+        breadth_first: bool = True,
+        sort_nodes: typing.Callable[[list[_Node]], list[_Node]] = lambda lst: lst,
 ) -> typing.Generator[_Node | None, bool | None, None]:
-    """BFS but send False to prune this branch
+    """DFS/BFS but send False to prune this branch
 
         traversal = bfs_with_pruning
         for node in traversal:
             # work on node
             traversal.send(condition) # send True to descend or False to prune
+
     """
-    queue = [start]
+    queue = collections.deque([start])
     while queue:
         node = queue.pop()
         # When we yield, we do the body of the client's for-loop with "node"
@@ -175,10 +180,11 @@ def bfs_with_pruning(
         # Now the for-loop has wrapped around and we are back here.
         assert should_be_none is None
         if continue_with_children:
-            children = list(digraph.successors(node))
-            if left_to_right:
-                children = children[::-1]
-            queue.extend(children)
+            children = sort_nodes(list(digraph.successors(node)))
+            if breadth_first:
+                queue.extend(children)
+            else:
+                queue.extendleft(children[::-1])
 
 
 def get_sources(dag: networkx.DiGraph[_Node]) -> list[_Node]:
@@ -247,6 +253,12 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
     def add_edge(self, u: _Node, v: _Node) -> None:
         """Keep datastructure up-to-date"""
 
+    def dominates(self, source: _Node, destination: _Node) -> bool:
+        return self.n_paths(source, destination) == 1
+
+    @abc.abstractmethod
+    def n_paths(self, source: _Node, destination: _Node) -> int: ...
+
     def is_antichain(self, nodes: collections.abc.Iterable[_Node]) -> bool:
         return all(
             not self.is_reachable(node0, node1)
@@ -287,6 +299,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             self.is_reachable(a, b)
             for a in uppermost_nodes
             for b in uppermost_nodes
+            if a != b
         )
         return frozenset(uppermost_nodes)
 
@@ -313,6 +326,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             self.is_reachable(a, b)
             for a in bottom_nodes
             for b in bottom_nodes
+            if a != b
         )
         return frozenset(bottom_nodes)
 
@@ -321,6 +335,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             candidates: collections.abc.Iterable[_Node],
             lower_bounds: collections.abc.Iterable[_Node],
     ) -> collections.abc.Iterable[_Node]:
+        "Return all candidates that are not ancestors of any element in lower_bounds."
         return frozenset({
             candidate
             for candidate in candidates
@@ -335,6 +350,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             candidates: collections.abc.Iterable[_Node],
             upper_bounds: collections.abc.Iterable[_Node],
     ) -> collections.abc.Iterable[_Node]:
+        "Return all candidates that are not descendent of any element in upper_bounds."
         return frozenset({
             candidate
             for candidate in candidates
@@ -344,22 +360,24 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             )
         })
 
+    def segment(self, upper_bound: frozenset[_Node], lower_bound: frozenset[_Node]) -> Segment[_Node]:
+        return Segment(self, upper_bound, lower_bound)
+
 
 @dataclasses.dataclass(frozen=True)
 class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
+    dag: networkx.DiGraph[_Node]
     dag_tc: networkx.DiGraph[_Node]
 
     @staticmethod
     def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
-        start = datetime.datetime.now()
-        print("Computing transitive closure")
-        ret = typing.cast(networkx.DiGraph[_Node], networkx.transitive_closure(dag))
-        duration = datetime.datetime.now() - start
-        print(f"Done computing in {duration.total_seconds():.1f}sec")
-        return PrecomputedReachabilityOracle(ret)
+        return PrecomputedReachabilityOracle(
+            dag,
+            dag_transitive_closure(dag),
+        )
 
     def is_reachable(self, u: _Node, v: _Node) -> bool:
-        return v in self.dag_tc.successors(u)
+        return v in self.dag_tc.successors(u) or u == v
 
     def nodes_between(
             self,
@@ -374,9 +392,19 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
                 for descendant_of_target in [*self.dag_tc.successors(target), target]:
                     self.dag_tc.add_edge(descendant_of_source, descendant_of_target)
 
+    @functools.cache
+    def n_paths(self, source: _Node, destination: _Node) -> int:
+        if self.dag.in_degree(destination) == 1:
+            return int(self.is_reachable(source, destination))
+        else:
+            return sum(
+                1 if predecessor == source else self.n_paths(source, predecessor)
+                for predecessor in self.dag.predecessors(destination)
+            )
+
 
 def get_faces(
-        planar_graph: networkx.PlanarEmbedding[_Node], # type: ignore
+        planar_graph: networkx.PlanarEmbedding[_Node],
 ) -> frozenset[tuple[_Node, ...]]:
     faces = set()
     covered_half_edges = set()
@@ -429,7 +457,7 @@ def add_edge_without_cycle(
         # See if each descendant can be used as a proxy for target.
         # I.e., source -> proxy_target.
         # If not, we will have to recurse into its children until a suitable target is found or the original source is found.
-        bfs = bfs_with_pruning(dag, target)
+        bfs = search_with_pruning(dag, target, breadth_first=True)
         for proxy_target in bfs:
             assert proxy_target is not None
             if reachability_oracle.is_reachable(proxy_target, source):
@@ -453,6 +481,28 @@ def add_edge_without_cycle(
         return edges
 
 
+class GraphvizAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    shape: str
+
+
+class GraphvizNodeAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    style: str
+
+
+class GraphvizEdgeAttributes(typing.TypedDict):
+    label: str
+    shape: str
+    color: str
+    style: str
+    labelfontsize: int
+
+
 def splice_out_nodes(
         input_dag: networkx.DiGraph[_Node],
         should_splice: typing.Callable[[_Node], bool],
@@ -470,26 +520,160 @@ def splice_out_nodes(
     return output_dag
 
 
+def _n_paths(
+        dag: networkx.DiGraph[_Node],
+        reachability_oracle: ReachabilityOracle[_Node],
+        source: _Node,
+        destination: _Node,
+) -> int:
+    return sum(
+            int(reachability_oracle.is_reachable(source, predecessor))
+            for predecessor in dag.predecessors(destination)
+        )
+
+
 def topological_sort_depth_first(
         dag: networkx.DiGraph[_Node],
+        starting_node: _Node | None = None,
         score_children: typing.Callable[[_Node, _Node], int] = lambda _parent, _child: 0,
-) -> typing.Iterable[_Node]:
-    """Topological sort that breaks ties by depth first, and then by lowest child score."""
-    queue = util.PriorityQueue[_Node, tuple[int, int]](
-        (node, (dag.in_degree(node), 0))
-        for node in dag.nodes()
-    )
+        reachability_oracle: ReachabilityOracle[_Node] | None = None
+) -> typing.Generator[_Node | None, bool | None, None]:
+    """Topological sort that breaks ties by depth first, and then by lowest child score.
+
+    If `starting_node` is given, iterate only over nodes reachable from
+    starting_node. We don't load up all nodes in the graph ahead-of-time; we
+    start exploring from starting_node. We need a reachability oracle to
+    determine when all the paths from starting_node to node have been hit (there
+    could be paths ending in node that don't go through starting node).
+
+    See `search_with_pruning` for example of how to iterate and prune.
+
+    """
+
+    degree_func2: typing.Callable[[_Node], int]
+    if starting_node is None:
+        degree_func2 = dag.in_degree
+    else:
+        assert reachability_oracle is not None
+        degree_func2 = functools.partial(_n_paths, dag, reachability_oracle, starting_node)
+
+    queue = util.PriorityQueue[_Node, tuple[int, int]]()
+
+    if starting_node is not None:
+        queue[starting_node] = (0, -1)
+        assert queue.peek() == ((0, -1), starting_node)
+    else:
+        for node in dag.nodes():
+            queue[node] = (degree_func2(node), 0)
+        # Because queue is sorted,
+        # Iteration will start from one of the zero-degree ndoes
+
     counter = 0
+    # seen = set()
     while queue:
         (in_degree, tie_breaker), node = queue.pop()
-        if in_degree == 0:
-            yield node
-            # Since we handled the parent, we essentially removed it from the graph
-            # decrementing the in-degree of its children by one.
-            # To make it be depth first, we make it "win" all ties, among currently existing entries.
+        if in_degree != 0:
+            break
+
+        # if starting_node is None:
+        #     assert all(predecessor in seen for predecessor in dag.predecessors(node))
+        # else:
+        #     assert reachability_oracle
+        #     assert all(predecessor in seen for predecessor in dag.predecessors(node) if reachability_oracle.is_reachable(starting_node, predecessor))
+        # seen.add(node)
+
+        continue_with_children = yield node
+        should_be_none = yield None
+        assert should_be_none is None
+
+        # Since we handled the parent, we essentially removed it from the graph
+        # decrementing the in-degree of its children by one.
+        # To make it be depth first, we make it "win" all ties, among currently existing entries.
+        if continue_with_children:
             for child in sorted(dag.successors(node), key=lambda child: score_children(node, child)):
-                in_degree, tie_breaker = queue[child]
-                queue[child] = (in_degree - 1, -counter)
-        else:
-            raise RuntimeError(f"Cycle exists and includes {node}")
+                if child in queue:
+                    in_degree, tie_breaker = queue[child]
+                    queue[child] = (in_degree - 1, -counter)
+                else:
+                    queue[child] = (degree_func2(child) - 1, -counter)
         counter += 1
+
+
+@charmonium.time_block.decor(print_start=False)
+def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
+    tc: networkx.DiGraph[_Node] = networkx.DiGraph()
+    node_order = list(networkx.topological_sort(dag))[::-1]
+    for src in node_order:
+        tc.add_node(src)
+        for child in dag.successors(src):
+            tc.add_edge(src, child)
+            for grandchild in tc.successors(child):
+                tc.add_edge(src, grandchild)
+    return tc
+
+
+def combine_isomorphic_nodes(
+    graph: networkx.DiGraph[_Node],
+    combinable: typing.Callable[[_Node], bool],
+) -> networkx.DiGraph[frozenset[_Node] | _Node]:
+    neighbors_to_node = dict[tuple[frozenset[_Node], frozenset[_Node]], set[_Node]]()
+    non_combinable_nodes = set()
+    for node in graph.nodes():
+        if combinable(node):
+            preds = frozenset(graph.predecessors(node))
+            succs = frozenset(graph.successors(node))
+            neighbors_to_node.setdefault((preds, succs), set()).add(node)
+        else:
+            non_combinable_nodes.add(node)
+    node_to_equivalence_class: collections.abc.Mapping[_Node, frozenset[_Node] | _Node] = {
+        **{
+            node: frozenset(equivalence_class)
+            for equivalence_class in neighbors_to_node.values()
+            for node in equivalence_class
+        },
+        **{
+            node: node
+            for node in non_combinable_nodes
+        },
+    }
+    ret: networkx.DiGraph[frozenset[_Node] | _Node] = networkx.DiGraph()
+    ret.add_nodes_from(
+        frozenset(equivalence_class)
+        for equivalence_class in neighbors_to_node.values()
+    )
+    ret.add_nodes_from(non_combinable_nodes)
+    ret.add_edges_from(
+        (frozenset(equivalence_class), node_to_equivalence_class[successor])
+        for (_, successors), equivalence_class in neighbors_to_node.items()
+        for successor in successors
+    )
+    ret.add_edges_from(
+        (node, node_to_equivalence_class[successor])
+        for node in non_combinable_nodes
+        for successor in graph.successors(node)
+    )
+    return ret
+
+
+def try_find_cycle(
+        digraph: networkx.DiGraph[_Node],
+        source: _Node | None = None,
+) -> list[tuple[_Node, _Node]] | None:
+    try:
+        cycle = networkx.find_cycle(digraph, source)
+    except networkx.NetworkXNoCycle:
+        return None
+    else:
+        return typing.cast(list[tuple[_Node, _Node]], cycle)
+
+
+
+def transitive_reduction_cyclic_graph(digraph: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
+    edge_bank = []
+    while (cycle := try_find_cycle(digraph)) is not None:
+        edge_bank.append(cycle[0])
+    digraph = networkx.transitive_reduction(digraph)
+    for edge in edge_bank:
+        digraph.add_edge(*edge)
+        assert try_find_cycle(digraph, edge[0])
+    return digraph
