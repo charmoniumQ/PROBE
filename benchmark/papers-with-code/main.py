@@ -1,3 +1,4 @@
+import traceback
 import datetime
 import tempfile
 import subprocess
@@ -104,23 +105,22 @@ df = (
         "",
         sep="\n",
     )))
-
     # Dedup
-    # .pipe(apply_and_return(lambda df: print(
-    #     "The database contains (paper, repo) edges",
-    #     "It is neither unique by papers nor by repos, but almost unique by paper and repos",
-    #     "The exceptions appear to be resubmitted papers:",
-    #     "For papers that have been submitted multiple times, the URL will be lexicographically greater.",
-    #     "E.g., 'https://$thing' > 'https://$thing-1'",
-    #     "We'll sort by paper_url, keep the later (longer) URL, and deduplicate by (paper, repo).",
-    #     (df
-    #         .group_by("paper_url_pdf", "repo_url")
-    #         .agg(polars.col("paper_url"), polars.len())
-    #         .filter(polars.col("len") > 1)
-    #     ),
-    #     "",
-    #     sep="\n",
-    # )))
+    .pipe(apply_and_return(lambda df: print(
+        "The database contains (paper, repo) edges",
+        "It is neither unique by papers nor by repos, but almost unique by paper and repos",
+        "The exceptions appear to be resubmitted papers:",
+        "For papers that have been submitted multiple times, the URL will be lexicographically greater.",
+        "E.g., 'https://$thing' > 'https://$thing-1'",
+        "We'll sort by paper_url, keep the later (longer) URL, and deduplicate by (paper, repo).",
+        (df
+            .group_by("paper_url_pdf", "repo_url")
+            .agg(polars.col("paper_url"), polars.len())
+            .filter(polars.col("len") > 1)
+        ),
+        "",
+        sep="\n",
+    )))
     .sort(polars.col("paper_url"))
     .with_columns(polars.struct("paper_url_abs", "repo_url").alias("_pair"))
     .unique("_pair", keep="last")
@@ -196,20 +196,20 @@ df = (
     .head(sample_size)
 
     # Add GitHub stars
-    # .with_columns(
-    #     polars_util.map_elements_with_progress(
-    #         paper_datasets.count_github_stars,
-    #         polars.Int64,
-    #         "repo_github_owner",
-    #         "repo_github_repo",
-    #     ).alias("github_stars")
-    # )
-    # .pipe(apply_and_return(lambda df: print(
-    #     "Sorted by GitHub stars:",
-    #     df.sort("github_stars", descending=True).head(n_rows),
-    #     "",
-    #     sep="\n",
-    # )))
+    .with_columns(
+        polars_util.map_elements_with_progress(
+            paper_datasets.count_github_stars,
+            polars.Int64,
+            "repo_github_owner",
+            "repo_github_repo",
+        ).alias("github_stars")
+    )
+    .pipe(apply_and_return(lambda df: print(
+        "Sorted by GitHub stars:",
+        df.sort("github_stars", descending=True).head(n_rows),
+        "",
+        sep="\n",
+    )))
 
     # Add citations
     .with_columns(
@@ -294,6 +294,10 @@ df = (
             "Good candidates",
             (
                 df
+                .filter("pipable")
+                .filter("is_official")
+                .sort("citations", descending=True)
+                .head(n_rows)
                 .glimpse()
             ),
             sep="\n",

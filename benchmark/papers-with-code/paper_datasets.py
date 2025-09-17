@@ -10,19 +10,24 @@ import githubkit
 import githubkit.core
 import os
 import polars
+import json
+import gzip
 import cache_util
 import charmonium.cache
 import charmonium.cache.util
-import huggingface_hub
 
 
+@charmonium.cache.memoize(group=cache_util.group)
 def papers_with_code() -> polars.DataFrame:
-    path = huggingface_hub.hf_hub_download(
-        repo_id="pwc-archive/links-between-paper-and-code",
-        repo_type="dataset",
-        filename="data/train-00000-of-00001.parquet",
+    return polars.DataFrame(
+        json.loads(
+            gzip.decompress(
+                cache_util.download(
+                    "https://production-media.paperswithcode.com/about/links-between-papers-and-code.json.gz"
+                )
+            )
+        )
     )
-    return polars.read_parquet(path)
 
 
 github_client = githubkit.GitHub(githubkit.TokenAuthStrategy(os.environ["GITHUB_PAT"]))
