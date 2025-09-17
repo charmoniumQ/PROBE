@@ -186,17 +186,14 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    hbg = hb_graph_module.retain_only(probe_log, hbg, dataflow_graph_module._retain_pred)
-    hb_graph_module.label_nodes(probe_log, hbg)
-    reachability_oracle = graph_utils.PrecomputedReachabilityOracle.create(hbg)
-    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph(
-        probe_log, hbg, reachability_oracle
+    dfg, inode_to_paths, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(
+        probe_log, hbg
     )
     dfg = dataflow_graph_module.filter_paths(
         dfg, inode_to_paths, ignore_paths.split(",")
     )
     compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(
-        probe_log, hbg, reachability_oracle, dfg,
+        probe_log, hbg, hb_oracle, dfg,
     )
     dataflow_graph_module.label_nodes(
         probe_log, compressed_dfg, inode_to_paths, relative_to=relative_to

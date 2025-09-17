@@ -1,6 +1,7 @@
 from __future__ import annotations
 import collections
 import dataclasses
+import datetime
 import enum
 import fnmatch
 import itertools
@@ -14,6 +15,7 @@ import frozendict
 import networkx
 import tqdm
 from . import graph_utils
+from . import hb_graph
 from . import ops
 from . import ptypes
 
@@ -21,7 +23,7 @@ from . import ptypes
 It: typing.TypeAlias = collections.abc.Iterable
 Map: typing.TypeAlias = collections.abc.Mapping
 Seq: typing.TypeAlias = collections.abc.Sequence
-
+FrozenDict: typing.TypeAlias = frozendict.frozendict
 
 @dataclasses.dataclass(frozen=True)
 class InodeVersionNode:
@@ -43,7 +45,7 @@ class ProcessState:
 
 @dataclasses.dataclass(frozen=True)
 class SegmentsPerProcess:
-    segments: Map[ptypes.Pid, graph_utils.Segment[ptypes.OpQuad]]
+    segments: FrozenDict[ptypes.Pid, graph_utils.Segment[ptypes.OpQuad]]
 
     def all_greater_than(self, other: SegmentsPerProcess) -> bool:
         return all(
@@ -60,7 +62,7 @@ class SegmentsPerProcess:
             hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
             quad: ptypes.OpQuad,
     ) -> SegmentsPerProcess:
-        return SegmentsPerProcess(frozendict.frozendict({quad.pid: graph_utils.Segment.singleton(hb_oracle, quad)}))
+        return SegmentsPerProcess(FrozenDict({quad.pid: graph_utils.Segment.singleton(hb_oracle, quad)}))
 
     @staticmethod
     def union(*segments_per_processs: SegmentsPerProcess) -> SegmentsPerProcess:
@@ -73,7 +75,7 @@ class SegmentsPerProcess:
                     union_segments_per_process[process] = graph_utils.Segment.union(
                         union_segments_per_process[process], segment,
                     )
-        return SegmentsPerProcess(frozendict.frozendict(union_segments_per_process))
+        return SegmentsPerProcess(FrozenDict(union_segments_per_process))
 
 
 if typing.TYPE_CHECKING:
@@ -82,7 +84,13 @@ if typing.TYPE_CHECKING:
 else:
     DataflowGraph = networkx.DiGraph
     CompressedDataflowGraph = networkx.DiGraph
-SegmentInfo: typing.TypeAlias = tuple[ptypes.AccessMode, ptypes.InodeVersion, SegmentsPerProcess]
+
+
+@dataclasses.dataclass(frozen=True)
+class SegmentInfo:
+    access_mode: ptypes.AccessMode
+    inode_version: ptypes.InodeVersion
+    segments: SegmentsPerProcess
 
 
 def _retain_pred(node: ptypes.OpQuad, op: ops.Op) -> bool:
@@ -92,24 +100,26 @@ def _retain_pred(node: ptypes.OpQuad, op: ops.Op) -> bool:
     ) and getattr(op.data, "ferrno", 0) == 0
 
 
+@charmonium.time_block.decor(print_start=False)
 def hb_graph_to_dataflow_graph(
         probe_log: ptypes.ProbeLog,
         hbg: ptypes.HbGraph,
-        hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
-) -> tuple[DataflowGraph, Map[ptypes.Inode, It[pathlib.Path]]]:
+) -> tuple[DataflowGraph, Map[ptypes.Inode, It[pathlib.Path]], graph_utils.ReachabilityOracle[ptypes.OpQuad]]:
+    hbg = hb_graph.retain_only(probe_log, hbg, _retain_pred)
+    hb_oracle = graph_utils.DualLabelReachabilityOracle[ptypes.OpQuad].create(hbg)
     inode_segments, inode_to_paths = find_segments(probe_log, hbg, hb_oracle)
     dataflow_graph = typing.cast(DataflowGraph, hbg.copy())
-    n_segments = sum(map(len, inode_segments.values()))
-    n_inodes = len(inode_segments.values())
-    with charmonium.time_block.ctx(
-            f"add {n_segments} segments for {n_inodes} inodes", print_start=False
-    ):
-        for inode, segments in inode_segments.items():
-            ordered_segments = order_segments(segments)
-            version = 0
-            for concurrent_segments in ordered_segments:
-                version = add_inode_segments(hb_oracle, dataflow_graph, inode, concurrent_segments, version)
-    return dataflow_graph, inode_to_paths
+    for inode, segments in tqdm.tqdm(inode_segments.items(), desc="Add segments for inode to graph"):
+        ordered_segments = order_segments(segments)
+        version = 0
+        start = datetime.datetime.now()
+        for concurrent_segments in ordered_segments:
+            version = add_inode_segments(hb_oracle, dataflow_graph, inode, concurrent_segments, version)
+        end = datetime.datetime.now()
+        duration = end - start
+        if duration > datetime.timedelta(seconds=0.1):
+            print(f"Adding segments took {duration.total_seconds()}")
+    return dataflow_graph, inode_to_paths, hb_oracle
 
 
 def _score_children(parent: ptypes.OpQuad, child: ptypes.OpQuad) -> int:
@@ -157,7 +167,7 @@ def find_segments(
                 cwds[quad.pid] = _to_path(cwds, inode_to_paths, quad, op_data.cwd)
                 inode_version = ptypes.InodeVersion.from_probe_path(op_data.exe)
                 segment = SegmentsPerProcess.singleton(hb_oracle, quad)
-                inode_to_segments[inode_version.inode].append((ptypes.AccessMode.EXEC, inode_version, segment))
+                inode_to_segments[inode_version.inode].append(SegmentInfo(ptypes.AccessMode.EXEC, inode_version, segment))
                 inode_to_paths[inode_version.inode].append(_to_path(cwds, inode_to_paths, quad, op_data.exe))
             case ops.ChdirOp():
                 cwds[quad.pid] = _to_path(cwds, inode_to_paths, quad, op_data.path)
@@ -177,7 +187,7 @@ def find_segments(
                     inode_version,
                 )
                 access = ptypes.AccessMode.from_open_flags(op_data.flags)
-                inode_to_segments[inode_version.inode].append((access, inode_version, segment))
+                inode_to_segments[inode_version.inode].append(SegmentInfo(access, inode_version, segment))
                 path = _to_path(cwds, inode_to_paths, quad, op_data.path)
                 inode_to_paths[inode_version.inode].append(path)
         assert quads.send(True) is None
@@ -207,46 +217,49 @@ def find_closes(
     # Iterate past the initial quad
     assert quads.send(None) == initial_quad
     assert quads.send(True) is None
-    print(f"  Searching for {fds_to_watch} {inode_version.inode}")
-    for quad in quads:
+    #print(f"  Searching for {fds_to_watch} {inode_version.inode}")
+    start = datetime.datetime.now()
+
+    for i, quad in enumerate(quads):
         assert quad is not None
         assert hb_oracle.is_reachable(initial_quad, quad)
         op_data = probe_log.get_op(quad).data
-        print(f"    {quad} {op_data.__class__.__name__}, {fds_to_watch}")
+        #print(f"    {quad} {op_data.__class__.__name__}, {fds_to_watch}")
         match op_data:
             case ops.OpenOp():
                 if op_data.fd in fds_to_watch[quad.pid]:
-                    print(f"    Subsequent open of a different {op_data.fd} pruned")
+                    #print(f"    Subsequent open of a different {op_data.fd} pruned")
                     assert quads.send(False) is None
                     continue
             case ops.ExecOp():
-                for fd in fds_to_watch[quad.pid]:
+                for fd in list(fds_to_watch[quad.pid]):
                     if cloexecs[quad.pid][fd]:
-                        print(f"    Cloexec {fd}")
+                        #print(f"    Cloexec {fd}")
                         fds_to_watch[quad.pid].remove(fd)
                         if not fds_to_watch[quad.pid]:
                             closes[quad.pid].add(quad)
             case ops.CloseOp():
                 if op_data.fd in fds_to_watch[quad.pid]:
                     if ptypes.InodeVersion.from_probe_path(op_data.path).inode == inode_version.inode:
-                        print(f"    Close {op_data.fd}")
+                        #print(f"    Close {op_data.fd}")
                         fds_to_watch[quad.pid].remove(op_data.fd)
                         if not fds_to_watch[quad.pid]:
                             closes[quad.pid].add(quad)
                     else:
-                        print(f"    Subsequent close of a different {op_data.fd} pruned")
+                        #print(f"    Subsequent close of a different {op_data.fd} pruned")
                         assert quads.send(False) is None
                         continue
                 else:
-                    print(f"    Close {op_data.fd} (unrelated)")
+                    pass
+                    #print(f"    Close {op_data.fd} (unrelated)")
             case ops.DupOp():
                 if op_data.old in fds_to_watch[quad.pid]:
                     if ptypes.InodeVersion.from_probe_path(op_data.path).inode == inode_version.inode:
                         fds_to_watch[quad.pid].add(op_data.new)
                         cloexecs[quad.pid][op_data.new] = bool(op_data.flags & os.O_CLOEXEC)
-                        print(f"    Dup {op_data.old} -> {op_data.new} {fds_to_watch}")
+                        #print(f"    Dup {op_data.old} -> {op_data.new} {fds_to_watch}")
                     else:
-                        print(f"    Subsequent dup of a different {op_data.old} pruned")
+                        #print(f"    Subsequent dup of a different {op_data.old} pruned")
                         assert quads.send(False) is None
                         continue
             case ops.CloneOp():
@@ -254,7 +267,7 @@ def find_closes(
                     target = ptypes.Pid(op_data.task_id)
                     if fds_to_watch[quad.pid]:
                         opens[target].add(ptypes.OpQuad(target, ptypes.initial_exec_no, target.main_thread(), 0))
-                    print("    Clone")
+                    #print("    Clone")
                     if op_data.flags & os.CLONE_FILES:
                         fds_to_watch[target] = fds_to_watch[quad.pid]
                         cloexecs[target] = cloexecs[quad.pid]
@@ -267,12 +280,12 @@ def find_closes(
             successor.pid == quad.pid
             for successor in hb_graph.successors(quad)
         ):
-            print("  Last quad in this process; autoclosing")
+            #print("  Last quad in this process; autoclosing")
             closes[quad.pid].add(quad)
             fds_to_watch[quad.pid].clear()
 
         if not fds_to_watch[quad.pid]:
-            print(f"  No more FDs to watch in {quad.pid}")
+            #print(f"  No more FDs to watch in {quad.pid}")
             assert quads.send(False) is None
         else:
             assert quads.send(True) is None
@@ -284,15 +297,37 @@ def find_closes(
         })
 
     if any(fds_to_watch.values()):
-        raise ptypes.InvalidProbeLog(f"We don't know where {fds_to_watch} got closed.")
+        # FIXME: re-enable this warning
+        # warnings.warn(ptypes.UnusualProbeLog(
+        #     f"We don't know where {fds_to_watch} got closed."
+        # ))
+        for pid, fds in fds_to_watch.items():
+            if fds:
+                last_exec_no = max(probe_log.processes[pid].execs.keys())
+                _, last_quad = _get_first_and_last_quad(hb_graph, pid, last_exec_no)
+                closes[pid].add(last_quad)
 
     assert opens.keys() == closes.keys()
 
-    ret = SegmentsPerProcess(frozendict.frozendict({
+    startpoints = sum(map(len, opens.values()))
+    endpoints = sum(map(len, closes.values()))
+    n_proc = len(opens.keys())
+
+    end = datetime.datetime.now()
+    duration = end - start
+    if duration > datetime.timedelta(seconds=0.1):
+        print(f"find_closes: {{{startpoints} startpoints}}->{{{endpoints} endpoints}} across {n_proc} processes, passing {i} quads in {duration.total_seconds():.1f}sec")
+    start = end
+
+    start = datetime.datetime.now()
+    ret = SegmentsPerProcess(FrozenDict({
         pid: graph_utils.Segment(hb_oracle, frozenset(opens[pid]), frozenset(closes[pid]))
         for pid in opens.keys()
     }))
-    print(str(inode_version.inode), ret)
+    end = datetime.datetime.now()
+    duration = end - start
+    if duration > datetime.timedelta(seconds=0.1):
+        print(f"find_closes: Build {n_proc} segment union in {duration.total_seconds():.1f}")
     return ret
 
 
@@ -300,9 +335,18 @@ def order_segments(
         segments: It[SegmentInfo]
 ) -> It[It[SegmentInfo]]:
     segment_hb: networkx.DiGraph[SegmentInfo] = networkx.DiGraph()
-    segment_hb.add_nodes_from(segments)
+    # FIXME: add_nodes_from
+    assert all(isinstance(segment, SegmentInfo) for segment in segments), set(type(segment).__name__ for segment in segments)
+    # segment_hb.add_nodes_from(list(segments))
+    for segment in segments:
+        hash(segment.access_mode)
+        hash(segment.inode_version)
+        hash(segment.segments)
+        hash(segment.segments)
+        hash(segment)
+        segment_hb.add_node(segment)
     for s0, s1 in itertools.permutations(segments, 2):
-        if s0[2].all_greater_than(s1[2]):
+        if s0.segments.all_greater_than(s1.segments):
             segment_hb.add_edge(s0, s1)
     return list(networkx.topological_generations(segment_hb))
 
@@ -333,26 +377,25 @@ def add_inode_segments(
     # Even when neither happens before the other, still some sub-sequences may happen-before other sub-sequences.
     # That is a refinement for later.
 
-    print(f"  Concurrent segments for {inode} {version}")
+    #print(f"  Concurrent segments for {inode} {version}")
     union_read_segments = SegmentsPerProcess.union(*[
-        segment
-        for access, _, segment in concurrent_segments
-        if access.is_read
+        segment_info.segments
+        for segment_info in concurrent_segments
+        if segment_info.access_mode.is_read
     ])
     union_write_segments = SegmentsPerProcess.union(*[
-        segment
-        for access, _, segment in concurrent_segments
-        if access.is_write
+        segment_info.segments
+        for segment_info in concurrent_segments
+        if segment_info.access_mode.is_write
     ])
     mutating_writes = SegmentsPerProcess.union(*[
-        segment
-        for access, _, segment in concurrent_segments
-        if access.is_write and access != ptypes.AccessMode.TRUNCATE_WRITE
+        segment_info.segments
+        for segment_info in concurrent_segments
+        if segment_info.access_mode.is_write and segment_info.access_mode != ptypes.AccessMode.TRUNCATE_WRITE
     ])
-    # FIXME: Handle truncating writes separately from writes
 
-    print(f"    Readers: {sorted(union_read_segments.segments.keys())}")
-    print(f"    Writers: {sorted(union_write_segments.segments.keys())}")
+    #print(f"    Readers: {sorted(union_read_segments.segments.keys())}")
+    #print(f"    Writers: {sorted(union_write_segments.segments.keys())}")
 
     initial_version = version
 
@@ -633,23 +676,23 @@ def get_read_write_batches(
         while progress:
             progress = False
             for quad in list(queue[0]):
-                print(f"    {quad=}")
+                # print(f"    {quad=}")
                 # FIXME: This should include previous exec / next exec
                 # Often, files will get passed from one to another.
                 # But when I included the ExecOp, it broke this algorithm.
                 # because ExecOp is an node with inputs and outputs, which is neither admissible during read-state nor write-state.
                 # So I patched it in the caller to creat the exec edges
                 # Also fix this in the "simple version"
-                dataflow_inputs = [
+                dataflow_inputs = ([
                     input
                     for input in dataflow_graph.predecessors(quad)
                     if isinstance(input, InodeVersionNode) or input.pid != quad.pid
-                ]
-                dataflow_outputs = [
+                ] if quad in dataflow_graph else [])
+                dataflow_outputs = ([
                     output
                     for output in dataflow_graph.successors(quad)
                     if isinstance(output, InodeVersionNode) or output.pid != quad.pid
-                ]
+                ] if quad in dataflow_graph else [])
 
                 if (not hb_oracle.is_reachable(quad, last_quad)) and quad != last_quad and quad != first_quad:
                     print("      Not ancestor of last_quad")

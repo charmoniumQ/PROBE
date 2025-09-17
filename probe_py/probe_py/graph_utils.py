@@ -8,12 +8,15 @@ import typing
 import pathlib
 import random
 import charmonium.time_block
+import frozendict
 import networkx
 import pydot
+import tqdm
 from . import util
 
 
 _Node = typing.TypeVar("_Node")
+FrozenDict: typing.TypeAlias = frozendict.frozendict
 
 
 @dataclasses.dataclass(frozen=True)
@@ -365,6 +368,54 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
 
 
 @dataclasses.dataclass(frozen=True)
+class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
+    dag: networkx.DiGraph[_Node]
+    left: FrozenDict[_Node, int]
+    right: FrozenDict[_Node, int]
+    preorder: FrozenDict[_Node, int]
+
+    @charmonium.time_block.decor(print_start=False)
+    @staticmethod
+    def create(dag: networkx.DiGraph[_Node]) -> DualLabelReachabilityOracle[_Node]:
+        topo = list(networkx.topological_sort(dag))
+        # Assign preorder numbers in topological order
+        preorder = FrozenDict({node: index for index, node in enumerate(topo)})
+        # Initialize interval labels
+        left = {node: preorder[node] for node in dag}
+        right = {node: preorder[node] for node in dag}
+
+        # Process nodes in reverse topological order
+        for u in topo[::-1]:
+            for v in dag.successors(u):
+                left[u] = min(left[u], left[v])
+                right[u] = max(right[u], right[v])
+        return DualLabelReachabilityOracle(dag, FrozenDict(left), FrozenDict(right), preorder)
+
+    def is_reachable(self, src: _Node, dst: _Node) -> bool:
+        return self.left[src] <= self.left[dst] and self.right[dst] <= self.right[src]
+
+    def add_edge(self, source: _Node, target: _Node) -> None:
+        raise NotImplementedError
+
+    def nodes_between(
+            self,
+            upper_bounds: collections.abc.Iterable[_Node],
+            lower_bounds: collections.abc.Iterable[_Node],
+    ) -> collections.abc.Iterable[_Node]:
+        raise NotImplementedError()
+
+    @functools.cache
+    def n_paths(self, source: _Node, destination: _Node) -> int:
+        if self.dag.in_degree(destination) == 1:
+            return int(self.is_reachable(source, destination))
+        else:
+            return sum(
+                1 if predecessor == source else self.n_paths(source, predecessor)
+                for predecessor in self.dag.predecessors(destination)
+            )
+
+
+@dataclasses.dataclass(frozen=True)
 class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
     dag: networkx.DiGraph[_Node]
     dag_tc: networkx.DiGraph[_Node]
@@ -601,9 +652,10 @@ def topological_sort_depth_first(
 
 @charmonium.time_block.decor(print_start=False)
 def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
+    print(f"DAG transitive closure of {len(list(dag.nodes()))} nodes, {len(list(dag.edges()))} edges")
     tc: networkx.DiGraph[_Node] = networkx.DiGraph()
     node_order = list(networkx.topological_sort(dag))[::-1]
-    for src in node_order:
+    for src in tqdm.tqdm(node_order, desc="TC nodes"):
         tc.add_node(src)
         for child in dag.successors(src):
             tc.add_edge(src, child)

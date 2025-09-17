@@ -1,14 +1,22 @@
 import abc
+import asyncio
 import collections
 import getpass
 import grp
 import heapq
 import itertools
+import multiprocessing
 import os
 import pathlib
 import tarfile
 import time
 import typing
+
+
+_T = typing.TypeVar("_T")
+_U = typing.TypeVar("_U")
+_V = typing.TypeVar("_V")
+_ParamSpec = typing.ParamSpec("_ParamSpec")
 
 
 def get_umask() -> int:
@@ -33,11 +41,6 @@ def filter_relative_to(path: pathlib.Path) -> typing.Callable[[tarfile.TarInfo],
         member_path = pathlib.Path(member.name)
         return member.replace(name=str(member_path.relative_to(path)))
     return filter
-
-
-_T = typing.TypeVar("_T")
-_U = typing.TypeVar("_U")
-_V = typing.TypeVar("_V")
 
 
 def groupby_dict(
@@ -202,3 +205,7 @@ def relative_to(dest: pathlib.Path, source: pathlib.Path) -> pathlib.Path:
         source = source / ".."
     assert source.resolve() == ancestor, f"{source} {source.resolve()} {ancestor}"
     return source / dest.relative_to(ancestor)
+
+
+def is_main_process() -> bool:
+    return multiprocessing.parent_process() is None

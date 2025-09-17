@@ -13,6 +13,6 @@ pip install matplotlib
 pip install seaborn
 pip install scipy
 pip install joblib
-python data-acquisition.py
-python data-processing.py
-python model-training.py
+# python data-acquisition.py
+# python data-processing.py
+# python model-training.py

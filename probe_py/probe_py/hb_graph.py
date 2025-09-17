@@ -236,9 +236,10 @@ def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
     if isinstance(op.data, ExecOp) and op.data.ferrno == 0:
         next_exec_no = node.exec_no.next()
         if next_exec_no not in probe_log.processes[node.pid].execs:
-            warnings.warn(ptypes.UnusualProbeLog(
-                f"Exec ({node}) points to an exec epoch {next_exec_no} we didn't track"
-            ))
+            # warnings.warn(ptypes.UnusualProbeLog(
+            #     f"Exec ({node}) points to an exec epoch {next_exec_no} we didn't track"
+            # ))
+            pass # FIXME: re-enable warning
         else:
             target = OpQuad(node.pid, next_exec_no, node.pid.main_thread(), 0)
             assert hb_graph.has_node(target)
