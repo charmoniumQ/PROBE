@@ -107,6 +107,11 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
 
     If the priorities are equal, order of extraction is order of insertion.
 
+    This is a min-priority queue not a max-priority queue due to heapq. I won't
+    implement a `reverse=True`, because as it stands, the priority need not be a
+    number; it is an arbtrary `Comparable` type and may not have a negation
+    operation.
+
     https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
 
     """
@@ -116,7 +121,10 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
     _removed: set[int]
     _counter: int = 0
 
-    def __init__(self, initial: typing.Iterable[tuple[_Task, _Priority]] = []) -> None:
+    def __init__(
+            self,
+            initial: typing.Iterable[tuple[_Task, _Priority]] = (),
+    ) -> None:
         self._heap = []
         self._priorities = {}
         self._removed = set()
@@ -130,7 +138,7 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
         heapq.heapify(self._heap)
 
     def add(self, task: _Task, priority: _Priority) -> None:
-        if task in self._priorities:
+        if task in self:
             raise RuntimeError(f"{task} is already in priority queue")
         else:
             self._priorities[task] = (priority, self._counter)
@@ -159,3 +167,6 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
     def __setitem__(self, task: _Task, priority: _Priority) -> None:
         del self[task]
         self.add(task, priority)
+
+    def __contains__(self, task: _Task) -> bool:
+        return task in self._priorities

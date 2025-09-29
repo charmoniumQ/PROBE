@@ -142,6 +142,14 @@
               runHook postCheck
             '';
           };
+          docker-image = pkgs.dockerTools.buildImage {
+            name = "probe";
+            tag = "0.1.0";
+            copyToRoot = probe;
+            runAsRoot = ''
+              ln --symbolic ${probe}/bin/probe /probe
+            '';
+          };
           default = probe;
         };
         checks = {

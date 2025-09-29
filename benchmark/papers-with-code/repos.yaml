@@ -1,0 +1,67 @@
+- location:
+    url: https://github.com/ekorman/neurve
+    commit: 1ea5661de2c89581e08fe9615a1d629a94cc281f
+  environment:
+    base_image: ubuntu:24.04
+    apt_packages:
+      - git-core
+      - curl
+    python: "3.12"
+    pip_packages:
+      - .
+  commands:
+    # - |
+    #     time python experiments/simclr.py \
+    #           --dataset mnist \
+    #           --backbone resnet18 \
+    #           --dim_z 2 \
+    #           --n_charts 2 \
+    #           --n_epochs 1 \
+    #           --tau 1.0 \
+    #           --proj_dim 2 \
+    #           --out_path out
+    - curl --output data/cars_annos.mat https://web.archive.org/web/20180303212712/http://imagenet.stanford.edu/internal/car196/cars_annos.mat
+    - curl --output data/car_ims.tgz https://web.archive.org/web/20161112024817/http://imagenet.stanford.edu/internal/car196/car_ims.tgz
+    - tar --extract --gunzip --file=data/car_ims.tgz --directory=data/
+    - time python data/make_car_folders.py
+    - |
+       time python experiments/triplet.py \
+            --data_root data/cars/ \
+            --dim_z 2 \
+            --n_charts 4 \
+            --out_path out
+
+- location:
+    url: https://github.com/zhiquan-wen/d-vqa
+    commit: 688c4dcc811f49b431daea81406e628ec71a7247
+  environment:
+    base_image: ubuntu:18.04
+    python: "3.6"
+    apt_packages:
+      - wget
+      - unzip
+    pip_packages:
+      - h5py==3.1.0
+      - numpy==1.19.5
+      - Pillow==8.2.0
+      - torch==1.1.0
+      - torchvision==0.3.0
+      - tqdm==4.64.1
+  commands:
+    - wget http://nlp.stanford.edu/data/glove.6B.zip
+    - unzip glove.6B.zip -d data/glove
+    - rm glove.6B.zip
+    # - wget --directory-prefix=data/coco https://web.archive.org/web/20220330060401/https://imagecaption.blob.core.windows.net/imagecaption/trainval_36.zip
+    # - unzip data/coco/trainval_36.zip -d data/coco/
+    # - rm data/coco/trainval_36.zip
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20200426171325/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_train_questions.json
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20200426181323/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_test_questions.json
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20220706075854/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_train_annotations.json
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20200426181113/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_test_annotations.json
+    - env -C data python preprocess_features.py --input_tsv_folder xxx.tsv --output_h5 xxx.h5
+    - env -C data python feature_preprocess.py --input_h5 xxx.h5 --output_path trainval
+    - env -C data python create_dictionary.py --dataroot vqacp2/
+    - env -C data python preprocess_text.py --dataroot vqacp2/ --version v2
+    - CUDA_VISIBLE_DEVICES=0 python main.py --dataroot data/vqacp2/ --img_root data/coco/trainval_features --output saved_models_cp2/ --self_loss_weight 3 --self_loss_q 0.7 --ratio 0.1
+    - CUDA_VISIBLE_DEVICES=0 python test.py --dataroot data/vqacp2/ --img_root data/coco/trainval_features --checkpoint_path saved_models_cp2/best_model.pth --output saved_models_cp2/result/
+    - python comput_score.py --input saved_models_cp2/result/XX.json --dataroot data/vqacp2/

@@ -1,10 +1,16 @@
-import typing
+from __future__ import annotations
+import asyncio
+import collections.abc
+import dataclasses
+import heapq
+import itertools
 import pathlib
+import shlex
 import subprocess
 import tarfile
-import collections.abc
-import itertools
-import heapq
+import textwrap
+import typing
+import aioconsole
 
 
 _FuncParams = typing.ParamSpec("_FuncParams")
@@ -84,3 +90,72 @@ def tarfile_follow_links(
         return tarfile_follow_links(tarfile_obj, tarinfo.linkname)
     else:
         return tarinfo
+
+
+async def async_subprocess_run(
+    cmd: collections.abc.Iterable[str],
+    hide_output: bool = True,
+) -> CalledProcess:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    if hide_output:
+        stdout, stderr = await proc.communicate()
+    else:
+        block_size = 1024
+        _, stdout_stream = await aioconsole.get_standard_streams(use_stderr=False)
+        _, stderr_stream = await aioconsole.get_standard_streams(use_stderr=True)
+        async def stream_output(stream: asyncio.StreamReader, sink: asyncio.StreamWriter) -> list[bytes]:
+            chunks = []
+            while True:
+                chunk = await stream.read(block_size)
+                if chunk:
+                    chunks.append(chunk)
+                    sink.write(chunk)
+                    await sink.drain()
+                else:
+                    sink.write_eof()
+                    return chunks
+        assert proc.stdout and proc.stderr
+        stdout_chunks, stderr_chunks = await asyncio.gather(
+            stream_output(proc.stdout, stdout_stream),
+            stream_output(proc.stderr, stderr_stream),
+        )
+        await proc.wait()
+        stdout = b"".join(stdout_chunks)
+        stderr = b"".join(stderr_chunks)
+    if proc.returncode == 0:
+        return CalledProcess(proc.returncode, stdout, stderr)
+    else:
+        raise CalledProcessError(cmd, stdout, stderr)
+
+
+@dataclasses.dataclass
+class CalledProcess:
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+
+
+@dataclasses.dataclass
+class CalledProcessError(Exception):
+    cmd: collections.abc.Iterable[str]
+    stdout: bytes
+    stderr: bytes
+
+    def __str__(self) -> str:
+        return "\n".join([
+            "$ " + shlex.join(self.cmd),
+            "stdout:",
+            textwrap.indent(
+                self.stdout.decode(errors="backslashreplace"),
+                "  ",
+            ),
+            "stderr:",
+            textwrap.indent(
+                self.stderr.decode(errors="backslashreplace"),
+                "  ",
+            ),
+        ])

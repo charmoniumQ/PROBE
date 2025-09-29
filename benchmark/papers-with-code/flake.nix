@@ -45,28 +45,23 @@
             };
             pythonImportsCheck = [ "charmonium.cache" ];
           };
-          shirty = python.pkgs.buildPythonPackage {
-            pname = "shirty";
-            version = "0.10.1";
-            src = pkgs.fetchzip {
-              url = "https://cee-gitlab.sandia.gov/atlas-team/shirty/-/archive/0.10.1/shirty-0.10.1.tar.gz";
-              hash = "sha256-Bd5QE+LWHFSEyNzHlCiRx58qiPJdYlN0HqG683fbRFs=";
-            };
-            format = "setuptools";
-            pythonImportsCheck = [ "shirty" ];
-          };
         };
         devShells = {
           default = pkgs.mkShell {
             packages = [
               (python.withPackages (pypkgs: [
-                pypkgs.httpx
-                pypkgs.polars
-                pypkgs.matplotlib
-                pypkgs.seaborn
-                pypkgs.yarl
+                pypkgs.aioconsole
                 pypkgs.githubkit
+                pypkgs.httpx
+                pypkgs.huggingface-hub
+                pypkgs.matplotlib
+                pypkgs.polars
+                pypkgs.pydantic
+                pypkgs.pydantic-yaml
+                pypkgs.seaborn
                 pypkgs.tqdm
+                pypkgs.typer
+                pypkgs.yarl
 
                 # Dev tools
                 pypkgs.ipython

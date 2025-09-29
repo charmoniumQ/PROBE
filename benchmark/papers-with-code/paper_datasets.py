@@ -10,7 +10,6 @@ import githubkit.core
 import os
 import polars
 import json
-import gzip
 import cache_util
 import charmonium.cache
 import charmonium.cache.util
@@ -18,15 +17,7 @@ import charmonium.cache.util
 
 @charmonium.cache.memoize(group=cache_util.group)
 def papers_with_code() -> polars.DataFrame:
-    return polars.DataFrame(
-        json.loads(
-            gzip.decompress(
-                cache_util.download(
-                    "https://production-media.paperswithcode.com/about/links-between-papers-and-code.json.gz"
-                )
-            )
-        )
-    )
+    return polars.read_parquet("hf://datasets/pwc-archive/links-between-paper-and-code/data/train-00000-of-00001.parquet")
 
 
 github_client = githubkit.GitHub(githubkit.TokenAuthStrategy(os.environ["GITHUB_PAT"]))
@@ -76,15 +67,22 @@ def get_linked_papers(arxiv_ids: list[str]) -> typing.Mapping[str, list[str]]:
     return results
 
 
-def download_repo_tarball(url_str: str) -> tarfile.TarFile:
+def download_repo_tarball(url_str: str) -> tarfile.TarFile | None:
     url = yarl.URL(url_str)
     archive_url = url.with_path("/".join([*url.path_safe.split("/")[:3], "archive", "HEAD.tar.gz"]))
     tar_bytes = cache_util.download(str(archive_url))
     assert tar_bytes
-    return tarfile.open(
-        fileobj=io.BytesIO(tar_bytes),
-        mode="r:gz",
-    )
+    if tar_bytes == b'Not Found':
+        return None
+    else:
+        try:
+            return tarfile.open(
+                fileobj=io.BytesIO(tar_bytes),
+                mode="r:gz",
+            )
+        except tarfile.ReadError as exc:
+            print(url_str, tar_bytes[:100], exc)
+            raise exc
 
 
 @charmonium.cache.memoize(group=cache_util.group)

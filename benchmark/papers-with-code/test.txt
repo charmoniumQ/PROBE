@@ -14,18 +14,6 @@ shape: (8, 4)
 │ ---                          ┆ ---                          ┆ ---                          ┆ --- │
 │ str                          ┆ str                          ┆ list[str]                    ┆ u32 │
 ╞══════════════════════════════╪══════════════════════════════╪══════════════════════════════╪═════╡
-│ https://openreview.net/pdf?i ┆ https://github.com/ritmining ┆ ["https://paperswithcode.com ┆ 2   │
-│ d=WrRG0C1Vo5                 ┆ lab/dre                      ┆ /paper/distributionally-robu ┆     │
-│                              ┆                              ┆ st-ensemble-of-lottery",     ┆     │
-│                              ┆                              ┆ "https://paperswith…         ┆     │
-│ https://openreview.net/pdf?i ┆ https://github.com/lunjohnzh ┆ ["https://paperswithcode.com ┆ 2   │
-│ d=o6Dnt1uEyZ                 ┆ ang/warehouse_env_gen_nca_pu ┆ /paper/euler-lagrange-analys ┆     │
-│                              ┆ blic                         ┆ is-of-generative",           ┆     │
-│                              ┆                              ┆ "https://paperswithcode.c…   ┆     │
-│ https://openreview.net/pdf?i ┆ https://github.com/polkalian ┆ ["https://paperswithcode.com ┆ 2   │
-│ d=yoZTVn0T50                 ┆ /internav                    ┆ /paper/camp-causal-multi-pol ┆     │
-│                              ┆                              ┆ icy-planning-for",           ┆     │
-│                              ┆                              ┆ "https://paperswithcode.c…   ┆     │
 │ https://openreview.net/pdf?i ┆ https://github.com/git-disl/ ┆ ["https://paperswithcode.com ┆ 2   │
 │ d=V5cQH7JbGo                 ┆ lockdown                     ┆ /paper/lockdown-backdoor-def ┆     │
 │                              ┆                              ┆ ense-for-federated",         ┆     │
@@ -38,14 +26,26 @@ shape: (8, 4)
 │ d=sTjW3JHs2V                 ┆ /gflownet-combopt            ┆ /paper/let-the-flows-tell-so ┆     │
 │                              ┆                              ┆ lving-graph-2", "https://pap ┆     │
 │                              ┆                              ┆ erswithcode.com/…            ┆     │
-│ https://arxiv.org/pdf/2309.0 ┆ https://github.com/hitachi-r ┆ ["https://paperswithcode.com ┆ 2   │
-│ 1086v1.pdf                   ┆ d-cv/MILA                    ┆ /paper/mila-memory-based-ins ┆     │
-│                              ┆                              ┆ tance-level-adaptation-1",   ┆     │
-│                              ┆                              ┆ "https://paperswi…           ┆     │
 │ https://proceedings.icml.cc/ ┆ https://github.com/layer6ai- ┆ ["https://paperswithcode.com ┆ 2   │
 │ static/paper_files/icml/2020 ┆ labs/T-Fixup                 ┆ /paper/improving-transformer ┆     │
 │ /5691-Paper.pdf              ┆                              ┆ -optimization-through",      ┆     │
 │                              ┆                              ┆ "https://paperswithc…        ┆     │
+│ https://openreview.net/pdf?i ┆ https://github.com/ritmining ┆ ["https://paperswithcode.com ┆ 2   │
+│ d=WrRG0C1Vo5                 ┆ lab/dre                      ┆ /paper/distributionally-robu ┆     │
+│                              ┆                              ┆ st-ensemble-of-lottery",     ┆     │
+│                              ┆                              ┆ "https://paperswith…         ┆     │
+│ https://openreview.net/pdf?i ┆ https://github.com/lunjohnzh ┆ ["https://paperswithcode.com ┆ 2   │
+│ d=o6Dnt1uEyZ                 ┆ ang/warehouse_env_gen_nca_pu ┆ /paper/euler-lagrange-analys ┆     │
+│                              ┆ blic                         ┆ is-of-generative",           ┆     │
+│                              ┆                              ┆ "https://paperswithcode.c…   ┆     │
+│ https://openreview.net/pdf?i ┆ https://github.com/polkalian ┆ ["https://paperswithcode.com ┆ 2   │
+│ d=yoZTVn0T50                 ┆ /internav                    ┆ /paper/camp-causal-multi-pol ┆     │
+│                              ┆                              ┆ icy-planning-for",           ┆     │
+│                              ┆                              ┆ "https://paperswithcode.c…   ┆     │
+│ https://arxiv.org/pdf/2309.0 ┆ https://github.com/hitachi-r ┆ ["https://paperswithcode.com ┆ 2   │
+│ 1086v1.pdf                   ┆ d-cv/MILA                    ┆ /paper/mila-memory-based-ins ┆     │
+│                              ┆                              ┆ tance-level-adaptation-1",   ┆     │
+│                              ┆                              ┆ "https://paperswi…           ┆     │
 └──────────────────────────────┴──────────────────────────────┴──────────────────────────────┴─────┘
 
 Length: 300153 paper-repo pairs after dropping dup pairs
@@ -108,7 +108,7 @@ shape: (10, 2)
 
 Parsed 296611 of 296611; 10000.00%%
 
-296611 total, downsampling to 300, 10.11%%
+296611 total, downsampling to 1000, 33.71%%
 Using a deterministic shuffle based on paper_url_abs and repo_url, so the shuffle remains stable.
 
 Sorted by GitHub stars:
@@ -119,7 +119,34 @@ shape: (10, 15)
 │ str       ┆ ---       ┆ ---       ┆ ---       ┆   ┆ ---       ┆ ---       ┆ ---       ┆ ---      │
 │           ┆ str       ┆ str       ┆ str       ┆   ┆ str       ┆ str       ┆ str       ┆ i64      │
 ╞═══════════╪═══════════╪═══════════╪═══════════╪═══╪═══════════╪═══════════╪═══════════╪══════════╡
-│ https://p ┆ Predictin ┆ 2002.1010 ┆ https://a ┆ … ┆ github.co ┆ google-re ┆ bert      ┆ 39359    │
+│ https://p ┆ Equal Opp ┆ 1902.0224 ┆ https://a ┆ … ┆ github.co ┆ mrateike  ┆ fair_mini ┆ null     │
+│ aperswith ┆ ortunity  ┆ 2         ┆ rxiv.org/ ┆   ┆ m         ┆           ┆ monster   ┆          │
+│ code.com/ ┆ in Online ┆           ┆ abs/1902. ┆   ┆           ┆           ┆           ┆          │
+│ paper/equ ┆ Classific ┆           ┆ 02242v2   ┆   ┆           ┆           ┆           ┆          │
+│ al-opport ┆ ation     ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ unity-in- ┆ with      ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ online-cl ┆ Partial   ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ assificat ┆ Feedback  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ ion       ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ https://p ┆ PhysicsNe ┆ 2505.2348 ┆ https://a ┆ … ┆ github.co ┆ anonymous ┆ physicsne ┆ null     │
+│ aperswith ┆ RF: Physi ┆ 1         ┆ rxiv.org/ ┆   ┆ m         ┆ -research ┆ rf        ┆          │
+│ code.com/ ┆ cs-Guided ┆           ┆ abs/2505. ┆   ┆           ┆ er-01     ┆           ┆          │
+│ paper/phy ┆ 3D Recons ┆           ┆ 23481v1   ┆   ┆           ┆           ┆           ┆          │
+│ sicsnerf- ┆ truction  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ physics-g ┆ from      ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ uided-3d- ┆ Sparse    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ reconstru ┆ Views     ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ ction     ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ https://p ┆ OverFlow: ┆ 2211.0689 ┆ https://a ┆ … ┆ github.co ┆ coqui-ai  ┆ TTS       ┆ 42651    │
+│ aperswith ┆ Putting   ┆ 2         ┆ rxiv.org/ ┆   ┆ m         ┆           ┆           ┆          │
+│ code.com/ ┆ flows on  ┆           ┆ abs/2211. ┆   ┆           ┆           ┆           ┆          │
+│ paper/ove ┆ top of    ┆           ┆ 06892v2   ┆   ┆           ┆           ┆           ┆          │
+│ rflow-put ┆ neural    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ ting-flow ┆ transduce ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ s-on-top- ┆ rs for    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ of-neural ┆ better    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ TTS       ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ https://p ┆ Predictin ┆ 2002.1010 ┆ https://a ┆ … ┆ github.co ┆ google-re ┆ bert      ┆ 39522    │
 │ aperswith ┆ g Subject ┆ 7         ┆ rxiv.org/ ┆   ┆ m         ┆ search    ┆           ┆          │
 │ code.com/ ┆ ive       ┆           ┆ abs/2002. ┆   ┆           ┆           ┆           ┆          │
 │ paper/pre ┆ Features  ┆           ┆ 10107v4   ┆   ┆           ┆           ┆           ┆          │
@@ -129,14 +156,14 @@ shape: (10, 15)
 │ -from-que ┆ Websites  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ stions    ┆ using     ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆ BERT      ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ Global    ┆ 2012.1337 ┆ https://a ┆ … ┆ github.co ┆ rwightman ┆ pytorch-i ┆ 34840    │
+│ https://p ┆ Global    ┆ 2012.1337 ┆ https://a ┆ … ┆ github.co ┆ rwightman ┆ pytorch-i ┆ 35283    │
 │ aperswith ┆ Context   ┆ 5         ┆ rxiv.org/ ┆   ┆ m         ┆           ┆ mage-mode ┆          │
 │ code.com/ ┆ Networks  ┆           ┆ abs/2012. ┆   ┆           ┆           ┆ ls        ┆          │
 │ paper/glo ┆           ┆           ┆ 13375v1   ┆   ┆           ┆           ┆           ┆          │
 │ bal-conte ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ xt-networ ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ ks        ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ fairseq   ┆ 2010.0517 ┆ https://a ┆ … ┆ github.co ┆ pytorch   ┆ fairseq   ┆ 31661    │
+│ https://p ┆ fairseq   ┆ 2010.0517 ┆ https://a ┆ … ┆ github.co ┆ pytorch   ┆ fairseq   ┆ 31812    │
 │ aperswith ┆ S2T: Fast ┆ 1         ┆ rxiv.org/ ┆   ┆ m         ┆           ┆           ┆          │
 │ code.com/ ┆ Speech-to ┆           ┆ abs/2010. ┆   ┆           ┆           ┆           ┆          │
 │ paper/fai ┆ -Text     ┆           ┆ 05171v2   ┆   ┆           ┆           ┆           ┆          │
@@ -145,7 +172,16 @@ shape: (10, 15)
 │ ch-to-tex ┆ fairseq   ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ t-modelin ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ g-with    ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ Fully Con ┆ 1605.0621 ┆ http://ar ┆ … ┆ github.co ┆ pytorch   ┆ vision    ┆ 17016    │
+│ https://p ┆ Neural    ┆ 1907.0557 ┆ https://a ┆ … ┆ github.co ┆ microsoft ┆ recommend ┆ 20892    │
+│ aperswith ┆ News Reco ┆ 6         ┆ rxiv.org/ ┆   ┆ m         ┆           ┆ ers       ┆          │
+│ code.com/ ┆ mmendatio ┆           ┆ abs/1907. ┆   ┆           ┆           ┆           ┆          │
+│ paper/neu ┆ n with    ┆           ┆ 05576v1   ┆   ┆           ┆           ┆           ┆          │
+│ ral-news- ┆ Attentive ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ recommend ┆ Multi-Vie ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ ation-wit ┆ w         ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ h-attenti ┆ Learning  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ ve        ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ https://p ┆ Fully Con ┆ 1605.0621 ┆ http://ar ┆ … ┆ github.co ┆ pytorch   ┆ vision    ┆ 17148    │
 │ aperswith ┆ volutiona ┆ 1         ┆ xiv.org/a ┆   ┆ m         ┆           ┆           ┆          │
 │ code.com/ ┆ l         ┆           ┆ bs/1605.0 ┆   ┆           ┆           ┆           ┆          │
 │ paper/ful ┆ Networks  ┆           ┆ 6211v1    ┆   ┆           ┆           ┆           ┆          │
@@ -154,7 +190,7 @@ shape: (10, 15)
 │ etworks-f ┆ Segmentat ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ or-semant ┆ ion       ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ ic        ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ Learning  ┆ 2007.1079 ┆ https://a ┆ … ┆ github.co ┆ jindongwa ┆ transferl ┆ 14005    │
+│ https://p ┆ Learning  ┆ 2007.1079 ┆ https://a ┆ … ┆ github.co ┆ jindongwa ┆ transferl ┆ 14069    │
 │ aperswith ┆ to Match  ┆ 1         ┆ rxiv.org/ ┆   ┆ m         ┆ ng        ┆ earning   ┆          │
 │ code.com/ ┆ Distribut ┆           ┆ abs/2007. ┆   ┆           ┆           ┆           ┆          │
 │ paper/lea ┆ ions for  ┆           ┆ 10791v3   ┆   ┆           ┆           ┆           ┆          │
@@ -163,53 +199,14 @@ shape: (10, 15)
 │ tribution ┆ n         ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ s-for-dom ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │ ain       ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ EliGen:   ┆ 2501.0109 ┆ https://a ┆ … ┆ github.co ┆ modelscop ┆ DiffSynth ┆ 9091     │
-│ aperswith ┆ Entity-Le ┆ 7         ┆ rxiv.org/ ┆   ┆ m         ┆ e         ┆ -Studio   ┆          │
-│ code.com/ ┆ vel Contr ┆           ┆ abs/2501. ┆   ┆           ┆           ┆           ┆          │
-│ paper/eli ┆ olled     ┆           ┆ 01097v3   ┆   ┆           ┆           ┆           ┆          │
-│ gen-entit ┆ Image Gen ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ y-level-c ┆ eration   ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ ontrolled ┆ with      ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ -image    ┆ Regional  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ Attention ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ Fine-Tuni ┆ 2002.0630 ┆ https://a ┆ … ┆ github.co ┆ google-re ┆ electra   ┆ 2358     │
-│ aperswith ┆ ng Pretra ┆ 5         ┆ rxiv.org/ ┆   ┆ m         ┆ search    ┆           ┆          │
-│ code.com/ ┆ ined      ┆           ┆ abs/2002. ┆   ┆           ┆           ┆           ┆          │
-│ paper/fin ┆ Language  ┆           ┆ 06305v1   ┆   ┆           ┆           ┆           ┆          │
-│ e-tuning- ┆ Models:   ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ pretraine ┆ Weight    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ d-languag ┆ Initializ ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ e-models- ┆ ations,   ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ weight    ┆ Data      ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ Orders,   ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ and Early ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ Stopping  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ A quantum ┆ 2001.0444 ┆ https://a ┆ … ┆ github.co ┆ rigettico ┆ pyquil    ┆ 1459     │
-│ aperswith ┆ -classica ┆ 9         ┆ rxiv.org/ ┆   ┆ m         ┆ mputing   ┆           ┆          │
-│ code.com/ ┆ l cloud   ┆           ┆ abs/2001. ┆   ┆           ┆           ┆           ┆          │
-│ paper/a-q ┆ platform  ┆           ┆ 04449v1   ┆   ┆           ┆           ┆           ┆          │
-│ uantum-cl ┆ optimized ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ assical-c ┆ for varia ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ loud-plat ┆ tional    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ form-opti ┆ hybrid    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ mized     ┆ algorithm ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ s         ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ Gaussian  ┆ 2404.1077 ┆ https://a ┆ … ┆ github.co ┆ autonomou ┆ mip-splat ┆ 1291     │
-│ aperswith ┆ Opacity   ┆ 2         ┆ rxiv.org/ ┆   ┆ m         ┆ svision   ┆ ting      ┆          │
-│ code.com/ ┆ Fields:   ┆           ┆ abs/2404. ┆   ┆           ┆           ┆           ┆          │
-│ paper/gau ┆ Efficient ┆           ┆ 10772v2   ┆   ┆           ┆           ┆           ┆          │
-│ ssian-opa ┆ Adaptive  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ city-fiel ┆ Surface   ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ ds-effici ┆ Reconstru ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ ent-and-c ┆ ction in  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ ompact    ┆ Unbounded ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ Scenes    ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ https://p ┆ Pay       ┆ 2105.0805 ┆ https://a ┆ … ┆ github.co ┆ BR-IDL    ┆ PaddleViT ┆ 1238     │
-│ aperswith ┆ Attention ┆ 0         ┆ rxiv.org/ ┆   ┆ m         ┆           ┆           ┆          │
-│ code.com/ ┆ to MLPs   ┆           ┆ abs/2105. ┆   ┆           ┆           ┆           ┆          │
-│ paper/pay ┆           ┆           ┆ 08050v2   ┆   ┆           ┆           ┆           ┆          │
-│ -attentio ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ n-to-mlps ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ https://p ┆ Controlli ┆ 2009.1085 ┆ https://a ┆ … ┆ github.co ┆ facebookr ┆ ParlAI    ┆ 10620    │
+│ aperswith ┆ ng Style  ┆ 5         ┆ rxiv.org/ ┆   ┆ m         ┆ esearch   ┆           ┆          │
+│ code.com/ ┆ in        ┆           ┆ abs/2009. ┆   ┆           ┆           ┆           ┆          │
+│ paper/con ┆ Generated ┆           ┆ 10855v1   ┆   ┆           ┆           ┆           ┆          │
+│ trolling- ┆ Dialogue  ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ style-in- ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ generated ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ -dialogue ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 └───────────┴───────────┴───────────┴───────────┴───┴───────────┴───────────┴───────────┴──────────┘
 
 Sorted by citations:
@@ -220,7 +217,7 @@ shape: (10, 16)
 │ i64       ┆ str       ┆ ---       ┆ ---       ┆   ┆ ---       ┆ ---       ┆ ---       ┆ ---      │
 │           ┆           ┆ str       ┆ str       ┆   ┆ str       ┆ str       ┆ str       ┆ i64      │
 ╞═══════════╪═══════════╪═══════════╪═══════════╪═══╪═══════════╪═══════════╪═══════════╪══════════╡
-│ 38038     ┆ https://p ┆ BERT: Pre ┆ 1810.0480 ┆ … ┆ github.co ┆ mindspore ┆ mindnlp   ┆ 879      │
+│ 38545     ┆ https://p ┆ BERT: Pre ┆ 1810.0480 ┆ … ┆ github.co ┆ mindspore ┆ mindnlp   ┆ 888      │
 │           ┆ aperswith ┆ -training ┆ 5         ┆   ┆ m         ┆ -lab      ┆           ┆          │
 │           ┆ code.com/ ┆ of Deep   ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆ paper/ber ┆ Bidirecti ┆           ┆   ┆           ┆           ┆           ┆          │
@@ -230,7 +227,7 @@ shape: (10, 16)
 │           ┆ rectional ┆ Language  ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆           ┆ Understan ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆           ┆ ding      ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 38038     ┆ https://p ┆ BERT: Pre ┆ 1810.0480 ┆ … ┆ github.co ┆ Sikun     ┆ dlam_proj ┆ 0        │
+│ 38545     ┆ https://p ┆ BERT: Pre ┆ 1810.0480 ┆ … ┆ github.co ┆ Sikun     ┆ dlam_proj ┆ 0        │
 │           ┆ aperswith ┆ -training ┆ 5         ┆   ┆ m         ┆           ┆ ect       ┆          │
 │           ┆ code.com/ ┆ of Deep   ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆ paper/ber ┆ Bidirecti ┆           ┆   ┆           ┆           ┆           ┆          │
@@ -240,7 +237,54 @@ shape: (10, 16)
 │           ┆ rectional ┆ Language  ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆           ┆ Understan ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆           ┆ ding      ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 8647      ┆ https://p ┆ YOLOv4:   ┆ 2004.1093 ┆ … ┆ github.co ┆ wsmlby    ┆ darknetna ┆ 0        │
+│ 38545     ┆ https://p ┆ BERT: Pre ┆ 1810.0480 ┆ … ┆ github.co ┆ llx666    ┆ git_demo  ┆ 0        │
+│           ┆ aperswith ┆ -training ┆ 5         ┆   ┆ m         ┆           ┆           ┆          │
+│           ┆ code.com/ ┆ of Deep   ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ paper/ber ┆ Bidirecti ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ t-pre-tra ┆ onal Tran ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ining-of- ┆ sformers  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ deep-bidi ┆ for       ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ rectional ┆ Language  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆           ┆ Understan ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆           ┆ ding      ┆           ┆   ┆           ┆           ┆           ┆          │
+│ 17717     ┆ https://p ┆ Very Deep ┆ 1409.1556 ┆ … ┆ github.co ┆ wasilone1 ┆ ICPR-RIP- ┆ 1        │
+│           ┆ aperswith ┆ Convoluti ┆           ┆   ┆ m         ┆ 1         ┆ 2024      ┆          │
+│           ┆ code.com/ ┆ onal      ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ paper/ver ┆ Networks  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ y-deep-co ┆ for Large ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ nvolution ┆ -Scale    ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ al-networ ┆ Image Rec ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ks-for-la ┆ ognition  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ rge       ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ 13896     ┆ https://p ┆ YOLOv3:   ┆ 1804.0276 ┆ … ┆ github.co ┆ madamak   ┆ ultrapy-y ┆ 0        │
+│           ┆ aperswith ┆ An Increm ┆ 7         ┆   ┆ m         ┆           ┆ olov3-che ┆          │
+│           ┆ code.com/ ┆ ental Imp ┆           ┆   ┆           ┆           ┆ ss        ┆          │
+│           ┆ paper/yol ┆ rovement  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ov3-an-in ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ cremental ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ -improvem ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ent       ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ 12722     ┆ https://p ┆ MobileNet ┆ 1704.0486 ┆ … ┆ github.co ┆ garrettru ┆ ImageReco ┆ 1        │
+│           ┆ aperswith ┆ s:        ┆ 1         ┆   ┆ m         ┆ ss        ┆ gnitionRe ┆          │
+│           ┆ code.com/ ┆ Efficient ┆           ┆   ┆           ┆           ┆ act       ┆          │
+│           ┆ paper/mob ┆ Convoluti ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ilenets-e ┆ onal      ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ fficient- ┆ Neural    ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ convoluti ┆ Networks  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ onal-neur ┆ for       ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ al        ┆ Mobile    ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆           ┆ Vision    ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆           ┆ Applicati ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆           ┆ ons       ┆           ┆   ┆           ┆           ┆           ┆          │
+│ 9841      ┆ https://p ┆ XGBoost:  ┆ 1603.0275 ┆ … ┆ github.co ┆ mtorabira ┆ PricePred ┆ 2        │
+│           ┆ aperswith ┆ A         ┆ 4         ┆   ┆ m         ┆ d         ┆ iction    ┆          │
+│           ┆ code.com/ ┆ Scalable  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ paper/xgb ┆ Tree      ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ oost-a-sc ┆ Boosting  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ alable-tr ┆ System    ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ee-boosti ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ng-system ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ 8779      ┆ https://p ┆ YOLOv4:   ┆ 2004.1093 ┆ … ┆ github.co ┆ wsmlby    ┆ darknetna ┆ 0        │
 │           ┆ aperswith ┆ Optimal   ┆ 4         ┆   ┆ m         ┆           ┆ no        ┆          │
 │           ┆ code.com/ ┆ Speed and ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆ paper/yol ┆ Accuracy  ┆           ┆   ┆           ┆           ┆           ┆          │
@@ -249,67 +293,23 @@ shape: (10, 16)
 │           ┆ and-accur ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆ acy-of-ob ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
 │           ┆ ject      ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 7957      ┆ https://p ┆ Graph     ┆ 1710.1090 ┆ … ┆ github.co ┆ marblet   ┆ GNN_model ┆ 18       │
-│           ┆ aperswith ┆ Attention ┆ 3         ┆   ┆ m         ┆           ┆ s_pytorch ┆          │
-│           ┆ code.com/ ┆ Networks  ┆           ┆   ┆           ┆           ┆ _geometri ┆          │
-│           ┆ paper/gra ┆           ┆           ┆   ┆           ┆           ┆ c         ┆          │
-│           ┆ ph-attent ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ion-netwo ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ rks       ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 4493      ┆ https://p ┆ mixup:    ┆ 1710.0941 ┆ … ┆ github.co ┆ hongyi-zh ┆ mixup     ┆ 466      │
-│           ┆ aperswith ┆ Beyond    ┆ 2         ┆   ┆ m         ┆ ang       ┆           ┆          │
-│           ┆ code.com/ ┆ Empirical ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ paper/mix ┆ Risk Mini ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ up-beyond ┆ mization  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ -empirica ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ l-risk-mi ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ nimizatio ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ n         ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 4431      ┆ https://p ┆ Deep      ┆ 1512.0338 ┆ … ┆ github.co ┆ Baichenji ┆ Resnet    ┆ 5        │
-│           ┆ aperswith ┆ Residual  ┆ 5         ┆   ┆ m         ┆ a         ┆           ┆          │
-│           ┆ code.com/ ┆ Learning  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ paper/dee ┆ for Image ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ p-residua ┆ Recogniti ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ l-learnin ┆ on        ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ g-for-ima ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ge-recogn ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ition     ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 4431      ┆ https://p ┆ Deep      ┆ 1512.0338 ┆ … ┆ github.co ┆ ashishpat ┆ BrainMRI- ┆ 1        │
-│           ┆ aperswith ┆ Residual  ┆ 5         ┆   ┆ m         ┆ el26      ┆ Segmentat ┆          │
-│           ┆ code.com/ ┆ Learning  ┆           ┆   ┆           ┆           ┆ ion-Keras ┆          │
-│           ┆ paper/dee ┆ for Image ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ p-residua ┆ Recogniti ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ l-learnin ┆ on        ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ g-for-ima ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ge-recogn ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ition     ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 4117      ┆ https://p ┆ Towards   ┆ 1706.0608 ┆ … ┆ github.co ┆ locuslab  ┆ robust_ov ┆ 158      │
-│           ┆ aperswith ┆ Deep      ┆ 3         ┆   ┆ m         ┆           ┆ erfitting ┆          │
-│           ┆ code.com/ ┆ Learning  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ paper/tow ┆ Models    ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ards-deep ┆ Resistant ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ -learning ┆ to Advers ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ -models-r ┆ arial     ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ esistant- ┆ Attacks   ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ to        ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 4054      ┆ https://p ┆ Attention ┆ 1804.0399 ┆ … ┆ github.co ┆ SINGROUP  ┆ ED-AFM    ┆ 4        │
-│           ┆ aperswith ┆ U-Net:    ┆ 9         ┆   ┆ m         ┆           ┆           ┆          │
-│           ┆ code.com/ ┆ Learning  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ paper/att ┆ Where to  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ention-u- ┆ Look for  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ net-learn ┆ the       ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ing-where ┆ Pancreas  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ -to-look- ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ for       ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│ 1994      ┆ https://p ┆ Convoluti ┆ 1705.0312 ┆ … ┆ github.co ┆ Deeksha96 ┆ Im2Latex  ┆ 0        │
-│           ┆ aperswith ┆ onal      ┆ 2         ┆   ┆ m         ┆           ┆           ┆          │
-│           ┆ code.com/ ┆ Sequence  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ paper/con ┆ to        ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ volutiona ┆ Sequence  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ l-sequenc ┆ Learning  ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ e-to-sequ ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ence-lear ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
-│           ┆ ning      ┆           ┆           ┆   ┆           ┆           ┆           ┆          │
+│ 8325      ┆ https://p ┆ FaceNet:  ┆ 1503.0383 ┆ … ┆ github.co ┆ mushfiqur ┆ Face-Reco ┆ 0        │
+│           ┆ aperswith ┆ A Unified ┆ 2         ┆   ┆ m         ┆ rahman250 ┆ gnition-m ┆          │
+│           ┆ code.com/ ┆ Embedding ┆           ┆   ┆           ┆           ┆ aster     ┆          │
+│           ┆ paper/fac ┆ for Face  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ enet-a-un ┆ Recogniti ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ified-emb ┆ on and    ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ edding-fo ┆ Clusterin ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ r-face    ┆ g         ┆           ┆   ┆           ┆           ┆           ┆          │
+│ 8270      ┆ https://p ┆ Efficient ┆ 1905.1194 ┆ … ┆ github.co ┆ code-impl ┆ Code3     ┆ 0        │
+│           ┆ aperswith ┆ Net: Reth ┆ 6         ┆   ┆ m         ┆ ementatio ┆           ┆          │
+│           ┆ code.com/ ┆ inking    ┆           ┆   ┆           ┆ n1        ┆           ┆          │
+│           ┆ paper/eff ┆ Model     ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ icientnet ┆ Scaling   ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ -rethinki ┆ for Convo ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ ng-model- ┆ lutional  ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ scaling-f ┆ Neural    ┆           ┆   ┆           ┆           ┆           ┆          │
+│           ┆ or        ┆ Networks  ┆           ┆   ┆           ┆           ┆           ┆          │
 └───────────┴───────────┴───────────┴───────────┴───┴───────────┴───────────┴───────────┴──────────┘
 
 Most common file/types:
@@ -319,26 +319,26 @@ shape: (20, 2)
 │ ---                                 ┆ --- │
 │ struct[2]                           ┆ u32 │
 ╞═════════════════════════════════════╪═════╡
-│ {"README.md","text/plain"}          ┆ 247 │
-│ {"LICENSE","text/plain"}            ┆ 161 │
-│ {".gitignore","text/plain"}         ┆ 141 │
-│ {"requirements.txt","text/plain"}   ┆ 71  │
-│ {"data","inode/directory"}          ┆ 64  │
-│ {"src","inode/directory"}           ┆ 43  │
-│ {"scripts","inode/directory"}       ┆ 30  │
-│ {".github","inode/directory"}       ┆ 28  │
-│ {"setup.py","text/x-script.python"} ┆ 27  │
-│ {"utils.py","text/x-script.python"} ┆ 26  │
-│ {"models","inode/directory"}        ┆ 23  │
-│ {"tests","inode/directory"}         ┆ 23  │
-│ {"README.md","text/html"}           ┆ 22  │
-│ {"train.py","text/x-script.python"} ┆ 21  │
-│ {"docs","inode/directory"}          ┆ 21  │
-│ {".gitattributes","text/plain"}     ┆ 20  │
-│ {"examples","inode/directory"}      ┆ 20  │
-│ {"pyproject.toml","text/plain"}     ┆ 19  │
-│ {"main.py","text/x-script.python"}  ┆ 18  │
-│ {"environment.yml","text/plain"}    ┆ 16  │
+│ {"README.md","text/plain"}          ┆ 792 │
+│ {"LICENSE","text/plain"}            ┆ 521 │
+│ {".gitignore","text/plain"}         ┆ 501 │
+│ {"requirements.txt","text/plain"}   ┆ 261 │
+│ {"data","inode/directory"}          ┆ 172 │
+│ {"src","inode/directory"}           ┆ 127 │
+│ {".github","inode/directory"}       ┆ 106 │
+│ {"scripts","inode/directory"}       ┆ 105 │
+│ {"setup.py","text/x-script.python"} ┆ 90  │
+│ {"docs","inode/directory"}          ┆ 87  │
+│ {"README.md","text/html"}           ┆ 82  │
+│ {"tests","inode/directory"}         ┆ 77  │
+│ {"models","inode/directory"}        ┆ 72  │
+│ {"utils","inode/directory"}         ┆ 71  │
+│ {"utils.py","text/x-script.python"} ┆ 71  │
+│ {"pyproject.toml","text/plain"}     ┆ 66  │
+│ {"train.py","text/x-script.python"} ┆ 65  │
+│ {"examples","inode/directory"}      ┆ 61  │
+│ {"main.py","text/x-script.python"}  ┆ 59  │
+│ {".gitattributes","text/plain"}     ┆ 54  │
 └─────────────────────────────────────┴─────┘
 Pipable := has setup.py, pyproject.toml, or requirements.txt
 shape: (2, 2)
@@ -347,31 +347,31 @@ shape: (2, 2)
 │ ---     ┆ --- │
 │ bool    ┆ u32 │
 ╞═════════╪═════╡
-│ true    ┆ 96  │
-│ false   ┆ 204 │
+│ true    ┆ 350 │
+│ false   ┆ 650 │
 └─────────┴─────┘
 
 Rows: 10
 Columns: 19
 $ pipable                  <bool> True, True, True, True, True, True, True, True, True, True
-$ filenames           <list[str]> ['.gitattributes', '.github', '.gitignore', '.pre-commit-config.yaml', 'LICENSE', 'Makefile', 'README.md', 'data', 'experiments', 'neurve', 'notebooks', 'pyproject.toml', 'tests'], ['.gitignore', '.landscape.yaml', 'LICENSE.txt', 'Makefile', 'README.rst', 'TODO.rst', 'VERSION', 'base.param', 'base2015.param', 'base2015TTTEEE.param', 'base2015lite.param', 'base_actspt.param', 'bestfit', 'bicep2.param', 'changelog.dat', 'covmat', 'data', 'default.conf.template', 'example.param', 'example_ns.param', 'jla.param', 'montepython', 'plot_files', 'setup.cfg', 'setup.py', 'sphinx-documentation', 'test.param', 'test_gaussian.param', 'test_is.param', 'wrapper_wmap'], ['.gitignore', 'README.md', 'ckpt', 'common', 'config', 'data', 'demo.ipynb', 'do_pred.sh', 'do_pred_and_eval.sh', 'evaluate.py', 'inference.py', 'models', 'mvssnetplus.md', 'requirements.txt'], ['.github', '.gitignore', '.gitmodules', '.pre-commit-config.yaml', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'LICENSE', 'MANIFEST.in', 'README.md', 'RELEASE.md', 'docs', 'examples', 'fairseq', 'fairseq_cli', 'hubconf.py', 'hydra_plugins', 'pyproject.toml', 'release_utils.py', 'scripts', 'setup.cfg', 'setup.py', 'tests', 'train.py'], ['.editorconfig', '.github', '.gitignore', '.travis.yml', 'AUTHORS.rst', 'CONTRIBUTING.rst', 'HISTORY.md', 'LICENSE', 'MANIFEST.in', 'Makefile', 'README.md', 'docs', 'rivagan', 'setup.cfg', 'setup.py', 'tests', 'tox.ini'], ['.circleci', '.gitignore', 'LICENSE', 'README.md', 'data', 'examples', 'experiments', 'len.jpg', 'lens', 'requirements.txt', 'tests'], ['.gitignore', 'README.md', 'configs', 'conll.py', 'corpus.py', 'coval', 'evaluator.py', 'get_ecb_data.py', 'model_utils.py', 'models.py', 'predict.py', 'requirements.txt', 'run_scorer.py', 'spans.py', 'train_pairwise_scorer.py', 'train_span_scorer.py', 'tuned_threshold.py', 'utils.py'], ['README.md', 'code', 'data', 'requirements.txt', 'shgp.png'], ['.clang-format', '.github', '.gitignore', '.gitmodules', '.readthedocs.yaml', 'CI', 'CMakeLists.txt', 'CONTRIBUTING.md', 'LICENSE', 'MANIFEST.in', 'README.md', 'build.sh', 'compile.sh', 'dependencies', 'deploy.sh', 'docs', 'magritte', 'meta.yaml', 'pyproject.toml', 'setup.py', 'src', 'tests', 'version.txt'], ['LICENSE', 'README.md', 'data_container.py', 'eval_fqi.py', 'eval_rfqi.py', 'fqi.py', 'generate_offline_data.py', 'load_d4rl_data.py', 'models', 'perturbed_env', 'requirements.txt', 'rfqi.py', 'scripts', 'train_fqi.py', 'train_rfqi.py']
-$ filetypes           <list[str]> ['text/plain', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'text/plain', 'inode/directory'], ['text/plain', 'text/plain', 'text/plain', 'text/x-makefile', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'inode/directory'], ['text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'application/json', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'text/plain', 'text/plain'], ['inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/html', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'text/x-script.python', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'text/x-script.python'], ['text/plain', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/x-script.python', 'text/x-script.python', 'inode/directory', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'text/plain'], ['inode/directory', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'image/jpeg', 'inode/directory', 'text/plain', 'inode/directory'], ['text/plain', 'text/plain', 'inode/directory', 'text/x-script.python', 'text/x-script.python', 'inode/directory', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'text/plain', 'text/plain', 'text/plain', 'text/x-script.python', 'text/x-script.python', 'text/plain', 'text/plain', 'text/x-script.python'], ['text/plain', 'inode/directory', 'inode/directory', 'text/plain', 'image/png'], ['text/plain', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/x-shellscript', 'inode/directory', 'text/x-shellscript', 'inode/directory', 'inode/directory', 'text/plain', 'text/plain', 'text/x-script.python', 'inode/directory', 'inode/directory', 'text/plain'], ['text/plain', 'text/plain', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'inode/directory', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'text/x-script.python', 'text/x-script.python']
-$ paper_url                 <str> 'https://paperswithcode.com/paper/self-supervised-representation-learning-on-2', 'https://paperswithcode.com/paper/cosmology-with-the-laser-interferometer-space', 'https://paperswithcode.com/paper/mvss-net-multi-view-multi-scale-supervised', 'https://paperswithcode.com/paper/fairseq-s2t-fast-speech-to-text-modeling-with', 'https://paperswithcode.com/paper/robust-invisible-video-watermarking-with', 'https://paperswithcode.com/paper/logic-explained-networks', 'https://paperswithcode.com/paper/streamlining-cross-document-coreference', 'https://paperswithcode.com/paper/self-supervised-heterogeneous-graph-pre', 'https://paperswithcode.com/paper/magritte-a-modern-software-library-for-3d-1', 'https://paperswithcode.com/paper/robust-reinforcement-learning-using-offline'
-$ paper_title               <str> 'Self-supervised representation learning on manifolds', 'Cosmology with the Laser Interferometer Space Antenna', 'MVSS-Net: Multi-View Multi-Scale Supervised Networks for Image Manipulation Detection', 'fairseq S2T: Fast Speech-to-Text Modeling with fairseq', 'Robust Invisible Video Watermarking with Attention', 'Logic Explained Networks', 'Streamlining Cross-Document Coreference Resolution: Evaluation and Modeling', 'Self-supervised Heterogeneous Graph Pre-training Based on Structural Clustering', 'Magritte, a modern software library for 3D radiative transfer: II. Adaptive ray-tracing, mesh construction and reduction', 'Robust Reinforcement Learning using Offline Data'
-$ paper_arxiv_id            <str> None, '2204.05434', '2112.08935', '2010.05171', '1909.01285', '2108.05149', '2009.11032', '2210.10462', '2011.14998', '2208.05129'
-$ paper_url_abs             <str> 'https://openreview.net/forum?id=EofGDIGAhvR', 'https://arxiv.org/abs/2204.05434v1', 'https://arxiv.org/abs/2112.08935v3', 'https://arxiv.org/abs/2010.05171v2', 'https://arxiv.org/abs/1909.01285v1', 'https://arxiv.org/abs/2108.05149v1', 'https://arxiv.org/abs/2009.11032v3', 'https://arxiv.org/abs/2210.10462v2', 'https://arxiv.org/abs/2011.14998v1', 'https://arxiv.org/abs/2208.05129v2'
-$ paper_url_pdf             <str> 'https://openreview.net/pdf?id=EofGDIGAhvR', 'https://arxiv.org/pdf/2204.05434v1.pdf', 'https://arxiv.org/pdf/2112.08935v3.pdf', 'https://arxiv.org/pdf/2010.05171v2.pdf', 'https://arxiv.org/pdf/1909.01285v1.pdf', 'https://arxiv.org/pdf/2108.05149v1.pdf', 'https://arxiv.org/pdf/2009.11032v3.pdf', 'https://arxiv.org/pdf/2210.10462v2.pdf', 'https://arxiv.org/pdf/2011.14998v1.pdf', 'https://arxiv.org/pdf/2208.05129v2.pdf'
-$ repo_url                  <str> 'https://github.com/ekorman/neurve', 'https://github.com/enisbelgacem/montepython_public', 'https://github.com/dong03/MVSS-Net', 'https://github.com/pytorch/fairseq/tree/master/examples/speech_to_text', 'https://github.com/DAI-Lab/RivaGAN', 'https://github.com/pietrobarbiero/logic_explainer_networks', 'https://github.com/ariecattan/coref', 'https://github.com/kepsail/SHGP', 'https://github.com/Magritte-code/Magritte', 'https://github.com/zaiyan-x/RFQI'
+$ filenames           <list[str]> ['.gitattributes', '.github', '.gitignore', '.pre-commit-config.yaml', 'LICENSE', 'Makefile', 'README.md', 'data', 'experiments', 'neurve', 'notebooks', 'pyproject.toml', 'tests'], ['.gitignore', 'LICENSE', 'LXMERT', 'README.md', 'SAN.py', 'SAN_and_DVQA.py', 'UpDn.py', 'UpDn_and_DVQA.py', 'attention.py', 'classifier.py', 'comput_score.py', 'data', 'dataset_vqacp.py', 'docker', 'fc.py', 'framework.png', 'language_model.py', 'logs', 'main.py', 'mio', 'opts.py', 'requirements.txt', 'test.py', 'train.py', 'utils.py'], ['.circleci', '.clang-format', '.flake8', '.github', '.gitignore', 'GETTING_STARTED.md', 'INSTALL.md', 'LICENSE', 'MODEL_ZOO.md', 'README.md', 'configs', 'datasets', 'demo', 'detectron2', 'dev', 'docs', 'projects', 'requirements.txt', 'setup.cfg', 'setup.py', 'teaser.gif', 'tests', 'tools'], ['.gitignore', 'INSTALL.md', 'LICENSE', 'README.md', 'configs', 'datasets', 'demo', 'detectron2', 'dev', 'docker', 'docs', 'projects', 'requirement.txt', 'scripts', 'setup.cfg', 'setup.py', 'tests', 'tools'], ['LICENSE.md', 'README.md', 'README_paper.md', '__init__.py', 'configs', 'datasets', 'demo', 'dis_models', 'evaluation.py', 'evaluations', 'gen_models', 'requirements.txt', 'requirements_paper.txt', 'source', 'train.py', 'train_mn.py', 'updater.py'], ['.conda', '.gitattributes', '.github', '.gitignore', '.pyre_configuration', 'AWESOME_LIST.md', 'CITATION', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'captum', 'docs', 'environment.yml', 'pyproject.toml', 'scripts', 'setup.cfg', 'setup.py', 'sphinx', 'tests', 'tutorials', 'website'], ['.gitignore', '.landscape.yaml', 'LICENSE.txt', 'Makefile', 'README.rst', 'TODO.rst', 'VERSION', 'base.param', 'base2015.param', 'base2015TTTEEE.param', 'base2015lite.param', 'base_actspt.param', 'bestfit', 'bicep2.param', 'changelog.dat', 'covmat', 'data', 'default.conf.template', 'example.param', 'example_ns.param', 'jla.param', 'montepython', 'plot_files', 'setup.cfg', 'setup.py', 'sphinx-documentation', 'test.param', 'test_gaussian.param', 'test_is.param', 'wrapper_wmap'], ['.gitignore', 'CITATION', 'LICENSE', 'MANIFEST.in', 'README.md', 'bin', 'config', 'data', 'docs', 'notebooks', 'setup.py', 'sims', 'tests', 'ztf_sim'], ['.gitignore', 'CS_6669.gif', 'DSC_distribution.png', 'HT_7473.gif', 'LICENSE', 'README.md', 'brain-mri-lgg.png', 'flair-segmentation', 'requirements.txt', 'skull-stripping', 'unet.png'], ['.gitignore', 'LICENSE.md', 'README.md', 'catalogues', 'docs', 'get_unique_craters.py', 'input_data_gen.py', 'model_train.py', 'requirements.txt', 'run_get_unique_craters.py', 'run_input_data_gen.py', 'run_model_train.py', 'tests', 'utils']
+$ filetypes           <list[str]> ['text/plain', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'text/plain', 'inode/directory'], ['text/plain', 'text/plain', 'inode/directory', 'text/plain', 'text/x-script.python', 'text/x-script.python', 'text/plain', 'text/plain', 'text/x-script.python', 'text/x-script.python', 'text/plain', 'inode/directory', 'text/plain', 'inode/directory', 'text/x-script.python', 'image/png', 'text/x-script.python', 'inode/directory', 'text/plain', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/x-script.python', 'text/x-script.python'], ['inode/directory', 'text/plain', 'text/plain', 'inode/directory', 'text/plain', 'text/plain', 'text/html', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'text/plain', 'text/plain', 'text/x-script.python', 'image/gif', 'inode/directory', 'inode/directory'], ['text/plain', 'text/html', 'text/plain', 'text/x-script.python', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'text/plain', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'inode/directory'], ['text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'text/x-script.python', 'inode/directory', 'inode/directory', 'text/plain', 'text/plain', 'inode/directory', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python'], ['inode/directory', 'text/plain', 'inode/directory', 'text/plain', 'application/json', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/x-script.python', 'inode/directory', 'inode/directory', 'text/plain', 'text/plain', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory'], ['text/plain', 'text/plain', 'text/plain', 'text/x-makefile', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'text/plain', 'text/x-script.python', 'inode/directory', 'text/plain', 'text/plain', 'text/plain', 'inode/directory'], ['text/plain', 'text/plain', 'text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'inode/directory', 'text/x-script.python', 'inode/directory', 'inode/directory', 'inode/directory'], ['text/plain', 'image/gif', 'image/png', 'image/gif', 'text/plain', 'text/plain', 'image/png', 'inode/directory', 'text/plain', 'inode/directory', 'image/png'], ['text/plain', 'text/plain', 'text/plain', 'inode/directory', 'inode/directory', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'text/plain', 'text/x-script.python', 'text/x-script.python', 'text/x-script.python', 'inode/directory', 'inode/directory']
+$ paper_url                 <str> 'https://paperswithcode.com/paper/self-supervised-representation-learning-on-2', 'https://paperswithcode.com/paper/debiased-visual-question-answering-from', 'https://paperswithcode.com/paper/forward-propagation-backward-regression-and', 'https://paperswithcode.com/paper/annealing-based-label-transfer-learning-for', 'https://paperswithcode.com/paper/spectral-normalization-for-generative', 'https://paperswithcode.com/paper/captum-a-unified-and-generic-model', 'https://paperswithcode.com/paper/cosmology-with-the-laser-interferometer-space', 'https://paperswithcode.com/paper/the-zwicky-transient-facility-surveys-and', 'https://paperswithcode.com/paper/association-of-genomic-subtypes-of-lower', 'https://paperswithcode.com/paper/lunar-crater-identification-via-deep-learning'
+$ paper_title               <str> 'Self-supervised representation learning on manifolds', 'Debiased Visual Question Answering from Feature and Sample Perspectives', 'Forward Propagation, Backward Regression, and Pose Association for Hand Tracking in the Wild', 'Annealing-Based Label-Transfer Learning for Open World Object Detection', 'Spectral Normalization for Generative Adversarial Networks', 'Captum: A unified and generic model interpretability library for PyTorch', 'Cosmology with the Laser Interferometer Space Antenna', 'The Zwicky Transient Facility: Surveys and Scheduler', 'Association of genomic subtypes of lower-grade gliomas with shape features automatically extracted by a deep learning algorithm', 'Lunar Crater Identification via Deep Learning'
+$ paper_arxiv_id            <str> None, None, None, None, '1802.05957', '2009.07896', '2204.05434', '1905.02209', '1906.03720', '1803.02192'
+$ paper_url_abs             <str> 'https://openreview.net/forum?id=EofGDIGAhvR', 'http://proceedings.neurips.cc/paper/2021/hash/1f4477bad7af3616c1f933a02bfabe4e-Abstract.html', 'http://openaccess.thecvf.com//content/CVPR2022/html/Huang_Forward_Propagation_Backward_Regression_and_Pose_Association_for_Hand_Tracking_CVPR_2022_paper.html', 'http://openaccess.thecvf.com//content/CVPR2023/html/Ma_Annealing-Based_Label-Transfer_Learning_for_Open_World_Object_Detection_CVPR_2023_paper.html', 'http://arxiv.org/abs/1802.05957v1', 'https://arxiv.org/abs/2009.07896v1', 'https://arxiv.org/abs/2204.05434v1', 'https://arxiv.org/abs/1905.02209v1', 'https://arxiv.org/abs/1906.03720v1', 'https://arxiv.org/abs/1803.02192v3'
+$ paper_url_pdf             <str> 'https://openreview.net/pdf?id=EofGDIGAhvR', 'http://proceedings.neurips.cc/paper/2021/file/1f4477bad7af3616c1f933a02bfabe4e-Paper.pdf', 'http://openaccess.thecvf.com//content/CVPR2022/papers/Huang_Forward_Propagation_Backward_Regression_and_Pose_Association_for_Hand_Tracking_CVPR_2022_paper.pdf', 'http://openaccess.thecvf.com//content/CVPR2023/papers/Ma_Annealing-Based_Label-Transfer_Learning_for_Open_World_Object_Detection_CVPR_2023_paper.pdf', 'http://arxiv.org/pdf/1802.05957v1.pdf', 'https://arxiv.org/pdf/2009.07896v1.pdf', 'https://arxiv.org/pdf/2204.05434v1.pdf', 'https://arxiv.org/pdf/1905.02209v1.pdf', 'https://arxiv.org/pdf/1906.03720v1.pdf', 'https://arxiv.org/pdf/1803.02192v3.pdf'
+$ repo_url                  <str> 'https://github.com/ekorman/neurve', 'https://github.com/zhiquan-wen/d-vqa', 'https://github.com/cvlab-stonybrook/HandLer', 'https://github.com/dig-beihang/allow', 'https://github.com/pfnet-research/sngan_projection', 'https://github.com/pytorch/captum', 'https://github.com/enisbelgacem/montepython_public', 'https://github.com/ZwickyTransientFacility/ztf_sim', 'https://github.com/mateuszbuda/brain-segmentation', 'https://github.com/silburt/DeepMoon'
 $ is_official              <bool> True, True, True, True, True, True, True, True, True, True
-$ mentioned_in_paper       <bool> True, True, True, False, True, True, True, True, False, True
-$ mentioned_in_github      <bool> False, False, False, False, True, True, True, True, True, True
-$ framework                 <str> 'pytorch', 'none', 'pytorch', 'pytorch', 'pytorch', 'pytorch', 'pytorch', 'pytorch', 'none', 'pytorch'
-$ paper_publisher           <str> 'openreview.net', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org'
+$ mentioned_in_paper       <bool> True, True, False, True, True, False, True, True, True, True
+$ mentioned_in_github      <bool> False, False, False, False, False, True, False, False, False, True
+$ framework                 <str> 'pytorch', 'pytorch', 'pytorch', 'pytorch', 'tf', 'pytorch', 'none', 'none', 'tf', 'tf'
+$ paper_publisher           <str> 'openreview.net', 'proceedings.neurips.cc', 'openaccess.thecvf.com', 'openaccess.thecvf.com', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org', 'arxiv.org'
 $ repo_hoster               <str> 'github.com', 'github.com', 'github.com', 'github.com', 'github.com', 'github.com', 'github.com', 'github.com', 'github.com', 'github.com'
-$ repo_github_owner         <str> 'ekorman', 'enisbelgacem', 'dong03', 'pytorch', 'DAI-Lab', 'pietrobarbiero', 'ariecattan', 'kepsail', 'Magritte-code', 'zaiyan-x'
-$ repo_github_repo          <str> 'neurve', 'montepython_public', 'MVSS-Net', 'fairseq', 'RivaGAN', 'logic_explainer_networks', 'coref', 'SHGP', 'Magritte', 'RFQI'
-$ github_stars              <i64> 8, 0, 305, 31661, 295, 50, 36, 31, 22, 24
-$ citations                 <i64> None, 272, 149, 95, 32, 32, 28, 18, 15, 14
+$ repo_github_owner         <str> 'ekorman', 'zhiquan-wen', 'cvlab-stonybrook', 'dig-beihang', 'pfnet-research', 'pytorch', 'enisbelgacem', 'ZwickyTransientFacility', 'mateuszbuda', 'silburt'
+$ repo_github_repo          <str> 'neurve', 'd-vqa', 'HandLer', 'allow', 'sngan_projection', 'captum', 'montepython_public', 'ztf_sim', 'brain-segmentation', 'DeepMoon'
+$ github_stars              <i64> 8, 25, 23, 15, 1104, 5407, 0, 13, 130, 138
+$ citations                 <i64> None, None, None, None, 2126, 470, 285, 281, 277, 181
 
 Good candidates
 None

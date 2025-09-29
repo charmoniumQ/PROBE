@@ -1,4 +1,3 @@
-import traceback
 import datetime
 import tempfile
 import subprocess
@@ -17,8 +16,12 @@ print("Started")
 
 
 seed = 0
-sample_size = int(os.environ.get("sample_size", "300"))
-sample_size2 = int(os.environ.get("sample_size2", "100"))
+# How many of the total to look for citations
+sample_size = int(os.environ.get("sample_size", "1000"))
+
+# How many of the top cited to look through for filetypes
+sample_size2 = int(os.environ.get("sample_size2", "10"))
+
 n_rows = 10
 polars.Config.set_fmt_str_lengths(100)
 polars.Config.set_tbl_rows(n_rows * 5)
@@ -39,25 +42,29 @@ def apply_and_return(func: typing.Callable[[_T], None]) -> typing.Callable[[_T],
 
 
 @charmonium.cache.memoize(group=cache_util.group)
-def analyze_repo(repo_url: str) -> typing.Iterable[typing.Mapping[str, str]]:
-    ret = []
-    with paper_datasets.download_repo_tarball(repo_url) as tarfile_obj:
-        for member in tarfile_obj.getmembers():
-            path_parts = pathlib.Path(member.name).parts[1:]
-            if len(path_parts) == 1:
-                filename = path_parts[-1]
-                member = util.tarfile_follow_links(tarfile_obj, member)
-                if member.isdir():
-                    ret.append({"name": filename, "type": "inode/directory"})
-                elif member.isfile():
-                    file_obj = tarfile_obj.extractfile(member)
-                    assert file_obj is not None
-                    contents = file_obj.read()
-                    type = util.get_file_type_of_bytes(contents)
-                    ret.append({"name": filename, "type": type})
-                else:
-                    ret.append({"name": filename, "type": "unknown-file-type"})
-    return ret
+def analyze_repo(repo_url: str) -> None | typing.Iterable[typing.Mapping[str, str]]:
+    tar_file = paper_datasets.download_repo_tarball(repo_url)
+    if tar_file is None:
+        return []
+    else:
+        with tar_file as tarfile_obj:
+            ret = []
+            for member in tarfile_obj.getmembers():
+                path_parts = pathlib.Path(member.name).parts[1:]
+                if len(path_parts) == 1:
+                    filename = path_parts[-1]
+                    member = util.tarfile_follow_links(tarfile_obj, member)
+                    if member.isdir():
+                        ret.append({"name": filename, "type": "inode/directory"})
+                    elif member.isfile():
+                        file_obj = tarfile_obj.extractfile(member)
+                        assert file_obj is not None
+                        contents = file_obj.read()
+                        type = util.get_file_type_of_bytes(contents)
+                        ret.append({"name": filename, "type": type})
+                    else:
+                        ret.append({"name": filename, "type": "unknown-file-type"})
+            return ret
 
 
 @charmonium.cache.memoize(group=cache_util.group)
@@ -207,6 +214,11 @@ df = (
         "",
         sep="\n",
     )))
+
+    # Only take top cited
+    .sort("citations", descending=True)
+    .head(sample_size2)
+
     # How to connect https://arxiv.org/abs/1905.00537 to https://papers.nips.cc/paper/8589-superglue-a-stickier-benchmark-for-general-purpose-language-understanding-systems.pdf
     # Most common file types
     .with_columns(
@@ -256,7 +268,7 @@ df = (
                 .filter("pipable")
                 .filter("is_official")
                 .sort("citations", descending=True)
-                .head(n_rows)
+                .head(sample_size2)
                 .glimpse()
             ),
             sep="\n",
