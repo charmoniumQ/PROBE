@@ -104,7 +104,12 @@ def _retain_pred(node: ptypes.OpQuad, op: ops.Op) -> bool:
 def hb_graph_to_dataflow_graph(
         probe_log: ptypes.ProbeLog,
         hbg: ptypes.HbGraph,
-) -> tuple[DataflowGraph, Map[ptypes.Inode, It[pathlib.Path]], graph_utils.ReachabilityOracle[ptypes.OpQuad]]:
+) -> tuple[
+    DataflowGraph,
+    Map[ptypes.Inode, It[pathlib.Path]],
+    hb_graph.HbGraph,
+    graph_utils.ReachabilityOracle[ptypes.OpQuad],
+]:
     hbg = hb_graph.retain_only(probe_log, hbg, _retain_pred)
     hb_oracle = graph_utils.DualLabelReachabilityOracle[ptypes.OpQuad].create(hbg)
     inode_segments, inode_to_paths = find_segments(probe_log, hbg, hb_oracle)
@@ -119,7 +124,7 @@ def hb_graph_to_dataflow_graph(
         duration = end - start
         if duration > datetime.timedelta(seconds=0.1):
             print(f"Adding segments took {duration.total_seconds()}")
-    return dataflow_graph, inode_to_paths, hb_oracle
+    return dataflow_graph, inode_to_paths, hbg, hb_oracle
 
 
 def _score_children(parent: ptypes.OpQuad, child: ptypes.OpQuad) -> int:
@@ -496,6 +501,12 @@ def combine_adjacent_ops(
         hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
         dataflow_graph: DataflowGraph,
 ) -> networkx.DiGraph[ProcessState | InodeVersionNode]:
+    for node in dataflow_graph:
+        if isinstance(node, ptypes.OpQuad):
+            assert node in hb_oracle
+    for node in hbg:
+        assert node in hb_oracle
+
     combined_dataflow_graph: networkx.DiGraph[ProcessState | InodeVersionNode] = networkx.DiGraph()
     quad_to_state = {}
     edges: list[tuple[ptypes.OpQuad | ProcessState, ptypes.OpQuad | ProcessState]] = []
@@ -780,7 +791,8 @@ def get_read_write_batches(
             for in_degree, in_degree_queue in queue.items()
             if in_degree_queue
         }
-        warnings.warn(ptypes.UnusualProbeLog(f"No progress made, but queue not complete: {queue}"))
+        # FIXME: re-enable warning
+        #warnings.warn(ptypes.UnusualProbeLog(f"No progress made, but queue not complete: {queue}"))
 
 
 def validate_dataflow_graph(

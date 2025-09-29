@@ -185,9 +185,9 @@ def dataflow_graph(
     """
     restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
-    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    dfg, inode_to_paths, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(
-        probe_log, hbg
+    old_hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
+    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(
+        probe_log, old_hbg
     )
     dfg = dataflow_graph_module.filter_paths(
         dfg, inode_to_paths, ignore_paths.split(",")
