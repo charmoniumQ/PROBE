@@ -16,7 +16,9 @@ from . import util
 
 
 _Node = typing.TypeVar("_Node")
-FrozenDict: typing.TypeAlias = frozendict.frozendict
+_T_co = typing.TypeVar("_T_co", covariant=True)
+_V_co = typing.TypeVar("_V_co", covariant=True)
+FrozenDict: typing.TypeAlias = frozendict.frozendict[_T_co, _V_co]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -241,8 +243,12 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
         ...
 
     @abc.abstractmethod
+    def __contains__(self, node: _Node) -> bool:
+        ...
+
+    @abc.abstractmethod
     def is_reachable(self, u: _Node, v: _Node) -> bool:
-        pass
+        ...
 
     @abc.abstractmethod
     def nodes_between(
@@ -374,6 +380,10 @@ class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
     right: FrozenDict[_Node, int]
     preorder: FrozenDict[_Node, int]
 
+    def __contains__(self, node: _Node) -> bool:
+        assert (node in self.dag) == (node in self.left) == (node in self.right) == (node in self.preorder), (node in self.dag, node in self.left, node in self.right, node in self.preorder)
+        return node in self.dag
+
     @charmonium.time_block.decor(print_start=False)
     @staticmethod
     def create(dag: networkx.DiGraph[_Node]) -> DualLabelReachabilityOracle[_Node]:
@@ -392,6 +402,10 @@ class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
         return DualLabelReachabilityOracle(dag, FrozenDict(left), FrozenDict(right), preorder)
 
     def is_reachable(self, src: _Node, dst: _Node) -> bool:
+        if src not in self:
+            raise KeyError(src)
+        if dst not in self:
+            raise KeyError(dst)
         return self.left[src] <= self.left[dst] and self.right[dst] <= self.right[src]
 
     def add_edge(self, source: _Node, target: _Node) -> None:
@@ -664,10 +678,21 @@ def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_No
     return tc
 
 
-def combine_isomorphic_nodes(
+def combine_twin_nodes(
     graph: networkx.DiGraph[_Node],
     combinable: typing.Callable[[_Node], bool],
 ) -> networkx.DiGraph[frozenset[_Node] | _Node]:
+    """Condensation, replacing combinable twins with a single node.
+
+    - All nodes satisfying the combinable predicate will be replaced with a
+      `frozenset[_Node]`. All "twin" nodes, that is nodes with the same
+      in-neighbors and out-neighbors, will be combined into one frozenset.
+
+    - Those not satisfying will remain a `_Node`, unchanged.
+
+    Edges will be preserved according to the node mapping.
+
+    """
     neighbors_to_node = dict[tuple[frozenset[_Node], frozenset[_Node]], set[_Node]]()
     non_combinable_nodes = set()
     for node in graph.nodes():
@@ -677,55 +702,29 @@ def combine_isomorphic_nodes(
             neighbors_to_node.setdefault((preds, succs), set()).add(node)
         else:
             non_combinable_nodes.add(node)
-    node_to_equivalence_class: collections.abc.Mapping[_Node, frozenset[_Node] | _Node] = {
+    old_node_to_new: collections.abc.Mapping[_Node, frozenset[_Node] | _Node] = {
+        # Combinable nodes: _Node -> frozenset[_Node] (grouped with twins)
         **{
             node: frozenset(equivalence_class)
             for equivalence_class in neighbors_to_node.values()
             for node in equivalence_class
         },
+        # Non-combinable nodes: _Node -> _Node (unchanged)
         **{
             node: node
             for node in non_combinable_nodes
         },
     }
     ret: networkx.DiGraph[frozenset[_Node] | _Node] = networkx.DiGraph()
-    ret.add_nodes_from(
-        frozenset(equivalence_class)
-        for equivalence_class in neighbors_to_node.values()
-    )
-    ret.add_nodes_from(non_combinable_nodes)
+    ret.add_nodes_from(old_node_to_new.values())
     ret.add_edges_from(
-        (frozenset(equivalence_class), node_to_equivalence_class[successor])
+        (frozenset(equivalence_class), old_node_to_new[successor])
         for (_, successors), equivalence_class in neighbors_to_node.items()
         for successor in successors
     )
     ret.add_edges_from(
-        (node, node_to_equivalence_class[successor])
+        (node, old_node_to_new[successor])
         for node in non_combinable_nodes
         for successor in graph.successors(node)
     )
     return ret
-
-
-def try_find_cycle(
-        digraph: networkx.DiGraph[_Node],
-        source: _Node | None = None,
-) -> list[tuple[_Node, _Node]] | None:
-    try:
-        cycle = networkx.find_cycle(digraph, source)
-    except networkx.NetworkXNoCycle:
-        return None
-    else:
-        return typing.cast(list[tuple[_Node, _Node]], cycle)
-
-
-
-def transitive_reduction_cyclic_graph(digraph: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
-    edge_bank = []
-    while (cycle := try_find_cycle(digraph)) is not None:
-        edge_bank.append(cycle[0])
-    digraph = networkx.transitive_reduction(digraph)
-    for edge in edge_bank:
-        digraph.add_edge(*edge)
-        assert try_find_cycle(digraph, edge[0])
-    return digraph

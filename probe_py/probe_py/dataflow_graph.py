@@ -447,6 +447,12 @@ def combine_indistinguishable_inodes(
 ) -> CompressedDataflowGraph:
     # FIXME: Make the elimination optional at a CLI level
     # Note the type still has to be converted from DataflowGraph to CompressedDataflowGraph
+
+    sccs = list(networkx.strongly_connected_components(dataflow_graph))
+    scc_lens = sorted([len(scc) for scc in sccs], reverse=True)
+    scc_total = sum(scc_lens)
+    print(f"{len(sccs)} sccs with nodes {scc_lens[:5]} (total {scc_total})")
+
     n_ops = sum(
         isinstance(node, ptypes.OpQuad)
         for node in dataflow_graph.nodes()
@@ -463,7 +469,7 @@ def combine_indistinguishable_inodes(
         for node in dataflow_graph2.nodes()
     )
     with charmonium.time_block.ctx("combine similar equivalent inodes", print_start=False):
-        dataflow_graph3 = graph_utils.combine_isomorphic_nodes(
+        dataflow_graph3 = graph_utils.combine_twin_nodes(
             dataflow_graph2,
             lambda node: isinstance(node, InodeVersionNode),
         )
@@ -476,12 +482,12 @@ def combine_indistinguishable_inodes(
         for node in dataflow_graph3.nodes()
     )
     print(f"Combined isomorphic inodes {n_inodes} -> {n_inodes2}")
-    n_edges = len(dataflow_graph.edges())
-    with charmonium.time_block.ctx("transitive reduction", print_start=False):
-        dataflow_graph4 = graph_utils.transitive_reduction_cyclic_graph(dataflow_graph3)
-    n_edges2 = len(dataflow_graph4.edges())
-    print(f"Transitive reduction {n_edges} -> {n_edges2}")
-    return typing.cast(CompressedDataflowGraph, dataflow_graph4)
+    # n_edges = len(dataflow_graph.edges())
+    # with charmonium.time_block.ctx("transitive reduction", print_start=False):
+    #     dataflow_graph4 = graph_utils.transitive_reduction_cyclic_graph(dataflow_graph3)
+    # n_edges2 = len(dataflow_graph4.edges())
+    # print(f"Transitive reduction {n_edges} -> {n_edges2}")
+    return typing.cast(CompressedDataflowGraph, dataflow_graph3)
 
 
 def combine_adjacent_ops(
@@ -621,6 +627,8 @@ def get_read_write_batches(
 
     """
     first_quad, last_quad = _get_first_and_last_quad(hbg, pid, exec.exec_no)
+    assert first_quad in hb_oracle
+    assert last_quad in hb_oracle
     assert hb_oracle.is_reachable(first_quad, last_quad)
     queue: dict[int, set[ptypes.OpQuad]] = collections.defaultdict(set, [(0, {first_quad})])
     queue_inverse = {first_quad: 0}
@@ -654,6 +662,7 @@ def get_read_write_batches(
                     for predecessor_of_successor in hbg.predecessors(successor)
                     if predecessor_of_successor != quad
                 )
+                assert successor in hb_oracle
             #print(f"      {successor} {in_degree=}")
             assert in_degree >= 0
             queue_inverse[successor] = in_degree
