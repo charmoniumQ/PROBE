@@ -418,12 +418,8 @@ void init_after_fork() {
     emit_init_thread_op();
 }
 
-void ensure_thread_initted() {
-    ASSERTF(is_proc_inited(), "Process not initialized");
-    ASSERTF(is_thread_inited(), "Thread not initialized");
-}
-
-__attribute__((constructor)) void constructor() {
+/** Fully remove __attribute__((constructor)), which appears unreliable in ubuntu:24.04 Podman container */
+void constructor() {
     DEBUG("Initializing internal libc");
     if (probe_libc_init() != 0) {
         ERROR("Failed to initialize probe_libc (no procfs?)");
@@ -448,4 +444,11 @@ __attribute__((constructor)) void constructor() {
     emit_init_epoch_op();
     emit_init_thread_op();
     DEBUG("Done with construction");
+}
+
+void ensure_thread_initted() {
+    if (!is_proc_inited()) {
+        constructor();
+    }
+    ASSERTF(is_thread_inited(), "Thread not initialized");
 }

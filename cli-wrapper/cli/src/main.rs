@@ -146,7 +146,12 @@ fn inner_main() -> Result<ExitStatus> {
                 .cloned()
                 .collect::<Vec<_>>();
 
-            std::process::Command::new("python3")
+            let path_to_probe_python = std::env::var("PATH_TO_PROBE_PYTHON").wrap_err(
+                "PATH_TO_PROBE_PYTHON not defined; are you using the Nix-built wrapper?"
+                    .to_string(),
+            )?;
+
+            std::process::Command::new(path_to_probe_python)
                 .arg("-m")
                 .arg("probe_py.cli")
                 .args(&args)

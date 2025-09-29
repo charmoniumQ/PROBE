@@ -1,4 +1,11 @@
-- location:
+- name: test
+  environment:
+    base_image: ubuntu:24.04
+    apt_packages:
+      - curl
+
+- name: neurve
+  location:
     url: https://github.com/ekorman/neurve
     commit: 1ea5661de2c89581e08fe9615a1d629a94cc281f
   environment:
@@ -7,11 +14,11 @@
       - git-core
       - curl
     python: "3.12"
-    pip_packages:
-      - .
+    venv_commands:
+      - pip install .
   commands:
     # - |
-    #     time python experiments/simclr.py \
+    #     time /home/user/repo/venv/bin/python experiments/simclr.py \
     #           --dataset mnist \
     #           --backbone resnet18 \
     #           --dim_z 2 \
@@ -23,15 +30,16 @@
     - curl --output data/cars_annos.mat https://web.archive.org/web/20180303212712/http://imagenet.stanford.edu/internal/car196/cars_annos.mat
     - curl --output data/car_ims.tgz https://web.archive.org/web/20161112024817/http://imagenet.stanford.edu/internal/car196/car_ims.tgz
     - tar --extract --gunzip --file=data/car_ims.tgz --directory=data/
-    - time python data/make_car_folders.py
+    - time /home/user/repo/venv/bin/python data/make_car_folders.py
     - |
-       time python experiments/triplet.py \
+       time /home/user/repo/venv/bin/python experiments/triplet.py \
             --data_root data/cars/ \
             --dim_z 2 \
             --n_charts 4 \
             --out_path out
 
-- location:
+- name: d-vqa
+  location:
     url: https://github.com/zhiquan-wen/d-vqa
     commit: 688c4dcc811f49b431daea81406e628ec71a7247
   environment:
@@ -40,13 +48,8 @@
     apt_packages:
       - wget
       - unzip
-    pip_packages:
-      - h5py==3.1.0
-      - numpy==1.19.5
-      - Pillow==8.2.0
-      - torch==1.1.0
-      - torchvision==0.3.0
-      - tqdm==4.64.1
+    venv_commands:
+      - pip install -r requirements.txt
   commands:
     - wget http://nlp.stanford.edu/data/glove.6B.zip
     - unzip glove.6B.zip -d data/glove
@@ -65,3 +68,13 @@
     - CUDA_VISIBLE_DEVICES=0 python main.py --dataroot data/vqacp2/ --img_root data/coco/trainval_features --output saved_models_cp2/ --self_loss_weight 3 --self_loss_q 0.7 --ratio 0.1
     - CUDA_VISIBLE_DEVICES=0 python test.py --dataroot data/vqacp2/ --img_root data/coco/trainval_features --checkpoint_path saved_models_cp2/best_model.pth --output saved_models_cp2/result/
     - python comput_score.py --input saved_models_cp2/result/XX.json --dataroot data/vqacp2/
+
+- name: handler
+  location:
+    url: https://github.com/cvlab-stonybrook/HandLer
+    commit: 9bacb5046f917db0b5343667443e5f3499bd7591
+  environment:
+    python: "3.12"
+    venv_commands:
+      - pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 --find-links https://download.pytorch.org/whl/torch_stable.html
+      - pip install -r requirements.txt
