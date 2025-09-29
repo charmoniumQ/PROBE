@@ -2,7 +2,6 @@ from __future__ import annotations
 import asyncio
 import urllib.parse
 import pathlib
-import tempfile
 import typing
 import pydantic
 import yaml
@@ -18,7 +17,8 @@ class Repo(pydantic.BaseModel):
         return [
             f"FROM {self.environment.base_image}",
             *self.environment.get_rootful_steps(),
-            "COPY --from=localhost/probe:0.1.0 /nix /probe /",
+            "COPY --from=localhost/probe:0.2.0 /nix /nix",
+            "COPY --from=localhost/probe:0.2.0 /bin/probe /bin/probe",
             "RUN useradd --system --user-group user --create-home",
             "USER user",
             "COPY --chown=user:user . /home/user/repo",

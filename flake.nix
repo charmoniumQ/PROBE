@@ -143,12 +143,17 @@
             '';
           };
           docker-image = pkgs.dockerTools.buildImage {
+            # nix build .#docker-image && podman load < result
             name = "probe";
-            tag = "0.1.0";
-            copyToRoot = probe;
-            runAsRoot = ''
-              ln --symbolic ${probe}/bin/probe /probe
-            '';
+            tag = "0.2.0";
+            copyToRoot = pkgs.buildEnv {
+              name = "probe-sys-env";
+              paths = [
+                probe
+                pkgs.busybox
+              ];
+              pathsToLink = ["/bin"];
+            };
           };
           default = probe;
         };
