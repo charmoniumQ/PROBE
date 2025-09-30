@@ -33,7 +33,7 @@ class Environment(pydantic.BaseModel):
             return [
                 f"RUN python{self.python} -m venv ./venv",
                 "ENV PATH=\"/home/user/repo/venv/bin:$PATH\"",
-                *self.venv_commands,
+                "RUN " + " && ".join(self.venv_commands),
             ]
         else:
             return []
@@ -131,7 +131,7 @@ if not cache_dir.exists():
 
 def main(
         name: str,
-        probe_tag: str = "0.3.0",
+        probe_tag: str = "0.0.4",
         podman_or_docker: str = "docker",
         verbose: bool = True,
 ) -> None:

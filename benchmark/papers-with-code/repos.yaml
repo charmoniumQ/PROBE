@@ -1,9 +1,3 @@
-- name: test
-  environment:
-    base_image: ubuntu:24.04
-    apt_packages:
-      - curl
-
 - name: neurve
   location:
     url: https://github.com/ekorman/neurve
@@ -17,28 +11,30 @@
     venv_commands:
       - pip install .
   commands:
-    # - |
-    #     time /home/user/repo/venv/bin/python experiments/simclr.py \
-    #           --dataset mnist \
-    #           --backbone resnet18 \
-    #           --dim_z 2 \
-    #           --n_charts 2 \
-    #           --n_epochs 1 \
-    #           --tau 1.0 \
-    #           --proj_dim 2 \
-    #           --out_path out
-    - curl --output data/cars_annos.mat https://web.archive.org/web/20180303212712/http://imagenet.stanford.edu/internal/car196/cars_annos.mat
-    - curl --output data/car_ims.tgz https://web.archive.org/web/20161112024817/http://imagenet.stanford.edu/internal/car196/car_ims.tgz
-    - tar --extract --gunzip --file=data/car_ims.tgz --directory=data/
-    - time /home/user/repo/venv/bin/python data/make_car_folders.py
     - |
-       time /home/user/repo/venv/bin/python experiments/triplet.py \
-            --data_root data/cars/ \
-            --dim_z 2 \
-            --n_charts 4 \
-            --out_path out
+        /home/user/repo/venv/bin/python experiments/simclr.py \
+              --dataset mnist \
+              --backbone resnet18 \
+              --dim_z 2 \
+              --n_charts 2 \
+              --n_epochs 1 \
+              --tau 1.0 \
+              --proj_dim 2 \
+              --out_path out
+    # - curl --output data/cars_annos.mat https://web.archive.org/web/20180303212712/http://imagenet.stanford.edu/internal/car196/cars_annos.mat
+    # - curl --output data/car_ims.tgz https://web.archive.org/web/20161112024817/http://imagenet.stanford.edu/internal/car196/car_ims.tgz
+    # # ^ Does not work.
+    # - tar --extract --gunzip --file=data/car_ims.tgz --directory=data/
+    # - time /home/user/repo/venv/bin/python data/make_car_folders.py
+    # - |
+    #    time /home/user/repo/venv/bin/python experiments/triplet.py \
+    #         --data_root data/cars/ \
+    #         --dim_z 2 \
+    #         --n_charts 4 \
+    #         --out_path out
 
 - name: d-vqa
+  note: Imagecaption Data not available.
   location:
     url: https://github.com/zhiquan-wen/d-vqa
     commit: 688c4dcc811f49b431daea81406e628ec71a7247
@@ -75,6 +71,25 @@
     commit: 9bacb5046f917db0b5343667443e5f3499bd7591
   environment:
     python: "3.12"
+    apt_packages:
+      - g++
+      - python3.12-dev
     venv_commands:
-      - pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 --find-links https://download.pytorch.org/whl/torch_stable.html
+      - pip install torch torchvision torchaudio --find-links https://download.pytorch.org/whl/torch_stable.html
       - pip install -r requirements.txt
+      - python setup.py install
+  commands:
+    - cd ./projects/HandLer
+    - python train_trk.py --config-file configs/yt_trk.yaml
+    - python tracking.py --cfg cfg --out_dir folders --weights weights --root_path dataset
+    - python evaluations.py results
+
+- name: allow
+  location:
+    url: https://github.com/dig-beihang/allow
+    commit: 7c9a9571d1c971c55122ab96ded7127a76282af4
+  environment:
+    python: "3.7"
+    venv_commands:
+      - pip install -r requirements.txt
+      - python setup.py install
