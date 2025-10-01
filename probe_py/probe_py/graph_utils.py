@@ -235,6 +235,12 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
     However, if V is on the order of 10^4 (E must be at least V for a connected graph), then V^2 could be terribly slow.
     There are more efficient datastructures for answering N queries, often involving some kind of preprocessing.
     This class encapsulate the preprocessing datastructure, and offers a method to answer reachability.
+
+    See
+
+    - Zhang et al. 2023
+      - <https://doi.org/10.1145/3555041.3589408>
+      - <https://hal.science/hal-04347158/file/An_Overview_of_Reachability_Indexes_on_Graphs%20%282%29.pdf>
     """
 
     @staticmethod
@@ -375,6 +381,12 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
 
 @dataclasses.dataclass(frozen=True)
 class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
+    """Dual-labelling algorithm
+
+    See https://doi.org/10.1109/ICDE.2006.53
+    """
+
+
     dag: networkx.DiGraph[_Node]
     left: FrozenDict[_Node, int]
     right: FrozenDict[_Node, int]
@@ -440,6 +452,9 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
             dag,
             dag_transitive_closure(dag),
         )
+
+    def __contains__(self, node: _Node) -> bool:
+        return node in self.dag_tc
 
     def is_reachable(self, u: _Node, v: _Node) -> bool:
         return v in self.dag_tc.successors(u) or u == v
