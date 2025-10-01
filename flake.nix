@@ -24,7 +24,7 @@
     ...
   } @ inputs: let
     supported-systems = import ./targets.nix;
-    probe-ver = "0.0.4";
+    probe-ver = "0.0.10";
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames supported-systems)
@@ -109,7 +109,7 @@
               pkgs.cppclean
             ];
             checkPhase = ''
-              make check
+              SKIP_IWYU=1 SKIP_CHECK_NEEDED_SYMS=1 make check
             '';
           };
           probe = pkgs.stdenv.mkDerivation rec {

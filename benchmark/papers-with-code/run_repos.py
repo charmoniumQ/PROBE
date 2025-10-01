@@ -1,9 +1,9 @@
 from __future__ import annotations
 import asyncio
-import urllib.parse
+import subprocess
 import pathlib
-import shutil
 import typing
+import shlex
 import pydantic
 import yaml
 import util
@@ -58,26 +58,32 @@ class Repo(pydantic.BaseModel):
         return [
             f"FROM {self.environment.base_image}",
             *self.environment.get_rootful_steps(),
-            f"COPY --from=probe:{probe_tag} /nix /nix",
-            f"COPY --from=probe:{probe_tag} /bin/probe /bin/probe",
             "RUN useradd --system --user-group user --create-home",
-            "USER user",
-            *(["COPY --chown=user:user . /home/user/repo"] if self.location is not None else []),
+            # "USER user",
+            # TODO: re-enable user de-escalation when we start to run lots of code.
+            *(["COPY --chown=user:user repo /home/user/repo"] if self.location is not None else []),
             "WORKDIR /home/user/repo",
             *self.environment.get_rootless_steps(),
+            f"COPY --from=probe:{probe_tag} /nix /nix",
+            f"COPY --from=probe:{probe_tag} /bin/probe /bin/probe",
             *(["COPY --chown=user:user pre_run.sh ."] if self.unrecorded_commands else []),
             *(["COPY --chown=user:user run.sh ."] if self.commands else []),
         ]
 
     async def to_docker(
             self,
+            name: str,
             probe_tag: str,
             podman_or_docker: str,
             tag: str,
             verbose: bool,
     ) -> None:
+        work_dir = cache_dir / name
+        if not work_dir.exists():
+            work_dir.mkdir()
+
         if self.location is not None:
-            repo_dir = cache_dir / urllib.parse.quote_plus(str(self.location.url))
+            repo_dir = work_dir / "repo"
             if not repo_dir.exists():
                 await util.async_subprocess_run(
                     [
@@ -91,28 +97,28 @@ class Repo(pydantic.BaseModel):
                     ],
                     hide_output=not verbose,
                 )
-        else:
-            repo_dir = cache_dir / "tmp"
-            if repo_dir.exists():
-                shutil.rmtree(repo_dir)
-            repo_dir.mkdir()
+
         if self.unrecorded_commands:
-            pre_run = repo_dir / "pre_run.sh"
+            pre_run = work_dir / "pre_run.sh"
             pre_run.write_text("#!/usr/bin/env bash\nset -euxo pipefail\n" + "\n".join(self.unrecorded_commands))
             pre_run.chmod(0o755)
+
         if self.commands:
-            run = repo_dir / "run.sh"
+            run = work_dir / "run.sh"
             run.write_text("#!/usr/bin/env bash\nset -euxo pipefail\n" + "\n".join(self.commands))
             run.chmod(0o755)
-        dockerfile_path = repo_dir / "Dockerfile"
+
+        dockerfile_path = work_dir / "Dockerfile"
         dockerfile_source = self.dockerfile(probe_tag)
+        dockerfile_path.write_text("\n".join(dockerfile_source))
+
         if verbose:
             print("Building:")
             for line in dockerfile_source:
                 print("  " + line)
-        dockerfile_path.write_text("\n".join(dockerfile_source))
+
         await util.async_subprocess_run(
-            [podman_or_docker, "build", f"--file={dockerfile_path}", f"--tag={tag}", str(repo_dir)],
+            [podman_or_docker, "build", f"--file={dockerfile_path}", f"--tag={tag}", str(work_dir)],
             hide_output=not verbose,
         )
 
@@ -131,9 +137,10 @@ if not cache_dir.exists():
 
 def main(
         name: str,
-        probe_tag: str = "0.0.4",
-        podman_or_docker: str = "docker",
+        probe_tag: str = "0.0.9",
+        podman_or_docker: str = "podman",
         verbose: bool = True,
+        run: bool = False,
 ) -> None:
     for repo in repos:
         if repo.name == name:
@@ -141,7 +148,12 @@ def main(
     else:
         print(f"Repo {name} not found")
         raise typer.Abort()
-    asyncio.run(repo.to_docker(probe_tag, podman_or_docker, f"{name}:{probe_tag}", verbose))
+    asyncio.run(repo.to_docker(name, probe_tag, podman_or_docker, f"{name}:{probe_tag}", verbose))
+    cmd = [podman_or_docker, "run", "--interactive", "--tty", "--rm", f"{name}:{probe_tag}"]
+    if run:
+        subprocess.run(cmd)
+    else:
+        print(shlex.join(cmd))
 
 
 if __name__ == "__main__":

@@ -1,3 +1,15 @@
+- name: test
+  environment:
+    base_image: ubuntu:24.04
+    apt_packages:
+      - gdb
+      - emacs
+    python: "3.12"
+    venv_commands:
+      - pip install numpy
+    commands:
+      - probe record -f python -c $'import multiprocessing\nimport numpy\nproc = multiprocessing.Process(target=print, args=("hello world",))\nproc.start()\nproc.join()\nprint("done")'
+
 - name: neurve
   location:
     url: https://github.com/ekorman/neurve
@@ -12,7 +24,7 @@
       - pip install .
   commands:
     - |
-        /home/user/repo/venv/bin/python experiments/simclr.py \
+        python experiments/simclr.py \
               --dataset mnist \
               --backbone resnet18 \
               --dim_z 2 \
@@ -25,9 +37,9 @@
     # - curl --output data/car_ims.tgz https://web.archive.org/web/20161112024817/http://imagenet.stanford.edu/internal/car196/car_ims.tgz
     # # ^ Does not work.
     # - tar --extract --gunzip --file=data/car_ims.tgz --directory=data/
-    # - time /home/user/repo/venv/bin/python data/make_car_folders.py
+    # - time python data/make_car_folders.py
     # - |
-    #    time /home/user/repo/venv/bin/python experiments/triplet.py \
+    #    time python experiments/triplet.py \
     #         --data_root data/cars/ \
     #         --dim_z 2 \
     #         --n_charts 4 \

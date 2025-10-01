@@ -51,6 +51,7 @@ for file in sys.argv[1:]:
     diff = needed - allowed
     if diff:
         print(f"(Needed) ERROR: '{file}' had unallowed needed symbols: {diff}")
+        print(needed)
         sys.exit(1)
 
     reverse_diff = allowed - needed

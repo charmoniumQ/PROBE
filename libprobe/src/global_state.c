@@ -273,9 +273,10 @@ void free_thread_state(void* arg) {
     /* TODO: Insert exit op */
     arena_sync(&state->data_arena);
     arena_sync(&state->ops_arena);
-    free(state);
+    LOG_FREE(state);
 }
 static inline void init_thread_state(PthreadID pthread_id) {
+    // FIXME: Use calloc here
     struct ThreadState* state = EXPECT_NONNULL(malloc(sizeof(struct ThreadState)));
     init_tid(state);
     state->pthread_id = pthread_id;
@@ -290,8 +291,10 @@ static inline void init_thread_state(PthreadID pthread_id) {
         __thread_table[pthread_id_level0] = EXPECT_NONNULL(malloc(sizeof(ThreadTable1)));
     }
     ThreadTable1* level1 = __thread_table[pthread_id_level0];
-    ASSERTF(!(*level1)[pthread_id_level1], "ThreadTable at %d (%d << 8 | %d) already occupied",
-            state->pthread_id, pthread_id_level0, pthread_id_level1);
+    // FIXME: Re-enable the check when we use calloc up there.
+    /* ASSERTF(!((*level1)[pthread_id_level1]), */
+    /*         "ThreadTable at %d = %d << 8 | %d already occupied with %p", state->pthread_id, */
+    /*         pthread_id_level0, pthread_id_level1, (*level1)[pthread_id_level1]); */
     (*level1)[pthread_id_level1] = state;
 }
 static inline void drop_threads_after_fork() {
@@ -307,7 +310,7 @@ static inline void drop_threads_after_fork() {
         if (state) {
             arena_drop_after_fork(&state->data_arena);
             arena_drop_after_fork(&state->ops_arena);
-            free(state);
+            LOG_FREE(state);
             (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
         }
         /* We free the actual ThreadState and NULL out the dangling pointer.
@@ -373,7 +376,7 @@ static inline void emit_init_epoch_op() {
     };
     prov_log_try(init_epoch_op);
     prov_log_record(init_epoch_op);
-    free(cmdline.value);
+    LOG_FREE(cmdline.value);
 }
 
 static inline void emit_init_thread_op() {

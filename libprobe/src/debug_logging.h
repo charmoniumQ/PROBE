@@ -27,6 +27,17 @@
 #define DEBUG(...)
 #endif
 
+#ifdef DEBUG_LOG
+#define LOG_FREE(ptr)                                                                              \
+    ({                                                                                             \
+        DEBUG("free(%s = %p)", #ptr, ptr);                                                         \
+        free(ptr);                                                                                 \
+        ptr = NULL;                                                                                \
+    })
+#else
+#define LOG_FREE(ptr) ({ free(ptr); })
+#endif
+
 #define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
 
 #define ERROR(str, ...)                                                                            \
