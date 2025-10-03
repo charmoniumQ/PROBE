@@ -20,8 +20,8 @@ clean-cli:
 lint-cli:
     # cargo clippy refuses to run if unstaged inputs (fixes may be destructive)
     # so we git add -A
-    git add -A
-    cargo clippy --fix --allow-staged -- --deny warnings
+    git add -A .
+    cargo clippy --fix --allow-staged --allow-dirty -- --deny warnings
     cargo fmt
     cargo doc --workspace
     cargo deny check

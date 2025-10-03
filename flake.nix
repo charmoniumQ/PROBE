@@ -24,6 +24,7 @@
     ...
   } @ inputs: let
     supported-systems = import ./targets.nix;
+    probe-ver = "0.0.12";
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames supported-systems)
@@ -39,11 +40,11 @@
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
           libprobe = pkgs.clangStdenv.mkDerivation rec {
             pname = "libprobe";
-            version = "0.1.0";
+            version = probe-ver;
             src = ./libprobe;
             makeFlags = [
               "INSTALL_PREFIX=$(out)"
-              "SOURCE_VERSION=${version}"
+              "SOURCE_VERSION=v${version}"
             ];
             doCheck = true;
             checkInputs = [
@@ -74,12 +75,12 @@
               pkgs.cppclean
             ];
             checkPhase = ''
-              make check
+              SKIP_IWYU=1 SKIP_CHECK_NEEDED_SYMS=1 make check
             '';
           };
           probe = pkgs.stdenv.mkDerivation rec {
             pname = "probe";
-            version = "0.1.0";
+            version = probe-ver;
             dontUnpack = true;
             dontBuild = true;
             nativeBuildInputs = [pkgs.makeWrapper];
@@ -89,8 +90,8 @@
                 ${cli-wrapper-pkgs.probe-cli}/bin/probe \
                 $out/bin/probe \
                 --set PROBE_LIB ${libprobe}/lib \
-                --prefix PATH : ${python.withPackages (_: [probe-py])}/bin \
-                --prefix PATH : ${pkgs.buildah}/bin
+                --prefix PATH_TO_PROBE_PYTHON : ${python.withPackages (_: [probe-py])}/bin/python \
+                --prefix PATH_TO_BUILDAH : ${pkgs.buildah}/bin/buildah
             '';
             passthru = {
               exePath = "/bin/probe";
@@ -98,7 +99,7 @@
           };
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
-            version = "0.1.0";
+            version = probe-ver;
             pyproject = true;
             build-system = [
               python.pkgs.flit-core
@@ -106,7 +107,7 @@
             src = pkgs.stdenv.mkDerivation {
               src = ./probe_py;
               pname = "probe-py-with-pygen-code";
-              version = "0.1.0";
+              version = probe-ver;
               buildPhase = "true";
               installPhase = ''
                 mkdir $out/

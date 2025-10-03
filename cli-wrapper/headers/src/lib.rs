@@ -48,7 +48,6 @@ pub struct ProcessTreeContext {
 pub struct ProcessContext {
     pub epoch_no: u16,
     pub process_tree_path: FixedPath,
-    pub pid_arena_path: FixedPath,
     pub enable_recording: bool,
 }
 

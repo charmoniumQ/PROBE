@@ -160,8 +160,6 @@ static inline void init_process_context() {
     __process_context = open_and_mmap(path_buf, true, sizeof(struct ProcessContext));
     /* We increment the epoch here, so if there is an exec later on, the epoch is already incremented when they see it. */
     __process_context->epoch_no += 1;
-    DEBUG("__process_context = %p {.epoch = %d, pid_arena_path = %s}", __process_context,
-          __process_context->epoch_no, __process_context->pid_arena_path.bytes);
 }
 void uninit_process_context() {
     /* TODO: */
