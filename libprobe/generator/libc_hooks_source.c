@@ -2217,7 +2217,7 @@ pid_t vfork (void) {
      *     client_code > wrapped_vfork
      *     client_code
      *     client_code > wrapped_exec
-     *     client_code > wrapped_exec > real_vfork
+     *     client_code > wrapped_exec > real_exec
      *     client_code > wrapped_exec
      *
      * Without interposition, client_code calls real_vfork then real_exec.
