@@ -160,8 +160,6 @@ static inline void init_process_context() {
     __process_context = open_and_mmap(path_buf, true, sizeof(struct ProcessContext));
     /* We increment the epoch here, so if there is an exec later on, the epoch is already incremented when they see it. */
     __process_context->epoch_no += 1;
-    DEBUG("__process_context = %p {.epoch = %d, pid_arena_path = %s}", __process_context,
-          __process_context->epoch_no, __process_context->pid_arena_path.bytes);
 }
 void uninit_process_context() {
     /* TODO: */
@@ -276,8 +274,8 @@ void free_thread_state(void* arg) {
     LOG_FREE(state);
 }
 static inline void init_thread_state(PthreadID pthread_id) {
-    // FIXME: Use calloc here
-    struct ThreadState* state = EXPECT_NONNULL(malloc(sizeof(struct ThreadState)));
+    struct ThreadState* state = EXPECT_NONNULL(malloc(1 * sizeof(struct ThreadState)));
+    DEBUG("state for %d = %p = calloc()", pthread_id, state);
     init_tid(state);
     state->pthread_id = pthread_id;
     init_paths(state);
@@ -288,17 +286,26 @@ static inline void init_thread_state(PthreadID pthread_id) {
     uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
     uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
     if (!__thread_table[pthread_id_level0]) {
-        __thread_table[pthread_id_level0] = EXPECT_NONNULL(malloc(sizeof(ThreadTable1)));
+        __thread_table[pthread_id_level0] = EXPECT_NONNULL(malloc(1 * sizeof(ThreadTable1)));
+        probe_libc_memset(__thread_table[pthread_id_level0], 0, sizeof(ThreadTable1));
+        DEBUG("__thread_table[%d] = %p = calloc()", pthread_id_level0,
+              __thread_table[pthread_id_level0]);
+    } else {
+        DEBUG("__thread_table[%d] = %p", pthread_id_level0, __thread_table[pthread_id_level0]);
     }
     ThreadTable1* level1 = __thread_table[pthread_id_level0];
-    // FIXME: Re-enable the check when we use calloc up there.
-    /* ASSERTF(!((*level1)[pthread_id_level1]), */
-    /*         "ThreadTable at %d = %d << 8 | %d already occupied with %p", state->pthread_id, */
-    /*         pthread_id_level0, pthread_id_level1, (*level1)[pthread_id_level1]); */
+    ASSERTF(!((*level1)[pthread_id_level1]),
+            "ThreadTable at %d = %d << 8 | %d already occupied with %p", state->pthread_id,
+            pthread_id_level0, pthread_id_level1, (*level1)[pthread_id_level1]);
     (*level1)[pthread_id_level1] = state;
+    DEBUG("[%d] = __thread_table[%d][%d] = %p, ", (pthread_id_level0 << 8) | pthread_id_level1,
+          pthread_id_level0, pthread_id_level1,
+          (*__thread_table[pthread_id_level0])[pthread_id_level1]);
+    DEBUG("");
 }
 static inline void drop_threads_after_fork() {
     for (PthreadID pthread_id = 0; pthread_id < __pthread_id_counter; ++pthread_id) {
+        DEBUG("Freeing %d", pthread_id);
         uint8_t pthread_id_level0 = (pthread_id & 0xFF00) >> 8;
         uint8_t pthread_id_level1 = (pthread_id & 0x00FF);
         ThreadTable1* level1 = EXPECT_NONNULL(__thread_table[pthread_id_level0]);
@@ -374,9 +381,12 @@ static inline void emit_init_epoch_op() {
         0,
         0,
     };
+    DEBUG("");
     prov_log_try(init_epoch_op);
+    DEBUG("");
     prov_log_record(init_epoch_op);
-    LOG_FREE(cmdline.value);
+    DEBUG("");
+    free(cmdline.value);
 }
 
 static inline void emit_init_thread_op() {
@@ -398,29 +408,26 @@ bool is_proc_inited() {
 void init_thread(PthreadID pthread_id) {
     ASSERTF(is_proc_inited(), "Process not inited");
     init_thread_state(pthread_id);
+    DEBUG("");
     emit_init_thread_op();
+    DEBUG("");
     ASSERTF(is_thread_inited(), "Failed to init thread");
 }
 void maybe_init_thread() { ASSERTF(is_thread_inited(), "Failed to init thread"); }
-
-void save_atexit() {
-    /* It seems pthread_getspecific is not valid atexit */
-    /* prov_log_save(); */
-}
 
 void init_after_fork() {
     ASSERTF(!is_proc_inited(), "Proccess already initialized");
     ASSERTF(__pid != 0, "Parent process not initialized");
     check_function_pointers();
     init_pid(true);
+    DEBUG("Initting after fork");
     uninit_process_context();
     init_process_context();
     create_epoch_dir();
     init_thread_state_key();
     drop_threads_after_fork();
     init_thread_state(0);
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    EXPECT(== 0, atexit(&save_atexit));
+    DEBUG("");
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
@@ -446,11 +453,12 @@ void constructor() {
     init_default_path();
     init_thread_state_key();
     init_thread_state(0);
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    EXPECT(== 0, atexit(&save_atexit));
+    DEBUG("");
     ASSERTF(is_proc_inited(), "Failed to init proc");
+    DEBUG("");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
+    DEBUG("");
     emit_init_thread_op();
     DEBUG("Done with construction");
 }

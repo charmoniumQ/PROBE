@@ -1,5 +1,5 @@
 CC ?= clang
-VERSION ?= $(shell git rev-parse --short HEAD)
+VERSION ?= git=$(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
     -DSOURCE_VERSION=\"$(VERSION)\" \

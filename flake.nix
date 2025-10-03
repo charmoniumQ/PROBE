@@ -24,7 +24,7 @@
     ...
   } @ inputs: let
     supported-systems = import ./targets.nix;
-    probe-ver = "0.0.10";
+    probe-ver = "0.0.12";
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames supported-systems)
@@ -78,7 +78,7 @@
             src = ./libprobe;
             makeFlags = [
               "INSTALL_PREFIX=$(out)"
-              "SOURCE_VERSION=${version}"
+              "SOURCE_VERSION=v${version}"
             ];
             doCheck = true;
             checkInputs = [

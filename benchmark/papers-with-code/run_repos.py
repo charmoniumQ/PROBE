@@ -137,8 +137,8 @@ if not cache_dir.exists():
 
 def main(
         name: str,
-        probe_tag: str = "0.0.9",
-        podman_or_docker: str = "podman",
+        probe_tag: str = "0.0.12",
+        podman_or_docker: str = "docker",
         verbose: bool = True,
         run: bool = False,
 ) -> None:
@@ -149,7 +149,7 @@ def main(
         print(f"Repo {name} not found")
         raise typer.Abort()
     asyncio.run(repo.to_docker(name, probe_tag, podman_or_docker, f"{name}:{probe_tag}", verbose))
-    cmd = [podman_or_docker, "run", "--interactive", "--tty", "--rm", f"{name}:{probe_tag}"]
+    cmd = [podman_or_docker, "run", "--volume", "/nix:/nix", "--interactive", "--tty", "--rm", f"{name}:{probe_tag}"]
     if run:
         subprocess.run(cmd)
     else:

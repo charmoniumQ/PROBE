@@ -4,6 +4,7 @@
     apt_packages:
       - gdb
       - emacs
+      - python3.12-dbg
     python: "3.12"
     venv_commands:
       - pip install numpy

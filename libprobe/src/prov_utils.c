@@ -203,9 +203,8 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
 static const size_t MAX_OPCODE_STRING_LENGTH = 100;
 
 int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
-    return CHECK_SNPRINTF(
-        buffer, buffer_length, "dirfd=%d, path=\"%s\", stat_valid=%d, dirfd_valid=%d",
-        path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, path->stat_valid, path->dirfd_valid);
+    int ret = CHECK_SNPRINTF(buffer, buffer_length, "%60s", path->path);
+    return ret;
 }
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
@@ -213,37 +212,31 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
     size -= probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
     dest += probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
 
-    dest[0] = ' ';
-    dest++;
-    size--;
-
-    const struct Path* path = op_to_path(op);
-    if (path->dirfd_valid) {
-        int path_size = path_to_string(path, dest, size);
-        dest += path_size;
-        size -= path_size;
-    }
-
     if (op->op_code == open_op_code) {
         int fd_size =
             CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
         dest += fd_size;
         size -= fd_size;
-    }
-
-    if (op->op_code == init_exec_epoch_op_code) {
+    } else if (op->op_code == init_exec_epoch_op_code) {
         int fd_size =
-            CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_exec_epoch.pid,
+            CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d ", op->data.init_exec_epoch.pid,
                            op->data.init_exec_epoch.parent_pid);
         dest += fd_size;
         size -= fd_size;
-    }
-
-    if (op->op_code == close_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d", op->data.close.fd);
+    } else if (op->op_code == close_op_code) {
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.fd);
         dest += fd_size;
         size -= fd_size;
     }
+
+    const struct Path* path = op_to_path(op);
+    if (path->dirfd_valid) {
+        dest[size] = ' ';
+        int path_size = path_to_string(path, dest + 1, size);
+        dest += path_size + 1;
+        size -= path_size + 1;
+    }
+
     (void)dest;
     (void)size;
 }
