@@ -52,6 +52,31 @@ The provenance graph can help us re-execute the program, containerize the progra
   probe export debug-text
   ```
 
+TODO: tidy up this
+
+To run PROBE in a docker image,
+
+``` bash
+docker load --input $(nix build --print-out-paths --no-link .#docker-image)
+```
+
+Emits a container called: `probe:0.0.x`, where `x` is replaced with an integer.
+
+This can be run directly, with `docker run --rm -it probe:0.0.x /bin/sh`
+
+Or PROBE can be `COPY`ed into other Docker images with
+
+``` bash
+FROM probe:0.0.x AS probe
+
+FROM real_base_image
+
+...
+
+COPY --from=probe /nix /nix
+COPY --from=probe /bin/probe /bin/probe
+```
+
 ## What does `probe record` do?
 
 The simplest invocation of the `probe` cli is:

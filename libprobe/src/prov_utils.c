@@ -200,17 +200,27 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
     }
 }
 
-static const size_t MAX_OPCODE_STRING_LENGTH = 100;
+static const size_t MAX_OPCODE_STRING_LENGTH = 256;
 
 int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
-    int ret = CHECK_SNPRINTF(buffer, buffer_length, "%60s", path->path);
-    return ret;
+    return CHECK_SNPRINTF(buffer, buffer_length, "%60s", path->path);
 }
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
     probe_libc_strncpy(dest, op_str, size);
     size -= probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
     dest += probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
+
+    dest[0] = ' ';
+    dest++;
+    size--;
+
+    const struct Path* path = op_to_path(op);
+    if (path->dirfd_valid) {
+        int path_size = path_to_string(path, dest, size);
+        dest += path_size;
+        size -= path_size;
+    }
 
     if (op->op_code == open_op_code) {
         int fd_size =
@@ -228,15 +238,6 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
         dest += fd_size;
         size -= fd_size;
     }
-
-    const struct Path* path = op_to_path(op);
-    if (path->dirfd_valid) {
-        dest[size] = ' ';
-        int path_size = path_to_string(path, dest + 1, size);
-        dest += path_size + 1;
-        size -= path_size + 1;
-    }
-
     (void)dest;
     (void)size;
 }

@@ -271,7 +271,10 @@ void free_thread_state(void* arg) {
     /* TODO: Insert exit op */
     arena_sync(&state->data_arena);
     arena_sync(&state->ops_arena);
+    uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
+    uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
     LOG_FREE(state);
+    (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
 }
 static inline void init_thread_state(PthreadID pthread_id) {
     struct ThreadState* state = EXPECT_NONNULL(malloc(1 * sizeof(struct ThreadState)));

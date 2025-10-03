@@ -130,14 +130,14 @@ repos: list[Repo] = pydantic.TypeAdapter(list[Repo]).validate_python(
 )
 
 
-cache_dir = pathlib.Path(".cache").resolve()
+cache_dir = pathlib.Path(".cache2").resolve()
 if not cache_dir.exists():
     cache_dir.mkdir()
 
 
 def main(
         name: str,
-        probe_tag: str = "0.0.12",
+        probe_tag: str = "0.0.13",
         podman_or_docker: str = "docker",
         verbose: bool = True,
         run: bool = False,

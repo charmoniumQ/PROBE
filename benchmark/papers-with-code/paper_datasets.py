@@ -17,6 +17,7 @@ import charmonium.cache.util
 
 @charmonium.cache.memoize(group=cache_util.group)
 def papers_with_code() -> polars.DataFrame:
+    print("Fetching PWC")
     return polars.read_parquet("hf://datasets/pwc-archive/links-between-paper-and-code/data/train-00000-of-00001.parquet")
 
 

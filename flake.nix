@@ -24,7 +24,7 @@
     ...
   } @ inputs: let
     supported-systems = import ./targets.nix;
-    probe-ver = "0.0.12";
+    probe-ver = "0.0.13";
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames supported-systems)
@@ -178,7 +178,6 @@
             '';
           };
           docker-image = pkgs.dockerTools.buildImage {
-            # nix build .#docker-image && podman load < result
             name = "probe";
             tag = probe-ver;
             copyToRoot = pkgs.buildEnv {

@@ -479,15 +479,6 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     else:
         call_stmts = expect_type(Compound, call_stmts_block.init).block_items
 
-    post_call_stmts.append(
-        pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="DEBUG"),
-            args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value=f'"Did {func.name}"'),
-            ]),
-        ),
-    )
-
     if noreturn:
         assert is_void(func.return_type)
         post_call_stmts.append(

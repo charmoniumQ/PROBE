@@ -1,15 +1,3 @@
-- name: test
-  environment:
-    base_image: ubuntu:24.04
-    apt_packages:
-      - gdb
-      - emacs
-      - python3.12-dbg
-    python: "3.12"
-    venv_commands:
-      - pip install numpy
-    commands:
-      - probe record -f python -c $'import multiprocessing\nimport numpy\nproc = multiprocessing.Process(target=print, args=("hello world",))\nproc.start()\nproc.join()\nprint("done")'
 
 - name: neurve
   location:
