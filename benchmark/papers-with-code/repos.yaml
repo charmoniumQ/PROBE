@@ -46,7 +46,7 @@
       - wget
       - unzip
     venv_commands:
-      - pip install -r requirements.txt
+      - pip install --requirement requirements.txt
   commands:
     - wget http://nlp.stanford.edu/data/glove.6B.zip
     - unzip glove.6B.zip -d data/glove
@@ -75,13 +75,16 @@
     apt_packages:
       - g++
       - python3.12-dev
+      - libjpeg-dev
     venv_commands:
+      - pip install --upgrade pip
       - pip install torch torchvision torchaudio --find-links https://download.pytorch.org/whl/torch_stable.html
-      - pip install -r requirements.txt
-      - python setup.py install
+      - pip install --requirement requirements.txt
+      - pip install --no-build-isolation --editable .
+      - pip install fv_core
   commands:
-    - cd ./projects/HandLer
-    - python train_trk.py --config-file configs/yt_trk.yaml
+    - cd projects/HandLer
+    - python train.py --config-file configs/yt_trk.yaml
     - python tracking.py --cfg cfg --out_dir folders --weights weights --root_path dataset
     - python evaluations.py results
 
@@ -90,7 +93,12 @@
     url: https://github.com/dig-beihang/allow
     commit: 7c9a9571d1c971c55122ab96ded7127a76282af4
   environment:
-    python: "3.7"
+    base_image: ubuntu:18.04
+    python: "3.6"
+    apt_packages:
+      - git-core
     venv_commands:
-      - pip install -r requirements.txt
-      - python setup.py install
+      # Note: nonstandard name for requirements.txt
+      - pip install --requirement requirement.txt
+      - pip install torch
+      - pip install --no-build-isolation --editable .

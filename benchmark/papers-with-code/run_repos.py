@@ -18,9 +18,20 @@ class Environment(pydantic.BaseModel):
     def get_rootful_steps(self) -> list[str]:
         apt_packages = self.apt_packages
         if self.python is not None:
-            apt_packages.append(f"python{self.python}")
-        if self.venv_commands is not None:
-            apt_packages.append("python3-venv")
+            if int(self.python.split(".")[1]) >= 10:
+                # Starting with x = 10, python3.x is the name of an Ubuntu package.
+                apt_packages.append(f"python{self.python}")
+                apt_packages.append(f"python{self.python}-venv")
+            else:
+                # Prior to 3.10, you get whatever Python version that version of Ubuntu has :)
+                ubuntu_python = {
+                    "ubuntu:20.04": "3.8",
+                    "ubuntu:18.04": "3.6",
+                }[self.base_image]
+                if ubuntu_python != self.python:
+                    raise ValueError(f"No easy way to install Python {self.python} on {ubuntu_python} (rewrite to use pyenv?)")
+                apt_packages.append("python3")
+                apt_packages.append("python3-venv")
         if apt_packages:
             return [
                 "RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y " + " ".join(apt_packages),
@@ -141,6 +152,7 @@ def main(
         podman_or_docker: str = "docker",
         verbose: bool = True,
         run: bool = False,
+        downloads_dir = pathlib.Path(".cache2")
 ) -> None:
     for repo in repos:
         if repo.name == name:
@@ -149,7 +161,16 @@ def main(
         print(f"Repo {name} not found")
         raise typer.Abort()
     asyncio.run(repo.to_docker(name, probe_tag, podman_or_docker, f"{name}:{probe_tag}", verbose))
-    cmd = [podman_or_docker, "run", "--volume", "/nix:/nix", "--interactive", "--tty", "--rm", f"{name}:{probe_tag}"]
+    cmd = [
+        podman_or_docker,
+        "run",
+        f"--volume={downloads_dir}:/downloads",
+        "--volume=/nix:/nix",
+        "--interactive",
+        "--tty",
+        "--rm",
+        f"{name}:{probe_tag}",
+    ]
     if run:
         subprocess.run(cmd)
     else:
