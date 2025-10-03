@@ -243,7 +243,49 @@
             drv = packages.probe;
           };
         };
-        devShells = {
+        devShells = let
+          probe-python = (python.withPackages (pypkgs: [
+            # probe_py.manual runtime requirements
+            pypkgs.networkx
+            pypkgs.pydot
+            pypkgs.rich
+            pypkgs.typer
+            pypkgs.sqlalchemy
+            pypkgs.xdg-base-dirs
+            pypkgs.pyyaml
+            pypkgs.numpy
+            pypkgs.tqdm
+
+            # probe_py.manual "dev time" requirements
+            pypkgs.types-tqdm
+            pypkgs.types-pyyaml
+            pypkgs.pytest
+            pypkgs.pytest-timeout
+            pypkgs.mypy
+            pypkgs.ipython
+
+            # benchmark/papers-with-code requirements
+            pypkgs.aioconsole
+            pypkgs.githubkit
+            pypkgs.httpx
+            pypkgs.huggingface-hub
+            pypkgs.matplotlib
+            pypkgs.polars
+            pypkgs.pydantic
+            pypkgs.pydantic-yaml
+            pypkgs.seaborn
+            pypkgs.tqdm
+            pypkgs.typer
+            pypkgs.yarl
+            pypkgs.ipython
+            pypkgs.typing-extensions
+            packages.charmonium-cache
+
+            # libprobe build time requirement
+            pypkgs.pycparser
+            pypkgs.pyelftools
+          ]));
+        in {
           default =
             (cli-wrapper.lib."${system}".craneLib.devShell.override {
               mkShell = pkgs.mkShellNoCC.override {
@@ -252,6 +294,7 @@
             }) {
               shellHook = ''
                 export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+                export PATH_TO_PROBE_PYTHON="${probe-python}/bin/python"
                 pushd $(git rev-parse --show-toplevel) > /dev/null
                 source ./setup_devshell.sh
                 popd > /dev/null
@@ -266,48 +309,6 @@
                   pkgs.cargo-audit
                   pkgs.cargo-machete
                   pkgs.cargo-hakari
-
-                  (python.withPackages (pypkgs: [
-                    # probe_py.manual runtime requirements
-                    pypkgs.networkx
-                    pypkgs.pydot
-                    pypkgs.rich
-                    pypkgs.typer
-                    pypkgs.sqlalchemy
-                    pypkgs.xdg-base-dirs
-                    pypkgs.pyyaml
-                    pypkgs.numpy
-                    pypkgs.tqdm
-
-                    # probe_py.manual "dev time" requirements
-                    pypkgs.types-tqdm
-                    pypkgs.types-pyyaml
-                    pypkgs.pytest
-                    pypkgs.pytest-timeout
-                    pypkgs.mypy
-                    pypkgs.ipython
-
-                    # benchmark/papers-with-code requirements
-                    pypkgs.aioconsole
-                    pypkgs.githubkit
-                    pypkgs.httpx
-                    pypkgs.huggingface-hub
-                    pypkgs.matplotlib
-                    pypkgs.polars
-                    pypkgs.pydantic
-                    pypkgs.pydantic-yaml
-                    pypkgs.seaborn
-                    pypkgs.tqdm
-                    pypkgs.typer
-                    pypkgs.yarl
-                    pypkgs.ipython
-                    pypkgs.typing-extensions
-                    packages.charmonium-cache
-
-                    # libprobe build time requirement
-                    pypkgs.pycparser
-                    pypkgs.pyelftools
-                  ]))
 
                   # Replay tools
                   pkgs.buildah
@@ -324,6 +325,7 @@
                   pkgs.libclang
                   pkgs.criterion # unit testing framework
 
+                  probe-python
                   pkgs.ty
                   pkgs.coreutils
                   pkgs.alejandra
