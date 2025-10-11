@@ -320,6 +320,7 @@
                   pkgs.git
                   pkgs.include-what-you-use
                   pkgs.libclang
+                  pkgs.criterion # unit testing framework
 
                   pkgs.coreutils
                   pkgs.alejandra

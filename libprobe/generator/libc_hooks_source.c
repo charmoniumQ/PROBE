@@ -2479,7 +2479,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
 int thrd_join (thrd_t thr, int *res) {
     void *pre_call = ({
         int64_t thread_id = 0;
-        memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
+        probe_libc_memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
         struct Op op = {
             wait_op_code,
             {.wait = {
@@ -2833,7 +2833,7 @@ https://sourceware.org/glibc/manual/2.41/html_node/Low_002dLevel-I_002fO.html
 mmap, mmap64, munmap, shm_open, shm_unlink, memfd_create
 
 File locks through fcntl
-getcwd, getwd, chroot
+TODO: getcwd, getwd, chroot
 getdents
 glob, glob64
 shm_open, shm_unlink, memfd_create
