@@ -16,7 +16,6 @@ import os
 import shlex
 import subprocess
 import pathlib
-import yaml
 import typing
 
 PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
@@ -160,7 +159,7 @@ def create_directories_on_remote(remote_home: pathlib.Path, remote: Host, ssh_op
         mkdir_command.pop()
 
 
-def get_stat_results_remote(remote: Host, file_path: pathlib.Path, ssh_options: list[str]) -> bytes:
+def get_stat_results_remote(remote: Host, file_path: pathlib.Path, ssh_options: list[str]) -> tuple[int, int]:
     remote_scp_address = remote.get_address()
     ssh_command = [
         "ssh",
@@ -169,16 +168,10 @@ def get_stat_results_remote(remote: Host, file_path: pathlib.Path, ssh_options: 
     for option in ssh_options:
         ssh_command.insert(-1, option)
 
-    ssh_command.append(f'stat -c "size: %s\nmode: 0x%f\n" {file_path}')
-    try:
-        result = subprocess.run(ssh_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output = result.stdout
-        stats = yaml.safe_load(output)
-    except subprocess.CalledProcessError as e:
-        raise ValueError(f"Error retrieving stat for {file_path}: {e.stderr.decode()}")
-
-    file_size = stats["size"]
-    return bytes(file_size)
+    ssh_command.append(f'stat -c "%s\n%f" {file_path}')
+    result = subprocess.run(ssh_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    size_str, mode_str = result.stdout.strip().split(b"\n")
+    return int(size_str), int(mode_str, 16)
 
 def generate_random_pid() -> int:
     min_pid = 1

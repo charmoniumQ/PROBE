@@ -2,9 +2,9 @@
 
 set -ex
 
-rm -rf ml_pipeline_env
-python -m venv ml_pipeline_env
-source ml_pipeline_env/bin/activate
+rm -rf venv
+python -m venv venv
+source venv/bin/activate
 pip install --upgrade pip
 pip install pandas
 pip install numpy
@@ -13,6 +13,6 @@ pip install matplotlib
 pip install seaborn
 pip install scipy
 pip install joblib
-python data-acquisition.py
-python data-processing.py
-python model-training.py
+# python data-acquisition.py
+# python data-processing.py
+# python model-training.py

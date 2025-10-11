@@ -190,7 +190,7 @@ impl Recorder {
                     OsString::from("="),
                     record_dir.path().into(),
                 ]))
-                .arg("--init-eval-command=set environment LD_DEBUG=all")
+                // .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
                 .arg(self_bin)
                 .arg("__exec")

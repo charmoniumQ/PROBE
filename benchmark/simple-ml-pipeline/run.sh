@@ -43,10 +43,10 @@ create_venv() {
     
     if [ -d "ml_pipeline_env" ]; then
         print_warning "Virtual environment already exists. Removing old one..."
-        rm -rf ml_pipeline_env
+        rm -rf venv
     fi
     
-    $PYTHON_CMD -m venv ml_pipeline_env
+    $PYTHON_CMD -m venv venv
     print_success "Virtual environment created successfully"
 }
 
@@ -54,9 +54,9 @@ activate_venv() {
     print_status "Activating virtual environment..."
     
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-        source ml_pipeline_env/Scripts/activate
+        source venv/Scripts/activate
     else
-        source ml_pipeline_env/bin/activate
+        source venv/bin/activate
     fi
     
     print_success "Virtual environment activated"
