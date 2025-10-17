@@ -79,7 +79,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
  * The rest of these variables are set up by ELF constructor.
  * Within one epoch, pointers are valid.
  */
-static struct FixedPath __probe_dir = {0};
+static struct FixedPath __probe_dir = {};
 static inline void init_probe_dir() {
     ASSERTF(__probe_dir.bytes[0] == '\0', "__probe_dir already initialized");
     const char* __probe_private_dir_env_val = probe_libc_getenv(PROBE_DIR_VAR);
@@ -353,8 +353,8 @@ static inline void check_function_pointers() {
 }
 
 static inline void emit_init_epoch_op() {
-    static struct FixedPath cwd = {0};
-    static struct FixedPath exe = {0};
+    static struct FixedPath cwd = {};
+    static struct FixedPath exe = {};
     if (probe_libc_getcwd(cwd.bytes, PROBE_PATH_MAX).error) {
         ERROR("");
     }

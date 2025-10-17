@@ -23,7 +23,7 @@ sample_size = int(os.environ.get("sample_size", "2000"))
 sample_size2 = int(os.environ.get("sample_size2", "10"))
 
 n_rows = 10
-polars.Config.set_fmt_str_lengths(100)
+polars.Config.set_fmt_str_lengths(1000)
 polars.Config.set_tbl_rows(n_rows * 5)
 
 
@@ -126,6 +126,8 @@ df = (
     .unique("_pair", keep="last")
     .drop("_pair")
     .pipe(apply_and_return(lambda df: print(f"Dropping dup papers: {len(df)}\n")))
+
+    # Filter for official
     .filter("is_official")
     .pipe(apply_and_return(lambda df: print(
         f"Filtering for official: {len(df)}\n"
@@ -229,8 +231,15 @@ df = (
     )))
 
     # Only take top cited
+    .drop_nulls("citations")
+    .pipe(apply_and_return(lambda df: print(
+        f"N with citations: {len(df)}",
+        "",
+        sep="\n",
+    )))
     .sort("citations", descending=True)
-    .head(sample_size2)
+ 
+   .head(sample_size2)
 
     # TODO:
     # How to connect
@@ -279,18 +288,19 @@ df = (
     #     sep="\n",
     # )))
 
+    # Write outputs
     .pipe(apply_and_return(lambda df:
         print(
             "Good candidates",
             (
                 df
-                # .filter("pipable")
-                .sort("citations", descending=True)
-                .head(sample_size2)
                 .glimpse()
             ),
             sep="\n",
         )
+    ))
+    .pipe(apply_and_return(lambda df:
+        df.write_csv("test.csv")
     ))
 )
 

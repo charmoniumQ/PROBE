@@ -475,6 +475,7 @@ def topological_sort_depth_first(
         score_children: typing.Callable[[_Node, _Node], int] = lambda _parent, _child: 0,
 ) -> typing.Iterable[_Node]:
     """Topological sort that breaks ties by depth first, and then by lowest child score."""
+
     queue = util.PriorityQueue[_Node, tuple[int, int]](
         (node, (dag.in_degree(node), 0))
         for node in dag.nodes()

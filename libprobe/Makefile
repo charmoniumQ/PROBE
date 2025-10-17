@@ -1,4 +1,3 @@
-CC ?= clang
 VERSION ?= git=$(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
@@ -6,8 +5,11 @@ CFLAGS := \
     -fvisibility=hidden \
     -Werror \
     -Wall -Wextra \
+    -Wno-ignored-attributes \
     -Wno-unused-command-line-argument \
-    -fstrict-aliasing
+    -fstrict-aliasing \
+    -lpthread \
+    -pthread
 # musl-clang wrapper triggers -Wno-unused-command-line-argument.
 # But musl with clang (normal invocation) does not.
 
@@ -21,6 +23,8 @@ MANUAL_HEADER_FILES := $(wildcard src/*.h) $(wildcard include/libprobe/*.h)
 SOURCE_FILES := $(GENERATED_SOURCE_FILES) $(MANUAL_SOURCE_FILES)
 HEADER_FILES := $(GENERATED_HEADER_FILES) $(MANUAL_HEADER_FILES)
 BUILD_DIR := .build
+
+$(info "Using $(CC) $(CC2)")
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
@@ -67,10 +71,17 @@ $(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests
 	$(CC) -MJ $@.compile_command.json -fno-lto $(CFLAGS) $(DBGFLAGS) -o $@ -Isrc -lcriterion $<
 
 check: compile_commands.json $(GENERATED_FILES) tests
+	if [ "$$SKIP_FORMAT" = 1 ]; then \
+	    echo "Skipping clang-format"; \
+	else \
+	    if ! clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES); then \
+	        echo 'Try `make format`'; \
+	        exit 1; \
+	    fi \
+	fi
 	python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=5
-	test GLIBC_2.34 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
+	test GLIBC_2.14 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
-	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
 	if [ "$$SKIP_IWYU" = 1 ]; then \
 	    echo "Skipping IWYU"; \
 	else \
@@ -84,7 +95,11 @@ check: compile_commands.json $(GENERATED_FILES) tests
 		python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so; \
 	fi
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
-	$(BUILD_DIR)/probe_libc_tests --verbose --timeout 5
+	if [ "$$SKIP_UNITTESTS" = 1 ]; then \
+	    echo "Skipping unit test"; \
+	else \
+	    $(BUILD_DIR)/probe_libc_tests --verbose --timeout 5; \
+	fi
 
 #	cppclean    $(SOURCE_FILES)
 # Currently, cppclean does not provide a mechanism to disable warnings.

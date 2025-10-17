@@ -3,7 +3,6 @@
 #include "inode_table.h"
 
 #include <pthread.h> // IWYU pragma: keep for pthread_rwlock_unlock, pthread_rwlock_t
-#include <stddef.h>  // for size_t, NULL
 #include <stdlib.h>  // for calloc
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_rwllock_t
 

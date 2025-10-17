@@ -1,6 +1,7 @@
 import warnings
 import httpx
 import io
+import pathlib
 import tarfile
 import typing
 import yarl
@@ -9,16 +10,19 @@ import githubkit
 import githubkit.core
 import os
 import polars
-import json
 import cache_util
 import charmonium.cache
 import charmonium.cache.util
+import huggingface_hub
 
 
-@charmonium.cache.memoize(group=cache_util.group)
 def papers_with_code() -> polars.DataFrame:
-    print("Fetching PWC")
-    return polars.read_parquet("hf://datasets/pwc-archive/links-between-paper-and-code/data/train-00000-of-00001.parquet")
+    path = huggingface_hub.hf_hub_download(
+        repo_id="pwc-archive/links-between-paper-and-code",
+        repo_type="dataset",
+        filename="data/train-00000-of-00001.parquet",
+    )
+    return polars.read_parquet(path)
 
 
 github_client = githubkit.GitHub(githubkit.TokenAuthStrategy(os.environ["GITHUB_PAT"]))
@@ -45,12 +49,17 @@ namespaces = {
 @charmonium.cache.memoize(group=cache_util.group)
 def get_linked_papers(arxiv_ids: list[str]) -> typing.Mapping[str, list[str]]:
     assert len(arxiv_ids) < 2000
-    url = yarl.URL("https://arxiv.org/api/query").with_query(
+    url = yarl.URL("https://export.arxiv.org/api/query").with_query(
         id_list=",".join(map(str, arxiv_ids)),
         max_results=len(arxiv_ids) + 1,
     )
     content = httpx.get(str(url), follow_redirects=True).content
-    root = ET.fromstring(content)
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError as exc:
+        # Add arxiv_ids as context
+        pathlib.Path("test.xml").write_bytes(content)
+        raise ValueError(f"Not able to parse {arxiv_ids}; see ./test.xml") from exc
     entries = root.findall("atom:entry", namespaces)
     results = {}
     for entry in entries:
