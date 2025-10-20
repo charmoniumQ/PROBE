@@ -6,7 +6,8 @@
     old-nixpkgs = {
       # https://lazamar.co.uk/nix-versions/?channel=nixpkgs-unstable&package=glibc
       # See PROBE/docs/old-glibc.md
-      url = "github:NixOS/nixpkgs/3b05df1d13c1b315cecc610a2f3180f6669442f0";
+      # glibc = 2.33
+      url = "github:NixOS/nixpkgs/d1c3fea7ecbed758168787fe4e4a3157e52bc808";
       # If pulling nixpkgs from 2020 or older, need to set flake = false.
       flake = false;
     };

@@ -110,22 +110,3 @@ ATTR_HIDDEN size_t probe_libc_strnfind(const char* _Nonnull string, size_t maxle
 ATTR_HIDDEN size_t probe_libc_getpagesize(void);
 
 ATTR_HIDDEN const char* _Nullable probe_libc_getenv(const char* _Nonnull name);
-
-typedef struct {
-    pthread_mutex_t mutex;
-    pthread_cond_t readers_ok;
-    pthread_cond_t writers_ok;
-    int readers;         // number of active readers
-    int writers;         // number of active writers (0 or 1)
-    int waiting_writers; // number of waiting writers
-} probe_libc_rwlock_t;
-
-ATTR_HIDDEN int probe_libc_rwlock_init(probe_libc_rwlock_t* _Nonnull, void* _Nullable);
-
-ATTR_HIDDEN int probe_libc_rwlock_rdlock(probe_libc_rwlock_t* _Nonnull);
-
-ATTR_HIDDEN int probe_libc_rwlock_wrlock(probe_libc_rwlock_t* _Nonnull);
-
-ATTR_HIDDEN int probe_libc_rwlock_unlock(probe_libc_rwlock_t* _Nonnull);
-
-ATTR_HIDDEN int probe_libc_rwlock_destroy(probe_libc_rwlock_t* _Nonnull);

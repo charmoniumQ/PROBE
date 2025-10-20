@@ -4,7 +4,7 @@ There are two relevant glibc versions:
 
 2. The set-of-versions that PROBE can run with, "runtime version"
 
-PROBE uses the system's libc in two ways:
+PROBE uses the system's libc in three ways:
 
 1. PROBE dynamically library-loads (`dlopen()`/`dlsym()`) and interposes symbols relevant to I/O. This does **not constrain the version** of libc much at all. We will work with whatever libc we have. If a function is not present, we simply won't interpose it.
 
@@ -12,7 +12,7 @@ PROBE uses the system's libc in two ways:
 
    - `generated/libc_hooks.c` currently assumes _someone else_ defines the relevant functions that we want to override, the structs used as arguments to those functions, and the constants that are used as flags to those functions. We would just need to copy/hardcode/backport those definitions from the current compile-time version Glibc into libprobe.
 
-2. PROBE dynamically links against glibc functions in order to do it's PROBE thing (e.g., `printf(...)`), **constraining the run-time version of glibc**
+3. PROBE dynamically links against glibc functions in order to do it's PROBE thing (e.g., `printf(...)`), **constraining the run-time version of glibc**
 
    - When we call `printf(...)`, the linker puts a dependency on `printf@GLIBC_2.3.4`, where 2.3.4 was the most recent version that the behavior of `printf` changed in a backwards incompatible way. Glibc maintains "backwards compatibility", so any environment with a glibc _newer_ than 2.3.4 should be able to run a program with a dependency on `printf@GLIBC_2.3.4`.
 
@@ -78,3 +78,17 @@ $ ldd libprobe/.build/libprobe.dbg.so
 ```
 
 If this fixes it, revert the `pthreads` backporting done in `inode_table.c`, `probe_libc.c`, `probe_libc.h`, and `check_needed_syms.py` in the most recent commit.
+
+It appears that the `RUNPATH` of `probe` binary is influencing the lookup of symbols in `LD_PRELOAD=... child`.
+
+```
+     24556:     file=libpthread.so.0 [0];  needed by /home/sam/box/PROBE/libprobe/.build/libprobe.so [0]
+     24556:     find library=libpthread.so.0 [0]; searching
+     24556:      search path=/etc/sane-libs:/nix/store/b5a6rpl9ywibgydq22pzvrrkgqd5irzs-pipewire-1.4.6-jack/lib         (LD_LIBRARY_PATH)
+     24556:       trying file=/etc/sane-libs/libpthread.so.0
+     24556:       trying file=/nix/store/b5a6rpl9ywibgydq22pzvrrkgqd5irzs-pipewire-1.4.6-jack/lib/libpthread.so.0
+     24556:      search path=/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/glibc-hwcaps/x86-64-v4:/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/glibc-hwcaps/x86-64-v3:/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/glibc-hwcaps/x86-64-v2:/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib:/nix/store/xp989kyfg52803fmkzbz5py35jphcpgd-gcc-14.3.0-lib/lib:/nix/store/8b9srwwmrwmh1yl613cwwj7gydl87br6-gcc-14.3.0-libgcc/lib/glibc-hwcaps/x86-64-v4:/nix/store/8b9srwwmrwmh1yl613cwwj7gydl87br6-gcc-14.3.0-libgcc/lib/glibc-hwcaps/x86-64-v3:/nix/store/8b9srwwmrwmh1yl613cwwj7gydl87br6-gcc-14.3.0-libgcc/lib/glibc-hwcaps/x86-64-v2:/nix/store/8b9srwwmrwmh1yl613cwwj7gydl87br6-gcc-14.3.0-libgcc/lib           (RUNPATH from file /home/sam/box/PROBE/cli-wrapper/target/debug/probe)     24556:       trying file=/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/glibc-hwcaps/x86-64-v4/libpthread.so.0
+     24556:       trying file=/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/glibc-hwcaps/x86-64-v3/libpthread.so.0
+     24556:       trying file=/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/glibc-hwcaps/x86-64-v2/libpthread.so.0
+     24556:       trying file=/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/libpthread.so.0
+```
