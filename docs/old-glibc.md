@@ -22,6 +22,9 @@ PROBE uses the system's libc in two ways:
 
 **How I decided to use Glibc=2.33 at compile-time:** When compiling against the latest version of Glibc, the newest symbol needed was `pthread_something_or_other` at 2.34. So I set the version to the latest version right before that, 2.33. Now the newest needed symbol is `memcpy@GLIBC_2.14`. 2.14 is older than the [oldest Glibc in Nixpkgs](https://lazamar.co.uk/nix-versions/?channel=nixos-unstable&package=glibc), 2.18.
 
+But when I actually tried that, PROBE still links against pthreads.
+
+make: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.32' not found (required by /nix/store/q29bwjibv9gi9n86203s38n0577w09sx-glibc-2.33-117/lib/libpthread.so.0)
 
 **Which OS does this cover?**: Most released after 2012, including Ubuntu 12.04 Precise, Debian 8 Jessie, CentOS/RHEL 7.
 
@@ -35,3 +38,43 @@ PROBE uses the system's libc in two ways:
 | CentOS (c.f. RHEL) | 6.x               | 2011-11      | 2.12          | N            |
 
 Run `podman run --rm ubuntu:12.04 ldd --version` to quick check.
+
+## Problems
+
+When we don't link with `-lpthread`, we are unable to resolve `pthread_getspecific`. I don't think that can easily be implemented without support from the client's pthread library; I am unsure of the performance implications of using `dlsym("pthread_getspecific")` vs having the symbol resolved by the dynamic linker (is there an extra indirection per-call in the former?). So I added `-lpthread`.
+
+However, this is not enough. When I run PROBE (modern or old system!), I get
+
+```bash
+$ probe record -f ls
+ls: symbol lookup error: /nix/store/bqbg6hb2jsl3kvf6jgmgfdqy06fpjrrn-glibc-2.30/lib/libpthread.so.0: undefined symbol: __nanosleep_nocancel, version GLIBC_PRIVATE
+[2025-10-20T02:46:51Z WARN  probe::record] Recorded process exited with code 127
+```
+
+I believe this is because we are using _old_ libpthreads and _new_ glibc. When I use `LD_DEBUG=all`, notice how `libpthread` from `glibc-2.32` is requesting `__libc_siglongjmp` which presumably exists in 2.32, but is only looked up in 2.40. Presumably we need to use _new_ libpthreads and _new_ glibc. This goes against the design principles of Nix, as we want libpthreads from the environment rather than from the Nix store.
+
+```
+$ LD_DEBUG=all probe record -f ls
+<snip>
+   1228932:     symbol=__libc_siglongjmp;  lookup in file=/home/sam/box/PROBE/cli-wrapper/target/debug/probe [0]
+   1228932:     symbol=__libc_siglongjmp;  lookup in file=/home/sam/box/PROBE/libprobe/.build/libprobe.so [0]
+   1228932:     symbol=__libc_siglongjmp;  lookup in file=/nix/store/xp989kyfg52803fmkzbz5py35jphcpgd-gcc-14.3.0-lib/lib/libgcc_s.so.1 [0]
+   1228932:     symbol=__libc_siglongjmp;  lookup in file=/nix/store/qhw0sp183mqd04x5jp75981kwya64npv-glibc-2.40-66/lib/libc.so.6 [0]
+   1228932:     symbol=__libc_siglongjmp;  lookup in file=/nix/store/qhw0sp183mqd04x5jp75981kwya64npv-glibc-2.40-66/lib/ld-linux-x86-64.so.2 [0]
+   1228932:     symbol=__libc_siglongjmp;  lookup in file=/nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/libpthread.so.0 [0]
+   1228932:     /nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/libpthread.so.0: error: symbol lookup error: undefined symbol: __libc_siglongjmp, version GLIBC_PRIVATE (fatal)
+/home/sam/box/PROBE/cli-wrapper/target/debug/probe: symbol lookup error: /nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/libpthread.so.0: undefined symbol: __libc_siglongjmp, version GLIBC_PRIVATE
+[2025-10-20T02:49:41Z WARN  probe::record] Recorded process exited with code 127
+```
+
+Somehow, the `ldd` is reporting old glibc and old libpthread, but when we actually run it with `LD_DEBUG=all`, we see new glibc and old libpthread:
+
+```
+$ ldd libprobe/.build/libprobe.dbg.so 
+        linux-vdso.so.1 (0x00007f3cfffa9000)
+        libpthread.so.0 => /nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/libpthread.so.0 (0x00007f3cfff5a000)
+        libc.so.6 => /nix/store/9l06v7fc38c1x3r2iydl15ksgz0ysb82-glibc-2.32/lib/libc.so.6 (0x00007f3cffd99000)
+        /nix/store/lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66/lib64/ld-linux-x86-64.so.2 (0x00007f3cfffab000)
+```
+
+If this fixes it, revert the `pthreads` backporting done in `inode_table.c`, `probe_libc.c`, `probe_libc.h`, and `check_needed_syms.py` in the most recent commit.

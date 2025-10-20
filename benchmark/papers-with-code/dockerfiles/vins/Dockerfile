@@ -1,4 +1,5 @@
 FROM ubuntu:20.04
+# https://wiki.ros.org/Distributions
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \

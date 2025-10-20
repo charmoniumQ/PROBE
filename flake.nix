@@ -5,12 +5,10 @@
     };
     old-nixpkgs = {
       # https://lazamar.co.uk/nix-versions/?channel=nixpkgs-unstable&package=glibc
-      # 2022-04-18
-      # glibc = 2.33-117
       # See PROBE/docs/old-glibc.md
-      url = "github:NixOS/nixpkgs/d1c3fea7ecbed758168787fe4e4a3157e52bc808";
+      url = "github:NixOS/nixpkgs/3b05df1d13c1b315cecc610a2f3180f6669442f0";
       # If pulling nixpkgs from 2020 or older, need to set flake = false.
-      #flake = false;
+      flake = false;
     };
     flake-utils = {
       url = "github:numtide/flake-utils";
@@ -42,9 +40,10 @@
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
         cli-wrapper-pkgs = cli-wrapper.packages.${system};
-        old-pkgs = old-nixpkgs.legacyPackages.${system};
         # IF flake = false, we need to do this instead
-        # old-pkgs = import old-nixpkgs { inherit system; };
+        old-pkgs = import old-nixpkgs {inherit system;};
+        # Otherwise, if old-nixpkgs is a flake,
+        #old-pkgs = old-nixpkgs.legacyPackages.${system};
         new-clang-old-glibc = pkgs.wrapCCWith {
           cc = pkgs.clang;
           bintools = pkgs.wrapBintoolsWith {

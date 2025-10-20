@@ -2,13 +2,29 @@
 
 #include "inode_table.h"
 
-#include <pthread.h> // IWYU pragma: keep for pthread_rwlock_unlock, pthread_rwlock_t
-#include <stdlib.h>  // for calloc
+#include <stdlib.h> // for calloc
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_rwllock_t
 
 #include "../include/libprobe/prov_ops.h" // for Path
 #include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG
 #include "stdbool.h"                      // for false, bool, true
+
+#define USE_PTHREAD_RWLOCK 0
+
+#if USE_PTHREAD_RWLOCK
+#include <pthread.h> // IWYU pragma: keep for pthread_rwlock_unlock, pthread_rwlock_t
+// pthread_rwlock does not exist in older libcs.
+// The symbol is unversioned, so our symbol checker don't notice the dependency on new libc.
+// But it's there nonetheless.
+// So we have the option to switch to an in-house implementation.
+#else
+#include "probe_libc.h" // for pthread_rwlock_unlock, pthread_rwlock_t
+#define pthread_rwlock_init probe_libc_rwlock_init
+#define pthread_rwlock_rdlock probe_libc_rwlock_rdlock
+#define pthread_rwlock_wrlock probe_libc_rwlock_wrlock
+#define pthread_rwlock_unlock probe_libc_rwlock_unlock
+#define pthread_rwlock_t probe_libc_rwlock_t
+#endif
 
 /*
 ** Device major and minor are listed here:

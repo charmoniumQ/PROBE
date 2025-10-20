@@ -15,6 +15,9 @@ CFLAGS := \
 
 DBGCFLAGS := -Og -g       -fpic
 OPTCFLAGS := -O3 -DNDEBUG -fPIC
+OPTLDFLAGS := -flto -fpic
+DBGLDFLAGS := -fno-lto -fPIC
+LDFLAGS := -lpthread -pthread
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
 GENERATED_HEADER_FILES := generated/libc_hooks.h
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
@@ -36,10 +39,10 @@ generated: $(GENERATED_FILES)
 .PHONY: generated
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
-	$(CC) -MJ $@.compile_command.json -flto    -fpic -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
+	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(OPTLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
 
 $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o)) $(MAKEFILE_LIST)
-	$(CC) -MJ $@.compile_command.json -fno-lto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
+	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(DBGLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
 
 $(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)

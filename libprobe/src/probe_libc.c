@@ -7,6 +7,7 @@
 #include <features.h>    // for __GLIBC_MINOR__, __GLIBC__
 #include <limits.h>      // IWYU pragma: keep for SSIZE_MAX
 #include <linux/prctl.h> // for PR_*
+#include <pthread.h>
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
 #include <stdio.h>       // for sprintf
@@ -579,4 +580,57 @@ const char* probe_libc_getenv(const char* name) {
         }
     }
     return NULL;
+}
+
+// See https://peerdh.com/blogs/programming-insights/implementing-readerwriter-locks-in-c
+int probe_libc_rwlock_init(probe_libc_rwlock_t* rw, void* unused __attribute__((unused))) {
+    rw->readers = 0;
+    rw->writers = 0;
+    rw->waiting_writers = 0;
+    return pthread_mutex_init(&rw->mutex, NULL) | pthread_cond_init(&rw->readers_ok, NULL) |
+           pthread_cond_init(&rw->writers_ok, NULL);
+}
+
+int probe_libc_rwlock_rdlock(probe_libc_rwlock_t* rw) {
+    pthread_mutex_lock(&rw->mutex);
+    while (rw->writers > 0 || rw->waiting_writers > 0) {
+        pthread_cond_wait(&rw->readers_ok, &rw->mutex);
+    }
+    rw->readers++;
+    return pthread_mutex_unlock(&rw->mutex);
+}
+
+int probe_libc_rwlock_wrlock(probe_libc_rwlock_t* rw) {
+    pthread_mutex_lock(&rw->mutex);
+    rw->waiting_writers++;
+    while (rw->readers > 0 || rw->writers > 0) {
+        pthread_cond_wait(&rw->writers_ok, &rw->mutex);
+    }
+    rw->waiting_writers--;
+    rw->writers = 1;
+    return pthread_mutex_unlock(&rw->mutex);
+}
+
+int probe_libc_rwlock_unlock(probe_libc_rwlock_t* rw) {
+    pthread_mutex_lock(&rw->mutex);
+    if (rw->writers) {
+        rw->writers = 0;
+    } else {
+        rw->readers--;
+    }
+
+    // Writers get priority to avoid writer starvation
+    if (rw->waiting_writers > 0) {
+        if (rw->readers == 0 && rw->writers == 0)
+            pthread_cond_signal(&rw->writers_ok);
+    } else {
+        pthread_cond_broadcast(&rw->readers_ok);
+    }
+
+    return pthread_mutex_unlock(&rw->mutex);
+}
+
+int probe_libc_rwlock_destroy(probe_libc_rwlock_t* rw) {
+    return pthread_mutex_destroy(&rw->mutex) | pthread_cond_destroy(&rw->readers_ok) |
+           pthread_cond_destroy(&rw->writers_ok);
 }
