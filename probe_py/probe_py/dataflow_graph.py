@@ -491,7 +491,7 @@ def combine_indistinguishable_inodes(
     # with charmonium.time_block.ctx("transitive reduction", print_start=False):
     #     dataflow_graph4 = graph_utils.transitive_reduction_cyclic_graph(dataflow_graph3)
     # n_edges2 = len(dataflow_graph4.edges())
-    # print(f"Transitive reduction {n_edges} -> {n_edges2}")
+    #print(f"Transitive reduction {n_edges} -> {n_edges2}")
     return typing.cast(CompressedDataflowGraph, dataflow_graph3)
 
 
@@ -651,16 +651,16 @@ def get_read_write_batches(
     last_last_queue_0 = frozenset[ptypes.OpQuad]()
     last_last_last_queue_0 = frozenset[ptypes.OpQuad]()
 
-    print(f"Coalescing {pid} {exec.exec_no}")
+    #print(f"Coalescing {pid} {exec.exec_no}")
 
     def remove(quad: ptypes.OpQuad) -> None:
-        print("      Removed")
+        #print("      Removed")
         degree = queue_inverse[quad]
         del queue_inverse[quad]
         queue[degree].remove(quad)
 
     def enqueue_successors(quad: ptypes.OpQuad) -> bool:
-        print("      Enqueue Successors:")
+        #print("      Enqueue Successors:")
         mini_progress = False
         for successor in hbg.successors(quad):
             if successor in queue_inverse:
@@ -682,7 +682,7 @@ def get_read_write_batches(
         return mini_progress
 
     while queue[0]:
-        print(f"  state={state.name}")
+        #print(f"  state={state.name}")
 
         # Detect if we are stuck in an infinite loop
         if queue[0] == last_last_last_queue_0:
@@ -696,7 +696,7 @@ def get_read_write_batches(
         while progress:
             progress = False
             for quad in list(queue[0]):
-                # print(f"    {quad=}")
+                #print(f"    {quad=}")
                 # FIXME: This should include previous exec / next exec
                 # Often, files will get passed from one to another.
                 # But when I included the ExecOp, it broke this algorithm.
@@ -715,14 +715,14 @@ def get_read_write_batches(
                 ] if quad in dataflow_graph else [])
 
                 if (not hb_oracle.is_reachable(quad, last_quad)) and quad != last_quad and quad != first_quad:
-                    print("      Not ancestor of last_quad")
+                    #print("      Not ancestor of last_quad")
                     remove(quad)
                 elif quad.pid != pid or quad.exec_no != exec.exec_no:
-                    print("      Other process, but ancestor of last_quad")
+                    #print("      Other process, but ancestor of last_quad")
                     remove(quad)
                     progress = enqueue_successors(quad) or progress
                 elif quad not in dataflow_graph.nodes():
-                    print("      No dataflow connections")
+                    #print("      No dataflow connections")
                     # No dataflow connections, but it could still be pointed to.
                     incorporated_quads.add(quad)
                     remove(quad)
@@ -732,7 +732,7 @@ def get_read_write_batches(
                         (state == _State.READ_WRITE and dataflow_inputs and dataflow_outputs) or
                         (state == _State.WRITE and not dataflow_inputs)
                 ):
-                    print("      Matches state")
+                    #print("      Matches state")
                     incorporated_quads.add(quad)
                     remove(quad)
                     progress = enqueue_successors(quad) or progress
@@ -743,7 +743,7 @@ def get_read_write_batches(
                     if state == _State.READ_WRITE:
                         break
                 else:
-                    print("      Doesn't match state")
+                    #print("      Doesn't match state")
                     pass
             # No more progress can be made
             # because READ_WRITE only takes one node.
@@ -753,16 +753,16 @@ def get_read_write_batches(
 
         if state == _State.WRITE:
             yield tuple(inputs), tuple(outputs), frozenset(incorporated_quads)
-            print("  Yielding bundle:")
-            print("    input")
-            for input in inputs:
-                print(f"     {input}")
-            print("    output")
-            for output in outputs:
-                print(f"      {output}")
-            print("    incorporated_quads")
-            for quad in incorporated_quads:
-                print(f"      {quad}")
+            #print("  Yielding bundle:")
+            #print("    input")
+            # for input in inputs:
+            #     print(f"     {input}")
+            #print("    output")
+            # for output in outputs:
+            #     print(f"      {output}")
+            #print("    incorporated_quads")
+            # for quad in incorporated_quads:
+            #     print(f"      {quad}")
             inputs.clear()
             outputs.clear()
             incorporated_quads.clear()
@@ -771,16 +771,16 @@ def get_read_write_batches(
 
     if incorporated_quads:
         yield tuple(inputs), tuple(outputs), frozenset(incorporated_quads)
-        print("  Yielding bundle:")
-        print("    input")
-        for input in inputs:
-            print(f"      {input}")
-        print("    output")
-        for output in outputs:
-            print(f"      {output}")
-        print("    incorporated_quads")
-        for quad in sorted(incorporated_quads, key=lambda node: node.op_no):
-            print(f"      {quad}")
+        #print("  Yielding bundle:")
+        #print("    input")
+        # for input in inputs:
+        #     print(f"      {input}")
+        #print("    output")
+        # for output in outputs:
+        #     print(f"      {output}")
+        #print("    incorporated_quads")
+        # for quad in sorted(incorporated_quads, key=lambda node: node.op_no):
+        #     print(f"      {quad}")
     else:
         assert not inputs
         assert not outputs
@@ -856,9 +856,10 @@ def label_nodes(
         inode_to_path: Map[ptypes.Inode, It[pathlib.Path]],
         max_args: int = 5,
         max_arg_length: int = 80,
+        path_length: int = 40,
         max_path_interval_length: int = 20,
-        max_paths_per_inode: int = 2,
-        max_inodes_per_set: int = 5,
+        max_paths_per_inode: int = 1,
+        max_inodes_per_set: int = 1,
         relative_to: pathlib.Path | None = None,
 ) -> None:
     count = dict[tuple[ptypes.Pid, ptypes.ExecNo], int]()
@@ -933,11 +934,14 @@ def label_nodes(
                             input = pathlib.Path(parts[0]).joinpath(*parts[1:])
                         else:
                             input = pathlib.Path(".")
-                    return ("/" if input.is_absolute() else "") + "/".join(
+                    output = ("/" if input.is_absolute() else "") + "/".join(
                         textwrap.shorten(part, width=max_path_interval_length)
                         for part in input.parts
                         if part != "/"
                     )
+                    if len(output) > path_length:
+                        output = "..." + output[-path_length:]
+                    return output
                 inode_versions = list(node)
                 inode_labels = []
                 for inode_version in inode_versions[:max_inodes_per_set]:

@@ -1,0 +1,126 @@
+strict digraph {
+rankdir=TB;
+3029246381003432703 [label="...box/PROBE/cli-wrapper/target/debug/probe", shape=cylinder, id=3029246381003432703];
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=0)" [shape=oval, cluster="Process 1253260", label="exec bash ./run3.sh"];
+"ProcessState(pid=1253261, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253261", label=""];
+"ProcessState(pid=1253260, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253260", label="exec /usr/bin/env bash ./run3.sh"];
+"ProcessState(pid=1253300, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253300", label="exec python model-training.py"];
+"ProcessState(pid=1253262, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253262", label=""];
+"ProcessState(pid=1253274, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253274", label=""];
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=2)" [shape=oval, cluster="Process 1253260", label=""];
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=1)" [shape=oval, cluster="Process 1253260", label=""];
+"ProcessState(pid=1253300, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253300", label=""];
+"ProcessState(pid=1253261, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253261", label="exec uname"];
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=4)" [shape=oval, cluster="Process 1253260", label=""];
+"ProcessState(pid=1253262, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253262", label="exec python data-acquisition.py"];
+"ProcessState(pid=1253260, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253260", label=root];
+"ProcessState(pid=1253274, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253274", label="exec python data-processing.py"];
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=3)" [shape=oval, cluster="Process 1253260", label=""];
+"-3369302638025106010" [label="venv/bin/activate", shape=cylinder, id="-3369302638025106010"];
+"-1060742197395273539" [label="...e-packages/pandas/core/indexes/period.py\n...other inodes", shape=cylinder, id="-1060742197395273539"];
+1093106468302172518 [label="/etc/ssl/certs/ca-certificates.crt\n...other inodes", shape=cylinder, id=1093106468302172518];
+5136864748804775644 [label="...formats/__pycache__/csvs.cpython-312.pyc\n...other inodes", shape=cylinder, id=5136864748804775644];
+8916040220630825478 [label="data/raw_data.csv", shape=cylinder, id=8916040220630825478];
+6106070351487376981 [label="\n...other inodes", shape=cylinder, id=6106070351487376981];
+"-8942884225069190684" [label="...packages/scipy/ndimage/__pycache__/[...]\n...other inodes", shape=cylinder, id="-8942884225069190684"];
+"-200156137933610161" [label="data/processed/X_train.csv\n...other inodes", shape=cylinder, id="-200156137933610161"];
+7063926784482466071 [label="data/processed/y_train.csv v2\n...other inodes", shape=cylinder, id=7063926784482466071];
+"-6551788383601942219" [label="...3.12/site-packages/sklearn/decomposition\n...other inodes", shape=cylinder, id="-6551788383601942219"];
+4355774254149707614 [label="models/[...]\n...other inodes", shape=cylinder, id=4355774254149707614];
+3029246381003432703 -> "ProcessState(pid=1253260, epoch_no=0, deduplicator=0)";
+"-3369302638025106010" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=0)";
+"-1060742197395273539" -> "ProcessState(pid=1253262, epoch_no=1, deduplicator=0)";
+"-1060742197395273539" -> "ProcessState(pid=1253274, epoch_no=1, deduplicator=0)";
+"-1060742197395273539" -> "ProcessState(pid=1253300, epoch_no=1, deduplicator=0)";
+1093106468302172518 -> "ProcessState(pid=1253262, epoch_no=1, deduplicator=0)";
+5136864748804775644 -> "ProcessState(pid=1253262, epoch_no=1, deduplicator=0)";
+5136864748804775644 -> "ProcessState(pid=1253274, epoch_no=1, deduplicator=0)";
+8916040220630825478 -> "ProcessState(pid=1253274, epoch_no=1, deduplicator=0)";
+6106070351487376981 -> "ProcessState(pid=1253274, epoch_no=1, deduplicator=0)";
+"-8942884225069190684" -> "ProcessState(pid=1253274, epoch_no=1, deduplicator=0)";
+"-8942884225069190684" -> "ProcessState(pid=1253300, epoch_no=1, deduplicator=0)";
+"-200156137933610161" -> "ProcessState(pid=1253300, epoch_no=1, deduplicator=0)";
+"-6551788383601942219" -> "ProcessState(pid=1253300, epoch_no=1, deduplicator=0)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=0)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=1)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=0)" -> "ProcessState(pid=1253261, epoch_no=0, deduplicator=0)";
+"ProcessState(pid=1253261, epoch_no=0, deduplicator=0)" -> "ProcessState(pid=1253261, epoch_no=1, deduplicator=0)";
+"ProcessState(pid=1253260, epoch_no=1, deduplicator=0)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=0)";
+"ProcessState(pid=1253300, epoch_no=1, deduplicator=0)" -> 4355774254149707614;
+"ProcessState(pid=1253300, epoch_no=1, deduplicator=0)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=4)";
+"ProcessState(pid=1253262, epoch_no=0, deduplicator=0)" -> "ProcessState(pid=1253262, epoch_no=1, deduplicator=0)";
+"ProcessState(pid=1253274, epoch_no=0, deduplicator=0)" -> "ProcessState(pid=1253274, epoch_no=1, deduplicator=0)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=2)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=3)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=2)" -> "ProcessState(pid=1253274, epoch_no=0, deduplicator=0)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=1)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=2)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=1)" -> "ProcessState(pid=1253262, epoch_no=0, deduplicator=0)";
+"ProcessState(pid=1253300, epoch_no=0, deduplicator=0)" -> "ProcessState(pid=1253300, epoch_no=1, deduplicator=0)";
+"ProcessState(pid=1253261, epoch_no=1, deduplicator=0)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=1)";
+"ProcessState(pid=1253262, epoch_no=1, deduplicator=0)" -> 8916040220630825478;
+"ProcessState(pid=1253262, epoch_no=1, deduplicator=0)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=2)";
+"ProcessState(pid=1253260, epoch_no=0, deduplicator=0)" -> "ProcessState(pid=1253260, epoch_no=1, deduplicator=0)";
+"ProcessState(pid=1253274, epoch_no=1, deduplicator=0)" -> "-200156137933610161";
+"ProcessState(pid=1253274, epoch_no=1, deduplicator=0)" -> 7063926784482466071;
+"ProcessState(pid=1253274, epoch_no=1, deduplicator=0)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=3)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=3)" -> "ProcessState(pid=1253260, epoch_no=2, deduplicator=4)";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=3)" -> "ProcessState(pid=1253300, epoch_no=0, deduplicator=0)";
+subgraph "cluster_Process 1253260" {
+label="Process 1253260";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=0)" [shape=oval, cluster="Process 1253260", label="exec bash ./run3.sh"];
+}
+subgraph "cluster_Process 1253261" {
+label="Process 1253261";
+"ProcessState(pid=1253261, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253261", label=""];
+}
+subgraph "cluster_Process 1253260" {
+label="Process 1253260";
+"ProcessState(pid=1253260, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253260", label="exec /usr/bin/env bash ./run3.sh"];
+}
+subgraph "cluster_Process 1253300" {
+label="Process 1253300";
+"ProcessState(pid=1253300, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253300", label="exec python model-training.py"];
+}
+subgraph "cluster_Process 1253262" {
+label="Process 1253262";
+"ProcessState(pid=1253262, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253262", label=""];
+}
+subgraph "cluster_Process 1253274" {
+label="Process 1253274";
+"ProcessState(pid=1253274, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253274", label=""];
+}
+subgraph "cluster_Process 1253260" {
+label="Process 1253260";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=2)" [shape=oval, cluster="Process 1253260", label=""];
+}
+subgraph "cluster_Process 1253260" {
+label="Process 1253260";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=1)" [shape=oval, cluster="Process 1253260", label=""];
+}
+subgraph "cluster_Process 1253300" {
+label="Process 1253300";
+"ProcessState(pid=1253300, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253300", label=""];
+}
+subgraph "cluster_Process 1253261" {
+label="Process 1253261";
+"ProcessState(pid=1253261, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253261", label="exec uname"];
+}
+subgraph "cluster_Process 1253260" {
+label="Process 1253260";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=4)" [shape=oval, cluster="Process 1253260", label=""];
+}
+subgraph "cluster_Process 1253262" {
+label="Process 1253262";
+"ProcessState(pid=1253262, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253262", label="exec python data-acquisition.py"];
+}
+subgraph "cluster_Process 1253260" {
+label="Process 1253260";
+"ProcessState(pid=1253260, epoch_no=0, deduplicator=0)" [shape=oval, cluster="Process 1253260", label=root];
+}
+subgraph "cluster_Process 1253274" {
+label="Process 1253274";
+"ProcessState(pid=1253274, epoch_no=1, deduplicator=0)" [shape=oval, cluster="Process 1253274", label="exec python data-processing.py"];
+}
+subgraph "cluster_Process 1253260" {
+label="Process 1253260";
+"ProcessState(pid=1253260, epoch_no=2, deduplicator=3)" [shape=oval, cluster="Process 1253260", label=""];
+}
+}
