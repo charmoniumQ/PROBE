@@ -8,10 +8,13 @@ build/: src/
 
 data/:
 	mkdir data
-	curl -o data/MH_01_easy.bag http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.bag
+	cp /host/MH_01_easy.bag data
+	#curl -o data/MH_01_easy.bag http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.bag
 
-exp0: data/ build/
-	source /opt/ros/$(ROS_DISTRO)/setup.bash && roslaunch vins_estimator euroc.launch & pid=$! ; rosbag play --factor=10 data/MH_01_easy.bag ; kill $pid
-
-exp1: data/ build/
-	source /opt/ros/$(ROS_DISTRO)/setup.bash && roslaunch vins_estimator euroc_no_extrinsic_param.launch & pid=$! ; rosbag play --factor=10 data/MH_01_easy.bag ; kill $pid
+# Can extend the experiment by
+# 1. Lower the --start
+# 2. Reduce the --rate
+# 3. Play more bags from EUROC
+# 4. Repeat with euroc_no_extrinsic_param
+exp: data/ build/
+	source devel/setup.bash ; roslaunch vins_estimator euroc.launch & pid=$$! ; sleep 5 ; rosbag play --start=100 --rate=10 data/MH_01_easy.bag ; kill $$pid ; wait $$pid
