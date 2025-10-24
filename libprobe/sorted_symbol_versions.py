@@ -34,5 +34,25 @@ with pathlib.Path(path).open("rb") as stream:
         else:
             symbols.append((version_idx, (), "", symbol.name))
 
-for lib_file_name, _, version_name, symbol_name in sorted(symbols):
+
+def is_inty(string: str) -> bool:
+    try:
+        int(string)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
+def symbol_version_key(version_name: str) -> typing.Any:
+    return tuple(
+        tuple(
+            int(dotted_segment) if is_inty(dotted_segment) else dotted_segment
+            for dotted_segment in underscored_segment.split(".")
+        )
+        for underscored_segment in version_name.split("_")
+    )
+
+
+for lib_file_name, _, version_name, symbol_name in sorted(symbols, key=lambda tup: symbol_version_key(tup[2])):
     print(lib_file_name, version_name, symbol_name)
