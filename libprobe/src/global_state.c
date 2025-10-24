@@ -271,10 +271,13 @@ void free_thread_state(void* arg) {
     /* TODO: Insert exit op */
     arena_sync(&state->data_arena);
     arena_sync(&state->ops_arena);
+    uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
+    uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
     free(state);
+    (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
 }
 static inline void init_thread_state(PthreadID pthread_id) {
-    struct ThreadState* state = EXPECT_NONNULL(malloc(sizeof(struct ThreadState)));
+    struct ThreadState* state = EXPECT_NONNULL(malloc(1 * sizeof(struct ThreadState)));
     init_tid(state);
     state->pthread_id = pthread_id;
     init_paths(state);
@@ -285,11 +288,13 @@ static inline void init_thread_state(PthreadID pthread_id) {
     uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
     uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
     if (!__thread_table[pthread_id_level0]) {
-        __thread_table[pthread_id_level0] = EXPECT_NONNULL(malloc(sizeof(ThreadTable1)));
+        __thread_table[pthread_id_level0] = EXPECT_NONNULL(malloc(1 * sizeof(ThreadTable1)));
+        probe_libc_memset(__thread_table[pthread_id_level0], 0, sizeof(ThreadTable1));
     }
     ThreadTable1* level1 = __thread_table[pthread_id_level0];
-    ASSERTF(!(*level1)[pthread_id_level1], "ThreadTable at %d (%d << 8 | %d) already occupied",
-            state->pthread_id, pthread_id_level0, pthread_id_level1);
+    ASSERTF(!((*level1)[pthread_id_level1]),
+            "ThreadTable at %d = %d << 8 | %d already occupied with %p", state->pthread_id,
+            pthread_id_level0, pthread_id_level1, (*level1)[pthread_id_level1]);
     (*level1)[pthread_id_level1] = state;
 }
 static inline void drop_threads_after_fork() {
@@ -297,11 +302,17 @@ static inline void drop_threads_after_fork() {
         uint8_t pthread_id_level0 = (pthread_id & 0xFF00) >> 8;
         uint8_t pthread_id_level1 = (pthread_id & 0x00FF);
         ThreadTable1* level1 = EXPECT_NONNULL(__thread_table[pthread_id_level0]);
-        struct ThreadState* state = EXPECT_NONNULL((*level1)[pthread_id_level1]);
-        arena_drop_after_fork(&state->data_arena);
-        arena_drop_after_fork(&state->ops_arena);
-        free(state);
-        (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
+        struct ThreadState* state = (*level1)[pthread_id_level1];
+        /* I really expected state to be non-null,
+         * but I suppose it's possible if both:
+         * 1. Thread creation interposition is not reliable.
+         * 2. The thread never makes a prov op. */
+        if (state) {
+            arena_drop_after_fork(&state->data_arena);
+            arena_drop_after_fork(&state->ops_arena);
+            free(state);
+            (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
+        }
         /* We free the actual ThreadState and NULL out the dangling pointer.
          * I guess we'll leave __thread_table[pthread_id_level0] allocated.
          * If the parent process had N threads, that's a damn decent guess of how many threads the child will have.
@@ -390,12 +401,6 @@ void init_thread(PthreadID pthread_id) {
     emit_init_thread_op();
     ASSERTF(is_thread_inited(), "Failed to init thread");
 }
-void maybe_init_thread() { ASSERTF(is_thread_inited(), "Failed to init thread"); }
-
-void save_atexit() {
-    /* It seems pthread_getspecific is not valid atexit */
-    /* prov_log_save(); */
-}
 
 void init_after_fork() {
     ASSERTF(!is_proc_inited(), "Proccess already initialized");
@@ -409,15 +414,12 @@ void init_after_fork() {
     init_thread_state_key();
     drop_threads_after_fork();
     init_thread_state(0);
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    EXPECT(== 0, atexit(&save_atexit));
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
     emit_init_thread_op();
 }
 
-/** Fully remove __attribute__((constructor)), which appears unreliable in ubuntu:24.04 Podman container */
 void constructor() {
     DEBUG("Initializing internal libc");
     if (probe_libc_init() != 0) {
@@ -436,8 +438,6 @@ void constructor() {
     init_default_path();
     init_thread_state_key();
     init_thread_state(0);
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    EXPECT(== 0, atexit(&save_atexit));
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
@@ -449,5 +449,9 @@ void ensure_thread_initted() {
     if (!is_proc_inited()) {
         constructor();
     }
+    /* Currently, the thread should be initted by its creator.
+     * This is necessary because we assign a thread ID to it, and we need to get _that_ thread ID back when/if the thread gets joined.
+     * Buf if it comes down to it, we _could_ initialize it here, but we wouldn't be able to identify it when it gets joined.
+     * */
     ASSERTF(is_thread_inited(), "Thread not initialized");
 }

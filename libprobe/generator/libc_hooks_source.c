@@ -2150,8 +2150,8 @@ pid_t fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2189,8 +2189,8 @@ pid_t _Fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */;
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2261,8 +2261,8 @@ pid_t vfork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
