@@ -23,7 +23,7 @@ libc = { version = "0.2" }
 log = { version = "0.4", default-features = false, features = ["std"] }
 once_cell = { version = "1" }
 regex = { version = "1", default-features = false, features = ["perf", "std", "unicode-perl"] }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode-perl", "unicode-word-boundary"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode-perl", "unicode-word-boundary"] }
 regex-syntax = { version = "0.8", default-features = false, features = ["std", "unicode-perl"] }
 
 [build-dependencies]
@@ -34,7 +34,7 @@ libc = { version = "0.2" }
 log = { version = "0.4", default-features = false, features = ["std"] }
 once_cell = { version = "1" }
 regex = { version = "1", default-features = false, features = ["perf", "std", "unicode-perl"] }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode-perl", "unicode-word-boundary"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode-perl", "unicode-word-boundary"] }
 regex-syntax = { version = "0.8", default-features = false, features = ["std", "unicode-perl"] }
 syn = { version = "2", features = ["extra-traits", "fold", "full", "visit-mut"] }
 
