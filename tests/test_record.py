@@ -2,8 +2,8 @@ import collections
 import os
 import pathlib
 import random
-import shlex
 import shutil
+import shlex
 import subprocess
 import typing
 import pytest

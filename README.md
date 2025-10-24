@@ -10,13 +10,12 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 ## Installing PROBE
 
+Containers are a special case. To install PROBE in a container, see [`./docs/containers.md`](./docs/containers.md).
+
 1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux. See [Determinate Nix Installer documentation](https://github.com/DeterminateSystems/nix-installer/blob/main/README.md) for more details.
 
    ```bash
    curl -fsSL https://install.determinate.systems/nix | sh -s -- install
-
-   # In container,
-   #curl -fsSL https://install.determinate.systems/nix | sh -s -- install linux --extra-conf "sandbox = false" --init none --no-confirm
    ```
    
 2. Re-log-in or activate Nix in the current shell.
@@ -28,14 +27,14 @@ The provenance graph can help us re-execute the program, containerize the progra
 3. Optionally, use our public binary cache to speed up the installation.
 
    ```bash
-   nix profile install --accept-flake-config nixpkgs#cachix
+   nix profile add --accept-flake-config nixpkgs#cachix
    cachix use charmonium
    ```
 
 4. Install PROBE or run PROBE without permanently installing. In the latter case, the
 
    ```bash
-   nix profile install github:charmoniumQ/PROBE
+   nix profile add github:charmoniumQ/PROBE
    probe --help
    
    # Or run without installing.

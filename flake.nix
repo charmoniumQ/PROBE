@@ -117,12 +117,14 @@
             nativeBuildInputs = [pkgs.makeWrapper];
             installPhase = ''
               mkdir $out $out/bin
+              # We don't want to add these to the PATH and PYTHONPATH because that will have side-effects on the target of `probe record`.
               makeWrapper \
                 ${cli-wrapper-pkgs.probe-cli}/bin/probe \
                 $out/bin/probe \
+                --set PROBE_BUILDAH ${pkgs.buildah}/bin/buildah \
                 --set PROBE_LIB ${libprobe}/lib \
-                --prefix PATH_TO_PROBE_PYTHON : ${python.withPackages (_: [probe-py])}/bin/python \
-                --prefix PATH_TO_BUILDAH : ${pkgs.buildah}/bin/buildah
+                --set PROBE_PYTHON ${python.withPackages (_: [probe-py])}/bin/python \
+                --set PROBE_PYTHONPATH ""
             '';
             passthru = {
               exePath = "/bin/probe";
@@ -174,6 +176,15 @@
               runHook postCheck
             '';
           };
+          container-image = pkgs.dockerTools.buildImage {
+            name = "probe";
+            tag = probe-ver;
+            copyToRoot = pkgs.buildEnv {
+              name = "probe-sys-env";
+              paths = [probe];
+              pathsToLink = ["/bin"];
+            };
+          };
           default = probe;
         };
         checks = {
@@ -213,12 +224,12 @@
                 pkgs.coreutils # so we can `probe record head ...`, etc.
                 pkgs.gnumake
                 pkgs.clang
+                pkgs.nix
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
               make --directory=examples/
-              export RUST_BAKCTRACE=1
-              pytest -v -W error
+              RUST_BAKCTRACE=1 pytest
             '';
             installPhase = "mkdir $out";
           };
@@ -251,28 +262,14 @@
             pypkgs.ipython
             pypkgs.pytest-asyncio
 
-            # benchmark/papers-with-code requirements
-            pypkgs.aioconsole
-            pypkgs.githubkit
-            pypkgs.httpx
-            pypkgs.huggingface-hub
-            pypkgs.matplotlib
-            pypkgs.polars
-            pypkgs.pydantic
-            pypkgs.seaborn
-            pypkgs.tqdm
-            pypkgs.typer
-            pypkgs.yarl
-            pypkgs.ipython
-            pypkgs.typing-extensions
-
             # libprobe build time requirement
             pypkgs.pycparser
             pypkgs.pyelftools
           ]);
           shellHook = ''
-            #export LIBCLANG_PATH="$old-pkgs.libclang.lib}/lib"
-            export PATH_TO_PROBE_PYTHON="${probe-python}/bin/python"
+                export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+                export PROBE_BUILDAH="${pkgs.buildah}/bin/buildah"
+                export PROBE_PYTHON="${probe-python}/bin/python"
             pushd $(git rev-parse --show-toplevel) > /dev/null
             source ./setup_devshell.sh
             popd > /dev/null
@@ -289,6 +286,9 @@
               pkgs.buildah
               pkgs.podman
 
+              # Python env
+              probe-python
+
               # C tools
               pkgs.clang-analyzer
               pkgs.clang-tools # must go after clang-analyzer
@@ -298,9 +298,11 @@
               pkgs.include-what-you-use
               old-pkgs.criterion # unit testing framework
 
-              probe-python
-              pkgs.ty
+              # Programs for testing
+              pkgs.nix
               pkgs.coreutils
+
+              # For other lints
               pkgs.alejandra
               pkgs.just
               pkgs.ruff

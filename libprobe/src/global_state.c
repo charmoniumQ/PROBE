@@ -288,8 +288,7 @@ static inline void init_thread_state(PthreadID pthread_id) {
     uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
     uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
     if (!__thread_table[pthread_id_level0]) {
-        __thread_table[pthread_id_level0] = EXPECT_NONNULL(malloc(1 * sizeof(ThreadTable1)));
-        probe_libc_memset(__thread_table[pthread_id_level0], 0, sizeof(ThreadTable1));
+        __thread_table[pthread_id_level0] = EXPECT_NONNULL(calloc(1, sizeof(ThreadTable1)));
     }
     ThreadTable1* level1 = __thread_table[pthread_id_level0];
     ASSERTF(!((*level1)[pthread_id_level1]),
@@ -302,17 +301,12 @@ static inline void drop_threads_after_fork() {
         uint8_t pthread_id_level0 = (pthread_id & 0xFF00) >> 8;
         uint8_t pthread_id_level1 = (pthread_id & 0x00FF);
         ThreadTable1* level1 = EXPECT_NONNULL(__thread_table[pthread_id_level0]);
-        struct ThreadState* state = (*level1)[pthread_id_level1];
-        /* I really expected state to be non-null,
-         * but I suppose it's possible if both:
-         * 1. Thread creation interposition is not reliable.
-         * 2. The thread never makes a prov op. */
-        if (state) {
-            arena_drop_after_fork(&state->data_arena);
-            arena_drop_after_fork(&state->ops_arena);
-            free(state);
-            (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
-        }
+        // If state is null, then don't drop anything.
+        struct ThreadState* state = EXPECT_NONNULL((*level1)[pthread_id_level1]);
+        arena_drop_after_fork(&state->data_arena);
+        arena_drop_after_fork(&state->ops_arena);
+        free(state);
+        (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
         /* We free the actual ThreadState and NULL out the dangling pointer.
          * I guess we'll leave __thread_table[pthread_id_level0] allocated.
          * If the parent process had N threads, that's a damn decent guess of how many threads the child will have.
@@ -420,6 +414,12 @@ void init_after_fork() {
     emit_init_thread_op();
 }
 
+// See ./docs/notes.md
+#define LIB_CONSTRUCTOR 0
+
+#if LIB_CONSTRUCTOR == 1
+__attribute__((constructor))
+#endif
 void constructor() {
     DEBUG("Initializing internal libc");
     if (probe_libc_init() != 0) {
@@ -446,6 +446,9 @@ void constructor() {
 }
 
 void ensure_thread_initted() {
+#if LIB_CONSTRUCTOR == 1
+    ASSERTF(is_proc_inited(), "Thread not initialized");
+#endif
     if (!is_proc_inited()) {
         constructor();
     }

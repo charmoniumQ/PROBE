@@ -129,15 +129,25 @@ fn inner_main() -> Result<ExitStatus> {
                 .cloned()
                 .collect::<Vec<_>>();
 
-            let path_to_probe_python = std::env::var("PATH_TO_PROBE_PYTHON").wrap_err(
-                "PATH_TO_PROBE_PYTHON not defined; are you using the Nix-built wrapper?"
+            let buildah = std::env::var("PROBE_BUILDAH").wrap_err(
+                "PROBE_BUILDAH not defined; are you using the Nix-built wrapper or devshell?"
+                    .to_string(),
+            )?;
+            let python = std::env::var("PROBE_PYTHON").wrap_err(
+                "PROBE_PYTHON not defined; are you using the Nix-built wrapper or devshell?"
+                    .to_string(),
+            )?;
+            let pythonpath = std::env::var("PROBE_PYTHONPATH").wrap_err(
+                "PROBE_PYTHONPATH not defined; are you using the Nix-built wrapper or devshell?"
                     .to_string(),
             )?;
 
-            std::process::Command::new(path_to_probe_python)
+            std::process::Command::new(python)
                 .arg("-m")
                 .arg("probe_py.cli")
                 .args(&args)
+                .env("PYTHONPATH", pythonpath)
+                .env("PROBE_BUILDAH", buildah)
                 .spawn()
                 .wrap_err("Unknown subcommand")?
                 .wait()

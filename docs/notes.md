@@ -90,7 +90,15 @@ Interposing clone and fork would not work on the very first process, which is no
 
 Another problem is `vfork()`. The child of `vfork()` isn't allowed to do anything except for `execve()`.
 
-The shared library constructor does not get called after `exec()` (TODO: link), even though the static memory gets wiped after `exec`! This wouldn't work.
+It appears the library constructor approach does not work in containers. Changing `USE_LIB_CONSTRUCTOR` to `1` causes this to fail:
+
+```
+podman run \
+    --rm \
+    --volume /nix/store:/nix/store:ro \
+    ubuntu:24.04 \
+    $(nix build --no-link --print-out-paths '.#probe')/bin/probe record --debug -f ls
+```
 
 Checking on the first operation has the downside that it could slow down every operation a bit (although branch prediction mitigates this), and some processes might not get logged, if they do not do any prov operations before crashing.
 What a weird process to have. I'll take this tradeoff any day.
