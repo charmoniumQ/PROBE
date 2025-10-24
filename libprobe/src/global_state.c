@@ -79,7 +79,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
  * The rest of these variables are set up by ELF constructor.
  * Within one epoch, pointers are valid.
  */
-static struct FixedPath __probe_dir = {0};
+static struct FixedPath __probe_dir = {};
 static inline void init_probe_dir() {
     ASSERTF(__probe_dir.bytes[0] == '\0', "__probe_dir already initialized");
     const char* __probe_private_dir_env_val = probe_libc_getenv(PROBE_DIR_VAR);
@@ -277,7 +277,7 @@ void free_thread_state(void* arg) {
     (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
 }
 static inline void init_thread_state(PthreadID pthread_id) {
-    struct ThreadState* state = EXPECT_NONNULL(malloc(sizeof(struct ThreadState)));
+    struct ThreadState* state = EXPECT_NONNULL(calloc(1, sizeof(struct ThreadState)));
     init_tid(state);
     state->pthread_id = pthread_id;
     init_paths(state);
@@ -301,6 +301,7 @@ static inline void drop_threads_after_fork() {
         uint8_t pthread_id_level0 = (pthread_id & 0xFF00) >> 8;
         uint8_t pthread_id_level1 = (pthread_id & 0x00FF);
         ThreadTable1* level1 = EXPECT_NONNULL(__thread_table[pthread_id_level0]);
+        // If state is null, then don't drop anything.
         struct ThreadState* state = EXPECT_NONNULL((*level1)[pthread_id_level1]);
         arena_drop_after_fork(&state->data_arena);
         arena_drop_after_fork(&state->ops_arena);
@@ -336,8 +337,8 @@ static inline void check_function_pointers() {
 }
 
 static inline void emit_init_epoch_op() {
-    static struct FixedPath cwd = {0};
-    static struct FixedPath exe = {0};
+    static struct FixedPath cwd = {};
+    static struct FixedPath exe = {};
     if (probe_libc_getcwd(cwd.bytes, PROBE_PATH_MAX).error) {
         ERROR("");
     }
@@ -394,26 +395,19 @@ void init_thread(PthreadID pthread_id) {
     emit_init_thread_op();
     ASSERTF(is_thread_inited(), "Failed to init thread");
 }
-void maybe_init_thread() { ASSERTF(is_thread_inited(), "Failed to init thread"); }
-
-void save_atexit() {
-    /* It seems pthread_getspecific is not valid atexit */
-    /* prov_log_save(); */
-}
 
 void init_after_fork() {
     ASSERTF(!is_proc_inited(), "Proccess already initialized");
     ASSERTF(__pid != 0, "Parent process not initialized");
     check_function_pointers();
     init_pid(true);
+    DEBUG("Initting after fork");
     uninit_process_context();
     init_process_context();
     create_epoch_dir();
     init_thread_state_key();
     drop_threads_after_fork();
     init_thread_state(0);
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    EXPECT(== 0, atexit(&save_atexit));
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
@@ -444,8 +438,6 @@ void constructor() {
     init_default_path();
     init_thread_state_key();
     init_thread_state(0);
-    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
-    EXPECT(== 0, atexit(&save_atexit));
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
@@ -460,5 +452,9 @@ void ensure_thread_initted() {
     if (!is_proc_inited()) {
         constructor();
     }
+    /* Currently, the thread should be initted by its creator.
+     * This is necessary because we assign a thread ID to it, and we need to get _that_ thread ID back when/if the thread gets joined.
+     * Buf if it comes down to it, we _could_ initialize it here, but we wouldn't be able to identify it when it gets joined.
+     * */
     ASSERTF(is_thread_inited(), "Thread not initialized");
 }

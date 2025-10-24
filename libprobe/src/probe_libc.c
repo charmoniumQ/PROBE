@@ -4,6 +4,7 @@
 
 #include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM¸ EWOULDBLOCK
 #include <fcntl.h>       // for O_RDONLY, O_CLOEXEC
+#include <features.h>    // for __GLIBC_MINOR__, __GLIBC__
 #include <limits.h>      // IWYU pragma: keep for SSIZE_MAX
 #include <linux/prctl.h> // for PR_*
 #include <stddef.h>      // for size_t, NULL
@@ -17,6 +18,12 @@
 // IWYU pragma: no_include "asm-generic/errno.h" for EWOULDBLOCK
 // IWYU pragma: no_include "elf.h" for AT_NULL, AT_PAGESZS
 // IWYU pragma: no_include "bits/posix1_lim.h" for SSIZE_MAX
+
+#if !defined(__GLIBC__) || __GLIBC_MINOR__ <= 34
+#define PR_GET_AUXV 0x41555856
+// cpp -E <(echo -e '#include <linux/prctl.h>\nPR_GET_AUXV') | tail --lines=1
+// See ./PROBE/docs/old-glibc.md
+#endif
 
 #include "../src/debug_logging.h" // for DEBUG, ERROR
 #ifndef UNIT_TESTS

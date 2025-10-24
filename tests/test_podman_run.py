@@ -1,9 +1,8 @@
 import asyncio
-import os
 import pathlib
 import shlex
-import subprocess
 import shutil
+import subprocess
 import sys
 import pytest
 
@@ -32,7 +31,7 @@ def nix_built_probe() -> pathlib.Path:
         capture_output=True,
         text=True,
     )
-    if proc.returncode == 0:
+    if proc.returncode != 0:
         raise ValueError(f"stderr: {proc.stderr}\n\nstdout: {proc.stdout}")
     return pathlib.Path(proc.stdout.strip())
 
@@ -41,7 +40,9 @@ def nix_built_probe() -> pathlib.Path:
 @pytest.mark.parametrize(
     "image",
     [
-        "ubuntu:22.04",
+        "ubuntu:12.04",
+        "debian:8",
+        "centos:7",
         # Alpine uses musl c, which should be interesting
     ],
 )
@@ -59,7 +60,9 @@ async def test_podman_run(
         "--rm",
         f"--volume={nix_store!s}:{nix_store!s}:ro",
         image,
-        probe, "record", "ls",
+        "sh",
+        "-c",
+        f"{probe} record ls ; {probe} record --overwrite env ; {probe} py export dataflow-graph",
     ]
     proc = await asyncio.create_subprocess_exec(
         *cmd,

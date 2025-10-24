@@ -76,12 +76,6 @@ fn inner_main() -> Result<ExitStatus> {
                         .value_parser(value_parser!(OsString))
                 )
                 .about("Invoke PROBE's python tooling"),
-            Command::new("__exec").hide(true).arg(
-                arg!(<CMD> ... "Command to run")
-                    .required(true)
-                    .trailing_var_arg(true)
-                    .value_parser(value_parser!(OsString)),
-            ),
         ])
         .get_matches();
 
@@ -127,17 +121,6 @@ fn inner_main() -> Result<ExitStatus> {
             .wrap_err("Transcribe command failed")?;
 
             Ok(ExitStatus::from_raw(0))
-        }
-        Some(("__exec", sub)) => {
-            let cmd = sub
-                .get_many::<OsString>("CMD")
-                .unwrap()
-                .cloned()
-                .collect::<Vec<_>>();
-
-            let e = exec::Command::new(&cmd[0]).args(&cmd[1..]).exec();
-
-            Err(e).wrap_err(format!("Shim failed to exec {:?}", cmd[0]))
         }
         Some(("py", sub)) => {
             let args = sub

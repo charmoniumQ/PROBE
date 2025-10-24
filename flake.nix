@@ -3,10 +3,17 @@
     nixpkgs = {
       url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     };
+    old-nixpkgs = {
+      # https://lazamar.co.uk/nix-versions/?channel=nixpkgs-unstable&package=glibc
+      # See PROBE/docs/old-glibc.md
+      # glibc = 2.33
+      url = "github:NixOS/nixpkgs/d1c3fea7ecbed758168787fe4e4a3157e52bc808";
+      # If pulling nixpkgs from 2020 or older, need to set flake = false.
+      flake = false;
+    };
     flake-utils = {
       url = "github:numtide/flake-utils";
     };
-
     cli-wrapper = {
       url = ./cli-wrapper;
       inputs = {
@@ -19,29 +26,40 @@
   outputs = {
     self,
     nixpkgs,
+    old-nixpkgs,
     flake-utils,
     cli-wrapper,
     ...
   } @ inputs: let
     supported-systems = import ./targets.nix;
-    probe-ver = "0.0.12";
+    probe-ver = "0.0.13";
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames supported-systems)
     (
       system: let
-        pkgs = import nixpkgs {inherit system;};
-        lib = nixpkgs.lib;
+        pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
-
-        cli-wrapper-pkgs = cli-wrapper.packages."${system}";
+        cli-wrapper-pkgs = cli-wrapper.packages.${system};
+        # IF flake = false, we need to do this instead
+        old-pkgs = import old-nixpkgs {inherit system;};
+        # Otherwise, if old-nixpkgs is a flake,
+        #old-pkgs = old-nixpkgs.legacyPackages.${system};
+        new-clang-old-glibc = pkgs.wrapCCWith {
+          cc = pkgs.clang;
+          bintools = pkgs.wrapBintoolsWith {
+            inherit (pkgs) bintools;
+            libc = old-pkgs.glibc;
+          };
+        };
+        old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
       in rec {
         packages = rec {
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
-          libprobe = pkgs.clangStdenv.mkDerivation rec {
+          libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
             version = probe-ver;
-            VERSION = version;
+            VERSION = probe-ver;
             src = ./libprobe;
             postUnpack = ''
               mkdir $sourceRoot/generated
@@ -57,10 +75,14 @@
             makeFlags = [
               "INSTALL_PREFIX=$(out)"
               "SOURCE_VERSION=v${version}"
+              # Somehow, old-stdenv is not enough.
+              # I must not be overriding it correctly.
+              # Explicitly set CC instead.
+              "CC=${new-clang-old-glibc}/bin/cc"
             ];
             doCheck = true;
             nativeCheckInputs = [
-              pkgs.criterion
+              old-pkgs.criterion
               pkgs.include-what-you-use
               pkgs.clang-analyzer
               pkgs.clang-tools
@@ -244,65 +266,87 @@
             pypkgs.pycparser
             pypkgs.pyelftools
           ]);
-        in {
-          default =
-            (cli-wrapper.lib."${system}".craneLib.devShell.override {
-              mkShell = pkgs.mkShellNoCC.override {
-                stdenv = pkgs.clangStdenv;
-              };
-            }) {
-              shellHook = ''
-                export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
-                export PROBE_BUILDAH="${pkgs.buildah}/bin/buildah"
-                export PROBE_PYTHON="${probe-python}/bin/python"
-                pushd $(git rev-parse --show-toplevel) > /dev/null
-                source ./setup_devshell.sh
-                popd > /dev/null
-              '';
-              inputsFrom = [
-                cli-wrapper-pkgs.probe-cli
-              ];
-              packages =
-                [
-                  # Rust tools
-                  pkgs.cargo-deny
-                  pkgs.cargo-audit
-                  pkgs.cargo-machete
-                  pkgs.cargo-hakari
+          shellHook = ''
+            export PROBE_BUILDAH="${pkgs.buildah}/bin/buildah"
+            export PROBE_PYTHON="${probe-python}/bin/python"
+            pushd $(git rev-parse --show-toplevel) > /dev/null
+            source ./setup_devshell.sh
+            popd > /dev/null
+          '';
+          shellPackages =
+            [
+              # Rust tools
+              pkgs.cargo-deny
+              pkgs.cargo-audit
+              pkgs.cargo-machete
+              pkgs.cargo-hakari
 
-                  # Replay tools
-                  pkgs.buildah
-                  pkgs.podman
+              # Replay tools
+              pkgs.buildah
+              pkgs.podman
 
-                  # Python env
-                  probe-python
+              # Python env
+              probe-python
 
-                  # C tools
-                  pkgs.clang-analyzer
-                  pkgs.clang-tools # must go after clang-analyzer
-                  pkgs.clang # must go after clang-tools
-                  pkgs.cppcheck
-                  pkgs.gnumake
-                  pkgs.git
-                  pkgs.include-what-you-use
-                  pkgs.libclang
-                  pkgs.criterion # unit testing framework
+              # C tools
+              pkgs.clang-analyzer
+              pkgs.clang-tools # must go after clang-analyzer
+              pkgs.cppcheck
+              pkgs.gnumake
+              pkgs.git
+              pkgs.include-what-you-use
+              old-pkgs.criterion # unit testing framework
 
-                  # Programs for testing
-                  pkgs.nix
-                  pkgs.coreutils
+              # Programs for testing
+              pkgs.nix
+              pkgs.coreutils
 
-                  # For other lints
-                  pkgs.alejandra
-                  pkgs.just
-                  pkgs.ruff
-                ]
-                # OpenJDK doesn't build on some platforms
-                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
-                ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
-                # gdb broken on apple silicon
-                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
-            };
+              # For other lints
+              pkgs.alejandra
+              pkgs.just
+              pkgs.ruff
+            ]
+            # OpenJDK doesn't build on some platforms
+            ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
+            ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
+            # gdb broken on apple silicon
+            ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
+        in rec {
+          # Instead, we use the new stdenv while explictly setting $CC.
+          # At runtime, programs, including libprobe, sees the new CC.
+          # As Glibc maintains backwards compatibility, "compile with old and run with new" should work.
+          # We have this because the Crane devshell changes some stuff, so we want to have a non-Crane devshell.
+          # Currently, it seems that the Crane one works though.
+          old-cc = pkgs.mkShell {
+            shellHook =
+              ''
+                export CC=${old-stdenv.cc}/bin/cc
+              ''
+              + shellHook;
+            packages = shellPackages;
+          };
+
+          # And instead of that, we use Crane's take on this.
+          # We used to override Crane's mkShell's stdenv,
+          #
+          #     (craneLib.devShell.override {
+          #       mkShell = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; };
+          #     }) { ... }
+          #
+          # But now that we explicitly set $CC in the shell hook, no need.
+          crane-old-cc = cli-wrapper.lib."${system}".craneLib.devShell {
+            inputsFrom = [
+              cli-wrapper-pkgs.probe-cli
+            ];
+            shellHook =
+              ''
+                export CC=${old-stdenv.cc}/bin/cc
+              ''
+              + shellHook;
+            packages = shellPackages;
+          };
+
+          default = crane-old-cc;
         };
       }
     );
