@@ -271,7 +271,10 @@ void free_thread_state(void* arg) {
     /* TODO: Insert exit op */
     arena_sync(&state->data_arena);
     arena_sync(&state->ops_arena);
+    uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
+    uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
     free(state);
+    (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
 }
 static inline void init_thread_state(PthreadID pthread_id) {
     struct ThreadState* state = EXPECT_NONNULL(malloc(sizeof(struct ThreadState)));
@@ -285,11 +288,12 @@ static inline void init_thread_state(PthreadID pthread_id) {
     uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
     uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
     if (!__thread_table[pthread_id_level0]) {
-        __thread_table[pthread_id_level0] = EXPECT_NONNULL(malloc(sizeof(ThreadTable1)));
+        __thread_table[pthread_id_level0] = EXPECT_NONNULL(calloc(1, sizeof(ThreadTable1)));
     }
     ThreadTable1* level1 = __thread_table[pthread_id_level0];
-    ASSERTF(!(*level1)[pthread_id_level1], "ThreadTable at %d (%d << 8 | %d) already occupied",
-            state->pthread_id, pthread_id_level0, pthread_id_level1);
+    ASSERTF(!((*level1)[pthread_id_level1]),
+            "ThreadTable at %d = %d << 8 | %d already occupied with %p", state->pthread_id,
+            pthread_id_level0, pthread_id_level1, (*level1)[pthread_id_level1]);
     (*level1)[pthread_id_level1] = state;
 }
 static inline void drop_threads_after_fork() {
