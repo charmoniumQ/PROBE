@@ -15,12 +15,10 @@ void* pthread_helper(void* restrict uncasted_arg) {
     void* inner_arg = pthread_helper_arg->arg;
     struct PthreadReturnVal* pthread_return_val =
         EXPECT_NONNULL(malloc(sizeof(struct PthreadReturnVal)));
-    DEBUG("pthread_return_val for %d = %p = malloc()", pthread_helper_arg->pthread_id,
-          pthread_return_val);
     pthread_return_val->type_id = PTHREAD_RETURN_VAL_TYPE_ID;
     pthread_return_val->pthread_id = pthread_helper_arg->pthread_id;
     pthread_return_val->inner_ret = pthread_helper_arg->start_routine(inner_arg);
-    LOG_FREE(pthread_helper_arg);
+    free(pthread_helper_arg);
     return pthread_return_val;
 }
 

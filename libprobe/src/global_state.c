@@ -273,7 +273,7 @@ void free_thread_state(void* arg) {
     arena_sync(&state->ops_arena);
     uint8_t pthread_id_level0 = (state->pthread_id & 0xFF00) >> 8;
     uint8_t pthread_id_level1 = (state->pthread_id & 0x00FF);
-    LOG_FREE(state);
+    free(state);
     (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
 }
 static inline void init_thread_state(PthreadID pthread_id) {
@@ -320,7 +320,7 @@ static inline void drop_threads_after_fork() {
         if (state) {
             arena_drop_after_fork(&state->data_arena);
             arena_drop_after_fork(&state->ops_arena);
-            LOG_FREE(state);
+            free(state);
             (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
         }
         /* We free the actual ThreadState and NULL out the dangling pointer.
@@ -384,11 +384,8 @@ static inline void emit_init_epoch_op() {
         0,
         0,
     };
-    DEBUG("");
     prov_log_try(init_epoch_op);
-    DEBUG("");
     prov_log_record(init_epoch_op);
-    DEBUG("");
     free(cmdline.value);
 }
 
@@ -411,9 +408,7 @@ bool is_proc_inited() {
 void init_thread(PthreadID pthread_id) {
     ASSERTF(is_proc_inited(), "Process not inited");
     init_thread_state(pthread_id);
-    DEBUG("");
     emit_init_thread_op();
-    DEBUG("");
     ASSERTF(is_thread_inited(), "Failed to init thread");
 }
 void maybe_init_thread() { ASSERTF(is_thread_inited(), "Failed to init thread"); }
@@ -430,7 +425,6 @@ void init_after_fork() {
     init_thread_state_key();
     drop_threads_after_fork();
     init_thread_state(0);
-    DEBUG("");
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
@@ -456,12 +450,9 @@ void constructor() {
     init_default_path();
     init_thread_state_key();
     init_thread_state(0);
-    DEBUG("");
     ASSERTF(is_proc_inited(), "Failed to init proc");
-    DEBUG("");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
-    DEBUG("");
     emit_init_thread_op();
     DEBUG("Done with construction");
 }
