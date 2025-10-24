@@ -697,13 +697,6 @@
             shift
             echo "$input" | "$@"
           '';
-          write-stdin-file = pkgs.writeShellScriptBin "write-stdin-file" ''
-            if [ "$#" -ne 1 ]; then
-              echo "Usage: write-file file_dest.txt"
-              exit 1
-            fi
-            cat >"$1"
-          '';
           write-file = pkgs.writeShellScriptBin "write-file" ''
             if [ "$#" -ne 2 ]; then
               echo "Usage: write-file 'text of file' file_dest.txt"
@@ -835,7 +828,6 @@
               python.pkgs.requests
               python.pkgs.pyyaml
               python.pkgs.pyelftools
-              python.pkgs.setuptools
             ];
             pythonImportsCheck = [pname];
           };
