@@ -1,8 +1,8 @@
 import asyncio
 import pathlib
 import shlex
-import subprocess
 import shutil
+import subprocess
 import sys
 import pytest
 
@@ -60,7 +60,9 @@ async def test_podman_run(
         "--rm",
         f"--volume={nix_store!s}:{nix_store!s}:ro",
         image,
-        probe, "record", "ls",
+        "sh",
+        "-c",
+        f"{probe} record ls ; {probe} record --overwrite env ; {probe} py export dataflow-graph",
     ]
     proc = await asyncio.create_subprocess_exec(
         *cmd,
