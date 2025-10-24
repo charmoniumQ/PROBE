@@ -193,6 +193,7 @@
                   with ps; [
                     pytest
                     pytest-timeout
+                    pytest-asyncio
                     packages.probe-py
                   ]))
                 pkgs.buildah
@@ -263,8 +264,6 @@
               ];
               packages =
                 [
-                  pkgs.nix
-
                   # Rust tools
                   pkgs.cargo-deny
                   pkgs.cargo-audit
@@ -275,6 +274,7 @@
                   pkgs.buildah
                   pkgs.podman
 
+                  # Python env
                   probe-python
 
                   # C tools
@@ -288,7 +288,11 @@
                   pkgs.libclang
                   pkgs.criterion # unit testing framework
 
+                  # Programs for testing
+                  pkgs.nix
                   pkgs.coreutils
+
+                  # For other lints
                   pkgs.alejandra
                   pkgs.just
                   pkgs.ruff
