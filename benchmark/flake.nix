@@ -697,6 +697,13 @@
             shift
             echo "$input" | "$@"
           '';
+          write-stdin-file = pkgs.writeShellScriptBin "write-stdin-file" ''
+            if [ "$#" -ne 1 ]; then
+              echo "Usage: write-file file_dest.txt"
+              exit 1
+            fi
+            cat >"$1"
+          '';
           write-file = pkgs.writeShellScriptBin "write-file" ''
             if [ "$#" -ne 2 ]; then
               echo "Usage: write-file 'text of file' file_dest.txt"
@@ -828,17 +835,9 @@
               python.pkgs.requests
               python.pkgs.pyyaml
               python.pkgs.pyelftools
+              python.pkgs.setuptools
             ];
             pythonImportsCheck = [pname];
-          };
-          quantum-espresso-env = pkgs.symlinkJoin {
-            name = "quantum-espresso-env";
-            paths = [
-              pkgs.coreutils
-              pkgs.bash
-              pkgs.gnused
-              pkgs.quantum-espresso
-            ];
           };
           reprounzip-docker = python.pkgs.buildPythonPackage rec {
             pname = "reprounzip-docker";
@@ -851,6 +850,10 @@
             doCheck = false;
             propagatedBuildInputs = [rpaths reprounzip python.pkgs.distutils];
             pythonImportsCheck = ["reprounzip.unpackers.docker"];
+          };
+          reprozip-all = pkgs.buildEnv {
+            name = "reprozip-all";
+            paths = [reprozip reprounzip reprounzip-docker];
           };
           provenance-to-use = pkgs.stdenv.mkDerivation rec {
             pname = "provenance-to-use";
@@ -934,6 +937,15 @@
           linux-src-tar = pkgs.fetchurl {
             url = "https://github.com/torvalds/linux/archive/refs/tags/v6.13-rc7.tar.gz";
             hash = "sha256-LuSbD9fZtVbdImyjiCsMCx9ftb0p9gQOYobZrxD5ZvA=";
+          };
+          quantum-espresso-env = pkgs.symlinkJoin {
+            name = "quantum-espresso-env";
+            paths = [
+              pkgs.coreutils
+              pkgs.bash
+              pkgs.gnused
+              pkgs.quantum-espresso
+            ];
           };
           quantum-espresso-scripts = pkgs.stdenv.mkDerivation {
             name = "quantum-espresso-scripts";
