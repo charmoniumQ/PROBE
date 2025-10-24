@@ -256,7 +256,9 @@ pub enum OpInternal {
     #[serde(untagged)]
     CloneOp(CloneOp),
     #[serde(untagged)]
-    ExitOp(ExitOp),
+    ExitProcessOp(ExitProcessOp),
+    #[serde(untagged)]
+    ExitThreadOp(ExitThreadOp),
     #[serde(untagged)]
     AccessOp(AccessOp),
     #[serde(untagged)]
@@ -265,8 +267,6 @@ pub enum OpInternal {
     ReaddirOp(ReaddirOp),
     #[serde(untagged)]
     WaitOp(WaitOp),
-    #[serde(untagged)]
-    GetRUsageOp(GetRUsageOp),
     #[serde(untagged)]
     UpdateMetadataOp(UpdateMetadataOp),
     #[serde(untagged)]
@@ -304,14 +304,12 @@ impl FfiFrom<C_Op> for OpInternal {
             C_OpCode_exec_op_code => Self::ExecOp(unsafe { value.exec }.ffi_into(ctx)?),
             C_OpCode_spawn_op_code => Self::SpawnOp(unsafe { value.spawn }.ffi_into(ctx)?),
             C_OpCode_clone_op_code => Self::CloneOp(unsafe { value.clone }.ffi_into(ctx)?),
-            C_OpCode_exit_op_code => Self::ExitOp(unsafe { value.exit }.ffi_into(ctx)?),
+            C_OpCode_exit_process_op_code => Self::ExitProcessOp(unsafe { value.exit_process }.ffi_into(ctx)?),
+            C_OpCode_exit_thread_op_code => Self::ExitThreadOp(unsafe { value.exit_thread }.ffi_into(ctx)?),
             C_OpCode_access_op_code => Self::AccessOp(unsafe { value.access }.ffi_into(ctx)?),
             C_OpCode_stat_op_code => Self::StatOp(unsafe { value.stat }.ffi_into(ctx)?),
             C_OpCode_readdir_op_code => Self::ReaddirOp(unsafe { value.readdir }.ffi_into(ctx)?),
             C_OpCode_wait_op_code => Self::WaitOp(unsafe { value.wait }.ffi_into(ctx)?),
-            C_OpCode_getrusage_op_code => {
-                Self::GetRUsageOp(unsafe { value.getrusage }.ffi_into(ctx)?)
-            }
             C_OpCode_update_metadata_op_code => {
                 Self::UpdateMetadataOp(unsafe { value.update_metadata }.ffi_into(ctx)?)
             }
@@ -392,14 +390,4 @@ mod tests {
         assert_eq!(libc::AT_FDCWD, -100);
     }
 
-    // since we're defining a custom version of the rusage struct (indirectly through rust-bindgen)
-    // we should at least check that they're the same size.
-    // FIXME: muslc has a different sized rusage struct so libc::rusage doesn't match
-    // #[test]
-    // fn rusage_size() {
-    //     assert_eq!(
-    //         std::mem::size_of::<libc::rusage>(),
-    //         std::mem::size_of::<C_rusage>()
-    //     );
-    // }
 }
