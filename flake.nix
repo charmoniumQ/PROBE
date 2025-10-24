@@ -58,9 +58,20 @@
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
-            name = "${pname}-${version}";
             version = probe-ver;
+            VERSION = probe-ver;
             src = ./libprobe;
+            postUnpack = ''
+              mkdir $sourceRoot/generated
+              cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
+            '';
+            nativeBuildInputs = [
+              pkgs.git
+              (python.withPackages (pypkgs: [
+                pypkgs.pycparser
+                pypkgs.pyelftools
+              ]))
+            ];
             makeFlags = [
               "INSTALL_PREFIX=$(out)"
               "SOURCE_VERSION=v${version}"
@@ -97,18 +108,6 @@
 
               make check
             '';
-            nativeBuildInputs = [
-              pkgs.git
-              (python.withPackages (pypkgs: [
-                pypkgs.pycparser
-                pypkgs.pyelftools
-              ]))
-            ];
-            postUnpack = ''
-              mkdir $sourceRoot/generated
-              cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
-            '';
-            VERSION = version;
           };
           probe = pkgs.stdenv.mkDerivation rec {
             pname = "probe";

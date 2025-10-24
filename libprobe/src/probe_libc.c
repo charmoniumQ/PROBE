@@ -7,7 +7,6 @@
 #include <features.h>    // for __GLIBC_MINOR__, __GLIBC__
 #include <limits.h>      // IWYU pragma: keep for SSIZE_MAX
 #include <linux/prctl.h> // for PR_*
-#include <pthread.h>
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
 #include <stdio.h>       // for sprintf
