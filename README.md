@@ -14,9 +14,6 @@ The provenance graph can help us re-execute the program, containerize the progra
 
    ```bash
    curl -fsSL https://install.determinate.systems/nix | sh -s -- install
-
-   # In container,
-   #curl -fsSL https://install.determinate.systems/nix | sh -s -- install linux --extra-conf "sandbox = false" --init none --no-confirm
    ```
    
 2. Re-log-in or activate Nix in the current shell.
@@ -28,20 +25,16 @@ The provenance graph can help us re-execute the program, containerize the progra
 3. Optionally, use our public binary cache to speed up the installation.
 
    ```bash
-   nix profile install --accept-flake-config nixpkgs#cachix
+   nix profile add --accept-flake-config nixpkgs#cachix
    cachix use charmonium
    ```
 
 4. Install PROBE or run PROBE without permanently installing. In the latter case, the
 
    ```bash
-   nix profile install github:charmoniumQ/PROBE
+   nix profile add github:charmoniumQ/PROBE
    probe --help
    
-   # Or run without installing.
-   # Nix will install PROBE into a virtual environment that is only activated in the current shell.
-   #nix run github:charmoniumQ/PROBE -- [probe args go here]
-
    # Use `nix store gc` to reclaim disk space consumed by the previous command's virtual environment.
    ```
 

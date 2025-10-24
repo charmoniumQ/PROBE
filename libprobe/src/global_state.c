@@ -425,6 +425,7 @@ void init_after_fork() {
     init_thread_state_key();
     drop_threads_after_fork();
     init_thread_state(0);
+    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
@@ -450,6 +451,7 @@ void constructor() {
     init_default_path();
     init_thread_state_key();
     init_thread_state(0);
+    EXPECT(== 0, pthread_atfork(NULL, NULL, &init_after_fork));
     ASSERTF(is_proc_inited(), "Failed to init proc");
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
