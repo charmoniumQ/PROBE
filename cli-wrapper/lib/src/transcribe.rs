@@ -201,7 +201,7 @@ pub fn parse_tid<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> R
         .filter_map(|entry_result| match entry_result {
             Ok(entry) => Some((entry.file_name(), entry)),
             Err(e) => {
-                log::warn!("Error reading DirEntry in TID directory: {}", e);
+                log::warn!("Error reading DirEntry in TID directory: {e}");
                 None
             }
         })
@@ -358,7 +358,7 @@ impl OpsArena<'_> {
 
         let count = (header.used - size_of::<ArenaHeader>()) / size_of::<C_Op>();
 
-        log::debug!("[unsafe] converting Vec<u8> to &[C_Op] of size {}", count);
+        log::debug!("[unsafe] converting Vec<u8> to &[C_Op] of size {count}");
         let ops = unsafe {
             let ptr = bytes.as_ptr().add(size_of::<ArenaHeader>()) as *const C_Op;
             std::slice::from_raw_parts(ptr, count)

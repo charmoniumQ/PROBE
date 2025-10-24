@@ -15,6 +15,7 @@
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
 #include "../generated/bindings.h"        // for CopyFiles
+#include "../generated/libc_hooks.h"      // for client_thrd_current
 #include "../include/libprobe/prov_ops.h" // for Op, Path, OpCode, Op::(ano...
 #include "arena.h"                        // for arena_sync, arena_calloc
 #include "debug_logging.h"                // for DEBUG, ASSERTF, DEBUG_LOG
@@ -206,7 +207,7 @@ void prov_log_record(struct Op op) {
         op.pthread_id = get_pthread_id();
     }
     if (op.iso_c_thread_id == 0) {
-        op.iso_c_thread_id = thrd_current();
+        op.iso_c_thread_id = client_thrd_current ? client_thrd_current() : 0;
     }
 
     /* TODO: we currently log ops by constructing them on the stack and copying them into the arena.

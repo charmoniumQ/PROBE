@@ -143,9 +143,6 @@ impl Recorder {
             (&libprobe_path).into()
         };
 
-        let self_bin =
-            std::env::current_exe().wrap_err("Failed to get path to current executable")?;
-
         let record_dir = tempfile::TempDir::new()?;
 
         /* We start `probe __exec $cmd` instead of `$cmd`
@@ -190,17 +187,14 @@ impl Recorder {
                     OsString::from("="),
                     record_dir.path().into(),
                 ]))
-                .arg("--init-eval-command=set environment LD_DEBUG=all")
+                // .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
-                .arg(self_bin)
-                .arg("__exec")
                 .args(&self.cmd)
                 .spawn()
                 .wrap_err("Failed to launch gdb")?
         } else {
-            std::process::Command::new(self_bin)
-                .arg("__exec")
-                .args(self.cmd)
+            std::process::Command::new(&self.cmd[0])
+                .args(&self.cmd[1..])
                 .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
                 // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
                 .env(

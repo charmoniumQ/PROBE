@@ -76,12 +76,6 @@ fn inner_main() -> Result<ExitStatus> {
                         .value_parser(value_parser!(OsString))
                 )
                 .about("Invoke PROBE's python tooling"),
-            Command::new("__exec").hide(true).arg(
-                arg!(<CMD> ... "Command to run")
-                    .required(true)
-                    .trailing_var_arg(true)
-                    .value_parser(value_parser!(OsString)),
-            ),
         ])
         .get_matches();
 
@@ -128,17 +122,6 @@ fn inner_main() -> Result<ExitStatus> {
 
             Ok(ExitStatus::from_raw(0))
         }
-        Some(("__exec", sub)) => {
-            let cmd = sub
-                .get_many::<OsString>("CMD")
-                .unwrap()
-                .cloned()
-                .collect::<Vec<_>>();
-
-            let e = exec::Command::new(&cmd[0]).args(&cmd[1..]).exec();
-
-            Err(e).wrap_err(format!("Shim failed to exec {:?}", cmd[0]))
-        }
         Some(("py", sub)) => {
             let args = sub
                 .get_many::<OsString>("CMD")
@@ -146,7 +129,12 @@ fn inner_main() -> Result<ExitStatus> {
                 .cloned()
                 .collect::<Vec<_>>();
 
-            std::process::Command::new("python3")
+            let path_to_probe_python = std::env::var("PATH_TO_PROBE_PYTHON").wrap_err(
+                "PATH_TO_PROBE_PYTHON not defined; are you using the Nix-built wrapper?"
+                    .to_string(),
+            )?;
+
+            std::process::Command::new(path_to_probe_python)
                 .arg("-m")
                 .arg("probe_py.cli")
                 .args(&args)

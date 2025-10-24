@@ -79,7 +79,7 @@ static inline void* open_and_mmap(const char* path, bool writable, size_t size) 
  * The rest of these variables are set up by ELF constructor.
  * Within one epoch, pointers are valid.
  */
-static struct FixedPath __probe_dir = {0};
+static struct FixedPath __probe_dir = {};
 static inline void init_probe_dir() {
     ASSERTF(__probe_dir.bytes[0] == '\0', "__probe_dir already initialized");
     const char* __probe_private_dir_env_val = probe_libc_getenv(PROBE_DIR_VAR);
@@ -160,8 +160,6 @@ static inline void init_process_context() {
     __process_context = open_and_mmap(path_buf, true, sizeof(struct ProcessContext));
     /* We increment the epoch here, so if there is an exec later on, the epoch is already incremented when they see it. */
     __process_context->epoch_no += 1;
-    DEBUG("__process_context = %p {.epoch = %d, pid_arena_path = %s}", __process_context,
-          __process_context->epoch_no, __process_context->pid_arena_path.bytes);
 }
 void uninit_process_context() {
     /* TODO: */
@@ -334,8 +332,8 @@ static inline void check_function_pointers() {
 }
 
 static inline void emit_init_epoch_op() {
-    static struct FixedPath cwd = {0};
-    static struct FixedPath exe = {0};
+    static struct FixedPath cwd = {};
+    static struct FixedPath exe = {};
     if (probe_libc_getcwd(cwd.bytes, PROBE_PATH_MAX).error) {
         ERROR("");
     }
@@ -404,6 +402,7 @@ void init_after_fork() {
     ASSERTF(__pid != 0, "Parent process not initialized");
     check_function_pointers();
     init_pid(true);
+    DEBUG("Initting after fork");
     uninit_process_context();
     init_process_context();
     create_epoch_dir();
@@ -418,12 +417,8 @@ void init_after_fork() {
     emit_init_thread_op();
 }
 
-void ensure_thread_initted() {
-    ASSERTF(is_proc_inited(), "Process not initialized");
-    ASSERTF(is_thread_inited(), "Thread not initialized");
-}
-
-__attribute__((constructor)) void constructor() {
+/** Fully remove __attribute__((constructor)), which appears unreliable in ubuntu:24.04 Podman container */
+void constructor() {
     DEBUG("Initializing internal libc");
     if (probe_libc_init() != 0) {
         ERROR("Failed to initialize probe_libc (no procfs?)");
@@ -448,4 +443,11 @@ __attribute__((constructor)) void constructor() {
     emit_init_epoch_op();
     emit_init_thread_op();
     DEBUG("Done with construction");
+}
+
+void ensure_thread_initted() {
+    if (!is_proc_inited()) {
+        constructor();
+    }
+    ASSERTF(is_thread_inited(), "Thread not initialized");
 }

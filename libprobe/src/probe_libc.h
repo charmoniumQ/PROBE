@@ -2,6 +2,7 @@
 
 #define _GNU_SOURCE
 
+#include <pthread.h>   // for pthread_cond_t, pthread_mutex_t
 #include <stddef.h>    // for size_t
 #include <sys/types.h> // for pid_t, ssize_t, off_t
 // IWYU pragma: no_include "unistd.h" for environ

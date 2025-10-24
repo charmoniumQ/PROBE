@@ -1,155 +1,62 @@
-import typing
-import tempfile
-import sys
-import collections.abc
-import subprocess
-import shlex
-import pathlib
 import asyncio
+import pathlib
+import shlex
+import subprocess
+import sys
+import typing
 import pytest
 
 
-project_root = pathlib.Path(__file__).resolve().parent.parent.parent
+@pytest.fixture(scope="session")
+def nix_built_probe() -> pathlib.Path:
+    cmd = ["nix", "build", "--no-link", "--print-out-paths", ".#probe"]
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return pathlib.Path(proc.stdout.strip())
 
 
-_T = typing.TypeVar("_T")
 
-
-def as_completed_with_concurrency(
-        n: int,
-        coros: typing.Iterable[collections.abc.Awaitable[_T]],
-) -> typing.Iterator[asyncio.Future[_T]]:
-    semaphore = asyncio.Semaphore(n)
-    async def sem_coro(coro: collections.abc.Awaitable[_T]) -> _T:
-        async with semaphore:
-            return await coro
-    return asyncio.as_completed([sem_coro(c) for c in coros])
-
-
-async def run_in_docker(
-        name: str,
+#@pytest.mark.skip(reason="Very slow")
+@pytest.mark.parametrize(
+    "image",
+    [
+        "ubuntu:12.04",
+        "debian:8",
+        "centos:7",
+        # Alpine uses musl c, which should be interesting
+    ],
+)
+@pytest.mark.asyncio
+async def test_podman_run(
         image: str,
-        tag: str,
-        script: list[list[list[str]]],
-        test: list[list[str]],
-        capture_output: bool,
-        clean: bool,
-) -> tuple[str, bool, bytes, bytes]:
-    dockerfile = "\n".join([
-        f"FROM {image}:{tag}",
-        *[
-            "RUN " + " && ".join(
-                shlex.join(line).replace("double-pipe", "||")
-                for line in group
-            )
-            for group in script
-        ],
-    ])
-    temp_dir = pathlib.Path(tempfile.mkdtemp())
-    (temp_dir / "Dockerfile").write_text(dockerfile)
+        nix_built_probe: pathlib.Path,
+) -> None:
+    _nix_built_probe = nix_built_probe
+    nix_store = _nix_built_probe.parent
+    cmd = [
+        "podman",
+        "run",
+        "--rm",
+        f"--volume={nix_store!s}:{nix_store!s}:ro",
+        image,
+        str(_nix_built_probe / "bin/probe"),
+        "record",
+        "env",
+        "ls",
+    ]
     proc = await asyncio.create_subprocess_exec(
-        *["podman", "build", "--tag", name, str(temp_dir)],
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.PIPE if capture_output else None,
-    )
-    if capture_output:
-        stdout, stderr = await proc.communicate()
-    else:
-        stdout, stderr = b"", b""
-
-    await proc.wait()
-
-    if proc.returncode != 0:
-        return name, False, stdout, stderr
-
-    test_str = " && ".join(
-        shlex.join(line)
-        for line in test
-    )
-    args = ["podman", "run", "--rm", "--volume", f"{project_root}:{project_root}:ro", name, "bash", "-c", test_str]
-    proc = await asyncio.create_subprocess_exec(
-        *args,
+        *cmd,
         stdin=None,
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.PIPE if capture_output else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    if capture_output:
-        result = await proc.communicate()
-    else:
-        result = b"", b""
-
-    stdout += result[0]
-    stderr += result[1]
-
-    await proc.wait()
-
-    return name, not proc.returncode, stdout, stderr
-
-
-images = [
-    ("ubuntu", ["24.04"], [[
-        ["apt-get", "update"],
-        ["DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "curl"],
-        ["rm", "--recursive", "--force", "/var/lib/apt/lists/*"]
-    ]]),
-    # ("debian", ["8.0", "unstable-slim"], [[
-    #     ["apt-get", "update"],
-    #     ["DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "curl"],
-    #     ["rm", "--recursive", "--force", "/var/lib/apt/lists/*"]
-    # ]]),
-    # ("fedora-slim", ["23", "41"], []),
-    # Alpine uses musl c, which should be interesting
-    # ("alpine", ["2.6", "3.20"], []),
-]
-
-
-script = [
-    # shlex.quote("|") -> "'|'", which is wrong, so instead we will write the word pipe.
-    [
-        ["curl", "--proto", "=https", "--tlsv1.2", "-sSf", "-o", "nix-installer", "-L", "https://install.determinate.systems/nix"],
-        ["sh", "nix-installer", "install", "linux", "--no-confirm", "--init", "none"],
-    ],
-    [
-        [".", "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"],
-        ["export", "USER=root"],
-        ["nix", "profile", "install", "--accept-flake-config", "nixpkgs#cachix"],
-        ["cachix", "use", "charmonium"],
-    ],
-    [
-        ["export", "USER=root"],
-        [".", "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"],
-        ["nix", "build", "-L", "github:charmoniumQ/PROBE#probe-bundled", "double-pipe", "true"],
-    ],
-]
-
-test = [
-    ["export", "USER=root"],
-    [".", "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"],
-    ["nix", "profile", "install", "-L", f"{project_root}#probe-bundled"],
-    ["probe", "record", "-f", "stat", "."]
-]
-
-
-@pytest.mark.skip("This test takes a long time")
-async def test_docker(max_concurrency: int = 1, capture_output: bool = True) -> None:
-    results = as_completed_with_concurrency(max_concurrency, [
-        run_in_docker(
-            f"probe-{image}-{tag}",
-            image,
-            tag,
-            pre_script + script,
-            test,
-            capture_output,
-            clean=False,
-        )
-        for image, tags, pre_script in images
-        for tag in tags
-    ])
-    for result in results:
-        image, success, stdout, stderr = await result
-        if not success:
-            print(image, "failed")
-            sys.stdout.buffer.write(stdout)
-            sys.stderr.buffer.write(stderr)
-            print("\n")
-            assert success, f"{image} failed"
+    stdout, stderr = await proc.communicate()
+    return_code = await proc.wait()
+    if return_code != 0:
+        sys.stdout.buffer.write(stdout)
+        sys.stdout.buffer.write(stderr)
+        raise RuntimeError(f"Process '{shlex.join(cmd)} exited with {return_code}")

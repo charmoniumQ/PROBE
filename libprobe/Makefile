@@ -1,18 +1,20 @@
-CC ?= clang
-VERSION ?= $(shell git rev-parse --short HEAD)
+VERSION ?= git=$(shell git rev-parse --short HEAD)
 CFLAGS := \
     $(CFLAGS) \
     -DSOURCE_VERSION=\"$(VERSION)\" \
     -fvisibility=hidden \
     -Werror \
-    -Wall -Wextra \
-    -Wno-unused-command-line-argument \
+    -Wall \
+    -Wextra \
     -fstrict-aliasing
 # musl-clang wrapper triggers -Wno-unused-command-line-argument.
 # But musl with clang (normal invocation) does not.
 
 DBGCFLAGS := -Og -g       -fpic
 OPTCFLAGS := -O3 -DNDEBUG -fPIC
+OPTLDFLAGS := -flto -fpic
+DBGLDFLAGS := -fno-lto -fPIC
+LDFLAGS := -lpthread -pthread -ldl
 GENERATED_SOURCE_FILES := generated/libc_hooks.c
 GENERATED_HEADER_FILES := generated/libc_hooks.h
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
@@ -32,10 +34,12 @@ generated: $(GENERATED_FILES)
 .PHONY: generated
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
-	$(CC) -MJ $@.compile_command.json -flto    -fpic -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
+	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(OPTLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
+	patchelf --remove-rpath $@
 
 $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o)) $(MAKEFILE_LIST)
-	$(CC) -MJ $@.compile_command.json -fno-lto -fPIC -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
+	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(DBGLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
+	patchelf --remove-rpath $@
 
 $(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)
@@ -67,16 +71,35 @@ $(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests
 	$(CC) -MJ $@.compile_command.json -fno-lto $(CFLAGS) $(DBGFLAGS) -o $@ -Isrc -lcriterion $<
 
 check: compile_commands.json $(GENERATED_FILES) tests
+	if [ "$$SKIP_FORMAT" = 1 ]; then \
+	    echo "Skipping clang-format"; \
+	else \
+	    if ! clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES); then \
+	        echo 'Try `make format`'; \
+	        exit 1; \
+	    fi \
+	fi
 	python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=5
-	test GLIBC_2.34 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
+	test GLIBC_2.14 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
-	clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES)
-	echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1 -Wno-macro-redefined
+	if [ "$$SKIP_IWYU" = 1 ]; then \
+	    echo "Skipping IWYU"; \
+	else \
+	    echo $(SOURCE_FILES) $(HEADER_FILES) | xargs --max-args 1 include-what-you-use -Xiwyu --error=1 -Wno-macro-redefined; \
+	fi
 	clang-tidy  $(SOURCE_FILES)
 	python3 ./check_hooked_fns.py $(MANUAL_SOURCE_FILES)
-	python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so
+	if [ "$$SKIP_CHECK_NEEDED_SYMS" = 1 ]; then \
+	    echo "Skipping check_needed_syms.py"; \
+	else \
+		python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so; \
+	fi
 	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
-	$(BUILD_DIR)/probe_libc_tests --verbose --timeout 5
+	if [ "$$SKIP_UNITTESTS" = 1 ]; then \
+	    echo "Skipping unit test"; \
+	else \
+	    $(BUILD_DIR)/probe_libc_tests --verbose --timeout 5; \
+	fi
 
 #	cppclean    $(SOURCE_FILES)
 # Currently, cppclean does not provide a mechanism to disable warnings.

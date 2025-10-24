@@ -200,12 +200,10 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
     }
 }
 
-static const size_t MAX_OPCODE_STRING_LENGTH = 100;
+static const size_t MAX_OPCODE_STRING_LENGTH = 256;
 
 int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
-    return CHECK_SNPRINTF(
-        buffer, buffer_length, "dirfd=%d, path=\"%s\", stat_valid=%d, dirfd_valid=%d",
-        path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, path->stat_valid, path->dirfd_valid);
+    return CHECK_SNPRINTF(buffer, buffer_length, "%60s", path->path);
 }
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
@@ -229,18 +227,14 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
             CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
         dest += fd_size;
         size -= fd_size;
-    }
-
-    if (op->op_code == init_exec_epoch_op_code) {
+    } else if (op->op_code == init_exec_epoch_op_code) {
         int fd_size =
-            CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_exec_epoch.pid,
+            CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d ", op->data.init_exec_epoch.pid,
                            op->data.init_exec_epoch.parent_pid);
         dest += fd_size;
         size -= fd_size;
-    }
-
-    if (op->op_code == close_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d", op->data.close.fd);
+    } else if (op->op_code == close_op_code) {
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.fd);
         dest += fd_size;
         size -= fd_size;
     }
