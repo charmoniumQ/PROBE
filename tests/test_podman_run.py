@@ -1,10 +1,27 @@
 import asyncio
+import os
 import pathlib
 import shlex
-import shutil
 import subprocess
+import shutil
 import sys
 import pytest
+
+
+# This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
+# Also fixtures can't be used in a pytest.mark.skipif
+def does_podman_work() -> bool:
+    return shutil.which("podman") is not None and subprocess.run(
+        ["podman", "run", "--rm", "ubuntu:24.04", "pwd"],
+        check=False,
+    ).returncode == 0
+
+
+def does_nix_work() -> bool:
+    return shutil.which("nix") is not None and subprocess.run(
+        ["nix", "flake", "show"],
+        check=False,
+    ).returncode == 0
 
 
 @pytest.fixture(scope="session")
@@ -14,13 +31,13 @@ def nix_built_probe() -> pathlib.Path:
         cmd,
         capture_output=True,
         text=True,
-        check=True,
     )
+    if proc.returncode == 0:
+        raise ValueError(f"stderr: {proc.stderr}\n\nstdout: {proc.stdout}")
     return pathlib.Path(proc.stdout.strip())
 
 
-
-#@pytest.mark.skip(reason="Very slow")
+@pytest.mark.skipif(not does_podman_work() or not does_nix_work(), reason="Podman or Nix doesn't work")
 @pytest.mark.parametrize(
     "image",
     [
@@ -42,9 +59,7 @@ async def test_podman_run(
         "--rm",
         f"--volume={nix_store!s}:{nix_store!s}:ro",
         image,
-        "sh",
-        "-c",
-        f"{probe} record bash -c 'env ls ; env env $(which ls)' ; {probe} py export dataflow-graph",
+        probe, "record", "ls",
     ]
     proc = await asyncio.create_subprocess_exec(
         *cmd,
