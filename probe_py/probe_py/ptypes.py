@@ -54,16 +54,16 @@ class Host:
         # This ID uniquely identifies the host. It should be considered "confidential".
         # If a stable unique identifier that is tied to the machine is needed for some application,
         # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
-        if consts.SYSTEMD_MACHINE_ID.exists():
-            machine_id_bytes = int(consts.SYSTEMD_MACHINE_ID.read_text().strip(), 16).to_bytes(16)
+        if consts.SYSTEMD_MACHINE_ID.exists() and (data := consts.SYSTEMD_MACHINE_ID.read_text().strip()):
+            machine_id_bytes = int(data, 16).to_bytes(16)
             hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)
             return Host(socket.gethostname(), hashed_machine_id)
         else:
             # In containers and GitHub CI, SystemD machine-id may not exist.
             # Our alternative is to create a random iD, and store it in a persistent location
             alternative_machine_id = consts.get_state_dir() / "machine-id"
-            if alternative_machine_id.exists():
-                return Host(socket.gethostname(), int(alternative_machine_id.read_text(), 16))
+            if alternative_machine_id.exists() and (data := alternative_machine_id.read_text().strip()):
+                return Host(socket.gethostname(), int(data, 16))
             else:
                 alternative_machine_id.parent.mkdir(exist_ok=True, parents=True)
                 machine_id = int.from_bytes(random.randbytes(8))

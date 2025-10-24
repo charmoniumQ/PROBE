@@ -201,12 +201,12 @@
                 pkgs.coreutils # so we can `probe record head ...`, etc.
                 pkgs.gnumake
                 pkgs.clang
+                pkgs.nix
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
               make --directory=examples/
-              export RUST_BAKCTRACE=1
-              pytest -v -W error
+              RUST_BAKCTRACE=1 pytest
             '';
             installPhase = "mkdir $out";
           };
@@ -237,6 +237,7 @@
             pypkgs.pytest-timeout
             pypkgs.mypy
             pypkgs.ipython
+            pypkgs.pytest-asyncio
 
             # libprobe build time requirement
             pypkgs.pycparser
@@ -262,6 +263,8 @@
               ];
               packages =
                 [
+                  pkgs.nix
+
                   # Rust tools
                   pkgs.cargo-deny
                   pkgs.cargo-audit

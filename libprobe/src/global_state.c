@@ -416,7 +416,12 @@ void init_after_fork() {
     emit_init_thread_op();
 }
 
-/** Fully remove __attribute__((constructor)), which appears unreliable in ubuntu:24.04 Podman container */
+// See ./docs/notes.md
+#define LIB_CONSTRUCTOR 0
+
+#if LIB_CONSTRUCTOR == 1
+__attribute__((constructor))
+#endif
 void constructor() {
     DEBUG("Initializing internal libc");
     if (probe_libc_init() != 0) {
@@ -445,6 +450,9 @@ void constructor() {
 }
 
 void ensure_thread_initted() {
+#if LIB_CONSTRUCTOR == 1
+    ASSERTF(is_proc_inited(), "Thread not initialized");
+#endif
     if (!is_proc_inited()) {
         constructor();
     }
