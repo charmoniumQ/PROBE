@@ -205,6 +205,7 @@
                   with ps; [
                     pytest
                     pytest-timeout
+                    pytest-asyncio
                     packages.probe-py
                   ]))
                 pkgs.buildah
