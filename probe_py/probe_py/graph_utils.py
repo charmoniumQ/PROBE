@@ -9,6 +9,7 @@ import pathlib
 import random
 import networkx
 import pydot
+import tqdm
 from . import util
 
 
@@ -86,7 +87,8 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    return networkx.relabel_nodes(graph, dct)
+    ret = networkx.relabel_nodes(graph, dct)
+    return ret # type: ignore
 
 
 def serialize_graph(
@@ -96,10 +98,8 @@ def serialize_graph(
         cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
     if name_mapper is None:
-        name_mapper = typing.cast(
-            typing.Callable[[_Node], str],
-            lambda node: graph.nodes(data=True)[node].get("id", str(node)),
-        )
+        def name_mapper(node: _Node) -> str:
+            return str(graph.nodes(data=True)[node].get("id", node))
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
 
@@ -376,7 +376,7 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
 
 
 def get_faces(
-        planar_graph: networkx.PlanarEmbedding[_Node], # type: ignore
+        planar_graph: networkx.PlanarEmbedding[_Node],
 ) -> frozenset[tuple[_Node, ...]]:
     faces = set()
     covered_half_edges = set()
@@ -453,6 +453,40 @@ def add_edge_without_cycle(
         return edges
 
 
+def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
+    tc: networkx.DiGraph[_Node] = networkx.DiGraph()
+    node_order = list(networkx.topological_sort(dag))[::-1]
+    for src in tqdm.tqdm(node_order, desc="TC"):
+        tc.add_node(src)
+        for child in dag.successors(src):
+            tc.add_edge(src, child)
+            for grandchild in dag.successors(child):
+                tc.add_edge(src, grandchild)
+    return tc
+
+
+class GraphvizAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    shape: str
+
+
+class GraphvizNodeAttributes(typing.TypedDict):
+    label: str
+    labelfontsize: int
+    color: str
+    style: str
+
+
+class GraphvizEdgeAttributes(typing.TypedDict):
+    label: str
+    shape: str
+    color: str
+    style: str
+    labelfontsize: int
+
+
 def splice_out_nodes(
         input_dag: networkx.DiGraph[_Node],
         should_splice: typing.Callable[[_Node], bool],
@@ -476,7 +510,8 @@ def topological_sort_depth_first(
 ) -> typing.Iterable[_Node]:
     """Topological sort that breaks ties by depth first, and then by lowest child score."""
     queue = util.PriorityQueue[_Node, tuple[int, int]](
-        (node, (dag.in_degree(node), 0))
+        (node, (dag.in_degree(node), 0)) # type: ignore
+        # FIXME: get rid of type ignoring
         for node in dag.nodes()
     )
     counter = 0
