@@ -11,12 +11,13 @@ Run `just compile`.
 Add the following arguments to the `<FLAGS>` of `podman run <FLAGS> <IMG> [CMD]` or `docker run <FLAGS> <IMG> [CMD]`:
 
 ```
-    --env PROBE_LIB=$PROBE_LIB \
-    --env PROBE_PYTHONPATH=$PROB_PYTHONPATH \
-    --env PROBE_PYTHON=$PROBE_PYTHON \
-    --env probe=$(which probe) \
-    --volume=$PWD:$PWD:ro \
-    --volume=/nix/store:/nix/store:ro \
+--env PROBE_BUILDAH=$PROBE_BUILDAH \
+--env PROBE_LIB=$PROBE_LIB \
+--env PROBE_PYTHONPATH=$PROB_PYTHONPATH \
+--env PROBE_PYTHON=$PROBE_PYTHON \
+--env probe=$(which probe) \
+--volume=$PROBE_ROOT:$PROBE_ROOT:ro \
+--volume=/nix/store:/nix/store:ro \
 ```
 
 Once inside the container, run PROBE by `$probe record ...`. Make sure to single-quote `$probe` if you are passing it on the command-line. For example,
@@ -60,7 +61,7 @@ podman load --input $(nix build --print-out-paths --no-link '.#container-image')
 Now we can build the target `Containerfile`, setting `PROBE_VER` to whatever we wrote earlier, e.g.
 
 ```
-podman build --build-arg PROBE_VER=$(nix eval --raw .#probe.version)
+podman build --build-arg PROBE_VER=$(nix eval --raw .#probe.version) docs
 ```
 
 ## Building PROBE in a container
