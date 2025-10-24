@@ -267,9 +267,8 @@
             pypkgs.pyelftools
           ]);
           shellHook = ''
-                export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
-                export PROBE_BUILDAH="${pkgs.buildah}/bin/buildah"
-                export PROBE_PYTHON="${probe-python}/bin/python"
+            export PROBE_BUILDAH="${pkgs.buildah}/bin/buildah"
+            export PROBE_PYTHON="${probe-python}/bin/python"
             pushd $(git rev-parse --show-toplevel) > /dev/null
             source ./setup_devshell.sh
             popd > /dev/null
