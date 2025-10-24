@@ -133,6 +133,20 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
             ["cat", "file0", "file2", "redirect_to", "file3"],
         ),
     ),
+    "python_multiprocessing_threads": [
+        "python",
+        "-c",
+        "\n".join([
+            "import multiprocessing, threading",
+            'thread = threading.Thread(target=print, args=("hello from thread",))',
+            "thread.start()",
+            'proc = multiprocessing.Process(target=print, args=("hello from proc",))',
+            "proc.start()",
+            "proc.join()",
+            "thread.join()",
+            'print("done")',
+        ])
+    ],
 }
 
 
