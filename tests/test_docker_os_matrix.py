@@ -37,16 +37,16 @@ async def test_podman_run(
 ) -> None:
     _nix_built_probe = nix_built_probe
     nix_store = _nix_built_probe.parent
+    probe = str(_nix_built_probe / "bin/probe")
     cmd = [
         "podman",
         "run",
         "--rm",
         f"--volume={nix_store!s}:{nix_store!s}:ro",
         image,
-        str(_nix_built_probe / "bin/probe"),
-        "record",
-        "env",
-        "ls",
+        "sh",
+        "-c",
+        f"{probe} record ls ; {probe} record --overwrite env ; {probe} py export dataflow-graph",
     ]
     proc = await asyncio.create_subprocess_exec(
         *cmd,
