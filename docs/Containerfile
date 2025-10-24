@@ -1,0 +1,10 @@
+# Add PROBE container in a preceeding stage
+ARG PROBE_VER
+FROM probe:${PROBE_VER} AS probe
+
+FROM ubuntu:24.04
+
+# Other commands here
+
+COPY --from=probe /nix/store /nix/store
+COPY --from=probe /bin/probe /bin/probe

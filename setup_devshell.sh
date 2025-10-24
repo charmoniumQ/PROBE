@@ -33,5 +33,9 @@ fi
 export PATH="$project_root/cli-wrapper/target/debug:$PATH"
 
 # Add probe_py to the Python path
+# PYTHONPATH gets consumed by Python tooling
+# PROBE_PYTHONPATH gets consumed by `probe py` (works in situations where the environment needs a different `PYTHONPATH`)
+# MYPYPATH gets consumed by Mypy, which may be slightly different than the PYTHONPATH
 export PYTHONPATH="$project_root/probe_py/:$PYTHONPATH"
+export PROBE_PYTHONPATH=$PYTHONPATH
 export MYPYPATH="$project_root/probe_py/mypy_stubs:$project_root/probe_py/:$MYPYPATH"
