@@ -277,7 +277,7 @@ void free_thread_state(void* arg) {
     (*__thread_table[pthread_id_level0])[pthread_id_level1] = NULL;
 }
 static inline void init_thread_state(PthreadID pthread_id) {
-    struct ThreadState* state = EXPECT_NONNULL(malloc(1 * sizeof(struct ThreadState)));
+    struct ThreadState* state = EXPECT_NONNULL(calloc(1, sizeof(struct ThreadState)));
     init_tid(state);
     state->pthread_id = pthread_id;
     init_paths(state);
