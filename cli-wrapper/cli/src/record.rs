@@ -187,7 +187,6 @@ impl Recorder {
                     OsString::from("="),
                     record_dir.path().into(),
                 ]))
-                // .arg("--init-eval-command=set environment LD_DEBUG=all")
                 .arg("--args")
                 .args(&self.cmd)
                 .spawn()
@@ -196,7 +195,6 @@ impl Recorder {
             std::process::Command::new(&self.cmd[0])
                 .args(&self.cmd[1..])
                 .env(probe_headers::LD_PRELOAD_VAR, ld_preload)
-                // .envs((if self.debug { vec![("LD_DEBUG", "ALL")] } else {vec![]}).into_iter())
                 .env(
                     probe_headers::PROBE_DIR_VAR,
                     OsString::from(&record_dir.path()),
