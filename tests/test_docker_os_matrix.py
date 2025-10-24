@@ -1,9 +1,9 @@
 import asyncio
 import pathlib
 import shlex
+import shutil
 import subprocess
 import sys
-import typing
 import pytest
 
 
@@ -30,6 +30,7 @@ def nix_built_probe() -> pathlib.Path:
         # Alpine uses musl c, which should be interesting
     ],
 )
+@pytest.mark.skipif(shutil.which("nix") is None or shutil.which("podman") is None, reason="Nix or Podman not found")
 @pytest.mark.asyncio
 async def test_podman_run(
         image: str,
