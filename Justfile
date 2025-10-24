@@ -66,6 +66,6 @@ lint: lint-py lint-cli lint-lib lint-nix
 compile: compile-cli compile-lib compile-tests
 
 test: compile
-    python -m pytest tests/ probe_py/tests -ra --failed-first -v -W error --durations=0 --maxfail=1
+    python -m pytest -c tests/pytest.ini
 
 pre-commit: lint compile test
