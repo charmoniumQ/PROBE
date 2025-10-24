@@ -120,7 +120,11 @@ struct CloneOp {
     int ferrno;
 };
 
-struct ExitOp {
+struct ExitProcessOp {
+    int status;
+};
+
+struct ExitThreadOp {
     int status;
 };
 
@@ -201,12 +205,6 @@ struct WaitOp {
     int options;
     int status;
     bool cancelled;
-    int ferrno;
-};
-
-struct GetRUsageOp {
-    pid_t waitpid_arg;
-    int getrusage_arg;
     struct my_rusage usage;
     int ferrno;
 };
@@ -247,6 +245,7 @@ struct ReadLinkOp {
 };
 
 struct DupOp {
+    struct Path path;
     int old;
     int new;
     int flags;
@@ -280,6 +279,7 @@ struct RenameOp {
 enum FileType {
     DirFileType,
     FifoFileType,
+    PipeFileType,
 };
 
 struct MkFileOp {
@@ -301,12 +301,12 @@ enum OpCode {
     exec_op_code,
     spawn_op_code,
     clone_op_code,
-    exit_op_code,
+    exit_thread_op_code,
+    exit_process_op_code,
     access_op_code,
     stat_op_code,
     readdir_op_code,
     wait_op_code,
-    getrusage_op_code,
     update_metadata_op_code,
     read_link_op_code,
     dup_op_code,
@@ -329,12 +329,12 @@ struct Op {
         struct ExecOp exec;
         struct SpawnOp spawn;
         struct CloneOp clone;
-        struct ExitOp exit;
+        struct ExitThreadOp exit_thread;
+        struct ExitProcessOp exit_process;
         struct AccessOp access;
         struct StatOp stat;
         struct ReaddirOp readdir;
         struct WaitOp wait;
-        struct GetRUsageOp getrusage;
         struct UpdateMetadataOp update_metadata;
         struct ReadLinkOp read_link;
         struct DupOp dup;
