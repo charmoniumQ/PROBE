@@ -301,7 +301,8 @@
                 ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
                 ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
                 # gdb broken on apple silicon
-                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
+                ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb
+                ++ pkgs.lib.lists.optional (builtins.elem system pkgs.lib.platforms.linux) pkgs.elfutils;
             };
         };
       }
