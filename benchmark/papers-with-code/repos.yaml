@@ -1,0 +1,104 @@
+
+- name: neurve
+  location:
+    url: https://github.com/ekorman/neurve
+    commit: 1ea5661de2c89581e08fe9615a1d629a94cc281f
+  environment:
+    base_image: ubuntu:24.04
+    apt_packages:
+      - git-core
+      - curl
+    python: "3.12"
+    venv_commands:
+      - pip install .
+  commands:
+    - |
+        python experiments/simclr.py \
+              --dataset mnist \
+              --backbone resnet18 \
+              --dim_z 2 \
+              --n_charts 2 \
+              --n_epochs 1 \
+              --tau 1.0 \
+              --proj_dim 2 \
+              --out_path out
+    # - curl --output data/cars_annos.mat https://web.archive.org/web/20180303212712/http://imagenet.stanford.edu/internal/car196/cars_annos.mat
+    # - curl --output data/car_ims.tgz https://web.archive.org/web/20161112024817/http://imagenet.stanford.edu/internal/car196/car_ims.tgz
+    # # ^ Does not work.
+    # - tar --extract --gunzip --file=data/car_ims.tgz --directory=data/
+    # - time python data/make_car_folders.py
+    # - |
+    #    time python experiments/triplet.py \
+    #         --data_root data/cars/ \
+    #         --dim_z 2 \
+    #         --n_charts 4 \
+    #         --out_path out
+
+- name: d-vqa
+  note: Imagecaption Data not available.
+  location:
+    url: https://github.com/zhiquan-wen/d-vqa
+    commit: 688c4dcc811f49b431daea81406e628ec71a7247
+  environment:
+    base_image: ubuntu:18.04
+    python: "3.6"
+    apt_packages:
+      - wget
+      - unzip
+    venv_commands:
+      - pip install --requirement requirements.txt
+  commands:
+    - wget http://nlp.stanford.edu/data/glove.6B.zip
+    - unzip glove.6B.zip -d data/glove
+    - rm glove.6B.zip
+    # - wget --directory-prefix=data/coco https://web.archive.org/web/20220330060401/https://imagecaption.blob.core.windows.net/imagecaption/trainval_36.zip
+    # - unzip data/coco/trainval_36.zip -d data/coco/
+    # - rm data/coco/trainval_36.zip
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20200426171325/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_train_questions.json
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20200426181323/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_test_questions.json
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20220706075854/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_train_annotations.json
+    - wget --directory-prefix=data/vqacp2/ https://web.archive.org/web/20200426181113/https://computing.ece.vt.edu/~aish/vqacp/vqacp_v2_test_annotations.json
+    - env -C data python preprocess_features.py --input_tsv_folder xxx.tsv --output_h5 xxx.h5
+    - env -C data python feature_preprocess.py --input_h5 xxx.h5 --output_path trainval
+    - env -C data python create_dictionary.py --dataroot vqacp2/
+    - env -C data python preprocess_text.py --dataroot vqacp2/ --version v2
+    - CUDA_VISIBLE_DEVICES=0 python main.py --dataroot data/vqacp2/ --img_root data/coco/trainval_features --output saved_models_cp2/ --self_loss_weight 3 --self_loss_q 0.7 --ratio 0.1
+    - CUDA_VISIBLE_DEVICES=0 python test.py --dataroot data/vqacp2/ --img_root data/coco/trainval_features --checkpoint_path saved_models_cp2/best_model.pth --output saved_models_cp2/result/
+    - python comput_score.py --input saved_models_cp2/result/XX.json --dataroot data/vqacp2/
+
+- name: handler
+  location:
+    url: https://github.com/cvlab-stonybrook/HandLer
+    commit: 9bacb5046f917db0b5343667443e5f3499bd7591
+  environment:
+    python: "3.12"
+    apt_packages:
+      - g++
+      - python3.12-dev
+      - libjpeg-dev
+    venv_commands:
+      - pip install --upgrade pip
+      - pip install torch torchvision torchaudio --find-links https://download.pytorch.org/whl/torch_stable.html
+      - pip install --requirement requirements.txt
+      - pip install --no-build-isolation --editable .
+      - pip install fv_core
+  commands:
+    - cd projects/HandLer
+    - python train.py --config-file configs/yt_trk.yaml
+    - python tracking.py --cfg cfg --out_dir folders --weights weights --root_path dataset
+    - python evaluations.py results
+
+- name: allow
+  location:
+    url: https://github.com/dig-beihang/allow
+    commit: 7c9a9571d1c971c55122ab96ded7127a76282af4
+  environment:
+    base_image: ubuntu:18.04
+    python: "3.6"
+    apt_packages:
+      - git-core
+    venv_commands:
+      # Note: nonstandard name for requirements.txt
+      - pip install --requirement requirement.txt
+      - pip install torch
+      - pip install --no-build-isolation --editable .

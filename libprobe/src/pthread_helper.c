@@ -35,7 +35,6 @@ int thrd_helper(void* restrict uncasted_arg) {
     }
     struct ThrdHelperArg* thrd_helper_arg = uncasted_arg;
     int ret = thrd_helper_arg->func(thrd_helper_arg->arg);
-    free(thrd_helper_arg);
     prov_log_save();
     return ret;
 }
