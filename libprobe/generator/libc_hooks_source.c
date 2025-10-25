@@ -2150,8 +2150,8 @@ pid_t fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2189,8 +2189,8 @@ pid_t _Fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */;
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2221,7 +2221,7 @@ pid_t vfork (void) {
      *     client_code > wrapped_vfork
      *     client_code
      *     client_code > wrapped_exec
-     *     client_code > wrapped_exec > real_vfork
+     *     client_code > wrapped_exec > real_exec
      *     client_code > wrapped_exec
      *
      * Without interposition, client_code calls real_vfork then real_exec.
@@ -2261,8 +2261,8 @@ pid_t vfork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2510,6 +2510,8 @@ int thrd_join (thrd_t thr, int *res) {
         }
    });
 }
+
+thrd_t thrd_current( void ) { }
 
 /* Docs: https://www.man7.org/linux/man-pages/man3/pthread_create.3.html */
 int pthread_create(pthread_t *restrict thread,

@@ -29,7 +29,7 @@ bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
     */
     const char* path = env_path ? env_path : get_default_path();
 
-    DEBUG("Looking for \"%s\" on $PATH=\"%.50s...\"", bin_name, path);
+    DEBUG("Looking for \"%s\" on $PATH=\"%.90s...\"", bin_name, path);
     while (*path != '\0') {
         const char* part = path;
         size_t size = probe_libc_strnfind(path, PATH_MAX, ':');
@@ -41,7 +41,7 @@ bool lookup_on_path(BORROWED const char* bin_name, BORROWED char* bin_path) {
                 return true;
             }
         }
-        path++;
+        path += size + 1;
     }
     DEBUG("None found");
     return false;

@@ -550,10 +550,20 @@ libc_hooks_h_preamble = """
 #include <sys/time.h>             // IWYU pragma: keep for timeval
 #include <sys/types.h>            // for pid_t, mode_t, ssize_t, gid_t, uid_t
 #include <sys/wait.h>             // IWYU pragma: keep for idtype_t
-#include <threads.h>              // for thrd_t, thrd_start_t
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
 // IWYU pragma: no_include "bits/types/idtype_t.h" for idtype_t
 // IWYU pragma: no_include "bits/types/sigevent_t.h" for pthread_attr_t
+
+#if defined(__GLIBC__) && __GLIBC_MINOR__ >= 28
+# include <threads.h>             // for thrd_t, thrd_start_t
+#else
+// echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out
+// returns 8
+// See ./PROBE/docs/old-glibc.md
+typedef uint64_t thrd_t;
+typedef uint64_t thrd_start_t;
+#error "I don't expect this branch to be used, but it should still work"
+#endif
 
 struct rusage;
 struct stat;
@@ -616,9 +626,9 @@ libc_hooks_c_preamble = """
 #include <dlfcn.h>                                           // for dlsym
 #include <errno.h>                                           // for errno
 #include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
+#include <features.h>                                        // for __USE_GNU
 #include <ftw.h>                                             // for ftw, nftw
 #include <limits.h>                                          // IWYU pragma: keep for INT_MAX, PATH_MAX
-#include <linux/close_range.h>                               // for CLOSE_RANGE_CLOEXEC
 #include <pthread.h>                                         // for pthread_...
 #include <sched.h>                                           // for CLONE_TH...
 #include <spawn.h>                                           // for posix_spawn_file_actions_t
@@ -630,7 +640,6 @@ libc_hooks_c_preamble = """
 #include <sys/stat.h>                                        // for chmod, statx
 #include <sys/time.h>                                        // for futimes
 #include <sys/wait.h>                                        // for wait, wait3
-#include <threads.h>                                         // for thrd_t
 #include <unistd.h>                                          // for vfork, access, chdir
 #include <utime.h>                                           // for utimbuf
 // IWYU pragma: no_include "bits/statx-generic.h"               for statx
@@ -648,6 +657,25 @@ libc_hooks_c_preamble = """
 #include "../src/prov_buffer.h"                              // for prov_log...
 #include "../src/prov_utils.h"                               // for create_p...
 #include "../src/util.h"                                     // for LIKELY
+
+#if defined(__GLIBC__) && __GLIBC_MINOR__ >= 34
+# include <linux/close_range.h>                              // for CLOSE_RANGE_CLOEXEC
+#else
+# define CLOSE_RANGE_CLOEXEC (1U << 2)
+// cpp -E <(echo -e '#include <linux/close_range.h>\\nCLOSE_RANGE_CLOEXEC') | tail --lines=1
+// See ./PROBE/docs/old-glibc.md
+#endif
+
+#if defined(__GLIBC__) && __GLIBC_MINOR__ >= 28
+# include <threads.h>             // for thrd_t, thrd_start_t
+#else
+// echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out
+// returns 8
+// See ./PROBE/docs/old-glibc.md
+typedef uint64_t thrd_t;
+typedef uint64_t thrd_start_t;
+#error "I don't expect this branch to be used, but it should still work"
+#endif
 
 struct rusage;
 struct stat;
@@ -678,7 +706,9 @@ typedef void* __type_voidp;
 
 // Clang and GCC disagree on how to construct this struct inline.
 // So I will construct it not inline, here.
-const struct my_rusage null_usage = {0};
+const struct my_rusage null_usage = {};
+
+#pragma clang diagnostic ignored "-Wignored-attributes"
 """
 
 (generated / "libc_hooks.c").write_text(

@@ -1,4 +1,3 @@
-import abc
 import collections
 import getpass
 import grp
@@ -88,7 +87,6 @@ def decode_nested_object(
 class Comparable(typing.Protocol):
     """Protocol for annotating comparable types."""
 
-    @abc.abstractmethod
     def __lt__(self, other: typing.Self, /) -> bool:
         ...
 
