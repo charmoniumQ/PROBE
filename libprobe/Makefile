@@ -4,12 +4,9 @@ CFLAGS := \
     -DSOURCE_VERSION=\"$(VERSION)\" \
     -fvisibility=hidden \
     -Werror \
-    -Wall -Wextra \
-    -Wno-ignored-attributes \
-    -Wno-unused-command-line-argument \
-    -fstrict-aliasing \
-    -lpthread \
-    -pthread
+    -Wall \
+    -Wextra \
+    -fstrict-aliasing
 # musl-clang wrapper triggers -Wno-unused-command-line-argument.
 # But musl with clang (normal invocation) does not.
 
@@ -26,8 +23,6 @@ MANUAL_HEADER_FILES := $(wildcard src/*.h) $(wildcard include/libprobe/*.h)
 SOURCE_FILES := $(GENERATED_SOURCE_FILES) $(MANUAL_SOURCE_FILES)
 HEADER_FILES := $(GENERATED_HEADER_FILES) $(MANUAL_HEADER_FILES)
 BUILD_DIR := .build
-
-$(info "Using $(CC) $(CC2)")
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all

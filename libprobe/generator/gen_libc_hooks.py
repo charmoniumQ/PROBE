@@ -707,6 +707,8 @@ typedef void* __type_voidp;
 // Clang and GCC disagree on how to construct this struct inline.
 // So I will construct it not inline, here.
 const struct my_rusage null_usage = {};
+
+#pragma clang diagnostic ignored "-Wignored-attributes"
 """
 
 (generated / "libc_hooks.c").write_text(

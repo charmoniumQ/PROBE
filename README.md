@@ -10,6 +10,8 @@ The provenance graph can help us re-execute the program, containerize the progra
 
 ## Installing PROBE
 
+Containers are a special case. To install PROBE in a container, see [`./docs/containers.md`](./docs/containers.md).
+
 1. Install Nix with flakes. This can be done on any Linux (including Ubuntu, RedHat, Arch Linux, not just NixOS), MacOS X, or even Windows Subsystem for Linux. See [Determinate Nix Installer documentation](https://github.com/DeterminateSystems/nix-installer/blob/main/README.md) for more details.
 
    ```bash
@@ -35,6 +37,10 @@ The provenance graph can help us re-execute the program, containerize the progra
    nix profile add github:charmoniumQ/PROBE
    probe --help
    
+   # Or run without installing.
+   # Nix will install PROBE into a virtual environment that is only activated in the current shell.
+   #nix run github:charmoniumQ/PROBE -- [probe args go here]
+
    # Use `nix store gc` to reclaim disk space consumed by the previous command's virtual environment.
    ```
 
@@ -44,31 +50,6 @@ The provenance graph can help us re-execute the program, containerize the progra
   probe record ./script.py --foo bar.txt
   probe export debug-text
   ```
-
-TODO: tidy up this
-
-To run PROBE in a docker image,
-
-``` bash
-docker load --input $(nix build --print-out-paths --no-link .#docker-image)
-```
-
-Emits a container called: `probe:0.0.x`, where `x` is replaced with an integer.
-
-This can be run directly, with `docker run --rm -it probe:0.0.x /bin/sh`
-
-Or PROBE can be `COPY`ed into other Docker images with
-
-``` bash
-FROM probe:0.0.x AS probe
-
-FROM real_base_image
-
-...
-
-COPY --from=probe /nix /nix
-COPY --from=probe /bin/probe /bin/probe
-```
 
 ## What does `probe record` do?
 

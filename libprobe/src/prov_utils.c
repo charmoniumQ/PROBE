@@ -167,8 +167,10 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
         return "exec";
     case spawn_op_code:
         return "spawn";
-    case exit_op_code:
-        return "exit";
+    case exit_thread_op_code:
+        return "exit_thread";
+    case exit_process_op_code:
+        return "exit_process";
     case access_op_code:
         return "access";
     case stat_op_code:

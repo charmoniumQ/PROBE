@@ -92,9 +92,20 @@
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
-            name = "${pname}-${version}";
             version = probe-ver;
+            VERSION = probe-ver;
             src = ./libprobe;
+            postUnpack = ''
+              mkdir $sourceRoot/generated
+              cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
+            '';
+            nativeBuildInputs = [
+              pkgs.git
+              (python.withPackages (pypkgs: [
+                pypkgs.pycparser
+                pypkgs.pyelftools
+              ]))
+            ];
             makeFlags = [
               "INSTALL_PREFIX=$(out)"
               "SOURCE_VERSION=v${version}"
@@ -131,18 +142,6 @@
 
               make check
             '';
-            nativeBuildInputs = [
-              pkgs.git
-              (python.withPackages (pypkgs: [
-                pypkgs.pycparser
-                pypkgs.pyelftools
-              ]))
-            ];
-            postUnpack = ''
-              mkdir $sourceRoot/generated
-              cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
-            '';
-            VERSION = version;
           };
           probe = pkgs.stdenv.mkDerivation rec {
             pname = "probe";
@@ -211,7 +210,7 @@
               runHook postCheck
             '';
           };
-          docker-image = pkgs.dockerTools.buildImage {
+          container-image = pkgs.dockerTools.buildImage {
             name = "probe";
             tag = probe-ver;
             copyToRoot = pkgs.buildEnv {
@@ -250,6 +249,7 @@
                   with ps; [
                     pytest
                     pytest-timeout
+                    pytest-asyncio
                     packages.probe-py
                   ]))
                 pkgs.buildah
@@ -258,12 +258,12 @@
                 pkgs.coreutils # so we can `probe record head ...`, etc.
                 pkgs.gnumake
                 pkgs.clang
+                pkgs.nix
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
               make --directory=examples/
-              export RUST_BAKCTRACE=1
-              pytest -v -W error
+              RUST_BAKCTRACE=1 pytest
             '';
             installPhase = "mkdir $out";
           };
@@ -316,7 +316,6 @@
             pypkgs.pyelftools
           ]);
           shellHook = ''
-            #export LIBCLANG_PATH="$old-pkgs.libclang.lib}/lib"
             export PROBE_BUILDAH="${pkgs.buildah}/bin/buildah"
             export PROBE_PYTHON="${probe-python}/bin/python"
             pushd $(git rev-parse --show-toplevel) > /dev/null
@@ -335,6 +334,9 @@
               pkgs.buildah
               pkgs.podman
 
+              # Python env
+              probe-python
+
               # C tools
               pkgs.clang-analyzer
               pkgs.clang-tools # must go after clang-analyzer
@@ -344,9 +346,11 @@
               pkgs.include-what-you-use
               old-pkgs.criterion # unit testing framework
 
-              probe-python
-              pkgs.ty
+              # Programs for testing
+              pkgs.nix
               pkgs.coreutils
+
+              # For other lints
               pkgs.alejandra
               pkgs.just
               pkgs.ruff

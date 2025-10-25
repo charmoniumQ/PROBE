@@ -129,7 +129,7 @@ fn inner_main() -> Result<ExitStatus> {
                 .cloned()
                 .collect::<Vec<_>>();
 
-            let buildah = std::env::var("PROBE_BUIDLAH").wrap_err(
+            let buildah = std::env::var("PROBE_BUILDAH").wrap_err(
                 "PROBE_BUILDAH not defined; are you using the Nix-built wrapper or devshell?"
                     .to_string(),
             )?;

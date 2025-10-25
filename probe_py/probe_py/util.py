@@ -136,7 +136,7 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
         heapq.heapify(self._heap)
 
     def add(self, task: _Task, priority: _Priority) -> None:
-        if task in self:
+        if task in self._priorities:
             raise RuntimeError(f"{task} is already in priority queue")
         else:
             self._priorities[task] = (priority, self._counter)
@@ -165,6 +165,3 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
     def __setitem__(self, task: _Task, priority: _Priority) -> None:
         del self[task]
         self.add(task, priority)
-
-    def __contains__(self, task: _Task) -> bool:
-        return task in self._priorities

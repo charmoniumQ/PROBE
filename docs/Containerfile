@@ -1,10 +1,26 @@
-# Add PROBE container in a preceeding stage
+####################
+# Add PROBE image
+####################
 ARG PROBE_VER
 FROM probe:${PROBE_VER} AS probe
+# The contents of this image can be COPYed later on.
 
+####################
+# Main Containerfile goes here
+####################
 FROM ubuntu:24.04
 
-# Other commands here
+# Other commands would go here
+
+####################
+# Copy PROBE into container
+####################
+# This goes last, so as to not upset the cache.
+# Copying from the host is cheap compared to apt-get update && apt-get install ...
+
+# We will take PROBE_VER as an argument so we can control which version of PROBE is injected.
+
+# Using AS makes this layer be a stage in the build
 
 COPY --from=probe /nix/store /nix/store
 COPY --from=probe /bin/probe /bin/probe

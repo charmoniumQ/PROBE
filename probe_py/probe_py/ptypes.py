@@ -54,6 +54,7 @@ class Host:
         # This ID uniquely identifies the host. It should be considered "confidential".
         # If a stable unique identifier that is tied to the machine is needed for some application,
         # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
+        # In containers (no running systemd) this file exists but is empty, so we should detect-and-skip empty-file.
         if consts.SYSTEMD_MACHINE_ID.exists() and (data := consts.SYSTEMD_MACHINE_ID.read_text().strip()):
             machine_id_bytes = int(data, 16).to_bytes(16)
             hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)

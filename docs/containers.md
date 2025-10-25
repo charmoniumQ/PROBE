@@ -11,12 +11,13 @@ Run `just compile`.
 Add the following arguments to the `<FLAGS>` of `podman run <FLAGS> <IMG> [CMD]` or `docker run <FLAGS> <IMG> [CMD]`:
 
 ```
-    --env PROBE_LIB=$PROBE_LIB \
-    --env PROBE_PYTHONPATH=$PROB_PYTHONPATH \
-    --env PROBE_PYTHON=$PROBE_PYTHON \
-    --env probe=$(which probe) \
-    --volume=$PWD:$PWD:ro \
-    --volume=/nix/store:/nix/store:ro \
+--env PROBE_BUILDAH=$PROBE_BUILDAH \
+--env PROBE_LIB=$PROBE_LIB \
+--env PROBE_PYTHONPATH=$PROB_PYTHONPATH \
+--env PROBE_PYTHON=$PROBE_PYTHON \
+--env probe=$(which probe) \
+--volume=$PROBE_ROOT:$PROBE_ROOT:ro \
+--volume=/nix/store:/nix/store:ro \
 ```
 
 Once inside the container, run PROBE by `$probe record ...`. Make sure to single-quote `$probe` if you are passing it on the command-line. For example,
@@ -24,7 +25,6 @@ Once inside the container, run PROBE by `$probe record ...`. Make sure to single
 ```
 podman run \
     --rm \
-    -it \
     ... flags from earlier \
     ubuntu:24.04 \
     bash -c '$probe record ls'
@@ -50,13 +50,19 @@ COPY --frome=PROBE /bin/probe /bin/probe
 
 See [`./Containerfile`](Containerfile)
 
-Now, we will build a PROBE-only container image. This can be done through the Nix build-system natively rather than `docker build ...`. Increment `probe-ver` in `flake.nix`, to give the container have a unique tag.
+Now, we will build a PROBE-only container image. This can be done through the Nix build-system natively rather than `podman build ...`.
+
+Using a text-editor, increment `probe-ver` in `flake.nix`, to identify _this_ build of PROBE.
 
 ```
-podman load --input $(nix build --print-out-paths --no-link '.#docker-image')
+podman load --input $(nix build --print-out-paths --no-link '.#container-image')
 ```
 
-Now we can build the target Containerfile with, `probe build --build-arg PROBE_VERSION=0.0.13` (replacing 0.0.13 with whatever version was used earlier).
+Now we can build the target `Containerfile`, setting `PROBE_VER` to whatever we wrote earlier, e.g.
+
+```
+podman build --build-arg PROBE_VER=$(nix eval --raw .#probe.version) docs
+```
 
 ## Building PROBE in a container
 
