@@ -294,6 +294,7 @@
             pypkgs.pytest-timeout
             pypkgs.mypy
             pypkgs.ipython
+            pypkgs.pytest-asyncio
 
             # benchmark/papers-with-code requirements
             pypkgs.aioconsole
