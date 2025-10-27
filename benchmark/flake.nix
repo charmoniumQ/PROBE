@@ -853,7 +853,7 @@
           };
           reprozip-all = pkgs.buildEnv {
             name = "reprozip-all";
-            paths = [ reprozip reprounzip reprounzip-docker ];
+            paths = [reprozip reprounzip reprounzip-docker];
           };
           provenance-to-use = pkgs.stdenv.mkDerivation rec {
             pname = "provenance-to-use";

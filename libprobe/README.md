@@ -2,6 +2,11 @@
 
 Required reading: <https://matt.sh/howto-c>
 
+# Intercepting a new op
+
+- Look in `generator/libc_source_hooks.c`
+- Copy the structure there
+
 # Refresh the compile_commands.json
 
 ``` sh

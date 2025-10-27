@@ -20,8 +20,8 @@ clean-cli:
 lint-cli:
     # cargo clippy refuses to run if unstaged inputs (fixes may be destructive)
     # so we git add -A
-    git add -A
-    cargo clippy --fix --allow-staged -- --deny warnings
+    git add -A .
+    cargo clippy --fix --allow-staged --allow-dirty -- --deny warnings
     cargo fmt
     cargo doc --workspace
     cargo deny check
@@ -66,6 +66,6 @@ lint: lint-py lint-cli lint-lib lint-nix
 compile: compile-cli compile-lib compile-tests
 
 test: compile
-    python -m pytest tests/ probe_py/tests -ra --failed-first -v -W error --durations=0 --maxfail=1
+    python -m pytest -c tests/pytest.ini
 
 pre-commit: lint compile test

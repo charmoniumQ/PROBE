@@ -158,7 +158,8 @@ char* const* arena_copy_cmdline(struct ArenaDir* arena_dir, result_sized_mem cmd
         ptr += length + 1;
     }
 
-    ASSERTF(!*ptr, "");
+    ptr -= 1;
+    ASSERTF(!*ptr, "'%s'", ptr);
     argv_copy[argc] = NULL;
 
     return argv_copy;

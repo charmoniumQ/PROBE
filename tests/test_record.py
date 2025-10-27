@@ -1,7 +1,8 @@
 import collections
+import os
+import pathlib
 import random
 import shutil
-import pathlib
 import shlex
 import stat
 import subprocess
@@ -11,6 +12,11 @@ import pytest
 
 # Enable strace for debugging
 strace = False
+# Enable LD_DEBUG=all for debugging
+ld_debug = False
+# Save stderr to a file
+# Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
+stderr_to_file = False
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent
@@ -325,17 +331,26 @@ def test_downstream_analyses(
     script.chmod(stat.S_IXUSR | script.stat().st_mode)
 
     print(shutil.which(command[0]))
-    cmd = ["probe", "record", "--debug", "--copy-files=none", *command]
-    print(shlex.join(cmd))
-    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
-    with (scratch_directory / "probe_debug.log").open("w") as output:
-        subprocess.run(cmd, **args, stderr=output)
+    full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
+
+    env = os.environ.copy()
+    if ld_debug:
+        env["LD_DEBUG"] = "all"
+
+    print(shlex.join(full_command))
+    if stderr_to_file:
+        with (scratch_directory / "probe_debug.log").open("w") as output:
+            subprocess.run(full_command, **args, stderr=output, env=env)
+    else:
+        subprocess.run(full_command, **args, env=env)
 
     cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "debug-text"]
     print(shlex.join(cmd))
-    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
-    with (scratch_directory / "debug-text.txt").open("w") as output:
-        subprocess.run(cmd, **args, stdout=output)
+    if stderr_to_file:
+        with (scratch_directory / "debug-text.txt").open("w") as output:
+            subprocess.run(cmd, **args, stdout=output)
+    else:
+        subprocess.run(cmd, **args)
 
     cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))

@@ -2,16 +2,26 @@
 
 #define _GNU_SOURCE
 
+#include <features.h>  // for __GLIBC_MINOR__, __GLIBC__
 #include <stdbool.h>   // for bool, false
-#include <stddef.h>    // for size_t, NULL
 #include <stdint.h>    // for uint32_t, int32_t, uint64_t, int64_t
 #include <sys/stat.h>  // IWYU pragma: keep for statx_timestamp
 #include <sys/time.h>  // for timeval
 #include <sys/types.h> // for pid_t, mode_t, gid_t, ino_t, uid_t
-#include <threads.h>   // for thrd_t
 #include <time.h>      // for timespec
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
 // IWYU pragma: no_include "linux/stat.h" for statx_timestamp
+
+#if defined(__GLIBC__) && __GLIBC_MINOR__ >= 28
+#include <threads.h> // for thrd_t, thrd_start_t
+#else
+// echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out
+// prints 8 8
+typedef uint64_t thrd_t;
+typedef uint64_t thrd_start_t;
+#error "I don't expect this branch to be used, but it should still work"
+// See ./PROBE/docs/old-glibc.md
+#endif
 
 // HACK: defining this manually instead of using <sys/resource.h> is
 // a huge hack, but it greatly reduces the generated code complexity
