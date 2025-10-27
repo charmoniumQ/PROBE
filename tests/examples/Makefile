@@ -6,8 +6,7 @@
 # Subsequently, note whether the machine exploded.
 # If not, then PROBE does not interfere with ASAN.
 
-CC ?= clang
-CFLAGS ?= -Wall -Wextra -Werror -Og -g -Wno-unused-command-line-argument
+CFLAGS ?= -Wall -Wextra -Werror -Og -g -Wno-unused-command-line-argument -lpthread -pthread
 
 SOURCE_FILES := $(wildcard *.c)
 

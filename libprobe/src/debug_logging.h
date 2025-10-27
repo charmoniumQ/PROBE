@@ -2,12 +2,11 @@
 
 #define _GNU_SOURCE
 
-#include <errno.h>  // for errno
-#include <stdio.h>  // for fprintf, stderr
-#include <string.h> // for strerror, strndup
+#include <errno.h> // for errno
+#include <stdio.h> // for fprintf, stderr
 
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
-#include "probe_libc.h"   // IWYU pragma: keep
+#include "probe_libc.h"   // IWYU pragma: keep for strerror_with_backup
 
 #ifndef NDEBUG
 #define DEBUG_LOG 1
@@ -19,7 +18,7 @@
 #endif
 
 #define LOG(str, ...)                                                                              \
-    fprintf(stderr, "" SOURCE_VERSION " %d.%d.%d " __FILE__ ":%d:%s(): " str "\n", get_pid_safe(), \
+    fprintf(stderr, SOURCE_VERSION " %d.%d.%d " __FILE__ ":%d:%s(): " str "\n", get_pid_safe(),    \
             get_exec_epoch_safe(), get_tid_safe(), __LINE__, __func__, ##__VA_ARGS__)
 
 #ifdef DEBUG_LOG
@@ -69,7 +68,6 @@
 
 __attribute__((unused)) static inline void __mark_as_used__debug_logging_h() {
     fprintf(stderr, "hi");
-    strndup("hi", 3);
     get_pid();
     exit_with_backup(1);
 }

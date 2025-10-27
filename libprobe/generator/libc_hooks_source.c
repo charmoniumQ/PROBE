@@ -303,7 +303,7 @@ int dup (int old) {
     void* pre_call = ({
         struct Op op = {
             dup_op_code,
-            {.dup = {old, 0, 0, 0}},
+            {.dup = {null_path, old, 0, 0, 0}},
             {0},
             0,
             0,
@@ -318,6 +318,7 @@ int dup (int old) {
                 op.data.dup.ferrno = call_errno;
             } else {
                 op.data.dup.new = ret;
+                op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
             }
             prov_log_record(op);
         }
@@ -334,7 +335,7 @@ int dup3 (int old, int new, int flags) {
     void* pre_call = ({
         struct Op dup_op = {
             dup_op_code,
-            {.dup = {old, new, flags, 0}},
+            {.dup = {null_path, old, new, flags, 0}},
             {0},
             0,
             0,
@@ -347,7 +348,9 @@ int dup3 (int old, int new, int flags) {
          if (LIKELY(prov_log_is_enabled())) {
              if (UNLIKELY(ret == -1)) {
                  dup_op.data.dup.ferrno = call_errno;
-            }
+             } else {
+                 dup_op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
+             }
             prov_log_record(dup_op);
         }
     });
@@ -379,7 +382,7 @@ int fcntl (int filedes, int command, ...) {
             /* Set up ops */
             struct Op dup_op = {
                 dup_op_code,
-                {.dup = {filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
+                {.dup = {null_path, filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
                 {0},
                 0,
                 0,
@@ -408,6 +411,7 @@ int fcntl (int filedes, int command, ...) {
                     dup_op.data.dup.ferrno = call_errno;
                 } else {
                     dup_op.data.dup.new = ret;
+                    dup_op.data.dup.path = create_path_lazy(filedes, NULL, AT_EMPTY_PATH);
                 }
                 prov_log_record(dup_op);
             }
@@ -2146,8 +2150,8 @@ pid_t fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2185,8 +2189,8 @@ pid_t _Fork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */;
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2217,7 +2221,7 @@ pid_t vfork (void) {
      *     client_code > wrapped_vfork
      *     client_code
      *     client_code > wrapped_exec
-     *     client_code > wrapped_exec > real_vfork
+     *     client_code > wrapped_exec > real_exec
      *     client_code > wrapped_exec
      *
      * Without interposition, client_code calls real_vfork then real_exec.
@@ -2257,8 +2261,8 @@ pid_t vfork (void) {
                 op.data.clone.ferrno = call_errno;
                 prov_log_record(op);
             } else if (ret == 0) {
-                /* Success; child
-                 * init_after_fork() is called implicitly due to pthread_atfork handler. */
+                /* Success; child */
+                init_after_fork();
             } else {
                 /* Success; parent */
                 op.data.clone.task_id = ret;
@@ -2366,22 +2370,10 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
         struct Op wait_op = {
             wait_op_code,
             {.wait = {
-                .task_type = TASK_TID,
+                .task_type = TASK_PID,
                 .task_id = -1,
                 .options = options,
                 .status = 0,
-                .ferrno = 0,
-            }},
-            {0},
-            0,
-            0,
-        };
-        prov_log_try(wait_op);
-        struct Op getrusage_op = {
-            getrusage_op_code,
-            {.getrusage = {
-                .waitpid_arg = pid,
-                .getrusage_arg = 0,
                 .usage = null_usage,
                 .ferrno = 0,
             }},
@@ -2389,28 +2381,24 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
             0,
             0,
         };
-        if (usage) {
-            prov_log_try(getrusage_op);
+        int real_status = 0;
+        if (!status_ptr) {
+            status_ptr = &real_status;
         }
+        prov_log_try(wait_op);
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
             if (UNLIKELY(ret == -1)) {
                 wait_op.data.wait.ferrno = call_errno;
-                if (usage) {
-                    getrusage_op.data.getrusage.ferrno = call_errno;
-                }
             } else {
                 wait_op.data.wait.task_id = ret;
-                wait_op.data.wait.status = *status_ptr;
+                wait_op.data.wait.status = status_ptr ? *status_ptr : real_status;
                 if (usage) {
-                    copy_rusage(&getrusage_op.data.getrusage.usage, usage);
+                    copy_rusage(&wait_op.data.wait.usage, usage);
                 }
             }
             prov_log_record(wait_op);
-            if (usage) {
-                prov_log_record(getrusage_op);
-            }
         }
    });
 }
@@ -2426,6 +2414,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
                 .options = options,
                 .status = 0,
                 .cancelled = false,
+                .usage = null_usage,
                 .ferrno = 0,
             }},
             {0},
@@ -2490,7 +2479,7 @@ int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
 int thrd_join (thrd_t thr, int *res) {
     void *pre_call = ({
         int64_t thread_id = 0;
-        memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
+        probe_libc_memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
         struct Op op = {
             wait_op_code,
             {.wait = {
@@ -2521,6 +2510,8 @@ int thrd_join (thrd_t thr, int *res) {
         }
    });
 }
+
+thrd_t thrd_current( void ) { }
 
 /* Docs: https://www.man7.org/linux/man-pages/man3/pthread_create.3.html */
 int pthread_create(pthread_t *restrict thread,
@@ -2568,6 +2559,14 @@ int pthread_create(pthread_t *restrict thread,
 
 void pthread_exit(void* inner_ret) {
     void* call = ({
+        struct Op op = {
+            exit_thread_op_code,
+            {.exit_thread = {0}},
+            {0},
+            0,
+            0,
+        };
+        prov_log_record(op);
         struct PthreadReturnVal* pthread_return_val = EXPECT_NONNULL(malloc(sizeof(struct PthreadReturnVal)));
         pthread_return_val->type_id = PTHREAD_RETURN_VAL_TYPE_ID;
         pthread_return_val->pthread_id = get_pthread_id();
@@ -2640,10 +2639,6 @@ int pthread_cancel(pthread_t thread) {
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
 int munmap(void* addr, size_t length) { }
 
-void exit (int status) {
-    bool noreturn = true;
-}
-
 int pipe(int pipefd[2]) {
     void* call = ({
         int ret = pipe2(pipefd, 0);
@@ -2656,7 +2651,7 @@ int pipe2(int pipefd[2], int flags) {
             mkfile_op_code,
             {.mkfile = {
                 .path = null_path,
-                .file_type = FifoFileType,
+                .file_type = PipeFileType,
                 .flags = flags,
                 .mode = 0,
                 .ferrno = 0,
@@ -2677,14 +2672,13 @@ int pipe2(int pipefd[2], int flags) {
             prov_log_record(mkfifo_op);
             struct Op open_read_end_op = {
                 open_op_code,
-                {.open =
-                     {
-                         .path = create_path_lazy(pipefd[0], NULL, AT_EMPTY_PATH),
-                         .flags = O_RDONLY,
-                         .mode = 0,
-                         .fd = pipefd[0],
-                         .ferrno = 0,
-                     }},
+                {.open = {
+                    .path = create_path_lazy(pipefd[0], NULL, AT_EMPTY_PATH),
+                    .flags = O_RDONLY,
+                    .mode = 0,
+                    .fd = pipefd[0],
+                    .ferrno = 0,
+                }},
                 {0},
                 0,
                 0,
@@ -2743,7 +2737,19 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
 
 // functions we're not interposing, but need for libprobe functionality
 char* strerror(int errnum) { }
-void exit(int status) { }
+void exit(int status) {
+    void* precall = ({
+        struct Op op = {
+            exit_process_op_code,
+            {.exit_process = {status}},
+            {0},
+            0,
+            0,
+        };
+        prov_log_record(op);
+    });
+    bool noreturn = true;
+}
 
 int mkstemp(char* template) {
     void* call = ({
@@ -2815,6 +2821,20 @@ int mkostemps(char *template, int suffixlen, int flags) {
 };
 
 /*
+TODO:
+
+Reads and writes:
+read
+4 p(read|write)(|64)
+8 p(read|write)v(|2|64|64v2)
+1 copy_file_range
+4 aio_(read|write)(|64)
+2 lio_listio(|64)
+https://sourceware.org/glibc/manual/2.41/html_node/Low_002dLevel-I_002fO.html
+
+mmap, mmap64, munmap, shm_open, shm_unlink, memfd_create
+
+File locks through fcntl
 TODO: getcwd, getwd, chroot
 getdents
 glob, glob64

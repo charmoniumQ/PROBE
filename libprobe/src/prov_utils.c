@@ -5,7 +5,6 @@
 #include <fcntl.h>         // for O_CREAT, AT_FDCWD, O_RDWR
 #include <limits.h>        // IWYU pragma: keep for PATH_MAX
 #include <stdbool.h>       // for bool, true, false
-#include <string.h>        // for strlen, strncpy
 #include <sys/resource.h>  // IWYU pragma: keep for rusage
 #include <sys/stat.h>      // IWYU pragma: keep for stat, statx, statx_timestamp
 #include <sys/sysmacros.h> // for major, minor
@@ -14,11 +13,11 @@
 // IWYU pragma: no_include "linux/limits.h"                  for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
 
-#include "../generated/libc_hooks.h"      // for client_statx
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
 #include "arena.h"                        // for arena_strndup
 #include "debug_logging.h"                // for DEBUG, EXPECT_NONNULL, NOT...
 #include "global_state.h"                 // for get_data_arena, get_exec_e...
+#include "probe_libc.h"                   // for probe_libc_strlen
 #include "prov_buffer.h"                  // for prov_log_record, prov_log_try
 #include "util.h"                         // for CHECK_SNPRINTF, BORROWED
 
@@ -52,10 +51,10 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
          * if path == NULL, then the target is the dir specified by dirfd.
          * */
         struct statx statx_buf;
-        int stat_ret = client_statx(dirfd, path, flags,
-                                    STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
-                                        STATX_CTIME | STATX_SIZE,
-                                    &statx_buf);
+        result stat_ret = probe_libc_statx(dirfd, path, flags,
+                                           STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
+                                               STATX_CTIME | STATX_SIZE,
+                                           &statx_buf);
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
@@ -168,8 +167,10 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
         return "exec";
     case spawn_op_code:
         return "spawn";
-    case exit_op_code:
-        return "exit";
+    case exit_thread_op_code:
+        return "exit_thread";
+    case exit_process_op_code:
+        return "exit_process";
     case access_op_code:
         return "access";
     case stat_op_code:
@@ -200,16 +201,17 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
         NOT_IMPLEMENTED("op_code %d is valid, but not handled", op_code);
     }
 }
+
+static const size_t MAX_OPCODE_STRING_LENGTH = 256;
+
 int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
-    return CHECK_SNPRINTF(
-        buffer, buffer_length, "dirfd=%d, path=\"%s\", stat_valid=%d, dirfd_valid=%d",
-        path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, path->stat_valid, path->dirfd_valid);
+    return CHECK_SNPRINTF(buffer, buffer_length, "%60s", path->path);
 }
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
-    strncpy(dest, op_str, size);
-    size -= strlen(op_str);
-    dest += strlen(op_str);
+    probe_libc_strncpy(dest, op_str, size);
+    size -= probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
+    dest += probe_libc_strnlen(op_str, MAX_OPCODE_STRING_LENGTH);
 
     dest[0] = ' ';
     dest++;
@@ -227,18 +229,14 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
             CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
         dest += fd_size;
         size -= fd_size;
-    }
-
-    if (op->op_code == init_exec_epoch_op_code) {
+    } else if (op->op_code == init_exec_epoch_op_code) {
         int fd_size =
-            CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d", op->data.init_exec_epoch.pid,
+            CHECK_SNPRINTF(dest, size, " pid=%d parent_pid=%d ", op->data.init_exec_epoch.pid,
                            op->data.init_exec_epoch.parent_pid);
         dest += fd_size;
         size -= fd_size;
-    }
-
-    if (op->op_code == close_op_code) {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d", op->data.close.fd);
+    } else if (op->op_code == close_op_code) {
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.fd);
         dest += fd_size;
         size -= fd_size;
     }

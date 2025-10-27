@@ -2,16 +2,26 @@
 
 #define _GNU_SOURCE
 
+#include <features.h>  // for __GLIBC_MINOR__, __GLIBC__
 #include <stdbool.h>   // for bool, false
-#include <stddef.h>    // for size_t, NULL
 #include <stdint.h>    // for uint32_t, int32_t, uint64_t, int64_t
 #include <sys/stat.h>  // IWYU pragma: keep for statx_timestamp
 #include <sys/time.h>  // for timeval
 #include <sys/types.h> // for pid_t, mode_t, gid_t, ino_t, uid_t
-#include <threads.h>   // for thrd_t
 #include <time.h>      // for timespec
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
 // IWYU pragma: no_include "linux/stat.h" for statx_timestamp
+
+#if defined(__GLIBC__) && __GLIBC_MINOR__ >= 28
+#include <threads.h> // for thrd_t, thrd_start_t
+#else
+// echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out
+// prints 8 8
+typedef uint64_t thrd_t;
+typedef uint64_t thrd_start_t;
+#error "I don't expect this branch to be used, but it should still work"
+// See ./PROBE/docs/old-glibc.md
+#endif
 
 // HACK: defining this manually instead of using <sys/resource.h> is
 // a huge hack, but it greatly reduces the generated code complexity
@@ -120,7 +130,11 @@ struct CloneOp {
     int ferrno;
 };
 
-struct ExitOp {
+struct ExitProcessOp {
+    int status;
+};
+
+struct ExitThreadOp {
     int status;
 };
 
@@ -201,12 +215,6 @@ struct WaitOp {
     int options;
     int status;
     bool cancelled;
-    int ferrno;
-};
-
-struct GetRUsageOp {
-    pid_t waitpid_arg;
-    int getrusage_arg;
     struct my_rusage usage;
     int ferrno;
 };
@@ -247,6 +255,7 @@ struct ReadLinkOp {
 };
 
 struct DupOp {
+    struct Path path;
     int old;
     int new;
     int flags;
@@ -280,6 +289,7 @@ struct RenameOp {
 enum FileType {
     DirFileType,
     FifoFileType,
+    PipeFileType,
 };
 
 struct MkFileOp {
@@ -301,12 +311,12 @@ enum OpCode {
     exec_op_code,
     spawn_op_code,
     clone_op_code,
-    exit_op_code,
+    exit_thread_op_code,
+    exit_process_op_code,
     access_op_code,
     stat_op_code,
     readdir_op_code,
     wait_op_code,
-    getrusage_op_code,
     update_metadata_op_code,
     read_link_op_code,
     dup_op_code,
@@ -329,12 +339,12 @@ struct Op {
         struct ExecOp exec;
         struct SpawnOp spawn;
         struct CloneOp clone;
-        struct ExitOp exit;
+        struct ExitThreadOp exit_thread;
+        struct ExitProcessOp exit_process;
         struct AccessOp access;
         struct StatOp stat;
         struct ReaddirOp readdir;
         struct WaitOp wait;
-        struct GetRUsageOp getrusage;
         struct UpdateMetadataOp update_metadata;
         struct ReadLinkOp read_link;
         struct DupOp dup;

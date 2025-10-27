@@ -8,14 +8,12 @@
 #include <stdint.h>   // for uintptr_t
 #include <stdio.h>    // for snprintf
 #include <stdlib.h>   // for free, malloc
-#include <string.h>   // for memcpy, strnlen
-#include <sys/mman.h> // for msync, munmap, MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
-#include <unistd.h>   // for getpagesize
+#include <sys/mman.h> // IWYU pragma: keep for MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
 // IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
 
-#include "../generated/libc_hooks.h" // for client_close, client_ftru...
-#include "debug_logging.h"           // for EXPECT, ASSERTF, EXPECT_NONNULL
-#include "util.h"                    // for ceil_log2, MAX
+#include "debug_logging.h" // for EXPECT, ASSERTF, EXPECT_NONNULL
+#include "probe_libc.h"    // for probe_libc_...
+#include "util.h"          // for ceil_log2, MAX
 
 struct Arena {
     size_t instantiation;
@@ -43,23 +41,26 @@ static inline size_t __arena_align(size_t offset, size_t alignment) {
 #define ARENA_CURRENT arena_dir->__tail->arena_list[arena_dir->__tail->next_free_slot - 1]
 
 static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_capacity) {
-    size_t capacity =
-        1 << MAX(ceil_log2(getpagesize()), ceil_log2(min_capacity + sizeof(struct Arena)));
+    size_t capacity = 1 << MAX(ceil_log2(probe_libc_getpagesize()),
+                               ceil_log2(min_capacity + sizeof(struct Arena)));
 
     /* Create a new mmap */
     snprintf(arena_dir->__dir_buffer + arena_dir->__dir_len,
              arena_dir->__dir_buffer_max - arena_dir->__dir_len, "%016ld.dat",
              arena_dir->__next_instantiation);
-    int fd = client_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
-    ASSERTF(fd > 0, "returned_fd=%d (%s)", fd, arena_dir->__dir_buffer);
 
-    EXPECT(== 0, client_ftruncate(fd, capacity));
+    result_int fd = probe_libc_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
+    // FIXME: check in optimized too
+    ASSERTF(fd.error == 0, "openat error=%d (%s)", fd.error, arena_dir->__dir_buffer);
 
-    void* base_address = client_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    ASSERTF(base_address != MAP_FAILED, "");
+    // FIXME: check in optimized too (probably with an (UN)LIKELY macro)
+    EXPECT(== 0, probe_libc_ftruncate(fd.value, capacity));
+
     /* mmap here corresponds to munmap in either arena_destroy or arena_uninstantiate_all_but_last */
-
-    EXPECT(== 0, client_close(fd));
+    result_mem base_address =
+        probe_libc_mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd.value);
+    ASSERTF(base_address.error == 0, "");
+    probe_libc_close(fd.value);
 
     if (arena_dir->__tail->next_free_slot == ARENA_LIST_BLOCK_SIZE) {
         /* No more free slots in this block, as we've reached block size.
@@ -78,12 +79,12 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
     }
 
     /* Either way, we just have to assign a new slot in the current linked-list node. */
-    ARENA_CURRENT = base_address;
+    ARENA_CURRENT = base_address.value;
 
     /* struct Arena has to be the first thing in the Arena, which does take up some size */
     /* This stuff shows up in the Arena file */
     ARENA_CURRENT->instantiation = arena_dir->__next_instantiation;
-    ARENA_CURRENT->base_address = base_address;
+    ARENA_CURRENT->base_address = base_address.value;
     ARENA_CURRENT->capacity = capacity;
     ARENA_CURRENT->used = sizeof(struct Arena);
 
@@ -111,15 +112,16 @@ void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_si
 }
 
 void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size) {
-    size_t length = strnlen(string, max_size);
+    size_t length = probe_libc_strnlen(string, max_size);
     char* dst = EXPECT_NONNULL(arena_calloc(arena, length + 1, sizeof(char)));
-    memcpy(dst, string, length + 1);
+    probe_libc_memcpy(dst, string, length + 1);
     return dst;
 }
 
 void arena_create(struct ArenaDir* arena_dir, char* dir_buffer, size_t dir_len,
                   size_t dir_buffer_max, size_t arena_capacity) {
-    EXPECT(== 0, client_mkdirat(AT_FDCWD, dir_buffer, 0777));
+    // FIXME: error handling on optimized builds too
+    EXPECT(== 0, probe_libc_mkdirat(AT_FDCWD, dir_buffer, 0777));
     struct ArenaListElem* tail = EXPECT_NONNULL(malloc(sizeof(struct ArenaListElem)));
     /* malloc here corresponds to free in arena_destroy */
 
@@ -146,8 +148,8 @@ void arena_destroy(struct ArenaDir* arena_dir) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
-                EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
-                EXPECT(== 0, client_munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, probe_libc_msync(arena->base_address, arena->capacity, MS_SYNC));
+                EXPECT(== 0, probe_libc_munmap(arena->base_address, arena->capacity));
                 arena = NULL;
             }
         }
@@ -165,8 +167,8 @@ void arena_drop_after_fork(struct ArenaDir* arena_dir) {
         for (size_t i = 0; i < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
-                // munmap but no mysnc
-                EXPECT(== 0, client_munmap(arena->base_address, arena->capacity));
+                // munmap but no msync
+                EXPECT(== 0, probe_libc_munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;
             }
         }
@@ -185,7 +187,7 @@ void arena_sync(struct ArenaDir* arena_dir) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
                 // msync but no mmunmap
-                EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
+                EXPECT(== 0, probe_libc_msync(arena->base_address, arena->capacity, MS_SYNC));
             }
         }
         current = current->prev;
@@ -199,8 +201,8 @@ void arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) {
         for (size_t i = 0; i + ((size_t)is_tail) < current->next_free_slot; ++i) {
             struct Arena* arena = current->arena_list[i];
             if (arena != NULL) {
-                EXPECT(== 0, msync(arena->base_address, arena->capacity, MS_SYNC));
-                EXPECT(== 0, client_munmap(arena->base_address, arena->capacity));
+                EXPECT(== 0, probe_libc_msync(arena->base_address, arena->capacity, MS_SYNC));
+                EXPECT(== 0, probe_libc_munmap(arena->base_address, arena->capacity));
                 current->arena_list[i] = NULL;
             }
         }

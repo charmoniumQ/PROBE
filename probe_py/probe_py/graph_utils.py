@@ -87,8 +87,10 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    ret = networkx.relabel_nodes(graph, dct)
-    return ret # type: ignore
+    return typing.cast(
+        networkx.DiGraph[_Node2],
+        networkx.relabel_nodes(graph, dct),
+    )
 
 
 def serialize_graph(
@@ -510,8 +512,7 @@ def topological_sort_depth_first(
 ) -> typing.Iterable[_Node]:
     """Topological sort that breaks ties by depth first, and then by lowest child score."""
     queue = util.PriorityQueue[_Node, tuple[int, int]](
-        (node, (dag.in_degree(node), 0)) # type: ignore
-        # FIXME: get rid of type ignoring
+        (node, (dag.in_degree(node), 0))
         for node in dag.nodes()
     )
     counter = 0
