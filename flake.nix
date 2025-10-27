@@ -55,6 +55,40 @@
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
       in rec {
         packages = rec {
+          charmonium-freeze = python.pkgs.buildPythonPackage rec {
+            pname = "charmonium_freeze";
+            version = "0.8.6";
+            format = "pyproject";
+            src = pkgs.fetchPypi {
+              inherit pname version;
+              sha256 = "4bc1e976dbdc668eab295d5a709db09c0372690b339f49d0d20c4f5ab8104c65";
+            };
+            propagatedBuildInputs = [
+              python.pkgs.typing-extensions
+            ];
+            buildInputs = [
+              python.pkgs.hatchling
+            ];
+            pythonImportsCheck = ["charmonium.freeze"];
+          };
+          charmonium-cache = python.pkgs.buildPythonPackage rec {
+            pname = "charmonium_cache";
+            version = "1.4.1";
+            format = "pyproject";
+            propagatedBuildInputs = [
+              charmonium-freeze
+              python.pkgs.bitmath
+              python.pkgs.fasteners
+            ];
+            buildInputs = [
+              python.pkgs.poetry-core
+            ];
+            src = pkgs.fetchPypi {
+              inherit pname version;
+              sha256 = "f299b7a488877af2622fc261bf54a6e8807532e017b892b7b00b21c328ec214c";
+            };
+            pythonImportsCheck = ["charmonium.cache"];
+          };
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
@@ -261,6 +295,22 @@
             pypkgs.mypy
             pypkgs.ipython
             pypkgs.pytest-asyncio
+
+            # benchmark/papers-with-code requirements
+            pypkgs.aioconsole
+            pypkgs.githubkit
+            pypkgs.httpx
+            pypkgs.huggingface-hub
+            pypkgs.matplotlib
+            pypkgs.polars
+            pypkgs.pydantic
+            pypkgs.seaborn
+            pypkgs.tqdm
+            pypkgs.typer
+            pypkgs.yarl
+            pypkgs.ipython
+            pypkgs.typing-extensions
+            packages.charmonium-cache
 
             # libprobe build time requirement
             pypkgs.pycparser

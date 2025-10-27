@@ -1,0 +1,182 @@
+from __future__ import annotations
+import asyncio
+import subprocess
+import pathlib
+import typing
+import shlex
+import pydantic
+import yaml
+import util
+
+
+class Environment(pydantic.BaseModel):
+    base_image: str = "ubuntu:24.04"
+    apt_packages: list[str] = []
+    python: str | None = None
+    venv_commands: list[str] = []
+
+    def get_rootful_steps(self) -> list[str]:
+        apt_packages = self.apt_packages
+        if self.python is not None:
+            if int(self.python.split(".")[1]) >= 10:
+                # Starting with x = 10, python3.x is the name of an Ubuntu package.
+                apt_packages.append(f"python{self.python}")
+                apt_packages.append(f"python{self.python}-venv")
+            else:
+                # Prior to 3.10, you get whatever Python version that version of Ubuntu has :)
+                ubuntu_python = {
+                    "ubuntu:20.04": "3.8",
+                    "ubuntu:18.04": "3.6",
+                }[self.base_image]
+                if ubuntu_python != self.python:
+                    raise ValueError(f"No easy way to install Python {self.python} on {ubuntu_python} (rewrite to use pyenv?)")
+                apt_packages.append("python3")
+                apt_packages.append("python3-venv")
+        if apt_packages:
+            return [
+                "RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y " + " ".join(apt_packages),
+            ]
+        else:
+            return []
+
+    def get_rootless_steps(self) -> list[str]:
+        if self.venv_commands:
+            return [
+                f"RUN python{self.python} -m venv ./venv",
+                "ENV PATH=\"/home/user/repo/venv/bin:$PATH\"",
+                "RUN " + " && ".join(self.venv_commands),
+            ]
+        else:
+            return []
+
+
+class Location(pydantic.BaseModel):
+    url: pydantic.AnyUrl
+    commit: typing.Annotated[
+        str,
+        pydantic.constr(min_length=40, max_length=40, pattern="[a-f0-9]+"),
+    ]
+
+
+class Repo(pydantic.BaseModel):
+    name: str
+    environment: Environment = Environment()
+    location: Location | None = None
+    unrecorded_commands: list[str] = []
+    commands: list[str] = []
+
+    def dockerfile(self, probe_tag: str) -> list[str]:
+        return [
+            f"FROM {self.environment.base_image}",
+            *self.environment.get_rootful_steps(),
+            "RUN useradd --system --user-group user --create-home",
+            # "USER user",
+            # TODO: re-enable user de-escalation when we start to run lots of code.
+            *(["COPY --chown=user:user repo /home/user/repo"] if self.location is not None else []),
+            "WORKDIR /home/user/repo",
+            *self.environment.get_rootless_steps(),
+            f"COPY --from=probe:{probe_tag} /nix /nix",
+            f"COPY --from=probe:{probe_tag} /bin/probe /bin/probe",
+            *(["COPY --chown=user:user pre_run.sh ."] if self.unrecorded_commands else []),
+            *(["COPY --chown=user:user run.sh ."] if self.commands else []),
+        ]
+
+    async def to_docker(
+            self,
+            name: str,
+            probe_tag: str,
+            podman_or_docker: str,
+            tag: str,
+            verbose: bool,
+    ) -> None:
+        work_dir = cache_dir / name
+        if not work_dir.exists():
+            work_dir.mkdir()
+
+        if self.location is not None:
+            repo_dir = work_dir / "repo"
+            if not repo_dir.exists():
+                await util.async_subprocess_run(
+                    [
+                        "git", "clone", "--quiet", str(self.location.url), str(repo_dir),
+                    ],
+                    hide_output=not verbose,
+                )
+                await util.async_subprocess_run(
+                    [
+                        "git", "-C", str(repo_dir), "checkout", self.location.commit,
+                    ],
+                    hide_output=not verbose,
+                )
+
+        if self.unrecorded_commands:
+            pre_run = work_dir / "pre_run.sh"
+            pre_run.write_text("#!/usr/bin/env bash\nset -euxo pipefail\n" + "\n".join(self.unrecorded_commands))
+            pre_run.chmod(0o755)
+
+        if self.commands:
+            run = work_dir / "run.sh"
+            run.write_text("#!/usr/bin/env bash\nset -euxo pipefail\n" + "\n".join(self.commands))
+            run.chmod(0o755)
+
+        dockerfile_path = work_dir / "Dockerfile"
+        dockerfile_source = self.dockerfile(probe_tag)
+        dockerfile_path.write_text("\n".join(dockerfile_source))
+
+        if verbose:
+            print("Building:")
+            for line in dockerfile_source:
+                print("  " + line)
+
+        await util.async_subprocess_run(
+            [podman_or_docker, "build", f"--file={dockerfile_path}", f"--tag={tag}", str(work_dir)],
+            hide_output=not verbose,
+        )
+
+
+repos: list[Repo] = pydantic.TypeAdapter(list[Repo]).validate_python(
+    yaml.safe_load(
+        pathlib.Path("repos.yaml").read_text()
+    )
+)
+
+
+cache_dir = pathlib.Path(".cache2").resolve()
+if not cache_dir.exists():
+    cache_dir.mkdir()
+
+
+def main(
+        name: str,
+        probe_tag: str = "0.0.13",
+        podman_or_docker: str = "docker",
+        verbose: bool = True,
+        run: bool = False,
+        downloads_dir = pathlib.Path(".cache2")
+) -> None:
+    for repo in repos:
+        if repo.name == name:
+            break
+    else:
+        print(f"Repo {name} not found")
+        raise typer.Abort()
+    asyncio.run(repo.to_docker(name, probe_tag, podman_or_docker, f"{name}:{probe_tag}", verbose))
+    cmd = [
+        podman_or_docker,
+        "run",
+        f"--volume={downloads_dir}:/downloads",
+        "--volume=/nix:/nix",
+        "--interactive",
+        "--tty",
+        "--rm",
+        f"{name}:{probe_tag}",
+    ]
+    if run:
+        subprocess.run(cmd)
+    else:
+        print(shlex.join(cmd))
+
+
+if __name__ == "__main__":
+    import typer
+    typer.run(main)
