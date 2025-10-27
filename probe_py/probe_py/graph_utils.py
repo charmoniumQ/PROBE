@@ -87,10 +87,7 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    return typing.cast(
-        networkx.DiGraph[_Node2],
-        networkx.relabel_nodes(graph, dct),
-    )
+    return networkx.relabel_nodes(graph, dct) # type: ignore
 
 
 def serialize_graph(
