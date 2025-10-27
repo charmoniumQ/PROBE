@@ -451,28 +451,6 @@ def add_edge_without_cycle(
         return edges
 
 
-class GraphvizAttributes(typing.TypedDict):
-    label: str
-    labelfontsize: int
-    color: str
-    shape: str
-
-
-class GraphvizNodeAttributes(typing.TypedDict):
-    label: str
-    labelfontsize: int
-    color: str
-    style: str
-
-
-class GraphvizEdgeAttributes(typing.TypedDict):
-    label: str
-    shape: str
-    color: str
-    style: str
-    labelfontsize: int
-
-
 def splice_out_nodes(
         input_dag: networkx.DiGraph[_Node],
         should_splice: typing.Callable[[_Node], bool],
