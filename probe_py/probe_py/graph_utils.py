@@ -9,7 +9,6 @@ import pathlib
 import random
 import networkx
 import pydot
-import tqdm
 from . import util
 
 
