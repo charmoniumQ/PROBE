@@ -452,18 +452,6 @@ def add_edge_without_cycle(
         return edges
 
 
-def dag_transitive_closure(dag: networkx.DiGraph[_Node]) -> networkx.DiGraph[_Node]:
-    tc: networkx.DiGraph[_Node] = networkx.DiGraph()
-    node_order = list(networkx.topological_sort(dag))[::-1]
-    for src in tqdm.tqdm(node_order, desc="TC"):
-        tc.add_node(src)
-        for child in dag.successors(src):
-            tc.add_edge(src, child)
-            for grandchild in dag.successors(child):
-                tc.add_edge(src, grandchild)
-    return tc
-
-
 class GraphvizAttributes(typing.TypedDict):
     label: str
     labelfontsize: int
