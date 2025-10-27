@@ -31,17 +31,11 @@ Containers are a special case. To install PROBE in a container, see [`./docs/con
    cachix use charmonium
    ```
 
-4. Install PROBE or run PROBE without permanently installing. In the latter case, the
+4. Install PROBE.
 
    ```bash
    nix profile add github:charmoniumQ/PROBE
    probe --help
-   
-   # Or run without installing.
-   # Nix will install PROBE into a virtual environment that is only activated in the current shell.
-   #nix run github:charmoniumQ/PROBE -- [probe args go here]
-
-   # Use `nix store gc` to reclaim disk space consumed by the previous command's virtual environment.
    ```
 
 5. Now you should be able to run `probe record [-f] [-o probe_log] <cmd...>`. `-f` is needed to overwrite a pre-existing `probe_log`.
@@ -50,6 +44,9 @@ Containers are a special case. To install PROBE in a container, see [`./docs/con
   probe record ./script.py --foo bar.txt
   probe export debug-text
   ```
+6. To upgrade PROBE, run `nix profile upgrade PROBE && probe --version`.
+
+7. To uninstall PROBE and Nix, follow the steps [here](https://nix.dev/manual/nix/2.32/installation/uninstall.html).
 
 ## What does `probe record` do?
 
@@ -102,7 +99,10 @@ Try exporting to different formats.
 
 
 ``` bash
-probe export --help
+probe py export dataflow-graph
+
+# Others:
+probe py export --help
 ```
 
 ## Developing PROBE
