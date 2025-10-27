@@ -1,5 +1,5 @@
 import typing
-from .ops import InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp
+from .ops import InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp, ExitThreadOp, ExitProcessOp
 from .ptypes import Tid, Pid, ProbeLog, TaskType
 
 
@@ -33,6 +33,7 @@ def validate_init_ops(
     for pid, process in probe_log.processes.items():
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
+                last_op_no = len(thread.ops) - 1
                 op_idx = 0
                 op = thread.ops[op_idx]
                 if tid == pid.main_thread():
@@ -48,6 +49,8 @@ def validate_init_ops(
                 for op_no, op in enumerate(thread.ops[op_idx:]):
                     if isinstance(op, (InitExecEpochOp, InitThreadOp)):
                         yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is Init*Op, but it does not appear early enough"
+                    elif isinstance(op, (ExitThreadOp, ExitProcessOp)) and op_no != last_op_no:
+                        yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is ExitThreadOp, but it does not appear last"
 
 
 def validate_exec_epoch_presence(probe_log: ProbeLog) -> typing.Iterator[str]:
@@ -119,9 +122,9 @@ def validate_execs(probe_log: ProbeLog) -> typing.Iterator[str]:
 
 
 def validate_opens_and_closes(probe_log: ProbeLog) -> typing.Iterator[str]:
-    opened_fds = set[int]()
-    closed_fds = set[int]()
     for pid, process in probe_log.processes.items():
+        opened_fds = set[int]()
+        closed_fds = set[int]()
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
@@ -130,8 +133,8 @@ def validate_opens_and_closes(probe_log: ProbeLog) -> typing.Iterator[str]:
                     elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
                         # Range in Python is up-to-not-including high_fd, so we add one to it.
                         closed_fds.add(op.data.fd)
-    reserved_fds = {0, 1, 2}
-    opened_fds -= reserved_fds
-    closed_fds -= reserved_fds
-    if opened_fds != closed_fds:
-        yield f"Opened different fds than we closed {opened_fds=} {closed_fds=}"
+        reserved_fds = {0, 1, 2}
+        opened_fds -= reserved_fds
+        closed_fds -= reserved_fds
+        if opened_fds != closed_fds:
+            yield f"Opened different fds than we closed {opened_fds=} {closed_fds=}"

@@ -138,7 +138,6 @@ probe py export --help
   - `probe_py/probe_py`: Main package to be imported or run.
   - `probe_py/pyproject.toml`: Definition of main package and dependencies.
   - `probe_py/tests`: Python unittests, i.e., `from probe_py import foobar; test_foobar()`; Run `just test-py`.
-  - `probe_py/mypy_stubs`: "Stub" files that tell Mypy how to check untyped library code. Should be added to `$MYPYPATH` by `nix develop`.
 - `tests`: End-to-end opaque-box tests. They will be run with Pytest, but they will not test Python directly; they should always `subprocess.run(["probe", ...])`. Additionally, some tests have to be manually invoked.
 - `docs`: Documentation and papers.
 - `benchmark`: Programs and infrastructure for benchmarking.

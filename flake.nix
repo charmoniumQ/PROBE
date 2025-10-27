@@ -21,6 +21,13 @@
         flake-utils.follows = "flake-utils";
       };
     };
+    charmonium-time-block = {
+      url = "github:charmoniumQ/charmonium.time_block";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
   };
 
   outputs = {
@@ -29,8 +36,9 @@
     old-nixpkgs,
     flake-utils,
     cli-wrapper,
+    charmonium-time-block,
     ...
-  } @ inputs: let
+  }: let
     supported-systems = import ./targets.nix;
     probe-ver = "0.0.13";
   in
@@ -40,7 +48,7 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
-        cli-wrapper-pkgs = cli-wrapper.packages.${system};
+        cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
         # Otherwise, if old-nixpkgs is a flake,
@@ -53,6 +61,58 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
+
+        # Once a new release of [PyPI types-networkx] is rolled out
+        # containing [typeshed#14594] and [typeshed#14595], this can be replaced
+        # with the PyPI version. Unfortunately, building types-networkx from
+        # source is quite a pain, as the "normal" package source is actually
+        # generated from the typeshed source by stub_uploader.
+        #
+        # [typeshed#14594]: https://github.com/python/typeshed/pull/14594
+        # [typeshed#14595]: https://github.com/python/typeshed/pull/14595
+        # [PyPI types-networkx]: https://pypi.org/project/types-networkx/
+        types-networkx = python.pkgs.buildPythonPackage rec {
+          pname = "types-networkx";
+          version = "3.5.0.20250819-dev";
+          pyproject = true;
+          nativeBuildInputs = [python.pkgs.setuptools];
+          src =
+            pkgs.runCommand "types-networkx-source" {
+              nativeBuildInputs = [pkgs.git];
+              STUB_UPLOADER = pkgs.fetchFromGitHub {
+                owner = "typeshed-internal";
+                repo = "stub_uploader";
+                rev = "14ba80054d0c182743832a5bf72423bb8b303aab";
+                hash = "sha256-Um8ydeBX1IhASSMgu5M49JsVCkUK1vr/JQuh2LhatXU=";
+              };
+              PYTHON = python.withPackages (pypkgs: [
+                pypkgs.packaging
+                pypkgs.requests
+                pypkgs.tomli
+              ]);
+              TYPESHED = builtins.toString (pkgs.fetchFromGitHub {
+                owner = "charmoniumQ";
+                repo = "typeshed";
+                rev = "c48e28ac93fbc5f78ee8704954d77a3bad0cbf84";
+                hash = "sha256-eM/PYCdK0N7ZQGf/MM2fu2ij69zrl+dQRw0qPYmUbcc=";
+              });
+            } ''
+              set -x
+              cp -r $STUB_UPLOADER stub_uploader
+              find stub_uploader -type f | xargs -n 1 chmod +rw
+              find stub_uploader -type d | xargs -n 1 chmod +rwx
+              cd stub_uploader
+              patch -p1 <${./probe_py/stub_uploader.diff}
+              cp -r $TYPESHED typeshed
+              find typeshed -type f | xargs chmod +rw
+              find typeshed -type d | xargs chmod +rwx
+              mkdir tmp
+              $PYTHON/bin/python -m stub_uploader.build_wheel --build-dir tmp typeshed networkx ${version}
+              mkdir $out
+              cp -r tmp/* $out
+            '';
+        };
       in rec {
         packages = rec {
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
@@ -150,21 +210,24 @@
               '';
             };
             propagatedBuildInputs = [
+              charmonium-time-block-pkg
+              python.pkgs.frozendict
               python.pkgs.networkx
-              python.pkgs.pygraphviz
+              python.pkgs.numpy
               python.pkgs.pydot
               python.pkgs.rich
+              python.pkgs.sqlalchemy
+              python.pkgs.tqdm
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
-              python.pkgs.sqlalchemy
-              python.pkgs.pyyaml
-              python.pkgs.numpy
-              python.pkgs.tqdm
             ];
             nativeCheckInputs = [
               python.pkgs.mypy
-              python.pkgs.types-pyyaml
+              python.pkgs.pytest
+              python.pkgs.pytest-asyncio
+              python.pkgs.pytest-timeout
               python.pkgs.types-tqdm
+              types-networkx
               pkgs.ruff
             ];
             checkPhase = ''
@@ -172,7 +235,7 @@
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
               python -c 'import probe_py'
-              MYPYPATH=$src/mypy_stubs:$MYPYPATH mypy --strict --package probe_py
+              mypy --strict --package probe_py
               runHook postCheck
             '';
           };
@@ -243,24 +306,25 @@
         devShells = let
           probe-python = python.withPackages (pypkgs: [
             # probe_py.manual runtime requirements
+            charmonium-time-block-pkg
+            pypkgs.frozendict
             pypkgs.networkx
+            pypkgs.numpy
             pypkgs.pydot
             pypkgs.rich
-            pypkgs.typer
             pypkgs.sqlalchemy
-            pypkgs.xdg-base-dirs
-            pypkgs.pyyaml
-            pypkgs.numpy
             pypkgs.tqdm
+            pypkgs.typer
+            pypkgs.xdg-base-dirs
 
             # probe_py.manual "dev time" requirements
-            pypkgs.types-tqdm
-            pypkgs.types-pyyaml
-            pypkgs.pytest
-            pypkgs.pytest-timeout
-            pypkgs.mypy
             pypkgs.ipython
+            pypkgs.mypy
+            pypkgs.pytest
             pypkgs.pytest-asyncio
+            pypkgs.pytest-timeout
+            pypkgs.types-tqdm
+            types-networkx
 
             # libprobe build time requirement
             pypkgs.pycparser

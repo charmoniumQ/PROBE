@@ -4,6 +4,7 @@ import pathlib
 import random
 import shutil
 import shlex
+import stat
 import subprocess
 import typing
 import pytest
@@ -105,13 +106,13 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
     "c_hello_simplified": (
-        False,
+        True,
         pathlib.Path("test.c"),
         "int main() { return 0; }",
         ["gcc", "-c", "test.c"],
     ),
     "c_hello": (
-        False,
+        True,
         None,
         "",
         bash_multi(
@@ -208,11 +209,11 @@ def scratch_directory(
     completion for manual inspection. It gets cleared every re-test however.
 
     """
-    suffix: str = request.node.nodeid.replace("/", "_")
+    suffix: str = request.node.nodeid.partition("::")[-1].replace("[", "/").replace("]", "/")
     scratch_dir = scratch_directory_parent / suffix
     if scratch_dir.exists():
         shutil.rmtree(scratch_dir)
-    scratch_dir.mkdir()
+    scratch_dir.mkdir(parents=True)
     return scratch_dir
 
 
@@ -248,9 +249,12 @@ def test_record(
     print(scratch_directory)
 
     if isinstance(command, tuple):
+        strict = command[0]
         if command[1] is not None:
             (scratch_directory / command[1]).write_text(command[2])
         command = command[3]
+    else:
+        strict = True
 
     subprocess.run(command, check=True, cwd=scratch_directory)
 
@@ -259,7 +263,7 @@ def test_record(
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     should_have_copy_files = copy_files in {"eagerly", "lazily"}
-    cmd = ["probe", "py", "validate", *(["--should-have-files"] if should_have_copy_files else [])]
+    cmd = ["probe", "py", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
 
     # TODO: this doesn't work because we don't capture libraries currently.
@@ -307,7 +311,7 @@ def test_downstream_analyses(
             (scratch_directory / command[1]).write_text(command[2])
         command = command[3]
     else:
-        strict = False
+        strict = True
 
     class PopenKwargs(typing.TypedDict):
         check: bool
@@ -336,6 +340,10 @@ def test_downstream_analyses(
 
         # See ltrace_eliminator.py for more help.
 
+    script = scratch_directory / "script.sh"
+    script.write_text("")
+    script.chmod(stat.S_IXUSR | script.stat().st_mode)
+
     print(shutil.which(command[0]))
     full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
 
@@ -360,11 +368,15 @@ def test_downstream_analyses(
 
     cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
+    with (scratch_directory / "hb-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
     cmd = ["probe", "py", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
+    with (scratch_directory / "dataflow-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
 
 def test_fail(
