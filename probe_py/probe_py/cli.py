@@ -170,7 +170,7 @@ def dataflow_graph(
         ignore_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
-        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*",
+        ] = "/nix/store/,/dev/,/proc/,/sys/",
         relative_to: Annotated[
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
@@ -185,20 +185,12 @@ def dataflow_graph(
     """
     restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
-    old_hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
-    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(
-        probe_log, old_hbg
-    )
-    dfg = dataflow_graph_module.filter_paths(
-        dfg, inode_to_paths, ignore_paths.split(",")
-    )
-    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(
-        probe_log, hbg, hb_oracle, dfg,
-    )
-    dataflow_graph_module.label_nodes(
-        probe_log, compressed_dfg, inode_to_paths, relative_to=relative_to
-    )
-    graph_utils.serialize_graph(compressed_dfg, output)
+
+    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph_simple(probe_log)
+    #dfg = dataflow_graph_module.compress_dataflow_graph(dfg, ...)
+    ignore_paths2 = list(map(pathlib.Path, ignore_paths.split(",")))
+    dfg_vis = dataflow_graph_module.visualize_dataflow_graph(dfg, inode_to_paths, ignore_paths2, relative_to, probe_log)
+    graph_utils.serialize_graph(dfg_vis, output)
 
 
 @export_app.command()

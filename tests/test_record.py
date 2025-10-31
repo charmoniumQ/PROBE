@@ -16,7 +16,7 @@ strace = False
 ld_debug = False
 # Save stderr to a file
 # Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
-stderr_to_file = False
+stderr_to_file = True
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent
@@ -106,13 +106,13 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
     "c_hello_simplified": (
-        True,
+        False,
         pathlib.Path("test.c"),
         "int main() { return 0; }",
         ["gcc", "-c", "test.c"],
     ),
     "c_hello": (
-        True,
+        False,
         None,
         "",
         bash_multi(
@@ -344,21 +344,18 @@ def test_downstream_analyses(
     else:
         subprocess.run(full_command, **args, env=env)
 
-    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "debug-text"]
+    cmd = ["probe", "py", "export", "debug-text"]
     print(shlex.join(cmd))
-    if stderr_to_file:
-        with (scratch_directory / "debug-text.txt").open("w") as output:
-            subprocess.run(cmd, **args, stdout=output)
-    else:
-        subprocess.run(cmd, **args)
+    with (scratch_directory / "debug-text.txt").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
+    cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
     script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "hb-graph.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "py", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
+    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose", "dataflow-graph.dot"]
     print(shlex.join(cmd))
     script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "dataflow-graph.out").open("w") as output:

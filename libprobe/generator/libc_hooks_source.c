@@ -65,6 +65,9 @@ FILE * fopen (const char *filename, const char *opentype) {
                 op.data.open.ferrno = call_errno;
             } else {
                 op.data.open.fd = fileno(ret);
+                if (!op.data.open.path.stat_valid) {
+                    op.data.open.path = create_path_lazy(fileno(ret), NULL, 0);
+                }
             }
             prov_log_record(op);
         }
@@ -106,6 +109,9 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
                 close_op.data.close.ferrno = call_errno;
             } else {
                 open_op.data.open.fd = fileno(ret);
+                if (!open_op.data.open.path.stat_valid) {
+                    open_op.data.open.path = create_path_lazy(fileno(ret), NULL, 0);
+                }
             }
             prov_log_record(open_op);
             prov_log_record(close_op);
@@ -177,6 +183,9 @@ int openat(int dirfd, const char *filename, int flags, ...) {
         if (LIKELY(prov_log_is_enabled())) {
             op.data.open.ferrno = UNLIKELY(ret == -1) ? call_errno : 0;
             op.data.open.fd = ret;
+            if (!op.data.open.path.stat_valid) {
+                op.data.open.path = create_path_lazy(ret, NULL, 0);
+            }
             prov_log_record(op);
         }
     });
@@ -216,6 +225,9 @@ int __openat_2(int fd, const char* file, int flags) {
         if (LIKELY(prov_log_is_enabled())) {
             op.data.open.ferrno = UNLIKELY(ret == -1) ? call_errno : 0;
             op.data.open.fd = ret;
+            if (!op.data.open.path.stat_valid) {
+                op.data.open.path = create_path_lazy(ret, NULL, 0);
+            }            
             prov_log_record(op);
         }
     });
@@ -318,7 +330,7 @@ int dup (int old) {
                 op.data.dup.ferrno = call_errno;
             } else {
                 op.data.dup.new = ret;
-                op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
+                op.data.dup.path = create_path_lazy(ret, NULL, AT_EMPTY_PATH);
             }
             prov_log_record(op);
         }
@@ -349,7 +361,7 @@ int dup3 (int old, int new, int flags) {
              if (UNLIKELY(ret == -1)) {
                  dup_op.data.dup.ferrno = call_errno;
              } else {
-                 dup_op.data.dup.path = create_path_lazy(old, NULL, AT_EMPTY_PATH);
+                 dup_op.data.dup.path = create_path_lazy(new, NULL, AT_EMPTY_PATH);
              }
             prov_log_record(dup_op);
         }
@@ -2519,12 +2531,16 @@ int pthread_create(pthread_t *restrict thread,
                  void *(*start_routine)(void *),
                  void *restrict arg) {
     void* pre_call = ({
+        struct PthreadHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct PthreadHelperArg)));
+        real_arg->start_routine = start_routine;
+        real_arg->pthread_id = increment_pthread_id();
+        real_arg->arg = arg;
         struct Op op = {
             clone_op_code,
             {.clone = {
                 .flags = CLONE_FILES | CLONE_FS | CLONE_IO | CLONE_PARENT | CLONE_SIGHAND | CLONE_THREAD | CLONE_VM,
                 .task_type = TASK_PTHREAD,
-                .task_id = -1,
+                .task_id = real_arg->pthread_id,
                 .run_pthread_atfork_handlers = false,
                 .ferrno = 0,
             }},
@@ -2534,10 +2550,6 @@ int pthread_create(pthread_t *restrict thread,
         };
     });
     void* call = ({
-        struct PthreadHelperArg* real_arg = EXPECT_NONNULL(malloc(sizeof(struct PthreadHelperArg)));
-        real_arg->start_routine = start_routine;
-        real_arg->pthread_id = increment_pthread_id();
-        real_arg->arg = arg;
         int ret = client_pthread_create(thread, attr, pthread_helper, real_arg);
     });
     void* post_call = ({
@@ -2550,7 +2562,6 @@ int pthread_create(pthread_t *restrict thread,
         } else {
             /* Success; parent */
             if (LIKELY(prov_log_is_enabled())) {
-                op.data.clone.task_id = *((int64_t*)thread);
                 prov_log_record(op);
             }
         }

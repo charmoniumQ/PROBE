@@ -19,10 +19,13 @@ _Node = typing.TypeVar("_Node")
 _T_co = typing.TypeVar("_T_co", covariant=True)
 _V_co = typing.TypeVar("_V_co", covariant=True)
 FrozenDict: typing.TypeAlias = frozendict.frozendict[_T_co, _V_co]
+NodeData = typing.Mapping[str, typing.Any]
+EdgeData = typing.Mapping[str, typing.Any]
+It: typing.TypeAlias = collections.abc.Iterable[_T_co]
 
 
 @dataclasses.dataclass(frozen=True)
-class Segment(typing.Generic[_Node]):
+class Interval(typing.Generic[_Node]):
     dag_tc: ReachabilityOracle[_Node]
     upper_bound: frozenset[_Node]
     lower_bound: frozenset[_Node]
@@ -42,31 +45,31 @@ class Segment(typing.Generic[_Node]):
             f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
 
     @staticmethod
-    def singleton(dag_tc: ReachabilityOracle[_Node], node: _Node) -> Segment[_Node]:
-        return Segment(dag_tc, frozenset({node}), frozenset({node}))
+    def singleton(dag_tc: ReachabilityOracle[_Node], node: _Node) -> Interval[_Node]:
+        return Interval(dag_tc, frozenset({node}), frozenset({node}))
 
     def __bool__(self) -> bool:
-        "Whether the segment is non-empty"
+        "Whether the interval is non-empty"
         return bool(self.upper_bound)
 
     @staticmethod
-    def union(*segments: Segment[_Node]) -> Segment[_Node]:
-        assert segments
-        dag_tc = segments[0].dag_tc
-        assert all(segment.dag_tc is dag_tc for segment in segments)
+    def union(*intervals: Interval[_Node]) -> Interval[_Node]:
+        assert intervals
+        dag_tc = intervals[0].dag_tc
+        assert all(interval.dag_tc is dag_tc for interval in intervals)
         upper_bound = dag_tc.get_uppermost(frozenset(
             node
-            for segment in segments
-            for node in segment.upper_bound
+            for interval in intervals
+            for node in interval.upper_bound
         ))
         lower_bound = dag_tc.get_bottommost(frozenset(
             node
-            for segment in segments
-            for node in segment.lower_bound
+            for interval in intervals
+            for node in interval.lower_bound
         ))
-        return Segment(dag_tc, frozenset(upper_bound), frozenset(lower_bound))
+        return Interval(dag_tc, frozenset(upper_bound), frozenset(lower_bound))
 
-    def all_greater_than(self, other: Segment[_Node]) -> bool:
+    def all_greater_than(self, other: Interval[_Node]) -> bool:
         other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = \
             self.dag_tc.non_descendants(other.upper_bound, self.lower_bound)
         return not other_upper_bounds_that_are_not_descendent_of_self_lower_bounds
@@ -89,14 +92,25 @@ def hasse_diagram(
 
 
 def map_nodes(
-        function: typing.Callable[[_Node], _Node2],
+        mapper: typing.Callable[[_Node], _Node2],
         graph: networkx.DiGraph[_Node],
         check: bool = True,
 ) -> networkx.DiGraph[_Node2]:
-    dct = {node: function(node) for node in graph.nodes()}
+    dct = {node: mapper(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
     ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
     return ret
+
+
+def filter_nodes(
+        predicate: typing.Callable[[_Node], bool],
+        graph: networkx.DiGraph[_Node],
+) -> networkx.DiGraph[_Node2]:
+    return typing.cast("networkx.DiGraph[_Node2]", graph.subgraph(
+        node
+        for node in graph.nodes()
+        if predicate(node)
+    ))
 
 
 def serialize_graph(
@@ -109,25 +123,28 @@ def serialize_graph(
         def name_mapper(node: _Node) -> str:
             return str(graph.nodes(data=True)[node].get("id", node))
     graph2 = map_nodes(name_mapper, graph)
-    pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
 
-    pydot_graph.set("rankdir", "TB")
-
-    clusters = dict[str, pydot.Subgraph]()
-    for node in pydot_graph.get_nodes():
-        cluster_name = node.get("cluster")
-        if cluster_name:
-            if cluster_name not in clusters:
-                cluster_subgraph = pydot.Subgraph(
-                    f"cluster_{cluster_name}",
-                    label=cluster_labels.get(cluster_name, cluster_name),
-                )
-                pydot_graph.add_subgraph(cluster_subgraph)
-            else:
-                cluster_subgraph = clusters[cluster_name]
-            cluster_subgraph.add_node(node)
-
-    pydot_graph.write(str(output), "raw")
+    if output.suffix.endswith("dot"):
+        pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
+        pydot_graph.set("rankdir", "TB")
+        clusters = dict[str, pydot.Subgraph]()
+        for node in pydot_graph.get_nodes():
+            cluster_name = node.get("cluster")
+            if cluster_name:
+                if cluster_name not in clusters:
+                    cluster_subgraph = pydot.Subgraph(
+                        f"cluster_{cluster_name}",
+                        label=cluster_labels.get(cluster_name, cluster_name),
+                    )
+                    pydot_graph.add_subgraph(cluster_subgraph)
+                else:
+                    cluster_subgraph = clusters[cluster_name]
+                cluster_subgraph.add_node(node)
+        pydot_graph.write(str(output), "raw")
+    elif output.suffix.endswith("graphml"):
+        networkx.write_graphml(graph2, output)
+    else:
+        raise ValueError("Unknown output type")
 
 
 def add_self_loops(
@@ -238,9 +255,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
 
     See
 
-    - Zhang et al. 2023
-      - <https://doi.org/10.1145/3555041.3589408>
-      - <https://hal.science/hal-04347158/file/An_Overview_of_Reachability_Indexes_on_Graphs%20%282%29.pdf>
+    - Zhang et al. 2025 <https://arxiv.org/pdf/2311.03542>
     """
 
     @staticmethod
@@ -255,6 +270,9 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
     @abc.abstractmethod
     def is_reachable(self, u: _Node, v: _Node) -> bool:
         ...
+
+    def is_peer(self, u: _Node, v: _Node) -> bool:
+        return not self.is_reachable(u, v) and not self.is_reachable(v, u)
 
     @abc.abstractmethod
     def nodes_between(
@@ -375,8 +393,8 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             )
         })
 
-    def segment(self, upper_bound: frozenset[_Node], lower_bound: frozenset[_Node]) -> Segment[_Node]:
-        return Segment(self, upper_bound, lower_bound)
+    def interval(self, upper_bound: frozenset[_Node], lower_bound: frozenset[_Node]) -> Interval[_Node]:
+        return Interval(self, upper_bound, lower_bound)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -386,6 +404,7 @@ class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
     See https://doi.org/10.1109/ICDE.2006.53
     """
 
+    # FIXME: I think this is wrong; does not respect non-tree edges.
 
     dag: networkx.DiGraph[_Node]
     left: FrozenDict[_Node, int]
@@ -401,7 +420,7 @@ class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
     def create(dag: networkx.DiGraph[_Node]) -> DualLabelReachabilityOracle[_Node]:
         topo = list(networkx.topological_sort(dag))
         # Assign preorder numbers in topological order
-        preorder = FrozenDict({node: index for index, node in enumerate(topo)})
+        preorder = FrozenDict[_Node, int]({node: index for index, node in enumerate(topo)})
         # Initialize interval labels
         left = {node: preorder[node] for node in dag}
         right = {node: preorder[node] for node in dag}
@@ -411,7 +430,12 @@ class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
             for v in dag.successors(u):
                 left[u] = min(left[u], left[v])
                 right[u] = max(right[u], right[v])
-        return DualLabelReachabilityOracle(dag, FrozenDict(left), FrozenDict(right), preorder)
+        return DualLabelReachabilityOracle(
+            dag,
+            FrozenDict[_Node, int](left),
+            FrozenDict[_Node, int](right),
+            preorder,
+        )
 
     def is_reachable(self, src: _Node, dst: _Node) -> bool:
         if src not in self:
@@ -743,3 +767,91 @@ def combine_twin_nodes(
         for successor in graph.successors(node)
     )
     return ret
+
+
+def retain_nodes_in_dag(
+        dag: networkx.DiGraph[_Node],
+        retained_nodes: frozenset[_Node],
+        edge_data: typing.Callable[[networkx.DiGraph[_Node], typing.Sequence[_Node]], EdgeData],
+) -> networkx.DiGraph[_Node]:
+    """Retruns a graph with only the retained nodes, such that:
+
+    - if A and B are retained and connected by a path of non-retained nodes in the input,
+      then there is an edge from A to B in the output, whose edge data is edge_data(dag, path_from_A_to_B).
+    - and no other edges
+
+    O(nodes + edges)
+    """
+
+    assert networkx.is_directed_acyclic_graph(dag)
+    assert retained_nodes <= set(dag.nodes())
+
+    # Node -> list of pairs of (path to latest retained predecessor, latest retained predecessor)
+    # Note that there can be multiple "latest" due to partial ordering.
+    # Note that could be itself (not truly a predecessor), but it simplifies the logic.
+    latest_retained_predecessors: dict[_Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]]] = {}
+    earliest_retained_successors: dict[_Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]]] = {}
+
+    for node in networkx.topological_sort(dag):
+        if node in retained_nodes:
+            latest_retained_predecessors[node] = (((), node),)
+        else:
+            latest_retained_predecessors[node] = tuple(
+                ((*path_to_retained_predecessor, node), retained_predecessor)
+                for predecessor in dag.predecessors(node)
+                for path_to_retained_predecessor, retained_predecessor in latest_retained_predecessors[predecessor]
+            )
+
+    for node in reversed(list(networkx.topological_sort(dag))):
+        if node in retained_nodes:
+            # path always ends in a retained node
+            earliest_retained_successors[node] = (((), node),)
+        else:
+            # path always ends in a retained node
+            earliest_retained_successors[node] = tuple(
+                ((node, *path_to_retained_successor), retained_successor)
+                for successor in dag.successors(node)
+                for path_to_retained_successor, retained_successor in earliest_retained_successors[successor]
+            )
+    
+    new_graph: networkx.DiGraph[_Node] = networkx.DiGraph()
+    for node, node_data in dag.nodes(data=True):
+        if node in retained_nodes:
+            # Need to add node directly, in case node is disconnected from everyone
+            new_graph.add_node(node, **node_data)
+
+            # Now add edges to retained predecessors/successors
+            for predecessor in dag.predecessors(node):
+                for path, retained_predecessor in latest_retained_predecessors[predecessor]:
+                    assert not any(node in retained_nodes for node in path)
+                    assert retained_predecessor in retained_nodes
+                    path = (retained_predecessor, *path, node)
+                    assert networkx.is_path(dag, path)
+                    new_graph.add_edge(retained_predecessor, node, **edge_data(dag, path))
+
+            for successor in dag.successors(node):
+                for path, retained_successor in earliest_retained_successors[successor]:
+                    assert not any(node in retained_nodes for node in path)
+                    assert retained_successor in retained_nodes
+                    path = (node, *path, retained_successor)
+                    assert networkx.is_path(dag, path)
+                    new_graph.add_edge(node, retained_successor, **edge_data(dag, path))
+
+    assert set(new_graph.nodes()) == retained_nodes
+
+    return new_graph
+
+
+def create_digraph(nodes: It[_Node], edges: It[tuple[_Node, _Node]]) -> networkx.DiGraph[_Node]:
+    output: "networkx.DiGraph[_Node]" = networkx.DiGraph()
+    output.add_nodes_from(nodes)
+    output.add_edges_from(edges)
+    return output
+
+
+def would_create_cycle(
+        dag: networkx.DiGraph[_Node],
+        src: _Node,
+        dst: _Node,
+) -> bool:
+    return src in set(networkx.descendants(dag, dst))

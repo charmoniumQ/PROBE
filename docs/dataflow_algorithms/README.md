@@ -39,15 +39,24 @@ A schedule that puts `write` at the close and `read` at the open will not see da
 
 # Interval approach
 
-Instead, we take the more complex, "interval" approach.
+Instead, we take the more complex, "interval" approach. Unlike an interval on the real numbers, an interval in a partial order can have multiple lower-limits and upper-limits. Only nodes which are below some lower-limit and above some upper-limit are contained in the interval.
+
+Define the binary predicate "all-happens-before", which is that all of the lower bounds of the first interval happen-before some upper bound in the second interval.
 
 [interval_algo.py](./interval_algo.py)
 
 [interval_redux.py](./interval_redux.py)
 
-Find the intervals in which a write could have taken place. An interval is for each process, the earliest and latest possible quad in which a read/write may happen.
-
 The logic in `interval_redux.py` for dealing with concurrent segments works if the segments are disjoint.
+
+We start with the HB graph, because all of the edges (program order, fork, join, exec) _can_ have dataflow. We get rid of extraneous nodes in the process.
+
+Then for each referenced inode:
+  Find its open-close intervals.
+  Form a partial order on the open-close intervals with all-happens-before.
+  Find the transitive reduction.
+  For each node, the node may read any of the versions of any of its predecessors.
+  
 
 # Doubts
 

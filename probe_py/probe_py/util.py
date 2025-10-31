@@ -214,3 +214,7 @@ def relative_to(dest: pathlib.Path, source: pathlib.Path) -> pathlib.Path:
 
 def is_main_process() -> bool:
     return multiprocessing.parent_process() is None
+
+
+def raise_(exception: Exception) -> typing.NoReturn:
+    raise exception

@@ -418,7 +418,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         # pycparser.c_ast.FuncCall(
         #     name=pycparser.c_ast.ID(name="DEBUG"),
         #     args=pycparser.c_ast.ExprList(exprs=[
-        #         pycparser.c_ast.Constant(type="string", value='"Interposed call"'),
+        #         pycparser.c_ast.Constant(type="string", value=f'"Interposed {func.name}"'),
         #     ]),
         # ),
     ]

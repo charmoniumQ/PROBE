@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	    <meta charset="utf-8"  />
+	    <title>An HTML standard template</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reset.min.css"
+            integrity="sha512-Mjxkx+r7O/OLQeKeIBCQ2yspG1P5muhAtv/J+p2/aPnSenciZWm5Wlnt+NOUNA4SHbnBIE/R2ic0ZBiCXdQNUg=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer" />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reveal.min.css"
+            integrity="sha512-e3dnmFe5hH2bJx1MvUU3PFToGVQ2xykp/VGERCkuh4lTGMJ5QuxKFRIwix8DfnfkavwJiL6rehb9e1d6mFLwlg=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer" />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/theme/black.min.css"
+            integrity="sha512-DKeDMgkMDBNgY3g8T6H6Ft5cB7St0LOh5d69BvETIcTrP0E3d3KhANTMs5QOTMnenXy6JVKz/tENmffCLeXPiQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer" />
+    </head>
+    <body>
+        <div class="reveal">
+            <div class="slides">
+                <section>
+                    <h2>Takeaways</h2>
+                    <ol>
+                        <li>Provenance is practical today</li>
+                        <li>Consider using <b><code>PROBE</code></b> to collect provenance.</li>
+                    </ol>
+                    <div
+                        class="qrcode-link"
+                        data-caption="PROBE"
+                        data-encoded="https://github.com/charmoniumQ/PROBE"
+                    >
+                    </div>
+                </section>
+                <section>
+                    <h2>Not everything is always workflow</h2>
+                </section>
+                <section>
+                    <h2>Working with legacy code</h2>
+                </section>
+                <section>
+                    <h2>Tracing provenance</h2>
+                </section>
+                <section>
+                    <h2>Converting to workflows</h2>
+                </section>
+                <section>
+                    <h2>What about containers?</h2>
+                </section>
+                <section>
+                    <h2>What about distributed systems?</h2>
+                </section>
+                <section>
+                    <h2>Storing provenance</h2>
+                </section>
+            </div>
+        </div>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/reveal.js"
+            integrity="sha512-GvouLVZT+gJSJW5eOfpG46xTaBb2c3VeNnbzmDYTRQkFlgvxNhnzZQqiQ/jAyAYPh+a9roBvAHJP6zvXIVq34Q=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script type="text/javascript">
+         /*<![CDATA[*/
+         Reveal.initialize({
+             "hash": true,
+             "slideNumber": "c/t",
+             "transition": "none",
+         });
+         /*]]*/
+        </script>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+            integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script type="text/javascript">
+         /*<![CDATA[*/
+         Array.from(
+             document.getElementsByClassName("qrcode-link")
+         ).forEach((container) => {
+             const a = document.createElement("a");
+             const figure = document.createElement("figure");
+             const figCaption = document.createElement("figcaption");
+             console.log(container)
+
+             container.appendChild(a);
+             a.appendChild(figure);
+             figure.appendChild(figCaption);
+
+             a.href = container.dataset.encoded;
+             figCaption.textContent = container.dataset.caption;
+             new QRCode(figure, {
+	             text: container.dataset.encoded,
+             });
+         });
+         /*]]*/
+        </script>
+    </body>
+</html>

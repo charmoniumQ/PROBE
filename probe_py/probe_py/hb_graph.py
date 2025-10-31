@@ -50,9 +50,10 @@ def retain_only(
         retain_node_predicate: typing.Callable[[OpQuad, Op], bool],
 ) -> HbGraph:
     """Retains only nodes satisfying the predicate."""
+    # FIXME: Use graph_utils.retain_nodes_in_dag
     reduced_hb_graph = HbGraph()
-    last_in_process = dict[tuple[Pid, ExecNo, Tid], OpQuad]()
-    incoming_to_process = dict[tuple[Pid, ExecNo, Tid], list[tuple[OpQuad, typing.Mapping[str, typing.Any]]]]()
+    last_in_process = dict[ptypes.ThreadTriple, OpQuad]()
+    incoming_to_process = dict[ptypes.ThreadTriple, list[tuple[OpQuad, typing.Mapping[str, typing.Any]]]]()
 
     for node in tqdm.tqdm(
             networkx.topological_sort(full_hb_graph),
@@ -86,14 +87,13 @@ def retain_only(
         # Once we find one of those which satisfies the retain_node_predicate,
         # we will create edges from last_in_process[this node_triple] to a descendant of the successor node.
         for successor in full_hb_graph.successors(node):
-            successor_triple = (successor.pid, successor.exec_no, successor.tid)
             # Note that if node_triple not in last_in_process,
             # none of the prior nodes in this process were retained,
             # so the edge doesn't synchronize any retained nodes.
             # In such case, we don't need to create an edge.
-            if successor_triple != thread and (previous_node := last_in_process.get(thread)):
+            if successor.thread_triple() != thread and (previous_node := last_in_process.get(thread)):
                 edge_data = full_hb_graph.get_edge_data(node, successor)
-                incoming_to_process.setdefault(successor_triple, []).append((previous_node, edge_data))
+                incoming_to_process.setdefault(successor.thread_triple(), []).append((previous_node, edge_data))
 
     for thread, incoming in incoming_to_process.items():
         for node, edge_data in incoming:
@@ -191,7 +191,7 @@ def get_first_task_nodes(
 ) -> list[OpQuad]:
     targets = []
     for tid, thread in probe_log.processes[pid].execs[exec_no].threads.items():
-        for op_no, other_op in enumerate(reversed(thread.ops) if reverse else thread.ops):
+        for op_no, other_op in reversed(list(enumerate(thread.ops))) if reverse else enumerate(thread.ops):
             if (task_type == TaskType.TASK_PTHREAD and other_op.pthread_id == task_id) or \
                (task_type == TaskType.TASK_ISO_C_THREAD and other_op.iso_c_thread_id == task_id):
                 targets.append(OpQuad(pid, exec_no, tid, op_no))
@@ -273,13 +273,10 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                     if len(list(hb_graph.predecessors(first_op))) == 0:
                         hb_graph.add_edge(first_op_main_thread, first_op)
                     if last_op_main_thread != first_op_main_thread and len(list(hb_graph.successors(last_op))) == 0:
-                        if last_op_main_thread not in hb_graph.predecessors(last_op):
+                        if last_op_main_thread not in hb_graph.predecessors(first_op) and not graph_utils.would_create_cycle(hb_graph, last_op, last_op_main_thread):
                             hb_graph.add_edge(last_op, last_op_main_thread)
                         else:
-                            warnings.warn(ptypes.UnusualProbeLog(
-                                f"I want to add an edge from last op of {tid} to main thread {pid}, but that would create a cycle;"
-                                f"the last op of {pid} is likely the clone that creates {tid}"
-                            ))
+                            print("would cycle:", last_op, last_op_main_thread)
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
