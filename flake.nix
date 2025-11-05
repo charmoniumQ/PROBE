@@ -62,57 +62,6 @@
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
         charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
-
-        # Once a new release of [PyPI types-networkx] is rolled out
-        # containing [typeshed#14594] and [typeshed#14595], this can be replaced
-        # with the PyPI version. Unfortunately, building types-networkx from
-        # source is quite a pain, as the "normal" package source is actually
-        # generated from the typeshed source by stub_uploader.
-        #
-        # [typeshed#14594]: https://github.com/python/typeshed/pull/14594
-        # [typeshed#14595]: https://github.com/python/typeshed/pull/14595
-        # [PyPI types-networkx]: https://pypi.org/project/types-networkx/
-        types-networkx = python.pkgs.buildPythonPackage rec {
-          pname = "types-networkx";
-          version = "3.5.0.20250819-dev";
-          pyproject = true;
-          nativeBuildInputs = [python.pkgs.setuptools];
-          src =
-            pkgs.runCommand "types-networkx-source" {
-              nativeBuildInputs = [pkgs.git];
-              STUB_UPLOADER = pkgs.fetchFromGitHub {
-                owner = "typeshed-internal";
-                repo = "stub_uploader";
-                rev = "14ba80054d0c182743832a5bf72423bb8b303aab";
-                hash = "sha256-Um8ydeBX1IhASSMgu5M49JsVCkUK1vr/JQuh2LhatXU=";
-              };
-              PYTHON = python.withPackages (pypkgs: [
-                pypkgs.packaging
-                pypkgs.requests
-                pypkgs.tomli
-              ]);
-              TYPESHED = builtins.toString (pkgs.fetchFromGitHub {
-                owner = "charmoniumQ";
-                repo = "typeshed";
-                rev = "c48e28ac93fbc5f78ee8704954d77a3bad0cbf84";
-                hash = "sha256-eM/PYCdK0N7ZQGf/MM2fu2ij69zrl+dQRw0qPYmUbcc=";
-              });
-            } ''
-              set -x
-              cp -r $STUB_UPLOADER stub_uploader
-              find stub_uploader -type f | xargs -n 1 chmod +rw
-              find stub_uploader -type d | xargs -n 1 chmod +rwx
-              cd stub_uploader
-              patch -p1 <${./probe_py/stub_uploader.diff}
-              cp -r $TYPESHED typeshed
-              find typeshed -type f | xargs chmod +rw
-              find typeshed -type d | xargs chmod +rwx
-              mkdir tmp
-              $PYTHON/bin/python -m stub_uploader.build_wheel --build-dir tmp typeshed networkx ${version}
-              mkdir $out
-              cp -r tmp/* $out
-            '';
-        };
       in rec {
         packages = rec {
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
@@ -213,7 +162,7 @@
               charmonium-time-block-pkg
               python.pkgs.frozendict
               python.pkgs.networkx
-              python.pkgs.numpy
+              python.pkgs.pygraphviz
               python.pkgs.pydot
               python.pkgs.rich
               python.pkgs.sqlalchemy
@@ -309,7 +258,6 @@
             charmonium-time-block-pkg
             pypkgs.frozendict
             pypkgs.networkx
-            pypkgs.numpy
             pypkgs.pydot
             pypkgs.rich
             pypkgs.sqlalchemy
