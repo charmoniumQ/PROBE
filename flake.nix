@@ -267,6 +267,7 @@
             # probe_py.manual runtime requirements
             charmonium-time-block-pkg
             pypkgs.networkx
+            pypkgs.numpy
             pypkgs.pydot
             pypkgs.rich
             pypkgs.sqlalchemy
