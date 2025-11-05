@@ -173,6 +173,7 @@
             propagatedBuildInputs = [
               charmonium-time-block-pkg
               python.pkgs.networkx
+              python.pkgs.numpy
               python.pkgs.pydot
               python.pkgs.pygraphviz
               python.pkgs.rich
