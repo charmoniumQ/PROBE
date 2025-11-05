@@ -38,7 +38,7 @@
     cli-wrapper,
     charmonium-time-block,
     ...
-  } @ inputs: let
+  }: let
     supported-systems = import ./targets.nix;
     probe-ver = "0.0.13";
   in
@@ -61,8 +61,21 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
       in rec {
         packages = rec {
+          types-networkx = python.pkgs.buildPythonPackage rec {
+            pname = "types-networkx";
+            version = "3.5.0.20251001";
+            src = pkgs.fetchPypi {
+              pname = "types_networkx";
+              inherit version;
+              sha256 = "8e3c5c491ba5870d75e175751d70ddeac81df43caf2a64bae161e181f5e8ea7a";
+            };
+            pyproject = true;
+            nativeBuildInputs = [python.pkgs.setuptools];
+            propagatedBuildInputs = [python.pkgs.numpy];
+          };
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
@@ -91,13 +104,13 @@
             doCheck = true;
             nativeCheckInputs = [
               old-pkgs.criterion
-              pkgs.include-what-you-use
+              pkgs.clang
               pkgs.clang-analyzer
               pkgs.clang-tools
-              pkgs.clang
               pkgs.compiledb
               pkgs.cppcheck
               pkgs.cppclean
+              pkgs.include-what-you-use
             ];
             checkPhase = ''
               # When a user buidls this WITHOUT build sandbox isolation, the libc files appear to come from somewhere different.
@@ -158,29 +171,30 @@
               '';
             };
             propagatedBuildInputs = [
+              charmonium-time-block-pkg
               python.pkgs.networkx
-              python.pkgs.pygraphviz
               python.pkgs.pydot
+              python.pkgs.pygraphviz
               python.pkgs.rich
+              python.pkgs.sqlalchemy
+              python.pkgs.tqdm
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
-              python.pkgs.sqlalchemy
-              python.pkgs.pyyaml
-              python.pkgs.numpy
-              python.pkgs.tqdm
             ];
             nativeCheckInputs = [
-              python.pkgs.mypy
-              python.pkgs.types-pyyaml
-              python.pkgs.types-tqdm
+              packages.types-networkx
               pkgs.ruff
+              python.pkgs.mypy
+              python.pkgs.pytest
+              python.pkgs.pytest-asyncio
+              python.pkgs.pytest-timeout
+              python.pkgs.types-tqdm
             ];
             checkPhase = ''
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
-              python -c 'import probe_py'
-              MYPYPATH=$src/mypy_stubs:$MYPYPATH mypy --strict --package probe_py
+              mypy --strict --package probe_py
               runHook postCheck
             '';
           };
@@ -198,11 +212,11 @@
         checks = {
           inherit
             (cli-wrapper.checks."${system}")
+            probe-workspace-audit
             probe-workspace-clippy
+            probe-workspace-deny
             probe-workspace-doc
             probe-workspace-fmt
-            probe-workspace-audit
-            probe-workspace-deny
             probe-workspace-nextest
             ;
           fmt-nix = pkgs.stdenv.mkDerivation {
@@ -221,18 +235,18 @@
                 packages.probe
                 (python.withPackages (ps:
                   with ps; [
-                    pytest
-                    pytest-timeout
-                    pytest-asyncio
                     packages.probe-py
+                    pytest
+                    pytest-asyncio
+                    pytest-timeout
                   ]))
                 pkgs.buildah
-                pkgs.podman
-                pkgs.docker
-                pkgs.coreutils # so we can `probe record head ...`, etc.
-                pkgs.gnumake
                 pkgs.clang
+                pkgs.coreutils # so we can `probe record head ...`, etc.
+                pkgs.docker
+                pkgs.gnumake
                 pkgs.nix
+                pkgs.podman
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
@@ -251,24 +265,23 @@
         devShells = let
           probe-python = python.withPackages (pypkgs: [
             # probe_py.manual runtime requirements
+            charmonium-time-block-pkg
             pypkgs.networkx
             pypkgs.pydot
             pypkgs.rich
-            pypkgs.typer
             pypkgs.sqlalchemy
-            pypkgs.xdg-base-dirs
-            pypkgs.pyyaml
-            pypkgs.numpy
             pypkgs.tqdm
+            pypkgs.typer
+            pypkgs.xdg-base-dirs
 
             # probe_py.manual "dev time" requirements
-            pypkgs.types-tqdm
-            pypkgs.types-pyyaml
-            pypkgs.pytest
-            pypkgs.pytest-timeout
-            pypkgs.mypy
+            packages.types-networkx
             pypkgs.ipython
+            pypkgs.mypy
+            pypkgs.pytest
             pypkgs.pytest-asyncio
+            pypkgs.pytest-timeout
+            pypkgs.types-tqdm
 
             # libprobe build time requirement
             pypkgs.pycparser
@@ -284,10 +297,10 @@
           shellPackages =
             [
               # Rust tools
-              pkgs.cargo-deny
               pkgs.cargo-audit
-              pkgs.cargo-machete
+              pkgs.cargo-deny
               pkgs.cargo-hakari
+              pkgs.cargo-machete
 
               # Replay tools
               pkgs.buildah
@@ -300,14 +313,14 @@
               pkgs.clang-analyzer
               pkgs.clang-tools # must go after clang-analyzer
               pkgs.cppcheck
-              pkgs.gnumake
               pkgs.git
+              pkgs.gnumake
               pkgs.include-what-you-use
               old-pkgs.criterion # unit testing framework
 
               # Programs for testing
-              pkgs.nix
               pkgs.coreutils
+              pkgs.nix
 
               # For other lints
               pkgs.alejandra

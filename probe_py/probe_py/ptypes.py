@@ -185,14 +185,39 @@ class Process:
 
 
 @dataclasses.dataclass(frozen=True)
+class ExecPair:
+    pid: Pid
+    exec_no: ExecNo
+
+    def __str__(self) -> str:
+        return f"PID {self.pid} Exec {self.exec_no}"
+
+
+@dataclasses.dataclass(frozen=True)
+class ThreadTriple:
+    pid: Pid
+    exec_no: ExecNo
+    tid: Tid
+
+    def exec_pair(self) -> ExecPair:
+        return ExecPair(self.pid, self.exec_no)
+
+    def __str__(self) -> str:
+        return f"PID {self.pid} Exec {self.exec_no} TID {self.tid}"
+
+
+@dataclasses.dataclass(frozen=True)
 class OpQuad:
     pid: Pid
     exec_no: ExecNo
     tid: Tid
     op_no: int
 
-    def thread_triple(self) -> tuple[Pid, ExecNo, Tid]:
-        return (self.pid, self.exec_no, self.tid)
+    def thread_triple(self) -> ThreadTriple:
+        return ThreadTriple(self.pid, self.exec_no, self.tid)
+
+    def exec_pair(self) -> ExecPair:
+        return ExecPair(self.pid, self.exec_no)
 
     def __str__(self) -> str:
         return f"PID {self.pid} Exec {self.exec_no} TID {self.tid} op {self.op_no}"
