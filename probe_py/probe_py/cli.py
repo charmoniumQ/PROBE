@@ -61,7 +61,7 @@ def restore_sanity(strict: bool, debug: bool) -> None:
         )
     if debug:
         import ipdb  # type: ignore
-        ipdb.sset_trace()
+        ipdb.set_trace()
 
 
 @app.command()
@@ -186,10 +186,9 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
 
-    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph_simple(probe_log)
-    #dfg = dataflow_graph_module.compress_dataflow_graph(dfg, ...)
-    ignore_paths2 = list(map(pathlib.Path, ignore_paths.split(",")))
-    dfg_vis = dataflow_graph_module.visualize_dataflow_graph(dfg, inode_to_paths, ignore_paths2, relative_to, probe_log)
+    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log)
+    _ignore_paths2 = list(map(pathlib.Path, ignore_paths.split(",")))
+    dfg_vis = dataflow_graph_module.visualize_dataflow_graph(dfg, inode_to_paths, [], relative_to, probe_log)
     graph_utils.serialize_graph(dfg_vis, output)
 
 

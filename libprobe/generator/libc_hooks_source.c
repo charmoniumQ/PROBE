@@ -2885,6 +2885,8 @@ mktemp, mkstemp, mkdtemp
 truncate, truncate64, ftruncate, ftruncate64
 mknod
 
+prctl(PR_SET_NAME) could be nice
+
 https://github.com/bminor/glibc/blob/098e449df01cd1db950030c09af667a2ee039460/io/Versions#L117
 Also, cpp tests/examples/cat.c | grep open
 

@@ -49,6 +49,22 @@ def parse_probe_log_ctx(
                         json.loads(line, object_hook=_op_hook)
                         for line in jsonlines
                     ]
+                    assert ops_list
+                    if not isinstance(ops_list[-1].data, (ops.ExitThreadOp, ops.ExitProcessOp, ops.ExecOp)):
+                        # Every thread should end in an ExitThreadOp and possibly an ExitProcessOp
+                        # Consider:
+                        # void main() { pthread_create(thread2); }
+                        # void thread2() { }
+                        # The HB graph would be a tree, main[0] ---clone--> thread2[0].
+                        # We can't put an HB edge from the last op of thread2 to the last op of main, and the HB graph 
+                        ops_list.append(ops.Op(
+                            data=ops.ExitThreadOp(
+                                status=0,
+                            ),
+                            time=ops_list[-1].time,
+                            pthread_id=ops_list[-1].pthread_id,
+                            iso_c_thread_id=ops_list[-1].iso_c_thread_id,
+                        ))
                     threads[tid] = KernelThread(tid, ops_list)
                 execs[exec_no] = Exec(exec_no, threads)
             processes[pid] = Process(pid, execs)
