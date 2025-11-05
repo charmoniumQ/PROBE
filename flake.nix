@@ -64,6 +64,18 @@
         charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
       in rec {
         packages = rec {
+          types-networkx = python.pkgs.buildPythonPackage rec {
+            pname = "types-networkx";
+            version = "3.5.0.20251001";
+            src = pkgs.fetchPypi {
+              pname = "types_networkx";
+              inherit version;
+              sha256 = "8e3c5c491ba5870d75e175751d70ddeac81df43caf2a64bae161e181f5e8ea7a";
+            };
+            pyproject = true;
+            nativeBuildInputs = [python.pkgs.setuptools];
+            propagatedBuildInputs = [python.pkgs.numpy];
+          };
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
@@ -92,13 +104,13 @@
             doCheck = true;
             nativeCheckInputs = [
               old-pkgs.criterion
-              pkgs.include-what-you-use
+              pkgs.clang
               pkgs.clang-analyzer
               pkgs.clang-tools
-              pkgs.clang
               pkgs.compiledb
               pkgs.cppcheck
               pkgs.cppclean
+              pkgs.include-what-you-use
             ];
             checkPhase = ''
               # When a user buidls this WITHOUT build sandbox isolation, the libc files appear to come from somewhere different.
@@ -162,8 +174,9 @@
               charmonium-time-block-pkg
               python.pkgs.frozendict
               python.pkgs.networkx
-              python.pkgs.pygraphviz
+              python.pkgs.numpy
               python.pkgs.pydot
+              python.pkgs.pygraphviz
               python.pkgs.rich
               python.pkgs.sqlalchemy
               python.pkgs.tqdm
@@ -176,8 +189,10 @@
               python.pkgs.pytest-asyncio
               python.pkgs.pytest-timeout
               python.pkgs.types-tqdm
-              types-networkx
+              packages.types-networkx
               pkgs.ruff
+              python.pkgs.mypy
+              python.pkgs.types-tqdm
             ];
             checkPhase = ''
               runHook preCheck
@@ -202,11 +217,11 @@
         checks = {
           inherit
             (cli-wrapper.checks."${system}")
+            probe-workspace-audit
             probe-workspace-clippy
+            probe-workspace-deny
             probe-workspace-doc
             probe-workspace-fmt
-            probe-workspace-audit
-            probe-workspace-deny
             probe-workspace-nextest
             ;
           fmt-nix = pkgs.stdenv.mkDerivation {
@@ -225,18 +240,18 @@
                 packages.probe
                 (python.withPackages (ps:
                   with ps; [
-                    pytest
-                    pytest-timeout
-                    pytest-asyncio
                     packages.probe-py
+                    pytest
+                    pytest-asyncio
+                    pytest-timeout
                   ]))
                 pkgs.buildah
-                pkgs.podman
-                pkgs.docker
-                pkgs.coreutils # so we can `probe record head ...`, etc.
-                pkgs.gnumake
                 pkgs.clang
+                pkgs.coreutils # so we can `probe record head ...`, etc.
+                pkgs.docker
+                pkgs.gnumake
                 pkgs.nix
+                pkgs.podman
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
@@ -258,6 +273,7 @@
             charmonium-time-block-pkg
             pypkgs.frozendict
             pypkgs.networkx
+            pypkgs.numpy
             pypkgs.pydot
             pypkgs.rich
             pypkgs.sqlalchemy
@@ -266,13 +282,13 @@
             pypkgs.xdg-base-dirs
 
             # probe_py.manual "dev time" requirements
+            packages.types-networkx
             pypkgs.ipython
             pypkgs.mypy
             pypkgs.pytest
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
             pypkgs.types-tqdm
-            types-networkx
 
             # libprobe build time requirement
             pypkgs.pycparser
@@ -288,10 +304,10 @@
           shellPackages =
             [
               # Rust tools
-              pkgs.cargo-deny
               pkgs.cargo-audit
-              pkgs.cargo-machete
+              pkgs.cargo-deny
               pkgs.cargo-hakari
+              pkgs.cargo-machete
 
               # Replay tools
               pkgs.buildah
@@ -304,14 +320,14 @@
               pkgs.clang-analyzer
               pkgs.clang-tools # must go after clang-analyzer
               pkgs.cppcheck
-              pkgs.gnumake
               pkgs.git
+              pkgs.gnumake
               pkgs.include-what-you-use
               old-pkgs.criterion # unit testing framework
 
               # Programs for testing
-              pkgs.nix
               pkgs.coreutils
+              pkgs.nix
 
               # For other lints
               pkgs.alejandra
