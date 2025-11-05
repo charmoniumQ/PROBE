@@ -205,7 +205,7 @@ BORROWED const char* op_code_to_string(enum OpCode op_code) {
 static const size_t MAX_OPCODE_STRING_LENGTH = 256;
 
 int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
-    return CHECK_SNPRINTF(buffer, buffer_length, "%60s", path->path);
+    return CHECK_SNPRINTF(buffer, buffer_length, "%s", path->path);
 }
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->op_code);
@@ -239,6 +239,16 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
         int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.fd);
         dest += fd_size;
         size -= fd_size;
+    } else if (op->op_code == clone_op_code) {
+        int task_size = CHECK_SNPRINTF(dest, size, " task_type=%d task_id=%ld",
+                                       op->data.clone.task_type, op->data.clone.task_id);
+        dest += task_size;
+        size -= task_size;
+    } else if (op->op_code == wait_op_code) {
+        int task_size = CHECK_SNPRINTF(dest, size, " task_type=%d task_id=%ld",
+                                       op->data.clone.task_type, op->data.clone.task_id);
+        dest += task_size;
+        size -= task_size;
     }
     (void)dest;
     (void)size;

@@ -21,6 +21,13 @@
         flake-utils.follows = "flake-utils";
       };
     };
+    charmonium-time-block = {
+      url = "github:charmoniumQ/charmonium.time_block";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
   };
 
   outputs = {
@@ -29,6 +36,7 @@
     old-nixpkgs,
     flake-utils,
     cli-wrapper,
+    charmonium-time-block,
     ...
   } @ inputs: let
     supported-systems = import ./targets.nix;
@@ -40,7 +48,7 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
-        cli-wrapper-pkgs = cli-wrapper.packages.${system};
+        cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
         # Otherwise, if old-nixpkgs is a flake,

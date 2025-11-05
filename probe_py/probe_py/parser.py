@@ -7,18 +7,21 @@ import json
 import tarfile
 import tempfile
 import contextlib
+import charmonium.time_block
 from . import ops
 from .ptypes import ProbeLog, ProbeOptions, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
 @contextlib.contextmanager
-def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[ProbeLog]:
+def parse_probe_log_ctx(
+        path_to_probe_log: pathlib.Path,
+) -> typing.Iterator[ProbeLog]:
     """Parse probe log
 
     In this contextmanager, copied_files are extracted onto the disk.
 
     """
-    with tempfile.TemporaryDirectory() as _tmpdir:
+    with tempfile.TemporaryDirectory() as _tmpdir, charmonium.time_block.ctx("parse_probe_log_ctx", print_start=False):
         tmpdir = pathlib.Path(_tmpdir)
         with tarfile.open(path_to_probe_log, mode="r") as tar:
             tar.extractall(tmpdir, filter="data")
@@ -26,7 +29,7 @@ def parse_probe_log_ctx(path_to_probe_log: pathlib.Path) -> typing.Iterator[Prob
         inodes = {
             InodeVersion.from_id_string(file.name): file
             for file in (tmpdir / "inodes").iterdir()
-        } if (tmpdir / "inodes").exists() else {}
+        }
 
         processes = dict[Pid, Process]()
         pid_entries = list((tmpdir / "pids").iterdir())

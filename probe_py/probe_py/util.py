@@ -3,11 +3,18 @@ import getpass
 import grp
 import heapq
 import itertools
+import multiprocessing
 import os
 import pathlib
 import tarfile
 import time
 import typing
+
+
+_T = typing.TypeVar("_T")
+_U = typing.TypeVar("_U")
+_V = typing.TypeVar("_V")
+_ParamSpec = typing.ParamSpec("_ParamSpec")
 
 
 def get_umask() -> int:
@@ -32,11 +39,6 @@ def filter_relative_to(path: pathlib.Path) -> typing.Callable[[tarfile.TarInfo],
         member_path = pathlib.Path(member.name)
         return member.replace(name=str(member_path.relative_to(path)))
     return filter
-
-
-_T = typing.TypeVar("_T")
-_U = typing.TypeVar("_U")
-_V = typing.TypeVar("_V")
 
 
 def groupby_dict(
@@ -143,25 +145,76 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
             heapq.heappush(self._heap, (priority, self._counter, task))
             self._counter += 1
 
+    def peek(self) -> tuple[_Priority, _Task]:
+        if self:
+            return self._heap[0][0], self._heap[0][2]
+        else:
+            raise StopIteration("Priority queue is emp")
+
     def pop(self) -> tuple[_Priority, _Task]:
-        counter = None
-        while counter is None or counter in self._removed:
+        if self:
             priority, counter, task = heapq.heappop(self._heap)
-        return priority, task
+            return priority, task
+        else:
+            raise StopIteration("Priority queue is emp")
 
     def __bool__(self) -> bool:
-        while self._heap and self._heap[0][1] in self._removed:
-            heapq.heappop(self._heap)
-        return bool(self._heap)
+        while self._heap:
+            _priority, counter, _task = self._heap[0]
+            if counter in self._removed:
+                self._removed.remove(counter)
+                heapq.heappop(self._heap)
+            else:
+                return True
+        return False
+
+    def __contains__(self, task: _Task) -> bool:
+        return task in self._priorities and self._priorities[task][1] not in self._removed
 
     def __delitem__(self, task: _Task) -> None:
-        _, counter = self._priorities[task]
-        del self._priorities[task]
-        self._removed.add(counter)
+        if task in self._priorities:
+            _, counter = self._priorities[task]
+            del self._priorities[task]
+            self._removed.add(counter)
+        else:
+            raise KeyError(f"{task} was not in the priority queue")
 
     def __getitem__(self, task: _Task) -> _Priority:
-        return self._priorities[task][0]
+        if task in self._priorities:
+            return self._priorities[task][0]
+        else:
+            raise KeyError(f"{task} was not in the priority queue")
 
     def __setitem__(self, task: _Task, priority: _Priority) -> None:
-        del self[task]
-        self.add(task, priority)
+        if task in self._priorities:
+            self._removed.add(self._priorities[task][1])
+        heapq.heappush(self._heap, (priority, self._counter, task))
+        self._priorities[task] = (priority, self._counter)
+        self._counter += 1
+
+
+def common_ancestor(path0: pathlib.Path, path1: pathlib.Path) -> pathlib.Path:
+    if path0.is_absolute() != path1.is_absolute():
+        raise ValueError(f"{path0=} and {path1=} should both be absolute or both be relative.")
+    for i, (part0, part1) in enumerate(itertools.zip_longest(path0.parts, path1.parts)):
+        if part0 != part1:
+            break
+    ret = pathlib.Path(path0.parts[0]).joinpath(*path0.parts[1:i])
+    assert path0.is_relative_to(ret) and path1.is_relative_to(ret), f"{ret} {path0} {path1}"
+    return ret
+
+
+def relative_to(dest: pathlib.Path, source: pathlib.Path) -> pathlib.Path:
+    ancestor = common_ancestor(dest, source)
+    for _ in range(len(source.parts) - len(ancestor.parts)):
+        source = source / ".."
+    assert source.resolve() == ancestor, f"{source} {source.resolve()} {ancestor}"
+    return source / dest.relative_to(ancestor)
+
+
+def is_main_process() -> bool:
+    return multiprocessing.parent_process() is None
+
+
+def raise_(exception: Exception) -> typing.NoReturn:
+    raise exception
