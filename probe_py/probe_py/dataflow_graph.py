@@ -44,18 +44,18 @@ class IVNs(frozenset[InodeVersionNode]):
     ...
 
 if typing.TYPE_CHECKING:
-    DataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuad | InodeVersionNode]
-    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[Quads | IVNs]
+    UncompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[ptypes.OpQuad | InodeVersionNode]
+    DataflowGraph: typing.TypeAlias = networkx.DiGraph[Quads | IVNs]
 else:
+    UncompressedDataflowGraph = networkx.DiGraph
     DataflowGraph = networkx.DiGraph
-    CompressedDataflowGraph = networkx.DiGraph
 
 
 @charmonium.time_block.decor(print_start=False)
 def hb_graph_to_dataflow_graph(
         probe_log: ptypes.ProbeLog,
 ) -> tuple[
-    CompressedDataflowGraph,
+    DataflowGraph,
     Map[ptypes.Inode, frozenset[pathlib.Path]],
     ptypes.HbGraph,
     graph_utils.ReachabilityOracle[ptypes.OpQuad],
@@ -81,7 +81,7 @@ def hb_graph_to_dataflow_graph(
     # But there are some dataflow edges/nodes that are not HB edges/nodes (e.g., inodes and edges-to/from-inodes).
     # We will add those next.
     dataflow_graph = typing.cast(
-        DataflowGraph,
+        UncompressedDataflowGraph,
         hbg.copy(),
     )
 
@@ -99,132 +99,35 @@ def hb_graph_to_dataflow_graph(
     # Add DFG edges for threads
     add_thread_dataflow_edges(hbg, hb_oracle, dataflow_graph)
 
-    # TODO: We should return a map from path to inode and inode to IVNs
+    # TODO: We should return a map from path to inodes and inode to IVNs
     # These maps facilitate "does A depend on B?" queries.
 
-    compressed_dataflow_graph = typing.cast(
-        CompressedDataflowGraph,
-        graph_utils.map_nodes(
-            lambda node: (
-                Quads({node},) if isinstance(node, ptypes.OpQuad) else
-                IVNs({node},) if isinstance(node, InodeVersionNode) else
-                util.raise_(TypeError(node, ptypes.OpQuad | InodeVersionNode))
-            ),
-            dataflow_graph,
-            check=True,
-        )
-    )
     # Make dfg have the same datatype as a compressed graph
 
-    return compressed_dataflow_graph, inode_to_paths, hbg, hb_oracle
+    return null_compression(dataflow_graph), inode_to_paths, hbg, hb_oracle
 
 
-@charmonium.time_block.decor(print_start=False)
-def hb_graph_to_dataflow_graph_simple(
-        probe_log: ptypes.ProbeLog,
-) -> tuple[
-    CompressedDataflowGraph,
-    Map[ptypes.Inode, frozenset[pathlib.Path]],
-    ptypes.HbGraph,
-    graph_utils.ReachabilityOracle[ptypes.OpQuad] | None,
-]:
-    # Find the HBG
-    hbg = hb_graph.probe_log_to_hb_graph(probe_log)
-
-    dataflow_graph: DataflowGraph = networkx.DiGraph()
-
-    ee_to_init = {}
-    for quad in hbg.nodes():
-        op_data = probe_log.get_op(quad).data
-        if isinstance(op_data, ops.InitExecEpochOp):
-            ee_to_init[quad.exec_pair()] = quad
-
-    inode_versions: dict[ptypes.Inode, int] = {}
-    inode_to_paths = collections.defaultdict[ptypes.Inode, set[pathlib.Path]](set)
-    cwds = dict[ptypes.Pid, pathlib.Path]()
-
-    for quad in tqdm.tqdm(networkx.topological_sort(hbg), desc="dfg", total=len(hbg.nodes())):
-        op_data = probe_log.get_op(quad).data
-        match op_data:
-            case ops.InitExecEpochOp():
-                new_cwd = _to_path(cwds, inode_to_paths, quad, op_data.cwd)
-                if new_cwd:
-                    cwds[quad.pid] = new_cwd
-                inode_version = ptypes.InodeVersion.from_probe_path(op_data.exe)
-                exe_path = _to_path(cwds, inode_to_paths, quad, op_data.exe)
-                if exe_path:
-                    inode_to_paths[inode_version.inode].add(exe_path)
-            case ops.OpenOp():
-                if op_data.ferrno != 0:
-                    inode = ptypes.InodeVersion.from_probe_path(op_data.path).inode
-                    access = ptypes.AccessMode.from_open_flags(op_data.flags)
-                    path = _to_path(cwds, inode_to_paths, quad, op_data.path)
-                    if path:
-                        inode_to_paths[inode].add(path)
-                        if access.is_read:
-                            version = inode_versions.get(inode, -1)
-                            ivn = InodeVersionNode(inode, version)
-                            dataflow_graph.add_edge(ivn, ee_to_init[quad.exec_pair()])
-                        if access.is_write:
-                            old_version = inode_versions.get(inode, -1)
-                            new_version = old_version + 1
-                            new_ivn = InodeVersionNode(inode, version + 1)
-                            if access.is_mutating_write:
-                                old_ivn = InodeVersionNode(inode, version)
-                                dataflow_graph.add_edge(old_ivn, new_ivn)
-                            inode_versions[inode] = new_version
-                            dataflow_graph.add_edge(ee_to_init[quad.exec_pair()], new_ivn)
-            case ops.ChdirOp():
-                path = _to_path(cwds, inode_to_paths, quad, op_data.path)
-                if path:
-                    cwds[quad.pid] = path
-            case ops.CloneOp():
-                if op_data.task_type == ptypes.TaskType.TASK_PID:
-                    dataflow_graph.add_edge(
-                        ee_to_init[quad.exec_pair()],
-                        ee_to_init[ptypes.ExecPair(ptypes.Pid(op_data.task_id), ptypes.ExecNo(0))],
-                    )
-            case ops.ExecOp():
-                if op_data.ferrno == 0:
-                    target = ptypes.ExecPair(quad.pid, ptypes.ExecNo(quad.exec_no + 1))
-                    if target in ee_to_init:
-                        dataflow_graph.add_edge(
-                            ee_to_init[quad.exec_pair()],
-                            ee_to_init[ptypes.ExecPair(quad.pid, ptypes.ExecNo(quad.exec_no + 1))],
-                        )
-                    else:
-                        warnings.warn(ptypes.UnusualProbeLog(f"Next exec of {quad} is not traced"))
-
-    compressed_dataflow_graph = typing.cast(
-        CompressedDataflowGraph,
-        graph_utils.map_nodes(
-            lambda node: (
-                graph_utils.create_digraph([node], []) if isinstance(node, ptypes.OpQuad) else
-                (node,) if isinstance(node, InodeVersionNode) else
-                util.raise_(TypeError(node, type(node)))
-            ),
-            dataflow_graph,
-            check=True,
-        )
-    )
-    # Make dfg have the same datatype as a compressed graph
-
-    inode_to_paths2 = {
-        key: frozenset(val)
-        for key, val in inode_to_paths.items()
-    }
-
-    return compressed_dataflow_graph, inode_to_paths2, hbg, None
+def null_compression(
+        dfg: UncompressedDataflowGraph,
+) -> DataflowGraph:
+    def node_mapper(node: ptypes.OpQuad | InodeVersionNode) -> Quads | IVNs:
+        if isinstance(node, ptypes.OpQuad):
+            return Quads({node})
+        elif isinstance(node, InodeVersionNode):
+            return IVNs({node})
+        else:
+            raise TypeError(node)
+    return graph_utils.map_nodes(node_mapper, dfg, check=False)
 
 
 @charmonium.time_block.decor(print_start=False)
 def visualize_dataflow_graph(
-        dfg: CompressedDataflowGraph,
+        dfg: DataflowGraph,
         inode_to_paths: Map[ptypes.Inode, frozenset[pathlib.Path]],
         ignore_paths: Seq[pathlib.Path | re.Pattern[str]],
         relative_to: pathlib.Path,
         probe_log: ptypes.ProbeLog,
-) -> CompressedDataflowGraph:
+) -> DataflowGraph:
     dfg2 = filter_paths(dfg, inode_to_paths, ignore_paths)
     dfg3 = compress_graph(probe_log, dfg2)
     label_nodes(
@@ -237,45 +140,10 @@ def visualize_dataflow_graph(
 
 
 @dataclasses.dataclass(frozen=True)
-class IntervalsPerProcess:
-    intervals: FrozenDict[ptypes.Pid, graph_utils.Interval[ptypes.OpQuad]]
-
-    def all_greater_than(self, other: IntervalsPerProcess) -> bool:
-        return all(
-            pid in self.intervals and self.intervals[pid].all_greater_than(other_interval)
-            for pid, other_interval in other.intervals.items()
-        )
-
-    def __bool__(self) -> bool:
-        "Whether any of the intervals are non-empty"
-        return any(self.intervals.values())
-
-    @staticmethod
-    def singleton(
-            hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
-            quad: ptypes.OpQuad,
-    ) -> IntervalsPerProcess:
-        return IntervalsPerProcess(FrozenDict[ptypes.Pid, graph_utils.Interval[ptypes.OpQuad]]({quad.pid: graph_utils.Interval.singleton(hb_oracle, quad)}))
-
-    @staticmethod
-    def union(*intervals_per_processs: IntervalsPerProcess) -> IntervalsPerProcess:
-        union_intervals_per_process = {}
-        for intervals_per_process in intervals_per_processs:
-            for process, interval in intervals_per_process.intervals.items():
-                if process not in union_intervals_per_process:
-                    union_intervals_per_process[process] = interval
-                else:
-                    union_intervals_per_process[process] = graph_utils.Interval.union(
-                        union_intervals_per_process[process], interval,
-                    )
-        return IntervalsPerProcess(FrozenDict[ptypes.Pid, graph_utils.Interval[ptypes.OpQuad]](union_intervals_per_process))
-
-
-@dataclasses.dataclass(frozen=True)
 class IntervalInfo:
     access_mode: ptypes.AccessMode
     inode_version: ptypes.InodeVersion
-    intervals: IntervalsPerProcess
+    interval: graph_utils.Interval[ptypes.OpQuad]
 
     # TODO: Make this graph general
     # We currently assume the ndoes are structured into processes.
@@ -283,12 +151,10 @@ class IntervalInfo:
     # Especially since two processes may implicitly share information with network or mmap.
 
     def top(self) -> It[ptypes.OpQuad]:
-        for interval in self.intervals.intervals.values():
-            yield from interval.upper_bound
+        yield from self.interval.upper_bound
 
     def bottom(self) -> It[ptypes.OpQuad]:
-        for interval in self.intervals.intervals.values():
-            yield from interval.lower_bound
+        yield from self.interval.lower_bound
 
 
 def _is_interesting_for_dataflow(node: ptypes.OpQuad, op: ops.Op) -> bool:
@@ -345,7 +211,7 @@ def find_intervals(
                 if cwd_path:
                     cwds[quad.pid] = cwd_path
                 inode_version = ptypes.InodeVersion.from_probe_path(op_data.exe)
-                interval = IntervalsPerProcess.singleton(hb_oracle, quad)
+                interval = graph_utils.Interval.singleton(hb_oracle, quad)
                 inode_to_intervals[inode_version.inode].append(IntervalInfo(ptypes.AccessMode.EXEC, inode_version, interval))
                 exe_path = _to_path(cwds, inode_to_paths, quad, op_data.exe)
                 if exe_path:
@@ -388,7 +254,7 @@ def find_closes(
         initial_fd: int,
         initial_cloexec: bool,
         inode_version: ptypes.InodeVersion,
-) -> IntervalsPerProcess:
+) -> graph_utils.Interval[ptypes.OpQuad]:
     fds_to_watch = collections.defaultdict[ptypes.Pid, set[int]](set)
     fds_to_watch[initial_quad.pid].add(initial_fd)
     cloexecs = {initial_quad.pid: {initial_fd: initial_cloexec}}
@@ -497,10 +363,10 @@ def find_closes(
     start = end
 
     start = datetime.datetime.now()
-    ret = IntervalsPerProcess(FrozenDict[ptypes.Pid, graph_utils.Interval[ptypes.OpQuad]]({
-        pid: graph_utils.Interval(hb_oracle, frozenset(opens[pid]), frozenset(closes[pid]))
+    ret = graph_utils.Interval.union(*(
+        graph_utils.Interval(hb_oracle, frozenset(opens[pid]), frozenset(closes[pid]))
         for pid in opens.keys()
-    }))
+    ))
     end = datetime.datetime.now()
     duration = end - start
     if duration > datetime.timedelta(seconds=0.1):
@@ -511,7 +377,7 @@ def find_closes(
 def add_thread_dataflow_edges(
     hb_graph: ptypes.HbGraph,
     hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
-    dataflow_graph: DataflowGraph,
+    dataflow_graph: UncompressedDataflowGraph,
 ) -> None:
     # For all threads, every op in this thread can dataflow to every op in each sibling thread that does not happen before it.
     # We only need to add an edge to the first op in each sibling thread that does not happen before it.
@@ -539,7 +405,7 @@ def add_thread_dataflow_edges(
 def connect_implicit_communication(
         quads: Seq[ptypes.OpQuad],
         topo_ordering: Map[ptypes.OpQuad, int],
-        dataflow_graph: DataflowGraph,
+        dataflow_graph: UncompressedDataflowGraph,
         hb: ptypes.HbGraph,
         hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
 ) -> None:
@@ -551,7 +417,7 @@ def connect_implicit_communication(
     for src in quads:
         highest_peers[src] = set()
         for potential_highest_peer in quads:
-            # This is N^2 with the number of quads in a 
+            # This is N^2 with the number of quads in an implicitly communicating cabal
             if src != potential_highest_peer and hb_oracle.is_peer(src, potential_highest_peer):
                 if not any(hb_oracle.is_reachable(highest_peer, potential_highest_peer) for highest_peer in highest_peers[src]):
                     highest_peers[src].add(potential_highest_peer)
@@ -567,7 +433,7 @@ def connect_implicit_communication(
 def add_inode_intervals(
         inode: ptypes.Inode,
         intervals: It[IntervalInfo],
-        dataflow_graph: DataflowGraph,
+        dataflow_graph: UncompressedDataflowGraph,
 ) -> None:
     # Let W := all intervals (not intervals_per_process) in which inode was written
     # Likewise, R := was read. Read-write?
@@ -588,7 +454,7 @@ def add_inode_intervals(
         [
             (s0, s1)
             for s0, s1 in itertools.permutations(intervals, 2)
-            if s0.intervals.all_greater_than(s1.intervals)
+            if s0.interval.all_greater_than(s1.interval)
         ]
     )
 
@@ -599,7 +465,7 @@ def add_inode_intervals(
     interval_hb = networkx.transitive_reduction(interval_hb)
 
     # Construct the hb oracle, which will help us know the peer and reachable nodes
-    interval_hb_oracle = graph_utils.PrecomputedReachabilityOracle.create(interval_hb)
+    interval_hb_oracle = graph_utils.PrecomputedReachabilityOracle[IntervalInfo].create(interval_hb)
 
     for interval in intervals:
         if interval.access_mode.is_write:
@@ -637,6 +503,11 @@ def add_inode_intervals(
                         pred_ivn = InodeVersionNode(inode, hash(write_interval) ^ hash(inode) ^ hash("pre-existing"))
                         dataflow_graph.add_node(pred_ivn)
                         dataflow_graph.add_edge(pred_ivn, ivn)
+
+        # FIXME: If interval I and J are simultaneous read-write intervals on inode N,
+        # I and J implicitly communicate through N.
+        # Even when I == J.
+        # Need to call connect_implicit_communication(I, J).
 
         if interval.access_mode.is_read:
             read_interval = interval
@@ -696,47 +567,24 @@ def get_latest_preceeding_writes(
 def validate_dataflow_graph(
         probe_log: ptypes.ProbeLog,
         dataflow_graph: DataflowGraph,
-        # dataflow_graph_tc: DataflowGraph | None,
 ) -> None:
-    if not networkx.is_directed_acyclic_graph(dataflow_graph):
-        cycle = list(networkx.find_cycle(dataflow_graph))
-        warnings.warn(ptypes.UnusualProbeLog(f"Found a cycle in graph: {cycle}"))
-
     if not networkx.is_weakly_connected(dataflow_graph):
         warnings.warn(ptypes.UnusualProbeLog(
             "Graph is not weakly connected:"
             f" {'\n'.join(map(str, networkx.weakly_connected_components(dataflow_graph)))}"
         ))
 
-    inode_to_last_node: dict[ptypes.Inode, None | InodeVersionNode] = {
-        inode: None
-        for node in dataflow_graph.nodes()
-        if isinstance(node, set)
-        for inode in node
-    }
-    for node in networkx.topological_sort(dataflow_graph):
-        if isinstance(node, set):
-            for inode_version in node:
-                inode = inode_version.inode
-                version = inode_version.version
-                if last_node := inode_to_last_node.get(inode):
-                    if version in {last_node.version, last_node.version + 1}:
-                        warnings.warn(ptypes.UnusualProbeLog(f"We went from {last_node.version} to {version}"))
-                else:
-                    if version not in {0, 1}:
-                        warnings.warn(ptypes.UnusualProbeLog(
-                            f"Version of an initial access should be 0 or 1 not {version}"
-                        ))
-                inode_to_last_node[inode] = inode_version
+    for node in dataflow_graph.nodes():
+        if isinstance(node, Quads):
+            assert len(set(quad.exec_pair() for quad in node)) == 1, node
+
 
 def filter_paths(
-        dfg: CompressedDataflowGraph,
+        dfg: DataflowGraph,
         inode_to_paths: Map[ptypes.Inode, frozenset[pathlib.Path]],
         ignore_paths: It[pathlib.Path | re.Pattern[str]],
-) -> CompressedDataflowGraph:
-    def node_mapper(
-            node: Quads | IVNs,
-    ) -> Quads | IVNs:
+) -> DataflowGraph:
+    def node_mapper(node: Quads | IVNs) -> Quads | IVNs:
         if isinstance(node, Quads):
             return node
         elif isinstance(node, IVNs):
@@ -771,11 +619,15 @@ def filter_paths(
         else:
             raise TypeError(node, Quads | IVNs)
 
+    def node_filter(node: Quads | IVNs) -> bool:
+        return bool(node_mapper(node))
+
     return graph_utils.map_nodes(
-        # Get rid of the nodes where we removed EVERY inode.
+        # Only keep the kept nodes within each set
         node_mapper,
         graph_utils.filter_nodes(
-            lambda node: bool(node_mapper(node)),
+            # Get rid of the nodes where we removed EVERY inode.
+            node_filter,
             dfg,
         ),
     )
@@ -783,8 +635,8 @@ def filter_paths(
 
 def compress_graph(
         probe_log: ptypes.ProbeLog,
-        dfg_in: CompressedDataflowGraph,
-) -> CompressedDataflowGraph:
+        dfg_in: DataflowGraph,
+) -> DataflowGraph:
     # Collapse loops
     dfg_collapsed_loops = collapse_loops(dfg_in)
     print(f"Collapsing loops {len(dfg_in.nodes())} -> {len(dfg_collapsed_loops.nodes())} nodes; {len(dfg_in.edges())} -> {len(dfg_collapsed_loops.edges())} edges")
@@ -826,7 +678,7 @@ def compressed_dfg_node_flattener(nodes: frozenset[Quads | IVNs]) -> Quads | IVN
     )
 
 
-def collapse_loops(dfg: CompressedDataflowGraph) -> CompressedDataflowGraph:
+def collapse_loops(dfg: DataflowGraph) -> DataflowGraph:
     # Assert all quad groups are from the same exec pair
     assert all(not isinstance(node, Quads) or len(set(quad.exec_pair() for quad in node)) == 1 for node in dfg.nodes())
 
@@ -976,7 +828,7 @@ def label_quads_graph(
 @charmonium.time_block.decor(print_start=False)
 def label_nodes(
         probe_log: ptypes.ProbeLog,
-        dataflow_graph: CompressedDataflowGraph,
+        dataflow_graph: DataflowGraph,
         inode_to_path: Map[ptypes.Inode, frozenset[pathlib.Path]],
         relative_to: pathlib.Path,
         max_args: int = 5,

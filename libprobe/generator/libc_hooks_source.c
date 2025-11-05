@@ -1911,7 +1911,7 @@ int execvp (const char *filename, char *const argv[]) {
         int ret = client_execvpe(filename, argv, updated_env);
     });
     void* post_call = ({
-        free((char**) updated_env);
+        free((char**)updated_env);
         if (LIKELY(prov_log_is_enabled())) {
             ASSERTF(call_errno > 0, "exec should only return if error");
             op.data.exec.ferrno = call_errno;

@@ -77,44 +77,6 @@ int fstatat64 (int __fd, const char *__filename, struct stat64 *__statbuf, int _
 - If A spawns B via clone, data flows from A to B at the time of clone.
 - If A spawns B via clone with CLONE_VM, data can flow from A to B or B to A at any time (shared mem).
 
-# A note where to hook process/thread creation/destruction
-
-We need to do something every time a process gets created.
-Here are the options:
-
-- On the first operation we intercept, check `is_initialized`. If not, initialize.
-- We are already interposing `clone()` and `fork()`; modify the interpose handler to do the initialization.
-- Use shared library constructor.
-
-Interposing clone and fork would not work on the very first process, which is not created from an interposed library. E.g., suppose the user types `LD_PRELOAD=libprov.so foobar.exe`; their shell (not instrumented) forks off a process which execs `foobar.exe`.f
-
-Another problem is `vfork()`. The child of `vfork()` isn't allowed to do anything except for `execve()`.
-
-It appears the library constructor approach does not work in containers. Changing `USE_LIB_CONSTRUCTOR` to `1` causes this to fail:
-
-```
-podman run \
-    --rm \
-    --volume /nix/store:/nix/store:ro \
-    ubuntu:24.04 \
-    $(nix build --no-link --print-out-paths '.#probe')/bin/probe record --debug -f ls
-```
-
-Checking on the first operation has the downside that it could slow down every operation a bit (although branch prediction mitigates this), and some processes might not get logged, if they do not do any prov operations before crashing.
-What a weird process to have. I'll take this tradeoff any day.
-
-Destruction is different. There is no indication which is the last operation in a given process or thread.
-
-I don't know of a way of hooking a thread's exit. Threads will have to write their information into some structure that can get processed at process-exit time.
-
-One can hook the process's exit with:
-
-- atexit/on_exit()
-- Interpose exit()
-- library destructor
-
-Not sure which is best.
-
 # TODO: be correct when there are signal handlers
 
 I think this is called re-entrancy.

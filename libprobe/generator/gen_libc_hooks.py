@@ -13,6 +13,10 @@ import pathlib
 ignore_actions = False
 
 
+# whether to DEBUG() at the start of every interposed function.
+debug_print_start_of_interposition = False
+
+
 _T = typing.TypeVar("_T")
 def expect_type(typ: type[_T], data: typing.Any) -> _T:
     if not isinstance(data, typ):
@@ -412,16 +416,19 @@ def find_decl(
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     pre_call_stmts = [
         pycparser.c_ast.FuncCall(
+            name=pycparser.c_ast.ID(name="DEBUG"),
+            args=pycparser.c_ast.ExprList(exprs=[
+                pycparser.c_ast.Constant(type="string", value=f'"Interposed {func.name}' + (" %s" if func.name.startswith("fopen") else "") + '"'),
+                *([pycparser.c_ast.ID(name="filename")] if func.name.startswith("fopen") else []),
+            ]),
+        ),
+    ] if debug_print_start_of_interposition else []
+    pre_call_stmts.append(
+        pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(name="ensure_thread_initted"),
             args=pycparser.c_ast.ExprList(exprs=[]),
         ),
-        # pycparser.c_ast.FuncCall(
-        #     name=pycparser.c_ast.ID(name="DEBUG"),
-        #     args=pycparser.c_ast.ExprList(exprs=[
-        #         pycparser.c_ast.Constant(type="string", value=f'"Interposed {func.name}"'),
-        #     ]),
-        # ),
-    ]
+    )
 
     noreturn = bool(find_decl(func.stmts, "noreturn", func.name))
 

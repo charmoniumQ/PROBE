@@ -81,7 +81,7 @@ simple_commands = {
 
 complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
     "hello_world_pthreads": (
-        False,
+        True,
         None,
         "",
         [str(example_path / "hello_world_pthreads.exe")],),
@@ -106,13 +106,13 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
     "c_hello_simplified": (
-        False,
+        True,
         pathlib.Path("test.c"),
         "int main() { return 0; }",
         ["gcc", "-c", "test.c"],
     ),
     "c_hello": (
-        False,
+        True,
         None,
         "",
         bash_multi(
@@ -122,7 +122,7 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         ),
     ),
     "java_subprocess_hello": (
-        False,
+        True,
         pathlib.Path("HelloWorld.java"),
         java_subprocess_hello_world,
         bash_multi(
