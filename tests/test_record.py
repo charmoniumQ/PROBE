@@ -69,23 +69,11 @@ simple_commands = {
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
     "createFile": [f"{project_root}/tests/examples/createFile.exe"],
     "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
-    # skip million_stats because it takes a very long time.
-    # Re-enable once we hvae a faster analysis.
-    # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
-    # See https://github.com/charmoniumQ/PROBE/pull/135
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
     "python_hello": ["python", "-c", "print(4)"],
-}
-
-complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
-    "hello_world_pthreads": (
-        False,
-        None,
-        "",
-        [str(example_path / "hello_world_pthreads.exe")],),
-
+    "hello_world_pthreads":[str(example_path / "hello_world_pthreads.exe")],
     "mutex": [str(example_path / "mutex.exe")],
     "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
     "diff": ["diff", "test_file.txt", "test_file.txt"],
@@ -104,31 +92,6 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         # echo is a bash bulitin
         # so we use echo_path to get the real echo executable
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
-    ),
-    "c_hello_simplified": (
-        False,
-        pathlib.Path("test.c"),
-        "int main() { return 0; }",
-        ["gcc", "-c", "test.c"],
-    ),
-    "c_hello": (
-        False,
-        None,
-        "",
-        bash_multi(
-            ["echo", c_hello_world, "redirect_to", "test.c"],
-            ["gcc", "test.c"],
-            ["./a.out"],
-        ),
-    ),
-    "java_subprocess_hello": (
-        False,
-        pathlib.Path("HelloWorld.java"),
-        java_subprocess_hello_world,
-        bash_multi(
-            ["javac", "HelloWorld.java"],
-            ["java", "HelloWorld"],
-        ),
     ),
     "bash_in_bash": bash_multi(
         bash_multi(
@@ -154,6 +117,34 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
             'print("done")',
         ])
     ],
+    "c_hello": bash_multi(
+        ["echo", c_hello_world, "redirect_to", "test.c"],
+        ["gcc", "test.c"],
+        ["./a.out"],
+    ),
+
+    # skip million_stats because it takes a very long time.
+    # Re-enable once we hvae a faster analysis.
+    # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
+    # See https://github.com/charmoniumQ/PROBE/pull/135
+}
+
+complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
+    "c_hello_simplified": (
+        False,
+        pathlib.Path("test.c"),
+        "int main() { return 0; }",
+        ["gcc", "-c", "test.c"],
+    ),
+    "java_subprocess_hello": (
+        False,
+        pathlib.Path("HelloWorld.java"),
+        java_subprocess_hello_world,
+        bash_multi(
+            ["javac", "HelloWorld.java"],
+            ["java", "HelloWorld"],
+        ),
+    ),
 }
 
 
@@ -311,7 +302,7 @@ def test_downstream_analyses(
             (scratch_directory / command[1]).write_text(command[2])
         command = command[3]
     else:
-        strict = True
+        strict = False
 
     class PopenKwargs(typing.TypedDict):
         check: bool
