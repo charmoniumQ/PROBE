@@ -15,14 +15,11 @@ from . import util
 _Node = typing.TypeVar("_Node")
 
 
-_CoNode = typing.TypeVar("_CoNode", covariant=True)
-
-
 @dataclasses.dataclass(frozen=True)
-class Segment(typing.Generic[_CoNode]):
-    dag_tc: ReachabilityOracle[_CoNode]
-    upper_bound: frozenset[_CoNode]
-    lower_bound: frozenset[_CoNode]
+class Segment(typing.Generic[_Node]):
+    dag_tc: ReachabilityOracle[_Node]
+    upper_bound: frozenset[_Node]
+    lower_bound: frozenset[_Node]
 
     def __post_init__(self) -> None:
         assert self.upper_bound
@@ -38,15 +35,15 @@ class Segment(typing.Generic[_CoNode]):
         assert not unbounded, \
             f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
 
-    def nodes(self) -> collections.abc.Iterable[_CoNode]:
+    def nodes(self) -> collections.abc.Iterable[_Node]:
         return self.dag_tc.nodes_between(self.upper_bound, self.lower_bound)
 
-    def overlaps(self, other: Segment[_CoNode]) -> bool:
+    def overlaps(self, other: Segment[_Node]) -> bool:
         assert self.dag_tc is other.dag_tc
         return bool(frozenset(self.nodes()) & frozenset(other.nodes()))
 
     @staticmethod
-    def union(segments: typing.Sequence[Segment[_CoNode]]) -> Segment[_CoNode]:
+    def union(segments: typing.Sequence[Segment[_Node]]) -> Segment[_Node]:
         assert segments
         dag_tc = segments[0].dag_tc
         assert all(segment.dag_tc is dag_tc for segment in segments)
@@ -86,7 +83,8 @@ def map_nodes(
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: function(node) for node in graph.nodes()}
     assert util.all_unique(dct.values()), util.duplicates(dct.values())
-    return networkx.relabel_nodes(graph, dct) # type: ignore
+    ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
+    return ret
 
 
 def serialize_graph(
@@ -96,8 +94,10 @@ def serialize_graph(
         cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
     if name_mapper is None:
-        def name_mapper(node: _Node) -> str:
-            return str(graph.nodes(data=True)[node].get("id", node))
+        name_mapper = typing.cast(
+            typing.Callable[[_Node], str],
+            lambda node: graph.nodes(data=True)[node].get("id", str(node)),
+        )
     graph2 = map_nodes(name_mapper, graph)
     pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
 
@@ -231,7 +231,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
 
     @abc.abstractmethod
     def is_reachable(self, u: _Node, v: _Node) -> bool:
-        pass
+        ...
 
     @abc.abstractmethod
     def nodes_between(
@@ -319,6 +319,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             candidates: collections.abc.Iterable[_Node],
             lower_bounds: collections.abc.Iterable[_Node],
     ) -> collections.abc.Iterable[_Node]:
+        "Return all candidates that are not ancestors of any element in lower_bounds."
         return frozenset({
             candidate
             for candidate in candidates
@@ -333,6 +334,7 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
             candidates: collections.abc.Iterable[_Node],
             upper_bounds: collections.abc.Iterable[_Node],
     ) -> collections.abc.Iterable[_Node]:
+        "Return all candidates that are not descendent of any element in upper_bounds."
         return frozenset({
             candidate
             for candidate in candidates

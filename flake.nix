@@ -57,11 +57,11 @@
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
             pname = "types-networkx";
-            version = "3.5.0.20251001";
+            version = "3.5.0.20251104";
             src = pkgs.fetchPypi {
               pname = "types_networkx";
               inherit version;
-              sha256 = "8e3c5c491ba5870d75e175751d70ddeac81df43caf2a64bae161e181f5e8ea7a";
+              sha256 = "0ae55ff562126dcb7dc6bf0b716a2333b69d5ff6fbcb7f768916eb8bd09fc0c9";
             };
             pyproject = true;
             nativeBuildInputs = [python.pkgs.setuptools];
@@ -95,13 +95,13 @@
             doCheck = true;
             nativeCheckInputs = [
               old-pkgs.criterion
-              pkgs.clang
+              pkgs.include-what-you-use
               pkgs.clang-analyzer
               pkgs.clang-tools
+              pkgs.clang
               pkgs.compiledb
               pkgs.cppcheck
               pkgs.cppclean
-              pkgs.include-what-you-use
             ];
             checkPhase = ''
               # When a user buidls this WITHOUT build sandbox isolation, the libc files appear to come from somewhere different.
@@ -165,7 +165,6 @@
               python.pkgs.networkx
               python.pkgs.numpy
               python.pkgs.pydot
-              python.pkgs.pygraphviz
               python.pkgs.rich
               python.pkgs.sqlalchemy
               python.pkgs.tqdm
@@ -173,15 +172,19 @@
               python.pkgs.xdg-base-dirs
             ];
             nativeCheckInputs = [
-              packages.types-networkx
-              pkgs.ruff
               python.pkgs.mypy
+              python.pkgs.pytest
+              python.pkgs.pytest-asyncio
+              python.pkgs.pytest-timeout
               python.pkgs.types-tqdm
+              types-networkx
+              pkgs.ruff
             ];
             checkPhase = ''
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
+              python -c 'import probe_py'
               mypy --strict --package probe_py
               runHook postCheck
             '';
@@ -225,16 +228,17 @@
                   with ps; [
                     packages.probe-py
                     pytest
-                    pytest-asyncio
                     pytest-timeout
+                    pytest-asyncio
+                    packages.probe-py
                   ]))
                 pkgs.buildah
-                pkgs.clang
-                pkgs.coreutils # so we can `probe record head ...`, etc.
-                pkgs.docker
-                pkgs.gnumake
-                pkgs.nix
                 pkgs.podman
+                pkgs.docker
+                pkgs.coreutils # so we can `probe record head ...`, etc.
+                pkgs.gnumake
+                pkgs.clang
+                pkgs.nix
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
@@ -263,13 +267,13 @@
             pypkgs.xdg-base-dirs
 
             # probe_py.manual "dev time" requirements
-            packages.types-networkx
             pypkgs.ipython
             pypkgs.mypy
             pypkgs.pytest
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
             pypkgs.types-tqdm
+            packages.types-networkx
 
             # libprobe build time requirement
             pypkgs.pycparser
@@ -301,8 +305,8 @@
               pkgs.clang-analyzer
               pkgs.clang-tools # must go after clang-analyzer
               pkgs.cppcheck
-              pkgs.git
               pkgs.gnumake
+              pkgs.git
               pkgs.include-what-you-use
               old-pkgs.criterion # unit testing framework
 
