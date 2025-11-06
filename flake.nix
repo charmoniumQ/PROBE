@@ -195,6 +195,7 @@
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
+              python -c 'import probe_py'
               mypy --strict --package probe_py
               runHook postCheck
             '';
