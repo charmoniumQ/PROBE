@@ -19,7 +19,6 @@ _Node2 = typing.TypeVar("_Node2")
 _T_co = typing.TypeVar("_T_co", covariant=True)
 _V_co = typing.TypeVar("_V_co", covariant=True)
 FrozenDict: typing.TypeAlias = frozendict.frozendict[_T_co, _V_co]
-NodeData = typing.Mapping[str, typing.Any]
 EdgeData = typing.Mapping[str, typing.Any]
 It: typing.TypeAlias = collections.abc.Iterable[_T_co]
 
