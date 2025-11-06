@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#define NUM_THREADS 2
+#define NUM_THREADS 5
 #define BUFFER_SIZE 4096
 
 void* print_hello(void* thread_id) {

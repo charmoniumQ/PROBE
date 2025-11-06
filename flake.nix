@@ -184,14 +184,12 @@
               python.pkgs.xdg-base-dirs
             ];
             nativeCheckInputs = [
+              packages.types-networkx
+              pkgs.ruff
               python.pkgs.mypy
               python.pkgs.pytest
               python.pkgs.pytest-asyncio
               python.pkgs.pytest-timeout
-              python.pkgs.types-tqdm
-              packages.types-networkx
-              pkgs.ruff
-              python.pkgs.mypy
               python.pkgs.types-tqdm
             ];
             checkPhase = ''
