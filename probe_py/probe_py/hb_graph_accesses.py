@@ -54,6 +54,7 @@ def hb_graph_to_accesses(
             hbg,
             score_children=lambda parent, child: 0 if parent.pid == child.pid else 1 if parent.pid < child.pid else 2,
     ):
+        assert node
         yield node
         op_data = probe_log.get_op(node).data
         match op_data:

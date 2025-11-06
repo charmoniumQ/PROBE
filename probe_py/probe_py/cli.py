@@ -9,8 +9,8 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import typing
 import warnings
+import charmonium.time_block
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
@@ -42,12 +42,11 @@ strict_option = typer.Option(
     "--strict/--loose",
     help="Whether to fail when PROBE generates warnings",
 )
-def restore_sanity(
-        strict: Annotated[
-            bool,
-            strict_option,
-        ] = True,
-) -> None:
+debug_option = typer.Option(
+    "--debug/--no-debug",
+    help="Whether to enter a debugger on errors",
+)
+def restore_sanity(strict: bool, debug: bool) -> None:
     # Typer messes with the excepthook
     sys.excepthook =  sys.__excepthook__
     if strict:
@@ -60,11 +59,13 @@ def restore_sanity(
             "always",
             category=ptypes.UnusualProbeLog,
         )
+    if debug:
+        import ipdb  # type: ignore
+        ipdb.set_trace()
 
-
-export_app.callback()(restore_sanity)
 
 @app.command()
+@charmonium.time_block.decor(print_start=False)
 def validate(
         path_to_probe_log: Annotated[
             pathlib.Path,
@@ -74,9 +75,11 @@ def validate(
             bool,
             typer.Option(help="Whether to check that the probe_log was run with copied files.")
         ] = False,
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
 ) -> None:
     """Sanity-check probe_log and report errors."""
-    restore_sanity(True)
+    restore_sanity(strict, debug)
     warning_free = True
     warnings.filterwarnings(
         "always",
@@ -107,11 +110,12 @@ class OpType(enum.StrEnum):
 
 
 @export_app.command()
+@charmonium.time_block.decor(print_start=False)
 def hb_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("ops-graph.png"),
+        ] = pathlib.Path("hb-graph.dot"),
         path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
@@ -119,11 +123,13 @@ def hb_graph(
         retain: Annotated[
             OpType,
             typer.Option(help="Which ops to include in the graph? There are quite a few.")
-        ] = OpType.MINIMAL,
+        ] = OpType.SUCCESSFUL,
         show_op_number: Annotated[
             bool,
             typer.Option(help="Whether to show the op number in the output.")
         ] = False,
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
 ) -> None:
     """
     Write a happens-before graph on the operations in probe_log.
@@ -134,6 +140,7 @@ def hb_graph(
 
     Supports .png, .svg, and .dot
     """
+    restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     match retain:
@@ -150,21 +157,33 @@ def hb_graph(
 
     
 @export_app.command()
+@charmonium.time_block.decor(print_start=False)
 def dataflow_graph(
         output: Annotated[
             pathlib.Path,
             typer.Argument()
-        ] = pathlib.Path("dataflow-graph.png"),
+        ] = pathlib.Path("dataflow-graph.dot"),
         path_to_probe_log: Annotated[
             pathlib.Path,
             typer.Argument(help="output file written by `probe record -o $file`."),
         ] = pathlib.Path("probe_log"),
+        ignore_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "/nix/store/,/dev/,/proc/,/sys/",
+        relative_to: Annotated[
+            pathlib.Path,
+            typer.Option(help="Path in which to write the inodes relative to"),
+        ] = pathlib.Path().resolve(),
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
 ) -> None:
     """
     Write a dataflow graph for probe_log.
 
     Dataflow shows the name of each proceess, its read files, and its write files.
     """
+    restore_sanity(strict, debug)
     probe_log = parser.parse_probe_log(path_to_probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     hb_graph_module.label_nodes(probe_log, hbg)
@@ -450,7 +469,7 @@ def ssh(
 
 @export_app.command()
 def process_tree(
-    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.png"),
+    output: Annotated[pathlib.Path, typer.Argument()] = pathlib.Path("probe_log-process-tree.dot"),
     path_to_probe_log: Annotated[
         pathlib.Path,
         typer.Argument(help="output file written by `probe record -o $file`.")
@@ -484,34 +503,18 @@ def ops_jsonl(
 
     The format is subject to change as PROBE evolves. Use with caution!
     """
-
-    def filter_nested_dict(
-            dct: typing.Mapping[typing.Any, typing.Any],
-    ) -> typing.Mapping[typing.Any, typing.Any]:
-        """Converts the bytes in a nested dict to a string"""
-        return {
-            key: (
-                # If dict, Recurse self
-                filter_nested_dict(val) if isinstance(val, dict) else
-                # If bytes, decode to string
-                val.decode(errors="surrogateescape") if isinstance(val, bytes) else
-                # Else, do nothing
-                val
-            )
-            for key, val in dct.items()
-        }
     stdout_console = rich.console.Console()
     probe_log = parser.parse_probe_log(path_to_probe_log)
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
             for tid, thread in exec_epoch.threads.items():
-                for i, op in enumerate(thread.ops):
+                for op_no, op in enumerate(thread.ops):
                     stdout_console.print_json(json.dumps({
                         "pid": pid,
                         "tid": tid,
                         "exec_epoch_no": exec_epoch_no,
-                        "i": i,
-                        "op": filter_nested_dict(
+                        "op_no": op_no,
+                        "op": util.decode_nested_object(
                             dataclasses.asdict(op),
                         ),
                         "op_data_type": type(op.data).__name__,
@@ -526,6 +529,7 @@ context_settings=dict(
 )
 def scp(cmd: list[str]) -> None:
     scp_module.scp_with_provenance(cmd)
+
 
 if __name__ == "__main__":
     app()

@@ -4,6 +4,7 @@ import pathlib
 import random
 import shutil
 import shlex
+import stat
 import subprocess
 import typing
 import pytest
@@ -15,7 +16,7 @@ strace = False
 ld_debug = False
 # Save stderr to a file
 # Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
-stderr_to_file = False
+stderr_to_file = True
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent
@@ -68,23 +69,11 @@ simple_commands = {
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
     "createFile": [f"{project_root}/tests/examples/createFile.exe"],
     "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
-    # skip million_stats because it takes a very long time.
-    # Re-enable once we hvae a faster analysis.
-    # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
-    # See https://github.com/charmoniumQ/PROBE/pull/135
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
     "python_hello": ["python", "-c", "print(4)"],
-}
-
-complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
-    "hello_world_pthreads": (
-        False,
-        None,
-        "",
-        [str(example_path / "hello_world_pthreads.exe")],),
-
+    "hello_world_pthreads":[str(example_path / "hello_world_pthreads.exe")],
     "mutex": [str(example_path / "mutex.exe")],
     "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
     "diff": ["diff", "test_file.txt", "test_file.txt"],
@@ -103,31 +92,6 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
         # echo is a bash bulitin
         # so we use echo_path to get the real echo executable
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
-    ),
-    "c_hello_simplified": (
-        False,
-        pathlib.Path("test.c"),
-        "int main() { return 0; }",
-        ["gcc", "-c", "test.c"],
-    ),
-    "c_hello": (
-        False,
-        None,
-        "",
-        bash_multi(
-            ["echo", c_hello_world, "redirect_to", "test.c"],
-            ["gcc", "test.c"],
-            ["./a.out"],
-        ),
-    ),
-    "java_subprocess_hello": (
-        False,
-        pathlib.Path("HelloWorld.java"),
-        java_subprocess_hello_world,
-        bash_multi(
-            ["javac", "HelloWorld.java"],
-            ["java", "HelloWorld"],
-        ),
     ),
     "bash_in_bash": bash_multi(
         bash_multi(
@@ -153,6 +117,34 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
             'print("done")',
         ])
     ],
+    "c_hello": bash_multi(
+        ["echo", c_hello_world, "redirect_to", "test.c"],
+        ["gcc", "test.c"],
+        ["./a.out"],
+    ),
+
+    # skip million_stats because it takes a very long time.
+    # Re-enable once we hvae a faster analysis.
+    # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
+    # See https://github.com/charmoniumQ/PROBE/pull/135
+}
+
+complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
+    "c_hello_simplified": (
+        False,
+        pathlib.Path("test.c"),
+        "int main() { return 0; }",
+        ["gcc", "-c", "test.c"],
+    ),
+    "java_subprocess_hello": (
+        False,
+        pathlib.Path("HelloWorld.java"),
+        java_subprocess_hello_world,
+        bash_multi(
+            ["javac", "HelloWorld.java"],
+            ["java", "HelloWorld"],
+        ),
+    ),
 }
 
 
@@ -208,11 +200,11 @@ def scratch_directory(
     completion for manual inspection. It gets cleared every re-test however.
 
     """
-    suffix: str = request.node.nodeid.replace("/", "_")
+    suffix: str = request.node.nodeid.partition("::")[-1].replace("[", "/").replace("]", "/")
     scratch_dir = scratch_directory_parent / suffix
     if scratch_dir.exists():
         shutil.rmtree(scratch_dir)
-    scratch_dir.mkdir()
+    scratch_dir.mkdir(parents=True)
     return scratch_dir
 
 
@@ -248,9 +240,12 @@ def test_record(
     print(scratch_directory)
 
     if isinstance(command, tuple):
+        strict = command[0]
         if command[1] is not None:
             (scratch_directory / command[1]).write_text(command[2])
         command = command[3]
+    else:
+        strict = True
 
     subprocess.run(command, check=True, cwd=scratch_directory)
 
@@ -259,7 +254,7 @@ def test_record(
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     should_have_copy_files = copy_files in {"eagerly", "lazily"}
-    cmd = ["probe", "py", "validate", *(["--should-have-files"] if should_have_copy_files else [])]
+    cmd = ["probe", "py", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
     print(shlex.join(cmd))
 
     # TODO: this doesn't work because we don't capture libraries currently.
@@ -336,6 +331,10 @@ def test_downstream_analyses(
 
         # See ltrace_eliminator.py for more help.
 
+    script = scratch_directory / "script.sh"
+    script.write_text("")
+    script.chmod(stat.S_IXUSR | script.stat().st_mode)
+
     print(shutil.which(command[0]))
     full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
 
@@ -350,21 +349,22 @@ def test_downstream_analyses(
     else:
         subprocess.run(full_command, **args, env=env)
 
-    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "debug-text"]
+    cmd = ["probe", "py", "export", "debug-text"]
     print(shlex.join(cmd))
-    if stderr_to_file:
-        with (scratch_directory / "debug-text.txt").open("w") as output:
-            subprocess.run(cmd, **args, stdout=output)
-    else:
-        subprocess.run(cmd, **args)
+    with (scratch_directory / "debug-text.txt").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "py", "export", "--strict" if strict else "--loose", "hb-graph", "hb-graph.dot", "--retain=successful", "--show-op-number"]
+    cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
+    with (scratch_directory / "hb-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "py", "export","--strict" if strict else "--loose",  "dataflow-graph", "dataflow-graph.dot"]
+    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose", "dataflow-graph.dot"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
+    with (scratch_directory / "dataflow-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
 
 def test_fail(

@@ -16,6 +16,29 @@
         "type": "github"
       }
     },
+    "charmonium-time-block": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1755754141,
+        "narHash": "sha256-PzXHKUZvostIJvvG5t5SN5p0NbpZvZcnDhW4BDZAMew=",
+        "owner": "charmoniumQ",
+        "repo": "charmonium.time_block",
+        "rev": "9f533ef55205909953bf8082961b58fcb59b473e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "charmoniumQ",
+        "repo": "charmonium.time_block",
+        "type": "github"
+      }
+    },
     "cli-wrapper": {
       "inputs": {
         "advisory-db": "advisory-db",
@@ -106,6 +129,7 @@
     },
     "root": {
       "inputs": {
+        "charmonium-time-block": "charmonium-time-block",
         "cli-wrapper": "cli-wrapper",
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
