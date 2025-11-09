@@ -21,43 +21,75 @@
             integrity="sha512-DKeDMgkMDBNgY3g8T6H6Ft5cB7St0LOh5d69BvETIcTrP0E3d3KhANTMs5QOTMnenXy6JVKz/tENmffCLeXPiQ=="
             crossorigin="anonymous"
             referrerpolicy="no-referrer" />
+        <style>
+         h1, h2, h3, h4, h5, h6 {
+             text-transform:none !important;
+         }
+        </style>
     </head>
     <body>
         <div class="reveal">
             <div class="slides">
                 <section>
-                    <h2>Takeaways</h2>
-                    <ol>
-                        <li>Provenance is practical today</li>
-                        <li>Consider using <b><code>PROBE</code></b> to collect provenance.</li>
-                    </ol>
+                    <h1>Provenance in data-analysis workflows (DAWs)</h1>
+                </section>
+                <section>
+                    <h2>Expectation</h2>
+                    <img
+                        src="https://www.researchgate.net/profile/Erik-Bongcam-Rudloff/publication/281081296/figure/fig2/AS:271566676164623@1441757949117/Example-of-a-Galaxy-Workflow-used-at-CRS4-to-generates-demultiplexed-fastq-files.png"
+                        alt="Galaxy workflow"
+                        style="height: 300px;"
+                    />
+                    <img
+                        src="https://www.researchgate.net/publication/362232517/figure/fig4/AS:1183227834302477@1659114907915/Snakemake-workflow-management-system-All-the-input-and-output-files-in-blue-colour-are.jpg"
+                        alt="Snakemake workflow"
+                        style="height: 200px;"
+                    />
+                </section>
+                <section>
+                    <h2>Reality</h2>
+                    <figure>
+                    <img src="./rube-goldberg-software.png" />
+                    <figcaption>(Rube-Goldberg and MacGyver et al.)</figcaption>
+                    </figure>
+                </section>
+                <section>
+                    <h2>Traditional approach</h2>
+                    <p>Human effort, careful reading</p>
+                    <img src="https://i.imgflip.com/abkf13.jpg">
+                </section>
+                <section>
+                    <h2>Tracing approach</h2>
+                    <p>Operating system (OS) already knows what the code does.</p>
+                    <p class="fragment">OS should keep track of how each file gets generated (<i>computational provenance</i>).</p>
+                </section>
+                <section>
+                    <h2>PRovenance Observation/REplay (PROBE)</h2>
+                    <p><code>./complex_script.sh --blue 42</code></p>
+                    <p class="fragment"><code>probe record ./complex_script.sh --blue 42</code></p>
+                </section>
+                <section>
+                    <h2>What do you get?</h2>
+                </section>
+                <section>
+                    <h2>What do you get (part 2)?</h2>
+                </section>
+                <section>
+                    <h2>Caveats</h2>
+                    <ul>
+                        <li>Not "stitching together" multiple commands.</li>
+                        <li>Not able to capture user input.</li>
+                        <li>Only file accesses so far. Plans for network, time-of-day and others.</li>
+                        <li>No network accesses, so Jupyter notebook/server interactions are not recorded yet.</li>
+                    </ul>
+                </section>
+                <section>
                     <div
                         class="qrcode-link"
                         data-caption="PROBE"
                         data-encoded="https://github.com/charmoniumQ/PROBE"
                     >
                     </div>
-                </section>
-                <section>
-                    <h2>Not everything is always workflow</h2>
-                </section>
-                <section>
-                    <h2>Working with legacy code</h2>
-                </section>
-                <section>
-                    <h2>Tracing provenance</h2>
-                </section>
-                <section>
-                    <h2>Converting to workflows</h2>
-                </section>
-                <section>
-                    <h2>What about containers?</h2>
-                </section>
-                <section>
-                    <h2>What about distributed systems?</h2>
-                </section>
-                <section>
-                    <h2>Storing provenance</h2>
                 </section>
             </div>
         </div>
@@ -90,7 +122,6 @@
              const a = document.createElement("a");
              const figure = document.createElement("figure");
              const figCaption = document.createElement("figcaption");
-             console.log(container)
 
              container.appendChild(a);
              a.appendChild(figure);
