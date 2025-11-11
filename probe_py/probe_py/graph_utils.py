@@ -148,6 +148,7 @@ def search_with_pruning(
 
         traversal = bfs_with_pruning
         for node in traversal:
+            assert node is not None
             # work on node
             traversal.send(condition) # send True to descend or False to prune
 
@@ -402,7 +403,7 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
     def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
         tc: networkx.DiGraph[_Node] = networkx.DiGraph()
         node_order = list(networkx.topological_sort(dag))[::-1]
-        for src in tqdm.tqdm(node_order, desc="TC nodes"):
+        for src in node_order:
             tc.add_node(src)
             for child in dag.successors(src):
                 tc.add_edge(src, child)

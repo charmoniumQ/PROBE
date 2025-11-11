@@ -236,6 +236,10 @@ def workflow(
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
         ] = "/nix/store/,/dev/,/proc/,/sys/,/[pipe]",
+        unsplittable_cmds: Annotated[
+            str,
+            typer.Option(help="Comma-separated commands to treat as a black-box"),
+        ] = "gcc",
         include_env: Annotated[
             bool,
             typer.Option(help="Whether to include the env in the resulting workflow. This is needed for maximum reproducibiilty, but makes the result very verbose.")
@@ -249,11 +253,13 @@ def workflow(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj)
-    ignore_paths2 = map(pathlib.Path, ignore_paths.split(","))
+    ignore_paths2 = list(map(pathlib.Path, ignore_paths.split(",")))
+    unsplittable_cmds2 = [cmd.encode() for cmd in unsplittable_cmds.split(",")]
     workflow = workflow_mod.dataflow_graph_to_workflow(
         probe_log_obj,
         dfg,
         lambda path: not any(path == ignore_path or path.is_relative_to(ignore_path) for ignore_path in ignore_paths2),
+        lambda argv: any(argv[0].split(b"/")[-1] == unsplittable_cmd or (argv[1] if len(argv) > 1 else b"").split(b"/")[-1] == unsplittable_cmd for unsplittable_cmd in unsplittable_cmds2),
         inode_to_paths,
     )
     workflow_mod.to_source(workflow_type, directory, workflow, include_env)

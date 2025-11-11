@@ -254,6 +254,7 @@ def find_closes(
         initial_fd: int,
         initial_cloexec: bool,
         inode_version: ptypes.InodeVersion,
+        verbose: bool = False,
 ) -> graph_utils.Interval[ptypes.OpQuad]:
     fds_to_watch = collections.defaultdict[ptypes.Pid, set[int]](set)
     fds_to_watch[initial_quad.pid].add(initial_fd)
@@ -269,47 +270,54 @@ def find_closes(
     # Iterate past the initial quad
     assert quads.send(None) == initial_quad
     assert quads.send(True) is None
-    print(f"  Searching for {fds_to_watch} {inode_version.inode}")
+    if verbose:
+        print(f"  Searching for {fds_to_watch} {inode_version.inode}")
     start = datetime.datetime.now()
 
     for i, quad in enumerate(quads):
         assert quad is not None
         assert hb_oracle.is_reachable(initial_quad, quad)
         op_data = probe_log.get_op(quad).data
-        print(f"    {quad} {op_data.__class__.__name__}, {fds_to_watch}")
+        if verbose:
+            print(f"    {quad} {op_data.__class__.__name__}, {fds_to_watch}")
         match op_data:
             case ops.OpenOp():
                 if op_data.fd in fds_to_watch[quad.pid]:
-                    print(f"    Subsequent open of a different {op_data.fd} pruned")
+                    if verbose:
+                        print(f"    Subsequent open of a different {op_data.fd} pruned")
                     assert quads.send(False) is None
                     continue
             case ops.ExecOp():
                 for fd in list(fds_to_watch[quad.pid]):
                     if cloexecs[quad.pid][fd]:
-                        print(f"    Cloexec {fd}")
+                        if verbose:
+                            print(f"    Cloexec {fd}")
                         fds_to_watch[quad.pid].remove(fd)
                         if not fds_to_watch[quad.pid]:
                             closes[quad.pid].add(quad)
             case ops.CloseOp():
                 if op_data.fd in fds_to_watch[quad.pid]:
-                    print(f"    Close {op_data.fd}")
+                    if verbose:
+                        print(f"    Close {op_data.fd}")
                     fds_to_watch[quad.pid].remove(op_data.fd)
                     if not fds_to_watch[quad.pid]:
                         closes[quad.pid].add(quad)
                 else:
-                    pass
-                    print(f"    Close {op_data.fd} (unrelated)")
+                    if verbose:
+                        print(f"    Close {op_data.fd} (unrelated)")
             case ops.DupOp():
                 if op_data.old in fds_to_watch[quad.pid]:
                     fds_to_watch[quad.pid].add(op_data.new)
                     cloexecs[quad.pid][op_data.new] = bool(op_data.flags & os.O_CLOEXEC)
-                    print(f"    Dup {op_data.old} -> {op_data.new} {fds_to_watch}")
+                    if verbose:
+                        print(f"    Dup {op_data.old} -> {op_data.new} {fds_to_watch}")
             case ops.CloneOp():
                 if op_data.task_type == ptypes.TaskType.TASK_PID:
                     target = ptypes.Pid(op_data.task_id)
                     if fds_to_watch[quad.pid]:
                         opens[target].add(ptypes.OpQuad(target, ptypes.initial_exec_no, target.main_thread(), 0))
-                    print("    Clone")
+                    if verbose:
+                        print("    Clone")
                     if op_data.flags & os.CLONE_FILES:
                         fds_to_watch[target] = fds_to_watch[quad.pid]
                         cloexecs[target] = cloexecs[quad.pid]
@@ -322,12 +330,14 @@ def find_closes(
             successor.pid == quad.pid
             for successor in hb_graph.successors(quad)
         ):
-            print("  Last quad in this process; autoclosing")
+            if verbose:
+                print("  Last quad in this process; autoclosing")
             closes[quad.pid].add(quad)
             fds_to_watch[quad.pid].clear()
 
         if not fds_to_watch[quad.pid]:
-            print(f"  No more FDs to watch in {quad.pid}")
+            if verbose:
+                print(f"  No more FDs to watch in {quad.pid}")
             assert quads.send(False) is None
         else:
             assert quads.send(True) is None
@@ -392,7 +402,10 @@ def add_thread_dataflow_edges(
         node: idx
         for idx, node in enumerate(topo_sort)
     }
-    for implicitly_communicating_quads in exec_pair_to_quads.values():
+    for implicitly_communicating_quads in tqdm.tqdm(
+            exec_pair_to_quads.values(),
+            desc="exec pairs",
+    ):
         connect_implicit_communication(
             list(implicitly_communicating_quads),
             topo_ordering,
