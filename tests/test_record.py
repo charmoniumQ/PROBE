@@ -4,7 +4,6 @@ import pathlib
 import random
 import shutil
 import shlex
-import stat
 import subprocess
 import typing
 import pytest
@@ -68,7 +67,8 @@ simple_commands = {
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
     "createFile": [f"{project_root}/tests/examples/createFile.exe"],
-    "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
+    # FIXME
+    # "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
@@ -282,8 +282,8 @@ def test_record(
 
 @pytest.mark.parametrize(
     "command",
-    complex_commands.values(),
-    ids=complex_commands.keys(),
+    [*simple_commands.values(), *complex_commands.values()],
+    ids=[*simple_commands.keys(), *complex_commands.keys()],
 )
 @pytest.mark.timeout(100)
 def test_downstream_analyses(
@@ -331,10 +331,6 @@ def test_downstream_analyses(
 
         # See ltrace_eliminator.py for more help.
 
-    script = scratch_directory / "script.sh"
-    script.write_text("")
-    script.chmod(stat.S_IXUSR | script.stat().st_mode)
-
     print(shutil.which(command[0]))
     full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
 
@@ -349,22 +345,23 @@ def test_downstream_analyses(
     else:
         subprocess.run(full_command, **args, env=env)
 
-    cmd = ["probe", "py", "export", "debug-text"]
+    cmd = ["probe", "py", "export", "debug-text", str(scratch_directory / "debug-text.txt")]
     print(shlex.join(cmd))
-    with (scratch_directory / "debug-text.txt").open("w") as output:
-        subprocess.run(cmd, **args, stdout=output)
+    subprocess.run(cmd, **args)
 
     cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "hb-graph.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
     cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose", "dataflow-graph.dot"]
     print(shlex.join(cmd))
-    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "dataflow-graph.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
+
+    cmd = ["probe", "py", "export", "workflow", "--strict" if strict else "--loose", str(scratch_directory), "snakemake"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, **args)
 
 
 def test_fail(

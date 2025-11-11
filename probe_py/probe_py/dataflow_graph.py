@@ -695,7 +695,7 @@ def collapse_loops(dfg: DataflowGraph) -> DataflowGraph:
         if len(quad_to_node) > 1:
             # We have a SCC with more than 1 op quad
             # Group together all nodes with the same exec_pair
-            exec_pair_to_nodes: typing.Mapping[ptypes.ExecPair, Seq[ptypes.OpQuad]] = util.groupby_dict(
+            exec_pair_to_nodes: typing.Mapping[ptypes.ExecPair, It[ptypes.OpQuad]] = util.groupby_dict(
                 quad_to_node.keys(),
                 key_func=lambda quad: quad.exec_pair(),
             )
