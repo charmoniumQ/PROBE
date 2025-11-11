@@ -15,7 +15,7 @@ struct stat;
 struct statx;
 
 __attribute__((visibility("hidden"))) struct Path
-create_path_lazy(int dirfd, BORROWED const char* path, int flags);
+create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags);
 
 __attribute__((visibility("hidden"))) void path_to_id_string(const struct Path* path,
                                                              BORROWED char* string)

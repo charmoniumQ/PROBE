@@ -62,7 +62,7 @@ ATTR_HIDDEN pid_t probe_libc_getpid(void);
 ATTR_HIDDEN pid_t probe_libc_getppid(void);
 ATTR_HIDDEN pid_t probe_libc_gettid(void);
 
-ATTR_HIDDEN result_int probe_libc_openat(int dirfd, const char* _Nonnull path, int flags,
+ATTR_HIDDEN result_int probe_libc_openat(int dirfd, const char* _Nullable path, int flags,
                                          mode_t mode);
 
 /*
@@ -88,8 +88,8 @@ ATTR_HIDDEN result_int probe_libc_fcntl(int fd, int op, unsigned long arg);
 ATTR_HIDDEN result_ssize_t probe_read_all(int fd, void* _Nonnull buf, size_t n);
 ATTR_HIDDEN result_sized_mem probe_read_all_alloc(int fd);
 ATTR_HIDDEN result_sized_mem probe_read_all_alloc_path(int dirfd, const char* _Nonnull path);
-ATTR_HIDDEN result probe_copy_file(int src_dirfd, const char* _Nonnull src_path, int dst_dirfd,
-                                   const char* _Nonnull dst_path, ssize_t size);
+ATTR_HIDDEN result probe_copy_file(int src_dirfd, const char* _Nullable src_path, int dst_dirfd,
+                                   const char* _Nullable dst_path, ssize_t size);
 
 // yes it's missing the offset parameter; it's unclear whether the syscall
 // implements offset in bytes or memory pages, and i don't think we actually

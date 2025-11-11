@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
 	    <meta charset="utf-8"  />
 	    <title>Provenance in data-analysis workflows (DAWs)</title>
@@ -29,20 +29,39 @@
     </head>
     <body>
         <div class="reveal">
-            <div class="slides">
+            <div class="slides" role="main">
                 <section>
-                    <h1>Provenance in data-analysis workflows (DAWs)</h1>
+                    <h1>Provenance in data-analysis workflows</h1>
+                    <p rel="author">
+                        Samuel Grayson<sup>&dagger;*</sup>, Darko Marinov<sup>*</sup>, Reed Milewicz<sup>&dagger;</sup>, Daniel S. Katz<sup>*</sup>
+                    </p>
+                    <p style="font-size: 16pt;">
+                        * University of Illinois Urbana-Champaign <br />
+                        &dagger; Sandia National Laboratories
+                    </p>
+                    <figure>
+                        <img
+                            src="../../publications/illinois.png"
+                            style="height: 100px;"
+                            alt="University of Illinois Urbana-Champaign Block-I logo"
+                        />
+                        <img
+                            src="../../publications/sandia.svg"
+                            style="height: 100px;"
+                            alt="Sandia National Laboratories Thunderbird Logo"
+                        />
+                    </figure>
                 </section>
                 <section>
                     <h2>Expectation</h2>
                     <img
-                        src="https://www.researchgate.net/profile/Erik-Bongcam-Rudloff/publication/281081296/figure/fig2/AS:271566676164623@1441757949117/Example-of-a-Galaxy-Workflow-used-at-CRS4-to-generates-demultiplexed-fastq-files.png"
-                        alt="Galaxy workflow"
+                        src="../galaxy.png"
+                        alt="Example Galaxy workflow"
                         style="height: 300px;"
                     />
                     <img
-                        src="https://www.researchgate.net/publication/362232517/figure/fig4/AS:1183227834302477@1659114907915/Snakemake-workflow-management-system-All-the-input-and-output-files-in-blue-colour-are.jpg"
-                        alt="Snakemake workflow"
+                        src="../snakemake.jpg"
+                        alt="Example Snakemake workflow"
                         style="height: 200px;"
                         class="fragment"
                     />
@@ -56,51 +75,91 @@
                 </section>
                 <section>
                     <h2>Challenges</h2>
-                    <p>How is this output file generated?</p>
-                    <p>What output files depend on this script?</p>
-                    <p>How to rerun?</p>
+                    <p class="fragment">How is this output file generated?</p>
+                    <p class="fragment">What output files depend on this script?</p>
+                    <p class="fragment">How to reproduce?</p>
+                    <p class="fragment"><strong>All solved by workflows, but we don't always have workflow representation</strong></p>
                 </section>
                 <section>
-                    <h2>Traditional approach</h2>
+                    <h2>Converting to workflow: traditional approach</h2>
                     <p>Human effort, careful reading</p>
-                    <img src="https://i.imgflip.com/abkf13.jpg" class="fragment">
+                    <img
+                        src="https://i.imgflip.com/abkf13.jpg"
+                        class="fragment"
+                        alt="Pushing a boulder up a hill"
+                    >
                 </section>
                 <section>
-                    <h2>Tracing approach</h2>
-                    <p>Operating system (OS) already knows what the code does.</p>
+                    <h2>Converting to workflow: tracing approach</h2>
                     <p class="fragment">OS should keep track of how each file gets generated (<i>computational provenance</i>).</p>
+                    <p class="fragment">Black-box, system-level provenance tracing</p>
+                    <p class="fragment">Should not require root, work inside containers</p>
                 </section>
                 <section>
                     <h2>PRovenance Observation/REplay (PROBE)</h2>
                     <p><code>./script.sh --blue 42</code></p>
                     <p class="fragment"><code>probe record ./script.sh --blue 42</code></p>
+                    <p class="fragment">Uses <code>LD_PRELOAD</code> to interpose application</p>
                 </section>
                 <section>
-                    <h2>What do you get?</h2>
+                    <img src="./dfg.svg" style="height: 700px;">
                 </section>
                 <section>
-                    <h2>What do you get (part 2)?</h2>
+                    <img
+                        src="https://i.imgflip.com/abrk79.jpg"
+                        alt="Depiction of a futuristic, ideal world"
+                        style="height: 300px;"
+                    />
+                    <p class="fragment">People who don't know about workflows end up creating one</p>
+                    <p class="fragment">Can't make people document more, but can make documentation easier/automatic</p>
                 </section>
                 <section>
                     <h2>Caveats</h2>
                     <ul>
-                        <li>Not "stitching together" multiple commands.</li>
-                        <li>Not able to capture user input.</li>
-                        <li>Doesn't see "through" shell script redirection or pipes.</li>
-                        <li>Only file accesses so far. Plans for network, time-of-day and others.</li>
-                        <li>No network accesses, so Jupyter notebook/server interactions are not recorded yet.</li>
+                        <!-- <li>Not "stitching together" multiple commands.</li> -->
+                        <!-- <li>Doesn't see "through" shell script redirection or pipes.</li> -->
+                        <li class="fragment">Not able to capture user input.</li>
+                        <li class="fragment">No network accesses, so Jupyter notebook/server interactions are not recorded yet.</li>
+                        <li class="fragment">Does not scale well to large number of processes.</li>
+                        <li class="fragment">Workflows are not stable yet</li>
                     </ul>
                 </section>
                 <section>
-                    <h2>Looking for collaborators</h2>
-                    <p>Want real-world examples</p>
-                    <p>Will ensure PROBE works for your application, within reason</p>
+                    <h2>Do existing workflows also benefit from provenance tracing?</h2>
+                    <p class="fragment">Yes, to ensure reproducibility outside of the workflow engine</p>
+                    <p class="fragment">'End-to-end' data lineage throughout multiple systems</p>
+                    <p class="fragment">Can be embedded in existing data formats (Parquet, HDF5, FITS)</p>
                 </section>
                 <section>
+                    <h2>Journey of a data-item</h2>
+                    <ol>
+                        <li class="fragment">Downloaded from web</li>
+                        <li class="fragment">Procsesed with workflow engine 1</li>
+                        <li class="fragment">Emailed as attachment</li>
+                        <li class="fragment">Procsesed with workflow engine 2</li>
+                        <li class="fragment">Stored on a flash drive for 3 years</li>
+                        <li class="fragment">Now, where was it downloaded from?</li>
+                    </ol>
+                </section>
+                <section>
+                    <p><a href="https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/">Workflow Run RO Crate</a></p>
+                    <img src="https://www.researchobject.org/workflow-run-crate/profiles/img/multiple_processes.svg" style="background-color: white;">
+                </section>
+                <section>
+                    <p>Want real-world examples for PROBE</p>
+                    <p>Will ensure PROBE works for your application, within reason</p>
                     <div
                         class="qrcode-link"
+                        style="display: inline-grid;"
                         data-caption="PROBE"
                         data-encoded="https://github.com/charmoniumQ/PROBE"
+                    >
+                    </div>
+                    <div
+                        class="qrcode-link"
+                        style="display: inline-grid;"
+                        data-caption="grayson5@illinois.edu"
+                        data-encoded="mailto:grayson5@illinois.edu"
                     >
                     </div>
                 </section>
@@ -115,9 +174,10 @@
         <script type="text/javascript">
          /*<![CDATA[*/
          Reveal.initialize({
-             "hash": true,
-             "slideNumber": "c/t",
-             "transition": "none",
+             hash: true,
+             slideNumber: "c/t",
+             transition: "none",
+             controls: false,
          });
          /*]]*/
         </script>
@@ -147,6 +207,25 @@
              });
          });
          /*]]*/
+        </script>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.3/axe.min.js"
+            integrity="sha512-Y6Vva0IT8gxKyqgZjlEfG76U48eXakSZ8UqY6vMQMe6xES2So8WuItGYcHi3tH1OAlMKjTWjSeN/5x2aysOXIQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script>
+         Reveal.on('slidechanged', (event) => {
+             return axe
+                 .run()
+                 .then(results => {
+                     const state = Reveal.getState();
+                     console.log(state, results);
+                 })
+                 .catch(err => {
+                     console.error('Something bad happened:', err.message);
+                 });
+         });
         </script>
     </body>
 </html>

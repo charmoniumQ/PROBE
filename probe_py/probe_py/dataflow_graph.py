@@ -86,14 +86,14 @@ def hb_graph_to_dataflow_graph(
     )
 
     # We will need an HB oracle on this to evaluate transitive reachability
-    hb_oracle = graph_utils.PrecomputedReachabilityOracle[ptypes.OpQuad].create(hbg)
+    hb_oracle = graph_utils.PrecomputedReachabilityOracle[ptypes.OpQuad].create(hbg, progress=True)
 
     # For each inode, find the interval in which it was accessed
     inode_intervals, inode_to_paths = find_intervals(probe_log, hbg, hb_oracle, thread_to_ops)
 
     # For each inode
     for inode, interval_infos in tqdm.tqdm(inode_intervals.items(), desc="Add intervals for inode to graph"):
-        add_inode_intervals(inode, interval_infos, dataflow_graph)
+        add_inode_intervals(inode, interval_infos, dataflow_graph, hb_oracle)
         # TODO: Check these with the recorded mtime
 
     # Add DFG edges for threads
@@ -120,7 +120,7 @@ def null_compression(
     return graph_utils.map_nodes(node_mapper, dfg, check=False)
 
 
-@charmonium.time_block.decor(print_start=False)
+@charmonium.time_block.decor()
 def visualize_dataflow_graph(
         dfg: DataflowGraph,
         inode_to_paths: Map[ptypes.Inode, frozenset[pathlib.Path]],
@@ -191,6 +191,7 @@ def _to_path(
         return None
 
 
+@charmonium.time_block.decor(print_start=True)
 def find_intervals(
         probe_log: ptypes.ProbeLog,
         hb_graph: ptypes.HbGraph,
@@ -373,8 +374,8 @@ def find_closes(
     start = end
 
     start = datetime.datetime.now()
-    ret = graph_utils.Interval.union(*(
-        graph_utils.Interval(hb_oracle, frozenset(opens[pid]), frozenset(closes[pid]))
+    ret = graph_utils.Interval.union(hb_oracle, *(
+        hb_oracle.interval(frozenset(opens[pid]), frozenset(closes[pid]))
         for pid in opens.keys()
     ))
     end = datetime.datetime.now()
@@ -404,7 +405,7 @@ def add_thread_dataflow_edges(
     }
     for implicitly_communicating_quads in tqdm.tqdm(
             exec_pair_to_quads.values(),
-            desc="exec pairs",
+            desc="exec pairs (implicit comm)",
     ):
         connect_implicit_communication(
             list(implicitly_communicating_quads),
@@ -427,14 +428,15 @@ def connect_implicit_communication(
         key=topo_ordering.get, # type: ignore
     )
     highest_peers = dict[ptypes.OpQuad, set[ptypes.OpQuad]]()
-    for src in quads:
+    for src in tqdm.tqdm(quads, desc="0"):
         highest_peers[src] = set()
         for potential_highest_peer in quads:
+            # FIXME speed this up
             # This is N^2 with the number of quads in an implicitly communicating cabal
             if src != potential_highest_peer and hb_oracle.is_peer(src, potential_highest_peer):
                 if not any(hb_oracle.is_reachable(highest_peer, potential_highest_peer) for highest_peer in highest_peers[src]):
                     highest_peers[src].add(potential_highest_peer)
-    for src in quads[::-1]:
+    for src in tqdm.tqdm(quads[::-1], desc="1"):
         successors_peers = set()
         for successor in hb.predecessors(src):
             if successor in highest_peers:
@@ -447,6 +449,7 @@ def add_inode_intervals(
         inode: ptypes.Inode,
         intervals: It[IntervalInfo],
         dataflow_graph: UncompressedDataflowGraph,
+        hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
 ) -> None:
     # Let W := all intervals (not intervals_per_process) in which inode was written
     # Likewise, R := was read. Read-write?
@@ -467,7 +470,7 @@ def add_inode_intervals(
         [
             (s0, s1)
             for s0, s1 in itertools.permutations(intervals, 2)
-            if s0.interval.all_greater_than(s1.interval)
+            if s0.interval.all_greater_than(hb_oracle, s1.interval)
         ]
     )
 
@@ -478,14 +481,20 @@ def add_inode_intervals(
     interval_hb = networkx.transitive_reduction(interval_hb)
 
     # Construct the hb oracle, which will help us know the peer and reachable nodes
+    time_start = datetime.datetime.now()
     interval_hb_oracle = graph_utils.PrecomputedReachabilityOracle[IntervalInfo].create(interval_hb)
+    time_stop = datetime.datetime.now()
+    if (time_stop - time_start).total_seconds() > 0.1:
+        print(f"TC on {len(interval_hb)} intervals took a long time")
 
-    for interval in intervals:
+    prior_versions = dict[IntervalInfo, int]()
+    unused_version = itertools.count(1)
+    for interval in tqdm.tqdm(intervals, desc="intervals"):
         if interval.access_mode.is_write:
             write_interval = interval
 
-            # TODO: properly version IVNs
-            ivn = InodeVersionNode(inode, hash(write_interval) ^ hash(inode))
+            prior_versions[write_interval] = next(unused_version)
+            ivn = InodeVersionNode(inode, prior_versions[write_interval])
             dataflow_graph.add_node(
                 ivn
             )
@@ -501,19 +510,26 @@ def add_inode_intervals(
                     # Transient versions
                     concurrent_writes = get_concurrent_writes(write_interval, interval_hb, interval_hb_oracle)
                     for pred_write_interval in concurrent_writes:
-                        pred_ivn = InodeVersionNode(inode, hash(write_interval) ^ hash(pred_write_interval) ^ hash(inode))
+                        pred_ivn = InodeVersionNode(inode, next(unused_version))
                         dataflow_graph.add_node(pred_ivn)
                         for node in write_interval.bottom():
                             dataflow_graph.add_edge(pred_ivn, ivn)
+
                     # Non-transient versions
                     preceeding_writes = get_latest_preceeding_writes(write_interval, interval_hb, interval_hb_oracle)
                     for pred_write_interval in preceeding_writes:
-                        pred_ivn = InodeVersionNode(inode, hash(pred_write_interval) ^ hash(inode))
+                        pred_ivn = InodeVersionNode(
+                            inode,
+                            prior_versions[pred_write_interval],
+                        )
                         dataflow_graph.add_edge(pred_ivn, ivn)
 
                     # If no preceeding writes, we pick up whatever version existed prior to execution
                     if not preceeding_writes:
-                        pred_ivn = InodeVersionNode(inode, hash(write_interval) ^ hash(inode) ^ hash("pre-existing"))
+                        pred_ivn = InodeVersionNode(
+                            inode,
+                            0,
+                        )
                         dataflow_graph.add_node(pred_ivn)
                         dataflow_graph.add_edge(pred_ivn, ivn)
 
@@ -531,7 +547,7 @@ def add_inode_intervals(
             # It's a version unique to the reader-writer pair, aka "transient version".
             concurrent_writes = get_concurrent_writes(read_interval, interval_hb, interval_hb_oracle)
             for write_interval in concurrent_writes:
-                ivn = InodeVersionNode(inode, hash(read_interval) ^ hash(write_interval) ^ hash(inode))
+                ivn = InodeVersionNode(inode, next(unused_version))
                 dataflow_graph.add_node(ivn)
                 for node in write_interval.bottom():
                     dataflow_graph.add_edge(node, ivn)
@@ -542,14 +558,14 @@ def add_inode_intervals(
             # "Immediately prceeding" but ignoring reads,
             # E.g., "write -> read -> read"; the write's version is used for both reads.
             preceeding_writes = get_latest_preceeding_writes(read_interval, interval_hb, interval_hb_oracle)
-            for write_interval in preceeding_writes:
-                ivn = InodeVersionNode(inode, hash(read_interval) ^ hash(inode))
+            for pred_write_interval in preceeding_writes:
+                ivn = InodeVersionNode(inode, prior_versions[pred_write_interval])
                 for node in read_interval.top():
                     dataflow_graph.add_edge(ivn, node)
 
             # If no preceeding writes, we pick up whatever version existed prior to execution
             if not preceeding_writes:
-                ivn = InodeVersionNode(inode, hash(read_interval) ^ hash(inode) ^ hash("pre-existing"))
+                ivn = InodeVersionNode(inode, 0)
                 dataflow_graph.add_node(ivn)
                 for node in read_interval.top():
                     dataflow_graph.add_edge(ivn, node)
@@ -763,12 +779,15 @@ def shorten_path(
         max_path_segment_length: int,
         relative_to: pathlib.Path | None,
 ) -> str:
-    print(input, relative_to)
-    if input.is_absolute() and relative_to and input.is_relative_to(relative_to):
-        input = input.relative_to(relative_to)
-    output = ("/" if input.is_absolute() else "") + "/".join(
+    if relative_to:
+        input2 = input.relative_to(relative_to, walk_up=True)
+        if sum(part == ".." for part in input2.parts) > 3:
+            input2 = input
+    else:
+        input2 = input
+    output = ("/" if input2.is_absolute() else "") + "/".join(
         textwrap.shorten(segment, width=max_path_segment_length)
-        for segment in input.parts
+        for segment in input2.parts
         if segment != "/"
     )
     if len(output) > max_path_length:
@@ -778,6 +797,7 @@ def shorten_path(
 
 def label_inode_set(
         inodes: IVNs,
+        inodes_label_bank: Map[pathlib.Path | None, typing.Iterator[int]],
         data: NodeData,
         inode_to_path: Map[ptypes.Inode, frozenset[pathlib.Path]],
         relative_to: pathlib.Path | None,
@@ -797,34 +817,57 @@ def label_inode_set(
         inode_labels.append("...other inodes")
     data["label"] = "\n".join(inode_labels)
     data["shape"] = "rectangle"
-    data["id"] = str(hash(inodes))
+    data["inodes"] = ",".join(str(inode.inode.number) for inode in inodes)
+    first_inode = next(iter(inodes)) if inodes else None
+    first_inode_paths = inode_to_path.get(first_inode.inode) if first_inode else None
+    first_inode_path = next(iter(first_inode_paths)) if first_inode_paths else None
+    id = next(inodes_label_bank[first_inode_path])
+    data["id"] = f"{first_inode_path}_{id}"
 
 
 def stringify_init_exec(
         op: ops.InitExecEpochOp,
-        max_args: int = 5,
-        max_arg_length: int = 80,
+        max_args: int,
+        max_arg_length: int,
+        relative_to: pathlib.Path | None,
 ) -> str:
     args = " ".join(
         textwrap.shorten(
             arg.decode(errors="backslashreplace"),
             width=max_arg_length,
         )
-        for arg in op.argv[:max_args]
+        for arg in op.argv[1:max_args]
     )
     if len(op.argv) > max_args:
         args += "..."
-    return f"exec {args}"
+    exe = op.argv[0].decode()
+    return f"{exe} {args}"
+
 
 def label_quads_graph(
         quads: Quads,
+        exe_label_bank: Map[str, typing.Iterator[int]],
+        exec_pair_label_bank: dict[ptypes.ExecPair, tuple[str, int, typing.Iterator[int]]],
         data: NodeData,
         probe_log: ptypes.ProbeLog,
         max_args: int,
         max_arg_length: int,
+        relative_to: pathlib.Path | None,
 ) -> None:
     data["shape"] = "oval"
-    data["id"] = hash(quads)
+    exec_pair = next(iter(quads)).exec_pair()
+
+    if exec_pair not in exec_pair_label_bank:
+        # TODO: should probable have a way to go from exec_pair -> InitExecEpochOp in ptypes.ProbeLog
+        # We do this in several places throughout the code.
+        first_op_data = probe_log.get_op(ptypes.OpQuad(exec_pair.pid, exec_pair.exec_no, exec_pair.pid.main_thread(), 0)).data
+        assert isinstance(first_op_data, ops.InitExecEpochOp)
+        exe = first_op_data.argv[0].decode()
+        exe_id = next(exe_label_bank[exe])
+        exec_pair_label_bank[exec_pair] = (exe, exe_id, itertools.count())
+
+    exe, exe_id, quad_counter = exec_pair_label_bank[exec_pair]
+    data["id"] = f"{exe}_{exe_id}_{next(quad_counter)}"
     data["label"] = ""
     for quad in quads:
         data["cluster"] = f"Process {quad.pid}"
@@ -832,10 +875,14 @@ def label_quads_graph(
         if isinstance(op_data, ops.InitExecEpochOp):
             if quad.pid == probe_log.get_root_pid() and quad.exec_no == 0:
                 data["label"] += "(root)\n"
-            data["label"] += stringify_init_exec(op_data) + "\n"
-        else:
-            data["label"] += f"\n{op_data.__class__.__name__}"
+            data["label"] += stringify_init_exec(op_data, max_args=max_args, max_arg_length=max_arg_length, relative_to=relative_to) + "\n"
     data["label"] = data["label"].strip()
+    data["exec_pair"] = f"pid={exec_pair.pid} exec={exec_pair.exec_no}"
+    tid_to_quads: Map[ptypes.Tid, It[ptypes.OpQuad]] = util.groupby_dict(quads, key_func=lambda quad: quad.tid)
+    data["quads"] = "; ".join(
+        f"tid={tid} ops=" + ",".join(str(quad.op_no) for quad in tid_quads)
+        for tid, tid_quads in tid_to_quads.items()
+    )
 
 
 @charmonium.time_block.decor(print_start=False)
@@ -843,7 +890,7 @@ def label_nodes(
         probe_log: ptypes.ProbeLog,
         dataflow_graph: DataflowGraph,
         inode_to_path: Map[ptypes.Inode, frozenset[pathlib.Path]],
-        relative_to: pathlib.Path,
+        relative_to: pathlib.Path | None,
         max_args: int = 5,
         max_arg_length: int = 80,
         max_path_length: int = 40,
@@ -851,14 +898,27 @@ def label_nodes(
         max_paths_per_inode: int = 1,
         max_inodes_per_set: int = 1,
 ) -> None:
+    inode_label_bank = collections.defaultdict[pathlib.Path | None, typing.Iterator[int]](lambda: itertools.count())
+    exe_label_bank = collections.defaultdict[str, typing.Iterator[int]](lambda: itertools.count())
+    exec_pair_label_bank = dict[ptypes.ExecPair, tuple[str, int, typing.Iterator[int]]]()
     for node, data in tqdm.tqdm(dataflow_graph.nodes(data=True), desc="label dfg"):
         data2 = typing.cast(dict[str, typing.Any], data)
         match node:
             case Quads():
-                label_quads_graph(node, data2, probe_log, max_args=max_args, max_arg_length=max_arg_length)
+                label_quads_graph(
+                    node,
+                    exe_label_bank,
+                    exec_pair_label_bank,
+                    data2,
+                    probe_log,
+                    max_args=max_args,
+                    max_arg_length=max_arg_length,
+                    relative_to=relative_to,
+                )
             case IVNs():
                 label_inode_set(
                     node,
+                    inode_label_bank,
                     data2,
                     inode_to_path,
                     relative_to,

@@ -219,7 +219,7 @@ void exit_with_backup(int status) {
 // 9 bytes from the format string, max 20 bytes from stringing a 64-bit
 // integer, 1 for null byte, and two for good luck (and alignment)
 #define STRERROR_BUFFER 32
-char* strerror_with_backup(int errnum) {
+char* _Nullable strerror_with_backup(int errnum) {
     static char backup_strerror_buf[STRERROR_BUFFER];
     if (client_strerror) {
         return client_strerror(errnum);
@@ -230,7 +230,7 @@ char* strerror_with_backup(int errnum) {
 }
 #undef STRERROR_BUFFER
 
-int probe_libc_memcmp(const void* s1, const void* s2, size_t n) {
+int probe_libc_memcmp(const void* _Nonnull s1, const void* _Nonnull s2, size_t n) {
     const unsigned char* c1 = (const unsigned char*)s1;
     const unsigned char* c2 = (const unsigned char*)s2;
 
@@ -252,7 +252,7 @@ int probe_libc_memcmp(const void* s1, const void* s2, size_t n) {
     return 0;
 }
 
-void* probe_libc_memcpy(void* dest, const void* src, size_t n) {
+void* _Nonnull probe_libc_memcpy(void* _Nonnull dest, const void* _Nonnull src, size_t n) {
     if (dest == NULL || n == 0) {
         return dest;
     }
@@ -274,7 +274,7 @@ void* probe_libc_memcpy(void* dest, const void* src, size_t n) {
     return dest;
 }
 
-void* probe_libc_memset(void* s, int c, size_t n) {
+void* _Nonnull probe_libc_memset(void* _Nonnull s, int c, size_t n) {
     // OPTIMIZE: vectorize this by generating a size_t of repeated bytes and
     // copying that
     for (size_t i = 0; i < n; ++i) {
@@ -284,7 +284,7 @@ void* probe_libc_memset(void* s, int c, size_t n) {
     return s;
 }
 
-size_t probe_libc_memcount(const char* s, size_t maxlen, char delim) {
+size_t probe_libc_memcount(const char* _Nonnull s, size_t maxlen, char delim) {
     if (s == NULL) {
         return 0;
     }
@@ -294,7 +294,7 @@ size_t probe_libc_memcount(const char* s, size_t maxlen, char delim) {
     return count;
 }
 
-result_str probe_libc_getcwd(char* buf, size_t size) {
+result_str probe_libc_getcwd(char* _Nonnull buf, size_t size) {
     int retval = probe_syscall2(SYS_getcwd, (uintptr_t)buf, size);
     if (retval >= 0) {
 
@@ -324,7 +324,7 @@ result_int probe_libc_dup(int oldfd) {
     SYSCALL_ERROR_RESULT(result_int, retval);
 }
 
-result_int probe_libc_openat(int dirfd, const char* path, int flags, mode_t mode) {
+result_int probe_libc_openat(int dirfd, const char* _Nullable path, int flags, mode_t mode) {
     ssize_t retval = probe_syscall4(SYS_openat, dirfd, (uintptr_t)path, flags, mode);
     SYSCALL_ERROR_RESULT(result_int, retval);
 }
@@ -337,12 +337,12 @@ void probe_libc_close(int fd) {
     }
 }
 
-result_ssize_t probe_libc_read(int fd, void* buf, size_t count) {
+result_ssize_t probe_libc_read(int fd, void* _Nonnull buf, size_t count) {
     ssize_t retval = probe_syscall3(SYS_read, fd, (uintptr_t)buf, count);
     SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
-result_ssize_t probe_libc_write(int fd, const void* buf, size_t count) {
+result_ssize_t probe_libc_write(int fd, const void* _Nonnull buf, size_t count) {
     ssize_t retval = probe_syscall3(SYS_write, fd, (uintptr_t)buf, count);
     SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
@@ -352,18 +352,23 @@ result probe_libc_ftruncate(int fd, off_t length) {
     SYSCALL_ERROR_OPTION(retval);
 }
 
-result probe_libc_statx(int dirfd, const char* path, int flags, unsigned int mask, void* statxbuf) {
+result probe_libc_statx(int dirfd, const char* _Nullable path, int flags, unsigned int mask,
+                        void* _Nonnull restrict statxbuf) {
+    /*
+     * Note: it seems when (path == NULL && flags == AT_EMPTY_PATH), we should return the fstat of the dirfd, but for some reason,
+     * 
+     */
     ssize_t retval =
         probe_syscall5(SYS_statx, dirfd, (uintptr_t)path, flags, mask, (uintptr_t)statxbuf);
     SYSCALL_ERROR_OPTION(retval);
 }
 
-result probe_libc_mkdirat(int dirfd, const char* path, mode_t mode) {
+result probe_libc_mkdirat(int dirfd, const char* _Nonnull path, mode_t mode) {
     ssize_t retval = probe_syscall3(SYS_mkdirat, dirfd, (uintptr_t)path, mode);
     SYSCALL_ERROR_OPTION(retval);
 }
 
-result probe_libc_faccessat(int dirfd, const char* path, int mode) {
+result probe_libc_faccessat(int dirfd, const char* _Nonnull path, int mode) {
     ssize_t retval = probe_syscall3(SYS_faccessat, dirfd, (uintptr_t)path, mode);
     SYSCALL_ERROR_OPTION(retval);
 }
@@ -373,7 +378,7 @@ result_int probe_libc_fcntl(int fd, int op, unsigned long arg) {
     SYSCALL_ERROR_RESULT(result_int, retval);
 }
 
-result_ssize_t probe_read_all(int fd, void* buf, size_t n) {
+result_ssize_t probe_read_all(int fd, void* _Nonnull buf, size_t n) {
     ssize_t total = 0;
     result_ssize_t curr;
     do {
@@ -438,7 +443,7 @@ result_sized_mem probe_read_all_alloc(int fd) {
         .value = buf,
     };
 }
-result_sized_mem probe_read_all_alloc_path(int dirfd, const char* path) {
+result_sized_mem probe_read_all_alloc_path(int dirfd, const char* _Nonnull path) {
     result_int fd = probe_libc_openat(dirfd, path, O_RDONLY, 0);
     if (fd.error) {
         return (result_sized_mem)ERR(fd.error);
@@ -448,13 +453,13 @@ result_sized_mem probe_read_all_alloc_path(int dirfd, const char* path) {
     return ret;
 }
 
-result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
+result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* _Nullable offset, size_t count) {
     ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
     SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
-result probe_copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const char* dst_path,
-                       ssize_t size) {
+result probe_copy_file(int src_dirfd, const char* _Nullable src_path, int dst_dirfd,
+                       const char* _Nullable dst_path, ssize_t size) {
     // See https://stackoverflow.com/a/2180157
 
     result_int src_fd = probe_libc_openat(src_dirfd, src_path, O_RDONLY, 0);
@@ -485,7 +490,7 @@ result probe_copy_file(int src_dirfd, const char* src_path, int dst_dirfd, const
     return 0;
 }
 
-result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) {
+result_mem probe_libc_mmap(void* _Nullable addr, size_t len, int prot, int flags, int fd) {
     ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, /*offset*/ 0);
     // can't use SYSCALL_ERROR_WRAPPER because of the type coercion
     if (retval < 0) {
@@ -494,17 +499,17 @@ result_mem probe_libc_mmap(void* addr, size_t len, int prot, int flags, int fd) 
     return (result_mem)OK((void*)retval);
 }
 
-result probe_libc_munmap(void* addr, size_t len) {
+result probe_libc_munmap(void* _Nonnull addr, size_t len) {
     ssize_t retval = probe_syscall2(SYS_munmap, (uintptr_t)addr, len);
     SYSCALL_ERROR_OPTION(retval);
 }
 
-result probe_libc_msync(void* addr, size_t len, int flags) {
+result probe_libc_msync(void* _Nonnull addr, size_t len, int flags) {
     ssize_t retval = probe_syscall3(SYS_msync, (uintptr_t)addr, len, flags);
     SYSCALL_ERROR_OPTION(retval);
 }
 
-char* probe_libc_strncpy(char* dest, const char* src, size_t dsize) {
+char* _Nonnull probe_libc_strncpy(char* _Nonnull dest, const char* _Nonnull src, size_t dsize) {
     size_t i = 0;
     for (; i < dsize; ++i) {
         if (src[i] == '\0') {
@@ -518,7 +523,7 @@ char* probe_libc_strncpy(char* dest, const char* src, size_t dsize) {
     return dest;
 }
 
-size_t probe_libc_strnlen(const char* s, size_t maxlen) {
+size_t probe_libc_strnlen(const char* _Nonnull s, size_t maxlen) {
     if (s == NULL) {
         return 0;
     }
@@ -528,7 +533,7 @@ size_t probe_libc_strnlen(const char* s, size_t maxlen) {
     return i;
 }
 
-char* probe_libc_strndup(const char* s, size_t n) {
+char* _Nonnull probe_libc_strndup(const char* _Nonnull s, size_t n) {
     size_t size = probe_libc_strnlen(s, n);
     char* new = malloc(size + 1);
     if (new == NULL) {
@@ -539,7 +544,7 @@ char* probe_libc_strndup(const char* s, size_t n) {
     return new;
 }
 
-int probe_libc_strncmp(const char* a, const char* b, size_t maxlen) {
+int probe_libc_strncmp(const char* _Nonnull a, const char* _Nonnull b, size_t maxlen) {
     size_t i = 0;
     for (; a[i] != '\0' && b[i] != '\0' && i < maxlen; ++i) {
         int_fast16_t diff = (int_fast16_t)(unsigned char)a[i] - (int_fast16_t)(unsigned char)b[i];
@@ -553,7 +558,7 @@ int probe_libc_strncmp(const char* a, const char* b, size_t maxlen) {
     return (int_fast16_t)(unsigned char)a[i] - (int_fast16_t)(unsigned char)b[i];
 }
 
-size_t probe_libc_strnfind(const char* string, size_t maxlen, char delim) {
+size_t probe_libc_strnfind(const char* _Nonnull string, size_t maxlen, char delim) {
     if (string == NULL) {
         return 0;
     }
@@ -566,7 +571,7 @@ size_t probe_libc_strnfind(const char* string, size_t maxlen, char delim) {
 
 size_t probe_libc_getpagesize(void) { return auxilary[AT_PAGESZ]; }
 
-const char* probe_libc_getenv(const char* name) {
+const char* _Nullable probe_libc_getenv(const char* _Nonnull name) {
     if (name == NULL) {
         return NULL;
     }

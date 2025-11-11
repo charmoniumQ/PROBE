@@ -25,37 +25,34 @@ It: typing.TypeAlias = collections.abc.Iterable[_T_co]
 
 @dataclasses.dataclass(frozen=True)
 class Interval(typing.Generic[_Node]):
-    dag_tc: ReachabilityOracle[_Node]
     upper_bound: frozenset[_Node]
     lower_bound: frozenset[_Node]
 
     def __post_init__(self) -> None:
         assert self.upper_bound
         assert self.lower_bound
-        assert self.dag_tc.is_antichain(self.upper_bound), \
-            f"{self.upper_bound} is not an antichain"
-        assert self.dag_tc.is_antichain(self.lower_bound), \
-            f"{self.lower_bound} is not an antichain"
-        unbounded = self.dag_tc.non_ancestors(self.upper_bound, self.lower_bound)
-        assert not unbounded, \
-            f"{unbounded} in self.upper_bound is not an ancestor of any any in {self.lower_bound=}"
-        unbounded = self.dag_tc.non_descendants(self.lower_bound, self.upper_bound)
-        assert not unbounded, \
-            f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
+        # assert self.dag_tc.is_antichain(self.upper_bound), \
+        #     f"{self.upper_bound} is not an antichain"
+        # assert self.dag_tc.is_antichain(self.lower_bound), \
+        #     f"{self.lower_bound} is not an antichain"
+        # unbounded = self.dag_tc.non_ancestors(self.upper_bound, self.lower_bound)
+        # assert not unbounded, \
+        #     f"{unbounded} in self.upper_bound is not an ancestor of any any in {self.lower_bound=}"
+        # unbounded = self.dag_tc.non_descendants(self.lower_bound, self.upper_bound)
+        # assert not unbounded, \
+        #     f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
 
     @staticmethod
-    def singleton(dag_tc: ReachabilityOracle[_Node], node: _Node) -> Interval[_Node]:
-        return Interval(dag_tc, frozenset({node}), frozenset({node}))
+    def singleton(_dag_tc: ReachabilityOracle[_Node], node: _Node) -> Interval[_Node]:
+        return Interval(frozenset({node}), frozenset({node}))
 
     def __bool__(self) -> bool:
         "Whether the interval is non-empty"
         return bool(self.upper_bound)
 
     @staticmethod
-    def union(*intervals: Interval[_Node]) -> Interval[_Node]:
+    def union(dag_tc: ReachabilityOracle[_Node], *intervals: Interval[_Node]) -> Interval[_Node]:
         assert intervals
-        dag_tc = intervals[0].dag_tc
-        assert all(interval.dag_tc is dag_tc for interval in intervals)
         upper_bound = dag_tc.get_uppermost(frozenset(
             node
             for interval in intervals
@@ -66,11 +63,11 @@ class Interval(typing.Generic[_Node]):
             for interval in intervals
             for node in interval.lower_bound
         ))
-        return Interval(dag_tc, frozenset(upper_bound), frozenset(lower_bound))
+        return Interval(frozenset(upper_bound), frozenset(lower_bound))
 
-    def all_greater_than(self, other: Interval[_Node]) -> bool:
+    def all_greater_than(self, dag_tc: ReachabilityOracle[_Node], other: Interval[_Node]) -> bool:
         other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = \
-            self.dag_tc.non_descendants(other.upper_bound, self.lower_bound)
+            dag_tc.non_descendants(other.upper_bound, self.lower_bound)
         return not other_upper_bounds_that_are_not_descendent_of_self_lower_bounds
 
 
@@ -80,7 +77,7 @@ def map_nodes(
         check: bool = True,
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: mapper(node) for node in tqdm.tqdm(graph.nodes(), desc="map nodes", total=len(graph.nodes()))}
-    assert util.all_unique(dct.values()), util.duplicates(dct.values())
+    assert util.all_unique(dct.values()), list(dct.values())
     ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
     return ret
 
@@ -107,13 +104,19 @@ def filter_nodes(
 def serialize_graph(
         graph: networkx.DiGraph[_Node],
         output: pathlib.Path,
-        name_mapper: typing.Callable[[_Node], str] | None = None,
+        id_mapper: typing.Callable[[_Node], str] | None = None,
         cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
-    if name_mapper is None:
-        def name_mapper(node: _Node) -> str:
-            return str(graph.nodes(data=True)[node].get("id", node))
-    graph2 = map_nodes(name_mapper, graph)
+    if id_mapper is None:
+        def id_mapper(node: _Node) -> str:
+            data = graph.nodes(data=True)[node]
+            if "id" in data:
+                id = data["id"]
+                del data["id"]
+            else:
+                id = node
+            return str(id)
+    graph2 = map_nodes(id_mapper, graph)
 
     if output.suffix.endswith("dot"):
         pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
@@ -330,7 +333,15 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
         })
 
     def interval(self, upper_bound: frozenset[_Node], lower_bound: frozenset[_Node]) -> Interval[_Node]:
-        return Interval(self, upper_bound, lower_bound)
+        assert self.is_antichain(upper_bound), f"{upper_bound} is not an antichain"
+        assert self.is_antichain(lower_bound), f"{lower_bound} is not an antichain"
+        unbounded = self.non_ancestors(upper_bound, lower_bound)
+        assert not unbounded, \
+            f"{unbounded} in self.upper_bound is not an ancestor of any any in {lower_bound=}"
+        unbounded = self.non_descendants(lower_bound, upper_bound)
+        assert not unbounded, \
+            f"{unbounded} in self.lower_bound is not a descendant of any in {upper_bound=}"
+        return Interval(upper_bound, lower_bound)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -394,16 +405,195 @@ class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
             )
 
 
+@dataclasses.dataclass(frozen=False)
+class LazyRankReachabilityOracle(ReachabilityOracle[_Node]):
+    _dag: networkx.DiGraph[_Node]
+    _rank: typing.Mapping[_Node, int]
+    _descendants: dict[_Node, tuple[int, frozenset[_Node]]]
+
+    @staticmethod
+    def create(dag: networkx.DiGraph[_Node]) -> LazyRankReachabilityOracle[_Node]:
+        topological_generations = [
+            list(layer)
+            for layer in networkx.topological_generations(dag)
+        ]
+        rank = {
+            node: layer_no
+            for layer_no, layer in enumerate(topological_generations)
+            for node in layer
+        }
+        return LazyRankReachabilityOracle(dag, rank, {})
+
+    def __contains__(self, node: _Node) -> bool:
+        return node in self._dag
+
+    def non_ancestors(self, candidates: It[_Node], lower_bound: It[_Node]) -> frozenset[_Node]:
+        lower_bound_set = frozenset(lower_bound)
+        max_rank = max(self._rank[bound] for bound in lower_bound)
+        return frozenset({
+            candidate
+            for candidate in frozenset(candidates) - lower_bound_set
+            if not self.descendants(candidate, max_rank) & lower_bound_set
+        })
+
+    def non_descendants(self, candidates: It[_Node], upper_bound: It[_Node]) -> frozenset[_Node]:
+        max_rank = max(self._rank[candidate] for candidate in candidates)
+        descendants = frozenset().union(*(
+            self.descendants(upper_bound, max_rank)
+            for upper_bound in upper_bound
+        ))
+        return frozenset(frozenset(candidates) - descendants - frozenset(upper_bound))
+
+    def is_antichain(self, nodes: typing.Iterable[_Node]) -> bool:
+        max_rank = max(self._rank[node] for node in nodes)
+        return all(
+            node0 not in self.descendants(node1, max_rank) and node1 not in self.descendants(node0, max_rank)
+            for node0, node1 in itertools.combinations(nodes, 2)
+        )
+
+    def get_bottommost(self, nodes: It[_Node]) -> frozenset[_Node]:
+        max_rank = max(self._rank[node] for node in nodes)
+        bottommost_nodes = set[_Node]()
+        sorted_nodes = self.sorted(nodes)[::-1]
+        for node in sorted_nodes:
+            if not self.descendants(node, max_rank) & bottommost_nodes:
+                bottommost_nodes.add(node)
+        return frozenset(bottommost_nodes)
+
+    def get_uppermost(self, nodes: It[_Node]) -> frozenset[_Node]:
+        max_rank = max(self._rank[node] for node in nodes)
+        uppermost_nodes = set[_Node]()
+        covered_nodes = set[_Node]()
+        sorted_nodes = self.sorted(nodes)
+        for node in sorted_nodes:
+            if node not in covered_nodes:
+                uppermost_nodes.add(node)
+                covered_nodes.update(self.descendants(node, max_rank))
+        return frozenset(uppermost_nodes)
+
+    def sorted(self, nodes: typing.Iterable[_Node]) -> list[_Node]:
+        return sorted(nodes, key=self._rank.__getitem__)
+
+    def is_reachable(self, src: _Node, dst: _Node) -> bool:
+        return dst in self.descendants(src, self._rank[dst])
+
+    def descendants(self, src: _Node, rank: int) -> frozenset[_Node]:
+        # Read the code as if descendants is True.
+        # Note that everythign is exactly reversed if descendants was false.
+        descendants = self._descendants
+        successors = self._dag.successors
+        def in_range(input_rank: int) -> bool:
+            return input_rank <= rank
+
+        # stack will hold _paths from src_ not nodes
+        stack = [
+            [src]
+        ]
+
+        # Do DFS
+        while stack:
+            path = stack[-1]
+            assert path[0] == src
+            node = path[-1]
+            if node in descendants and in_range(descendants[node][0]):
+                # already pre-computed, no work to do.
+                stack.pop()
+            else:
+                # Not already precomputed
+                # Recurse into successors
+                # But only those in range
+                successors_in_range = {
+                    successor
+                    for successor in successors(node)
+                    if in_range(self._rank[successor])
+                }
+                noncomputed_successors_in_range = {
+                    successor
+                    for successor in successors_in_range
+                    if successor not in descendants[successor][1] or not in_range(descendants[successor][0])
+                }
+                if noncomputed_successors_in_range:
+                    for successor in noncomputed_successors_in_range:
+                        stack.append([*path, successor])
+                else:
+                    descendants[node] = (
+                        rank,
+                        frozenset.union(*(descendants[successor][1] for successor in successors_in_range)) if successors_in_range else frozenset(),
+                    )
+        return frozenset(descendants[node][1])
+
+    def add_edge(self, source: _Node, target: _Node) -> None:
+        raise NotImplementedError()
+
+    @functools.cache
+    def n_paths(self, source: _Node, destination: _Node) -> int:
+        raise NotImplementedError()
+
+
+@dataclasses.dataclass(frozen=False)
+class LazyReachabilityOracle(ReachabilityOracle[_Node]):
+    dag: networkx.DiGraph[_Node]
+    descendants: dict[_Node, frozenset[_Node]]
+
+    @staticmethod
+    def create(dag: networkx.DiGraph[_Node]) -> LazyReachabilityOracle[_Node]:
+        return LazyReachabilityOracle(dag, {})
+
+    def __contains__(self, node: _Node) -> bool:
+        return node in self.dag
+
+    def _get_descendants(self, root: _Node) -> frozenset[_Node]:
+        if root in self.descendants:
+            return self.descendants[root]
+
+        stack = [root]
+        visited = set()
+        postorder = []  # To process nodes after their children
+
+        # DFS traversal
+        while stack:
+            curr = stack.pop()
+            if curr in visited:
+                postorder.append(curr)
+                continue
+            visited.add(curr)
+            stack.append(curr)  # Mark for post-processing
+            for child in self.dag.successors(curr):
+                if child not in visited:
+                    stack.append(child)
+
+        # Build descendant sets bottom-up
+        for n in postorder:
+            if n in self.descendants:
+                continue
+            descendants = set()
+            for child in self.dag.successors(n):
+                descendants.add(child)
+                descendants |= self.descendants.get(child, set())
+            self.descendants[n] = frozenset(descendants)
+
+        return self.descendants[root]
+
+    def is_reachable(self, u: _Node, v: _Node) -> bool:
+        return v in self._get_descendants(u) or u == v
+
+    def add_edge(self, source: _Node, target: _Node) -> None:
+        raise NotImplementedError()
+
+    def n_paths(self, source: _Node, destination: _Node) -> int:
+        raise NotImplementedError()
+
+
 @dataclasses.dataclass(frozen=True)
 class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
     dag: networkx.DiGraph[_Node]
     dag_tc: networkx.DiGraph[_Node]
 
     @staticmethod
-    def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
+    def create(dag: networkx.DiGraph[_Node], progress: bool = False) -> PrecomputedReachabilityOracle[_Node]:
         tc: networkx.DiGraph[_Node] = networkx.DiGraph()
         node_order = list(networkx.topological_sort(dag))[::-1]
-        for src in node_order:
+        for src in tqdm.tqdm(node_order, desc="TC nodes", disable=not progress):
             tc.add_node(src)
             for child in dag.successors(src):
                 tc.add_edge(src, child)
@@ -702,8 +892,16 @@ def create_digraph(
         edges: It[tuple[_Node, _Node] | tuple[_Node, _Node, dict[str, typing.Any]]],
 ) -> networkx.DiGraph[_Node]:
     output: "networkx.DiGraph[_Node]" = networkx.DiGraph()
-    output.add_nodes_from(nodes)
-    output.add_edges_from(edges)
+    for node in nodes:
+        if isinstance(node, tuple) and len(node) == 2 and isinstance(node[1], dict) and all(isinstance(key, str) for key in node[1]):
+            output.add_node(node[0], **node[1])
+        else:
+            output.add_node(node)  # type: ignore
+    for edge in edges:
+        if isinstance(edge, tuple) and len(edge) == 3 and isinstance(edge[2], dict) and all(isinstance(key, str) for key in edge[2]):
+            output.add_edge(edge[0], edge[1], **edge[2])
+        else:
+            output.add_edge(edge[0], edge[1])
     return output
 
 

@@ -211,7 +211,7 @@ def dataflow_graph(
         dfg,
         inode_to_paths,
         [],
-        relative_to,
+        relative_to.resolve(),
         probe_log_obj,
     )
     graph_utils.serialize_graph(dfg_vis, output)
@@ -351,6 +351,7 @@ def debug_text(
             pathlib.Path,
             typer.Argument(),
         ] = pathlib.Path("debug-text.txt"),
+        strip_env: bool = True,
 ) -> None:
     """
     Write the data from probe_log in a human-readable manner.
@@ -375,9 +376,10 @@ def debug_text(
                             pbar.update(1)
                             prefix = f"{pid: {pid_len}d} {exid: {exid_len}d} {tid: {tid_len}d} {op_no: {op_no_len}d} "
                             op_type = type(op.data).__name__
-                            op_data = json.dumps(util.decode_nested_object(dataclasses.asdict(op.data)), indent=2)
+                            op_data = util.decode_nested_object(dataclasses.asdict(op.data))
+                            op_data_json = json.dumps({key: value for key, value in op_data.items() if not strip_env or key != "env"}, indent=2)
                             print(f"{prefix}{op_type}", file=output_fd)
-                            print(textwrap.indent(op_data, prefix=len(prefix) * " "), file=output_fd)
+                            print(textwrap.indent(op_data_json, prefix=len(prefix) * " "), file=output_fd)
         for ino_ver, path in tqdm.tqdm(
                 sorted(probe_log_obj.copied_files.items()),
                 desc="Printing inodes",

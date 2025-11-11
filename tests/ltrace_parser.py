@@ -151,14 +151,15 @@ def run_ltrace(
 
 if __name__ == "__main__":
     command: list[str] = [
-        "javac",
-        "HelloWorld.java",
+        "bash",
+        "-c",
+        '../../../examples/echo.exe hi > test_file && ../../../examples/cat.exe test_file > test_file2',
     ]
 
     timeout = 5
     excluded_functions = [
         # Libc internals
-        #"_*@libc.so.6",
+        #"_*@libc.so.6", # not this, __openat_2 would be matched!
         "__str*@libc.so.6",
         "__mem*@libc.so.6",
         "__pthread*@libc.so.6",
@@ -169,6 +170,11 @@ if __name__ == "__main__":
         "__wctob@libc.so.6",
         "__btowc@libc.so.6",
         "__free@libc.so.6",
+        "__gconv*@libc.so.6",
+        "__getdelim*@libc.so.6",
+        "__tsearch*@libc.so.6",
+        "__tfind*@libc.so.6",
+
 
         # Libc stuff we don't care about
         "wctob@libc.so.6",
@@ -180,6 +186,7 @@ if __name__ == "__main__":
         "sysconf@libc.so.6",
         "getpagesize@libc.so.6",
         "str*@libc.so.6",
+        "*strto*@libc.so.6",
         "mb*@libc.so.6",
         "mem*@libc.so.6",
         "*_module@libc.so.6",
@@ -188,8 +195,8 @@ if __name__ == "__main__":
         "*fput*@libc.so.6",
         "*fget*@libc.so.6",
         "*flush*@libc.so.6",
-        "cfree@libc.so.6",
         "free@libc.so.6",
+        "*free@libc.so.6",
         "*printf*@libc.so.6",
         "qsort*@libc.so.6",
         "alias*@libc.so.6",

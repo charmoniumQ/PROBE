@@ -18,12 +18,6 @@ ld_debug = False
 stderr_to_file = True
 
 
-project_root = pathlib.Path(__file__).resolve().parent.parent
-
-
-PROBE = str(project_root / "cli-wrapper/target/release/probe")
-
-
 def bash(*cmd: str) -> list[str]:
     return ["bash", "-c", shlex.join(cmd).replace(" redirect_to ", " > ")]
 
@@ -59,14 +53,15 @@ public class HelloWorld {
 }
 """
 
-example_path = project_root / "tests/examples"
+# relative to scratch_directory
+example_path = pathlib.Path("../../../examples")
 
 
 simple_commands = {
     "echo": [str(example_path / "echo.exe"), "hello", "world"],
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
-    "createFile": [f"{project_root}/tests/examples/createFile.exe"],
+    "createFile": [str(example_path / "createFile.exe")],
     # FIXME
     # "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
     "ls": [str(example_path / "ls.exe"), "."],
@@ -84,7 +79,7 @@ simple_commands = {
         [str(example_path / "echo.exe"), "hello"],
         [str(example_path / "echo.exe"), "world"],
     ),
-    "echo_cat": bash_multi(
+    "shell_redirect": bash_multi(
         [str(example_path / "echo.exe"), "hi", "redirect_to", "test_file"],
         [str(example_path / "cat.exe"), "test_file", "redirect_to", "test_file2"],
     ),
@@ -175,7 +170,7 @@ def does_buildah_work() -> bool:
 @pytest.fixture(scope="session")
 def compile_examples() -> None:
     subprocess.run(
-        ["make", "--directory", str(project_root / "tests/examples")],
+        ["make", "--directory", str(example_path)],
         check=True,
     )
 
@@ -329,9 +324,7 @@ def test_downstream_analyses(
         print(shlex.join(cmd))
         subprocess.run(cmd, **args)
 
-        # See ltrace_eliminator.py for more help.
-
-    print(shutil.which(command[0]))
+    (scratch_directory / "command.sh").write_text(shlex.join(command))
     full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
 
     env = os.environ.copy()
@@ -345,7 +338,7 @@ def test_downstream_analyses(
     else:
         subprocess.run(full_command, **args, env=env)
 
-    cmd = ["probe", "py", "export", "debug-text", str(scratch_directory / "debug-text.txt")]
+    cmd = ["probe", "py", "export", "debug-text"]
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
@@ -354,12 +347,12 @@ def test_downstream_analyses(
     with (scratch_directory / "hb-graph.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose", "dataflow-graph.dot"]
+    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose"]
     print(shlex.join(cmd))
     with (scratch_directory / "dataflow-graph.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "py", "export", "workflow", "--strict" if strict else "--loose", str(scratch_directory), "snakemake"]
+    cmd = ["probe", "py", "export", "workflow", "--strict" if strict else "--loose"]
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
