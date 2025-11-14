@@ -1,0 +1,69 @@
+strict digraph {
+rankdir=TB;
+"-1809342221171993212" [shape=oval, id="-1809342221171993212", label=OpenOp, cluster="Process 337531"];
+"-7635041990846094767" [shape=oval, id="-7635041990846094767", label="exec bash -c ./echo.exe hi > test_file && [...]", cluster="Process 337531"];
+"-4043961364161196067" [shape=oval, id="-4043961364161196067", label=OpenOp, cluster="Process 337531"];
+8298190092251706983 [shape=oval, id=8298190092251706983, label="(root)\nexec bash -c ./echo.exe hi > test_file && [...]", cluster="Process 337529"];
+3545418700683974719 [shape=oval, id=3545418700683974719, label=OpenOp, cluster="Process 337530"];
+"-2798019703267496899" [shape=oval, id="-2798019703267496899", label=OpenOp, cluster="Process 337529"];
+"-4987841878340848160" [shape=oval, id="-4987841878340848160", label="exec ./cat.exe test_file", cluster="Process 337531"];
+"-3629841623322655743" [shape=oval, id="-3629841623322655743", label="exec ./echo.exe hi", cluster="Process 337530"];
+"-9123537951227345286" [shape=oval, id="-9123537951227345286", label="exec bash -c ./echo.exe hi > test_file && [...]", cluster="Process 337530"];
+3582581800615184431 [label="/bin/bash", shape=rectangle, id=3582581800615184431];
+3533479542544453819 [label="./echo.exe", shape=rectangle, id=3533479542544453819];
+1526306601938000046 [label="./cat.exe", shape=rectangle, id=1526306601938000046];
+2762857922358877724 [label="/bin/bash", shape=rectangle, id=2762857922358877724];
+"-1021325259817789070" [label="test_file", shape=rectangle, id="-1021325259817789070"];
+6021388305904157798 [label="/bin/bash", shape=rectangle, id=6021388305904157798];
+"-7635041990846094767" -> "-4043961364161196067";
+3582581800615184431 -> "-7635041990846094767";
+"-4043961364161196067" -> "-4987841878340848160";
+8298190092251706983 -> "-2798019703267496899";
+3533479542544453819 -> "-3629841623322655743";
+3545418700683974719 -> "-3629841623322655743";
+1526306601938000046 -> "-4987841878340848160";
+"-2798019703267496899" -> "-7635041990846094767";
+"-2798019703267496899" -> "-9123537951227345286";
+"-4987841878340848160" -> "-1809342221171993212";
+2762857922358877724 -> 8298190092251706983;
+"-1021325259817789070" -> "-1809342221171993212";
+"-3629841623322655743" -> "-7635041990846094767";
+"-9123537951227345286" -> 3545418700683974719;
+6021388305904157798 -> "-9123537951227345286";
+subgraph "cluster_Process 337531" {
+label="Process 337531";
+"-1809342221171993212" [shape=oval, id="-1809342221171993212", label=OpenOp, cluster="Process 337531"];
+}
+subgraph "cluster_Process 337531" {
+label="Process 337531";
+"-7635041990846094767" [shape=oval, id="-7635041990846094767", label="exec bash -c ./echo.exe hi > test_file && [...]", cluster="Process 337531"];
+}
+subgraph "cluster_Process 337531" {
+label="Process 337531";
+"-4043961364161196067" [shape=oval, id="-4043961364161196067", label=OpenOp, cluster="Process 337531"];
+}
+subgraph "cluster_Process 337529" {
+label="Process 337529";
+8298190092251706983 [shape=oval, id=8298190092251706983, label="(root)\nexec bash -c ./echo.exe hi > test_file && [...]", cluster="Process 337529"];
+}
+subgraph "cluster_Process 337530" {
+label="Process 337530";
+3545418700683974719 [shape=oval, id=3545418700683974719, label=OpenOp, cluster="Process 337530"];
+}
+subgraph "cluster_Process 337529" {
+label="Process 337529";
+"-2798019703267496899" [shape=oval, id="-2798019703267496899", label=OpenOp, cluster="Process 337529"];
+}
+subgraph "cluster_Process 337531" {
+label="Process 337531";
+"-4987841878340848160" [shape=oval, id="-4987841878340848160", label="exec ./cat.exe test_file", cluster="Process 337531"];
+}
+subgraph "cluster_Process 337530" {
+label="Process 337530";
+"-3629841623322655743" [shape=oval, id="-3629841623322655743", label="exec ./echo.exe hi", cluster="Process 337530"];
+}
+subgraph "cluster_Process 337530" {
+label="Process 337530";
+"-9123537951227345286" [shape=oval, id="-9123537951227345286", label="exec bash -c ./echo.exe hi > test_file && [...]", cluster="Process 337530"];
+}
+}

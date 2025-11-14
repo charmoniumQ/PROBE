@@ -361,13 +361,13 @@ static inline void emit_init_epoch_op() {
                  .parent_pid = probe_libc_getppid(),
                  .pid = probe_libc_getpid(),
                  .epoch = get_exec_epoch(),
-                 .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, 0),
-                 .exe = create_path_lazy(AT_FDCWD, exe.bytes, 0),
+                 .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, -1, 0),
+                 .exe = create_path_lazy(AT_FDCWD, exe.bytes, -1, 0),
                  .argv = arena_copy_cmdline(get_data_arena(), cmdline),
                  .env = arena_copy_argv(get_data_arena(), probe_environ, 0),
-                 .std_in = create_path_lazy(AT_FDCWD, "/dev/stdin", 0),
-                 .std_out = create_path_lazy(AT_FDCWD, "/dev/stdout", 0),
-                 .std_err = create_path_lazy(AT_FDCWD, "/dev/stderr", 0),
+                 .std_in = create_path_lazy(-1, NULL, 0, 0),
+                 .std_out = create_path_lazy(-1, NULL, 1, 0),
+                 .std_err = create_path_lazy(-1, NULL, 2, 0),
              }},
         {0},
         0,
@@ -418,19 +418,11 @@ void init_after_fork() {
     emit_init_epoch_op();
     emit_init_thread_op();
 }
-
-// See ./docs/notes.md
-#define LIB_CONSTRUCTOR 0
-
-#if LIB_CONSTRUCTOR == 1
-__attribute__((constructor))
-#endif
-void constructor() {
-    DEBUG("Initializing internal libc");
+void init_proc() {
+    DEBUG("init_proc()");
     if (probe_libc_init() != 0) {
         ERROR("Failed to initialize probe_libc (no procfs?)");
     }
-    DEBUG("Initializing exec epoch");
     ASSERTF(!is_proc_inited(), "Proccess already initialized");
     init_function_pointers();
     check_function_pointers();
@@ -451,15 +443,25 @@ void constructor() {
 }
 
 void ensure_thread_initted() {
-#if LIB_CONSTRUCTOR == 1
-    ASSERTF(is_proc_inited(), "Thread not initialized");
-#endif
     if (!is_proc_inited()) {
-        constructor();
+        // FIXME: reduce entrypoints to initialization
+        WARNING("In interposition, but PROBE not already initialized. Initializing now.");
+        init_proc();
     }
     /* Currently, the thread should be initted by its creator.
      * This is necessary because we assign a thread ID to it, and we need to get _that_ thread ID back when/if the thread gets joined.
      * Buf if it comes down to it, we _could_ initialize it here, but we wouldn't be able to identify it when it gets joined.
      * */
     ASSERTF(is_thread_inited(), "Thread not initialized");
+}
+
+// See ../../docs/initialization.md
+
+__attribute__((constructor)) void constructor() {
+    if (is_proc_inited()) {
+        WARNING("Library constructor, but PROBE Already initialized");
+    } else {
+        DEBUG("Library constructor. Initializing PROBE");
+        init_proc();
+    }
 }

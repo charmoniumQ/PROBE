@@ -60,7 +60,7 @@ class FixedPath(ctypes.Structure):
         )
 
 
-class CopyFilesMode(enum.IntEnum):
+class CopyFilesMode(enum.Enum):
     DONT_COPY = 0
     COPY_LAZILY = 1
     COPY_EAGERLY = 2

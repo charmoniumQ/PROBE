@@ -94,7 +94,7 @@ check: compile_commands.json $(GENERATED_FILES) tests
 	else \
 		python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so; \
 	fi
-	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG
+	cppcheck    $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG -D__GLIBC__=2 -D__GLIBC_MINOR__=33 -DO_TMPFILE
 	if [ "$$SKIP_UNITTESTS" = 1 ]; then \
 	    echo "Skipping unit test"; \
 	else \
@@ -128,6 +128,11 @@ install:
 clean:
 	mkdir --parents $(BUILD_DIR)/
 	rm --force --recursive $(BUILD_DIR)/ $(GENERATED_FILES) compile_commands.json
+.PHONY: clean
+
+shallow-clean:
+	mkdir --parents $(BUILD_DIR)/
+	rm --force --recursive $(BUILD_DIR)/
 .PHONY: clean
 
 format:

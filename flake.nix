@@ -21,6 +21,20 @@
         flake-utils.follows = "flake-utils";
       };
     };
+    charmonium-time-block = {
+      url = "github:charmoniumQ/charmonium.time_block";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
+    charmonium-freeze = {
+      url = "github:charmoniumQ/charmonium.freeze";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
   };
 
   outputs = {
@@ -29,8 +43,10 @@
     old-nixpkgs,
     flake-utils,
     cli-wrapper,
+    charmonium-time-block,
+    charmonium-freeze,
     ...
-  } @ inputs: let
+  }: let
     supported-systems = import ./targets.nix;
     probe-ver = "0.0.13";
   in
@@ -40,7 +56,7 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
-        cli-wrapper-pkgs = cli-wrapper.packages.${system};
+        cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
         # Otherwise, if old-nixpkgs is a flake,
@@ -53,6 +69,8 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
+        charmonium-freeze-pkg = charmonium-freeze.packages."${system}".py312;
       in rec {
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
@@ -162,6 +180,9 @@
               '';
             };
             propagatedBuildInputs = [
+              charmonium-freeze-pkg
+              charmonium-time-block-pkg
+              python.pkgs.frozendict
               python.pkgs.networkx
               python.pkgs.numpy
               python.pkgs.pydot
@@ -176,12 +197,16 @@
               packages.types-networkx
               pkgs.ruff
               python.pkgs.mypy
+              python.pkgs.pytest
+              python.pkgs.pytest-asyncio
+              python.pkgs.pytest-timeout
               python.pkgs.types-tqdm
             ];
             checkPhase = ''
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
+              python -c 'import probe_py'
               mypy --strict --package probe_py
               runHook postCheck
             '';
@@ -238,7 +263,6 @@
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
-              make --directory=examples/
               RUST_BAKCTRACE=1 pytest
             '';
             installPhase = "mkdir $out";
@@ -253,6 +277,9 @@
         devShells = let
           probe-python = python.withPackages (pypkgs: [
             # probe_py.manual runtime requirements
+            charmonium-freeze-pkg
+            charmonium-time-block-pkg
+            pypkgs.frozendict
             pypkgs.networkx
             pypkgs.numpy
             pypkgs.pydot
