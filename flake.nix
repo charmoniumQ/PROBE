@@ -28,6 +28,13 @@
         flake-utils.follows = "flake-utils";
       };
     };
+    charmonium-freeze = {
+      url = "github:charmoniumQ/charmonium.freeze";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
   };
 
   outputs = {
@@ -37,6 +44,7 @@
     flake-utils,
     cli-wrapper,
     charmonium-time-block,
+    charmonium-freeze,
     ...
   }: let
     supported-systems = import ./targets.nix;
@@ -62,6 +70,7 @@
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
         charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
+        charmonium-freeze-pkg = charmonium-freeze.packages."${system}".py312;
       in rec {
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
@@ -171,6 +180,7 @@
               '';
             };
             propagatedBuildInputs = [
+              charmonium-freeze-pkg
               charmonium-time-block-pkg
               python.pkgs.frozendict
               python.pkgs.networkx
@@ -253,7 +263,6 @@
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
             buildPhase = ''
-              make --directory=examples/
               RUST_BAKCTRACE=1 pytest
             '';
             installPhase = "mkdir $out";
@@ -268,6 +277,7 @@
         devShells = let
           probe-python = python.withPackages (pypkgs: [
             # probe_py.manual runtime requirements
+            charmonium-freeze-pkg
             charmonium-time-block-pkg
             pypkgs.frozendict
             pypkgs.networkx

@@ -69,7 +69,7 @@ def dataflow_graph_to_workflow(
         dfg: dataflow_graph.DataflowGraph,
         is_important_path: typing.Callable[[pathlib.Path], bool],
         is_important_cmd: typing.Callable[[Seq[bytes]], bool],
-        inodes_to_paths: Map[ptypes.Inode, frozenset[pathlib.Path]],
+        inodes_to_paths: Map[ptypes.Inode, It[pathlib.Path]],
 ) -> It[Rule]:
     exec_pair_to_quads: Map[ptypes.ExecPair, It[dataflow_graph.Quads]] = util.groupby_dict(
         [

@@ -45,7 +45,7 @@ def groupby_dict(
         data: typing.Iterable[_T],
         key_func: typing.Callable[[_T], _V],
         value_func: typing.Callable[[_T], _U] = typing.cast(typing.Callable[[_T], _U], lambda x: x),
-) -> typing.Mapping[_V, typing.Iterable[_U]]:
+) -> typing.Mapping[_V, typing.Sequence[_U]]:
     ret: dict[_V, list[_U]] = {}
     for key, group in itertools.groupby(data, key_func):
         ret.setdefault(key, []).extend(map(value_func, group))
@@ -199,3 +199,13 @@ def is_main_process() -> bool:
 
 def raise_(exception: Exception) -> typing.NoReturn:
     raise exception
+
+
+class Box(typing.Generic[_T]):
+    val: _T
+    def __init__(self, val: _T) -> None:
+        self.val = val
+    def get(self) -> _T:
+        return self.val
+    def set(self, val: _T) -> None:
+        self.val = val

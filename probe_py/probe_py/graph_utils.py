@@ -86,17 +86,20 @@ def filter_nodes(
         predicate: typing.Callable[[_Node], bool],
         graph: networkx.DiGraph[_Node],
 ) -> networkx.DiGraph[_Node]:
-    kept_nodes = {
-        node
-        for node in tqdm.tqdm(graph.nodes(), desc="filter nodes", total=len(graph.nodes()))
-        if predicate(node)
-    }
+    # Set for fast containment-check
+    kept_nodes_set = set()
+    # List to preserve order of the original graph
+    kept_nodes_list = []
+    for node in graph.nodes():
+        if node not in kept_nodes_set:
+            kept_nodes_set.add(node)
+            kept_nodes_list.append(node)
     return create_digraph(
-        kept_nodes,
+        kept_nodes_list,
         [
             (src, dst)
             for src, dst in tqdm.tqdm(graph.edges(), desc="filter edges", total=len(graph.edges()))
-            if src in kept_nodes and dst in kept_nodes
+            if src in kept_nodes_set and dst in kept_nodes_set
         ]
     )
 
@@ -122,7 +125,7 @@ def serialize_graph(
         pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
         pydot_graph.set("rankdir", "TB")
         clusters = dict[str, pydot.Subgraph]()
-        for node in pydot_graph.get_nodes():
+        for node in sorted(pydot_graph.get_nodes(), key=str):
             cluster_name = node.get("cluster")
             if cluster_name:
                 if cluster_name not in clusters:
@@ -131,8 +134,8 @@ def serialize_graph(
                         label=cluster_labels.get(cluster_name, cluster_name),
                     )
                     pydot_graph.add_subgraph(cluster_subgraph)
-                else:
-                    cluster_subgraph = clusters[cluster_name]
+                    clusters[cluster_name] = cluster_subgraph
+                cluster_subgraph = clusters[cluster_name]
                 cluster_subgraph.add_node(node)
         pydot_graph.write(str(output), "raw")
     elif output.suffix.endswith("graphml"):
@@ -722,21 +725,23 @@ def combine_twin_nodes(
 
     """
     neighbors_to_node = dict[tuple[frozenset[_Node], frozenset[_Node]], list[_Node]]()
-    non_combinable_nodes = set()
+    non_combinable_nodes = list()
     for node in graph.nodes():
         if combinable(node):
             preds = frozenset(graph.predecessors(node))
             succs = frozenset(graph.successors(node))
             neighbors_to_node.setdefault((preds, succs), []).append(node)
         else:
-            non_combinable_nodes.add(node)
-    partitions = {
+            non_combinable_nodes.append(node)
+    partitions_list = [
+        # Order of partitions shoudl be deterministic to make the resulting graph deterministically ordered
         *map(frozenset, neighbors_to_node.values()),
         *map(lambda node: frozenset({node}), non_combinable_nodes),
-    }
+    ]
+
     quotient = typing.cast(
         "networkx.DiGraph[frozenset[_Node]]",
-        networkx.quotient_graph(graph, partitions),
+        networkx.quotient_graph(graph, partitions_list),
     )
     for _, data in quotient.nodes(data=True):
         del data["nnodes"]
@@ -746,72 +751,6 @@ def combine_twin_nodes(
     for _, _, data in quotient.edges(data=True):
         del data["weight"]
     return quotient
-
-
-def retain_nodes_in_digraph(
-        digraph: networkx.DiGraph[_Node],
-        retained_nodes: frozenset[_Node],
-) -> networkx.DiGraph[_Node]:
-    """
-    See retain_nodes_in_dag but for digraphs.
-    """
-    assert retained_nodes <= set(digraph.nodes())
-
-    # Condensation is a DAG on the strongly-connected components (SCCs)
-    # SCC is a set of nodes from which every is reachable to every other.
-    condensation = networkx.condensation(digraph)
-
-    # Retain only those SCCs containing a retained node, stitching the edges together appropriately.
-    condensation = retain_nodes_in_dag(
-        condensation,
-        frozenset({
-            scc
-            for scc, data in condensation.nodes(data=True)
-            if data["members"] & retained_nodes
-        }),
-        edge_data=lambda _digraph, _path: {},
-    )
-
-    # Convert each scc to a list of retained nodes in that scc.
-    # All of the SCCs are disjoint, so this will be unique.
-    # I use a tuple not a frozenset, because I will use the first and last to create a cycle later on.
-    condensation2 = map_nodes(
-        lambda node: tuple(sorted(condensation.nodes[node]["members"] & retained_nodes, key=hash)),
-        condensation,
-    )
-
-    ret: networkx.DiGraph[_Node] = networkx.DiGraph()
-
-    # Add nodes, keeping old edge data
-    ret.add_nodes_from(
-        (node, digraph.nodes[node])
-        for node in retained_nodes
-    )
-
-    # Add edges between SCCs, using an arbitrary representative.
-    ret.add_edges_from(
-        (src_scc[0], dst_scc[0])
-        for src_scc, dst_scc in condensation2.edges()
-    )
-
-    # Add edges within SCCs
-    ret.add_edges_from(
-        (src, dst)
-        for scc in condensation2.nodes()
-        if len(scc) > 1
-        for src, dst in zip(scc[:-1], scc[1:])
-    )
-
-    # Need to connect last to first to complete the cycle within an SCC.
-    ret.add_edges_from(
-        (scc[-1], scc[0])
-        for scc in condensation2.nodes()
-        if len(scc) > 1
-    )
-
-    assert set(ret.nodes()) == retained_nodes
-
-    return ret
 
 
 def retain_nodes_in_dag(

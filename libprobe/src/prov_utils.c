@@ -23,8 +23,10 @@
 
 struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags) {
     ASSERTF((path && dirfd != -1) || (!path && (dirfd == -1 || (flags & AT_EMPTY_PATH))),
-            "Either dirfd and path are both set, both unset, or AT_EMPTY_PATH: %d %s %d", dirfd, path, fd);
-            ASSERTF(dirfd != 0 || path[0] == '/', "dirfd==0 implies absolute path: %d %s %d", dirfd, path, fd);
+            "Either dirfd and path are both set, both unset, or AT_EMPTY_PATH: %d %s %d", dirfd,
+            path, fd);
+    ASSERTF(dirfd != 0 || (path && path[0] == '/'), "dirfd==0 implies absolute path: %d %s %d",
+            dirfd, path, fd);
     if (LIKELY(prov_log_is_enabled())) {
         struct Path ret = {
             dirfd - AT_FDCWD,
@@ -42,15 +44,19 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int f
         struct statx statx_buf;
         result stat_ret;
         if (fd != -1) {
-                stat_ret = probe_libc_statx(fd, NULL, flags | AT_EMPTY_PATH,
-                                           STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE,
-                                                      &statx_buf);
-            ASSERTF(stat_ret == 0, "If we got an fd, it should be valid; fd=%d stat_ret=%stat_ret", stat_ret);
+            stat_ret = probe_libc_statx(fd, NULL, flags | AT_EMPTY_PATH,
+                                        STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
+                                            STATX_CTIME | STATX_SIZE,
+                                        &statx_buf);
+            if (stat_ret == 0) {
+                WARNING("We got a bad FD; could be the client's fault? fd=%d stat_ret=%d", fd,
+                        stat_ret);
+            }
         } else {
-                stat_ret = probe_libc_statx(dirfd, path, flags,
-                                           STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE,
-                                                      &statx_buf);
-        
+            stat_ret = probe_libc_statx(dirfd, path, flags,
+                                        STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
+                                            STATX_CTIME | STATX_SIZE,
+                                        &statx_buf);
         }
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;

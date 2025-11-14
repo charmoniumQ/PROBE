@@ -25,6 +25,9 @@
          h1, h2, h3, h4, h5, h6 {
              text-transform:none !important;
          }
+         i {
+             font-style: italic !important;
+         }
         </style>
     </head>
     <body>
@@ -51,6 +54,14 @@
                             alt="Sandia National Laboratories Thunderbird Logo"
                         />
                     </figure>
+                </section>
+                <section>
+                    <h2>Outline</h2>
+                    <ol>
+                        <li>How to use provenance to convert informal "workflows" (pile of scripts) to proper Workflows</li>
+                        <li>How existing projects can incorporate provenance to improve interoperability and longevity</li>
+                    </ol>
+                    <p><i>Both of which are ongoing work!</i></p>
                 </section>
                 <section>
                     <h2>Expectation</h2>
@@ -128,18 +139,20 @@
                     <h2>Do existing workflows also benefit from provenance tracing?</h2>
                     <p class="fragment">Yes, to ensure reproducibility outside of the workflow engine</p>
                     <p class="fragment">'End-to-end' data lineage throughout multiple systems</p>
+                    <p class="fragment">Could be collected by PROBE, workflow engine, or manual entry</p>
                     <p class="fragment">Can be embedded in existing data formats (Parquet, HDF5, FITS)</p>
                 </section>
                 <section>
                     <h2>Journey of a data-item</h2>
                     <ol>
                         <li class="fragment">Downloaded from web</li>
-                        <li class="fragment">Procsesed with workflow engine 1</li>
+                        <li class="fragment">Processed with workflow engine 1</li>
                         <li class="fragment">Emailed as attachment</li>
-                        <li class="fragment">Procsesed with workflow engine 2</li>
                         <li class="fragment">Stored on a flash drive for 3 years</li>
                         <li class="fragment">Now, where was it downloaded from?</li>
                     </ol>
+                    <p class="fragment">No single system controlling the movement of data</p>
+                    <p class="fragment">Provenance has to be stored in the <i>data item</i> itself!</p>
                 </section>
                 <section>
                     <p><a href="https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/">Workflow Run RO Crate</a></p>
@@ -191,7 +204,7 @@
          /*<![CDATA[*/
          Array.from(
              document.getElementsByClassName("qrcode-link")
-         ).forEach((container) => {
+         ).forEach(container => {
              const a = document.createElement("a");
              const figure = document.createElement("figure");
              const figCaption = document.createElement("figcaption");
@@ -215,6 +228,7 @@
             referrerpolicy="no-referrer"
         ></script>
         <script>
+         /*<![CDATA[*/
          Reveal.on('slidechanged', (event) => {
              return axe
                  .run()
@@ -226,6 +240,14 @@
                      console.error('Something bad happened:', err.message);
                  });
          });
+         /*]]>*/
+        </script>
+        <script>
+         /*<![CDATA[*/
+         Array.from(document.getElementsByClassName("fragment")).forEach(element => {
+             element.classList.remove("fragment");
+         });
+         /*]]>*/
         </script>
     </body>
 </html>

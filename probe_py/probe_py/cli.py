@@ -195,6 +195,10 @@ def dataflow_graph(
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
         ] = pathlib.Path().resolve(),
+        summarize: Annotated[
+            bool,
+            typer.Option(help="Apply summarizations; could be confusing during low-level debuging"),
+        ] = True,
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
 ) -> None:
@@ -213,6 +217,7 @@ def dataflow_graph(
         [],
         relative_to.resolve(),
         probe_log_obj,
+        summarize,
     )
     graph_utils.serialize_graph(dfg_vis, output)
 

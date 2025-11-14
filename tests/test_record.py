@@ -169,8 +169,9 @@ def does_buildah_work() -> bool:
 
 @pytest.fixture(scope="session")
 def compile_examples() -> None:
+    test_root = pathlib.Path(__file__).resolve().parent
     subprocess.run(
-        ["make", "--directory", str(example_path)],
+        ["make", "--directory", f"{test_root}/examples"],
         check=True,
     )
 
