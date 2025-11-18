@@ -6,7 +6,6 @@ import functools
 import itertools
 import typing
 import pathlib
-import charmonium.time_block
 import frozendict
 import networkx
 import pydot
