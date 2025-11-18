@@ -347,67 +347,6 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
         return Interval(upper_bound, lower_bound)
 
 
-@dataclasses.dataclass(frozen=True)
-class DualLabelReachabilityOracle(ReachabilityOracle[_Node]):
-    """Dual-labelling algorithm
-
-    See https://doi.org/10.1109/ICDE.2006.53
-    """
-
-    # FIXME: I think this is wrong; does not respect non-tree edges.
-
-    dag: networkx.DiGraph[_Node]
-    left: FrozenDict[_Node, int]
-    right: FrozenDict[_Node, int]
-    preorder: FrozenDict[_Node, int]
-
-    def __contains__(self, node: _Node) -> bool:
-        assert (node in self.dag) == (node in self.left) == (node in self.right) == (node in self.preorder), (node in self.dag, node in self.left, node in self.right, node in self.preorder)
-        return node in self.dag
-
-    @charmonium.time_block.decor(print_start=False)
-    @staticmethod
-    def create(dag: networkx.DiGraph[_Node]) -> DualLabelReachabilityOracle[_Node]:
-        topo = list(networkx.topological_sort(dag))
-        # Assign preorder numbers in topological order
-        preorder = FrozenDict[_Node, int]({node: index for index, node in enumerate(topo)})
-        # Initialize interval labels
-        left = {node: preorder[node] for node in dag}
-        right = {node: preorder[node] for node in dag}
-
-        # Process nodes in reverse topological order
-        for u in topo[::-1]:
-            for v in dag.successors(u):
-                left[u] = min(left[u], left[v])
-                right[u] = max(right[u], right[v])
-        return DualLabelReachabilityOracle(
-            dag,
-            FrozenDict[_Node, int](left),
-            FrozenDict[_Node, int](right),
-            preorder,
-        )
-
-    def is_reachable(self, src: _Node, dst: _Node) -> bool:
-        if src not in self:
-            raise KeyError(src)
-        if dst not in self:
-            raise KeyError(dst)
-        return self.left[src] <= self.left[dst] and self.right[dst] <= self.right[src]
-
-    def add_edge(self, source: _Node, target: _Node) -> None:
-        raise NotImplementedError
-
-    @functools.cache
-    def n_paths(self, source: _Node, destination: _Node) -> int:
-        if self.dag.in_degree(destination) == 1:
-            return int(self.is_reachable(source, destination))
-        else:
-            return sum(
-                1 if predecessor == source else self.n_paths(source, predecessor)
-                for predecessor in self.dag.predecessors(destination)
-            )
-
-
 @dataclasses.dataclass(frozen=False)
 class LazyRankReachabilityOracle(ReachabilityOracle[_Node]):
     _dag: networkx.DiGraph[_Node]

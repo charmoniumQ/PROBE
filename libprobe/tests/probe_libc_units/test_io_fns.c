@@ -1,12 +1,10 @@
 
 // this exists solely for lsp and will get preprocessed out during build time
-#include "src/probe_libc.h"
 #ifndef SRC_INCLUDED
 #include <criterion/criterion.h>
 #include "probe_libc.h"
 #endif
 
-#include <errno.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>

@@ -354,10 +354,6 @@ result probe_libc_ftruncate(int fd, off_t length) {
 
 result probe_libc_statx(int dirfd, const char* _Nullable path, int flags, unsigned int mask,
                         void* _Nonnull restrict statxbuf) {
-    /*
-     * Note: it seems when (path == NULL && flags == AT_EMPTY_PATH), we should return the fstat of the dirfd, but for some reason,
-     * 
-     */
     ssize_t retval =
         probe_syscall5(SYS_statx, dirfd, (uintptr_t)path, flags, mask, (uintptr_t)statxbuf);
     SYSCALL_ERROR_OPTION(retval);
