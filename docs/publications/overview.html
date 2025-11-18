@@ -1,0 +1,144 @@
+x<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css" />
+    <title>PROBE: PRovenance Observation Engine</title>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h2>PROBE: PRovenance Observation Engine</h2>
+          <h3>Current and future work</h3>
+        </section>
+        <section>
+          <h2>Has this every happend to you?</h2>
+          <img
+            alt="Read based prior work; Find FAIR artifact; Run their code; FileNotFound"
+            src="https://i.imgflip.com/971i6i.jpg" />
+        </section>
+        <section>
+          <h2>What is provenance?</h2>
+          <img
+            style="height: 60%; width: auto;"
+            alt="Lab notebook"
+            src="https://upload.wikimedia.org/wikipedia/commons/0/0c/AGBell_Notebook.jpg" />
+        </section>
+        <section>
+          <h2>What is computational provenance?</h2>
+          <ol>
+            <li>Process by which a file was generated <ul>
+              <li class="fragment"><code>exe</code> and <code>environ</code></li>
+            </ul></li>
+            <li>The inputs to that process <ul>
+              <li class="fragment">Return of I/O operations, e.g., <code>read(open("file.txt"))</code></li>
+            </ul></li>
+            <li>The provenance of those inputs (recursively) <ul>
+              <li class="fragment">Each file read is the output of some process, creating a graph</li>
+            </ul></li>
+          </ol>
+        </section>
+
+        <section>
+            <img src="prov-example.svg" style="height: 700px;">
+        </section>
+
+        <section>
+          <h2>Prior works in record/replay</h2>
+          <ul>
+            <li>
+              CDE (<a href="https://www.usenix.org/legacy/events/atc11/tech/final_files/GuoEngler.pdf">Guo and Engler 2011</a>),
+              Sciunit (<a href="https://doi.org/10.1109/eScience.2017.51">Ton That et al. 2017</a>),
+              RR (<a href="http://arxiv.org/abs/1705.05937">O'Callahan et al. 2017</a>),
+              CARE (<a href="https://dl.acm.org/doi/10.1145/2618137.2618138">Yves et al. 2014</a>),
+              ReproZip (<a href="https://dl.acm.org/doi/10.1145/2882903.2899401">Chirigati et al. 2016</a>)
+            </li>
+            <li>Speed</li>
+            <li>Robustness of reproducibility</li>
+            <li>Openness to downstream analysis</li>
+            <li>Reuse environment for new exe</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>PROBE</h2>
+          <ul>
+            <li><code>LD_PRELOAD</code> <span style="color: red">incomplete!</span> but good enough in practice</li>
+            <li>Less than 2x slowdown in most cases (improving)</li>
+            <li>No root!</li>
+            <li><code>$ probe record &lt;your-command-here&gt;</code></li>
+          </ul>
+        </section>
+
+        <section>
+            <pre style="font-size: 50px;">
+source venv/bin/activate
+
+python data-acquisition.py
+python data-processing.py
+python model-training.py
+            </pre>
+        </section>
+
+        <section>
+            <a href="complex-dataflow-graph.svg"><img src="complex-dataflow-graph.svg" style="height: 600px;"></a>
+        </section>
+
+        <section>
+          <h2>Future work</h2>
+          <ul>
+            <li>Testing against real-world projects!</li>
+            <li>Performance evaluation</li>
+            <li>Track network calls (decrypt HTTPS)</li>
+            <li>Finish system-wide persistent provenance store</li>
+          </ul>
+        </section>
+
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+    <script>
+     /*<![CDATA[*/
+     Reveal.initialize({
+       // Add the current slide number to the URL hash so that reloading the
+       // page/copying the URL will return you to the same slide
+       "hash": true,
+
+
+       // Display the page number of the current slide
+       // - true:  Show slide number
+       // - false:   Hide slide number
+       // - "h.v":   Horizontal . vertical slide number (default)
+       // - "h/v":   Horizontal / vertical slide number
+       // - "c":   Flattened slide number
+       // - "c/t":   Flattened slide number / total slides
+       // - function(slideObject) -> [n1, delimiter, n2]
+       "slideNumber": "c/t",
+
+       // none
+       // fade
+       // slide
+       // convex
+       // concave
+       // zoom
+       "transition": "none",
+
+       // The "normal" size of the presentation, aspect ratio will
+       // be preserved when the presentation is scaled to fit different
+       // resolutions. Can be specified using percentage units.
+       width: "1618",
+       height: "1000",
+       
+       // Factor of the display size that should remain empty around
+       // the content
+       margin: 0.04,
+     });
+     /*]]*/
+    </script>
+  </body>
+</html>
+<!--
+Docs on PROBE
+How to run PROBE
+-->
