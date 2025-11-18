@@ -76,7 +76,7 @@ def map_nodes(
         check: bool = True,
 ) -> networkx.DiGraph[_Node2]:
     dct = {node: mapper(node) for node in tqdm.tqdm(graph.nodes(), desc="map nodes", total=len(graph.nodes()))}
-    assert util.all_unique(dct.values()), util.duplicates(dct.values())
+    assert util.all_unique(dct.values()), list(dct.values())
     ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
     return ret
 
@@ -85,17 +85,20 @@ def filter_nodes(
         predicate: typing.Callable[[_Node], bool],
         graph: networkx.DiGraph[_Node],
 ) -> networkx.DiGraph[_Node]:
-    kept_nodes = {
-        node
-        for node in tqdm.tqdm(graph.nodes(), desc="filter nodes", total=len(graph.nodes()))
-        if predicate(node)
-    }
+    # Set for fast containment-check
+    kept_nodes_set = set()
+    # List to preserve order of the original graph
+    kept_nodes_list = []
+    for node in graph.nodes():
+        if node not in kept_nodes_set:
+            kept_nodes_set.add(node)
+            kept_nodes_list.append(node)
     return create_digraph(
-        kept_nodes,
+        kept_nodes_list,
         [
             (src, dst)
             for src, dst in tqdm.tqdm(graph.edges(), desc="filter edges", total=len(graph.edges()))
-            if src in kept_nodes and dst in kept_nodes
+            if src in kept_nodes_set and dst in kept_nodes_set
         ]
     )
 
@@ -103,19 +106,25 @@ def filter_nodes(
 def serialize_graph(
         graph: networkx.DiGraph[_Node],
         output: pathlib.Path,
-        name_mapper: typing.Callable[[_Node], str] | None = None,
+        id_mapper: typing.Callable[[_Node], str] | None = None,
         cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
-    if name_mapper is None:
-        def name_mapper(node: _Node) -> str:
-            return str(graph.nodes(data=True)[node].get("id", node))
-    graph2 = map_nodes(name_mapper, graph)
+    if id_mapper is None:
+        def id_mapper(node: _Node) -> str:
+            data = graph.nodes(data=True)[node]
+            if "id" in data:
+                id = data["id"]
+                del data["id"]
+            else:
+                id = node
+            return str(id)
+    graph2 = map_nodes(id_mapper, graph)
 
     if output.suffix.endswith("dot"):
         pydot_graph = networkx.drawing.nx_pydot.to_pydot(graph2)
         pydot_graph.set("rankdir", "TB")
         clusters = dict[str, pydot.Subgraph]()
-        for node in pydot_graph.get_nodes():
+        for node in sorted(pydot_graph.get_nodes(), key=str):
             cluster_name = node.get("cluster")
             if cluster_name:
                 if cluster_name not in clusters:
@@ -124,8 +133,8 @@ def serialize_graph(
                         label=cluster_labels.get(cluster_name, cluster_name),
                     )
                     pydot_graph.add_subgraph(cluster_subgraph)
-                else:
-                    cluster_subgraph = clusters[cluster_name]
+                    clusters[cluster_name] = cluster_subgraph
+                cluster_subgraph = clusters[cluster_name]
                 cluster_subgraph.add_node(node)
         pydot_graph.write(str(output), "raw")
     elif output.suffix.endswith("graphml"):
@@ -144,8 +153,10 @@ def search_with_pruning(
 
         traversal = bfs_with_pruning
         for node in traversal:
+            assert node is not None
             # work on node
             traversal.send(condition) # send True to descend or False to prune
+
     """
     queue = collections.deque([start])
     while queue:
@@ -333,10 +344,10 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
     dag_tc: networkx.DiGraph[_Node]
 
     @staticmethod
-    def create(dag: networkx.DiGraph[_Node]) -> PrecomputedReachabilityOracle[_Node]:
+    def create(dag: networkx.DiGraph[_Node], progress: bool = False) -> PrecomputedReachabilityOracle[_Node]:
         tc: networkx.DiGraph[_Node] = networkx.DiGraph()
         node_order = list(networkx.topological_sort(dag))[::-1]
-        for src in tqdm.tqdm(node_order, desc="TC nodes"):
+        for src in tqdm.tqdm(node_order, desc="TC nodes", disable=not progress):
             tc.add_node(src)
             for child in dag.successors(src):
                 tc.add_edge(src, child)
@@ -423,21 +434,23 @@ def combine_twin_nodes(
 
     """
     neighbors_to_node = dict[tuple[frozenset[_Node], frozenset[_Node]], list[_Node]]()
-    non_combinable_nodes = set()
+    non_combinable_nodes = list()
     for node in graph.nodes():
         if combinable(node):
             preds = frozenset(graph.predecessors(node))
             succs = frozenset(graph.successors(node))
             neighbors_to_node.setdefault((preds, succs), []).append(node)
         else:
-            non_combinable_nodes.add(node)
-    partitions = {
+            non_combinable_nodes.append(node)
+    partitions_list = [
+        # Order of partitions shoudl be deterministic to make the resulting graph deterministically ordered
         *map(frozenset, neighbors_to_node.values()),
         *map(lambda node: frozenset({node}), non_combinable_nodes),
-    }
+    ]
+
     quotient = typing.cast(
         "networkx.DiGraph[frozenset[_Node]]",
-        networkx.quotient_graph(graph, partitions),
+        networkx.quotient_graph(graph, partitions_list),
     )
     for _, data in quotient.nodes(data=True):
         del data["nnodes"]
@@ -593,8 +606,16 @@ def create_digraph(
         edges: It[tuple[_Node, _Node] | tuple[_Node, _Node, dict[str, typing.Any]]],
 ) -> networkx.DiGraph[_Node]:
     output: "networkx.DiGraph[_Node]" = networkx.DiGraph()
-    output.add_nodes_from(nodes)
-    output.add_edges_from(edges)
+    for node in nodes:
+        if isinstance(node, tuple) and len(node) == 2 and isinstance(node[1], dict) and all(isinstance(key, str) for key in node[1]):
+            output.add_node(node[0], **node[1])
+        else:
+            output.add_node(node)  # type: ignore
+    for edge in edges:
+        if isinstance(edge, tuple) and len(edge) == 3 and isinstance(edge[2], dict) and all(isinstance(key, str) for key in edge[2]):
+            output.add_edge(edge[0], edge[1], **edge[2])
+        else:
+            output.add_edge(edge[0], edge[1])
     return output
 
 

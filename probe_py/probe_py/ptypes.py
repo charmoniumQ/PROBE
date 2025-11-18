@@ -40,7 +40,7 @@ class Tid(int):
     pass
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class Host:
     name: str
     uniquifier: int
@@ -72,7 +72,7 @@ class Host:
                 return Host(socket.gethostname(), machine_id)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class Device:
     major_id: int
     minor_id: int
@@ -80,7 +80,7 @@ class Device:
         return f"device {self.major_id}_{self.minor_id}"
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class Inode:
     host: Host
     device: Device
@@ -105,7 +105,7 @@ class ProbeOptions:
     parent_of_root: Pid
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class InodeVersion:
     inode: Inode
     # If you assume no clock adjustemnts, it is monotonic with other mtimes on the same Host;
@@ -184,7 +184,7 @@ class Process:
     execs: typing.Mapping[ExecNo, Exec]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class ExecPair:
     pid: Pid
     exec_no: ExecNo
@@ -193,7 +193,7 @@ class ExecPair:
         return f"PID {self.pid} Exec {self.exec_no}"
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class ThreadTriple:
     pid: Pid
     exec_no: ExecNo
@@ -206,7 +206,7 @@ class ThreadTriple:
         return f"PID {self.pid} Exec {self.exec_no} TID {self.tid}"
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class OpQuad:
     pid: Pid
     exec_no: ExecNo
@@ -299,7 +299,7 @@ class TaskType(enum.IntEnum):
     TASK_PTHREAD = 3
 
 
-class FileType(enum.Enum):
+class FileType(enum.IntEnum):
     DIR = 0
     FIFO = 1
     PIPE = 2

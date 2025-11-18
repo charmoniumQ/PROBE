@@ -193,25 +193,6 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
         self._counter += 1
 
 
-def common_ancestor(path0: pathlib.Path, path1: pathlib.Path) -> pathlib.Path:
-    if path0.is_absolute() != path1.is_absolute():
-        raise ValueError(f"{path0=} and {path1=} should both be absolute or both be relative.")
-    for i, (part0, part1) in enumerate(itertools.zip_longest(path0.parts, path1.parts)):
-        if part0 != part1:
-            break
-    ret = pathlib.Path(path0.parts[0]).joinpath(*path0.parts[1:i])
-    assert path0.is_relative_to(ret) and path1.is_relative_to(ret), f"{ret} {path0} {path1}"
-    return ret
-
-
-def relative_to(dest: pathlib.Path, source: pathlib.Path) -> pathlib.Path:
-    ancestor = common_ancestor(dest, source)
-    for _ in range(len(source.parts) - len(ancestor.parts)):
-        source = source / ".."
-    assert source.resolve() == ancestor, f"{source} {source.resolve()} {ancestor}"
-    return source / dest.relative_to(ancestor)
-
-
 def is_main_process() -> bool:
     return multiprocessing.parent_process() is None
 

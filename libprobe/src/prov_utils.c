@@ -21,7 +21,12 @@
 #include "prov_buffer.h"                  // for prov_log_record, prov_log_try
 #include "util.h"                         // for CHECK_SNPRINTF, BORROWED
 
-struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
+struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags) {
+    ASSERTF((path && dirfd != -1) || (!path && (dirfd == -1 || (flags & AT_EMPTY_PATH))),
+            "Either dirfd and path are both set, both unset, or AT_EMPTY_PATH: %d %s %d", dirfd,
+            path, fd);
+    ASSERTF(dirfd != 0 || (path && path[0] == '/'), "dirfd==0 implies absolute path: %d %s %d",
+            dirfd, path, fd);
     if (LIKELY(prov_log_is_enabled())) {
         struct Path ret = {
             dirfd - AT_FDCWD,
@@ -34,27 +39,25 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int flags) {
             {0},
             0,
             false,
-            true,
         };
 
-        /*
-         * If path is empty string, AT_EMPTY_PATH should probably be set.
-         * I can't think of a counterexample that isn't some kind of error.
-         * However, some functions permit passing NULL.
-         *
-         * Then again, this could happen in the tracee's code too...
-         * TODO: Remove this once I debug myself.
-         * */
-        //ASSERTF(path == NULL || (path[0] != '\0' || (flags & AT_EMPTY_PATH)), "%b %b %p %s", AT_EMPTY_PATH, flags, path, path);
-
-        /*
-         * if path == NULL, then the target is the dir specified by dirfd.
-         * */
         struct statx statx_buf;
-        result stat_ret = probe_libc_statx(dirfd, path, flags,
-                                           STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
-                                               STATX_CTIME | STATX_SIZE,
-                                           &statx_buf);
+        result stat_ret;
+        if (fd != -1) {
+            stat_ret = probe_libc_statx(fd, NULL, flags | AT_EMPTY_PATH,
+                                        STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
+                                            STATX_CTIME | STATX_SIZE,
+                                        &statx_buf);
+            if (stat_ret == 0) {
+                WARNING("We got a bad FD; could be the client's fault? fd=%d stat_ret=%d", fd,
+                        stat_ret);
+            }
+        } else {
+            stat_ret = probe_libc_statx(dirfd, path, flags,
+                                        STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
+                                            STATX_CTIME | STATX_SIZE,
+                                        &statx_buf);
+        }
         if (stat_ret == 0) {
             ret.device_major = statx_buf.stx_dev_major;
             ret.device_minor = statx_buf.stx_dev_minor;
@@ -218,7 +221,7 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
     size--;
 
     const struct Path* path = op_to_path(op);
-    if (path->dirfd_valid) {
+    if (path->dirfd_minus_at_fdcwd + AT_FDCWD != -1) {
         int path_size = path_to_string(path, dest, size);
         dest += path_size;
         size -= path_size;

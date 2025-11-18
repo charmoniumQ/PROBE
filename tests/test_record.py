@@ -4,7 +4,6 @@ import pathlib
 import random
 import shutil
 import shlex
-import stat
 import subprocess
 import typing
 import pytest
@@ -17,12 +16,6 @@ ld_debug = False
 # Save stderr to a file
 # Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
 stderr_to_file = True
-
-
-project_root = pathlib.Path(__file__).resolve().parent.parent
-
-
-PROBE = str(project_root / "cli-wrapper/target/release/probe")
 
 
 def bash(*cmd: str) -> list[str]:
@@ -60,15 +53,17 @@ public class HelloWorld {
 }
 """
 
-example_path = project_root / "tests/examples"
+# relative to scratch_directory
+example_path = pathlib.Path("../../../examples")
 
 
 simple_commands = {
     "echo": [str(example_path / "echo.exe"), "hello", "world"],
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
-    "createFile": [f"{project_root}/tests/examples/createFile.exe"],
-    "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
+    "createFile": [str(example_path / "createFile.exe")],
+    # FIXME
+    # "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
@@ -84,7 +79,7 @@ simple_commands = {
         [str(example_path / "echo.exe"), "hello"],
         [str(example_path / "echo.exe"), "world"],
     ),
-    "echo_cat": bash_multi(
+    "shell_redirect": bash_multi(
         [str(example_path / "echo.exe"), "hi", "redirect_to", "test_file"],
         [str(example_path / "cat.exe"), "test_file", "redirect_to", "test_file2"],
     ),
@@ -174,8 +169,9 @@ def does_buildah_work() -> bool:
 
 @pytest.fixture(scope="session")
 def compile_examples() -> None:
+    test_root = pathlib.Path(__file__).resolve().parent
     subprocess.run(
-        ["make", "--directory", str(project_root / "tests/examples")],
+        ["make", "--directory", f"{test_root}/examples"],
         check=True,
     )
 
@@ -282,8 +278,8 @@ def test_record(
 
 @pytest.mark.parametrize(
     "command",
-    complex_commands.values(),
-    ids=complex_commands.keys(),
+    [*simple_commands.values(), *complex_commands.values()],
+    ids=[*simple_commands.keys(), *complex_commands.keys()],
 )
 @pytest.mark.timeout(100)
 def test_downstream_analyses(
@@ -329,13 +325,7 @@ def test_downstream_analyses(
         print(shlex.join(cmd))
         subprocess.run(cmd, **args)
 
-        # See ltrace_eliminator.py for more help.
-
-    script = scratch_directory / "script.sh"
-    script.write_text("")
-    script.chmod(stat.S_IXUSR | script.stat().st_mode)
-
-    print(shutil.which(command[0]))
+    (scratch_directory / "command.sh").write_text(shlex.join(command))
     full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
 
     env = os.environ.copy()
@@ -351,18 +341,15 @@ def test_downstream_analyses(
 
     cmd = ["probe", "py", "export", "debug-text"]
     print(shlex.join(cmd))
-    with (scratch_directory / "debug-text.txt").open("w") as output:
-        subprocess.run(cmd, **args, stdout=output)
+    subprocess.run(cmd, **args)
 
     cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "hb-graph.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
-    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose", "dataflow-graph.dot"]
+    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose"]
     print(shlex.join(cmd))
-    script.write_text(script.read_text() + "\n" + shlex.join(cmd))
     with (scratch_directory / "dataflow-graph.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 

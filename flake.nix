@@ -39,11 +39,11 @@
     charmonium-time-block,
     ...
   }: let
-    supported-systems = import ./targets.nix;
+    targets = import ./targets.nix;
     probe-ver = "0.0.13";
   in
     flake-utils.lib.eachSystem
-    (builtins.attrNames supported-systems)
+    (builtins.attrNames targets)
     (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
