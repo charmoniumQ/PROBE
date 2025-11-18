@@ -200,48 +200,14 @@
             crossorigin="anonymous"
             referrerpolicy="no-referrer"
         ></script>
-        <script type="text/javascript">
-         /*<![CDATA[*/
-         Array.from(
-             document.getElementsByClassName("qrcode-link")
-         ).forEach(container => {
-             const a = document.createElement("a");
-             const figure = document.createElement("figure");
-             const figCaption = document.createElement("figcaption");
-
-             container.appendChild(a);
-             a.appendChild(figure);
-             figure.appendChild(figCaption);
-
-             a.href = container.dataset.encoded;
-             figCaption.textContent = container.dataset.caption;
-             new QRCode(figure, {
-	             text: container.dataset.encoded,
-             });
-         });
-         /*]]*/
-        </script>
+        <script src="../qrcodejs-driver.js"></script>
         <script
             src="https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.3/axe.min.js"
             integrity="sha512-Y6Vva0IT8gxKyqgZjlEfG76U48eXakSZ8UqY6vMQMe6xES2So8WuItGYcHi3tH1OAlMKjTWjSeN/5x2aysOXIQ=="
             crossorigin="anonymous"
             referrerpolicy="no-referrer"
         ></script>
-        <script>
-         /*<![CDATA[*/
-         Reveal.on('slidechanged', (event) => {
-             return axe
-                 .run()
-                 .then(results => {
-                     const state = Reveal.getState();
-                     console.log(state, results);
-                 })
-                 .catch(err => {
-                     console.error('Something bad happened:', err.message);
-                 });
-         });
-         /*]]>*/
-        </script>
+        <script src="../reveal-axe-driver.js"></script>
         <script>
          /*<![CDATA[*/
          Array.from(document.getElementsByClassName("fragment")).forEach(element => {
