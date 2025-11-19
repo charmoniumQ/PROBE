@@ -1084,8 +1084,9 @@ def label_quads_graph(
     if exec_pair not in exec_pair_label_bank:
         # TODO: should probable have a way to go from exec_pair -> InitExecEpochOp in ptypes.ProbeLog
         # We do this in several places throughout the code.
-        first_op_data = probe_log.get_op(ptypes.OpQuad(exec_pair.pid, exec_pair.exec_no, exec_pair.pid.main_thread(), 0)).data
-        assert isinstance(first_op_data, ops.InitExecEpochOp)
+        first_quad = ptypes.OpQuad(exec_pair.pid, exec_pair.exec_no, exec_pair.pid.main_thread(), 0)
+        first_op_data = probe_log.get_op(first_quad).data
+        assert isinstance(first_op_data, ops.InitExecEpochOp), (first_quad, first_op_data)
         exe = first_op_data.argv[0].decode()
         exe_id = next(exe_label_bank[exe])
         exec_pair_label_bank[exec_pair] = (exe, exe_id, itertools.count())
