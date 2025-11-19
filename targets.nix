@@ -6,5 +6,5 @@
   # Only the wind and water know why. Us mere mortals never will.
   #"i686-linux" = "i686-unknown-linux-musl";
   "aarch64-linux" = "aarch64-unknown-linux-musl";
-  "armv7l-linux" = "armv7-unknown-linux-musleabi";
+  #"armv7l-linux" = "armv7-unknown-linux-musleabi";
 }

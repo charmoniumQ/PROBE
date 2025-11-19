@@ -21,6 +21,13 @@
         flake-utils.follows = "flake-utils";
       };
     };
+    charmonium-time-block = {
+      url = "github:charmoniumQ/charmonium.time_block";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
   };
 
   outputs = {
@@ -29,18 +36,19 @@
     old-nixpkgs,
     flake-utils,
     cli-wrapper,
+    charmonium-time-block,
     ...
-  } @ inputs: let
-    supported-systems = import ./targets.nix;
+  }: let
+    targets = import ./targets.nix;
     probe-ver = "0.0.13";
   in
     flake-utils.lib.eachSystem
-    (builtins.attrNames supported-systems)
+    (builtins.attrNames targets)
     (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
-        cli-wrapper-pkgs = cli-wrapper.packages.${system};
+        cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
         # Otherwise, if old-nixpkgs is a flake,
@@ -53,6 +61,7 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
       in rec {
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
@@ -162,6 +171,7 @@
               '';
             };
             propagatedBuildInputs = [
+              charmonium-time-block-pkg
               python.pkgs.networkx
               python.pkgs.numpy
               python.pkgs.pydot
@@ -176,12 +186,16 @@
               packages.types-networkx
               pkgs.ruff
               python.pkgs.mypy
+              python.pkgs.pytest
+              python.pkgs.pytest-asyncio
+              python.pkgs.pytest-timeout
               python.pkgs.types-tqdm
             ];
             checkPhase = ''
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
               ruff check .
+              python -c 'import probe_py'
               mypy --strict --package probe_py
               runHook postCheck
             '';
@@ -253,6 +267,7 @@
         devShells = let
           probe-python = python.withPackages (pypkgs: [
             # probe_py.manual runtime requirements
+            charmonium-time-block-pkg
             pypkgs.networkx
             pypkgs.numpy
             pypkgs.pydot

@@ -33,4 +33,3 @@ One can hook the process's exit with:
 - library destructor
 
 Not sure which is best.
-

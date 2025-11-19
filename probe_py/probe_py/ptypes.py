@@ -40,7 +40,7 @@ class Tid(int):
     pass
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class Host:
     name: str
     uniquifier: int
@@ -72,7 +72,7 @@ class Host:
                 return Host(socket.gethostname(), machine_id)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class Device:
     major_id: int
     minor_id: int
@@ -80,7 +80,7 @@ class Device:
         return f"device {self.major_id}_{self.minor_id}"
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class Inode:
     host: Host
     device: Device
@@ -105,7 +105,7 @@ class ProbeOptions:
     parent_of_root: Pid
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
 class InodeVersion:
     inode: Inode
     # If you assume no clock adjustemnts, it is monotonic with other mtimes on the same Host;
@@ -184,15 +184,40 @@ class Process:
     execs: typing.Mapping[ExecNo, Exec]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, order=True)
+class ExecPair:
+    pid: Pid
+    exec_no: ExecNo
+
+    def __str__(self) -> str:
+        return f"PID {self.pid} Exec {self.exec_no}"
+
+
+@dataclasses.dataclass(frozen=True, order=True)
+class ThreadTriple:
+    pid: Pid
+    exec_no: ExecNo
+    tid: Tid
+
+    def exec_pair(self) -> ExecPair:
+        return ExecPair(self.pid, self.exec_no)
+
+    def __str__(self) -> str:
+        return f"PID {self.pid} Exec {self.exec_no} TID {self.tid}"
+
+
+@dataclasses.dataclass(frozen=True, order=True)
 class OpQuad:
     pid: Pid
     exec_no: ExecNo
     tid: Tid
     op_no: int
 
-    def thread_triple(self) -> tuple[Pid, ExecNo, Tid]:
-        return (self.pid, self.exec_no, self.tid)
+    def thread_triple(self) -> ThreadTriple:
+        return ThreadTriple(self.pid, self.exec_no, self.tid)
+
+    def exec_pair(self) -> ExecPair:
+        return ExecPair(self.pid, self.exec_no)
 
     def __str__(self) -> str:
         return f"PID {self.pid} Exec {self.exec_no} TID {self.tid} op {self.op_no}"
@@ -274,6 +299,12 @@ class TaskType(enum.IntEnum):
     TASK_PTHREAD = 3
 
 
+class FileType(enum.IntEnum):
+    DIR = 0
+    FIFO = 1
+    PIPE = 2
+
+
 class InvalidProbeLog(Exception):
     pass
 
@@ -282,7 +313,7 @@ class UnusualProbeLog(Warning):
     pass
 
 
-class AccessMode(enum.IntEnum):
+class AccessMode(enum.Enum):
     """In what way are we accessing the inode version?"""
     EXEC = enum.auto()
     DLOPEN = enum.auto()
@@ -292,8 +323,16 @@ class AccessMode(enum.IntEnum):
     TRUNCATE_WRITE = enum.auto()
 
     @property
-    def is_side_effect_free(self) -> bool:
-        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ}
+    def is_read(self) -> bool:
+        return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ, AccessMode.READ_WRITE}
+
+    @property
+    def is_mutating_write(self) -> bool:
+        return self in {AccessMode.WRITE, AccessMode.READ_WRITE}
+
+    @property
+    def is_write(self) -> bool:
+        return self in {AccessMode.WRITE, AccessMode.READ_WRITE, AccessMode.TRUNCATE_WRITE}
 
     @staticmethod
     def from_open_flags(flags: int) -> "AccessMode":
