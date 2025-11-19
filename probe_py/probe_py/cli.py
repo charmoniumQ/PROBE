@@ -27,6 +27,7 @@ from . import scp as scp_module
 from . import ssh_argparser
 from . import util
 from . import validators
+from . import workflow as workflow_mod
 from .persistent_provenance_db import get_engine
 
 
@@ -154,11 +155,23 @@ def hb_graph(
         case OpType.ALL:
             pass
         case OpType.MINIMAL:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
+            hbg = hb_graph_module.retain_only(
+                probe_log_obj,
+                hbg,
+                lambda _node, op: isinstance(op.data, ops.InitExecEpochOp),
+            )
         case OpType.FILE:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
+            hbg = hb_graph_module.retain_only(
+                probe_log_obj,
+                hbg,
+                lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)),
+            )
         case OpType.SUCCESSFUL:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp))
+            hbg = hb_graph_module.retain_only(
+                probe_log_obj,
+                hbg,
+                lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp),
+            )
     hb_graph_module.label_nodes(probe_log_obj, hbg, show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
@@ -182,6 +195,10 @@ def dataflow_graph(
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
         ] = pathlib.Path().resolve(),
+        summarize: Annotated[
+            bool,
+            typer.Option(help="Apply summarizations; could be confusing during low-level debuging"),
+        ] = True,
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
 ) -> None:
@@ -192,12 +209,65 @@ def dataflow_graph(
     """
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
-    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    hb_graph_module.label_nodes(probe_log_obj, hbg)
-    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log_obj, hbg)
-    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
-    dataflow_graph_module.label_nodes(probe_log_obj, compressed_dfg, inode_to_paths)
-    graph_utils.serialize_graph(compressed_dfg, output)
+    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj)
+    _ignore_paths2 = list(map(pathlib.Path, ignore_paths.split(",")))
+    dfg_vis = dataflow_graph_module.visualize_dataflow_graph(
+        dfg,
+        inode_to_paths,
+        [],
+        relative_to.resolve(),
+        probe_log_obj,
+        summarize,
+    )
+    graph_utils.serialize_graph(dfg_vis, output)
+
+
+@export_app.command()
+@charmonium.time_block.decor(print_start=False)
+def workflow(
+        directory: Annotated[
+            pathlib.Path,
+            typer.Argument(help="Directory in which to write workflow"),
+        ] = pathlib.Path().resolve(),
+        workflow_type: Annotated[
+            workflow_mod.WorkflowType,
+            typer.Argument(help="What kind of workflow to generate")
+        ] = workflow_mod.WorkflowType.SNAKEMAKE,
+        probe_log: Annotated[
+            pathlib.Path,
+            probe_log_help,
+        ] = pathlib.Path("probe_log"),
+        ignore_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "/nix/store/,/dev/,/proc/,/sys/,/[pipe]",
+        unsplittable_cmds: Annotated[
+            str,
+            typer.Option(help="Comma-separated commands to treat as a black-box"),
+        ] = "gcc",
+        include_env: Annotated[
+            bool,
+            typer.Option(help="Whether to include the env in the resulting workflow. This is needed for maximum reproducibiilty, but makes the result very verbose.")
+        ] = False,
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
+) -> None:
+    """
+    Creates a workflow that reproduces the original execution
+    """
+    restore_sanity(strict, debug)
+    probe_log_obj = parser.parse_probe_log(probe_log)
+    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj)
+    ignore_paths2 = list(map(pathlib.Path, ignore_paths.split(",")))
+    unsplittable_cmds2 = [cmd.encode() for cmd in unsplittable_cmds.split(",")]
+    workflow = workflow_mod.dataflow_graph_to_workflow(
+        probe_log_obj,
+        dfg,
+        lambda path: not any(path == ignore_path or path.is_relative_to(ignore_path) for ignore_path in ignore_paths2),
+        lambda argv: any(argv[0].split(b"/")[-1] == unsplittable_cmd or (argv[1] if len(argv) > 1 else b"").split(b"/")[-1] == unsplittable_cmd for unsplittable_cmd in unsplittable_cmds2),
+        inode_to_paths,
+    )
+    workflow_mod.to_source(workflow_type, directory, workflow, include_env)
 
 
 @export_app.command()

@@ -199,3 +199,13 @@ def is_main_process() -> bool:
 
 def raise_(exception: Exception) -> typing.NoReturn:
     raise exception
+
+
+class Box(typing.Generic[_T]):
+    val: _T
+    def __init__(self, val: _T) -> None:
+        self.val = val
+    def get(self) -> _T:
+        return self.val
+    def set(self, val: _T) -> None:
+        self.val = val
