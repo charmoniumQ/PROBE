@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Creating a dataflow graph on files and processes</title>
+        <link
+            crossorigin="anonymous"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reset.min.css"
+            integrity="sha512-Mjxkx+r7O/OLQeKeIBCQ2yspG1P5muhAtv/J+p2/aPnSenciZWm5Wlnt+NOUNA4SHbnBIE/R2ic0ZBiCXdQNUg=="
+            referrerpolicy="no-referrer"
+            rel="stylesheet"/>
+        <link
+            crossorigin="anonymous"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reveal.min.css"
+            integrity="sha512-e3dnmFe5hH2bJx1MvUU3PFToGVQ2xykp/VGERCkuh4lTGMJ5QuxKFRIwix8DfnfkavwJiL6rehb9e1d6mFLwlg=="
+            referrerpolicy="no-referrer"
+            rel="stylesheet"/>
+        <link
+            crossorigin="anonymous"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/theme/black.min.css"
+            integrity="sha512-DKeDMgkMDBNgY3g8T6H6Ft5cB7St0LOh5d69BvETIcTrP0E3d3KhANTMs5QOTMnenXy6JVKz/tENmffCLeXPiQ=="
+            referrerpolicy="no-referrer"
+            rel="stylesheet"/>
+        <link rel="stylesheet" href="../toc-progress.css">
+        <style>
+         .example { font-style: italic !important; }
+         .small { font-size: 28px; }
+        </style>
+    </head>
+    <body>
+        <div class="reveal">
+            <div class="slides">
+
+                <section>
+                    <section>
+                        <h1 class="no-toc-progress">Creating a dataflow graph on files and processes</h1>
+                    </section>
+                </section>
+
+                <section>
+                    <section>
+                        <h2>High-level problem</h2>
+                        <ul>
+                            <li>Scientific data analysis not reproducible</li>
+                            <li>Authors not aware of repro. pitfalls</li>
+                            <li>Little time to learn or test</li>
+                            <li>May not make all relevant inputs available</li>
+                            <li>Assume non-trivial but not HPC</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Problem</h2>
+                        <ul>
+                            <li>Users don't even know what to run</li>
+                            <li>Non-solution <code>tar -xvf /</code></li>
+                            <li>Want partial reproduction</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Idea</h2>
+                        <ul>
+                            <li>Need dataflow graph (DFG) of files/processes <ul>
+                                <li>
+                                    <span class="example small">
+                                        To reproduce <code>plots.png</code>, run <code>script.py --args</code>, needs <code>data.csv</code>
+                                    </span>
+                                </li>
+                            </ul></li>
+                            <li>Add observation layer to OS to collect DFG</li>
+                            <li>Pack needed files into container <span class="small">(code, data, scripts)</span></li>
+                            <li>Can change selected data and software <span class="small">(assuming same ops)</span></li> 
+                            <li>Other benefits: comprehensability, data lineage, trust</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <pre class="graphviz"><code>
+                            strict digraph G {
+                                utilsc [shape="oval" label="utils.c"];
+                                utilso [shape="oval" label="utils.o"];
+                                mainc [shape="oval" label="main.c"];
+                                maino [shape="oval" label="main.o"];
+                                main [shape="oval" label="main"];
+                                datacsv [shape="oval" label="data.csv"];
+                                fig1png [shape="oval" label="fig1.png"];
+                            
+                                compile_utils [shape="rect" label="gcc -c -o utils.o utils.c"];
+                                compile_main [shape="rect" label="gcc -c -o main.o main.c"];
+                                link [shape="rect" label="gcc main.o utils.o -o main"];
+                                runmain [shape="rect" label="./main -n data.csv fig1.png"];
+                                curl [shape="rect" label="curl http://example.com/data"];
+                            
+                                utilsc -> compile_utils -> utilso;
+                                mainc -> compile_main -> maino;
+                                {utilso maino} -> link -> main;
+                                curl -> datacsv;
+                                {main datacsv} -> runmain -> fig1png;
+                            }
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>PROBE</h2>
+                        <ol>
+                            <li><code>probe record &lt;CMD&gt;...</code></li>
+                            <li><code>probe export container &lt;CONTAINER-IMG&gt;</code></li>
+                            <li><code>probe export makefile</code></li>
+                            <li>Linked to button in R Studio?</li>
+                        </ol>
+                    </section>
+                    <section>
+                        <h2>Technical details</h2>
+                        <ul>
+                            <li>Library interposition</li>
+                            <li>Captures file open/close and process fork/join</li>
+                            <li>Each thread of each process has local logs of events</li>
+                            <li>"Stitch" into DFG</li>
+                            <li><em>How to stitch?</em></li>
+                        </ul>
+                    </section>
+                </section>
+
+                <section>
+                    <section>
+                        <h2>Technical problem</h2>
+                    </section>
+                    <section>
+                        <p>Given <strong>events</strong>, find DFG</p>
+                        <ul>
+                            <li>Thread-local list of events (program order)</li>
+                            <li>File I/O events:
+                                <ul>
+                                    <li>Open → close, target file</li>
+                                    <li>One open could have multiple closes</li>
+                                    <li>Opens may be {R, W, RW}</li>
+                                    <li>W may be mutating or truncating</li>
+                                    <li>W is immediately visible (<a href="https://doi.org/10.1109/TPDS.2024.3391058">Wang et al. 2025</a>)</li>
+                                </ul>
+                            </li>
+                            <li>Sync events:
+                                <ul>
+                                    <li>Fork or join, targeting another thread/proc</li>
+                                    <li>Lock or unlock, targetting a lock + counter</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <p>Given events find <strong>DFG</strong></p>
+                        <ul>
+                            <li>Edges denoted \(\dfg{a}{b}\)</li>
+                            <li>Sound but not precise</li>
+                            <li>DFG has "file dataflow" edges: <br />
+                                <span class="small">\(
+                                    \forall f \in \files,
+                                    a \in \writesof{f},
+                                    b \in \readsof{f},
+                                    b \nhb a
+                                    \implies \dfg{a}{b}
+                                    \)</span></li>
+                            <li>DFG has "memory dataflow" edges:<br />
+                                <span class="small">\(
+                                    \forall p \in \processes,
+                                    a \in \eventsin{p},
+                                    b \in \eventsin{p},
+                                    b \nhb a
+                                    \implies \dfg{a}{b}
+                                    \)</span></li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>Definitions</h2>
+                        <ul>
+                            <li>Events, \(\events\)</li>
+                            <li>Events in process p: \(\eventsin{p}\)</li>
+                            <li>Accesses of file \(f\): \(\accessesof{f}\)</li>
+                            <li>Writes (W | RW) of file \(f\): \(\writesof{f}\)</li>
+                            <li>Reads (R | RW) of file \(f\): \(\readsof{f}\)</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Definitions</h2>
+                        <ul>
+                            <li><strong>Program-order \(\programorder\)</strong> := order of events in the thread log</li>
+                            <li><strong>Sync-order \(\syncorder\)</strong> := <ul class="small">
+                                <li>fork → first event in child</li>
+                                <li>last event in child → join</li>
+                                <li>unlock i → lock i+1</li>
+                            </ul></li>
+                            <li><strong>Happens-before \(\hb\)</strong> := \((\programorder \cup \syncorder)^*\)</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Constraints</h2>
+                        <ul>
+                            <li>No new synchronization points <span class="small">(using existing is ok)</span></li>
+                            <li>Can't instrument individual reads/writes</li>
+                            <li>Can't use POSIX xattrs</li>
+                            <li>"Races" are possible</li>
+                            <li><code>mtime</code> updates at every file write</li>
+                            <li>Logging events should be O(1) space and time</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Incorrect solution</h2>
+                        <p>Topo-sort happens-before</p>
+                    </section>
+                    <section>
+                        <pre class="graphviz"><code>
+                            digraph {
+                                subgraph "cluster_PID 1" {
+                                    label="PID 1";
+                                    11 [label="1.1: fd_A = open(A, r)"];
+                                    12 [label="1.2: close(fd_A)"];
+                                    13 [label="1.3: fd_B = open(B, w)"];
+                                    14 [label="1.4: close(fd_B)"]
+                                    11 -> 12 -> 13 -> 14 [label="HB"];
+                                }
+
+                                subgraph "cluster_PID 2" {
+                                    label="PID 2";
+                                    21 [label="2.1: fd_B = open(B, r)"];
+                                    22 [label="2.2: close(fd_B)"];
+                                    23 [label="2.3: fd_A = open(A, w)"];
+                                    24 [label="2.4: close(fd_A)"];
+                                    21 -> 22 -> 23 -> 24 [label="HB"];
+                                }
+                            }
+                        </code></pre>
+                    </section>
+                    <section>
+                        <pre class="graphviz"><code>
+                            digraph {
+                                subgraph "cluster_PID 1" {
+                                    label="PID 1";
+                                    11 [label="1.1: fd_A = open(A, r)"];
+                                    12 [label="1.2: close(fd_A)"];
+                                    13 [label="1.3: fd_B = open(B, w)"];
+                                    14 [label="1.4: close(fd_B)"];
+                                    11 -> 12 -> 13 -> 14 [label="HB"];
+                                }
+
+                                subgraph "cluster_PID 2" {
+                                    label="PID 2";
+                                    21 [label="2.1: fd_B = open(B, r)"];
+                                    22 [label="2.2: close(fd_B)"];
+                                    23 [label="2.3: fd_A = open(A, w)"];
+                                    24 [label="2.4: close(fd_A)"];
+                                    21 -> 22 -> 23 -> 24 [label="HB"];
+                                }
+                                24 -> 11 [label="DFG", constraint=false];
+                                14 -> 21 [label="DFG", constraint=false];
+                            }
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Prior work</h2>
+                        <ul>
+                            <li>Vector clocks order <em>messages</em> in HB
+                                <ul>
+                                    <li>FS is more like shared mem</li>
+                                </ul>
+                            </li>
+                            <li>Dynamic bin. analysis traces every read/write
+                                <ul>
+                                    <li>Tracing open/close is more faster than read/write</li>
+                                    <li>But tracing read/write is easier to analyze</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Races</h2>
+                        <ul>
+                            <li><strong>\(a\) and \(b\) race</strong> := \(\exists_{f \in F}, {a \in \accessesof{f} \wedge b \in \writesof{f} \wedge a \nhb b \wedge b \nhb a} \)</li>
+                            <li>Happen frequently! due to pipes in shell <code>a | b</code></li>
+                            <li>In the following graph, \(\writesof{f} = \{{\color{red}O}, {\color{purple}O}\}\), \(\readsof{f} = \{{\color{blue}O}, {\color{purple}O}\}\)</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <!--TODO: Fix rank in below graph-->
+                        <pre class="graphviz"><code>
+                            digraph {
+                                pipe [label="pipe()\n⇨ [fd_read, fd_write]"];
+                                fork0 [label="fork", color="purple"];
+                                fork1 [label="fork", color="purple"];
+                                wait0 [label="wait", color="purple"];
+                                wait1 [label="wait", color="purple"];
+                                dup_in [label="dup(fd_read → stdin)", color="purple"];
+                                dup_out [label="dup(fd_write → stdout)", color="purple"];
+                                close_write [label="close(fd_write)", color="blue"];
+                                close_read [label="close(fd_read)", color="red"];
+                                exec_a [label="exec(a)", color="blue"];
+                                exec_b [label="exec(b)", color="red"];
+
+                                subgraph cluster_0 {
+                                    label="PID 1 (Bash)";
+                                    pipe -> fork0 -> fork1 -> wait0 -> wait1;
+                                }
+
+                                fork0 -> dup_in;
+                                exec_a -> wait0;
+                                subgraph cluster_1 {
+                                    label="PID 2 (a)";
+                                    dup_in -> close_write  -> exec_a;
+                                }
+
+                                fork1 -> dup_out;
+                                exec_b -> wait1;
+                                subgraph cluster_2 {
+                                    label="PID 3 (b)";
+                                    dup_out -> close_read -> exec_b;
+                                }
+                            }
+                        </code></pre>
+                    </section>
+                </section>
+
+                <section>
+                    <section>
+                        <h2>My solution</h2>
+                        <ul>
+                            <li>Interested in comments and alternatives</li>
+                            <li>Interval := set of upper and lower bounds, containing all the nodes in between</li>
+                            <li>\(\intervals \subseteq \powerset{\events} \times \powerset{\events}\)</li>
+                            <li>\(I_a \hb I_b := \underset{a \in \max I_a}{\forall} ~ \underset{b \in \min I_b}{\exists} a \hb b\)</li>
+                            <li>"Many" ways that one interval may fail to happen before another, but they don't matter.</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Definitions</h2>
+                        <ul>
+                            <li>A set \(B\) is said to <strong>dominates</strong> \(a\) from \(C\) for a partial order, \(\leq\) when all memebrs of \(C\) pass through a member of \(B\) before they reach \(a\).</li>
+                            <li>\(B \in \dom(a, C, \leq) \iff \underset{c \in C}{\forall} c \leq a \implies \underset{b \in B}{\exists} c \leq b \leq a\)</li>
+                            <li>A dominating set is <strong>immediate</strong>, \(\idom(a, C, \leq)\), iff it dominates \(a\) from every other dominating set and no node can be removed</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Find highest peer of \(s\)</h2>
+                        <pre class="strip-ws mathjax-process">
+                            For \(p \in \processes\):
+                                For \(s \in \reverse(\toposort(\hb, \eventsin{p}))\):
+                                    \(s' :=\) program-order successor of \(s\)
+                                    \(\mathrm{peers}[s] := \emptyset \)
+                                    If \(s' \in\ \mathrm{peers}\):
+                                        For \(p \in \mathrm{peers}[s']\):
+                                            If \(s \sim p\),
+                                                Add \(p\) to \(\mathrm{peers}[s]\)
+                                    Else
+                                        For thread \(\in\) threads:
+                                            For \(p \in \reverse(\mathrm{thread})\):
+                                                If \(s \sim p\):
+                                                    Add \(p\) to \(\mathrm{peers}[s]\)
+                        </pre>
+                    </section>
+                    <section>
+                        <h2>Algorithm for threads</h2>
+                        <pre class="strip-ws mathjax-process">
+                            For \(p \in \processes\):
+                                For \(s \in \toposort(\hb, \eventsin{p})\):
+                                    For \(p \in \mathrm{peers}[s] - \mathrm{peers}[s']\):
+                                        Add \(\dfg{s}{p}\)
+                        </pre>
+                    </section>
+                    <section>
+                        <h2>Algorithm for read intervals</h2>
+                        <pre class="strip-ws mathjax-process">
+                            For file, \(f\), in trace:
+                                For read interval, \(I_r\), where \(I_r \in \readsof{f}\):
+                                    For write intervals \(I_w \in \idom(I_a, \writesof{f})\):
+                                        Add \(\dfg{\min I_w}{\max I_r}\)
+                                    For write intervals \(I_w\) where \(I_w \nhb I_r \wedge I_r \nhb I_w\):
+                                        Run threads algorithm on \(I_w, I_r\)
+                        </pre>
+                    </section>
+                    <section>
+                        <h2>Issues</h2>
+                        <ul>
+                            <li>Reachability is too slow \(\O{V}\) per query, \(\O{V}\) queries</li>
+                            <li>Precomputing transitive closure is too slow \(\O{V^2}\)</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <img src="../table2.png">
+                    </section>
+
+
+                    <!-- <section>
+                         <h2>HB intervals</h2>
+                         <p><i>Interval</i> := (set of upper bounds, set of lower bounds), contains all the nodes in between.</p>
+                         <p>Happens-before for intervals A and B := For every node in the LB of A, that node happens-before some node in the UB of B.</p>
+                         <p>Many ways that happens-before can be violated; one node of A may happen-after one node of B, one node of A may be incomparable to any node of B, examplees</p>-->
+                        <!-- <p>None of it matters</p>
+                             </section>
+                             <section>
+                             <h2>HB intervals...</h2>
+                             <p>For each file, identify <i>interval</i> in which the file may be accessed</p>
+                             <p>Put intervals in DAG</p>
+                             <p>Compute transitive reduction</p>
+                             <p>For each read, find the latest preceeding writes on each branch (stable version) and all simultaneous write (transient versions).</p>
+                             <p>Mutating writes have similar representation.</p>
+                             </section> -->
+                </section>
+
+                <section>
+                    <section>
+                        <h2>Future work</h2>
+                    </section>
+                    <section>
+                        <h2>Algorithm improvements</h2>
+                        <ul>
+                            <li>Open-numbering</li>
+                            <li>Bloom filter on write-numbers</li>
+                            <li>More performance evaluation</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Interoperability</h2>
+                        <p>Exports semantic web triples using W3C PROV.</p>
+                        <p>File was-created-by process, etc.</p>
+                    </section>
+                    <section>
+                        <h2>Future work</h2>
+                        <ul>
+                            <li>Performance analysis</li>
+                            <li>ML trustworthiness</li>
+                            <li>Intercept network transactions</li>
+                            <li>Semantic web integration</li>
+                        </ul>
+                    </section>
+                </section>
+            </div>
+            <script
+                crossorigin="anonymous"
+                integrity="sha512-lRYVCjdH7dCPCzqLL6eBn78p6WGK5pZxgYBgzTQfWlfX7yiZFLt/qHOMSETHUIz2aZIU/KbjwYHiMsmrcVgJnA=="
+                referrerpolicy="no-referrer"
+                src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/reveal.min.js"
+            ></script>
+            <script type="text/javascript">
+             /*<![CDATA[*/
+             Reveal.initialize({
+                 hash: true,
+                 slideNumber: "c/t",
+                 transition: "none",
+                 keyboard: {
+			         // alternative to toggleSpotlightOnMouseDown:
+			         // toggle spotlight by pressing key 'c'
+			         67: function() { RevealSpotlight.toggleSpotlight() },
+	             },
+                 dependencies: [
+                     {
+                         src: "../toc-progress.js",
+                         async: true,
+                         callback: function() { toc_progress.secondary = false; toc_progress.initialize(); toc_progress.create(); },
+                     },
+                     // {
+                     //     src: "../revealjs-spotlight.js",
+                     // },
+                 ],
+             });
+             /*]]*/
+            </script>
+            <script
+                crossorigin="anonymous"
+                integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+                referrerpolicy="no-referrer"
+                src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+            ></script>
+            <script defer src="../strip-ws.js"></script>
+            <script defer src="../qrcodejs-driver.js"></script>
+            <script defer src="../mathjax-config.js"></script>
+            <script
+                defer
+                id="MathJax-script"
+                async
+                src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"
+            ></script>
+            <script
+                defer
+                src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"
+                integrity="sha512-vnRdmX8ZxbU+IhA2gLhZqXkX1neJISG10xy0iP0WauuClu3AIMknxyDjYHEpEhi8fTZPyOCWgqUCnEafDB/jVQ=="
+                crossorigin="anonymous"
+                referrerpolicy="no-referrer"
+            ></script>
+            <script
+                defer
+                src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"
+                integrity="sha512-1zKK2bG3QY2JaUPpfHZDUMe3dwBwFdCDwXQ01GrKSd+/l0hqPbF+aak66zYPUZtn+o2JYi1mjXAqy5mW04v3iA=="
+                crossorigin="anonymous"
+                referrerpolicy="no-referrer"
+            ></script>
+            <script defer src="../vizjs-driver.js"></script>
+            <script>
+             // Reveal.on('ready', () => {
+             //     makeListItemsFragments();
+             // });
+             // 
+             // Reveal.on('slidechanged', () => {
+             //     makeListItemsFragments();
+             // });
+             // 
+             // function makeListItemsFragments() {
+             //     // For each slide, turn plain <li> into fragments (only once)
+             //     document.querySelectorAll('.slides section').forEach(section => {
+             //         section.querySelectorAll('li:not(.fragment)').forEach(li => {
+             //             li.classList.add('fragment');
+             //         });
+             //     });
+             // }
+            </script>
+
+            </script>
+    </body>
+</html>

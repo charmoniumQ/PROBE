@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+	    <meta charset="utf-8"  />
+	    <title>Provenance in data-analysis workflows (DAWs)</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reset.min.css"
+            integrity="sha512-Mjxkx+r7O/OLQeKeIBCQ2yspG1P5muhAtv/J+p2/aPnSenciZWm5Wlnt+NOUNA4SHbnBIE/R2ic0ZBiCXdQNUg=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer" />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reveal.min.css"
+            integrity="sha512-e3dnmFe5hH2bJx1MvUU3PFToGVQ2xykp/VGERCkuh4lTGMJ5QuxKFRIwix8DfnfkavwJiL6rehb9e1d6mFLwlg=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer" />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/theme/black.min.css"
+            integrity="sha512-DKeDMgkMDBNgY3g8T6H6Ft5cB7St0LOh5d69BvETIcTrP0E3d3KhANTMs5QOTMnenXy6JVKz/tENmffCLeXPiQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer" />
+        <style>
+         h1, h2, h3, h4, h5, h6 {
+             text-transform:none !important;
+         }
+         i {
+             font-style: italic !important;
+         }
+        </style>
+    </head>
+    <body>
+        <div class="reveal">
+            <div class="slides" role="main">
+                <section>
+                    <h1>Provenance in data-analysis workflows</h1>
+                    <p rel="author">
+                        Samuel Grayson<sup>&dagger;*</sup>, Darko Marinov<sup>*</sup>, Reed Milewicz<sup>&dagger;</sup>, Daniel S. Katz<sup>*</sup>
+                    </p>
+                    <p style="font-size: 16pt;">
+                        * University of Illinois Urbana-Champaign <br />
+                        &dagger; Sandia National Laboratories
+                    </p>
+                    <figure>
+                        <img
+                            src="../../publications/illinois.png"
+                            style="height: 100px;"
+                            alt="University of Illinois Urbana-Champaign Block-I logo"
+                        />
+                        <img
+                            src="../../publications/sandia.svg"
+                            style="height: 100px;"
+                            alt="Sandia National Laboratories Thunderbird Logo"
+                        />
+                    </figure>
+                </section>
+                <section>
+                    <h2>Outline</h2>
+                    <ol>
+                        <li>How to use provenance to convert informal "workflows" (pile of scripts) to proper Workflows</li>
+                        <li>How existing projects can incorporate provenance to improve interoperability and longevity</li>
+                    </ol>
+                    <p><i>Both of which are ongoing work!</i></p>
+                </section>
+                <section>
+                    <h2>Expectation</h2>
+                    <img
+                        src="../galaxy.png"
+                        alt="Example Galaxy workflow"
+                        style="height: 300px;"
+                    />
+                    <img
+                        src="../snakemake.jpg"
+                        alt="Example Snakemake workflow"
+                        style="height: 200px;"
+                        class="fragment"
+                    />
+                </section>
+                <section>
+                    <h2>Reality</h2>
+                    <figure>
+                    <img src="./rube-goldberg-software.png" />
+                    <figcaption>(MacGyver et al.)</figcaption>
+                    </figure>
+                </section>
+                <section>
+                    <h2>Challenges</h2>
+                    <p class="fragment">How is this output file generated?</p>
+                    <p class="fragment">What output files depend on this script?</p>
+                    <p class="fragment">How to reproduce?</p>
+                    <p class="fragment"><strong>All solved by workflows, but we don't always have workflow representation</strong></p>
+                </section>
+                <section>
+                    <h2>Converting to workflow: traditional approach</h2>
+                    <p>Human effort, careful reading</p>
+                    <img
+                        src="https://i.imgflip.com/abkf13.jpg"
+                        class="fragment"
+                        alt="Pushing a boulder up a hill"
+                    >
+                </section>
+                <section>
+                    <h2>Converting to workflow: tracing approach</h2>
+                    <p class="fragment">OS should keep track of how each file gets generated (<i>computational provenance</i>).</p>
+                    <p class="fragment">Black-box, system-level provenance tracing</p>
+                    <p class="fragment">Should not require root, work inside containers</p>
+                </section>
+                <section>
+                    <h2>PRovenance Observation/REplay (PROBE)</h2>
+                    <p><code>./script.sh --blue 42</code></p>
+                    <p class="fragment"><code>probe record ./script.sh --blue 42</code></p>
+                    <p class="fragment">Uses <code>LD_PRELOAD</code> to interpose application</p>
+                </section>
+                <section>
+                    <img src="./dfg.svg" style="height: 700px;">
+                </section>
+                <section>
+                    <img
+                        src="https://i.imgflip.com/abrk79.jpg"
+                        alt="Depiction of a futuristic, ideal world"
+                        style="height: 300px;"
+                    />
+                    <p class="fragment">People who don't know about workflows end up creating one</p>
+                    <p class="fragment">Can't make people document more, but can make documentation easier/automatic</p>
+                </section>
+                <section>
+                    <h2>Caveats</h2>
+                    <ul>
+                        <!-- <li>Not "stitching together" multiple commands.</li> -->
+                        <!-- <li>Doesn't see "through" shell script redirection or pipes.</li> -->
+                        <li class="fragment">Not able to capture user input.</li>
+                        <li class="fragment">No network accesses, so Jupyter notebook/server interactions are not recorded yet.</li>
+                        <li class="fragment">Does not scale well to large number of processes.</li>
+                        <li class="fragment">Workflows are not stable yet</li>
+                    </ul>
+                </section>
+                <section>
+                    <h2>Do existing workflows also benefit from provenance tracing?</h2>
+                    <p class="fragment">Yes, to ensure reproducibility outside of the workflow engine</p>
+                    <p class="fragment">'End-to-end' data lineage throughout multiple systems</p>
+                    <p class="fragment">Could be collected by PROBE, workflow engine, or manual entry</p>
+                    <p class="fragment">Can be embedded in existing data formats (Parquet, HDF5, FITS)</p>
+                </section>
+                <section>
+                    <h2>Journey of a data-item</h2>
+                    <ol>
+                        <li class="fragment">Downloaded from web</li>
+                        <li class="fragment">Processed with workflow engine 1</li>
+                        <li class="fragment">Emailed as attachment</li>
+                        <li class="fragment">Stored on a flash drive for 3 years</li>
+                        <li class="fragment">Now, where was it downloaded from?</li>
+                    </ol>
+                    <p class="fragment">No single system controlling the movement of data</p>
+                    <p class="fragment">Provenance has to be stored in the <i>data item</i> itself!</p>
+                </section>
+                <section>
+                    <p><a href="https://www.researchobject.org/workflow-run-crate/profiles/process_run_crate/">Workflow Run RO Crate</a></p>
+                    <img src="https://www.researchobject.org/workflow-run-crate/profiles/img/multiple_processes.svg" style="background-color: white;">
+                </section>
+                <section>
+                    <p>Want real-world examples for PROBE</p>
+                    <p>Will ensure PROBE works for your application, within reason</p>
+                    <div
+                        class="qrcode-link"
+                        style="display: inline-grid;"
+                        data-caption="PROBE"
+                        data-encoded="https://github.com/charmoniumQ/PROBE"
+                    >
+                    </div>
+                    <div
+                        class="qrcode-link"
+                        style="display: inline-grid;"
+                        data-caption="grayson5@illinois.edu"
+                        data-encoded="mailto:grayson5@illinois.edu"
+                    >
+                    </div>
+                </section>
+            </div>
+        </div>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/reveal.js"
+            integrity="sha512-GvouLVZT+gJSJW5eOfpG46xTaBb2c3VeNnbzmDYTRQkFlgvxNhnzZQqiQ/jAyAYPh+a9roBvAHJP6zvXIVq34Q=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script type="text/javascript">
+         /*<![CDATA[*/
+         Reveal.initialize({
+             hash: true,
+             slideNumber: "c/t",
+             transition: "none",
+             controls: false,
+         });
+         /*]]*/
+        </script>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+            integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script src="../qrcodejs-driver.js"></script>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.3/axe.min.js"
+            integrity="sha512-Y6Vva0IT8gxKyqgZjlEfG76U48eXakSZ8UqY6vMQMe6xES2So8WuItGYcHi3tH1OAlMKjTWjSeN/5x2aysOXIQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script src="../reveal-axe-driver.js"></script>
+        <script>
+         /*<![CDATA[*/
+         Array.from(document.getElementsByClassName("fragment")).forEach(element => {
+             element.classList.remove("fragment");
+         });
+         /*]]>*/
+        </script>
+    </body>
+</html>
