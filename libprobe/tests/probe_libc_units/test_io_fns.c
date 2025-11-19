@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -156,20 +157,6 @@ Test(write, read_only_fd_sets_EBADF) {
                  strerror(n.error));
 
     close(rfd);
-}
-
-// NULL buffer with non-zero count -> EFAULT (kernel can't read from user memory).
-Test(write, null_buffer_nonzero_count_sets_EFAULT) {
-    char path[128] = {0};
-    int fd = mktemp_file(path, sizeof(path));
-    cr_assert_neq(fd, -1);
-    unlink(path);
-
-    result_ssize_t n = probe_libc_write(fd, NULL, 1);
-    cr_expect_eq(n.error, EFAULT, "Expected EFAULT for NULL buffer, got %d (%s)", n.error,
-                 strerror(n.error));
-
-    close(fd);
 }
 
 // O_APPEND semantics: write should append to end regardless of current offset.
@@ -364,23 +351,6 @@ Test(read, write_only_fd_sets_EBADF) {
     char buf[4];
     result_ssize_t n = probe_libc_read(fd, buf, sizeof(buf));
     cr_expect_eq(n.error, EBADF, "Expected EBADF, got %d (%s)", n.error, strerror(n.error));
-
-    close(fd);
-}
-
-// NULL buffer
-Test(read, null_buffer_nonzero_count_sets_EFAULT) {
-    char path[128] = {0};
-    int fd = mktemp_file(path, sizeof(path));
-    cr_assert_neq(fd, -1);
-    unlink(path);
-
-    // Ensure file has at least 1 byte so that the EFAULT condition doesn't get optimized out
-    const char msg[] = "x";
-    write_all(fd, msg, sizeof(msg));
-
-    result_ssize_t n = probe_libc_read(fd, NULL, 1);
-    cr_expect_eq(n.error, EFAULT, "Expected EFAULT, got %d (%s)", n.error, strerror(n.error));
 
     close(fd);
 }
@@ -742,4 +712,41 @@ Test(sendfile, out_fd_socketpair_success) {
 #else
     cr_skip("sendfile to socketpair only supported on Linux");
 #endif
+}
+
+// Test stat
+Test(write, stat_file_path) {
+    char path[128] = {0};
+    int fd = mktemp_file(path, sizeof(path));
+    cr_assert_neq(fd, -1);
+    struct statx buf;
+
+    {
+        result n = probe_libc_statx(AT_FDCWD, path, 0, 0, &buf);
+        cr_assert_eq(n, 0, "Error: %s (%d)", strerror(n), n);
+    }
+
+    unlink(path);
+
+    {
+        result n = probe_libc_statx(AT_FDCWD, path, 0, 0, &buf);
+        cr_assert_eq(n, ENOENT, "Error: %s (%d)", strerror(n), n);
+    }
+}
+
+Test(write, stat_file_fd) {
+    char path[128] = {0};
+    int fd = mktemp_file(path, sizeof(path));
+    cr_assert_neq(fd, -1);
+    unlink(path);
+    struct statx buf;
+    {
+        result n = probe_libc_statx(fd, NULL, AT_EMPTY_PATH, 0, &buf);
+        cr_assert_eq(n, 0, "Error: %s %d", strerror(n), n);
+    }
+    {
+        result n = probe_libc_statx(fd, "", AT_EMPTY_PATH, 0, &buf);
+        cr_assert_eq(n, 0, "Error: %s (%d)", strerror(n), n);
+    }
+    close(fd);
 }

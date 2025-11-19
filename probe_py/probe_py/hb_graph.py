@@ -3,8 +3,8 @@ import shlex
 import textwrap
 import typing
 import warnings
+import charmonium.time_block
 import networkx
-import tqdm
 from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
 from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp
 from . import graph_utils
@@ -22,6 +22,7 @@ This can be due to program ordering or synchronization.
 """
 
 
+@charmonium.time_block.decor(print_start=False)
 def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     hb_graph = HbGraph()
 
@@ -36,73 +37,37 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
 
     _create_other_thread_edges(probe_log, hb_graph)
 
-    validate_hb_graph(hb_graph, True)
+    validate_hb_graph(probe_log, hb_graph, True)
 
     return hb_graph
 
 
+@charmonium.time_block.decor(print_start=False)
 def retain_only(
         probe_log: ProbeLog,
         full_hb_graph: HbGraph,
         retain_node_predicate: typing.Callable[[OpQuad, Op], bool],
 ) -> HbGraph:
     """Retains only nodes satisfying the predicate."""
-    reduced_hb_graph = HbGraph()
-    last_in_process = dict[tuple[Pid, ExecNo, Tid], OpQuad]()
-    incoming_to_process = dict[tuple[Pid, ExecNo, Tid], list[tuple[OpQuad, typing.Mapping[str, typing.Any]]]]()
-
-    for node in tqdm.tqdm(
-            networkx.topological_sort(full_hb_graph),
-            total=len(full_hb_graph),
-            desc="retain",
-    ):
-        thread = node.thread_triple()
-
-        # If node satisfies predicate, copy node into new graph
-        if retain_node_predicate(node, probe_log.get_op(node)):
-            node_data = full_hb_graph.nodes(data=True)[node]
-            reduced_hb_graph.add_node(node, **node_data)
-
-            # Add link from previous node in this process, if any
-            # Note that iteration is in topo order,
-            # so this node happens-after the node of previous iterations.
-            if previous_node := last_in_process.get(thread):
-                reduced_hb_graph.add_edge(previous_node, node)
-            last_in_process[thread] = node
-
-            # Link up any out-of-process predecessors we accumulated up to this node
-            incoming = incoming_to_process.get(thread, [])
-            for (predecessor, edge_data) in incoming:
-                reduced_hb_graph.add_edge(predecessor, node, **edge_data)
-            if incoming:
-                del incoming_to_process[thread]
-
-        # Accumulate out-of-process predecessors
-        # Since we iterate in topo order,
-        # eventually nodes in the successor's process will be visisted (as "node").
-        # Once we find one of those which satisfies the retain_node_predicate,
-        # we will create edges from last_in_process[this node_triple] to a descendant of the successor node.
-        for successor in full_hb_graph.successors(node):
-            successor_triple = (successor.pid, successor.exec_no, successor.tid)
-            # Note that if node_triple not in last_in_process,
-            # none of the prior nodes in this process were retained,
-            # so the edge doesn't synchronize any retained nodes.
-            # In such case, we don't need to create an edge.
-            if successor_triple != thread and (previous_node := last_in_process.get(thread)):
-                edge_data = full_hb_graph.get_edge_data(node, successor)
-                incoming_to_process.setdefault(successor_triple, []).append((previous_node, edge_data))
-
-    for thread, incoming in incoming_to_process.items():
-        for node, edge_data in incoming:
-            if predecessor2 := last_in_process.get(thread):
-                reduced_hb_graph.add_edge(predecessor2, node, **edge_data)
-
-    validate_hb_graph(reduced_hb_graph, False)
-
-    return reduced_hb_graph
+    retained_nodes = frozenset({
+        quad
+        for quad in full_hb_graph.nodes()
+        if retain_node_predicate(quad, probe_log.get_op(quad))
+    })
+    ret = graph_utils.retain_nodes_in_dag(
+        full_hb_graph,
+        retained_nodes,
+        lambda _graph, _path: {},
+    )
+    ret = graph_utils.remove_self_edges(ret)
+    return ret
 
 
-def validate_hb_graph(hb_graph: HbGraph, validate_roots: bool) -> None:
+def validate_hb_graph(
+        probe_log: ptypes.ProbeLog,
+        hb_graph: HbGraph,
+        validate_roots: bool,
+) -> None:
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))
         warnings.warn(ptypes.UnusualProbeLog(
@@ -184,7 +149,7 @@ def get_first_task_nodes(
 ) -> list[OpQuad]:
     targets = []
     for tid, thread in probe_log.processes[pid].execs[exec_no].threads.items():
-        for op_no, other_op in enumerate(reversed(thread.ops) if reverse else thread.ops):
+        for op_no, other_op in reversed(list(enumerate(thread.ops))) if reverse else enumerate(thread.ops):
             if (task_type == TaskType.TASK_PTHREAD and other_op.pthread_id == task_id) or \
                (task_type == TaskType.TASK_ISO_C_THREAD and other_op.iso_c_thread_id == task_id):
                 targets.append(OpQuad(pid, exec_no, tid, op_no))
@@ -265,13 +230,10 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                     if len(list(hb_graph.predecessors(first_op))) == 0:
                         hb_graph.add_edge(first_op_main_thread, first_op)
                     if last_op_main_thread != first_op_main_thread and len(list(hb_graph.successors(last_op))) == 0:
-                        if last_op_main_thread not in hb_graph.predecessors(last_op):
+                        if last_op_main_thread not in hb_graph.predecessors(first_op) and not graph_utils.would_create_cycle(hb_graph, last_op, last_op_main_thread):
                             hb_graph.add_edge(last_op, last_op_main_thread)
                         else:
-                            warnings.warn(ptypes.UnusualProbeLog(
-                                f"I want to add an edge from last op of {tid} to main thread {pid}, but that would create a cycle;"
-                                f"the last op of {pid} is likely the clone that creates {tid}"
-                            ))
+                            warnings.warn(ptypes.UnusualProbeLog("would cycle", last_op, last_op_main_thread))
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
@@ -322,10 +284,11 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
         if getattr(op.data, "ferrno", 0) != 0:
             data["label"] += " (failed)"
             data["color"] = "red"
+        data["label"] += f"\n{node.exec_no}.{node.tid}.{node.op_no}"
 
-    for node0, node1, data in hb_graph.edges(data=True):
+    for node0, node1, edge_data in hb_graph.edges(data=True):
         if node0.pid != node1.pid or node0.tid != node1.tid:
-            data["style"] = "dashed"
+            edge_data["style"] = "dashed"
 
     if not networkx.is_directed_acyclic_graph(hb_graph):
         cycle = list(networkx.find_cycle(hb_graph))
