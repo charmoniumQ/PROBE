@@ -355,7 +355,13 @@ def test_downstream_analyses(
 
     cmd = ["probe", "py", "export", "workflow", "--strict" if strict else "--loose"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    with (scratch_directory / "workflow.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
+
+    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose"]
+    print(shlex.join(cmd))
+    with (scratch_directory / "dataflow-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
 
 
 def test_fail(

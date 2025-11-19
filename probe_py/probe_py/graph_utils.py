@@ -691,6 +691,72 @@ def combine_twin_nodes(
     return quotient
 
 
+def retain_nodes_in_digraph(
+        digraph: networkx.DiGraph[_Node],
+        retained_nodes: frozenset[_Node],
+) -> networkx.DiGraph[_Node]:
+    """
+    See retain_nodes_in_dag but for digraphs.
+    """
+    assert retained_nodes <= set(digraph.nodes())
+
+    # Condensation is a DAG on the strongly-connected components (SCCs)
+    # SCC is a set of nodes from which every is reachable to every other.
+    condensation = networkx.condensation(digraph)
+
+    # Retain only those SCCs containing a retained node, stitching the edges together appropriately.
+    condensation = retain_nodes_in_dag(
+        condensation,
+        frozenset({
+            scc
+            for scc, data in condensation.nodes(data=True)
+            if data["members"] & retained_nodes
+        }),
+        edge_data=lambda _digraph, _path: {},
+    )
+
+    # Convert each scc to a list of retained nodes in that scc.
+    # All of the SCCs are disjoint, so this will be unique.
+    # I use a tuple not a frozenset, because I will use the first and last to create a cycle later on.
+    condensation2 = map_nodes(
+        lambda node: tuple(sorted(condensation.nodes[node]["members"] & retained_nodes, key=hash)),
+        condensation,
+    )
+
+    ret: networkx.DiGraph[_Node] = networkx.DiGraph()
+
+    # Add nodes, keeping old edge data
+    ret.add_nodes_from(
+        (node, digraph.nodes[node])
+        for node in retained_nodes
+    )
+
+    # Add edges between SCCs, using an arbitrary representative.
+    ret.add_edges_from(
+        (src_scc[0], dst_scc[0])
+        for src_scc, dst_scc in condensation2.edges()
+    )
+
+    # Add edges within SCCs
+    ret.add_edges_from(
+        (src, dst)
+        for scc in condensation2.nodes()
+        if len(scc) > 1
+        for src, dst in zip(scc[:-1], scc[1:])
+    )
+
+    # Need to connect last to first to complete the cycle within an SCC.
+    ret.add_edges_from(
+        (scc[-1], scc[0])
+        for scc in condensation2.nodes()
+        if len(scc) > 1
+    )
+
+    assert set(ret.nodes()) == retained_nodes
+
+    return ret
+
+
 def retain_nodes_in_dag(
         dag: networkx.DiGraph[_Node],
         retained_nodes: frozenset[_Node],
