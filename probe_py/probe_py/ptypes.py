@@ -349,20 +349,6 @@ class AccessMode(enum.Enum):
             raise InvalidProbeLog(f"Invalid open flags: 0x{flags:x}")
 
 
-class Phase(enum.StrEnum):
-    BEGIN = enum.auto()
-    END = enum.auto()
-
-
-@dataclasses.dataclass
-class Access:
-    phase: Phase
-    mode: AccessMode
-    inode: Inode
-    path: pathlib.Path
-    op_node: OpQuad
-    fd: int | None
-
 if typing.TYPE_CHECKING:
     HbGraph: typing.TypeAlias = networkx.DiGraph[OpQuad]
 else:

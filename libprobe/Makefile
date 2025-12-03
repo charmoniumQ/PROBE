@@ -130,6 +130,11 @@ clean:
 	rm --force --recursive $(BUILD_DIR)/ $(GENERATED_FILES) compile_commands.json
 .PHONY: clean
 
+shallow-clean:
+	mkdir --parents $(BUILD_DIR)/
+	rm --force --recursive $(BUILD_DIR)/
+.PHONY: clean
+
 format:
 # Yes, this clang-formats the generated sources
 # But, they aren't checked into VCS, so I don't care

@@ -124,6 +124,7 @@ simple_commands = {
     # See https://github.com/charmoniumQ/PROBE/pull/135
 }
 
+# FIXME: Increase strictness
 complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
     "c_hello_simplified": (
         False,
@@ -298,7 +299,7 @@ def test_downstream_analyses(
             (scratch_directory / command[1]).write_text(command[2])
         command = command[3]
     else:
-        strict = False
+        strict = True
 
     class PopenKwargs(typing.TypedDict):
         check: bool
@@ -346,6 +347,16 @@ def test_downstream_analyses(
     cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
     with (scratch_directory / "hb-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
+
+    cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose"]
+    print(shlex.join(cmd))
+    with (scratch_directory / "dataflow-graph.out").open("w") as output:
+        subprocess.run(cmd, **args, stdout=output)
+
+    cmd = ["probe", "py", "export", "workflow", "--strict" if strict else "--loose"]
+    print(shlex.join(cmd))
+    with (scratch_directory / "workflow.out").open("w") as output:
         subprocess.run(cmd, **args, stdout=output)
 
     cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose"]
