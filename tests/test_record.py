@@ -124,6 +124,7 @@ simple_commands = {
     # See https://github.com/charmoniumQ/PROBE/pull/135
 }
 
+# FIXME: Increase strictness
 complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
     "c_hello_simplified": (
         False,

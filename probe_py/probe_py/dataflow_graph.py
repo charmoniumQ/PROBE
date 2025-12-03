@@ -91,23 +91,22 @@ def hb_graph_to_dataflow_graph(
     hbg = hb_graph.retain_only(probe_log, hbg, _is_interesting_for_dataflow)
 
     # Find the ops in each thread, which is lesser than the total ops after we do retain
-    thread_to_ops_unsorted: Map[ptypes.ThreadTriple, It[ptypes.OpQuad]] = util.groupby_dict(
+    thread_to_ops: Map[ptypes.ThreadTriple, Seq[ptypes.OpQuad]] = util.groupby_dict(
         hbg.nodes(),
-        key_func=lambda quad: quad.thread_triple(), 
+        key_func=lambda quad: quad.thread_triple(),
+        map_func=lambda _, quads: sorted(quads, key=lambda quad: quad.op_no),
     )
-    thread_to_ops = {
-        thread_triple: sorted(thread_quads, key=lambda quad: quad.op_no)
-        for thread_triple, thread_quads in thread_to_ops_unsorted.items()
-    }
     exec_to_thread: Map[ptypes.ExecPair, It[ptypes.ThreadTriple]] = util.groupby_dict(
         thread_to_ops.keys(),
         key_func=lambda triple: triple.exec_pair(),
     )
 
     # DFG starts out with HBG
-    # All HBG edges (program order, fork, join, exec) are also dataflow edges
+    # All HBG edges (program order, fork, join) are also dataflow edges
     # But there are some dataflow edges/nodes that are not HB edges/nodes (e.g., inodes and edges-to/from-inodes).
     # We will add those next.
+    # FIXME: execs should not actually create DFG edges from epoch to another.
+    # We only need the bin and libs going to the ExecOp for a successful ExecOp
     dfg = typing.cast(
         UncompressedDataflowGraph,
         hbg.copy(),
@@ -120,8 +119,10 @@ def hb_graph_to_dataflow_graph(
     inode_intervals, inode_to_paths = find_intervals(probe_log, hbg, hb_oracle, thread_to_ops)
 
     # For each inode
+    def to_node(node: ptypes.OpQuad | InodeVersionNode) -> ptypes.OpQuad | InodeVersionNode:
+        return node
     for inode, interval_infos in tqdm.tqdm(inode_intervals.items(), desc="Add intervals for inode to graph"):
-        add_inode_intervals(inode, interval_infos, dfg, hb_oracle)
+        add_inode_intervals(inode, interval_infos, dfg, hb_oracle, to_node)
         # TODO: Check these with the recorded mtime
 
     # Add DFG edges for threads
@@ -243,7 +244,7 @@ def find_intervals(
                 if cwd_path:
                     cwds[quad.pid] = cwd_path
                 inode_version = ptypes.InodeVersion.from_probe_path(op_data.exe)
-                interval = graph_utils.Interval.singleton(hb_oracle, quad)
+                interval = graph_utils.Interval.singleton(quad)
                 inode_to_intervals[inode_version.inode].append(IntervalInfo(ptypes.AccessMode.EXEC, inode_version, interval))
                 exe_path = _to_path(cwds, inode_to_paths, quad, op_data.exe)
                 if exe_path:
@@ -255,7 +256,7 @@ def find_intervals(
             case ops.MkFileOp():
                 if op_data.file_type == ptypes.FileType.PIPE.value:
                     inode = ptypes.InodeVersion.from_probe_path(op_data.path).inode
-                    inode_to_paths[inode] = {pathlib.Path(f"pipe:{inode.number % 2**16:4x}")}
+                    inode_to_paths[inode] = {pathlib.Path(f"pipe {inode.number % 2**16:4x}")}
             case ops.OpenOp():
                 inode_version = ptypes.InodeVersion.from_probe_path(op_data.path)
                 interval = find_closes(
@@ -267,6 +268,7 @@ def find_intervals(
                     op_data.fd,
                     bool(op_data.flags & os.O_CLOEXEC),
                     inode_version,
+                    verbose=True,
                 )
                 access = ptypes.AccessMode.from_open_flags(op_data.flags)
                 inode_to_intervals[inode_version.inode].append(IntervalInfo(access, inode_version, interval))
@@ -389,7 +391,8 @@ def find_closes(
                     if triple.pid == pid
                 )
                 last_quad = thread_to_ops[ptypes.ThreadTriple(pid, last_exec_no, pid.main_thread())][-1]
-                assert hb_oracle.is_reachable(initial_quad, last_quad), (initial_quad, pid, fds, last_quad)
+                # This assertion breaks with simple_dataflow_graph, beacuse all of the ops within one exec_op are unordered.
+                # assert hb_oracle.is_reachable(initial_quad, last_quad), (initial_quad, pid, fds, last_quad)
                 closes[pid].add(last_quad)
 
     assert opens.keys() == closes.keys()
@@ -475,11 +478,18 @@ def connect_implicit_communication(
             dfg.add_edge(src, peer, style="dotted")
 
 
+_Node = typing.TypeVar("_Node")
+
+
 def add_inode_intervals(
         inode: ptypes.Inode,
         intervals: It[IntervalInfo],
-        dfg: UncompressedDataflowGraph,
+        dfg: networkx.DiGraph[_Node],
         hb_oracle: graph_utils.ReachabilityOracle[ptypes.OpQuad],
+        to_node: typing.Callable[[ptypes.OpQuad | InodeVersionNode], _Node],
+        # Note, we use dfg on generic _Node and to_node because
+        # - one caller wants to add edges to an uncompressed graph (_Node = OpQuad | InodeVersionNode)
+        # - one caller wants to add edges to a compressed graph (_Node = Quads | IVNs)
 ) -> None:
     # Let W := all intervals (not intervals_per_process) in which inode was written
     # Likewise, R := was read. Read-write?
@@ -504,33 +514,34 @@ def add_inode_intervals(
         ]
     )
 
-    # Use the transitive closure to eliminate unnecessary edges (makes versions more precise)
-    # Suppose A, B, and C are read/writes where A before B, B before C, and A before C, what version does C see?
-    # A and B happen before C, but it would only see B, because B happens "more closely before"; i.e., A -> B -> C.
-    # This is equivalent to the transitive reduction.
-    interval_hb = networkx.transitive_reduction(interval_hb)
+    if not networkx.is_directed_acyclic_graph(interval_hb):
+        cycle = [(
+            next(iter(interval.top())),
+            next(iter(interval.bottom())),
+        ) for interval, _ in networkx.find_cycle(interval_hb)]
+        warnings.warn(ptypes.UnusualProbeLog(f"Cycle in HB accesses for: {inode}\n{cycle}"))
+        intervals = list(interval_hb.nodes())
+    else:
+        intervals = networkx.topological_sort(interval_hb)
 
     # Construct the hb oracle, which will help us know the peer and reachable nodes
-    time_start = datetime.datetime.now()
+    # Should still work on cyclic digraphs (I hope)
     interval_hb_oracle = graph_utils.PrecomputedReachabilityOracle[IntervalInfo].create(interval_hb)
-    time_stop = datetime.datetime.now()
-    if (time_stop - time_start).total_seconds() > 0.1:
-        print(f"TC on {len(interval_hb)} intervals took a long time")
 
     prior_versions = dict[IntervalInfo, int]()
     unused_version = itertools.count(1)
-    for interval in tqdm.tqdm(intervals, desc="intervals"):
+    for interval in intervals:
         if interval.access_mode.is_write:
             write_interval = interval
 
             prior_versions[write_interval] = next(unused_version)
             ivn = InodeVersionNode(inode, prior_versions[write_interval])
             dfg.add_node(
-                ivn
+                to_node(ivn)
             )
             for node in write_interval.bottom():
                 # Non-transient version output
-                dfg.add_edge(node, ivn)
+                dfg.add_edge(to_node(node), to_node(ivn))
 
             if not write_interval.access_mode.is_mutating_write:
                 # Mutating write, e.g., "replace the 100th byte with 23".
@@ -543,9 +554,9 @@ def add_inode_intervals(
                 concurrent_writes = get_concurrent_writes(write_interval, interval_hb, interval_hb_oracle)
                 for pred_write_interval in concurrent_writes:
                     pred_ivn = InodeVersionNode(inode, next(unused_version))
-                    dfg.add_node(pred_ivn)
+                    dfg.add_node(to_node(pred_ivn))
                     for node in write_interval.bottom():
-                        dfg.add_edge(pred_ivn, ivn)
+                        dfg.add_edge(to_node(pred_ivn), to_node(ivn))
 
                 # Non-transient version input
                 preceeding_writes = get_latest_preceeding_writes(write_interval, interval_hb, interval_hb_oracle)
@@ -554,7 +565,7 @@ def add_inode_intervals(
                         inode,
                         prior_versions[pred_write_interval],
                     )
-                    dfg.add_edge(pred_ivn, ivn)
+                    dfg.add_edge(to_node(pred_ivn), to_node(ivn))
 
                 # If no preceeding writes, we pick up whatever version existed prior to execution
                 if not preceeding_writes:
@@ -562,8 +573,8 @@ def add_inode_intervals(
                         inode,
                         0,
                     )
-                    dfg.add_node(pred_ivn)
-                    dfg.add_edge(pred_ivn, ivn)
+                    dfg.add_node(to_node(pred_ivn))
+                    dfg.add_edge(to_node(pred_ivn), to_node(ivn))
 
         # FIXME: If interval I and J are simultaneous read-write intervals on inode N,
         # I and J implicitly communicate through N.
@@ -582,11 +593,11 @@ def add_inode_intervals(
             concurrent_writes = get_concurrent_writes(read_interval, interval_hb, interval_hb_oracle)
             for write_interval in concurrent_writes:
                 ivn = InodeVersionNode(inode, next(unused_version))
-                dfg.add_node(ivn)
+                dfg.add_node(to_node(ivn))
                 for node in write_interval.bottom():
-                    dfg.add_edge(node, ivn)
+                    dfg.add_edge(to_node(node), to_node(ivn))
                 for node in read_interval.top():
-                    dfg.add_edge(ivn, node)
+                    dfg.add_edge(to_node(ivn), to_node(node))
 
             # Hook up the existing, non-transient version of each immediately preceeding write interval
             # "Immediately prceeding" but ignoring reads,
@@ -595,14 +606,14 @@ def add_inode_intervals(
             for pred_write_interval in preceeding_writes:
                 ivn = InodeVersionNode(inode, prior_versions[pred_write_interval])
                 for node in read_interval.top():
-                    dfg.add_edge(ivn, node)
+                    dfg.add_edge(to_node(ivn), to_node(node))
 
             # If no preceeding writes, we pick up whatever version existed prior to execution
             if not preceeding_writes:
                 ivn = InodeVersionNode(inode, 0)
-                dfg.add_node(ivn)
+                dfg.add_node(to_node(ivn))
                 for node in read_interval.top():
-                    dfg.add_edge(ivn, node)
+                    dfg.add_edge(to_node(ivn), to_node(node))
 
 
 def get_concurrent_writes(

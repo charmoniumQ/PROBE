@@ -17,6 +17,7 @@ import sqlalchemy.orm
 import tqdm
 import typer
 from . import dataflow_graph as dataflow_graph_module
+from . import simple_dataflow_graph
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
@@ -209,7 +210,7 @@ def dataflow_graph(
     """
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
-    dfg, inode_to_paths, hbg, hb_oracle = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj)
+    dfg, inode_to_paths, hbg, hb_oracle = simple_dataflow_graph.hb_graph_to_dataflow_graph(probe_log_obj)
     _ignore_paths2 = list(map(pathlib.Path, ignore_paths.split(",")))
     dfg_vis = dataflow_graph_module.visualize_dataflow_graph(
         dfg,

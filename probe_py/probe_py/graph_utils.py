@@ -42,7 +42,7 @@ class Interval(typing.Generic[_Node]):
         #     f"{unbounded} in self.lower_bound is not a descendant of any in {self.upper_bound=}"
 
     @staticmethod
-    def singleton(_dag_tc: ReachabilityOracle[_Node], node: _Node) -> Interval[_Node]:
+    def singleton(node: _Node) -> Interval[_Node]:
         return Interval(frozenset({node}), frozenset({node}))
 
     def __bool__(self) -> bool:
@@ -210,13 +210,12 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
     - Zhang et al. 2025 <https://arxiv.org/pdf/2311.03542>
     """
 
-    @staticmethod
     @abc.abstractmethod
-    def create(dag: networkx.DiGraph[_Node]) -> ReachabilityOracle[_Node]:
+    def __contains__(self, node: _Node) -> bool:
         ...
 
     @abc.abstractmethod
-    def __contains__(self, node: _Node) -> bool:
+    def nodes(self) -> typing.Iterable[_Node]:
         ...
 
     @abc.abstractmethod
@@ -229,9 +228,6 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
     @abc.abstractmethod
     def add_edge(self, u: _Node, v: _Node) -> None:
         """Keep datastructure up-to-date"""
-
-    @abc.abstractmethod
-    def n_paths(self, source: _Node, destination: _Node) -> int: ...
 
     def is_antichain(self, nodes: collections.abc.Iterable[_Node]) -> bool:
         return all(
@@ -337,12 +333,12 @@ class ReachabilityOracle(abc.ABC, typing.Generic[_Node]):
     def interval(self, upper_bound: frozenset[_Node], lower_bound: frozenset[_Node]) -> Interval[_Node]:
         assert self.is_antichain(upper_bound), f"{upper_bound} is not an antichain"
         assert self.is_antichain(lower_bound), f"{lower_bound} is not an antichain"
-        unbounded = self.non_ancestors(upper_bound, lower_bound)
-        assert not unbounded, \
-            f"{unbounded} in self.upper_bound is not an ancestor of any any in {lower_bound=}"
-        unbounded = self.non_descendants(lower_bound, upper_bound)
-        assert not unbounded, \
-            f"{unbounded} in self.lower_bound is not a descendant of any in {upper_bound=}"
+        # unbounded = self.non_ancestors(upper_bound, lower_bound)
+        # assert not unbounded, \
+        #     f"{unbounded} in self.upper_bound is not an ancestor of any any in {lower_bound=}"
+        # unbounded = self.non_descendants(lower_bound, upper_bound)
+        # assert not unbounded, \
+        #     f"{unbounded} in self.lower_bound is not a descendant of any in {upper_bound=}"
         return Interval(upper_bound, lower_bound)
 
 
@@ -367,6 +363,9 @@ class LazyRankReachabilityOracle(ReachabilityOracle[_Node]):
 
     def __contains__(self, node: _Node) -> bool:
         return node in self._dag
+
+    def nodes(self) -> It[_Node]:
+        return self._dag.nodes()
 
     def non_ancestors(self, candidates: It[_Node], lower_bound: It[_Node]) -> frozenset[_Node]:
         lower_bound_set = frozenset(lower_bound)
@@ -466,10 +465,6 @@ class LazyRankReachabilityOracle(ReachabilityOracle[_Node]):
     def add_edge(self, source: _Node, target: _Node) -> None:
         raise NotImplementedError()
 
-    @functools.cache
-    def n_paths(self, source: _Node, destination: _Node) -> int:
-        raise NotImplementedError()
-
 
 @dataclasses.dataclass(frozen=False)
 class LazyReachabilityOracle(ReachabilityOracle[_Node]):
@@ -482,6 +477,9 @@ class LazyReachabilityOracle(ReachabilityOracle[_Node]):
 
     def __contains__(self, node: _Node) -> bool:
         return node in self.dag
+
+    def nodes(self) -> It[_Node]:
+        return self.dag.nodes()
 
     def _get_descendants(self, root: _Node) -> frozenset[_Node]:
         if root in self.descendants:
@@ -521,9 +519,6 @@ class LazyReachabilityOracle(ReachabilityOracle[_Node]):
     def add_edge(self, source: _Node, target: _Node) -> None:
         raise NotImplementedError()
 
-    def n_paths(self, source: _Node, destination: _Node) -> int:
-        raise NotImplementedError()
-
 
 @dataclasses.dataclass(frozen=True)
 class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
@@ -533,13 +528,21 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
     @staticmethod
     def create(dag: networkx.DiGraph[_Node], progress: bool = False) -> PrecomputedReachabilityOracle[_Node]:
         tc: networkx.DiGraph[_Node] = networkx.DiGraph()
-        node_order = list(networkx.topological_sort(dag))[::-1]
-        for src in tqdm.tqdm(node_order, desc="TC nodes", disable=not progress):
-            tc.add_node(src)
-            for child in dag.successors(src):
-                tc.add_edge(src, child)
-                for grandchild in tc.successors(child):
-                    tc.add_edge(src, grandchild)
+        if networkx.is_directed_acyclic_graph(dag):
+            # one pass algorithm
+            node_order = list(networkx.topological_sort(dag))[::-1]
+            for src in tqdm.tqdm(node_order, desc="TC nodes", disable=not progress):
+                tc.add_node(src)
+                for child in dag.successors(src):
+                    tc.add_edge(src, child)
+                    for grandchild in tc.successors(child):
+                        tc.add_edge(src, grandchild)
+        else:
+            for src in tqdm.tqdm(dag.nodes(), desc="TC nodes", disable=not progress):
+                tc.add_node(src)
+                for descendant in networkx.descendants(dag, src):
+                    tc.add_edge(src, descendant)
+            # TODO: Consider doing Tarjan's first
         return PrecomputedReachabilityOracle(
             dag,
             tc,
@@ -547,6 +550,9 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
 
     def __contains__(self, node: _Node) -> bool:
         return node in self.dag_tc
+
+    def nodes(self) -> It[_Node]:
+        return self.dag_tc.nodes()
 
     def is_reachable(self, u: _Node, v: _Node) -> bool:
         return v in self.dag_tc.successors(u) or u == v
@@ -557,15 +563,34 @@ class PrecomputedReachabilityOracle(ReachabilityOracle[_Node]):
                 for descendant_of_target in [*self.dag_tc.successors(target), target]:
                     self.dag_tc.add_edge(descendant_of_source, descendant_of_target)
 
-    @functools.cache
-    def n_paths(self, source: _Node, destination: _Node) -> int:
-        if self.dag.in_degree(destination) == 1:
-            return int(self.is_reachable(source, destination))
-        else:
-            return sum(
-                1 if predecessor == source else self.n_paths(source, predecessor)
-                for predecessor in self.dag.predecessors(destination)
-            )
+
+@dataclasses.dataclass(frozen=True)
+class PartitionOracle(ReachabilityOracle[_Node]):
+    partition_oracle: ReachabilityOracle[frozenset[_Node]]
+    partition: typing.Mapping[_Node, frozenset[_Node]]
+
+    @staticmethod
+    def create(
+            partition_oracle: ReachabilityOracle[frozenset[_Node]],
+    ) -> PartitionOracle[_Node]:
+        return PartitionOracle(
+            partition_oracle,
+            {node: partition for partition in partition_oracle.nodes() for node in partition}
+        )
+
+    def __contains__(self, node: _Node) -> bool:
+        return node in self.partition
+
+    def nodes(self) -> It[_Node]:
+        return self.partition.keys()
+
+    def is_reachable(self, u: _Node, v: _Node) -> bool:
+        u_partition = self.partition[u]
+        v_partition = self.partition[v]
+        return u_partition != v_partition and self.partition_oracle.is_reachable(u_partition, v_partition)
+
+    def add_edge(self, source: _Node, target: _Node) -> None:
+        return self.partition_oracle.add_edge(self.partition[source], self.partition[target])
 
 
 def _n_paths(

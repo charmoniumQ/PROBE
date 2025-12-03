@@ -14,6 +14,7 @@ import typing
 _T = typing.TypeVar("_T")
 _U = typing.TypeVar("_U")
 _V = typing.TypeVar("_V")
+_W = typing.TypeVar("_W")
 _ParamSpec = typing.ParamSpec("_ParamSpec")
 
 
@@ -44,12 +45,13 @@ def filter_relative_to(path: pathlib.Path) -> typing.Callable[[tarfile.TarInfo],
 def groupby_dict(
         data: typing.Iterable[_T],
         key_func: typing.Callable[[_T], _V],
-        value_func: typing.Callable[[_T], _U] = typing.cast(typing.Callable[[_T], _U], lambda x: x),
-) -> typing.Mapping[_V, typing.Sequence[_U]]:
+        value_func: typing.Callable[[_T], _U] = typing.cast(typing.Callable[[_T], _U], lambda elem: elem),
+        map_func: typing.Callable[[_V, typing.Sequence[_U]], _W] = typing.cast(typing.Callable[[_V, typing.Sequence[_U]], _W], lambda key, group: group),
+) -> typing.Mapping[_V, _W]:
     ret: dict[_V, list[_U]] = {}
     for key, group in itertools.groupby(data, key_func):
         ret.setdefault(key, []).extend(map(value_func, group))
-    return ret
+    return {key: map_func(key, values) for key, values in ret.items()}
 
 
 def all_unique(elements: typing.Iterable[_T]) -> bool:
