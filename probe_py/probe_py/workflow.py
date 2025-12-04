@@ -3,10 +3,14 @@ import collections.abc
 import dataclasses
 import enum
 import itertools
+import json
 import pathlib
 import shlex
 import typing
+import urllib.parse
 import networkx
+import rdflib
+
 from . import dataflow_graph
 from . import graph_utils
 from . import ops
@@ -21,6 +25,7 @@ Map: typing.TypeAlias = collections.abc.Mapping
 
 class WorkflowType(enum.StrEnum):
     SNAKEMAKE = enum.auto()
+    WRROC = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -152,7 +157,8 @@ def to_source(
         include_env: bool,
 ) -> None:
     {
-        WorkflowType.SNAKEMAKE: to_snakemake
+        WorkflowType.SNAKEMAKE: to_snakemake,
+        WorkflowType.WRROC: to_wrroc,
     }[workflow_type](directory, rules, include_env)
 
 
@@ -181,6 +187,100 @@ def to_snakemake(
         ])).encode())
     lines.append(b"")
     (directory / "Snakefile").write_bytes(b"\n".join(lines))
+
+
+def to_wrroc(
+        directory: pathlib.Path,
+        rules: It[Rule],
+        include_env: bool
+) -> None:
+    entities = set[pathlib.Path]()
+    softwares = set[pathlib.Path]()
+    actions = []
+    envs = {}
+    quote = lambda path: urllib.parse.quote_plus(str(path))
+    for i, rule in enumerate(rules):
+        entities.update(rule.inputs)
+        entities.update(rule.outputs)
+        softwares.add(rule.exe)
+        env_hash = hash(frozenset(rule.env))
+        envs[env_hash] = rule.env
+        actions.append({
+            "@id": f"#action_{rule.exe.name}_{i}",
+            "@type": [
+                "http://schema.org/CreateAction",
+                "http://www.w3.org/ns/prov#activity",
+            ],
+            "http://schema.org/description": shlex.join(argv.decode() for argv in rule.argv),
+            "http://schema.org/instrument": {"@id": f"#software_{quote(rule.exe.name)}"},
+            "http://www.w3.org/ns/prov#used": [
+                {"@id": f"#file_{quote(entity)}"}
+                for entity in rule.inputs
+            ],
+            "http://schema.org/object": [
+                {"@id": f"#file_{quote(entity)}"}
+                for entity in rule.inputs
+            ],
+            "http://www.w3.org/ns/prov#generated": [
+                {"@id": f"#file_{quote(entity)}"}
+                for entity in rule.outputs
+            ],
+            "http://schema.org/result": [
+                {"@id": f"#file_{quote(entity)}"}
+                for entity in rule.outputs
+            ],
+            "http://samgrayson.me/cwd": str(rule.cwd),
+            "http://samgrayson.me/env": f"#env_{env_hash}",
+        })
+
+    (directory / "ro-crate-metadata.json").write_text(json.dumps([
+        {
+            "@id": "ro-crate-metadata.json",
+            "@type": "http://schema.org/CreativeWork",
+            "http://schema.org/about": {"@id": "./"},
+            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/crate/1.1"},
+        },
+        {
+            "@id": "./",
+            "@type": "http://schema.org/Dataset",
+            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/wfrun/process/0.4"},
+        },
+        *actions,
+        *[
+            {
+                "@id": f"#file_{quote(entity)}",
+                "@type": [
+                    "http://schema.org/MediaObject",
+                    "http://www.w3.org/ns/prov#entity",
+                ],
+                "http://schema.org/name": str(entity),
+            }
+            for entity in entities
+        ],
+        *[
+            {
+                "@id": f"#software_{quote(software)}",
+                "@type": "http://schema.org/SoftwareApplication",
+                "http://schema.org/name": str(software),
+            }
+            for software in softwares
+        ],
+        *([
+            {
+                "@id": f"#env_{env_hash}",
+                "@value": [row.decode().split("=") for row in env]
+            }
+            for env_hash, env in envs.items()
+        ] if include_env else []),
+    ], indent=2))
+    graph = rdflib.Graph()
+    graph.bind("schema", rdflib.namespace.Namespace("http://schema.org/"))
+    graph.bind("dct", rdflib.namespace.Namespace("http://purl.org/dc/terms/"))
+    graph.bind("prov", rdflib.namespace.Namespace("http://www.w3.org/ns/prov#"))
+    graph.bind("sg", rdflib.namespace.Namespace("http://samgrayson.me"))
+    graph.parse("ro-crate-metadata.json")
+    graph.serialize("ro-crate-metadata.xml", format="xml")
+    graph.serialize("ro-crate-metadata.ttl", format="ttl")
 
 
 def get_exec_pair_graph(probe_log: ptypes.ProbeLog) -> networkx.DiGraph[ptypes.ExecPair]:

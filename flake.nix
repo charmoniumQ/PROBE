@@ -282,6 +282,8 @@
             pypkgs.frozendict
             pypkgs.networkx
             pypkgs.numpy
+            pypkgs.rdflib
+            pypkgs.pyld
             pypkgs.pydot
             pypkgs.rich
             pypkgs.sqlalchemy
