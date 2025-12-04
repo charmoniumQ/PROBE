@@ -121,3 +121,20 @@ def multilevel_table(
 
 def raise_(exc: Exception) -> typing.NoReturn:
     raise exc
+
+
+def size(
+        bit_lengths: typing.Sequence[int],
+        sizeof_value: int = 8,
+        sizeof_pointer: int = 8,
+) -> int:
+    return sum(2**bit_length * sizeof_pointer for bit_length in bit_lengths[:-1]) + 2**bit_lengths[-1] * sizeof_value
+
+# Inode table:
+# 32 for inode + 8 dev major + 8 dev minor
+# size([8, 8, 16, 16], 8)
+# size([8, 8, 11, 11, 10], 8)
+
+# Open-numbering table
+# Total number of FDs is 2^63, assume is actually 2^16
+# size([8, 8], 2)
