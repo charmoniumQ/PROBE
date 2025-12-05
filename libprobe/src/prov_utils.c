@@ -48,10 +48,12 @@ struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int f
                                         STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
                                             STATX_CTIME | STATX_SIZE,
                                         &statx_buf);
-            if (stat_ret == 0) {
+            #ifndef NDEBUG
+            if (stat_ret != 0) {
                 WARNING("We got a bad FD; could be the client's fault? fd=%d stat_ret=%d", fd,
                         stat_ret);
             }
+            #endif
         } else {
             stat_ret = probe_libc_statx(dirfd, path, flags,
                                         STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |

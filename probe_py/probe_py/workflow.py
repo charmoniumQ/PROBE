@@ -238,12 +238,12 @@ def to_wrroc(
             "@id": "ro-crate-metadata.json",
             "@type": "http://schema.org/CreativeWork",
             "http://schema.org/about": {"@id": "./"},
-            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/crate/1.1"},
+            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/crate/1.2"},
         },
         {
             "@id": "./",
             "@type": "http://schema.org/Dataset",
-            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/wfrun/process/0.4"},
+            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/wfrun/process/0.5"},
         },
         *actions,
         *[
@@ -281,6 +281,19 @@ def to_wrroc(
     graph.parse("ro-crate-metadata.json")
     graph.serialize("ro-crate-metadata.xml", format="xml")
     graph.serialize("ro-crate-metadata.ttl", format="ttl")
+    relevant_owls = [
+        "https://www.w3.org/ns/prov-o",
+        # not really that useful
+        # See https://www.semanticarts.com/dublin-core-and-owl/
+        "https://protege.stanford.edu/plugins/owl/dc/terms.owl",
+        "https://schema.org/docs/schemaorg.owl",
+    ]
+    relevant_shacls = [
+        "https://raw.githubusercontent.com/schemaorg/schemaorg/refs/heads/main/data/releases/29.3/schemaorg-shapes.shacl"
+    ]
+    relevent_shexjs = [
+        "https://github.com/schemaorg/schemaorg/blob/main/data/releases/29.3/schemaorg-shapes.shexj"
+    ]
 
 
 def get_exec_pair_graph(probe_log: ptypes.ProbeLog) -> networkx.DiGraph[ptypes.ExecPair]:

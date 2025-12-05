@@ -268,7 +268,7 @@ def find_intervals(
                     op_data.fd,
                     bool(op_data.flags & os.O_CLOEXEC),
                     inode_version,
-                    verbose=True,
+                    verbose=False,
                 )
                 access = ptypes.AccessMode.from_open_flags(op_data.flags)
                 inode_to_intervals[inode_version.inode].append(IntervalInfo(access, inode_version, interval))
@@ -461,7 +461,7 @@ def connect_implicit_communication(
         key=topo_ordering.get, # type: ignore
     )
     highest_peers = dict[ptypes.OpQuad, set[ptypes.OpQuad]]()
-    for src in quads:
+    for src in tqdm.tqdm(quads, desc="quads in coterie"):
         highest_peers[src] = set()
         for potential_highest_peer in quads:
             # FIXME speed this up
