@@ -9,6 +9,7 @@ import typing
 import warnings
 import networkx
 from . import graph_utils
+from . import hb_graph
 from .hb_graph_accesses import hb_graph_to_accesses
 from . import ops
 from . import ptypes
@@ -136,7 +137,7 @@ def accesses_to_dataflow_graph(
 
 def hb_graph_to_dataflow_graph2(
         probe_log: ptypes.ProbeLog,
-        hbg: ptypes.HbGraph,
+        hbg: hb_graph.HbGraph,
         check: bool = False,
 ) -> tuple[DataflowGraph, typing.Mapping[ptypes.Inode, frozenset[pathlib.Path]]]:
     accesses = list(hb_graph_to_accesses(probe_log, hbg))

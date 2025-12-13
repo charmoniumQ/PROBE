@@ -1,3 +1,7 @@
+from __future__ import annotations
+import collections
+import dataclasses
+import itertools
 import os
 import shlex
 import textwrap
@@ -5,10 +9,10 @@ import typing
 import warnings
 import charmonium.time_block
 import networkx
-from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
-from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp
 from . import graph_utils
 from . import ptypes
+from . import ops
+
 
 """
 HbGraph stands for "Happened-Before graph".
@@ -22,272 +26,391 @@ This can be due to program ordering or synchronization.
 """
 
 
-@charmonium.time_block.decor(print_start=False)
-def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
-    hb_graph = HbGraph()
-
-    _create_program_order_edges(probe_log, hb_graph)
-
-    # Hook up synchronization edges
-    for node in hb_graph.nodes():
-        _create_clone_edges(node, probe_log, hb_graph)
-        _create_exec_edges(node, probe_log, hb_graph)
-        _create_spawn_edges(node, probe_log, hb_graph)
-        _create_wait_edges(node, probe_log, hb_graph)
-
-    _create_other_thread_edges(probe_log, hb_graph)
-
-    validate_hb_graph(probe_log, hb_graph, True)
-
-    return hb_graph
+It = collections.abc.Iterable
+Map = collections.abc.Mapping
 
 
-@charmonium.time_block.decor(print_start=False)
-def retain_only(
-        probe_log: ProbeLog,
-        full_hb_graph: HbGraph,
-        retain_node_predicate: typing.Callable[[OpQuad, Op], bool],
-) -> HbGraph:
-    """Retains only nodes satisfying the predicate."""
-    retained_nodes = frozenset({
-        quad
-        for quad in full_hb_graph.nodes()
-        if retain_node_predicate(quad, probe_log.get_op(quad))
-    })
-    ret = graph_utils.retain_nodes_in_dag(
-        full_hb_graph,
-        retained_nodes,
-        lambda _graph, _path: {},
-    )
-    ret = graph_utils.remove_self_edges(ret)
-    return ret
+@dataclasses.dataclass(frozen=True)
+class QuadRange(collections.abc.Collection[ptypes.OpQuad]):
+    thread: ptypes.ThreadTriple
+    start: int
+    end: int
+
+    def __contains__(self, elem: object) -> bool:
+        return isinstance(elem, ptypes.OpQuad) and elem.thread_triple() == self.thread and self.start <= elem.op_no < self.end
+
+    def __iter__(self) -> collections.abc.Iterator[ptypes.OpQuad]:
+        for op_no in range(self.start, self.end):
+            yield self.thread.op_quad(op_no)
+
+    def __len__(self) -> int:
+        return self.end - self.start
+
+    @property
+    def first(self) -> ptypes.OpQuad:
+        return self.thread.op_quad(self.start)
+
+    @property
+    def last(self) -> ptypes.OpQuad:
+        return self.thread.op_quad(self.end - 1)
 
 
-def validate_hb_graph(
+class Fd(int):
+    pass
+
+
+class HbGraph:
+    _dag: networkx.DiGraph[QuadRange]
+    _quad_ranges: Map[ptypes.OpQuad, QuadRange]
+    _vector_clocks: Map[QuadRange, tuple[int, ...]]
+
+    def possible_schedule(
+            self,
+            start: QuadRange,
+            retain_predicate: typing.Callable[[QuadRange], bool],
+    ) -> collections.abc.Iterator[QuadRange]:
+        traversal = graph_utils.search_with_pruning(self._dag, start)
+        for quad_range in traversal:
+            assert quad_range is not None
+            if retain_predicate(quad_range):
+                yield quad_range
+                traversal.send(True)
+            else:
+                traversal.send(False)
+
+    @charmonium.time_block.decor(print_start=False)
+    def __init__(self, probe_log: ptypes.ProbeLog) -> None:
+        self._dag = networkx.DiGraph()
+
+        quad_ranges = _add_node_ranges(probe_log, self._dag)
+        self._quad_range_map = {
+            opq: range
+            for range in quad_ranges
+            for opq in range
+        }
+
+        pthread_to_tids = collections.defaultdict(set)
+        iso_c_thread_to_tids = collections.defaultdict(set)
+        for quad, op in probe_log.ops():
+            pthread_to_tids[(quad.exec_pair(), op.pthread_id)].add(quad.tid)
+            iso_c_thread_to_tids[(quad.exec_pair(), op.iso_c_thread_id)].add(quad.tid)
+
+        # Hook up synchronization edges
+        for quad_range in self._dag.nodes():
+            quad = quad_range.last
+            op = probe_log.get_op(quad)
+            _create_clone_edges(quad, op, self._dag, self._quad_range_map, pthread_to_tids, iso_c_thread_to_tids)
+            _create_wait_edges(quad, op, self._dag, self._quad_range_map, pthread_to_tids, iso_c_thread_to_tids, probe_log)
+            _create_exec_edges(quad, op, self._dag, self._quad_range_map)
+            _create_spawn_edges(quad, op, self._dag, self._quad_range_map)
+
+        _create_other_thread_edges(probe_log, self._dag, self._quad_range_map)
+
+        _validate_dag(probe_log, self._dag, True)
+
+        self._vector_clocks, self._pid_to_lane, self._concurrent_pids = _make_vector_clocks(self._dag)
+
+
+def _add_node_ranges(
         probe_log: ptypes.ProbeLog,
-        hb_graph: HbGraph,
+        dag: networkx.DiGraph[QuadRange],
+) -> It[QuadRange]:
+    """Identify ranges over which there are no sync edges
+
+    e.g., if we return [0--2, 3--5], so there could be incoming sync edges to 0 and 3 and outoing from 2 and 5.
+
+    It's ok to be imprecise, so there might also not happen to be sync edges at 0, 2, 3, or 5. 
+    """
+    ranges: list[QuadRange] = []
+    for thread, thread_ops in probe_log.ops_by_thread():
+        op_nos = []
+        for op_no, op in enumerate(thread_ops):
+            if (isinstance(
+                    op.data,
+                    (ops.CloneOp, ops.ExecOp, ops.ExitThreadOp),
+            ) and getattr(op.data, "ferrno", 0) == 0):
+                # possible outgoing sync edge
+                op_nos.append(op_no + 1)
+            if (isinstance(
+                    op.data,
+                    (ops.InitExecEpochOp, ops.InitThreadOp, ops.WaitOp),
+            ) and getattr(op.data, "ferrno", 0) == 0):
+                # possible ingoing sync edge
+                # Check if edge is already there by coincidence
+                # (if last op was an outgoing edge)
+                if not op_nos or op_no != op_nos[-1]:
+                    op_nos.append(op_no)
+        assert op_nos[0] == 0, thread_ops[0]
+        assert op_nos[-1] == len(thread_ops), thread_ops[-1]
+        thread_ranges = [
+            QuadRange(thread, start, end)
+            for start, end in zip(op_nos[:-1], op_nos[1:])
+        ]
+        dag.add_nodes_from(thread_ranges)
+        dag.add_edges_from(zip(thread_ranges[:-1], thread_ranges[1:]))
+        ranges.extend(thread_ranges)
+    return ranges
+
+
+def _create_clone_edges(
+        quad: ptypes.OpQuad,
+        op: ops.Op,
+        hb_graph: networkx.DiGraph[QuadRange],
+        node_range_map: Map[ptypes.OpQuad, QuadRange],
+        pthread_to_tids: Map[tuple[ptypes.ExecPair, int], It[ptypes.Tid]],
+        iso_c_threads_to_tids: Map[tuple[ptypes.ExecPair, int], It[ptypes.Tid]],
+) -> None:
+    if isinstance(op.data, ops.CloneOp) and op.data.ferrno == 0:
+        match op.data.task_type:
+            case ptypes.TaskType.TASK_TID:
+                targets = [quad.other_thread(ptypes.Tid(op.data.task_id), 0)]
+            case ptypes.TaskType.TASK_PID:
+                target_pid = ptypes.Pid(op.data.task_id)
+                targets = [target_pid.exec_pair().main_thread().op_quad(0)]
+            case ptypes.TaskType.TASK_PTHREAD:
+                for tid in pthread_to_tids[(quad.exec_pair(), op.data.task_id)]:
+                    targets = [quad.other_thread(tid, 0)]
+            case ptypes.TaskType.TASK_ISO_C_THREAD:
+                for tid in iso_c_threads_to_tids[(quad.exec_pair(), op.data.task_id)]:
+                    targets = [quad.other_thread(tid, 0)]
+        for target in targets:
+            if target not in node_range_map:
+                warnings.warn(ptypes.UnusualProbeLog(
+                    f"Clone ({quad}) points to a tid/pid {target} we didn't track"
+                ))
+            else:
+                # Should only connect last of range to first of range
+                assert quad == node_range_map[quad].last
+                assert target == node_range_map[target].first
+                hb_graph.add_edge(node_range_map[quad], node_range_map[target])
+
+
+def _create_wait_edges(
+        quad: ptypes.OpQuad,
+        op: ops.Op,
+        hb_graph: networkx.DiGraph[QuadRange],
+        node_range_map: Map[ptypes.OpQuad, QuadRange],
+        pthread_to_tids: Map[tuple[ptypes.ExecPair, int], It[ptypes.Tid]],
+        iso_c_threads_to_tids: Map[tuple[ptypes.ExecPair, int], It[ptypes.Tid]],
+        probe_log: ptypes.ProbeLog,
+) -> None:
+    if isinstance(op.data, ops.WaitOp) and op.data.ferrno == 0:
+        match op.data.task_type:
+            case ptypes.TaskType.TASK_TID:
+                target_threads = [quad.thread_triple().other_thread(ptypes.Tid(op.data.task_id))]
+            case ptypes.TaskType.TASK_PID:
+                target_pid = ptypes.Pid(op.data.task_id)
+                target_threads = [ptypes.ThreadTriple(target_pid, ptypes.initial_exec_no, target_pid.main_thread())]
+            case ptypes.TaskType.TASK_PTHREAD:
+                for tid in pthread_to_tids[(quad.exec_pair(), op.data.task_id)]:
+                    target_threads = [quad.thread_triple().other_thread(tid)]
+            case ptypes.TaskType.TASK_ISO_C_THREAD:
+                for tid in iso_c_threads_to_tids[(quad.exec_pair(), op.data.task_id)]:
+                    target_threads = [quad.thread_triple().other_thread(tid)]
+        for target_thread in target_threads:
+            last_op_no = len(probe_log.processes[target_thread.pid].execs[target_thread.exec_no].threads[target_thread.tid].ops) - 1
+            target_quad = target_thread.op_quad(last_op_no)
+            if target_quad not in node_range_map:
+                warnings.warn(ptypes.UnusualProbeLog(
+                    f"Wait ({quad}) points to a tid/pid {target_thread} we didn't track"
+                ))
+            else:
+                # Should only connect last of range to first of range
+                assert quad == node_range_map[quad].first, (quad, node_range_map[quad].first)
+                assert target_quad == node_range_map[target_quad].last, (target_quad, node_range_map[target_quad].last)
+                hb_graph.add_edge(node_range_map[target_quad], node_range_map[quad])
+
+
+def _create_exec_edges(
+        quad: ptypes.OpQuad,
+        op: ops.Op,
+        hb_graph: networkx.DiGraph[QuadRange],
+        node_range_map: Map[ptypes.OpQuad, QuadRange],
+) -> None:
+    if isinstance(op.data, ops.ExecOp) and op.data.ferrno == 0:
+        target = quad.exec_pair().next().main_thread().op_quad(0)
+        if target not in node_range_map:
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"Exec points to an exec epoch {target} we didn't track"
+            ))
+        else:
+            # Should only connect last of range to first of range
+            assert quad == node_range_map[quad].last
+            assert target == node_range_map[target].first
+            hb_graph.add_edge(node_range_map[quad], node_range_map[target])
+
+
+def _create_spawn_edges(
+        quad: ptypes.OpQuad,
+        op: ops.Op,
+        hb_graph: networkx.DiGraph[QuadRange],
+        node_range_map: Map[ptypes.OpQuad, QuadRange],
+) -> None:
+    if isinstance(op.data, ops.SpawnOp) and op.data.ferrno == 0:
+        child_pid = ptypes.Pid(op.data.child_pid)
+        target = child_pid.exec_pair().main_thread().op_quad(0)
+        if target not in node_range_map:
+            warnings.warn(ptypes.UnusualProbeLog(
+                f"Spawn ({quad}) points to a pid {child_pid} we didn't track"
+            ))
+        else:
+            # Should only connect last of range to first of range
+            assert quad == node_range_map[quad].last
+            assert target == node_range_map[target].first
+            hb_graph.add_edge(node_range_map[quad], node_range_map[target])
+
+
+def _create_other_thread_edges(
+        probe_log: ptypes.ProbeLog,
+        hb_graph: networkx.DiGraph[QuadRange],
+        node_range_map: Map[ptypes.OpQuad, QuadRange],
+) -> None:
+    # Sometimes we don't have the thread creation or termination edges
+    for thread, thread_ops in probe_log.ops_by_thread():
+        main_thread = thread.main_thread()
+        first_op_main_thread = node_range_map[main_thread.op_quad(0)]
+        last_op_no = len(probe_log.processes[thread.pid].execs[thread.exec_no].threads[main_thread.tid].ops) - 1
+        last_op_main_thread = node_range_map[main_thread.op_quad(last_op_no)]
+        if thread.tid != thread.pid.main_thread():
+            first_op = node_range_map[thread.op_quad(0)]
+            last_op_no = len(probe_log.processes[thread.pid].execs[thread.exec_no].threads[thread.tid].ops) - 1
+            last_op = node_range_map[thread.op_quad(last_op_no)]
+            if len(list(hb_graph.predecessors(first_op))) == 0:
+                hb_graph.add_edge(first_op_main_thread, first_op)
+            if last_op_main_thread != first_op_main_thread and len(list(hb_graph.successors(last_op))) == 0:
+                if last_op_main_thread not in hb_graph.predecessors(first_op) and not graph_utils.would_create_cycle(hb_graph, last_op, last_op_main_thread):
+                    hb_graph.add_edge(last_op, last_op_main_thread)
+                else:
+                    warnings.warn(ptypes.UnusualProbeLog("would cycle", last_op, last_op_main_thread))
+
+
+def _validate_dag(
+        probe_log: ptypes.ProbeLog,
+        dag: networkx.DiGraph[QuadRange],
         validate_roots: bool,
 ) -> None:
-    if not networkx.is_directed_acyclic_graph(hb_graph):
-        cycle = list(networkx.find_cycle(hb_graph))
+    if not networkx.is_directed_acyclic_graph(dag):
+        cycle = list(networkx.find_cycle(dag))
         warnings.warn(ptypes.UnusualProbeLog(
             f"Found a cycle in hb graph: {cycle}",
         ))
 
     if validate_roots:
-        sources = graph_utils.get_sources(hb_graph)
+        sources: list[QuadRange] = graph_utils.get_sources(dag)
         if len(sources) > 1:
             warnings.warn(ptypes.UnusualProbeLog(
                 f"Too many sources {sources}"
             ))
-
     # TODO: Check that root pid and/or parent-pid is as expected.
+    # TODO: Chcek chat exec, fork, chdir are only called when exactly 1 thread is alive.
 
 
-def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
-    if not probe_log.processes:
-        raise InvalidProbeLog("No processes tracked")
-    for pid, process in probe_log.processes.items():
-        if not process.execs:
-            raise InvalidProbeLog(f"No exec epochs tracked for pid {pid}")
-        for exec_no, exec_epoch in process.execs.items():
-            if not exec_epoch.threads:
-                raise InvalidProbeLog(f"No threads tracked for exec {exec_no}")
-            for tid, thread in exec_epoch.threads.items():
-                if not thread.ops:
-                    raise InvalidProbeLog(f"No ops tracked for thread {tid}")
-                nodes = [
-                    OpQuad(pid, exec_no, tid, op_no)
-                    for op_no, op in enumerate(thread.ops)
-                ]
-                assert nodes
+def _make_vector_clocks(
+        dag: networkx.DiGraph[QuadRange],
+) -> tuple[Map[QuadRange, tuple[int, ...]], Map[ptypes.Pid, int], Map[ptypes.Pid, It[ptypes.Pid]]]:
+    pid_to_lane: dict[ptypes.Pid, int] = {}
+    quad_range_to_clock: dict[QuadRange, tuple[int, ...]] = {}
+    concurrent_pids_map = dict[ptypes.Pid, list[ptypes.Pid]]()
+    current_pids = list[ptypes.Pid]()
 
-                hb_graph.add_nodes_from(nodes)
+    quad_ranges = list(networkx.topological_sort(dag))
+    for quad_range in quad_ranges:
+        # must be first quad_range in this pid
+        if quad_range.thread.pid not in pid_to_lane:
+            # assign new lane
+            used_lanes = {pid_to_lane[pid] for pid in current_pids}
+            all_lanes = frozenset(range(len(pid_to_lane) + 1))
+            pid_to_lane[quad_range.thread.pid] = min(all_lanes - used_lanes)
 
-                # Hook up program order edges
-                hb_graph.add_edges_from(zip(nodes[:-1], nodes[1:]))
+            # add to current and set concurrent_pids_map[self]
+            current_pids.append(quad_range.thread.pid)
+            concurrent_pids_map[quad_range.thread.pid] = list(current_pids)
 
+            # add self to concurrent_pids_map of every current process
+            for process in current_pids:
+                concurrent_pids_map[process].append(quad_range.thread.pid)
 
-def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
-    op = probe_log.get_op(node)
-    if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
-        match op.data.task_type:
-            case TaskType.TASK_TID:
-                target_tid = Tid(op.data.task_id)
-                if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
-                    warnings.warn(ptypes.UnusualProbeLog(
-                        f"Clone ({node}) points to a thread {target_tid} we didn't track"
-                    ))
-                else:
-                    target = OpQuad(node.pid, node.exec_no, target_tid, 0)
-                    assert hb_graph.has_node(target)
-                    hb_graph.add_edge(node, target)
-            case TaskType.TASK_PID:
-                target_pid = Pid(op.data.task_id)
-                if target_pid not in probe_log.processes:
-                    warnings.warn(ptypes.UnusualProbeLog(
-                        f"Clone ({node}) points to a process {target_pid} we didn't track {probe_log.processes.keys()}"
-                    ))
-                else:
-                    target = OpQuad(target_pid, initial_exec_no, target_pid.main_thread(), 0)
-                    assert hb_graph.has_node(target)
-                    hb_graph.add_edge(node, target)
-            case TaskType.TASK_PTHREAD | TaskType.TASK_ISO_C_THREAD:
-                targets = get_first_task_nodes(probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id, False)
-                for target in targets:
-                    assert hb_graph.has_node(target)
-                    hb_graph.add_edge(node, target)
+        # Increment the value when the lane is the same as the pred
+        incremented_pred_clocks = [
+            [
+                value + int(lane == pid_to_lane[pred.thread.pid])
+                for lane, value in enumerate(quad_range_to_clock[pred])
+            ]
+            for pred in dag.predecessors(quad_range)
+        ]
 
-
-def get_first_task_nodes(
-        probe_log: ProbeLog,
-        pid: Pid,
-        exec_no: ExecNo,
-        task_type: int,
-        task_id: int,
-        reverse: bool,
-) -> list[OpQuad]:
-    targets = []
-    for tid, thread in probe_log.processes[pid].execs[exec_no].threads.items():
-        for op_no, other_op in reversed(list(enumerate(thread.ops))) if reverse else enumerate(thread.ops):
-            if (task_type == TaskType.TASK_PTHREAD and other_op.pthread_id == task_id) or \
-               (task_type == TaskType.TASK_ISO_C_THREAD and other_op.iso_c_thread_id == task_id):
-                targets.append(OpQuad(pid, exec_no, tid, op_no))
-                break
-    return targets
-
-
-def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
-    op = probe_log.get_op(node)
-    if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
-        match op.data.task_type:
-            case TaskType.TASK_TID:
-                target_tid = Tid(op.data.task_id)
-                if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
-                    warnings.warn(ptypes.UnusualProbeLog(
-                        f"Wait ({node}) points to a thread {target_tid} we didn't track",
-                    ))
-                else:
-                    target = OpQuad(node.pid, node.exec_no, target_tid, len(probe_log.processes[node.pid].execs[node.exec_no].threads[target_tid].ops) - 1)
-                    hb_graph.add_edge(target, node)
-            case TaskType.TASK_PID:
-                target_pid = Pid(op.data.task_id)
-                if target_pid not in probe_log.processes:
-                    warnings.warn(ptypes.UnusualProbeLog(
-                        f"Wait ({node}) points to a process {target_pid} we didn't track",
-                    ))
-                else:
-                    last_exec_no = max(probe_log.processes[target_pid].execs.keys())
-                    last_op_no = len(probe_log.processes[target_pid].execs[last_exec_no].threads[target_pid.main_thread()].ops) - 1
-                    target = OpQuad(target_pid, last_exec_no, target_pid.main_thread(), last_op_no)
-                    assert hb_graph.has_node(target)
-                    hb_graph.add_edge(target, node)
-            case TaskType.TASK_PTHREAD | TaskType.TASK_ISO_C_THREAD:
-                targets = get_first_task_nodes(probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id, True)
-                for target in targets:
-                    assert hb_graph.has_node(target)
-                    hb_graph.add_edge(target, node)
-
-
-def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
-    op = probe_log.get_op(node)
-    if isinstance(op.data, ExecOp) and op.data.ferrno == 0:
-        next_exec_no = node.exec_no.next()
-        if next_exec_no not in probe_log.processes[node.pid].execs:
-            warnings.warn(ptypes.UnusualProbeLog(
-                f"Exec points to an exec epoch {next_exec_no} we didn't track"
-            ))
-        else:
-            target = OpQuad(node.pid, next_exec_no, node.pid.main_thread(), 0)
-            assert hb_graph.has_node(target)
-            hb_graph.add_edge(node, target)
-
-
-def _create_spawn_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
-    op = probe_log.get_op(node)
-    if isinstance(op.data, SpawnOp) and op.data.ferrno == 0:
-        child_pid = Pid(op.data.child_pid)
-        if child_pid not in probe_log.processes:
-            warnings.warn(ptypes.UnusualProbeLog(
-                f"Spawn ({node}) points to a pid {child_pid} we didn't track"
-            ))
-        else:
-            target = OpQuad(child_pid, initial_exec_no, child_pid.main_thread(), 0)
-            assert hb_graph.has_node(target)
-            hb_graph.add_edge(node, target)
-
-
-def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
-    # Sometimes we don't have the thread creation or termination edges
-    for pid, process in probe_log.processes.items():
-        for exec_no, exec_epoch in process.execs.items():
-            for tid, thread in exec_epoch.threads.items():
-                first_op_main_thread = OpQuad(pid, exec_no, pid.main_thread(), 0)
-                last_op_main_thread = OpQuad(pid, exec_no, pid.main_thread(), len(exec_epoch.threads[pid.main_thread()].ops) - 1)
-                if tid != pid.main_thread():
-                    first_op = OpQuad(pid, exec_no, tid, 0)
-                    last_op = OpQuad(pid, exec_no, tid, len(thread.ops) - 1)
-                    if len(list(hb_graph.predecessors(first_op))) == 0:
-                        hb_graph.add_edge(first_op_main_thread, first_op)
-                    if last_op_main_thread != first_op_main_thread and len(list(hb_graph.successors(last_op))) == 0:
-                        if last_op_main_thread not in hb_graph.predecessors(first_op) and not graph_utils.would_create_cycle(hb_graph, last_op, last_op_main_thread):
-                            hb_graph.add_edge(last_op, last_op_main_thread)
-                        else:
-                            warnings.warn(ptypes.UnusualProbeLog("would cycle", last_op, last_op_main_thread))
-
-
-def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
-    for node, data in hb_graph.nodes(data=True):
-        op = probe_log.get_op(node)
-        data.setdefault("label", "")
-        data["cluster"] = str(node.pid)
-        if add_op_no:
-            data["label"] += f"{node.op_no}: "
-        if len(list(hb_graph.predecessors(node))) == 0:
-            data["label"] += "root"
-        elif isinstance(op.data, InitExecEpochOp):
-            data["label"] += f"PID {node.pid} exec {node.exec_no}"
-        elif isinstance(op.data, InitThreadOp):
-            data["label"] += f"TID {node.tid}"
-        elif isinstance(op.data, ExecOp):
-            data["label"] += textwrap.fill(
-                "exec " + textwrap.shorten(
-                    shlex.join([
-                        textwrap.shorten(
-                            arg.decode(errors="backslashreplace"),
-                            width=80,
-                        )
-                        for arg in op.data.argv
-                    ]),
-                    width=80 * 10,
-                ),
-                width=80,
+        # max of all values in the same index for all preds
+        quad_range_to_clock[quad_range] = tuple(
+            max(*values)
+            for values in itertools.zip_longest(
+                    *incremented_pred_clocks,
+                    fillvalue=0,
             )
-        elif isinstance(op.data, OpenOp):
-            access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
-            data["label"] += f"Open ({access})  fd={op.data.fd}"
-            data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{op.data.path.path.decode()}"
-        elif isinstance(op.data, StatOp):
-            data["label"] += "Stat"
-            data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{op.data.path.path.decode()}"
-        elif isinstance(op.data, CloseOp):
-            data["label"] += f"Close fd={op.data.fd}"
-            data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{op.data.path.path.decode()}"
-        elif isinstance(op.data, DupOp):
-            data["label"] += f"DupOp fd={op.data.old} → fd={op.data.new}"
-        else:
-            data["label"] += f"{op.data.__class__.__name__}"
-            data["labelfontsize"] = 8
-        if getattr(op.data, "ferrno", 0) != 0:
-            data["label"] += " (failed)"
-            data["color"] = "red"
-        data["label"] += f"\n{node.exec_no}.{node.tid}.{node.op_no}"
+        )
+
+        # Must be last quad_range in this pid
+        # Remove from current
+        if quad_range.thread.pid not in {pred.thread.pid for pred in dag.predecessors(quad_range)}:
+            current_pids.remove(quad_range.thread.pid)
+
+    # checks
+    for node0, node1 in zip(quad_ranges[:-1], quad_ranges[1:]):
+        assert not quad_range_to_clock[node0] > quad_range_to_clock[node1]
+    return quad_range_to_clock, pid_to_lane, concurrent_pids_map
+
+
+def label_nodes(
+        probe_log: ptypes.ProbeLog,
+        hb_graph: networkx.DiGraph[QuadRange],
+        add_op_no: bool = False,
+) -> None:
+    for quad_range, data in hb_graph.nodes(data=True):
+        data.setdefault("label", "")
+        data["cluster"] = str(quad_range.thread.pid)
+        labels = []
+        if len(list(hb_graph.predecessors(quad_range))) == 0:
+            labels.append("root")
+        for node in quad_range:
+            op = probe_log.get_op(node)
+            if add_op_no:
+                labels.append(f"{node.op_no}:")
+            if isinstance(op.data, ops.InitExecEpochOp):
+                labels.append(f"PID {node.pid} exec {node.exec_no}")
+            elif isinstance(op.data, ops.InitThreadOp):
+                labels.append(f"TID {node.tid}")
+            elif isinstance(op.data, ops.ExecOp):
+                labels.append(textwrap.fill(
+                    "exec " + textwrap.shorten(
+                        shlex.join([
+                            textwrap.shorten(
+                                arg.decode(errors="backslashreplace"),
+                                width=80,
+                            )
+                            for arg in op.data.argv
+                        ]),
+                        width=80 * 10,
+                    ),
+                    width=80,
+                ))
+            elif isinstance(op.data, ops.OpenOp):
+                access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
+                labels.append(f"OpenOp ({access})  fd={op.data.fd} {ptypes.InodeVersion.from_probe_path(op.data.path).inode.number} {op.data.path.path.decode()}")
+            elif isinstance(op.data, ops.StatOp):
+                labels.append(f"StatOp {ptypes.InodeVersion.from_probe_path(op.data.path).inode.number} {op.data.path.path.decode()}")
+            elif isinstance(op.data, ops.CloseOp):
+                labels.append(f"Close fd={op.data.fd} {ptypes.InodeVersion.from_probe_path(op.data.path).inode.number} {op.data.path.path.decode()}")
+            elif isinstance(op.data, ops.DupOp):
+                labels.append(f"DupOp fd={op.data.old} → fd={op.data.new}")
+            else:
+                labels.append(f"{op.data.__class__.__name__}")
+                # data["labelfontsize"] = 8
+            if getattr(op.data, "ferrno", 0) != 0:
+                labels[-1] = labels[-1] + " (failed)"
+                # data["color"] = "red"
+        data["label"] = "\n".join(labels)
 
     for node0, node1, edge_data in hb_graph.edges(data=True):
-        if node0.pid != node1.pid or node0.tid != node1.tid:
+        if node0.thread.pid != node1.thread.pid or node0.thread.tid != node1.thread.tid:
             edge_data["style"] = "dashed"
 
     if not networkx.is_directed_acyclic_graph(hb_graph):
@@ -297,3 +420,4 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             warnings.warn(ptypes.UnusualProbeLog(
                 "Cycle shown in red",
             ))
+3

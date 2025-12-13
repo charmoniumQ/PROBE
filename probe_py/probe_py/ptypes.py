@@ -1,4 +1,5 @@
 from __future__ import annotations
+import collections
 import dataclasses
 import enum
 import hmac
@@ -9,7 +10,6 @@ import random
 import socket
 import stat
 import typing
-import networkx
 import numpy
 from . import ops
 from . import consts
@@ -22,6 +22,8 @@ class Pid(int):
         """Returns the Tid of the main thread associated with this pid."""
         return Tid(self)
 
+    def exec_pair(self) -> ExecPair:
+        return ExecPair(self, initial_exec_no)
 
 class ExecNo(int):
     def prev(self) -> ExecNo:
@@ -192,6 +194,15 @@ class ExecPair:
     def __str__(self) -> str:
         return f"PID {self.pid} Exec {self.exec_no}"
 
+    def thread_triple(self, tid: Tid) -> ThreadTriple:
+        return ThreadTriple(self.pid, self.exec_no, tid)
+
+    def next(self) -> ExecPair:
+        return ExecPair(self.pid, self.exec_no.next())
+
+    def main_thread(self) -> ThreadTriple:
+        return ThreadTriple(self.pid, self.exec_no, self.pid.main_thread())
+
 
 @dataclasses.dataclass(frozen=True, order=True)
 class ThreadTriple:
@@ -201,6 +212,15 @@ class ThreadTriple:
 
     def exec_pair(self) -> ExecPair:
         return ExecPair(self.pid, self.exec_no)
+
+    def main_thread(self) -> ThreadTriple:
+        return ThreadTriple(self.pid, self.exec_no, self.pid.main_thread())
+
+    def op_quad(self, op_no: int) -> OpQuad:
+        return OpQuad(self.pid, self.exec_no, self.tid, op_no)
+
+    def other_thread(self, tid: Tid) -> ThreadTriple:
+        return ThreadTriple(self.pid, self.exec_no, tid)
 
     def __str__(self) -> str:
         return f"PID {self.pid} Exec {self.exec_no} TID {self.tid}"
@@ -213,11 +233,14 @@ class OpQuad:
     tid: Tid
     op_no: int
 
+    def exec_pair(self) -> ExecPair:
+        return ExecPair(self.pid, self.exec_no)
+
     def thread_triple(self) -> ThreadTriple:
         return ThreadTriple(self.pid, self.exec_no, self.tid)
 
-    def exec_pair(self) -> ExecPair:
-        return ExecPair(self.pid, self.exec_no)
+    def other_thread(self, tid: Tid, op_no: int) -> OpQuad:
+        return OpQuad(self.pid, self.exec_no, tid, op_no)
 
     def __str__(self) -> str:
         return f"PID {self.pid} Exec {self.exec_no} TID {self.tid} op {self.op_no}"
@@ -255,12 +278,17 @@ class ProbeLog:
     def get_op(self, op: OpQuad) -> ops.Op:
         return self.processes[op.pid].execs[op.exec_no].threads[op.tid].ops[op.op_no]
 
-    def ops(self) -> typing.Iterator[tuple[OpQuad, ops.Op]]:
+    def ops_by_thread(self) -> collections.abc.Iterable[tuple[ThreadTriple, collections.abc.Sequence[ops.Op]]]:
         for pid, process in sorted(self.processes.items()):
             for epoch, exec in sorted(process.execs.items()):
                 for tid, thread in sorted(exec.threads.items()):
-                    for op_no, op in enumerate(thread.ops):
-                        yield OpQuad(pid, epoch, tid, op_no), op
+                    thread_triple = ThreadTriple(pid, epoch, tid)
+                    yield thread_triple, thread.ops
+
+    def ops(self) -> collections.abc.Iterable[tuple[OpQuad, ops.Op]]:
+        for thread, thread_ops in self.ops_by_thread():
+            for op_no, op in enumerate(thread_ops):
+                yield OpQuad(thread.pid, thread.exec_no, thread.tid, op_no), op
 
     def get_root_pid(self) -> Pid:
         for quad, op in self.ops():
@@ -362,8 +390,3 @@ class Access:
     path: pathlib.Path
     op_node: OpQuad
     fd: int | None
-
-if typing.TYPE_CHECKING:
-    HbGraph: typing.TypeAlias = networkx.DiGraph[OpQuad]
-else:
-    HbGraph = networkx.DiGraph

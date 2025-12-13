@@ -149,16 +149,7 @@ def hb_graph(
     """
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
-    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    match retain:
-        case OpType.ALL:
-            pass
-        case OpType.MINIMAL:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
-        case OpType.FILE:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
-        case OpType.SUCCESSFUL:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp))
+    hbg = hb_graph_module.HbGraph(probe_log_obj)._dag
     hb_graph_module.label_nodes(probe_log_obj, hbg, show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
@@ -192,8 +183,8 @@ def dataflow_graph(
     """
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
-    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    hb_graph_module.label_nodes(probe_log_obj, hbg)
+    hbg = hb_graph_module.HbGraph(probe_log_obj)
+    # hb_graph_module.label_nodes(probe_log_obj, hbg)
     dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log_obj, hbg)
     compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
     dataflow_graph_module.label_nodes(probe_log_obj, compressed_dfg, inode_to_paths)
