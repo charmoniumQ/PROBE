@@ -1,13 +1,15 @@
 from __future__ import annotations
 import collections.abc
 import dataclasses
+import datetime
+import getpass
 import enum
 import itertools
-import json
 import pathlib
 import shlex
+import shutil
+import subprocess
 import typing
-import urllib.parse
 import networkx
 import rdflib
 
@@ -194,106 +196,114 @@ def to_wrroc(
         rules: It[Rule],
         include_env: bool
 ) -> None:
-    entities = set[pathlib.Path]()
-    softwares = set[pathlib.Path]()
-    actions = []
+    all_files = set()
+    def get_bnode(file: pathlib.Path) -> rdflib.Node:
+        all_files.add(file)
+        return rdflib.URIRef("file://" + str(file))
+        # id = files.setdefault(entity.name, {}).setdefault(entity, len(files[entity.name]))
+        # return rdflib.URIRef(f"file-{entity.name}" + "" if id == 0 else f"-{id}")
     envs = {}
-    quote = lambda path: urllib.parse.quote_plus(str(path))
+    softwares = set()
+    directories = set()
+    graph = rdflib.Graph()
+    schemaorg = rdflib.namespace.Namespace("http://schema.org/")
+    dct = rdflib.namespace.Namespace("http://purl.org/dc/terms/")
+    prov = rdflib.namespace.Namespace("http://www.w3.org/ns/prov#")
+    rdf = rdflib.namespace.RDF
+    custom = rdflib.namespace.Namespace("http://example.com/")
+    nfo = rdflib.namespace.Namespace("https://www.semanticdesktop.org/ontologies/2007/03/22/nfo/#")
+    wfprov = rdflib.namespace.Namespace("http://purl.org/wf4ever/wfprov#")
+    foaf = rdflib.namespace.FOAF
+    graph.bind("schemaorg", schemaorg)
+    graph.bind("dct", dct)
+    graph.bind("prov", prov)
+    graph.bind("rdf", rdf)
+    graph.bind("custom", custom)
+    graph.bind("nfo", nfo)
+    graph.bind("wfprov", wfprov)
+    graph.bind("foaf", foaf)
+    username = getpass.getuser()
+    agent = rdflib.BNode(f"user-{username}")
+    graph.add((agent, rdf.type, foaf.Agent))
+    graph.add((agent, rdf.type, prov.Agent))
+    graph.add((agent, foaf.name, rdflib.Literal(username)))
     for i, rule in enumerate(rules):
-        entities.update(rule.inputs)
-        entities.update(rule.outputs)
         softwares.add(rule.exe)
         env_hash = hash(frozenset(rule.env))
         envs[env_hash] = rule.env
-        actions.append({
-            "@id": f"#action_{rule.exe.name}_{i}",
-            "@type": [
-                "http://schema.org/CreateAction",
-                "http://www.w3.org/ns/prov#activity",
-            ],
-            "http://schema.org/description": shlex.join(argv.decode() for argv in rule.argv),
-            "http://schema.org/instrument": {"@id": f"#software_{quote(rule.exe.name)}"},
-            "http://www.w3.org/ns/prov#used": [
-                {"@id": f"#file_{quote(entity)}"}
-                for entity in rule.inputs
-            ],
-            "http://schema.org/object": [
-                {"@id": f"#file_{quote(entity)}"}
-                for entity in rule.inputs
-            ],
-            "http://www.w3.org/ns/prov#generated": [
-                {"@id": f"#file_{quote(entity)}"}
-                for entity in rule.outputs
-            ],
-            "http://schema.org/result": [
-                {"@id": f"#file_{quote(entity)}"}
-                for entity in rule.outputs
-            ],
-            "http://samgrayson.me/cwd": str(rule.cwd),
-            "http://samgrayson.me/env": f"#env_{env_hash}",
-        })
+        action = rdflib.BNode(f"action-{rule.exe.name}-{i}")
+        graph.add((action, rdf.type, schemaorg.CreateAction))
+        graph.add((action, rdf.type, prov.activity))
+        graph.add((action, rdf.type, wfprov.ProcessRun))
+        # TODO:  prov:startedAtTime , prov:endedAtTime
+        graph.add((action, schemaorg.description, rdflib.Literal(shlex.join(argv.decode() for argv in rule.argv))))
+        graph.add((action, schemaorg.instrument, get_bnode(rule.exe)))
+        graph.add((action, wfprov.wasInitiatedBy, agent))
+        graph.add((action, prov.wasAssociatedWith, agent))
+        softwares.add(rule.exe)
+        if rule.cwd is not None:
+            graph.add((action, custom.cwd, get_bnode(pathlib.Path(rule.cwd))))
+            directories.add(rule.cwd)
+        for entity in rule.inputs:
+            graph.add((action, prov.used, get_bnode(entity)))
+            graph.add((action, schemaorg.object, get_bnode(entity)))
+            graph.add((action, wfprov.usedInput, get_bnode(entity)))
+        for entity in rule.outputs:
+            graph.add((action, prov.generated, get_bnode(entity)))
+            graph.add((action, schemaorg.result, get_bnode(entity)))
+            graph.add((action, wfprov.wasOutputFrom, get_bnode(entity)))
 
-    (directory / "ro-crate-metadata.json").write_text(json.dumps([
-        {
-            "@id": "ro-crate-metadata.json",
-            "@type": "http://schema.org/CreativeWork",
-            "http://schema.org/about": {"@id": "./"},
-            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/crate/1.2"},
-        },
-        {
-            "@id": "./",
-            "@type": "http://schema.org/Dataset",
-            "http://purl.org/dc/terms/conformsTo": {"@id": "http://w3id.org/ro/wfrun/process/0.5"},
-        },
-        *actions,
-        *[
-            {
-                "@id": f"#file_{quote(entity)}",
-                "@type": [
-                    "http://schema.org/MediaObject",
-                    "http://www.w3.org/ns/prov#entity",
-                ],
-                "http://schema.org/name": str(entity),
-            }
-            for entity in entities
-        ],
-        *[
-            {
-                "@id": f"#software_{quote(software)}",
-                "@type": "http://schema.org/SoftwareApplication",
-                "http://schema.org/name": str(software),
-            }
-            for software in softwares
-        ],
-        *([
-            {
-                "@id": f"#env_{env_hash}",
-                "@value": [row.decode().split("=") for row in env]
-            }
-            for env_hash, env in envs.items()
-        ] if include_env else []),
-    ], indent=2))
-    graph = rdflib.Graph()
-    graph.bind("schema", rdflib.namespace.Namespace("http://schema.org/"))
-    graph.bind("dct", rdflib.namespace.Namespace("http://purl.org/dc/terms/"))
-    graph.bind("prov", rdflib.namespace.Namespace("http://www.w3.org/ns/prov#"))
-    graph.bind("sg", rdflib.namespace.Namespace("http://samgrayson.me"))
-    graph.parse("ro-crate-metadata.json")
+    for file in all_files:
+        bnode = get_bnode(file)
+        graph.add((bnode, rdf.type, prov.Entity))
+        if file in softwares:
+            graph.add((bnode, rdf.type, schemaorg.SoftwareApplication))
+            graph.add((bnode, rdf.type, nfo.Executable))
+        elif file in directories:
+            graph.add((bnode, rdf.type, schemaorg.Collection))
+            graph.add((bnode, rdf.type, nfo.Folder))
+        else:
+            graph.add((bnode, rdf.type, schemaorg.MediaObject))
+            graph.add((bnode, rdf.type, nfo.FileDataObject))
+            graph.add((bnode, rdf.type, wfprov.Artifact))
+        graph.add((bnode, schemaorg.name, rdflib.Literal(str(file.name))))
+        graph.add((bnode, nfo.fileName, rdflib.Literal(str(file.name))))
+        file_bin = shutil.which("file")
+        # TODO: do this at probe record time.
+        # TODO: Put in user/agent info
+        if file.exists():
+            if file_bin:
+                graph.add((
+                    bnode,
+                    nfo.encoding,
+                    rdflib.Literal(subprocess.run([file_bin, "--mime-encoding", "--brief", file], check=True, capture_output=True, text=True).stdout.strip()),
+                ))
+                graph.add((
+                    bnode,
+                    nfo.encoding,
+                    rdflib.Literal(subprocess.run([file_bin, "--mime-type", "--brief", file], check=True, capture_output=True, text=True).stdout.strip()),
+                ))
+            file_stat = file.stat()
+            graph.add((bnode, nfo.fileLastModified, rdflib.Literal(datetime.datetime.fromtimestamp(file_stat.st_mtime))))
+            graph.add((bnode, nfo.fileSize, rdflib.Literal(file_stat.st_size)))
+            # TODO: prov creation date
+
+    graph.serialize("ro-crate-metadata.json", format="json-ld")
     graph.serialize("ro-crate-metadata.xml", format="xml")
     graph.serialize("ro-crate-metadata.ttl", format="ttl")
-    relevant_owls = [
-        "https://www.w3.org/ns/prov-o",
-        # not really that useful
-        # See https://www.semanticarts.com/dublin-core-and-owl/
-        "https://protege.stanford.edu/plugins/owl/dc/terms.owl",
-        "https://schema.org/docs/schemaorg.owl",
-    ]
-    relevant_shacls = [
-        "https://raw.githubusercontent.com/schemaorg/schemaorg/refs/heads/main/data/releases/29.3/schemaorg-shapes.shacl"
-    ]
-    relevent_shexjs = [
-        "https://github.com/schemaorg/schemaorg/blob/main/data/releases/29.3/schemaorg-shapes.shexj"
-    ]
+    # relevant_owls = [
+    #     "https://www.w3.org/ns/prov-o",
+    #     # not really that useful
+    #     # See https://www.semanticarts.com/dublin-core-and-owl/
+    #     "https://protege.stanford.edu/plugins/owl/dc/terms.owl",
+    #     "https://schema.org/docs/schemaorg.owl",
+    # ]
+    # relevant_shacls = [
+    #     "https://raw.githubusercontent.com/schemaorg/schemaorg/refs/heads/main/data/releases/29.3/schemaorg-shapes.shacl"
+    # ]
+    # relevent_shexjs = [
+    #     "https://github.com/schemaorg/schemaorg/blob/main/data/releases/29.3/schemaorg-shapes.shexj"
+    # ]
 
 
 def get_exec_pair_graph(probe_log: ptypes.ProbeLog) -> networkx.DiGraph[ptypes.ExecPair]:
