@@ -5,7 +5,6 @@
 #include <features.h>  // for __GLIBC_MINOR__, __GLIBC__
 #include <stdbool.h>   // for bool, false
 #include <stdint.h>    // for uint32_t, int32_t, uint64_t, int64_t
-#include <sys/stat.h>  // IWYU pragma: keep for statx_timestamp
 #include <sys/time.h>  // for timeval
 #include <sys/types.h> // for pid_t, mode_t, gid_t, ino_t, uid_t
 #include <time.h>      // for timespec
@@ -47,35 +46,50 @@ struct my_rusage {
     long int ru_nivcsw;
 };
 
-struct Path {
-    int32_t dirfd_minus_at_fdcwd; /* valid if path is non-null */
-    const char* path;             /* valid if non-null */
-    /* rest are valid if stat_valid */
-    unsigned int device_major;
-    unsigned int device_minor;
-    ino_t inode;
-    uint16_t mode;
-    struct statx_timestamp mtime;
-    struct statx_timestamp ctime;
-    size_t size;
-    bool stat_valid;
+typedef uint16_t OpenNumber;
+
+struct Timestamp {
+    int64_t tv_sec;
+    uint32_t tv_nsec;
 };
 
-static const struct Path null_path = {-1, NULL, -1, -1, -1, 0, {0}, {0}, 0, false};
-/* We don't need to free paths since I switched to the Arena allocator */
-/* static void free_path(struct Path path); */
+struct StatxTruncated {
+    /* This struct is a truncation of the statx struct.
+     * https://www.man7.org/linux/man-pages/man2/statx.2.html
+     * */
+    uint32_t stx_mask;
+    uint32_t stx_blksize;
+    uint64_t stx_attributes;
+    uint32_t stx_nlink;
+    uint32_t stx_uid;
+    uint32_t stx_gid;
+    uint16_t stx_mode;
+    uint64_t stx_ino;
+    uint64_t stx_size;
+    uint64_t stx_blocks;
+    uint64_t stx_attributes_mask;
+    struct Timestamp stx_atime;
+    struct Timestamp stx_btime;
+    struct Timestamp stx_ctime;
+    struct Timestamp stx_mtime;
+    uint32_t stx_rdev_major;
+    uint32_t stx_rdev_minor;
+    uint32_t stx_dev_major;
+    uint32_t stx_dev_minor;
+};
+
+struct Path2 {
+    int32_t dirfd_minus_at_fdcwd;
+    OpenNumber dirfd_open_number;
+    const char* path;
+};
 
 struct InitExecEpochOp {
     pid_t parent_pid;
     pid_t pid;
     unsigned int epoch;
-    struct Path cwd;
-    struct Path exe;
     char* const* argv;
     char* const* env;
-    struct Path std_in;
-    struct Path std_out;
-    struct Path std_err;
 };
 
 struct InitThreadOp {
@@ -83,28 +97,22 @@ struct InitThreadOp {
 };
 
 struct OpenOp {
-    struct Path path;
+    struct Path2 path;
+    int fd;
+    OpenNumber open_number;
+    struct StatxTruncated stat;
     int flags;
     mode_t mode;
-    int32_t fd;
-    int ferrno;
-    /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
 };
 
 struct CloseOp {
-    int32_t fd;
-    int ferrno;
-    struct Path path;
-};
-
-struct ChdirOp {
-    struct Path path;
-    int ferrno;
+    OpenNumber open_number;
+    int fd;
 };
 
 struct ExecOp {
-    struct Path path;
-    int ferrno;
+    struct Path2 path;
+    // FIXME: exec should get marked as a read
     char* const* argv;
     char* const* env;
 };
@@ -112,7 +120,6 @@ struct ExecOp {
 struct SpawnOp {
     struct ExecOp exec;
     pid_t child_pid;
-    int ferrno;
 };
 
 enum TaskType {
@@ -127,7 +134,6 @@ struct CloneOp {
     bool run_pthread_atfork_handlers;
     enum TaskType task_type;
     int64_t task_id;
-    int ferrno;
 };
 
 struct ExitProcessOp {
@@ -139,42 +145,21 @@ struct ExitThreadOp {
 };
 
 struct AccessOp {
-    struct Path path;
+    struct Path2 path;
     int mode;
     int flags;
-    int ferrno;
-};
-
-struct StatResult {
-    uint32_t mask;
-    uint32_t nlink;
-    uint32_t uid;
-    uint32_t gid;
-    uint16_t mode;
-    uint64_t ino;
-    uint64_t size;
-    uint64_t blocks;
-    uint32_t blksize;
-    struct statx_timestamp atime;
-    struct statx_timestamp btime;
-    struct statx_timestamp ctime;
-    struct statx_timestamp mtime;
-    uint32_t dev_major;
-    uint32_t dev_minor;
 };
 
 struct StatOp {
-    struct Path path;
+    struct Path2 path;
     int flags;
-    int ferrno;
-    struct StatResult stat_result;
+    struct StatxTruncated statx_buf;
 };
 
 struct ReaddirOp {
-    struct Path dir;
-    char* child;
+    struct Path2 dir;
+    const char* child;
     bool all_children;
-    int ferrno;
 };
 
 /*
@@ -216,7 +201,6 @@ struct WaitOp {
     int status;
     bool cancelled;
     struct my_rusage usage;
-    int ferrno;
 };
 
 enum MetadataKind {
@@ -239,51 +223,45 @@ union MetadataValue {
 };
 
 struct UpdateMetadataOp {
-    struct Path path;
+    struct Path2 path;
     int flags;
     enum MetadataKind kind;
     union MetadataValue value;
-    int ferrno;
 };
 
 struct ReadLinkOp {
-    struct Path linkpath;
+    struct Path2 linkpath;
     const char* referent;
     bool truncation;
     bool recursive_dereference;
-    int ferrno;
 };
 
 struct DupOp {
-    struct Path path;
     int old;
     int new;
+    OpenNumber dupped;
+    OpenNumber closed;
     int flags;
-    int ferrno;
 };
 
 struct HardLinkOp {
-    struct Path old;
-    struct Path new;
-    int ferrno;
+    struct Path2 old;
+    struct Path2 new;
 };
 
 struct SymbolicLinkOp {
     const char* old;
-    struct Path new;
-    int ferrno;
+    struct Path2 new;
 };
 
 struct UnlinkOp {
-    struct Path path;
+    struct Path2 path;
     int unlink_type;
-    int ferrno;
 };
 
 struct RenameOp {
-    struct Path src;
-    struct Path dst;
-    int ferrno;
+    struct Path2 src;
+    struct Path2 dst;
 };
 
 enum FileType {
@@ -293,11 +271,10 @@ enum FileType {
 };
 
 struct MkFileOp {
-    struct Path path;
+    struct Path2 path;
     enum FileType file_type;
     int flags;
     mode_t mode;
-    int ferrno;
 };
 
 enum OpCode {
@@ -307,7 +284,6 @@ enum OpCode {
     init_thread_op_code,
     open_op_code,
     close_op_code,
-    chdir_op_code,
     exec_op_code,
     spawn_op_code,
     clone_op_code,
@@ -335,7 +311,6 @@ struct Op {
         struct InitThreadOp init_thread;
         struct OpenOp open;
         struct CloseOp close;
-        struct ChdirOp chdir;
         struct ExecOp exec;
         struct SpawnOp spawn;
         struct CloneOp clone;
@@ -354,9 +329,13 @@ struct Op {
         struct RenameOp rename;
         struct MkFileOp mkfile;
     } data;
-    struct timespec time;
+
+    /* Note, we use ferrno in these structs because errno is something magical (maybe a macro?) */
+    uint16_t ferrno;
+
+    // TODO: eliminate this
     uint16_t pthread_id;
-    thrd_t iso_c_thread_id;
+    thrd_t iso_c_thread_id;    
 };
 
 /* We don't need this since we switched to an Arena allocator */

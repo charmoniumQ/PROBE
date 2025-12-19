@@ -202,7 +202,6 @@ pub struct UpdateMetadataOp {
     pub path: Path,
     pub flags: ::std::os::raw::c_int,
     pub metadata: Metadata,
-    pub ferrno: ::std::os::raw::c_int,
 
     #[serde(serialize_with = "UpdateMetadataOp::serialize_type")]
     #[serde(skip_deserializing)]
@@ -229,7 +228,6 @@ impl FfiFrom<C_UpdateMetadataOp> for UpdateMetadataOp {
                     msg: "Unable to decode Metadata",
                     inner: Box::new(e),
                 })?,
-            ferrno: value.ferrno,
 
             _type: (),
         })
@@ -247,8 +245,6 @@ pub enum OpInternal {
     OpenOp(OpenOp),
     #[serde(untagged)]
     CloseOp(CloseOp),
-    #[serde(untagged)]
-    ChdirOp(ChdirOp),
     #[serde(untagged)]
     ExecOp(ExecOp),
     #[serde(untagged)]
@@ -300,7 +296,6 @@ impl FfiFrom<C_Op> for OpInternal {
             }
             C_OpCode_open_op_code => Self::OpenOp(unsafe { value.open }.ffi_into(ctx)?),
             C_OpCode_close_op_code => Self::CloseOp(unsafe { value.close }.ffi_into(ctx)?),
-            C_OpCode_chdir_op_code => Self::ChdirOp(unsafe { value.chdir }.ffi_into(ctx)?),
             C_OpCode_exec_op_code => Self::ExecOp(unsafe { value.exec }.ffi_into(ctx)?),
             C_OpCode_spawn_op_code => Self::SpawnOp(unsafe { value.spawn }.ffi_into(ctx)?),
             C_OpCode_clone_op_code => Self::CloneOp(unsafe { value.clone }.ffi_into(ctx)?),
@@ -338,7 +333,7 @@ impl FfiFrom<C_Op> for OpInternal {
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub struct Op {
     pub data: OpInternal,
-    pub time: Timespec,
+    pub ferrno: u16,
     pub pthread_id: u16,
     pub iso_c_thread_id: thrd_t,
 
@@ -360,7 +355,7 @@ impl FfiFrom<C_Op> for Op {
     fn ffi_from(value: &C_Op, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             data: value.ffi_into(ctx)?,
-            time: value.time.ffi_into(ctx)?,
+            ferrno: value.ferrno,
             pthread_id: value.pthread_id,
             iso_c_thread_id: value.iso_c_thread_id,
 

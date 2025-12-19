@@ -575,6 +575,7 @@ libc_hooks_c_preamble = """
 #include <sched.h>                                           // for CLONE_TH...
 #include <spawn.h>                                           // for posix_spawn_file_actions_t
 #include <stdarg.h>                                          // for va_arg
+#include <stdatomic.h>
 #include <stdbool.h>                                         // for false, true
 #include <stdint.h>                                          // for int64_t
 #include <stdio.h>                                           // for fileno
@@ -589,6 +590,7 @@ libc_hooks_c_preamble = """
 // IWYU pragma: no_include "linux/limits.h"                     for PATH_MAX
 
 #include "../include/libprobe/prov_ops.h"                    // for Op, OpCode
+#include "../generated/open_numbering.h"
 #include "../src/arena.h"                                    // for prov_log...
 #include "../src/debug_logging.h"                            // for DEBUG
 #include "../src/env.h"                                      // for arena_co...

@@ -55,17 +55,21 @@ def multilevel_table(
         "",
         f"// sizeof table with one entry = {sizeof_one_entry / 1024:.1f}KiB = {sizeof_one_entry / 1024 / 1024:.1f}MiB",
     ]))
+    checks = [
+        f"  if (index < {1 << log_length}L) {{ fprintf(stderr, \"%d-bit table not big enough to accomodate %lu\\n\", {log_length}, index); abort(); }}",
+        "  _Static_assert(ATOMIC_BOOL_LOCK_FREE, \"\");",
+        "  _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
+    ]
     c_source.write_text("\n".join([
-        "#include <sched.h>",
+        "#include <assert.h>",
         "#include <stdlib.h>",
         "#include \"../src/debug_logging.h\"",
         f"#include \"{c_header}\"",
         "",
         "#define _BITS(value, low, length) (((((1L << length) - 1L) << low) & value) >> low)",
         "",
-        f"const _Atomic({value_type})* _Nullable {snakecase}_address_of_weak(const struct {camel_case}* _Nonnull {snakecase}, {index_type} index) {{",
-        "    _Static_assert(ATOMIC_BOOL_LOCK_FREE, \"\");",
-        "    _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
+        f"const _Atomic({value_type})* _Nullable {snakecase}_address_of_const(const struct {camel_case}* _Nonnull {snakecase}, {index_type} index) {{",
+        *checks,
         f"  const struct _{camel_case}0Struct* struct0 = &{snakecase}->inner;",
         "",
         *itertools.chain.from_iterable([
@@ -80,7 +84,8 @@ def multilevel_table(
         f"  return &struct{last_level}->array[_BITS(index, {lowest_bit[last_level]}L, {log_lengths[last_level]}L)];",
         "}",
         "",
-        f"_Atomic({value_type})* _Nonnull {snakecase}_address_of_strong(struct {camel_case}* _Nonnull {snakecase}, {index_type} index) {{",
+        f"_Atomic({value_type})* _Nonnull {snakecase}_address_of(struct {camel_case}* _Nonnull {snakecase}, {index_type} index) {{",
+        *checks,
         f"  struct _{camel_case}0Struct* struct0 = &{snakecase}->inner;",
         "",
         *itertools.chain.from_iterable([

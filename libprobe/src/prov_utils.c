@@ -21,60 +21,41 @@
 #include "prov_buffer.h"                  // for prov_log_record, prov_log_try
 #include "util.h"                         // for CHECK_SNPRINTF, BORROWED
 
-struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags) {
-    ASSERTF((path && dirfd != -1) || (!path && (dirfd == -1 || (flags & AT_EMPTY_PATH))),
-            "Either dirfd and path are both set, both unset, or AT_EMPTY_PATH: %d %s %d", dirfd,
-            path, fd);
-    ASSERTF(dirfd != 0 || (path && path[0] == '/'), "dirfd==0 implies absolute path: %d %s %d",
-            dirfd, path, fd);
-    if (LIKELY(prov_log_is_enabled())) {
-        struct Path ret = {
-            dirfd - AT_FDCWD,
-            (path != NULL ? EXPECT_NONNULL(arena_strndup(get_data_arena(), path, PATH_MAX)) : NULL),
-            -1,
-            -1,
-            -1,
-            0,
-            {0},
-            {0},
-            0,
-            false,
-        };
+struct OpenNumbering _open_numbering;
+_Atomic(OpenNumber) _unused_open_number = 1;
 
-        struct statx statx_buf;
-        result stat_ret;
-        if (fd != -1) {
-            stat_ret = probe_libc_statx(fd, NULL, flags | AT_EMPTY_PATH,
-                                        STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
-                                            STATX_CTIME | STATX_SIZE,
-                                        &statx_buf);
-            if (stat_ret == 0) {
-                WARNING("We got a bad FD; could be the client's fault? fd=%d stat_ret=%d", fd,
-                        stat_ret);
-            }
-        } else {
-            stat_ret = probe_libc_statx(dirfd, path, flags,
-                                        STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
-                                            STATX_CTIME | STATX_SIZE,
-                                        &statx_buf);
-        }
-        if (stat_ret == 0) {
-            ret.device_major = statx_buf.stx_dev_major;
-            ret.device_minor = statx_buf.stx_dev_minor;
-            ret.mode = statx_buf.stx_mode;
-            ret.inode = statx_buf.stx_ino;
-            ret.mtime = statx_buf.stx_mtime;
-            ret.ctime = statx_buf.stx_ctime;
-            ret.size = statx_buf.stx_size;
-            ret.stat_valid = true;
-        } else {
-            DEBUG("Stat of %d,%s is not valid", dirfd, path);
-        }
-        return ret;
-    } else {
-        DEBUG("prov log not enabled");
-        return null_path;
+struct Path2 to_path(int dirfd, const char* filename, size_t length) {
+    return (struct Path2) {
+        .dirfd_minus_at_fdcwd = dirfd - AT_FDCWD,
+        .dirfd_open_number = open_numbering_address_of(_open_numbering, dirfd - AT_FDCWD),
+        .path = filename ? arena_strndup(get_data_arena(), filename, length ? length : PATH_MAX) : NULL;
     }
+}
+
+OpenNumber open_numbering_new(int fd) {
+    OpenNumber new = atomic_fetch_add(&unused_open_number, 1);
+    ASSERTF(new < (1L << 16) - 10, "Awfully close to the largest possible open-number. Consider resizing");
+    OpenNumber old = atomic_exchange(open_numbering_address_of_strong(&open_numbering, fd - AT_FDCWD), open_number);
+    if (old) {
+        WARNING("Open returned fd=%d, but fd=%d is already occupied by open_number=%d", fd, fd, old);
+    }
+}
+
+OpenNumber open_numbering_close(int fd) {
+    return atomic_exchange(open_numbering_address_of_strong(&open_numbering, fd - AT_FDCWD), 0);
+}
+
+OpenNumber open_numbering_dup(int oldfd, int newfd, OpenNumber* closed_dest) {
+    OpenNumber dupped = atomic_load(open_numbering_address_of_strong(&open_numbering, old - AT_FDCWD));
+    OpenNumber closed = atomic_exchange(open_numbering_address_of_strong(&open_numbering, ret - AT_FDCWD), dupped);
+    if (closed) {
+        if (closed_dest) {
+            *closed_fd = closed;
+        } else {
+            ERROR("Dup returned fd=%d, but fd=%d is already occupied by open_number=%d", newfd, newfd, closed);
+        }
+    }
+    return dupped;
 }
 
 void path_to_id_string(const struct Path* path, BORROWED char* string) {
@@ -83,6 +64,100 @@ void path_to_id_string(const struct Path* path, BORROWED char* string) {
         path->device_minor, path->inode,
         /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
         (long long int)path->mtime.tv_sec, path->mtime.tv_nsec, path->size);
+}
+
+struct StatxTruncated my_fstat(int fd, int stat_flags) {
+    struct statx statx_buf;
+    int ret = statx(fd, "", AT_EMPTY_PATH, STATX_INO | STATX_TYPE | STATX_MTIME, &statx_buf);
+    if (UNLIKELY(ret != 0)) {
+        statx_buf.stx_ino = 0;
+    }
+    return *(struct StatResult&)&statx_buf;
+}
+
+struct StatxTruncated copy_if_necessary(int fd, int open_flags) {
+    enum CopyFiles mode = get_copy_files_mode();
+    struct statx statx_buf = my_fstat(fd, 0);
+    enum Access access = UNKNOWN_ACCESS;
+    if ((op.data.open.flags & O_ACCMODE) == O_RDONLY) {
+        access = READ_ACCESS;
+    } else if (op.data.open.flags & (O_TRUNC | O_CREAT)) {
+        access = TRUNCATE_WRITE_ACCESS;
+    } else if ((op.data.open.flags & O_ACCMODE) == O_WRONLY) {
+        access = WRITE_ACCESS;
+    } else if ((op.data.open.flags & O_ACCMODE) == O_RDWR) {
+        access = READ_WRITE_ACCESS;
+    } else {
+        ERROR("unreachable code, %d %08x", fd, flags);
+    }
+    if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly) && ret == 0) {
+        struct InodeTable* read_inodes = get_read_inodes();
+        struct InodeTable* coo_inodes = get_copied_or_overwritten_inodes();
+
+        ASSERTF(statx_buf.stx_dev_major < 256,
+                "Unexpectedly large device major number, %d. Resize inode table levels",
+                statx_buf.stx_dev_major);
+        ASSERTF(statx_buf.stx_dev_minor < 256,
+                "Unexpectedly large device minor number, %d. Resize inode table levels",
+                statx_buf.stx_dev_minor);
+        ASSERTF(path->inode <= (1L << 32), "Unexpectedly large inode, %d. Resize inode table levels", statx_buf.stx_ino);
+        uint64_t index = (((uint64_t)(statx_buf.stx_dev_major)) << 48L) |
+                         (((uint64_t)(statx_buf.stx_dev_minor)) << 32L) |
+                         statx_buf.stx_ino;
+
+        if (mode == CopyFiles_Lazily) {
+            if (access == READ_ACCESS) {
+                DEBUG("Reading %d %08lx", fd, statx_buf.stx_ino);
+                _Atomic(bool)* _Nonnull read_loc = inode_table_address_of_strong(read_inodes, index);
+                atomic_store(read_loc, true);
+            } else if (access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
+                _Atomic(bool)* _Nonnull coo_loc = inode_table_address_of_strong(coo_inodes, index);
+                if (atomic_exchange(coo_loc, true)) {
+                    DEBUG("Mutating, but not copying %d %08lx since it is copied already or "
+                          "overwritten",
+                          fd, statx_buf.stx_ino);
+                } else {
+                    DEBUG("Mutating, therefore copying %d %08lx", fd, statx_buf.stx_ino);
+                    if (copy_to_store(path) != 0) {
+                        ERROR("Copying failed");
+                    }
+                }
+            } else if (access == TRUNCATE_WRITE_ACCESS) {
+                _Atomic(bool)* _Nonnull read_loc = inode_table_address_of_strong(read_inodes, index);
+                if (atomic_load(read_loc)) {
+                    _Atomic(bool)* _Nonnull coo_loc = inode_table_address_of_strong(coo_inodes, index);
+                    if (atomic_exchange(coo_loc, true)) {
+                        DEBUG("Mutating, but not copying %d %08lx since it is copied already or "
+                              "overwritten", fd, statx_buf.stx_ino);
+                    } else {
+                        DEBUG("Replace after read %d %08lx", fd, statx_buf.stx_ino);
+                        if (copy_to_store(path) != 0) {
+                            ERROR("Copying failed");
+                        }
+                    }
+                } else {
+                    DEBUG("Mutating, but not copying %d %08lx since it was never read", fd, statx_buf.stx_ino);
+                }
+            }
+        } else if (access == READ_ACCESS || access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
+            ASSERTF(mode == CopyFiles_Eagerly, "");
+            _Atomic(bool)* _Nonnull coo_loc = inode_table_address_of_strong(coo_inodes, index);
+            if (atomic_exchange(coo_loc, true)) {
+                DEBUG("Not copying %d %08lx because already did", fd, statx_buf.stx_ino);
+            } else {
+                if (copy_to_store(path) != 0) {
+                    ERROR("Copying failed");
+                }
+            }
+        }
+    }
+    if (flags & O_TRUNC) {
+        int ret2 = ftruncate(fd, 0);
+        if (UNLIKELY(ret2 != 0)) {
+            ERROR("Open succeeded, but truncate failed");
+        }
+    }
+    return statx_buf;
 }
 
 int fopen_to_flags(BORROWED const char* fopentype) {
@@ -275,26 +350,6 @@ void stat_result_from_stat(struct StatResult* stat_result_buf, struct stat* stat
     stat_result_buf->ctime.tv_nsec = stat_buf->st_ctim.tv_nsec;
     stat_result_buf->blocks = stat_buf->st_blocks;
     stat_result_buf->blksize = stat_buf->st_blksize;
-}
-
-void stat_result_from_statx(struct StatResult* stat_result_buf, struct statx* statx_buf) {
-    stat_result_buf->mask = statx_buf->stx_mask;
-    stat_result_buf->mode = statx_buf->stx_mode;
-    stat_result_buf->ino = statx_buf->stx_ino;
-    stat_result_buf->dev_major = statx_buf->stx_dev_major;
-    stat_result_buf->dev_major = statx_buf->stx_dev_minor;
-    stat_result_buf->nlink = statx_buf->stx_nlink;
-    stat_result_buf->uid = statx_buf->stx_uid;
-    stat_result_buf->gid = statx_buf->stx_gid;
-    stat_result_buf->size = statx_buf->stx_size;
-    stat_result_buf->atime.tv_sec = statx_buf->stx_atime.tv_sec;
-    stat_result_buf->atime.tv_nsec = statx_buf->stx_atime.tv_nsec;
-    stat_result_buf->mtime.tv_sec = statx_buf->stx_mtime.tv_sec;
-    stat_result_buf->mtime.tv_nsec = statx_buf->stx_mtime.tv_nsec;
-    stat_result_buf->ctime.tv_sec = statx_buf->stx_ctime.tv_sec;
-    stat_result_buf->ctime.tv_nsec = statx_buf->stx_ctime.tv_nsec;
-    stat_result_buf->blocks = statx_buf->stx_blocks;
-    stat_result_buf->blksize = statx_buf->stx_blksize;
 }
 
 /* TODO: Use the Musl rusage as the source-of-truth, and we will all be good to memcpy */

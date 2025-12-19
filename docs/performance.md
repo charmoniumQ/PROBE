@@ -15,4 +15,4 @@ Deduplicate information that is currently in both: ExecOp and InitExecOp.
 On the one hand, the information is passed _by_ (i.e., created/set by) the parent exec op. On the other hand, the "root" exec would be missing, as that comes from probe CLI, prior to LD_PRELOAD being set. Also if we ever find ourselves in a process created by a raw syscall, it may be nice to note our current surroundings.
 Resolved: Track it all in ExecOp, unless the current ExecOp is "unmarked". All probe-interposed exec*-family lib calls "mark" the target exec-op, indicated by the process_context.
 
-arena, inode_table, and possibly other objects are held by pointer, necessitating 1 extra pointer dereference
+arenas and possibly other objects are held by pointer, necessitating 1 extra pointer dereference and sometimes 1 func call. Instead, access them directly (possibly through macros).

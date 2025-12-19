@@ -6,7 +6,8 @@ CFLAGS := \
     -Werror \
     -Wall \
     -Wextra \
-    -fstrict-aliasing
+    -fstrict-aliasing \
+	-ferror-limit=100
 # musl-clang wrapper triggers -Wno-unused-command-line-argument.
 # But musl with clang (normal invocation) does not.
 
@@ -53,6 +54,7 @@ $(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
 	python3 ./generator/radix_table.py generated/inode_table.h generated/inode_table.c 'inode table' bool 8 8 16 16
+	python3 ./generator/radix_table.py generated/open_numbering.h generated/open_numbering.c 'open numbering' uint16_t 16
 
 compile_commands.json: $(BUILD_DIR)/libprobe.dbg.so
 	echo '[' > $@
