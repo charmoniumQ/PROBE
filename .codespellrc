@@ -1,0 +1,11 @@
+[codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = .git*,*.pdf,*.svg,*.lock,*.css,*.bib,*.dot,.codespellrc,.cache,*/kaggle,test2.tex,*/quantum-espresso,search.csv
+check-hidden = true
+# Protect URLs from corrections (e.g., nd.edu) and embedded images in notebooks
+ignore-regex = https?://\S+|^\s*"image/\S+": ".*
+# ser - Rust serde serialization module (serde::ser::Error)
+# noes - legitimate plural of "no"
+# vor - Voronoi variable in scipy code
+# datas - Python variable name in notebooks
+ignore-words-list = ser,noes,vor,datas
