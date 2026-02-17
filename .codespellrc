@@ -1,6 +1,6 @@
 [codespell]
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
-skip = .git*,*.pdf,*.svg,*.lock,*.css,*.bib,*.dot,.codespellrc,.cache,*/kaggle,test2.tex,*/quantum-espresso,search.csv
+skip = .git*,*.pdf,*.svg,*.lock,*.css,*.bib,*.dot,.codespellrc,.cache,.npm,.ipynb_checkpoints,*/kaggle,test2.tex,*/quantum-espresso,search.csv
 check-hidden = true
 # Protect URLs from corrections (e.g., nd.edu) and embedded images in notebooks
 ignore-regex = https?://\S+|^\s*"image/\S+": ".*
