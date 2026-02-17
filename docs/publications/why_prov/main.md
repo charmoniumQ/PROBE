@@ -15,7 +15,7 @@ Workflow engines are only aware of the dataflow not higher-level semantics, so w
 However, it is more general than application-level provenance, as it enables collection in any workflow written for that modified engine \cite{freire_provenance_2008}.
 
 \item
-To collect \textbf{system-level provenance}, one uses operating system facilities to report the inputs and outpus that a process makes.
+To collect \textbf{system-level provenance}, one uses operating system facilities to report the inputs and outputs that a process makes.
 This is the least semantically aware because it does not even know dataflow, just a history of inputs and outputs, but it is the most general, because it supports any process (including any application or workflow engine) that uses watchable I/O operations \cite{freire_provenance_2008}.
 \end{itemize}
 

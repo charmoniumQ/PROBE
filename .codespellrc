@@ -8,4 +8,5 @@ ignore-regex = https?://\S+|^\s*"image/\S+": ".*
 # noes - legitimate plural of "no"
 # vor - Voronoi variable in scipy code
 # datas - Python variable name in notebooks
-ignore-words-list = ser,noes,vor,datas
+# sleeped - Python variable name in run_server_and_client.py
+ignore-words-list = ser,noes,vor,datas,sleeped
