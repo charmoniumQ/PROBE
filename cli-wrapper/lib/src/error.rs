@@ -64,7 +64,7 @@ pub enum ProbeError {
     #[error("{0}")]
     ArenaError(crate::transcribe::ArenaError),
 
-    /// An error occured trying to parse a string into an integer, this error is generally wrapped
+    /// An error occurred trying to parse a string into an integer, this error is generally wrapped
     /// in [context](Self::Context).
     #[error("{0}")]
     ParseIntError(ParseIntError),

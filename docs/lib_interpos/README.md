@@ -442,7 +442,7 @@ Each process in the **process table** is associated with zero or one _parent pro
 The graph whose nodes are processes and edges point to the parent process is a tree.
 
 Each file-version in the **file-version table** is associated with inodes (many-to-one) but zero or more paths due to symlinks and hardlinks.
-The assocation from file-version to inode is not invertible, since one multiple versions of one inode may have been observed.
+The association from file-version to inode is not invertible, since one multiple versions of one inode may have been observed.
 Each file-version is also associated with exactly one _creating process_, and zero or more _reading processes_, i.e., processes that are known to read the file.
 The dataflow graph is simply the graph whose nodes are processes and files and whose edges show creation or reading (see @Sec:soundness).
 By its nature, it is acyclic and bipartite.

@@ -11,7 +11,7 @@ import mandala.model  # type: ignore
 
 def nix_build(attr: str) -> str:
     # Cache nix build, since it is expensive
-    # Even if nothing cahnges, Nix takes ~0.3 seconds to determine that nothing changed.
+    # Even if nothing changes, Nix takes ~0.3 seconds to determine that nothing changed.
     if ":" not in attr:
         # If the flake is changed, the mandala cache is invalid
         # Therefore, make the Nix flake and lock an argument tracked by Mandala.

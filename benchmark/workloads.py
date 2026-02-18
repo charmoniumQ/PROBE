@@ -646,7 +646,7 @@ WORKLOAD_GROUPS = {
         for workload in WORKLOADS
         if workload.labels[0][2] not in {
                 "house-prices-1",  # too long
-                "water-spatial", # too long or short (not easy to callibrate)
+                "water-spatial", # too long or short (not easy to calibrate)
                 "sextractor", # Stalls out for some reason
                 "ph-01", # too long
                 "barnes", # never worked

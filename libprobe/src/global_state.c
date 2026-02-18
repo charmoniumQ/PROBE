@@ -402,7 +402,7 @@ void init_thread(PthreadID pthread_id) {
 }
 
 void init_after_fork() {
-    ASSERTF(!is_proc_inited(), "Proccess already initialized");
+    ASSERTF(!is_proc_inited(), "Process already initialized");
     ASSERTF(__pid != 0, "Parent process not initialized");
     check_function_pointers();
     init_pid(true);
@@ -423,7 +423,7 @@ void init_proc() {
     if (probe_libc_init() != 0) {
         ERROR("Failed to initialize probe_libc (no procfs?)");
     }
-    ASSERTF(!is_proc_inited(), "Proccess already initialized");
+    ASSERTF(!is_proc_inited(), "Process already initialized");
     init_function_pointers();
     check_function_pointers();
     init_pid(false);

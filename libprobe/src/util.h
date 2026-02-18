@@ -11,7 +11,7 @@
 #include "debug_logging.h" // for ASSERTF
 
 /*
- * OWNED/BORROWED determins who is responsible for freeing a pointer received or returned by a function-call.
+ * OWNED/BORROWED determines who is responsible for freeing a pointer received or returned by a function-call.
  * Obviously, this is inspired by Rust.
  * C compiler can't check this at compile-time, but these macros serve to document the function-signatures for humans.
  * E.g.,

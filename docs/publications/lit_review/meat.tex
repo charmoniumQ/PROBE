@@ -206,7 +206,7 @@ Li et al. \cite{li_threat_2021}             & SPADE, CamFlow, BEEP,
                                               Ma et al. \cite{ma_accurate_2015}, MPI, ProTracer,
                                               UIScope, Winnower, LDX, MCI, RAIN, RTAG, libdft,
                                               OmegaLog                                          & To survey SLRP tools for threat-dection                         \\
-Berrada et al. \cite{berrada_baseline_2020} & SPADE, OPUS                                       & To establish baselines results for anomoly detection algorithms \\
+Berrada et al. \cite{berrada_baseline_2020} & SPADE, OPUS                                       & To establish baselines results for anomaly detection algorithms \\
 Braun et al. \cite{hutchison_issues_2006}   & PASS, GenePattern, TREC, Lineage FS               & To summarize issues in automatic provenance collection          \\
 Chen et al. \cite{chan_expressiveness_2017} & SPADE+auditd, OPUS, PASS, Hi-Fi, LPM              & To compare the expressiveness of OPUS and SPADE                 \\
 Carat et al. \cite{carata_primer_2014}      & PASS, PASSv2, SPADE                               & To survey provenance collection and usage                       \\
@@ -230,8 +230,8 @@ Tool                                                    & Suitable? Sec. \ref{se
                                                                            & Collection method                       & Collection tool                               & Notes                                                         \\
 \midrule
 SPADE \cite{gehani_spade_2012}                          & Yes              & Audit, FS, \textbf{or} compile-time     & Multiple\footnotemark{}                       & Can use multiple low-level sources                            \\
-OPUS \cite{balakrishnan_opus_2013}                      & Yes              & Library instrumentation                 & libc instrumentaiton                          &                                                               \\
-OmegaLog \cite{hassan_omegalog_2020}                    & No source code   & Static binary ins., audit               & Angr, auditd                                  & Finds relationships in logs in mulitple layers                \\
+OPUS \cite{balakrishnan_opus_2013}                      & Yes              & Library instrumentation                 & libc instrumentation                          &                                                               \\
+OmegaLog \cite{hassan_omegalog_2020}                    & No source code   & Static binary ins., audit               & Angr, auditd                                  & Finds relationships in logs in multiple layers                \\
 FiPS \cite{sultana_file_2013}                           & No source code   & FS. ins.                                & VFS                                           &                                                               \\
 LogGC                                                   & No source code   & Audit                                   & Auditd                                        & The contribution is deleting unnecessary parts of the log     \\
 RecProv \cite{ji_recprov_2016}                          & No source code   & Tracing                                 & rr, ptrace                                    &                                                               \\
@@ -239,14 +239,14 @@ PANDDE \cite{fadolalkarim_pandde_2016}                  & Kernel modif.    & FS.
 Winnower \cite{hassan_towards_2018}                     & Wrong platform   & Audit                                   & auditd, SELinux, SPADE, Docker Swarm          & Specific to Docker Swarm                                      \\
 URSpring                                                & Wrong platform   & Audit, file-system ins.                 & auditd, IBM Spectrum Scale                    & Specific to IBM Spectrum Scale FS                             \\
 Event Tracer for Windows \cite{noauthor_event_2021}     & Wrong platform   & Audit                                   & NT Kernel                                     & Implemented for Windows                                       \\
-UIScope \cite{yang_uiscope_2020}                        & Wrong platform   & Audit                                   & ETW, accessibility service                    & Tracks grpahical user interaction                             \\
+UIScope \cite{yang_uiscope_2020}                        & Wrong platform   & Audit                                   & ETW, accessibility service                    & Tracks graphical user interaction                             \\
 TREC \cite{vahdat_transparent_1998}                     & Wrong platform   & Audit                                   & Proc filesystem                               & Implemented for Solaris                                       \\
 DTrace \cite{noauthor_about_nodate}                     & Wrong platform   & Audit                                   & Respective kernels                            & Can do event processing in kernel-space                       \\
 Sysmon \cite{markruss_sysmon_2023}                      & Wrong platform   & Audit                                   & NT Kernel                                     & Implemented for Windows                                       \\
 BEEP \cite{lee_high_2017}                               & HW-specific      & Dyn., static binary ins.                & Intel Pin, PEBIL                              &                                                               \\
 libdft \cite{kemerlis_libdft_2012}                      & HW-specific      & Dyn. binary ins.                        & Intel Pin                                     &                                                               \\
 RAIN \cite{ji_rain_2017}                                & HW-specific      & Library, kernel ins., dyn. binary ins.  & libc ins., custom kernel module, Intel Pin    & Records syscalls during runtime, replays offline under DIFT   \\
-DataTracker \cite{stamatogiannakis_looking_2015}        & HW-specific      & Dinamic binary ins.                     &                                               &                                                               \\
+DataTracker \cite{stamatogiannakis_looking_2015}        & HW-specific      & Dynamic binary ins.                     &                                               &                                                               \\
 INSPECTOR                                               & HW-specific      & Library ins., ISA extensions            & libthreads ins., Intel PT ISA extensions      &                                                               \\
 MPI\cite{ma_mpi_2017}                                   & Unsuitable meth. & Compile-time ins.                       & LLVM pass                                     & Requires manual input                                         \\
 LDX \cite{kwon_ldx_2016}                                & Unsuitable meth. & Compile-time ins.                       & LLVM pass                                     &                                                               \\
@@ -273,7 +273,7 @@ On Linux, SPADE can use: Auditd, CamFlow, FUSE;
 On MacOS: OpenBSM, MacFUSE, Fuse4x;
 On Windows: ProcessMonitor;
 On any platform: import static data (e.g., from logs on disk), applications instrumented with API, applications compiled with LLVM pass.
-Given our requiremnts, SPADE+auditd and SPADE+FUSE are the only suitable SPADE configurations.
+Given our requirements, SPADE+auditd and SPADE+FUSE are the only suitable SPADE configurations.
 }
 \end{table}
 
@@ -319,7 +319,7 @@ Binary instrumentation is \textbf{suitable, if it is not hardware dependent}.
 \item \textbf{Compile-time instrumentation}:
 A compiler pass can analyze and emit provenance data, especially intra-program control flow, yielding a finer granularity with more precise dataflow.
 LLVM is the natural choice for instrumentation tooling, because its modular makes writing a new pass simpler.
-However, compile-time instrumentation would require HPC system adminstrators to maintain independent builds of the entire software stack.
+However, compile-time instrumentation would require HPC system administrators to maintain independent builds of the entire software stack.
 Compile-time instrumentation is \textbf{too expensive} to be suitable.
 
 \item \textbf{Kernel instrumentation}:
@@ -341,7 +341,7 @@ Intel released an extension called Processor Trace \cite{kleen_intel_2015} which
 One should also note whether the target applications use containers or not.
 Containers in Linux are essentially processes, where the kernel creates a separate namespace for specific subsystems (files, PIDs, users, and network routing), isolated from the rest of the system, as well as performance isolation in the form of cgroups.
 Kernel-level and file-system level provenance collection methods would still work in that case, but library instrumentation would require modification of the container, which defeats the purpose.
-However, these approaches trade security risk for performance: kernel-level auditing has to be caefully controlled, so process cannot spy on processes they should not ordinarily be able to see; File-system instrumentation has some unavoidable overhead due to using FUSE, even in its most optimized configuration \cite{vangoor_fuse_2017}.
+However, these approaches trade security risk for performance: kernel-level auditing has to be carefully controlled, so process cannot spy on processes they should not ordinarily be able to see; File-system instrumentation has some unavoidable overhead due to using FUSE, even in its most optimized configuration \cite{vangoor_fuse_2017}.
 %% Docker is particularly problematic for some provenance collection methods because Docker \textit{clients} do not spawn their own processes; they pass instructions to the Docker daemon, and the \textit{daemon} spawns new processes on their behalf.
 %% If a provenance collection method follows all forks of all child processes of a script which calls \texttt{docker run ...}, it will not know about that process.
 
@@ -394,7 +394,7 @@ OPUS \emph{is} available on GitHub at the time of writing.
 
 %% \item
 %% eBPF another auditing method that no conventional tool uses yet.
-%% eBPF is potentialy more efficient than auditd because it can safely execute a limited set of programs (not Turing complete) inside the kernel, which allows online event filtering without expensive context switches between user- and kernel-space.
+%% eBPF is potentially more efficient than auditd because it can safely execute a limited set of programs (not Turing complete) inside the kernel, which allows online event filtering without expensive context switches between user- and kernel-space.
 %% To test auditing with eBPF, we use \textbf{bpftrace} with a custom script.
 %% Bpftrace compiles a simple scripting language into eBPF code and injects it into the kernel.
 %% Our script captures file I/O operations beginning with a certain prefix and logs them (comparable to strace and ltrace).

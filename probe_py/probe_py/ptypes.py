@@ -15,7 +15,7 @@ from . import ops
 from . import consts
 
 
-# New types encourage type saftey,
+# New types encourage type safety,
 # E.g., not supplying a pid where we require a tid
 class Pid(int):
     def main_thread(self) -> Tid:

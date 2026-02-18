@@ -54,7 +54,7 @@ def copy_provenance(source: HostPath, destination: HostPath, cmd: tuple[str, ...
     provenance_info_source = lookup_provenance_source(source)
     provenance_info_destination = lookup_provenance_destination(source, destination)
     provenance_info = augment_provenance(provenance_info_source, provenance_info_destination, cmd)
-    # TODO: Support uploading all the provenance_info from mulitple sources at once
+    # TODO: Support uploading all the provenance_info from multiple sources at once
     # Either copy_provenance should take multiple sources
     # Or it should return the provenance rather than uploading it
     # so the caller can upload them all together

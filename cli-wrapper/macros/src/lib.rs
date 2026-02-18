@@ -127,7 +127,7 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                 pub struct #new_name {
                     #(pub #field_idents_stripped: #field_types,)*
 
-                    /// this is a placeholder field that get's serialized as the type name
+                    /// this is a placeholder field that gets serialized as the type name
                     #[serde(serialize_with = #serialize_type_path)]
                     #[serde(skip_deserializing)]
                     pub _type: (),

@@ -57,7 +57,7 @@ print(f"Terminating server prog {server_proc.pid}")
 #   strace -o /dev/null -f result/bin/python run_server_and_client.py './inf_loop.sh; echo hi' 'sleep 0.1'
 # On my system, it kills the process, enters and exits the wait, but does not actually terminate (it gets stuck after the last echo but before returning 0).
 # My debugging indicates this happens because there is a child process that never gets killed and waited on.
-# Therefore, I will kill the chilren processes first.
+# Therefore, I will kill the children processes first.
 
 # os.kill(server_proc.pid, signal.SIGKILL)
 

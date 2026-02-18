@@ -24,4 +24,4 @@ Table 1: Provenance tools and benchmarks
 Footnotes:
 1. Section 4, "Open Questions", discusses performance concerns as a topic of future work. However, I could not find future work relating to the performance of OPUS.
 2. ext2 and ext3 out-of-date as a representative of native performance; ext4 has consistently better performance (https://www.linux-magazine.com/Online/Features/Filesystems-Benchmarked)
-3. This publication does not say what _workload_ the authors used in connection with this program; e.g., when benchmarking the Apache server, one needs a workload to run agianst it. Some publications merely say they use "batch inputs" or "random inputs", without actually saying how their input is generated.
+3. This publication does not say what _workload_ the authors used in connection with this program; e.g., when benchmarking the Apache server, one needs a workload to run against it. Some publications merely say they use "batch inputs" or "random inputs", without actually saying how their input is generated.

@@ -29,7 +29,7 @@ fn inner_main() -> Result<ExitStatus> {
         .subcommands([
             Command::new("record")
                 .args([
-                    arg!(-o --output <PATH> "Set destinaton for recording.")
+                    arg!(-o --output <PATH> "Set destination for recording.")
                         .required(false)
                         .value_parser(value_parser!(PathBuf)),
                     arg!(-f --overwrite "Overwrite existing output if it exists.")

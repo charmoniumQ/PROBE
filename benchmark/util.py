@@ -55,7 +55,7 @@ def cmd_arg(arg: CmdArg) -> bytes:
     elif isinstance(arg, bytes):
         return arg
     else:
-        raise TypeError(f"{arg}: {type(arg)} is not convertable to a cmd arg")
+        raise TypeError(f"{arg}: {type(arg)} is not convertible to a cmd arg")
 
 
 def run_all(*cmds: Sequence[CmdArg]) -> tuple[bytes, ...]:

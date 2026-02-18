@@ -40,6 +40,6 @@ If collecting the provenance data is cheap, and already done for another goal (s
 Applying library interpostion
 Caveat: not as reproducible
 
-Evaulation
+Evaluation
 
 -->

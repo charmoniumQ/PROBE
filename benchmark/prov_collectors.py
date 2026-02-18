@@ -600,7 +600,7 @@ class eBPF(ProvCollector):
 
     # def start(self, log: Path, size: int, workdir: Path, env: Mapping[str, str]) -> None:
     #     self._workdir = workdir
-    #     # SPADE FUSE must start in a non-existant directory
+    #     # SPADE FUSE must start in a non-existent directory
     #     self._workdir.unlink()
     #     assert not self._workdir.exists()
     #     subprocess.run(

@@ -24,7 +24,7 @@
 - Create archive containing all input files and Makefile which generates output files
 - Use heuristics to defer to packages for certain files
 
-### Performnace analysis
+### Performance analysis
 
 - Introduce performance model
 - Compare collection overheads

@@ -45,7 +45,7 @@ def build_oci_image(
             console.print("Buildah not found; should be included in probe-bundled? for other packages, please install Buildah separately", style="red")
             raise typer.Exit(code=1)
 
-        # Start contianer
+        # Start container
         container_id = f"probe-{random.randint(0, 2**32 - 1):08x}"
         if verbose:
             console.print(shlex.join(["buildah", "from", "--name", container_id, "scratch"]))

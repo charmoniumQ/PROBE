@@ -4,7 +4,7 @@
 
 | Option | Alternative | Description |
 |--------|-------------|-------------|
-| -o, | --output | <PATH>  Set destinaton for recording. |
+| -o, | --output | <PATH>  Set destination for recording. |
 | -f, | --overwrite | Overwrite existing output if it exists. |
 | -n, | --no-transcribe | Emit PROBE record rather than PROBE log. |
 | --gdb |  | Run under gdb. |

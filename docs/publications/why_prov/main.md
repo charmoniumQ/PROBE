@@ -8,7 +8,7 @@ Somewhat independently from the retrospective/prospective classification, proven
 \begin{itemize}
 \item
 To collect \textbf{application-level provenance}, one would modify each application to emit provenace data.
-This is the most semantically rich but least general, as it only enables collection by that particular modified applicaiton \cite{muniswamy-reddy_layering_2009}.
+This is the most semantically rich but least general, as it only enables collection by that particular modified application \cite{muniswamy-reddy_layering_2009}.
 
 \item To collect \textbf{workflow-level provenance}, one would modify the workflow engine, and all workflows written for that engine would emit provenance data.
 Workflow engines are only aware of the dataflow not higher-level semantics, so workflow-level provenance is not as semantically rich as application-level provenance.
