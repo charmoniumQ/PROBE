@@ -820,7 +820,7 @@ It still uses `ptrace`.
 
 **strace** is a well-known system program that uses Linux's `ptrace` functionality to record syscalls, their arguments, and their return code to a file.
 strace even parses datastructures to write strings and arrays rather than pointers.
-In this work, we use an strace configuration that captures all file-related syscalls but read/write[^read/write], file-metadata related syscalls, socket- and IPC- related sycalls but send/recv, and process-related syscalls.
+In this work, we use an strace configuration that captures all file-related syscalls but read/write[^read/write], file-metadata related syscalls, socket- and IPC- related syscalls but send/recv, and process-related syscalls.
 
 [^read/write]: We do not need to capture individual reads and writes, so long as we capture that the file was opened for reading/writing.
 

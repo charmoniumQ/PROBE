@@ -612,7 +612,7 @@ We use the log-normal instead of normal distribution for three reasons:
   The ratio of two normally distributed variables is a very complex distribution (see Eqn. 1 in [@hinkleyRatioTwoCorrelated1969]).
   Contrarily, the ratio of two log-normal variables is itself log-normal.
 
-We infer the log-normal distribution using unbiased maximum-liklihood estimators (this is similar but less biased than the geometric mean).
+We infer the log-normal distribution using unbiased maximum-likelihood estimators (this is similar but less biased than the geometric mean).
 Lastly, we compute the distribution of the overhead ratio of each provenance tracer, presenting its expected value and standard deviation in the tables below [@Tbl:walltime].
 
 <!--
