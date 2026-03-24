@@ -124,16 +124,16 @@ probe py export --help
 ## Directory structure
 
 - `libprobe`: Library that implements interposition (C, Make, Python; happens to be manual and code-gen).
-  - `libprobe/include`: Headers that will be used by the Rust wrapper to read PROBE data.
   - `libprobe/src`: Main C sources of `libprobe`.
   - `libprobe/generator`: Python and C-template code-generator.
   - `libprobe/generated`: (Generated, not committed to Git) output of code-generation.
   - `libprobe/Makefile`: Makefile that runs all of `libprobe`; run `just compile-cli` to invoke.
 - `cli-wrapper`: (Cargo workspace) code that wraps libprobe.
-  - `cli-wrapper/cli`: (Cargo crate) main CLI.
-  - `cli-wrapper/lib`: (Cargo crate) supporting library functions.
-  - `cli-wrapper/macros`: (Cargo crate) supporting macros; they use structs from `libprobe/include` to create Rust structs and Python dataclasses.
-  - `cli-wrapper/frontend.nix`: Nix code that builds the Cargo workspace; Gets included in `flake.nix`.
+  - `cli-wrapper/probe_cli`: (Cargo crate) main CLI.
+  - `cli-wrapper/probe_headers`
+  - `cli-wrapper/memory_parsing`
+  - `cli-wrapper/derive_memory_parsing`
+  - `cli-wrapper/flake.nix`
 - `probe_py`: Python Code that implements analysis of PROBE data (happens to be manual and code-gen), should be added to `$PYTHONPATH` by `nix develop`
   - `probe_py/probe_py`: Main package to be imported or run.
   - `probe_py/pyproject.toml`: Definition of main package and dependencies.

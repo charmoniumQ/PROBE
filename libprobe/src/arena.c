@@ -11,6 +11,7 @@
 #include <sys/mman.h> // IWYU pragma: keep for MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
 // IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
 
+#include "../generated/headers.h"
 #include "debug_logging.h" // for EXPECT, ASSERTF, EXPECT_NONNULL
 #include "probe_libc.h"    // for probe_libc_...
 #include "util.h"          // for ceil_log2, MAX
@@ -25,13 +26,6 @@ unsigned char ceil_log2(unsigned int val) {
     }
     return ret + is_greater;
 }
-
-struct ArenaHeader {
-    size_t instantiation;
-    uintptr_t base_address;
-    uintptr_t capacity;
-    uintptr_t used;
-};
 
 /* ArenaListElem is a linked-list of arrays of Arenas.
  * The size of the array is ARENA_LIST_BLOCK_SIZE.

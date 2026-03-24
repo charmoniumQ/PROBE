@@ -1,5 +1,5 @@
 [package]
-name = "probe_macros"
+name = "derive_memory_parsing"
 version.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -7,15 +7,19 @@ publish.workspace = true
 edition.workspace = true
 
 [lib]
-name = "probe_macros"
+name = "derive_memory_parsing"
 proc-macro = true
 
 [dependencies]
-parking_lot = "0.12.3"
 proc-macro2 = "1.0.86"
 quote = "1.0.36"
 syn = "2.0.68"
 my-workspace-hack = { version = "0.1", path = "../my-workspace-hack" }
+eyre = "0.6.12"
+
+[dev-dependencies]
+trybuild = "1.0.114"
+memory_parsing = { version = "0.2", path = "../memory_parsing" }
 
 [lints]
 workspace = true

@@ -657,7 +657,7 @@ libc_hooks_c_preamble = """
 // IWYU pragma: no_include "linux/limits.h"                     for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"                       for statx, statx_timestamp
 
-#include "../include/libprobe/prov_ops.h"                    // for Op, OpCode
+#include "../generated/headers.h"                            // for Op, OpCode
 #include "../src/arena.h"                                    // for prov_log...
 #include "../src/debug_logging.h"                            // for DEBUG
 #include "../src/env.h"                                      // for arena_co...

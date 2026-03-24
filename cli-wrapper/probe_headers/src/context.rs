@@ -1,4 +1,5 @@
-use serde::Serialize;
+use derive_memory_parsing::MemoryParsable;
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 pub const PROBE_PATH_MAX: usize = 4096;
@@ -14,8 +15,20 @@ pub const OPS_SUBDIR: &str = "ops";
 // https://github.com/mozilla/cbindgen/issues/927
 
 /// cbindgen:prefix-with-name
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Debug, serde::Serialize)]
-#[repr(C)]
+#[derive(
+    MemoryParsable,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    clap::ValueEnum,
+    Debug,
+    serde::Serialize,
+    schemars::JsonSchema,
+)]
+#[repr(u8)]
 pub enum CopyFiles {
     None,
     Lazily,
@@ -30,14 +43,14 @@ pub enum CopyFiles {
  * That's peanuts these days.
  */
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, MemoryParsable)]
 pub struct FixedPath {
-    pub bytes: [std::ffi::c_char; PROBE_PATH_MAX],
-    pub len: usize,
+    bytes: [std::ffi::c_char; PROBE_PATH_MAX],
+    len: usize,
 }
 
 #[repr(C)]
-#[derive(serde::Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(serde::Serialize, MemoryParsable, Debug, Clone, PartialEq, Eq, schemars::JsonSchema)]
 pub struct ProcessTreeContext {
     pub libprobe_path: FixedPath,
     pub copy_files: CopyFiles,
@@ -46,9 +59,9 @@ pub struct ProcessTreeContext {
 
 #[repr(C)]
 pub struct ProcessContext {
-    pub epoch_no: u16,
-    pub process_tree_path: FixedPath,
-    pub enable_recording: bool,
+    epoch_no: u16,
+    process_tree_path: FixedPath,
+    enable_recording: bool,
 }
 
 impl FixedPath {
@@ -93,19 +106,38 @@ impl Debug for FixedPath {
     }
 }
 
-impl Serialize for FixedPath {
+impl schemars::JsonSchema for FixedPath {
+    fn schema_name() -> Cow<'static, str> {
+        "FixedPath".into()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        concat!(module_path!(), "::FixedPath").into()
+    }
+
+    fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": [
+                "array",
+                "string"
+            ],
+            "items": {
+                "type": "integer",
+                "maximum": 255,
+                "minimum": 1
+            },
+        })
+    }
+}
+
+impl serde::Serialize for FixedPath {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        if self.len >= self.bytes.len() {
-            Err(serde::ser::Error::custom("Length too long for fixed path"))
-        } else {
-            match self.escape_string() {
-                Ok(string) => serializer.serialize_str(&string),
-                Err(bytes) => serializer.serialize_bytes(&bytes),
-            }
-        }
+        let bytes = &self.bytes[0..self.len];
+        let bytes_u8 = unsafe { &*(bytes as *const [i8] as *const [u8]) };
+        serializer.serialize_bytes(bytes_u8)
     }
 }
 
@@ -129,26 +161,9 @@ impl FixedPath {
                 );
             };
             /* Just in case */
-            output.bytes[bytes.len()] = 0_i8;
+            output.bytes[bytes.len()] = 0;
             output.len = bytes.len() - 1 /* Exclude the null byte from length calculation */;
             Ok(output)
         }
     }
-}
-
-pub fn object_to_bytes<Type: Sized>(object: Type) -> Vec<u8> {
-    unsafe {
-        core::slice::from_raw_parts(
-            (&object as *const Type) as *const u8,
-            std::mem::size_of::<Type>(),
-        )
-    }
-    .to_vec()
-}
-
-pub fn object_from_bytes<Type: Sized + Clone>(bytes: Vec<u8>) -> Type {
-    assert!(bytes.len() == std::mem::size_of::<Type>());
-    assert!((bytes.as_ptr() as usize).is_multiple_of(std::mem::align_of::<Type>()));
-
-    unsafe { (*{ bytes.as_ptr() as *const Type }).clone() }
 }

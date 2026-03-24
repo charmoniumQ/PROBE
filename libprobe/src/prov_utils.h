@@ -5,12 +5,12 @@
 #include "util.h"    // for BORROWED
 #include <stdbool.h> // for bool
 
-struct Op;         // IWYU pragma: keep
-struct StatResult; // IWYU pragma: keep
+struct Op;
+struct Path;
+struct StatResult;
 struct Rusage;
 struct stat;
 struct statx;
-struct Path;
 struct rusage;
 
 __attribute__((visibility("hidden"))) struct Path

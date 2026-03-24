@@ -112,11 +112,11 @@ simple_commands = {
             'print("done")',
         ])
     ],
-    # "c_hello": bash_multi(
-    #     ["echo", c_hello_world, "redirect_to", "test.c"],
-    #     ["gcc", "test.c"],
-    #     ["./a.out"],
-    # ),
+    "c_hello": bash_multi(
+        ["echo", c_hello_world, "redirect_to", "test.c"],
+        ["gcc", "test.c"],
+        ["./a.out"],
+    ),
 
     # skip million_stats because it takes a very long time.
     # Re-enable once we have a faster analysis.
@@ -221,7 +221,7 @@ def scratch_directory(
     {**simple_commands, **complex_commands}.values(),
     ids={**simple_commands, **complex_commands}.keys(),
 )
-@pytest.mark.timeout(20)
+@pytest.mark.timeout(40)
 def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,

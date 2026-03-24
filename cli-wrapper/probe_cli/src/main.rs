@@ -9,15 +9,11 @@ use std::{
     process::{ExitCode, ExitStatus},
 };
 
-/// Run commands under provenance and generate probe record directory.
 mod record;
 
-/// Wrapper over [`probe_lib::transcribe`].
 mod transcribe;
 
-/// Utility code for creating temporary directories.
-mod util;
-
+#[hotpath::main]
 fn inner_main() -> Result<ExitStatus> {
     color_eyre::install()?;
     env_logger::Builder::from_env(env_logger::Env::new().filter_or("PROBE_LOG", "warn")).init();
@@ -117,7 +113,7 @@ fn inner_main() -> Result<ExitStatus> {
             .map(|file| {
                 tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()))
             })
-            .and_then(|mut tar| transcribe::transcribe(input, &mut tar))
+            .and_then(|mut tar| transcribe::transcribe_to_tar(input, &mut tar))
             .wrap_err("Transcribe command failed")?;
 
             Ok(ExitStatus::from_raw(0))

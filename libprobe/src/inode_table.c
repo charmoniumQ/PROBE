@@ -6,9 +6,9 @@
 #include <stdlib.h>  // for calloc
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_rwllock_t
 
-#include "../include/libprobe/prov_ops.h" // for Path
-#include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG
-#include "stdbool.h"                      // for false, bool, true
+#include "../generated/headers.h" // for Path
+#include "debug_logging.h"        // for ASSERTF, EXPECT, DEBUG
+#include "stdbool.h"              // for false, bool, true
 
 /*
 ** Device major and minor are listed here:
