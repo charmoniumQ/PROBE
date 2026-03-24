@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Improving reproducibility in computational science</title>
+        <link
+            crossorigin="anonymous"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reset.min.css"
+            integrity="sha512-Mjxkx+r7O/OLQeKeIBCQ2yspG1P5muhAtv/J+p2/aPnSenciZWm5Wlnt+NOUNA4SHbnBIE/R2ic0ZBiCXdQNUg=="
+            referrerpolicy="no-referrer"
+            rel="stylesheet"/>
+        <link
+            crossorigin="anonymous"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/reveal.min.css"
+            integrity="sha512-e3dnmFe5hH2bJx1MvUU3PFToGVQ2xykp/VGERCkuh4lTGMJ5QuxKFRIwix8DfnfkavwJiL6rehb9e1d6mFLwlg=="
+            referrerpolicy="no-referrer"
+            rel="stylesheet"/>
+        <link
+            crossorigin="anonymous"
+            href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.0/theme/black.min.css"
+            integrity="sha512-DKeDMgkMDBNgY3g8T6H6Ft5cB7St0LOh5d69BvETIcTrP0E3d3KhANTMs5QOTMnenXy6JVKz/tENmffCLeXPiQ=="
+            referrerpolicy="no-referrer"
+            rel="stylesheet"/>
+        <link rel="stylesheet" href="../toc-progress.css">
+        <link rel="stylesheet" href="../nocaps.css">
+        <style>
+         .example { font-style: italic !important; }
+         .small { font-size: 28px; }
+
+         .yes {
+             background-color: rgb(0, 70, 0);
+         }
+         .mid {
+             background-color: rgb(70, 70, 0);
+         }
+         .no {
+             background-color: rgb(70, 0, 0);
+         }
+         tr.important {
+             border-top: 1px solid;
+             font-weight: bold;
+         }
+         table td, table th {
+             border-bottom: none !important;
+         }
+         table thead {
+             border-bottom: 1px solid;
+             font-weight: bold;
+         }
+
+        </style>
+    </head>
+    <body>
+        <div class="reveal">
+            <div class="slides">
+                <section>
+                    <section>
+                        <h1 class="no-toc-progress">Improving reproducibility in computational science</h1>
+                    </section>
+                </section>
+                <section>
+                    <section>
+                        <h1>The problem</h1>
+                        <ul>
+                            <li>Science is inherently collaborative</li>
+                            <li>Reproduce other's work for validation and extension</li>
+                        </ul>
+                        <figure>
+                            <img
+                                src="https://www.libraryofsocialscience.com/assets/img/nl/galileo-telescope.jpg"
+                                alt="Cardinal Casini refuses to look through Gallileo's telescope"
+                            />
+                            <!-- <img
+                                 src="https://i.sstatic.net/annHb.jpg"
+                                 alt="Cardinal Casini refuses to look through Gallileo's telescope"
+                                 /> -->
+                        </figure>
+                    </section>
+                    <section>
+                        <p>
+                            Replication crisis (<a href="https://doi.org/10.1371/journal.pmed.0020124">Ioannidis 2005</a>)
+                        </p>
+                        <ul class="fragment">
+                            <li>Statistics</li>
+                            <li>Expensive; low reward</li>
+                            <li>Fraud</li>
+                            <li>Difficulty</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <p>Digital computers are robust to noise</p>
+                        <p>Should computational experiments be easier to replicate (addressing "difficulty" reason)?</p>
+                        <p class="fragment">&hellip;</p>
+                    </section>
+                    <section>
+                        <ul>
+                            <!--
+                                 176 / 402 no code
+                                 62 / 226
+                            -->
+                            <li>No code (43%) (<a
+                                                 href="https://web.archive.org/web/20250223094935/https://repeatability.cs.arizona.edu/v2/RepeatabilityTR.pdf"
+                                             >Collberg et al. 2015</a>)
+                                <ul>
+                                    <li class="fragment">Unsure of the right version</li>
+                                    <!--
+                                         I am just hoping that it is a stable working version of the code, and matches the implementation we finally used for the paper.
+
+                                         I’m not very sure whether it is the final version of the code used in our paper, but it should be at least 99% close
+
+                                    -->
+                                    <li class="fragment">Lack of documentation</li>
+                                    <!--
+                                         For the paper we used a prototype that included many moving pieces that only  knew how to operate and we did not have the time to integrate them in a ready-to-share implementation before they left.
+
+                                         The result is that without a lot of hand holding by senior PhD students, even our own junior PhD students would find it unusable.
+
+                                         I do not have the bandwidth to help anyone come up to speed on this stuff.                                 
+                                    -->
+                                    <li class="fragment">Unable to acquire software env.</li>
+                                    <!--
+                                         A large part of our code contains/relies on the code from other tools (probably old versions), such as 〈LONG LIST OF SYSTEMS〉. It would require huge amount of effort to make our code work with the latest versions of these tools.
+                                    -->
+                                </ul>
+                            </li>
+                            <li>Build errors (27%)
+                                <!-- Table 3 in source -->
+                                <ul>
+                                    <li class="fragment">distribution is missing files (20%)</li>
+                                    <li class="fragment">incomplete documentation (18%)</li>
+                                    <li class="fragment">missing third party package (13%)</li>
+                                    <li class="fragment">runtime error (15%)</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <ul>
+                            <li>Why Workflows Break (<a href="10.1109/eScience.2012.6404482">Zhang et al. 2012</a>)</li>
+                            <!-- Fig 3. in source -->
+                            <li class="fragment">Change of third party resources (50%)</li>
+                            <li class="fragment">Insufficient metadata (29%)</li>
+                            <li class="fragment">Example data unavailable (15%)</li>
+                            <li class="fragment">Insufficient execution environment (12%)</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <ul>
+                            <li>Updated study (<a href="https://doi.org/10.1145/3589806.3600037">Grayson et al. 2023</a>)</li>
+                            <!--Table 3 of source-->
+                            <li>Missing input (32%)</li>
+                            <li>Conda environment unsolvable (11%)</li>
+                            <img
+                                src="../workflow-halflife.png"
+                                style="height: 55vh;"
+                            />
+                        </ul>
+                    </section>
+                    <section>
+                        <ul>
+                            <li>What about Docker (<a href="https://doi.org/10.1109/eScience51609.2021.00032">Shaffer et al. 2021</a>)</li>
+                            <!-- Table V. of source -->
+                            <li>56% lack lockfile</li>
+                            <li>Public notebook service storing user containers costs 1k$ / month</li>
+                            <img
+                                src="../container-halflife.png"
+                                style="height: 45vh;"
+                            />
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>User error?</h2>
+                    </section>
+                </section>
+                <section>
+                    <section>
+                        <h2>A technical solution</h2>
+                        <p>Record/replay software execution</p>
+                    </section>
+                    <section>
+                        <h3>What to record</h3>
+                        <ul>
+                            <li class="fragment">File reads (scripts, data, exes, libs, /dev/urandom)</li>
+                            <li class="fragment">Network calls?</li>
+                            <li class="fragment">|| Schedule?</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h3>Record methods</h3>
+                        <ul>
+                            <li class="fragment">Kernel-level</li>
+                            <li class="fragment">eBPF</li>
+                            <li class="fragment">ptrace</li>
+                            <li class="fragment">Lib. interpos. (see GLUG <a href="https://github.com/gnulug/meetings/tree/master/2022f/2022-11-16">2022-11-16</a>)</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <p><a href="https://doi.org/10.1145/3641525.3663627">Grayson et al. 2024</a></p>
+                        <table style="font-size: 65%">
+                            <thead>
+                                <tr><th>Benchmark        </th><th>Native  </th><th>fsatrace      </th><th>CARE           </th><th>strace              </th><th>RR                </th><th>ReproZip           </th></tr>
+                                <tr><th>                 </th><th>None    </th><th>Lib. interp.  </th><th>Ptrace         </th><th>Ptrace              </th><th>Ptrace            </th><th>Ptrace             </th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Tar Unarchive    </td><td>0       </td><td>4             </td><td class="mid">44 </td><td class="no" >114     </td><td class="no" >195   </td><td class="no">149     </td></tr>
+                                <tr><td>Python import    </td><td>0       </td><td>5             </td><td class="mid">85 </td><td class="mid">84      </td><td class="no" >150   </td><td class="no">346     </td></tr>
+                                <tr><td>Git checkout     </td><td>0       </td><td>5             </td><td class="mid">71 </td><td class="no" >160     </td><td class="no" >177   </td><td class="no">428     </td></tr>
+                                <tr><td>Compile w/Spack  </td><td>0       </td><td>-1            </td><td class="no" >119</td><td class="no" >111     </td><td class="no" >562   </td><td class="no">359     </td></tr>
+                                <tr><td>cp               </td><td>0       </td><td class="mid">37</td><td class="no" >641</td><td class="no" >380     </td><td class="no" >232   </td><td class="no">5791    </td></tr>
+                                <tr><td>Others not shown </td><td>&hellip;</td><td>&hellip;      </td><td>&hellip;       </td><td>&hellip;            </td><td>&hellip;          </td><td>&hellip;           </td></tr>
+                                <tr class="important">
+                                    <td>Geometric mean   </td><td>0       </td><td>0             </td><td class="mid">45  </td><td class="no">66      </td><td class="no">146    </td><td class="no">193     </td></tr>
+                            </tbody>
+                        </table>
+                    </section>
+                    <section>
+                        <img
+                            src="../../lib_interpos/ptrace.svg"
+                        />
+                        <img
+                            src="../../lib_interpos/lib_interpose.svg"
+                        />
+                    </section>
+                    <section>
+                        <p>
+                        <strong>Prior tools are not feasible (kernel or eBPF) or too slow</strong>
+                        </p>
+                        <p>
+                        <strong>But lib. interpos. is a promising route</strong>
+                        </p>
+                    </section>
+                    <section>
+                        <h2>PROBE: Provenance for Replay OBservation ENgine</h2>
+                        <ul>
+                            <li class="fragment"><code>probe record CMD...</code> runs <code>CMD...</code> with <code>LD_PRELOAD</code> and others</li>
+                            <li class="fragment">Library interposes relevant functions (<code>fopen</code>)</li>
+                            <li class="fragment">On first call, initializes thread-local mmem-map log</li>
+                            <li class="fragment">On each call, append record to log</li>
+                            <li class="fragment">Pass through to child processes</li>
+                            <li class="fragment">Demo <a href="https://zenodo.org/records/13963644">here</a></li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Learnings</h2>
+                        <ul>
+                            <li class="fragment">Libc spec &ne; glibc headers</li>
+                            <li class="fragment">Using C struct as serialization language</li>
+                            <li class="fragment">Rust and C++ are too high-level (lang. runtime)</li>
+                            <li class="fragment">Nix environment actually works</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <ul>
+                            <li class="fragment">Single node feels like distributed sys.</li>
+                            <li class="fragment">Sync. events, (e.g., <code>fork()</code>) order events between threads/procs</li>
+                            <li class="fragment">Happens-before order := transitive closure of union of sync. order and thread order</li>
+                            <li class="fragment">Race conditions are common: <code>sh -c "abc | def"</code></li>
+                        </ul>
+                    </section>
+                    <section>
+                        <p>
+                            <strong>new:</strong> define "information may flow" := A is write, B is read, B does not happen-before A.
+                        </p>
+                    </section>
+                </section>
+                <section>
+                    <section>
+                        <h2>Extensions</h2>
+                    </section>
+                    <section>
+                        <ul>
+                            <li>Incremental recomputation
+                                <ul>
+                                    <li>Staged data analyses</li>
+                                    <li>Change a graph, re-execute</li>
+                                </ul>
+                            </li>
+                            <li>Interoperable provenance (W3C PROV)
+                                <ul>
+                                    <li>Compliance tracking</li>
+                                    <li>Embed provenance in data formats</li>
+                                </ul>
+                            </li>
+                            <li>Workflow-ize pile of scripts
+                                <ul>
+                                    <li>Documentation problem</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </section>
+                </section>
+            </div>
+            <script
+                crossorigin="anonymous"
+                integrity="sha512-lRYVCjdH7dCPCzqLL6eBn78p6WGK5pZxgYBgzTQfWlfX7yiZFLt/qHOMSETHUIz2aZIU/KbjwYHiMsmrcVgJnA=="
+                referrerpolicy="no-referrer"
+                src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/reveal.min.js"
+            ></script>
+            <script type="text/javascript">
+             /*<![CDATA[*/
+             Reveal.initialize({
+                 hash: true,
+                 slideNumber: "c/t",
+                 transition: "none",
+                 keyboard: {
+			         // alternative to toggleSpotlightOnMouseDown:
+			         // toggle spotlight by pressing key 'c'
+			         67: function() { RevealSpotlight.toggleSpotlight() },
+	             },
+                 dependencies: [
+                     {
+                         src: "../toc-progress.js",
+                         async: true,
+                         callback: function() { toc_progress.secondary = false; toc_progress.initialize(); toc_progress.create(); },
+                     },
+                     // {
+                     //     src: "../revealjs-spotlight.js",
+                     // },
+                 ],
+             });
+             /*]]*/
+            </script>
+            <script
+                crossorigin="anonymous"
+                integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+                referrerpolicy="no-referrer"
+                src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+            ></script>
+            <script defer src="../strip-ws.js"></script>
+            <script defer src="../qrcodejs-driver.js"></script>
+            <script defer src="../mathjax-config.js"></script>
+            <script
+                defer
+                id="MathJax-script"
+                async
+                src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"
+            ></script>
+            <script
+                defer
+                src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"
+                integrity="sha512-vnRdmX8ZxbU+IhA2gLhZqXkX1neJISG10xy0iP0WauuClu3AIMknxyDjYHEpEhi8fTZPyOCWgqUCnEafDB/jVQ=="
+                crossorigin="anonymous"
+                referrerpolicy="no-referrer"
+            ></script>
+            <script
+                defer
+                src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"
+                integrity="sha512-1zKK2bG3QY2JaUPpfHZDUMe3dwBwFdCDwXQ01GrKSd+/l0hqPbF+aak66zYPUZtn+o2JYi1mjXAqy5mW04v3iA=="
+                crossorigin="anonymous"
+                referrerpolicy="no-referrer"
+            ></script>
+            <script defer src="../vizjs-driver.js"></script>
+            <script>
+             // Reveal.on('ready', () => {
+             //     makeListItemsFragments();
+             // });
+             // 
+             // Reveal.on('slidechanged', () => {
+             //     makeListItemsFragments();
+             // });
+             // 
+             // function makeListItemsFragments() {
+             //     // For each slide, turn plain <li> into fragments (only once)
+             //     document.querySelectorAll('.slides section').forEach(section => {
+             //         section.querySelectorAll('li:not(.fragment)').forEach(li => {
+             //             li.classList.add('fragment');
+             //         });
+             //     });
+             // }
+            </script>
+
+            </script>
+    </body>
+</html>
