@@ -11,7 +11,6 @@
 #include <sys/mman.h> // IWYU pragma: keep for MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
 // IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
 
-#include "../generated/bindings.h"
 #include "debug_logging.h" // for EXPECT, ASSERTF, EXPECT_NONNULL
 #include "probe_libc.h"    // for probe_libc_...
 #include "util.h"          // for ceil_log2, MAX

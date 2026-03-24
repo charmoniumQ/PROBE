@@ -14,11 +14,13 @@
 // IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
 
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
-#include "arena.h"                // for arena_strndup
-#include "debug_logging.h"        // for DEBUG, EXPECT_NONNULL, NOT...
-#include "global_state.h"         // for get_data_arena, get_exec_e...
-#include "probe_libc.h"           // for probe_libc_strlen
-#include "util.h"                 // for CHECK_SNPRINTF, BORROWED
+#include "arena.h"                        // for arena_strndup
+#include "debug_logging.h"                // for DEBUG, EXPECT_NONNULL, NOT...
+#include "global_state.h"                 // for get_data_arena, get_exec_e...
+#include "probe_libc.h"                   // for probe_libc_strlen
+#include "util.h"                         // for CHECK_SNPRINTF, BORROWED
+
+static const struct Path null_path = {0, NULL, 0, 0, 0, 0, {0}, {0}, 0, false};
 
 struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags) {
     ASSERTF((path && dirfd != -1) || (!path && (dirfd == -1 || (flags & AT_EMPTY_PATH))),
@@ -146,7 +148,7 @@ const struct Path* op_to_second_path(const struct Op* op) {
     }
 }
 
-BORROWED const char* op_code_to_string(char op_code) {
+BORROWED const char* op_code_to_string(enum OpData_Tag op_code) {
     switch (op_code) {
     case OpData_InitExecEpoch:
         return "InitExecEpoch";
@@ -254,6 +256,8 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
         dest += task_size;
         size -= task_size;
         break;
+    }
+    default: {
     }
     }
     (void)dest;

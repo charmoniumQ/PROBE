@@ -9,20 +9,9 @@
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
 // IWYU pragma: no_include "linux/stat.h" for statx_timestamp
 
-#if defined(__GLIBC__) && __GLIBC_MINOR__ >= 28
-#include <threads.h> // for thrd_t, thrd_start_t
-#else
-// echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out
-// prints 8 8
-typedef uint64_t thrd_t;
-typedef uint64_t thrd_start_t;
-#error "I don't expect this branch to be used, but it should still work"
-// See ./PROBE/docs/old-glibc.md
-#endif
-
-typedef char const * _Nonnull ByteString;
-typedef char const * _Nullable Option_ByteString;
-typedef char const * _Nullable const * _Nonnull StringArray;
+typedef char const* _Nonnull ByteString;
+typedef char const* _Nullable Option_ByteString;
+typedef char const* _Nullable const* _Nonnull StringArray;
 
 typedef int64_t TimeT;
 
@@ -60,7 +49,7 @@ struct Rusage {
 
 struct Path {
     int32_t dirfd;
-    const char* _Nullable path;             /* valid if non-null */
+    const char* _Nullable path; /* valid if non-null */
     /* rest are valid if stat_valid */
     unsigned int device_major;
     unsigned int device_minor;

@@ -61,7 +61,6 @@ fn should_prefix(name: &str) -> bool {
             "StatResult",
             "Rusage",
             "StatxTimestamp",
-
         ])
     })
     .contains(name)

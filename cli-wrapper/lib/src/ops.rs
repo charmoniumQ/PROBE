@@ -172,7 +172,7 @@ impl FfiFrom<C_UpdateMetadataOp> for Metadata {
         let value = value.value;
 
         log::debug!("[unsafe] decoding Metadata tagged union");
-        Ok(match unsafe {value.tag} {
+        Ok(match unsafe { value.tag } {
             C_MetadataValue_Tag_MetadataValue_Mode => Metadata::Mode {
                 mode: unsafe { value.__bindgen_anon_1.mode },
 
@@ -186,12 +186,16 @@ impl FfiFrom<C_UpdateMetadataOp> for Metadata {
             },
             C_MetadataValue_Tag_MetadataValue_Times => Metadata::Times {
                 is_null: unsafe { value.__bindgen_anon_3.times }.is_null,
-                atime: unsafe { value.__bindgen_anon_3.times }.atime.ffi_into(ctx)?,
-                mtime: unsafe { value.__bindgen_anon_3.times }.mtime.ffi_into(ctx)?,
+                atime: unsafe { value.__bindgen_anon_3.times }
+                    .atime
+                    .ffi_into(ctx)?,
+                mtime: unsafe { value.__bindgen_anon_3.times }
+                    .mtime
+                    .ffi_into(ctx)?,
 
                 _type: (),
             },
-            _ => return Err(ProbeError::InvalidVariant(unsafe{value.tag}.into())),
+            _ => return Err(ProbeError::InvalidVariant(unsafe { value.tag })),
         })
     }
 }
@@ -288,46 +292,74 @@ impl FfiFrom<C_Op> for OpInternal {
     fn ffi_from(value: &C_Op, ctx: &ArenaContext) -> Result<Self> {
         let value = value.data;
 
-        Ok(match unsafe{value.tag} {
-            C_OpData_Tag_OpData_InitExecEpoch => {
-                Self::InitExecEpochOp(unsafe { value.__bindgen_anon_10.init_exec_epoch }.ffi_into(ctx)?)
-            }
+        Ok(match unsafe { value.tag } {
+            C_OpData_Tag_OpData_InitExecEpoch => Self::InitExecEpochOp(
+                unsafe { value.__bindgen_anon_10.init_exec_epoch }.ffi_into(ctx)?,
+            ),
             C_OpData_Tag_OpData_InitThread => {
                 Self::InitThreadOp(unsafe { value.__bindgen_anon_11.init_thread }.ffi_into(ctx)?)
             }
-            C_OpData_Tag_OpData_Open => Self::OpenOp(unsafe { value.__bindgen_anon_13.open }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Close => Self::CloseOp(unsafe { value.__bindgen_anon_4.close }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Chdir => Self::ChdirOp(unsafe { value.__bindgen_anon_2.chdir }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Exec => Self::ExecOp(unsafe { value.__bindgen_anon_6.exec }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Spawn => Self::SpawnOp(unsafe { value.__bindgen_anon_17.spawn }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Clone => Self::CloneOp(unsafe { value.__bindgen_anon_3.clone }.ffi_into(ctx)?),
+            C_OpData_Tag_OpData_Open => {
+                Self::OpenOp(unsafe { value.__bindgen_anon_13.open }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_Close => {
+                Self::CloseOp(unsafe { value.__bindgen_anon_4.close }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_Chdir => {
+                Self::ChdirOp(unsafe { value.__bindgen_anon_2.chdir }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_Exec => {
+                Self::ExecOp(unsafe { value.__bindgen_anon_6.exec }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_Spawn => {
+                Self::SpawnOp(unsafe { value.__bindgen_anon_17.spawn }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_Clone => {
+                Self::CloneOp(unsafe { value.__bindgen_anon_3.clone }.ffi_into(ctx)?)
+            }
             C_OpData_Tag_OpData_ExitProcess => {
                 Self::ExitProcessOp(unsafe { value.__bindgen_anon_7.exit_process }.ffi_into(ctx)?)
             }
             C_OpData_Tag_OpData_ExitThread => {
                 Self::ExitThreadOp(unsafe { value.__bindgen_anon_8.exit_thread }.ffi_into(ctx)?)
             }
-            C_OpData_Tag_OpData_Access => Self::AccessOp(unsafe { value.__bindgen_anon_1.access }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Stat => Self::StatOp(unsafe { value.__bindgen_anon_18.stat }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Readdir => Self::ReaddirOp(unsafe { value.__bindgen_anon_15.readdir }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Wait => Self::WaitOp(unsafe { value.__bindgen_anon_22.wait }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_UpdateMetadata => {
-                Self::UpdateMetadataOp(unsafe { value.__bindgen_anon_21.update_metadata }.ffi_into(ctx)?)
+            C_OpData_Tag_OpData_Access => {
+                Self::AccessOp(unsafe { value.__bindgen_anon_1.access }.ffi_into(ctx)?)
             }
+            C_OpData_Tag_OpData_Stat => {
+                Self::StatOp(unsafe { value.__bindgen_anon_18.stat }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_Readdir => {
+                Self::ReaddirOp(unsafe { value.__bindgen_anon_15.readdir }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_Wait => {
+                Self::WaitOp(unsafe { value.__bindgen_anon_22.wait }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_UpdateMetadata => Self::UpdateMetadataOp(
+                unsafe { value.__bindgen_anon_21.update_metadata }.ffi_into(ctx)?,
+            ),
             C_OpData_Tag_OpData_ReadLink => {
                 Self::ReadLinkOp(unsafe { value.__bindgen_anon_14.read_link }.ffi_into(ctx)?)
             }
-            C_OpData_Tag_OpData_Dup => Self::DupOp(unsafe { value.__bindgen_anon_5.dup }.ffi_into(ctx)?),
+            C_OpData_Tag_OpData_Dup => {
+                Self::DupOp(unsafe { value.__bindgen_anon_5.dup }.ffi_into(ctx)?)
+            }
             C_OpData_Tag_OpData_HardLink => {
                 Self::HardLinkOp(unsafe { value.__bindgen_anon_9.hard_link }.ffi_into(ctx)?)
             }
-            C_OpData_Tag_OpData_SymbolicLink => {
-                Self::SymbolicLinkOp(unsafe { value.__bindgen_anon_19.symbolic_link }.ffi_into(ctx)?)
+            C_OpData_Tag_OpData_SymbolicLink => Self::SymbolicLinkOp(
+                unsafe { value.__bindgen_anon_19.symbolic_link }.ffi_into(ctx)?,
+            ),
+            C_OpData_Tag_OpData_Unlink => {
+                Self::UnlinkOp(unsafe { value.__bindgen_anon_20.unlink }.ffi_into(ctx)?)
             }
-            C_OpData_Tag_OpData_Unlink => Self::UnlinkOp(unsafe { value.__bindgen_anon_20.unlink }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_Rename => Self::RenameOp(unsafe { value.__bindgen_anon_16.rename }.ffi_into(ctx)?),
-            C_OpData_Tag_OpData_MkFile => Self::MkFileOp(unsafe { value.__bindgen_anon_12.mk_file }.ffi_into(ctx)?),
-            _ => return Err(ProbeError::InvalidVariant(unsafe{value.tag}.into())),
+            C_OpData_Tag_OpData_Rename => {
+                Self::RenameOp(unsafe { value.__bindgen_anon_16.rename }.ffi_into(ctx)?)
+            }
+            C_OpData_Tag_OpData_MkFile => {
+                Self::MkFileOp(unsafe { value.__bindgen_anon_12.mk_file }.ffi_into(ctx)?)
+            }
+            _ => return Err(ProbeError::InvalidVariant(unsafe { value.tag })),
         })
     }
 }

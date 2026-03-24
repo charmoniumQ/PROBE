@@ -7,9 +7,11 @@
 
 struct Op;         // IWYU pragma: keep
 struct StatResult; // IWYU pragma: keep
+struct Rusage;
 struct stat;
 struct statx;
 struct Path;
+struct rusage;
 
 __attribute__((visibility("hidden"))) struct Path
 create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags);
@@ -40,5 +42,5 @@ __attribute__((visibility("hidden"))) void
 stat_result_from_statx(struct StatResult* stat_result_buf, struct statx* statx_buf)
     __attribute__((nonnull));
 
-__attribute__((visibility("hidden"))) void copy_rusage(struct Rusage* dst, struct Rusage* src)
+__attribute__((visibility("hidden"))) void copy_rusage(struct Rusage* dst, struct rusage* src)
     __attribute__((nonnull));

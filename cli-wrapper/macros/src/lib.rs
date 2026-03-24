@@ -266,7 +266,7 @@ pub fn pygen_write_to_env(input: TokenStream) -> TokenStream {
 
 /// add a property to a python dataclass with the following syntax:
 ///
-/// ```
+/// ```ignore
 /// pygen_add_prop!(ClassName impl prop_name -> return_type:
 ///     "line1",
 ///     "return line2"

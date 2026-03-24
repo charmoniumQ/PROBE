@@ -16,16 +16,16 @@
 // IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
 #include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
+#include "../generated/libc_hooks.h"      // for client_...
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
-#include "../generated/libc_hooks.h"  // for client_...
-#include "arena.h"                    // for arena_is_initialized, arena_create
-#include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR
-#include "env.h"                      // for getenv_copy
-#include "inode_table.h"              // for inode_table_init, inode_table_i...
-#include "probe_libc.h"               // for probe_libc_...
-#include "prov_buffer.h"              // for prov_log_try, prov_log_record, prov_log_save
-#include "prov_utils.h"               // for do_init_ops
-#include "util.h"                     // for CHECK_SNPRINTF, list_dir, UNLIKELY
+#include "arena.h"                        // for arena_is_initialized, arena_create
+#include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG, ERROR
+#include "env.h"                          // for getenv_copy
+#include "inode_table.h"                  // for inode_table_init, inode_table_i...
+#include "probe_libc.h"                   // for probe_libc_...
+#include "prov_buffer.h"                  // for prov_log_try, prov_log_record, prov_log_save
+#include "prov_utils.h"                   // for do_init_ops
+#include "util.h"                         // for CHECK_SNPRINTF, list_dir, UNLIKELY
 
 #ifdef NDEBUG
 #define check_fixed_path(path)
