@@ -29,6 +29,7 @@ fn should_prefix(name: &str) -> bool {
     LIST.get_or_init(|| {
         HashSet::from([
             "Path",
+            "TimeVal",
             "InitProcessOp",
             "InitExecEpochOp",
             "InitThreadOp",
@@ -44,8 +45,8 @@ fn should_prefix(name: &str) -> bool {
             "StatOp",
             "ReaddirOp",
             "WaitOp",
-            "MetadataKind",
             "MetadataValue",
+            "MetadataValue_Tag",
             "UpdateMetadataOp",
             "ReadLinkOp",
             "DupOp",
@@ -54,13 +55,13 @@ fn should_prefix(name: &str) -> bool {
             "UnlinkOp",
             "RenameOp",
             "MkFileOp",
-            "OpCode",
+            "OpData_Tag",
+            "OpData",
             "Op",
             "StatResult",
-            "my_rusage",
-            "statx_timestamp",
-            "timespec",
-            "timeval",
+            "Rusage",
+            "StatxTimestamp",
+
         ])
     })
     .contains(name)

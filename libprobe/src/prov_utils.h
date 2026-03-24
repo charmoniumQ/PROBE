@@ -7,7 +7,6 @@
 
 struct Op;         // IWYU pragma: keep
 struct StatResult; // IWYU pragma: keep
-struct Rusage;     // IWYU pragma: keep
 struct stat;
 struct statx;
 struct Path;

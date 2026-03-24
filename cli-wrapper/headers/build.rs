@@ -26,8 +26,6 @@ fn main() {
 #define DATA_SUBDIR \"data\"
 #define OPS_SUBDIR \"ops\"
 
-
-
 ",
         )
         .with_no_includes()

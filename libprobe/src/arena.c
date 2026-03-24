@@ -27,6 +27,13 @@ unsigned char ceil_log2(unsigned int val) {
     return ret + is_greater;
 }
 
+struct ArenaHeader {
+    size_t instantiation;
+    uintptr_t base_address;
+    uintptr_t capacity;
+    uintptr_t used;
+};
+
 /* ArenaListElem is a linked-list of arrays of Arenas.
  * The size of the array is ARENA_LIST_BLOCK_SIZE.
  * Making this larger requires more memory, but makes there be fewer linked-list allocations. */

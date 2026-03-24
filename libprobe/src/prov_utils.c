@@ -20,8 +20,6 @@
 #include "probe_libc.h"           // for probe_libc_strlen
 #include "util.h"                 // for CHECK_SNPRINTF, BORROWED
 
-static const struct Path null_path = {0, NULL, 0, 0, 0, 0, {0}, {0}, 0, false};
-
 struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags) {
     ASSERTF((path && dirfd != -1) || (!path && (dirfd == -1 || (flags & AT_EMPTY_PATH))),
             "Either dirfd and path are both set, both unset, or AT_EMPTY_PATH: %d %s %d", dirfd,

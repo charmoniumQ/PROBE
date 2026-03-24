@@ -17,6 +17,7 @@
 
 #include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
+#include "../generated/libc_hooks.h"  // for client_...
 #include "arena.h"                    // for arena_is_initialized, arena_create
 #include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR
 #include "env.h"                      // for getenv_copy
