@@ -33,9 +33,9 @@ bool search_on_colon_separated_path(const char* path, const char* needle, size_t
 #define LD_PRELOAD_EQ LD_PRELOAD_VAR "="
 #define PROBE_DIR_EQ PROBE_DIR_VAR "="
 
-char* const* update_env_with_probe_vars(char* const* env, size_t* new_env_size) {
+char const* const* update_env_with_probe_vars(char const* const* env, size_t* new_env_size) {
     *new_env_size = 0;
-    for (char* const* env_pair = env; *env_pair != NULL; ++env_pair) {
+    for (char const* const* env_pair = env; *env_pair != NULL; ++env_pair) {
         /* DEBUG("env[%ld] = \"%s\"", *new_env_size, env[*new_env_size]); */
         ++*new_env_size;
     }
@@ -115,16 +115,17 @@ char* const* update_env_with_probe_vars(char* const* env, size_t* new_env_size) 
 
     new_env[*new_env_size] = NULL;
 
-    return new_env;
+    return (const char* const*)new_env;
 }
 
 // getconf -a | grep ARG_MAX
 #define ARG_MAX 2505728
 
-char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size_t argc) {
+char const* const* arena_copy_argv(struct ArenaDir* arena_dir, char const* const* argv,
+                                   size_t argc) {
     if (argc == 0) {
         /* Compute argc and store in argc */
-        for (char* const* argv_p = argv; *argv_p; ++argv_p) {
+        for (char const* const* argv_p = argv; *argv_p; ++argv_p) {
             ++argc;
         }
     }
@@ -141,10 +142,10 @@ char* const* arena_copy_argv(struct ArenaDir* arena_dir, char* const* argv, size
     ASSERTF(!argv[argc], "");
     argv_copy[argc] = NULL;
 
-    return argv_copy;
+    return (const char* const*)argv_copy;
 }
 
-char* const* arena_copy_cmdline(struct ArenaDir* arena_dir, result_sized_mem cmdline) {
+char const* const* arena_copy_cmdline(struct ArenaDir* arena_dir, result_sized_mem cmdline) {
     size_t argc = probe_libc_memcount(cmdline.value, cmdline.size, '\0');
 
     char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
@@ -164,5 +165,5 @@ char* const* arena_copy_cmdline(struct ArenaDir* arena_dir, result_sized_mem cmd
 #endif
     argv_copy[argc] = NULL;
 
-    return argv_copy;
+    return (const char* const*)argv_copy;
 }

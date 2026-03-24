@@ -9,7 +9,7 @@ import tempfile
 import contextlib
 import charmonium.time_block
 from . import ops
-from .ptypes import ProbeLog, ProbeOptions, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
+from .ptypes import ProbeLog, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec, ProcessTreeContext
 
 
 @contextlib.contextmanager
@@ -61,7 +61,6 @@ def parse_probe_log_ctx(
                             data=ops.ExitThreadOp(
                                 status=0,
                             ),
-                            time=ops_list[-1].time,
                             pthread_id=ops_list[-1].pthread_id,
                             iso_c_thread_id=ops_list[-1].iso_c_thread_id,
                         ))
@@ -69,15 +68,12 @@ def parse_probe_log_ctx(
                 execs[exec_no] = Exec(exec_no, threads)
             processes[pid] = Process(pid, execs)
 
-        options = json.loads((tmpdir / "options.json").read_bytes())
+        process_tree_context = ProcessTreeContext(**json.loads((tmpdir / "options.json").read_bytes()))
 
         yield ProbeLog(
             processes,
             inodes,
-            ProbeOptions(
-                copy_files=options["copy_files"] != 0,
-                parent_of_root=options["parent_of_root"],
-            ),
+            process_tree_context,
             host,
         )
 
@@ -93,7 +89,7 @@ def parse_probe_log(
         return dataclasses.replace(
             probe_log,
             copied_files={},
-            probe_options=dataclasses.replace(probe_log.probe_options, copy_files=False),
+            process_tree_context=dataclasses.replace(probe_log.process_tree_context, copy_files=False),
         )
 
 

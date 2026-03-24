@@ -63,5 +63,3 @@ arena_uninstantiate_all_but_last(struct ArenaDir* arena_dir) __attribute__((nonn
 
 __attribute__((visibility("hidden"))) bool arena_is_initialized(struct ArenaDir* arena_dir)
     __attribute__((nonnull));
-
-__attribute__((visibility("hidden"))) bool prov_log_is_enabled();

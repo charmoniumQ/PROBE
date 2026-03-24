@@ -28,6 +28,7 @@ lint-cli:
     cargo audit
     cargo hakari generate
     cargo hakari manage-deps
+    cargo test
 
 [working-directory: 'cli-wrapper']
 compile-cli:

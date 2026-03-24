@@ -5,7 +5,7 @@ import typing
 import warnings
 import charmonium.time_block
 import networkx
-from .ptypes import TaskType, Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
+from .ptypes import Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph, TaskType
 from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp
 from . import graph_utils
 from . import ptypes
@@ -112,7 +112,7 @@ def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) ->
     op = probe_log.get_op(node)
     if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
         match op.data.task_type:
-            case TaskType.TASK_TID:
+            case TaskType.TID:
                 target_tid = Tid(op.data.task_id)
                 if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
                     warnings.warn(ptypes.UnusualProbeLog(
@@ -122,7 +122,7 @@ def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) ->
                     target = OpQuad(node.pid, node.exec_no, target_tid, 0)
                     assert hb_graph.has_node(target)
                     hb_graph.add_edge(node, target)
-            case TaskType.TASK_PID:
+            case TaskType.PID:
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
                     warnings.warn(ptypes.UnusualProbeLog(
@@ -132,7 +132,7 @@ def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) ->
                     target = OpQuad(target_pid, initial_exec_no, target_pid.main_thread(), 0)
                     assert hb_graph.has_node(target)
                     hb_graph.add_edge(node, target)
-            case TaskType.TASK_PTHREAD | TaskType.TASK_ISO_C_THREAD:
+            case TaskType.PTHREAD | TaskType.ISO_C_THREAD:
                 targets = get_first_task_nodes(probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id, False)
                 for target in targets:
                     assert hb_graph.has_node(target)
@@ -143,15 +143,15 @@ def get_first_task_nodes(
         probe_log: ProbeLog,
         pid: Pid,
         exec_no: ExecNo,
-        task_type: int,
+        task_type: TaskType,
         task_id: int,
         reverse: bool,
 ) -> list[OpQuad]:
     targets = []
     for tid, thread in probe_log.processes[pid].execs[exec_no].threads.items():
         for op_no, other_op in reversed(list(enumerate(thread.ops))) if reverse else enumerate(thread.ops):
-            if (task_type == TaskType.TASK_PTHREAD and other_op.pthread_id == task_id) or \
-               (task_type == TaskType.TASK_ISO_C_THREAD and other_op.iso_c_thread_id == task_id):
+            if (task_type == TaskType.PTHREAD and other_op.pthread_id == task_id) or \
+               (task_type == TaskType.ISO_C_THREAD and other_op.iso_c_thread_id == task_id):
                 targets.append(OpQuad(pid, exec_no, tid, op_no))
                 break
     return targets
@@ -161,7 +161,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
     op = probe_log.get_op(node)
     if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
         match op.data.task_type:
-            case TaskType.TASK_TID:
+            case TaskType.TID:
                 target_tid = Tid(op.data.task_id)
                 if target_tid not in probe_log.processes[node.pid].execs[node.exec_no].threads:
                     warnings.warn(ptypes.UnusualProbeLog(
@@ -170,7 +170,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                 else:
                     target = OpQuad(node.pid, node.exec_no, target_tid, len(probe_log.processes[node.pid].execs[node.exec_no].threads[target_tid].ops) - 1)
                     hb_graph.add_edge(target, node)
-            case TaskType.TASK_PID:
+            case TaskType.PID:
                 target_pid = Pid(op.data.task_id)
                 if target_pid not in probe_log.processes:
                     warnings.warn(ptypes.UnusualProbeLog(
@@ -182,7 +182,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                     target = OpQuad(target_pid, last_exec_no, target_pid.main_thread(), last_op_no)
                     assert hb_graph.has_node(target)
                     hb_graph.add_edge(target, node)
-            case TaskType.TASK_PTHREAD | TaskType.TASK_ISO_C_THREAD:
+            case TaskType.PTHREAD | TaskType.ISO_C_THREAD:
                 targets = get_first_task_nodes(probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id, True)
                 for target in targets:
                     assert hb_graph.has_node(target)
@@ -267,17 +267,17 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
             data["label"] += f"Open ({access})  fd={op.data.fd}"
             data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{op.data.path.path.decode()}"
+            data["label"] += f"\n{(op.data.path.path or b'').decode()}"
         elif isinstance(op.data, StatOp):
             data["label"] += "Stat"
             data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{op.data.path.path.decode()}"
+            data["label"] += f"\n{(op.data.path.path or b'').decode()}"
         elif isinstance(op.data, CloseOp):
             data["label"] += f"Close fd={op.data.fd}"
             data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{op.data.path.path.decode()}"
+            data["label"] += f"\n{(op.data.path.path or b'').decode()}"
         elif isinstance(op.data, DupOp):
-            data["label"] += f"DupOp fd={op.data.old} → fd={op.data.new}"
+            data["label"] += f"DupOp fd={op.data.old} → fd={op.data.new_}"
         else:
             data["label"] += f"{op.data.__class__.__name__}"
             data["labelfontsize"] = 8

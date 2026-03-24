@@ -4,66 +4,63 @@
 
 #include <features.h>  // for __GLIBC_MINOR__, __GLIBC__
 #include <stdbool.h>   // for bool, false
+#include <stddef.h>    // for size_t
 #include <stdint.h>    // for uint32_t, int32_t, uint64_t, int64_t
-#include <sys/stat.h>  // IWYU pragma: keep for statx_timestamp
-#include <sys/time.h>  // for timeval
 #include <sys/types.h> // for pid_t, mode_t, gid_t, ino_t, uid_t
-#include <time.h>      // for timespec
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
 // IWYU pragma: no_include "linux/stat.h" for statx_timestamp
 
-#if defined(__GLIBC__) && __GLIBC_MINOR__ >= 28
-#include <threads.h> // for thrd_t, thrd_start_t
-#else
-// echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out
-// prints 8 8
-typedef uint64_t thrd_t;
-typedef uint64_t thrd_start_t;
-#error "I don't expect this branch to be used, but it should still work"
-// See ./PROBE/docs/old-glibc.md
-#endif
+typedef char const* _Nonnull ByteString;
+typedef char const* _Nullable Option_ByteString;
+typedef char const* _Nullable const* _Nonnull StringArray;
 
-// HACK: defining this manually instead of using <sys/resource.h> is
-// a huge hack, but it greatly reduces the generated code complexity
-// since in glibc all the long ints are unions over two types that
-// both alias to long int, this is done for kernel-userland
-// compatibility reasons that don't matter here.
-struct my_rusage {
-    struct timeval ru_utime;
-    struct timeval ru_stime;
-    long int ru_maxrss;
-    long int ru_ixrss;
-    long int ru_idrss;
-    long int ru_isrss;
-    long int ru_minflt;
-    long int ru_majflt;
-    long int ru_nswap;
-    long int ru_inblock;
-    long int ru_oublock;
-    long int ru_msgsnd;
-    long int ru_msgrcv;
-    long int ru_nsignals;
-    long int ru_nvcsw;
-    long int ru_nivcsw;
+typedef int64_t TimeT;
+
+typedef int64_t SusecondsT;
+
+struct TimeVal {
+    TimeT tv_sec;
+    SusecondsT tv_usec;
+};
+
+struct StatxTimestamp {
+    long long tv_sec;
+    unsigned int tv_nsec;
+    unsigned int __padding;
+};
+
+struct Rusage {
+    struct TimeVal ru_utime;
+    struct TimeVal ru_stime;
+    long ru_maxrss;
+    long ru_ixrss;
+    long ru_idrss;
+    long ru_isrss;
+    long ru_minflt;
+    long ru_majflt;
+    long ru_nswap;
+    long ru_inblock;
+    long ru_oublock;
+    long ru_msgsnd;
+    long ru_msgrcv;
+    long ru_nsignals;
+    long ru_nvcsw;
+    long ru_nivcsw;
 };
 
 struct Path {
-    int32_t dirfd_minus_at_fdcwd; /* valid if path is non-null */
-    const char* path;             /* valid if non-null */
+    int32_t dirfd;
+    const char* _Nullable path; /* valid if non-null */
     /* rest are valid if stat_valid */
     unsigned int device_major;
     unsigned int device_minor;
     ino_t inode;
     uint16_t mode;
-    struct statx_timestamp mtime;
-    struct statx_timestamp ctime;
+    struct StatxTimestamp mtime;
+    struct StatxTimestamp ctime;
     size_t size;
     bool stat_valid;
 };
-
-static const struct Path null_path = {-1, NULL, -1, -1, -1, 0, {0}, {0}, 0, false};
-/* We don't need to free paths since I switched to the Arena allocator */
-/* static void free_path(struct Path path); */
 
 struct InitExecEpochOp {
     pid_t parent_pid;
@@ -71,8 +68,8 @@ struct InitExecEpochOp {
     unsigned int epoch;
     struct Path cwd;
     struct Path exe;
-    char* const* argv;
-    char* const* env;
+    StringArray argv;
+    StringArray env;
     struct Path std_in;
     struct Path std_out;
     struct Path std_err;
@@ -105,8 +102,8 @@ struct ChdirOp {
 struct ExecOp {
     struct Path path;
     int ferrno;
-    char* const* argv;
-    char* const* env;
+    StringArray argv;
+    StringArray env;
 };
 
 struct SpawnOp {
@@ -116,10 +113,10 @@ struct SpawnOp {
 };
 
 enum TaskType {
-    TASK_PID,
-    TASK_TID,
-    TASK_ISO_C_THREAD,
-    TASK_PTHREAD,
+    TaskType_Pid,
+    TaskType_Tid,
+    TaskType_IsoCThread,
+    TaskType_Pthread,
 };
 
 struct CloneOp {
@@ -155,10 +152,10 @@ struct StatResult {
     uint64_t size;
     uint64_t blocks;
     uint32_t blksize;
-    struct statx_timestamp atime;
-    struct statx_timestamp btime;
-    struct statx_timestamp ctime;
-    struct statx_timestamp mtime;
+    struct StatxTimestamp atime;
+    struct StatxTimestamp btime;
+    struct StatxTimestamp ctime;
+    struct StatxTimestamp mtime;
     uint32_t dev_major;
     uint32_t dev_minor;
 };
@@ -172,7 +169,7 @@ struct StatOp {
 
 struct ReaddirOp {
     struct Path dir;
-    char* child;
+    char* _Nullable child;
     bool all_children;
     int ferrno;
 };
@@ -215,40 +212,53 @@ struct WaitOp {
     int options;
     int status;
     bool cancelled;
-    struct my_rusage usage;
+    struct Rusage usage;
     int ferrno;
 };
 
-enum MetadataKind {
-    MetadataMode,
-    MetadataOwnership,
-    MetadataTimes,
+struct Ownership {
+    uid_t uid;
+    gid_t gid;
+};
+
+struct Times {
+    bool is_null;
+    struct TimeVal atime;
+    struct TimeVal mtime;
+};
+
+enum MetadataValue_Tag {
+    MetadataValue_Mode,
+    MetadataValue_Ownership,
+    MetadataValue_Times,
 };
 
 union MetadataValue {
-    mode_t mode;
+    enum MetadataValue_Tag tag;
     struct {
-        uid_t uid;
-        gid_t gid;
-    } ownership;
+        enum MetadataValue_Tag mode_tag;
+        mode_t mode;
+    };
     struct {
-        bool is_null;
-        struct timeval atime;
-        struct timeval mtime;
-    } times;
+        enum MetadataValue_Tag ownership_tag;
+        struct Ownership ownership;
+    };
+    struct {
+        enum MetadataValue_Tag times_tag;
+        struct Times times;
+    };
 };
 
 struct UpdateMetadataOp {
     struct Path path;
     int flags;
-    enum MetadataKind kind;
     union MetadataValue value;
     int ferrno;
 };
 
 struct ReadLinkOp {
     struct Path linkpath;
-    const char* referent;
+    const char* _Nullable referent;
     bool truncation;
     bool recursive_dereference;
     int ferrno;
@@ -257,20 +267,20 @@ struct ReadLinkOp {
 struct DupOp {
     struct Path path;
     int old;
-    int new;
+    int new_;
     int flags;
     int ferrno;
 };
 
 struct HardLinkOp {
     struct Path old;
-    struct Path new;
+    struct Path new_;
     int ferrno;
 };
 
 struct SymbolicLinkOp {
-    const char* old;
-    struct Path new;
+    const char* _Nullable old;
+    struct Path new_;
     int ferrno;
 };
 
@@ -287,9 +297,9 @@ struct RenameOp {
 };
 
 enum FileType {
-    DirFileType,
-    FifoFileType,
-    PipeFileType,
+    FileType_Dir,
+    FileType_Fifo,
+    FileType_Pipe,
 };
 
 struct MkFileOp {
@@ -300,63 +310,131 @@ struct MkFileOp {
     int ferrno;
 };
 
-enum OpCode {
-    FIRST_OP_CODE,
-    init_process_op_code,
-    init_exec_epoch_op_code,
-    init_thread_op_code,
-    open_op_code,
-    close_op_code,
-    chdir_op_code,
-    exec_op_code,
-    spawn_op_code,
-    clone_op_code,
-    exit_thread_op_code,
-    exit_process_op_code,
-    access_op_code,
-    stat_op_code,
-    readdir_op_code,
-    wait_op_code,
-    update_metadata_op_code,
-    read_link_op_code,
-    dup_op_code,
-    hard_link_op_code,
-    symbolic_link_op_code,
-    unlink_op_code,
-    rename_op_code,
-    mkfile_op_code,
-    LAST_OP_CODE,
+enum OpData_Tag {
+    OpData_Access,
+    OpData_Chdir,
+    OpData_Clone,
+    OpData_Close,
+    OpData_Dup,
+    OpData_Exec,
+    OpData_ExitProcess,
+    OpData_ExitThread,
+    OpData_HardLink,
+    OpData_InitExecEpoch,
+    OpData_InitThread,
+    OpData_MkFile,
+    OpData_Open,
+    OpData_ReadLink,
+    OpData_Readdir,
+    OpData_Rename,
+    OpData_Spawn,
+    OpData_Stat,
+    OpData_SymbolicLink,
+    OpData_Unlink,
+    OpData_UpdateMetadata,
+    OpData_Wait,
+    /**
+     * Must be last for serialization purposes
+     */
+    OpData_Sentinel,
+};
+
+union OpData {
+    enum OpData_Tag tag;
+    struct {
+        enum OpData_Tag access_tag;
+        struct AccessOp access;
+    };
+    struct {
+        enum OpData_Tag chdir_tag;
+        struct ChdirOp chdir;
+    };
+    struct {
+        enum OpData_Tag clone_tag;
+        struct CloneOp clone;
+    };
+    struct {
+        enum OpData_Tag close_tag;
+        struct CloseOp close;
+    };
+    struct {
+        enum OpData_Tag dup_tag;
+        struct DupOp dup;
+    };
+    struct {
+        enum OpData_Tag exec_tag;
+        struct ExecOp exec;
+    };
+    struct {
+        enum OpData_Tag exit_process_tag;
+        struct ExitProcessOp exit_process;
+    };
+    struct {
+        enum OpData_Tag exit_thread_tag;
+        struct ExitThreadOp exit_thread;
+    };
+    struct {
+        enum OpData_Tag hard_link_tag;
+        struct HardLinkOp hard_link;
+    };
+    struct {
+        enum OpData_Tag init_exec_epoch_tag;
+        struct InitExecEpochOp init_exec_epoch;
+    };
+    struct {
+        enum OpData_Tag init_thread_tag;
+        struct InitThreadOp init_thread;
+    };
+    struct {
+        enum OpData_Tag mk_file_tag;
+        struct MkFileOp mk_file;
+    };
+    struct {
+        enum OpData_Tag open_tag;
+        struct OpenOp open;
+    };
+    struct {
+        enum OpData_Tag read_link_tag;
+        struct ReadLinkOp read_link;
+    };
+    struct {
+        enum OpData_Tag readdir_tag;
+        struct ReaddirOp readdir;
+    };
+    struct {
+        enum OpData_Tag rename_tag;
+        struct RenameOp rename;
+    };
+    struct {
+        enum OpData_Tag spawn_tag;
+        struct SpawnOp spawn;
+    };
+    struct {
+        enum OpData_Tag stat_tag;
+        struct StatOp stat;
+    };
+    struct {
+        enum OpData_Tag symbolic_link_tag;
+        struct SymbolicLinkOp symbolic_link;
+    };
+    struct {
+        enum OpData_Tag unlink_tag;
+        struct UnlinkOp unlink;
+    };
+    struct {
+        enum OpData_Tag update_metadata_tag;
+        struct UpdateMetadataOp update_metadata;
+    };
+    struct {
+        enum OpData_Tag wait_tag;
+        struct WaitOp wait;
+    };
 };
 
 struct Op {
-    enum OpCode op_code;
-    union {
-        struct InitExecEpochOp init_exec_epoch;
-        struct InitThreadOp init_thread;
-        struct OpenOp open;
-        struct CloseOp close;
-        struct ChdirOp chdir;
-        struct ExecOp exec;
-        struct SpawnOp spawn;
-        struct CloneOp clone;
-        struct ExitThreadOp exit_thread;
-        struct ExitProcessOp exit_process;
-        struct AccessOp access;
-        struct StatOp stat;
-        struct ReaddirOp readdir;
-        struct WaitOp wait;
-        struct UpdateMetadataOp update_metadata;
-        struct ReadLinkOp read_link;
-        struct DupOp dup;
-        struct HardLinkOp hard_link;
-        struct SymbolicLinkOp symbolic_link;
-        struct UnlinkOp unlink;
-        struct RenameOp rename;
-        struct MkFileOp mkfile;
-    } data;
-    struct timespec time;
+    union OpData data;
     uint16_t pthread_id;
-    thrd_t iso_c_thread_id;
+    uint64_t iso_c_thread_id;
 };
 
 /* We don't need this since we switched to an Arena allocator */

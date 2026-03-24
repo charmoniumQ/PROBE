@@ -81,13 +81,13 @@ def validate_clone_targets(probe_log: ProbeLog) -> typing.Iterator[str]:
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
                     if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
-                        if op.data.task_type == TaskType.TASK_PID and Pid(op.data.task_id) not in pids:
+                        if op.data.task_type == TaskType.PID and Pid(op.data.task_id) not in pids:
                             yield f"CloneOp returned a PID {op.data.task_id} that we didn't track"
-                        elif op.data.task_type == TaskType.TASK_TID and Tid(op.data.task_id) not in exec_ep.threads:
+                        elif op.data.task_type == TaskType.TID and Tid(op.data.task_id) not in exec_ep.threads:
                             yield f"CloneOp returned a TID {op.data.task_id} that we didn't track"
-                        elif op.data.task_type == TaskType.TASK_PTHREAD and op.data.task_id not in pthread_ids:
+                        elif op.data.task_type == TaskType.PTHREAD and op.data.task_id not in pthread_ids:
                             yield f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track"
-                        elif op.data.task_type == TaskType.TASK_ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
+                        elif op.data.task_type == TaskType.ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
                             yield f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track"
 
 
@@ -104,9 +104,9 @@ def validate_clones_and_waits(probe_log: ProbeLog) -> typing.Iterator[str]:
                         waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
                     elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
                         cloned_processes.add((TaskType(op.data.task_type), op.data.task_id))
-                        if op.data.task_type == TaskType.TASK_PID:
+                        if op.data.task_type == TaskType.PID:
                             # New process implicitly also creates a new thread
-                            cloned_processes.add((TaskType.TASK_TID, op.data.task_id))
+                            cloned_processes.add((TaskType.TID, op.data.task_id))
     if waited_processes != cloned_processes:
         yield f"Waited different PIDs or TIDs than we cloned: {waited_processes=} {cloned_processes=}"
 

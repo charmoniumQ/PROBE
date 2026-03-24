@@ -6,7 +6,6 @@
 #include <limits.h>   // IWYU pragma: keep for PATH_MAX
 #include <sched.h>    // for CLONE_VFORK
 #include <stdbool.h>  // for bool, true
-#include <stdio.h>    // for fprintf, stderr
 #include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
 #include <threads.h>  // for thrd_current
 #include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
@@ -64,8 +63,8 @@ static int copy_to_store(const struct Path* path) {
         return 0;
     } else if ((path->mode & S_IFMT) == S_IFREG) {
         DEBUG("Copying regular file %s %ld", path->path, path->inode);
-        return (int)probe_copy_file(path->dirfd_minus_at_fdcwd + AT_FDCWD, path->path, AT_FDCWD,
-                                    store_path.bytes, path->size);
+        return (int)probe_copy_file(path->dirfd, path->path, AT_FDCWD, store_path.bytes,
+                                    path->size);
     } else if ((path->mode & S_IFMT) == S_IFCHR) {
         DEBUG("Copying block device file %s %ld", path->path, path->inode);
         // TODO
@@ -133,15 +132,15 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
  * We promise not to read those fields in this function.
  */
 void prov_log_try(struct Op op) {
-    ASSERTF(FIRST_OP_CODE < op.op_code && op.op_code < LAST_OP_CODE, "%d", op.op_code);
+    ASSERTF(0 <= op.data.tag && op.data.tag < OpData_Sentinel, "%d", op.data.tag);
 
-    if (op.op_code == clone_op_code && op.data.clone.flags & CLONE_VFORK) {
+    if (op.data.tag == OpData_Clone && op.data.clone.flags & CLONE_VFORK) {
         DEBUG("I don't know if CLONE_VFORK actually works. See libc_hooks_source.c for vfork()");
     }
 
     /* Think about copying files if necessary */
-    switch (op.op_code) {
-    case open_op_code: {
+    switch (op.data.tag) {
+    case OpData_Open: {
         enum Access access = UNKNOWN_ACCESS;
         if ((op.data.open.flags & O_ACCMODE) == O_RDONLY) {
             access = READ_ACCESS;
@@ -158,11 +157,11 @@ void prov_log_try(struct Op op) {
         maybe_copy_to_store(access, &op.data.open.path);
         break;
     }
-    case exec_op_code: {
+    case OpData_Exec: {
         maybe_copy_to_store(READ_ACCESS, &op.data.exec.path);
         break;
     }
-    case spawn_op_code: {
+    case OpData_Spawn: {
         maybe_copy_to_store(READ_ACCESS, &op.data.spawn.exec.path);
         break;
     }
@@ -176,28 +175,28 @@ void prov_log_try(struct Op op) {
  */
 void prov_log_record(struct Op op) {
     // TODO: construct op in op arena place instead of copying into arena.
-    ASSERTF(FIRST_OP_CODE < op.op_code && op.op_code < LAST_OP_CODE, "%d", op.op_code);
-#ifdef DEBUG_LOG
-    char str[PATH_MAX * 2];
-    op_to_human_readable(str, PATH_MAX * 2, &op);
-    if (op.op_code != readdir_op_code) {
-        DEBUG("recording op: %s", str);
-    }
-    if (op.op_code == init_exec_epoch_op_code) {
-        DEBUG("Init exec:");
-        for (size_t idx = 0; op.data.init_exec_epoch.argv[idx]; ++idx) {
-            fprintf(stderr, "'%s' ", op.data.init_exec_epoch.argv[idx]);
-        }
-        fprintf(stderr, "\n");
-    } else if (op.op_code == exec_op_code) {
-        DEBUG("Exec:");
-        fprintf(stderr, "'%s' ", op.data.exec.path.path);
-        for (size_t idx = 0; op.data.exec.argv[idx]; ++idx) {
-            fprintf(stderr, "'%s' ", op.data.exec.argv[idx]);
-        }
-        fprintf(stderr, "\n");
-    }
-#endif
+    ASSERTF(0 <= op.data.tag && op.data.tag < OpData_Sentinel, "%d", op.data.tag);
+    /* #ifdef DEBUG_LOG */
+    /*     char str[PATH_MAX * 2]; */
+    /*     op_to_human_readable(str, PATH_MAX * 2, &op); */
+    /*     if (op.data.tag != OpData_Readdir) { */
+    /*         DEBUG("recording op: %s (%d)", str, op.data.tag); */
+    /*     } */
+    /*     if (op.data.tag == OpData_InitExecEpoch) { */
+    /*         DEBUG("Init exec:"); */
+    /*         for (size_t idx = 0; op.data.init_exec_epoch.argv[idx]; ++idx) { */
+    /*             fprintf(stderr, "'%s' ", op.data.init_exec_epoch.argv[idx]); */
+    /*         } */
+    /*         fprintf(stderr, "\n"); */
+    /*     } else if (op.data.tag == OpData_Exec) { */
+    /*         DEBUG("Exec:"); */
+    /*         fprintf(stderr, "'%s' ", op.data.exec.path.path); */
+    /*         for (size_t idx = 0; op.data.exec.argv[idx]; ++idx) { */
+    /*             fprintf(stderr, "'%s' ", op.data.exec.argv[idx]); */
+    /*         } */
+    /*         fprintf(stderr, "\n"); */
+    /*     } */
+    /* #endif */
 
     // TODO: Time the performance of this
     //if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {
@@ -225,7 +224,7 @@ void prov_log_record(struct Op op) {
      * If the system runs low on memory, I think Linux will page out the infrequently used mmapped regions,
      * which is what we want. */
     /* arena_uninstantiate_all_but_last(get_data_arena()); */
-    arena_uninstantiate_all_but_last(get_op_arena());
+    /* arena_uninstantiate_all_but_last(get_op_arena()); */
 }
 
 bool prov_log_is_enabled() { return true; }

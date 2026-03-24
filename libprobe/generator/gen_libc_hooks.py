@@ -553,10 +553,16 @@ libc_hooks_h_preamble = """
 #include <signal.h>               // for siginfo_t
 #include <spawn.h>                // for posix_spawn_file_actions_t
 #include <stdio.h>                // for L_tmpnam, FILE, size_t
-#include <sys/stat.h>             // IWYU pragma: keep for stat
-#include <sys/time.h>             // IWYU pragma: keep for timeval
+#include <sys/time.h>             // for timeval
 #include <sys/types.h>            // for pid_t, mode_t, ssize_t, gid_t, uid_t
 #include <sys/wait.h>             // IWYU pragma: keep for idtype_t
+
+struct rusage;
+struct stat;
+struct statx;
+struct timeval;
+struct utimbuf;
+
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
 // IWYU pragma: no_include "bits/types/idtype_t.h" for idtype_t
 // IWYU pragma: no_include "bits/types/sigevent_t.h" for pthread_attr_t
@@ -571,12 +577,6 @@ typedef uint64_t thrd_t;
 typedef uint64_t thrd_start_t;
 #error "I don't expect this branch to be used, but it should still work"
 #endif
-
-struct rusage;
-struct stat;
-struct statx;
-struct timeval;
-struct utimbuf;
 
 /*
  * There is some bug with pycparser unable to parse inline function pointers.
@@ -644,14 +644,18 @@ libc_hooks_c_preamble = """
 #include <stdint.h>                                          // for int64_t
 #include <stdio.h>                                           // for fileno
 #include <stdlib.h>                                          // for free
+#include <string.h>                                          // for memcpy
+#include <sys/resource.h>                                    // IWYU pragma: keep for rusage
 #include <sys/stat.h>                                        // for chmod, statx
-#include <sys/time.h>                                        // for futimes
+#include <sys/time.h>                                        // for futimes, timeval
 #include <sys/wait.h>                                        // for wait, wait3
 #include <unistd.h>                                          // for vfork, access, chdir
 #include <utime.h>                                           // for utimbuf
 // IWYU pragma: no_include "bits/statx-generic.h"               for statx
 // IWYU pragma: no_include "bits/types/siginfo_t.h"             for si_pid, si_status
+// IWYU pragma: no_include "bits/types/struct_rusage.h"         for rusage
 // IWYU pragma: no_include "linux/limits.h"                     for PATH_MAX
+// IWYU pragma: no_include "linux/stat.h"                       for statx, statx_timestamp
 
 #include "../include/libprobe/prov_ops.h"                    // for Op, OpCode
 #include "../src/arena.h"                                    // for prov_log...
@@ -659,10 +663,10 @@ libc_hooks_c_preamble = """
 #include "../src/env.h"                                      // for arena_co...
 #include "../src/global_state.h"                             // for ensure_i...
 #include "../src/lookup_on_path.h"                           // for lookup_o...
-#include "../src/pthread_helper.h"                           // for pthread_helper
 #include "../src/probe_libc.h"                               // for probe_libc_...
 #include "../src/prov_buffer.h"                              // for prov_log...
 #include "../src/prov_utils.h"                               // for create_p...
+#include "../src/pthread_helper.h"                           // for pthread_helper
 #include "../src/util.h"                                     // for LIKELY
 
 #if defined(__GLIBC__) && __GLIBC_MINOR__ >= 34
@@ -683,10 +687,6 @@ typedef uint64_t thrd_t;
 typedef uint64_t thrd_start_t;
 #error "I don't expect this branch to be used, but it should still work"
 #endif
-
-struct rusage;
-struct stat;
-struct statx;
 
 /*
  * pycparser cannot parse type-names as function-arguments (as in `va_arg(var_name, type_name)` or `sizeof(type_name)`)
@@ -713,7 +713,11 @@ typedef void* __type_voidp;
 
 // Clang and GCC disagree on how to construct this struct inline.
 // So I will construct it not inline, here.
-const struct my_rusage null_usage = {};
+const struct Rusage null_usage = {};
+static const struct Path null_path = {0, NULL, 0, 0, 0, 0, {0}, {0}, 0, false};
+_Static_assert(sizeof(struct Rusage) == sizeof(struct rusage), "");
+_Static_assert(sizeof(struct StatxTimestamp) == sizeof(struct statx_timestamp), "");
+_Static_assert(sizeof(struct TimeVal) == sizeof(struct timeval), "");
 
 #pragma clang diagnostic ignored "-Wignored-attributes"
 """

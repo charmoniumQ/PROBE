@@ -63,7 +63,7 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                         }
                     };
                     let ident_str = ident.to_string();
-                    for prefix in ["__spare", "__reserved"] {
+                    for prefix in ["__spare", "__reserved", "__padding"] {
                         if ident_str.starts_with(prefix) {
                             return None;
                         }
@@ -266,7 +266,7 @@ pub fn pygen_write_to_env(input: TokenStream) -> TokenStream {
 
 /// add a property to a python dataclass with the following syntax:
 ///
-/// ```
+/// ```ignore
 /// pygen_add_prop!(ClassName impl prop_name -> return_type:
 ///     "line1",
 ///     "return line2"

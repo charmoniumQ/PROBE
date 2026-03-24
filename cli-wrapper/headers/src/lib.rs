@@ -33,7 +33,7 @@ pub enum CopyFiles {
 #[derive(Clone)]
 pub struct FixedPath {
     pub bytes: [std::ffi::c_char; PROBE_PATH_MAX],
-    pub len: u32,
+    pub len: usize,
 }
 
 #[repr(C)]
@@ -53,9 +53,8 @@ pub struct ProcessContext {
 
 impl FixedPath {
     fn escape_string(&self) -> Result<String, Vec<u8>> {
-        let u8_slice = unsafe {
-            std::slice::from_raw_parts(self.bytes.as_ptr() as *const u8, self.len as usize)
-        };
+        let u8_slice =
+            unsafe { std::slice::from_raw_parts(self.bytes.as_ptr() as *const u8, self.len) };
         match std::str::from_utf8(u8_slice).map(|s| s.to_string()) {
             Ok(string) => Ok(string),
             Err(_) => Err(Vec::from(u8_slice)),
@@ -74,7 +73,7 @@ impl Default for FixedPath {
 
 impl PartialEq for FixedPath {
     fn eq(&self, other: &Self) -> bool {
-        self.bytes[0..(self.len as usize)] == other.bytes[0..(other.len as usize)]
+        self.bytes[0..self.len] == other.bytes[0..other.len]
     }
 }
 
@@ -99,7 +98,7 @@ impl Serialize for FixedPath {
     where
         S: serde::Serializer,
     {
-        if self.len as usize >= self.bytes.len() {
+        if self.len >= self.bytes.len() {
             Err(serde::ser::Error::custom("Length too long for fixed path"))
         } else {
             match self.escape_string() {
@@ -131,7 +130,7 @@ impl FixedPath {
             };
             /* Just in case */
             output.bytes[bytes.len()] = 0_i8;
-            output.len = bytes.len() as u32 - 1 /* Exclude the null byte from length calculation */;
+            output.len = bytes.len() - 1 /* Exclude the null byte from length calculation */;
             Ok(output)
         }
     }
@@ -149,7 +148,7 @@ pub fn object_to_bytes<Type: Sized>(object: Type) -> Vec<u8> {
 
 pub fn object_from_bytes<Type: Sized + Clone>(bytes: Vec<u8>) -> Type {
     assert!(bytes.len() == std::mem::size_of::<Type>());
-    assert!((bytes.as_ptr() as usize) % std::mem::align_of::<Type>() == 0);
+    assert!((bytes.as_ptr() as usize).is_multiple_of(std::mem::align_of::<Type>()));
 
     unsafe { (*{ bytes.as_ptr() as *const Type }).clone() }
 }

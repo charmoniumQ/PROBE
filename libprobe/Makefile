@@ -6,7 +6,8 @@ CFLAGS := \
     -Werror \
     -Wall \
     -Wextra \
-    -fstrict-aliasing
+    -fstrict-aliasing \
+    -ferror-limit=50
 # musl-clang wrapper triggers -Wno-unused-command-line-argument.
 # But musl with clang (normal invocation) does not.
 
@@ -26,9 +27,6 @@ BUILD_DIR := .build
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
-
-tests: $(BUILD_DIR)/probe_libc_tests $(BUILD_DIR)/probe_libc_tests.dbg
-.PHONY: tests
 
 generated: $(GENERATED_FILES)
 .PHONY: generated
@@ -64,13 +62,17 @@ $(BUILD_DIR)/undefined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 $(BUILD_DIR)/defined_symbols.txt: $(BUILD_DIR)/libprobe.dbg.so
 	nm --dynamic .build/libprobe.dbg.so | grep ' T ' | cut --fields=3 --delimiter=' ' > $(BUILD_DIR)/defined_symbols.txt
 
-$(BUILD_DIR)/probe_libc_tests: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) ./src/probe_libc.c  $(MAKEFILE_LIST)
+$(BUILD_DIR)/probe_libc_tests: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) $(SOURCE_FILES) $(MAKEFILE_LIST)
 	$(CC) -MJ $@.compile_command.json -flto $(CFLAGS) $(OPTFLAGS) -o $@ -Isrc -lcriterion $<
 
-$(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) ./src/probe_libc.c $(MAKEFILE_LIST)
+$(BUILD_DIR)/probe_libc_tests.dbg: ./tests/probe_libc_units.c $(wildcard ./tests/probe_libc_units/*.c) $(SOURCE_FILES) $(MAKEFILE_LIST)
 	$(CC) -MJ $@.compile_command.json -fno-lto $(CFLAGS) $(DBGFLAGS) -o $@ -Isrc -lcriterion $<
 
-check: compile_commands.json $(GENERATED_FILES) tests
+run_tests: $(BUILD_DIR)/probe_libc_tests.dbg
+	$(BUILD_DIR)/probe_libc_tests.dbg --verbose --timeout 5
+#rm ../cli-wrapper/probe_headers/arena_dir && mv arena_dir ../cli-wrapper/probe_headers
+
+check: compile_commands.json $(GENERATED_FILES) $(BUILD_DIR)/probe_libc_tests.dbg
 	if [ "$$SKIP_FORMAT" = 1 ]; then \
 	    echo "Skipping clang-format"; \
 	else \
@@ -98,7 +100,7 @@ check: compile_commands.json $(GENERATED_FILES) tests
 	if [ "$$SKIP_UNITTESTS" = 1 ]; then \
 	    echo "Skipping unit test"; \
 	else \
-	    $(BUILD_DIR)/probe_libc_tests --verbose --timeout 5; \
+	    $(BUILD_DIR)/probe_libc_tests.dbg --verbose --timeout 5; \
 	fi
 
 #	cppclean    $(SOURCE_FILES)

@@ -21,6 +21,7 @@ typedef void* gid_t;
 typedef void* id_t;
 typedef void* idtype;
 typedef void* idtype_t;
+typedef void* ino_t;
 typedef void* int64_t;
 typedef void* mode_t;
 typedef void* nftw_func;
@@ -33,10 +34,14 @@ typedef void* pthread_t;
 typedef void* siginfo_t;
 typedef void* size_t;
 typedef void* ssize_t;
+typedef void* suseconds_t;
+typedef void* subseconds_t;
 typedef void* thrd_start_t;
 typedef void* thrd_t;
+typedef void* time_t;
 typedef void* uid_t;
 typedef void* va_list;
+typedef void* StringArray;
 
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
@@ -45,15 +50,14 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 FILE * fopen (const char *filename, const char *opentype) {
     void* pre_call = ({
         struct Op op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open,
+             .open = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .flags = fopen_to_flags(opentype),
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
-            }},
-            {0},
+             }},
             0,
             0,
         };
@@ -79,22 +83,20 @@ FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
     void* pre_call = ({
         int original_fd = fileno(stream);
         struct Op open_op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open,
+             .open = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .flags = fopen_to_flags(opentype),
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
         struct Op close_op = {
-            close_op_code,
-            {.close = {original_fd, 0, create_path_lazy(-1, NULL, original_fd, 0)}},
-            {0},
+            {.close_tag = OpData_Close,
+             .close = {original_fd, 0, create_path_lazy(-1, NULL, original_fd, 0)}},
             0,
             0,
         };
@@ -128,9 +130,8 @@ int fclose (FILE *stream) {
     void* pre_call = ({
         int fd = fileno(stream);
         struct Op op = {
-            close_op_code,
-            {.close = {fd, 0, create_path_lazy(-1, NULL, fd, 0)}},
-            {0},
+            {.close_tag = OpData_Close,
+             .close = {fd, 0, create_path_lazy(-1, NULL, fd, 0)}},
             0,
             0,
         };
@@ -164,15 +165,14 @@ int openat(int dirfd, const char *filename, int flags, ...) {
             va_end(ap);
         }
         struct Op op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open,
+             .open = {
                 .path = create_path_lazy(dirfd, filename, -1, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
                 .flags = flags,
                 .mode = mode,
                 .fd = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -211,15 +211,14 @@ int open(const char* filename, int flags, ...) {
 int __openat_2(int fd, const char* file, int flags) {
     void* pre_call = ({
         struct Op op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open,
+             .open = {
                 .path = create_path_lazy(fd, file, -1, (flags & O_NOFOLLOW ? AT_SYMLINK_NOFOLLOW : 0)),
                 .flags = flags,
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -253,9 +252,8 @@ fn creat64 = creat;
 int close (int filedes) {
     void* pre_call = ({
         struct Op op = {
-            close_op_code,
-            {.close = {filedes, 0, create_path_lazy(-1, NULL, filedes, 0)}},
-            {0},
+            {.close_tag = OpData_Close,
+             .close = {filedes, 0, create_path_lazy(-1, NULL, filedes, 0)}},
             0,
             0,
         };
@@ -318,9 +316,8 @@ void closefrom (int lowfd) {
 int dup (int old) {
     void* pre_call = ({
         struct Op op = {
-            dup_op_code,
-            {.dup = {null_path, old, 0, 0, 0}},
-            {0},
+            {.dup_tag = OpData_Dup,
+             .dup = {null_path, old, 0, 0, 0}},
             0,
             0,
         };
@@ -333,7 +330,7 @@ int dup (int old) {
             if (UNLIKELY(ret == -1)) {
                 op.data.dup.ferrno = call_errno;
             } else {
-                op.data.dup.new = ret;
+                op.data.dup.new_ = ret;
                 op.data.dup.path = create_path_lazy(-1, NULL, ret, 0);
             }
             prov_log_record(op);
@@ -350,9 +347,8 @@ int dup2 (int old, int new) {
 int dup3 (int old, int new, int flags) {
     void* pre_call = ({
         struct Op dup_op = {
-            dup_op_code,
-            {.dup = {null_path, old, new, flags, 0}},
-            {0},
+            {.dup_tag = OpData_Dup,
+             .dup = {null_path, old, new, flags, 0}},
             0,
             0,
         };
@@ -397,9 +393,7 @@ int fcntl (int filedes, int command, ...) {
 
             /* Set up ops */
             struct Op dup_op = {
-                dup_op_code,
-                {.dup = {null_path, filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
-                {0},
+                {.dup_tag = OpData_Dup, .dup = {null_path, filedes, 0, command == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0, 0}},
                 0,
                 0,
             };
@@ -426,7 +420,7 @@ int fcntl (int filedes, int command, ...) {
                 if (UNLIKELY(ret == -1)) {
                     dup_op.data.dup.ferrno = call_errno;
                 } else {
-                    dup_op.data.dup.new = ret;
+                    dup_op.data.dup.new_ = ret;
                     dup_op.data.dup.path = create_path_lazy(-1, NULL, filedes, 0);
                 }
                 prov_log_record(dup_op);
@@ -440,12 +434,10 @@ int fcntl (int filedes, int command, ...) {
 int chdir (const char *filename) {
     void* pre_call = ({
         struct Op op = {
-            chdir_op_code,
-            {.chdir = {
+            {.chdir_tag = OpData_Chdir, .chdir = {
                 .path = create_path_lazy(-1, filename, 0, 0),
                 .ferrno = 0
             }},
-            {0},
             0,
             0,
         };
@@ -463,12 +455,10 @@ int chdir (const char *filename) {
 int fchdir (int filedes) {
     void* pre_call = ({
         struct Op op = {
-            chdir_op_code,
-            {.chdir = {
+            {.chdir_tag = OpData_Chdir, .chdir = {
                 .path = create_path_lazy(-1, NULL, filedes, 0),
                 .ferrno = 0
             }},
-            {0},
             0,
             0,
         };
@@ -488,8 +478,7 @@ int fchdir (int filedes) {
 DIR * opendir (const char *dirname) {
     void* pre_call = ({
         struct Op op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open, .open = {
                 .path = create_path_lazy(AT_FDCWD, dirname, -1, 0),
                 /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
                 .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
@@ -497,7 +486,6 @@ DIR * opendir (const char *dirname) {
                 .fd = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -516,8 +504,7 @@ DIR * opendir (const char *dirname) {
 DIR * fdopendir (int fd) {
     void* pre_call = ({
         struct Op op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open, .open = {
                 .path = create_path_lazy(-1, NULL, fd, 0),
                 /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
                 .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
@@ -525,7 +512,6 @@ DIR * fdopendir (int fd) {
                 .fd = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -548,14 +534,12 @@ struct dirent * readdir (DIR *dirstream) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(-1, NULL, fd, 0),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -581,14 +565,12 @@ struct dirent64 * readdir64 (DIR *dirstream) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(-1, NULL, fd, 0),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -615,14 +597,12 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(fd, NULL, -1, 0),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -648,14 +628,12 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
     void* pre_call = ({
         int fd = dirfd(dirstream);
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(-1, NULL, fd, 0),
                 .child = NULL,
                 .all_children = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -682,9 +660,7 @@ int closedir (DIR *dirstream) {
     void* pre_call = ({
         int fd = dirfd(dirstream);
         struct Op op = {
-            close_op_code,
-            {.close = {fd, 0, create_path_lazy(-1, NULL, fd, 0)}},
-            {0},
+            {.close_tag = OpData_Close, .close = {fd, 0, create_path_lazy(-1, NULL, fd, 0)}},
             0,
             0,
         };
@@ -709,13 +685,11 @@ void seekdir (DIR *dirstream, long int pos) { }
 int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const struct dirent *), int (*cmp) (const struct dirent **, const struct dirent **)) {
     void* pre_call = ({
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(AT_FDCWD, dir, -1, 0),
                 .child = NULL,
                 .all_children = true,
             }},
-            {0},
             0,
             0,
         };
@@ -735,13 +709,11 @@ int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const 
 int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) {
     void* pre_call = ({
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(AT_FDCWD, dir, -1, 0),
                 .child = NULL,
                 .all_children = true,
             }},
-            {0},
             0,
             0,
         };
@@ -766,13 +738,11 @@ int scandirat(int dirfd, const char *restrict dirp,
             int (*compar)(const struct dirent **, const struct dirent **)) {
     void* pre_call = ({
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(dirfd, dirp, -1, 0),
                 .child = NULL,
                 .all_children = true,
             }},
-            {0},
             0,
             0,
         };
@@ -794,13 +764,11 @@ int scandirat(int dirfd, const char *restrict dirp,
 ssize_t getdents64 (int fd, void *buffer, size_t length) {
     void* pre_call = ({
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(-1, NULL, fd, 0),
                 .child = NULL,
                 .all_children = true,
             }},
-            {0},
             0,
             0,
         };
@@ -823,13 +791,11 @@ ssize_t getdents64 (int fd, void *buffer, size_t length) {
 int ftw (const char *filename, ftw_func func, int descriptors) {
     void* pre_call = ({
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .child = NULL,
                 .all_children = true,
             }},
-            {0},
             0,
             0,
         };
@@ -849,13 +815,11 @@ int ftw (const char *filename, ftw_func func, int descriptors) {
 int nftw (const char *filename, nftw_func func, int descriptors, int flag) {
     void* pre_call = ({
         struct Op op = {
-            readdir_op_code,
-            {.readdir = {
+            {.readdir_tag = OpData_Readdir, .readdir = {
                 .dir = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .child = NULL,
                 .all_children = true,
             }},
-            {0},
             0,
             0,
         };
@@ -883,13 +847,11 @@ int link (const char *oldname, const char *newname) {
 int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int flags) {
     void* pre_call = ({
         struct Op op = {
-            hard_link_op_code,
-            {.hard_link = {
+            {.hard_link_tag = OpData_HardLink, .hard_link = {
                 .old = create_path_lazy(oldfd, oldname, -1, flags),
-                .new = create_path_lazy(newfd, newname, -1, flags),
+                .new_ = create_path_lazy(newfd, newname, -1, flags),
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -915,7 +877,7 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
 /*             symbolic_link_op_code, */
 /*             {.symbolic_link = { */
 /*                 .old = oldname, */
-/*                 .new = create_path_lazy(AT_FDCWD, newname, -1, 0), */
+/*                 .new_ = create_path_lazy(AT_FDCWD, newname, -1, 0), */
 /*                 .ferrno = 0, */
 /*             }}, */
 /*             {0}, */
@@ -940,13 +902,11 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
 int symlinkat(const char *target, int newdirfd, const char *linkpath) {
     void* pre_call = ({
         struct Op op = {
-            symbolic_link_op_code,
-            {.symbolic_link = {
+            {.symbolic_link_tag = OpData_SymbolicLink, .symbolic_link = {
                 .old = target,
-                .new = create_path_lazy(newdirfd, linkpath, -1, 0),
+                .new_ = create_path_lazy(newdirfd, linkpath, -1, 0),
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -974,15 +934,13 @@ ssize_t readlink (const char *filename, char *buffer, size_t size) {
 ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size) {
     void* pre_call = ({
         struct Op op = {
-            read_link_op_code,
-            {.read_link = {
+            {.read_link_tag = OpData_ReadLink, .read_link = {
                 .linkpath = create_path_lazy(dirfd, filename, -1, 0),
                 .referent = NULL,
                 .truncation = false,
                 .recursive_dereference = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1007,15 +965,13 @@ ssize_t readlinkat (int dirfd, const char *filename, char *buffer, size_t size) 
 char * canonicalize_file_name (const char *name) {
     void* pre_call = ({
         struct Op op = {
-            read_link_op_code,
-            {.read_link = {
+            {.read_link_tag = OpData_ReadLink, .read_link = {
                 .linkpath = create_path_lazy(AT_FDCWD, name, -1, 0),
                 .referent = NULL,
                 .truncation = false,
                 .recursive_dereference = true,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1038,15 +994,13 @@ char * canonicalize_file_name (const char *name) {
 char * realpath (const char *restrict name, char *restrict resolved) {
     void* pre_call = ({
         struct Op op = {
-            read_link_op_code,
-            {.read_link = {
+            {.read_link_tag = OpData_ReadLink, .read_link = {
                 .linkpath = create_path_lazy(AT_FDCWD, name, -1, 0),
                 .referent = NULL,
                 .truncation = false,
                 .recursive_dereference = true,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1081,13 +1035,11 @@ int rmdir (const char *filename) {
 int remove (const char *filename) {
     void* pre_call = ({
         struct Op op = {
-            unlink_op_code,
-            {.unlink = {
+            {.unlink_tag = OpData_Unlink, .unlink = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .unlink_type = 2,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1109,13 +1061,11 @@ int remove (const char *filename) {
 int unlinkat(int dirfd, const char *pathname, int flags) {
     void* pre_call = ({
         struct Op op = {
-            unlink_op_code,
-            {.unlink = {
+            {.unlink_tag = OpData_Unlink, .unlink = {
                 .path = create_path_lazy(dirfd, pathname, -1, flags),
                 .unlink_type = 0,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1151,13 +1101,11 @@ int renameat2(int olddirfd, const char *oldpath,
             int newdirfd, const char *newpath, unsigned int flags) {
     void* pre_call = ({
         struct Op op = {
-            rename_op_code,
-            {.rename = {
+            {.rename_tag = OpData_Rename, .rename = {
                 .src = create_path_lazy(olddirfd, oldpath, -1, 0),
                 .dst = create_path_lazy(newdirfd, newpath, -1, 0),
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1186,15 +1134,13 @@ int mkdir(const char* filename, mode_t mode) {
 int mkdirat(int dirfd, const char *pathname, mode_t mode) {
     void* pre_call = ({
         struct Op op = {
-            mkfile_op_code,
-            {.mkfile = {
+            {.mk_file_tag = OpData_MkFile, .mk_file = {
                 .path = null_path,
-                .file_type = DirFileType,
+                .file_type = FileType_Dir,
                 .flags = 0,
                 .mode = mode,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1202,8 +1148,8 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode) {
     });
     void* post_call = ({
         if (UNLIKELY(ret == -1)) {
-            op.data.mkfile.path = create_path_lazy(AT_FDCWD, pathname, -1, 0),
-            op.data.mkfile.ferrno = call_errno;
+            op.data.mk_file.path = create_path_lazy(AT_FDCWD, pathname, -1, 0),
+            op.data.mk_file.ferrno = call_errno;
         }
         prov_log_record(op);
     });
@@ -1218,14 +1164,12 @@ int stat (const char *filename, struct stat *buf) {
 int fstat (int filedes, struct stat *buf) {
     void* pre_call = ({
         struct Op op = {
-            stat_op_code,
-            {.stat = {
+            {.stat_tag = OpData_Stat, .stat = {
                 .path = create_path_lazy(-1, NULL, filedes, 0),
                 .flags = 0,
                 .stat_result = {0},
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1254,14 +1198,12 @@ fn newfstatat = fstatat;
 int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict buf, int flags) {
     void* pre_call = ({
         struct Op op = {
-            stat_op_code,
-            {.stat = {
+            {.stat_tag = OpData_Stat, .stat = {
                 .path = create_path_lazy(dirfd, pathname, -1, flags),
                 .flags = flags,
                 .stat_result = {0},
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1285,14 +1227,12 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
 int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask, struct statx *restrict statxbuf) {
     void* pre_call = ({
         struct Op op = {
-            stat_op_code,
-            {.stat = {
+            {.stat_tag = OpData_Stat, .stat = {
                 .path = create_path_lazy(dirfd, pathname, -1, flags),
                 .flags = flags,
                 .stat_result = {0},
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1321,12 +1261,11 @@ int chown (const char *filename, uid_t owner, gid_t group) {
 int fchown (int filedes, uid_t owner, gid_t group) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(-1, NULL, filedes, 0),
                 .flags = 0,
-                .kind = MetadataOwnership,
                 .value = {
+                    .ownership_tag = MetadataValue_Ownership,
                     .ownership = {
                         .uid = owner,
                         .gid = group,
@@ -1334,7 +1273,6 @@ int fchown (int filedes, uid_t owner, gid_t group) {
                 },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1361,12 +1299,11 @@ int lchown(const char *pathname, uid_t owner, gid_t group) {
 int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(dirfd, pathname, -1, flags),
                 .flags = flags,
-                .kind = MetadataOwnership,
                 .value = {
+                    .ownership_tag = MetadataValue_Ownership,
                     .ownership = {
                         .uid = owner,
                         .gid = group,
@@ -1374,7 +1311,6 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
                 },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1402,17 +1338,15 @@ int chmod (const char *filename, mode_t mode) {
 int fchmod (int filedes, mode_t mode) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(-1, NULL, filedes, 0),
                 .flags = 0,
-                .kind = MetadataMode,
                 .value = {
+                    .mode_tag = MetadataValue_Mode,
                     .mode = mode,
                 },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1434,17 +1368,15 @@ int fchmod (int filedes, mode_t mode) {
 int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(dirfd, pathname, -1, flags),
                 .flags = flags,
-                .kind = MetadataMode,
                 .value = {
+                    .mode_tag = MetadataValue_Mode,
                     .mode = mode,
                 },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1473,14 +1405,12 @@ int access (const char *filename, int how) {
 int faccessat(int dirfd, const char *pathname, int mode, int flags) {
     void* pre_call = ({
         struct Op op = {
-            access_op_code,
-            {.access = {
+            {.access_tag = OpData_Access, .access = {
                 .path = create_path_lazy(dirfd, pathname, -1, 0 /* Wrong kind of flags */),
                 .mode = mode,
                 .flags = flags,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1500,15 +1430,15 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
 int utime (const char *filename, const struct utimbuf *times) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .flags = 0,
-                .kind = MetadataTimes,
-                .value = { 0 },
+                .value = {
+                    .times_tag = MetadataValue_Times, 
+                    .times = {0},
+                },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -1535,22 +1465,22 @@ int utime (const char *filename, const struct utimbuf *times) {
 int utimes (const char *filename, const struct timeval tvp[2]) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .flags = 0,
-                .kind = MetadataTimes,
-                .value = { 0 },
+                .value = {
+                    .times_tag = MetadataValue_Times, 
+                    .times = {0},
+                },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
         if (tvp) {
             op.data.update_metadata.value.times.is_null = false;
-            op.data.update_metadata.value.times.atime = tvp[0];
-            op.data.update_metadata.value.times.mtime = tvp[1];
+            op.data.update_metadata.value.times.atime = *(struct TimeVal*)&tvp[0];
+            op.data.update_metadata.value.times.mtime = *(struct TimeVal*)&tvp[1];
         } else {
             op.data.update_metadata.value.times.is_null = true;
         }
@@ -1570,22 +1500,22 @@ int utimes (const char *filename, const struct timeval tvp[2]) {
 int lutimes (const char *filename, const struct timeval tvp[2]) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, AT_SYMLINK_NOFOLLOW),
                 .flags = AT_SYMLINK_NOFOLLOW,
-                .kind = MetadataTimes,
-                .value = { 0 },
+                .value = {
+                    .times_tag = MetadataValue_Times, 
+                    .times = {0},
+                },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
         if (tvp) {
             op.data.update_metadata.value.times.is_null = false;
-            op.data.update_metadata.value.times.atime = tvp[0];
-            op.data.update_metadata.value.times.mtime = tvp[1];
+            op.data.update_metadata.value.times.atime = *(struct TimeVal*)&tvp[0];
+            op.data.update_metadata.value.times.mtime = *(struct TimeVal*)&tvp[1];
         } else {
             op.data.update_metadata.value.times.is_null = true;
         }
@@ -1605,22 +1535,22 @@ int lutimes (const char *filename, const struct timeval tvp[2]) {
 int futimes (int fd, const struct timeval tvp[2]) {
     void* pre_call = ({
         struct Op op = {
-            update_metadata_op_code,
-            {.update_metadata = {
+            {.update_metadata_tag = OpData_UpdateMetadata, .update_metadata = {
                 .path = create_path_lazy(-1, NULL, fd, 0),
                 .flags = AT_EMPTY_PATH,
-                .kind = MetadataTimes,
-                .value = { 0 },
+                .value = {
+                    .times_tag = MetadataValue_Times, 
+                    .times = {0},
+                },
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
         if (tvp) {
             op.data.update_metadata.value.times.is_null = false;
-            op.data.update_metadata.value.times.atime = tvp[0];
-            op.data.update_metadata.value.times.mtime = tvp[1];
+            op.data.update_metadata.value.times.atime = *(struct TimeVal*)&tvp[0];
+            op.data.update_metadata.value.times.mtime = *(struct TimeVal*)&tvp[1];
         } else {
             op.data.update_metadata.value.times.is_null = true;
         }
@@ -1658,20 +1588,18 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
         size_t envc = 0;
-        char* const* updated_env = update_env_with_probe_vars(environ, &envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
         /* TODO: Avoid this copy */
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .ferrno = 0,
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -1682,7 +1610,7 @@ int execv (const char *filename, char *const argv[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = client_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, (char* const*)updated_env);
     });
     void* post_call = ({
         /*
@@ -1719,19 +1647,17 @@ int execl (const char *filename, const char *arg0, ...) {
         }
         va_end(ap);
         argv[argc] = NULL;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, argc);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .ferrno = 0,
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -1742,7 +1668,7 @@ int execl (const char *filename, const char *arg0, ...) {
         prov_log_save();
     });
     void* call = ({
-        int ret = client_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, (char* const*)updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1756,19 +1682,17 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(env, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)env, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .ferrno = 0,
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -1779,7 +1703,7 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = client_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, (char* const*)updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1792,19 +1716,17 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(env, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, 0);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)env, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, 0);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 .path = create_path_lazy(-1, NULL, fd, 0),
                 .ferrno = 0,
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -1815,7 +1737,7 @@ int fexecve (int fd, char *const argv[], char *const env[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = client_fexecve(fd, argv, updated_env);
+        int ret = client_fexecve(fd, argv, (char* const*)updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1836,21 +1758,19 @@ int execle (const char *filename, const char *arg0, ...) {
             argv[i] = va_arg(ap, __type_charp);
         }
         argv[argc] = NULL;
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, argc);
         char** env = va_arg(ap, __type_charpp);
         va_end(ap);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(env, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)env, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 .path = create_path_lazy(AT_FDCWD, filename, -1, 0),
                 .ferrno = 0,
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -1862,7 +1782,7 @@ int execle (const char *filename, const char *arg0, ...) {
         ERROR("Not implemented; I need to figure out how to update the environment.");
     });
     void* call = ({
-        int ret = client_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, (char* const*)updated_env);
     });
     void* post_call = ({
         free((char**)updated_env);
@@ -1886,13 +1806,12 @@ int execvp (const char *filename, char *const argv[]) {
             bin_path = filename;
             found = true;
         }
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
@@ -1901,7 +1820,6 @@ int execvp (const char *filename, char *const argv[]) {
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -1912,7 +1830,7 @@ int execvp (const char *filename, char *const argv[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = client_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, (char* const*)updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1944,13 +1862,12 @@ int execlp (const char *filename, const char *arg0, ...) {
         }
         argv[argc] = NULL;
         va_end(ap);
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, argc);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, argc);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(environ, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
@@ -1959,7 +1876,6 @@ int execlp (const char *filename, const char *arg0, ...) {
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -1970,7 +1886,7 @@ int execlp (const char *filename, const char *arg0, ...) {
         prov_log_save();
     });
     void* call = ({
-        int ret = client_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, (char**)updated_env);
     });
     void* post_call = ({
         free((char**) updated_env);
@@ -1996,13 +1912,12 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
             bin_path = filename;
             found = true;
         }
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(envp, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
         struct Op op = {
-            exec_op_code,
-            {.exec = {
+            {.exec_tag = OpData_Exec, .exec = {
                 /* maybe we could get rid of this allocation somehow
                  * i.e., construct the .path in-place
                  * */
@@ -2011,7 +1926,6 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
                 .argv = copied_argv,
                 .env = copied_updated_env,
             }},
-            {0},
             0,
             0,
         };
@@ -2022,7 +1936,7 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
         prov_log_save();
     });
     void* call = ({
-        int ret = client_execvpe(filename, argv, updated_env);
+        int ret = client_execvpe(filename, argv, (char**)updated_env);
     });
     void* post_call = ({
         free((char**) updated_env); // This is our own malloc from update_env_with_probe_vars, so it should be safe to free
@@ -2040,14 +1954,13 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
                 const posix_spawnattr_t* restrict attrp, char* const argv[restrict],
                 char* const envp[restrict]) {
     void* pre_call = ({
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(envp, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), (StringArray)updated_env, envc);
 
-        struct Op spawn_op =
-        { spawn_op_code,
-          {.spawn = {
+        struct Op spawn_op = {
+          {.spawn_tag = OpData_Spawn, .spawn = {
           .exec =
           {
           .path = create_path_lazy(AT_FDCWD, path, -1, 0),
@@ -2058,7 +1971,6 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
           .child_pid = 0,
           .ferrno = 0,
       }},
-            {0},
             0,
             0,
         };
@@ -2067,7 +1979,7 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
         }
     });
     void* call = ({
-        int ret = client_posix_spawn(pid, path, file_actions, attrp, argv, updated_env);
+        int ret = client_posix_spawn(pid, path, file_actions, attrp, argv, (char**)updated_env);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -2095,14 +2007,14 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
             bin_path = file;
             found = true;
         }
-        char * const* copied_argv = arena_copy_argv(get_data_arena(), argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
         size_t envc = 0;
-        char * const* updated_env = update_env_with_probe_vars(envp, &envc);
-        char * const* copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
 
         struct Op spawn_op =
-        { spawn_op_code,
-          {.spawn = {
+        {
+          {.spawn_tag = OpData_Spawn, .spawn = {
           .exec =
           {
           .path = found ? create_path_lazy(AT_FDCWD, bin_path, -1, 0) : null_path,
@@ -2113,7 +2025,6 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
           .child_pid = 0,
           .ferrno = 0,
       }},
-            {0},
             0,
             0,
         };
@@ -2122,7 +2033,7 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
         }
     });
     void* call = ({
-        int ret = client_posix_spawnp(pid, file, file_actions, attrp, argv, updated_env);
+        int ret = client_posix_spawnp(pid, file, file_actions, attrp, argv, (char**)updated_env);
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
@@ -2140,18 +2051,16 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
 pid_t fork (void) {
     void* pre_call = ({
         struct Op op = {
-            clone_op_code,
-            {.clone = {
+            {.clone_tag = OpData_Clone, .clone = {
                 /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
                  * I could be wrong.
                  * */
                 .flags = 0,
                 .run_pthread_atfork_handlers = true,
-                .task_type = TASK_PID,
+                .task_type = TaskType_Pid,
                 .task_id = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2179,18 +2088,16 @@ pid_t fork (void) {
 pid_t _Fork (void) {
      void* pre_call = ({
         struct Op op = {
-            clone_op_code,
-            {.clone = {
+            {.clone_tag = OpData_Clone, .clone = {
                 /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
                  * I could be wrong.
                  * */
                 .flags = 0,
                 .run_pthread_atfork_handlers = false,
-                .task_type = TASK_PID,
+                .task_type = TaskType_Pid,
                 .task_id = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2251,15 +2158,13 @@ pid_t vfork (void) {
      * */
     void* pre_call = ({
         struct Op op = {
-            clone_op_code,
-            {.clone = {
+            {.clone_tag = OpData_Clone, .clone = {
                 .flags = 0,
                 .run_pthread_atfork_handlers = true,
-                .task_type = TASK_PID,
+                .task_type = TaskType_Pid,
                 .task_id = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2316,18 +2221,16 @@ int clone(
         va_end(ap);
 
         struct Op op = {
-            clone_op_code,
-            {.clone = {
+            {.clone_tag = OpData_Clone, .clone = {
                 /* As far as I can tell, fork has the same semantics as calling clone with flags == 0.
                  * I could be wrong.
                  * */
                 .flags = flags,
                 .run_pthread_atfork_handlers = false,
-                .task_type = (flags & CLONE_THREAD) ? TASK_TID : TASK_PID,
+                .task_type = (flags & CLONE_THREAD) ? TaskType_Tid : TaskType_Pid,
                 .task_id = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2384,16 +2287,14 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
 pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
     void* pre_call = ({
         struct Op wait_op = {
-            wait_op_code,
-            {.wait = {
-                .task_type = TASK_PID,
+            {.wait_tag = OpData_Wait, .wait = {
+                .task_type = TaskType_Pid,
                 .task_id = -1,
                 .options = options,
                 .status = 0,
                 .usage = null_usage,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2411,7 +2312,7 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
                 wait_op.data.wait.task_id = ret;
                 wait_op.data.wait.status = status_ptr ? *status_ptr : real_status;
                 if (usage) {
-                    copy_rusage(&wait_op.data.wait.usage, usage);
+                    memcpy(&wait_op.data.wait.usage, usage, sizeof(struct rusage));
                 }
             }
             prov_log_record(wait_op);
@@ -2423,9 +2324,8 @@ pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
 int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
     void* pre_call = ({
         struct Op wait_op = {
-            wait_op_code,
-            {.wait = {
-                .task_type = TASK_TID,
+            {.wait_tag = OpData_Wait, .wait = {
+                .task_type = TaskType_Tid,
                 .task_id = -1,
                 .options = options,
                 .status = 0,
@@ -2433,7 +2333,6 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
                 .usage = null_usage,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2456,15 +2355,13 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
 int thrd_create (thrd_t *thr, thrd_start_t func, void *arg) {
     void* pre_call = ({
         struct Op op = {
-            clone_op_code,
-            {.clone = {
+            {.clone_tag = OpData_Clone, .clone = {
                 .flags = CLONE_FILES | CLONE_FS | CLONE_IO | CLONE_PARENT | CLONE_SIGHAND | CLONE_THREAD | CLONE_VM,
-                .task_type = TASK_ISO_C_THREAD,
+                .task_type = TaskType_IsoCThread,
                 .task_id = -1,
                 .run_pthread_atfork_handlers = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2497,15 +2394,13 @@ int thrd_join (thrd_t thr, int *res) {
         int64_t thread_id = 0;
         probe_libc_memcpy(&thread_id, &thr, sizeof(thrd_t)); /* Avoid type punning! */
         struct Op op = {
-            wait_op_code,
-            {.wait = {
-                .task_type = TASK_ISO_C_THREAD,
+            {.wait_tag = OpData_Wait, .wait = {
+                .task_type = TaskType_IsoCThread,
                 .task_id = thread_id,
                 .options = 0,
                 .status = 0,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2540,15 +2435,13 @@ int pthread_create(pthread_t *restrict thread,
         real_arg->pthread_id = increment_pthread_id();
         real_arg->arg = arg;
         struct Op op = {
-            clone_op_code,
-            {.clone = {
+            {.clone_tag = OpData_Clone, .clone = {
                 .flags = CLONE_FILES | CLONE_FS | CLONE_IO | CLONE_PARENT | CLONE_SIGHAND | CLONE_THREAD | CLONE_VM,
-                .task_type = TASK_PTHREAD,
+                .task_type = TaskType_Pthread,
                 .task_id = real_arg->pthread_id,
                 .run_pthread_atfork_handlers = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2575,9 +2468,7 @@ int pthread_create(pthread_t *restrict thread,
 void pthread_exit(void* inner_ret) {
     void* call = ({
         struct Op op = {
-            exit_thread_op_code,
-            {.exit_thread = {0}},
-            {0},
+            {.exit_thread_tag = OpData_ExitThread, .exit_thread = {0}},
             0,
             0,
         };
@@ -2595,16 +2486,14 @@ int pthread_join(pthread_t thread, void **pthread_return) {
     void* pre_call = ({
         void* uncasted_return = NULL;
         struct Op op = {
-            wait_op_code,
-            {.wait = {
-                .task_type = TASK_PTHREAD,
+            {.wait_tag = OpData_Wait, .wait = {
+                .task_type = TaskType_Pthread,
                 .task_id = 0,
                 .options = 0,
                 .status = 0,
                 .cancelled = false,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2663,15 +2552,13 @@ int pipe(int pipefd[2]) {
 int pipe2(int pipefd[2], int flags) {
     void* pre_call = ({
         struct Op mkfifo_op = {
-            mkfile_op_code,
-            {.mkfile = {
+            {.mk_file_tag = OpData_MkFile, .mk_file = {
                 .path = null_path,
-                .file_type = PipeFileType,
+                .file_type = FileType_Pipe,
                 .flags = flags,
                 .mode = 0,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2680,34 +2567,30 @@ int pipe2(int pipefd[2], int flags) {
     void* post_call = ({
         /* A successful pipe call is equivalent to two opens on a fifo file into specific FDs */
         if (UNLIKELY(ret != 0)) {
-            mkfifo_op.data.mkfile.ferrno = call_errno;
+            mkfifo_op.data.mk_file.ferrno = call_errno;
             prov_log_record(mkfifo_op);
         } else {
-            mkfifo_op.data.mkfile.path = create_path_lazy(-1, NULL, pipefd[0], 0);
+            mkfifo_op.data.mk_file.path = create_path_lazy(-1, NULL, pipefd[0], 0);
             prov_log_record(mkfifo_op);
             struct Op open_read_end_op = {
-                open_op_code,
-                {.open = {
+                {.open_tag = OpData_Open, .open = {
                     .path = create_path_lazy(-1, NULL, pipefd[0], 0),
                     .flags = O_RDONLY,
                     .mode = 0,
                     .fd = pipefd[0],
                     .ferrno = 0,
                 }},
-                {0},
                 0,
                 0,
             };
             struct Op open_write_end_op = {
-                open_op_code,
-                {.open = {
+                {.open_tag = OpData_Open, .open = {
                     .path = create_path_lazy(-1, NULL, pipefd[1], 0),
                     .flags = O_CREAT | O_TRUNC | O_WRONLY,
                     .mode = 0,
                     .fd = pipefd[1],
                     .ferrno = 0,
                 }},
-                {0},
                 0,
                 0,
             };
@@ -2728,15 +2611,13 @@ int mkfifo(const char* pathname, mode_t mode) {
 int mkfifoat(int fd, const char* pathname, mode_t mode) {
     void* pre_call = ({
         struct Op mkfifo_op = {
-            mkfile_op_code,
-            {.mkfile = {
+            {.mk_file_tag = OpData_MkFile, .mk_file = {
                 .path = create_path_lazy(fd, pathname, -1, 0),
-                .file_type = FifoFileType,
+                .file_type = FileType_Fifo,
                 .flags = 0,
                 .mode = mode,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2744,7 +2625,7 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
     });
     void* post_call = ({
         if (UNLIKELY(ret != 0)) {
-            mkfifo_op.data.mkfile.ferrno = call_errno;
+            mkfifo_op.data.mk_file.ferrno = call_errno;
         }
         prov_log_record(mkfifo_op);
     });
@@ -2755,9 +2636,7 @@ char* strerror(int errnum) { }
 void exit(int status) {
     void* precall = ({
         struct Op op = {
-            exit_process_op_code,
-            {.exit_process = {status}},
-            {0},
+            {.exit_process_tag = OpData_ExitProcess, .exit_process = {status}},
             0,
             0,
         };
@@ -2774,15 +2653,13 @@ int mkstemp(char* template) {
 int mkostemp(char *template, int flags) {
     void* pre_call = ({
         struct Op op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open, .open = {
                 .path = null_path,
                 .flags = O_RDWR | O_CREAT | O_EXCL | flags,
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
@@ -2808,15 +2685,13 @@ int mkstemps(char *template, int suffixlen) {
 int mkostemps(char *template, int suffixlen, int flags) {
     void* pre_call = ({
         struct Op op = {
-            open_op_code,
-            {.open = {
+            {.open_tag = OpData_Open, .open = {
                 .path = null_path,
                 .flags = O_RDWR | O_CREAT | O_EXCL | flags,
                 .mode = 0,
                 .fd = -1,
                 .ferrno = 0,
             }},
-            {0},
             0,
             0,
         };
