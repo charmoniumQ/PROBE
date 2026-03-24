@@ -5,8 +5,8 @@ import typing
 import warnings
 import charmonium.time_block
 import networkx
-from .ptypes import Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
-from .headers import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp, TaskType
+from .ptypes import Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph, TaskType
+from .ops import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp
 from . import graph_utils
 from . import ptypes
 
@@ -277,7 +277,7 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
             data["label"] += f"\n{(op.data.path.path or b'').decode()}"
         elif isinstance(op.data, DupOp):
-            data["label"] += f"DupOp fd={op.data.old} → fd={op.data.new}"
+            data["label"] += f"DupOp fd={op.data.old} → fd={op.data.new_}"
         else:
             data["label"] += f"{op.data.__class__.__name__}"
             data["labelfontsize"] = 8

@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 import contextlib
 import charmonium.time_block
-from . import headers as ops
+from . import ops
 from .ptypes import ProbeLog, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
@@ -61,7 +61,6 @@ def parse_probe_log_ctx(
                             data=ops.ExitThreadOp(
                                 status=0,
                             ),
-                            time=ops_list[-1].time,
                             pthread_id=ops_list[-1].pthread_id,
                             iso_c_thread_id=ops_list[-1].iso_c_thread_id,
                         ))
@@ -90,7 +89,7 @@ def parse_probe_log(
         return dataclasses.replace(
             probe_log,
             copied_files={},
-            probe_options=dataclasses.replace(probe_log.probe_options, copy_files=False),
+            process_tree_context=dataclasses.replace(probe_log.process_tree_context, copy_files=False),
         )
 
 

@@ -20,7 +20,7 @@ from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
-from . import headers as ops
+from . import ops
 from . import parser
 from . import ptypes
 from . import scp as scp_module

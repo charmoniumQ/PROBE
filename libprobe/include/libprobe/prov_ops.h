@@ -4,6 +4,7 @@
 
 #include <features.h>  // for __GLIBC_MINOR__, __GLIBC__
 #include <stdbool.h>   // for bool, false
+#include <stddef.h>    // for size_t
 #include <stdint.h>    // for uint32_t, int32_t, uint64_t, int64_t
 #include <sys/types.h> // for pid_t, mode_t, gid_t, ino_t, uid_t
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t

@@ -399,11 +399,10 @@ impl FfiFrom<C_Op> for Op {
 probe_macros::pygen_add_preamble!(
     "# https://github.com/torvalds/linux/blob/\
     73e931504f8e0d42978bfcda37b323dbbd1afc08/include/uapi/linux/fcntl.h#L98",
-    "AT_FDCWD: int = -100"
-);
-
-probe_macros::pygen_add_prop!(Path impl dirfd -> int:
-    "return self.dirfd_minus_at_fdcwd + AT_FDCWD"
+    "AT_FDCWD: int = -100",
+    "type TimeT = int",
+    "type SusecondsT = int",
+    "type c_longlong = int",
 );
 
 // WARNING: this macro invocation must come after all other pygen calls for those calls to be

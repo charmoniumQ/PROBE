@@ -54,7 +54,7 @@ class Host:
         # This ID uniquely identifies the host. It should be considered "confidential".
         # If a stable unique identifier that is tied to the machine is needed for some application,
         # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
-        # In containers (no running systemd) this file exists but is empty, so we should detect-and-skip empty-file.
+        # In contgainers (no running systemd) this file exists but is empty, so we should detect-and-skip empty-file.
         if consts.SYSTEMD_MACHINE_ID.exists() and (data := consts.SYSTEMD_MACHINE_ID.read_text().strip()):
             machine_id_bytes = int(data, 16).to_bytes(16)
             hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)
@@ -245,7 +245,7 @@ class OpQuint(OpQuad):
 class ProbeLog:
     processes: typing.Mapping[Pid, Process]
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
-    probe_options: ProbeOptions
+    process_tree_context: ProcessTreeContext
     host: Host
 
     # TODO: refactor
@@ -266,7 +266,7 @@ class ProbeLog:
         for quad, op in self.ops():
             match op.data:
                 case ops.InitExecEpochOp():
-                    if op.data.parent_pid == self.probe_options.parent_of_root:
+                    if op.data.parent_pid == self.process_tree_context.parent_of_root:
                         return Pid(quad.pid)
         raise RuntimeError("No root process found")
 
@@ -275,7 +275,7 @@ class ProbeLog:
         for quad, op in self.ops():
             match op.data:
                 case ops.CloneOp():
-                    if op.data.ferrno == 0 and op.data.task_type == TaskType.TASK_PID:
+                    if op.data.ferrno == 0 and op.data.task_type == TaskType.PID:
                         parent_pid_map[Pid(op.data.task_id)] = quad.pid
                 case ops.SpawnOp():
                     if op.data.ferrno == 0:
@@ -291,12 +291,19 @@ class ProbeLog:
         return total
 
 
+@dataclasses.dataclass
+class ProcessTreeContext:
+    libprobe_path: str
+    copy_files: int
+    parent_of_root: int
+
+
 # TODO: implement this in probe_py.generated.ops
 class TaskType(enum.IntEnum):
-    TASK_PID = 0
-    TASK_TID = 1
-    TASK_ISO_C_THREAD = 2
-    TASK_PTHREAD = 3
+    PID = 0
+    TID = 1
+    ISO_C_THREAD = 2
+    PTHREAD = 3
 
 
 class FileType(enum.IntEnum):
