@@ -63,7 +63,7 @@ pub fn make_rust_op(input: TokenStream) -> TokenStream {
                         }
                     };
                     let ident_str = ident.to_string();
-                    for prefix in ["__spare", "__reserved"] {
+                    for prefix in ["__spare", "__reserved", "__padding"] {
                         if ident_str.starts_with(prefix) {
                             return None;
                         }

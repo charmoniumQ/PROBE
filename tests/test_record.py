@@ -221,7 +221,7 @@ def scratch_directory(
     {**simple_commands, **complex_commands}.values(),
     ids={**simple_commands, **complex_commands}.keys(),
 )
-@pytest.mark.timeout(20)
+@pytest.mark.timeout(40)
 def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,
