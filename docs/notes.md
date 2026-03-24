@@ -102,7 +102,7 @@ https://www.man7.org/linux/man-pages/man3/exec.3.html
 - Note, that by *not* tracking synchronization, PROBE is not precise (might assume dataflow where none exists), but it is still sound (doesn't miss dataflow). Therefore, this is a low priority. It also mostly between threads, which seems unlikely to provide the order between an open-for-read and an open-for-write, in my intuition.
 - However, we could implement this as so:
   - Within each thread, maintain a counter on the ops (called op_no, unique within a thread).
-  - For mutexes, there is a gloabl map from mutex address to a list of op_no and TID which acquired that mutex.
+  - For mutexes, there is a global map from mutex address to a list of op_no and TID which acquired that mutex.
   - Save the list at program exit
   - Create edges between each pair of adjacent (TID, op_no) in the list.
   - Intercept other synchronization calls and place them behind a mutex. Having a centralized history sounds heavy-handed, so I will prove its necessity by showing one program with two possible happens-before interleavings that both result in indistinguishable distributed histories.

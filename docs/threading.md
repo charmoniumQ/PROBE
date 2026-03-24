@@ -5,7 +5,7 @@
   - Cooperative
     - Switch tasks at "voluntary" interrupt points
     - I/O (disk, network, printer, user), acquire lock, sleep, voluntary points
-  - Pre-emptive
+  - Preemptive
     - Hardware timer triggers interrupt, set up by kernel
     - Scheduler quantum and time slice
     - Thrashing
@@ -34,7 +34,7 @@
   - We need to use fork/join to order relationships between threads.
   - In 1:1 case, pthread -> TID uniquely, we just don't know which. We would need to record pthread_self at thread creation time.
   - In M:1 case, pthread -> TID non-uniquely. We would need to record pthread_self at every op.
-  - In M:N case, pthread -> split across mulitple TIDs. We would need to record pthread_self at every op.
+  - In M:N case, pthread -> split across multiple TIDs. We would need to record pthread_self at every op.
 - Action items
   - Add edge from fork to every TIDs first occurrence of that pthread_id
   - Add edge from every TIDs last occurrence of that pthread_id to join

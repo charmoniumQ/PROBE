@@ -8,14 +8,14 @@ Somewhat independently from the retrospective/prospective classification, proven
 \begin{itemize}
 \item
 To collect \textbf{application-level provenance}, one would modify each application to emit provenace data.
-This is the most semantically rich but least general, as it only enables collection by that particular modified applicaiton \cite{muniswamy-reddy_layering_2009}.
+This is the most semantically rich but least general, as it only enables collection by that particular modified application \cite{muniswamy-reddy_layering_2009}.
 
 \item To collect \textbf{workflow-level provenance}, one would modify the workflow engine, and all workflows written for that engine would emit provenance data.
 Workflow engines are only aware of the dataflow not higher-level semantics, so workflow-level provenance is not as semantically rich as application-level provenance.
 However, it is more general than application-level provenance, as it enables collection in any workflow written for that modified engine \cite{freire_provenance_2008}.
 
 \item
-To collect \textbf{system-level provenance}, one uses operating system facilities to report the inputs and outpus that a process makes.
+To collect \textbf{system-level provenance}, one uses operating system facilities to report the inputs and outputs that a process makes.
 This is the least semantically aware because it does not even know dataflow, just a history of inputs and outputs, but it is the most general, because it supports any process (including any application or workflow engine) that uses watchable I/O operations \cite{freire_provenance_2008}.
 \end{itemize}
 

@@ -188,7 +188,7 @@ def dataflow_graph(
     """
     Write a dataflow graph for probe_log.
 
-    Dataflow shows the name of each proceess, its read files, and its write files.
+    Dataflow shows the name of each process, its read files, and its write files.
     """
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)

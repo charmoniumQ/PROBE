@@ -138,7 +138,7 @@
                             <li>Sync events:
                                 <ul>
                                     <li>Fork or join, targeting another thread/proc</li>
-                                    <li>Lock or unlock, targetting a lock + counter</li>
+                                    <li>Lock or unlock, targeting a lock + counter</li>
                                 </ul>
                             </li>
                         </ul>
@@ -329,7 +329,7 @@
                     <section>
                         <h2>Definitions</h2>
                         <ul>
-                            <li>A set \(B\) is said to <strong>dominates</strong> \(a\) from \(C\) for a partial order, \(\leq\) when all memebrs of \(C\) pass through a member of \(B\) before they reach \(a\).</li>
+                            <li>A set \(B\) is said to <strong>dominates</strong> \(a\) from \(C\) for a partial order, \(\leq\) when all members of \(C\) pass through a member of \(B\) before they reach \(a\).</li>
                             <li>\(B \in \dom(a, C, \leq) \iff \underset{c \in C}{\forall} c \leq a \implies \underset{b \in B}{\exists} c \leq b \leq a\)</li>
                             <li>A dominating set is <strong>immediate</strong>, \(\idom(a, C, \leq)\), iff it dominates \(a\) from every other dominating set and no node can be removed</li>
                         </ul>
@@ -388,7 +388,7 @@
                          <h2>HB intervals</h2>
                          <p><i>Interval</i> := (set of upper bounds, set of lower bounds), contains all the nodes in between.</p>
                          <p>Happens-before for intervals A and B := For every node in the LB of A, that node happens-before some node in the UB of B.</p>
-                         <p>Many ways that happens-before can be violated; one node of A may happen-after one node of B, one node of A may be incomparable to any node of B, examplees</p>-->
+                         <p>Many ways that happens-before can be violated; one node of A may happen-after one node of B, one node of A may be incomparable to any node of B, examples</p>-->
                         <!-- <p>None of it matters</p>
                              </section>
                              <section>
@@ -396,7 +396,7 @@
                              <p>For each file, identify <i>interval</i> in which the file may be accessed</p>
                              <p>Put intervals in DAG</p>
                              <p>Compute transitive reduction</p>
-                             <p>For each read, find the latest preceeding writes on each branch (stable version) and all simultaneous write (transient versions).</p>
+                             <p>For each read, find the latest preceding writes on each branch (stable version) and all simultaneous write (transient versions).</p>
                              <p>Mutating writes have similar representation.</p>
                              </section> -->
                 </section>

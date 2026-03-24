@@ -92,7 +92,7 @@ We prioritized implementing frequently-used benchmarks, easy-to-implement benchm
 
 : The number of prior works containing each benchmark
 
-Benchmarks occuring in only one prior work include: RUBiS, x64, mysqld, gocr, Memcache, Redis, php, pybench, ping, mp3info, ngircd, CUPS
+Benchmarks occurring in only one prior work include: RUBiS, x64, mysqld, gocr, Memcache, Redis, php, pybench, ping, mp3info, ngircd, CUPS
 
 # Rejected benchmarks
 
@@ -148,7 +148,7 @@ However, SPEC CPU INT 2006 is not free (as in beer), so we could only implement 
 
 **Sendmail** is a quite old mail server program.
 Mail servers do not resemble a computational science workload, and it is unclear what workload we would run against the server.
-Therfore, we deprioritized this benchmark and did not implement it.
+Therefore, we deprioritized this benchmark and did not implement it.
 
 **VCS checkouts** are a common computational science operation.
 We simply clone a repository (untimed) and run `${vcs} checkout ${commit}` for random commits in the repository.
@@ -199,7 +199,7 @@ The last column in the table categorizes the "state" of that provenance collecto
 <!-- - **Ancient kernel (Hi-Fi and LPM/ProvMon).** -->
 <!--   Some provenance systems are implemented as patches into the Linux kernel. -->
 <!--   As time passed, these grew out-of-date with modern Linux kernels. -->
-<!--   We deprioritized the implementation of these methods because they require extermely old kernels, and thus may not be worthy of use in practical systems. -->
+<!--   We deprioritized the implementation of these methods because they require extremely old kernels, and thus may not be worthy of use in practical systems. -->
 <!--   Even conservative Linux distributions like CentOS 7 use Linux 3.10. -->
 <!--   This difficulty is not a bug in our study, but reflects an underlying reality that modified kernels are less likely to be maintained. -->
 <!--   However, if we had more time, we would want to reproduce these systems too. -->

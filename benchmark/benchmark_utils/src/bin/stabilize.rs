@@ -8,7 +8,7 @@ use benchmark_utils::util;
 #[derive(Parser, Debug)]
 #[command(
     version = "0.1.0",
-    about = "Set configuration in /sys and /proc FS to stabalize the benchmarking of the given command",
+    about = "Set configuration in /sys and /proc FS to stabilize the benchmarking of the given command",
     long_about = "
 
 The following changes are made to the /sys and /proc FS, and the original state

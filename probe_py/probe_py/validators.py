@@ -5,7 +5,7 @@ from .ptypes import Tid, Pid, ProbeLog, TaskType
 
 """The analyses make a lot of assumptions about the probe_log.
 
-These assumptions seem reasonable and even guaranteed by the implementaiton of
+These assumptions seem reasonable and even guaranteed by the implementation of
 libprobe, but we should still test them, for defensive coding and error-localization.
 
 """

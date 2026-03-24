@@ -156,7 +156,7 @@ However, capturing all of X is also a valid option.
   the value of performance counters used by the program.
   Performance counters are a way for the microarchitecture to expose details to user-level programs.
 
-[^inode-note]: We will not consdier the actual inode a part of the file-system contents, because few program depend on it, as opposed to the equivalence-class of files with the same inode, and it is difficult for reproducibility methods to force the OS to assign a particular inode, so defining the state that way would be less discerning.
+[^inode-note]: We will not consider the actual inode a part of the file-system contents, because few program depend on it, as opposed to the equivalence-class of files with the same inode, and it is difficult for reproducibility methods to force the OS to assign a particular inode, so defining the state that way would be less discerning.
 
 However, we do not claim these state categories are exhaustive, in the sense that fixing all of these would always fix the result of every program.
 
@@ -274,8 +274,8 @@ We use applications from previous publications on workflow provenance.
 
 ## Portability of recorder and replayers
 
-Rr's recorder requires the kernel parameter `kernel.perf_event_paranoid=1`, which requires superuser privelege to set.
-An approach which does not require superuser privelege would be more portable.
+Rr's recorder requires the kernel parameter `kernel.perf_event_paranoid=1`, which requires superuser privilege to set.
+An approach which does not require superuser privilege would be more portable.
 
 Using `ptrace` inside a container requires `CAP_SYS_PTRACE`, which is turned off by default.
 

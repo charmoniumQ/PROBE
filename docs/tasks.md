@@ -96,10 +96,10 @@ Downstream applications:
   - [ ] `./PROBE ssh` should install `libprobe.so` or `libprobe-dbg.so` (depending on a command-line flag), if absent, to the remote at `${XDG_DATA_HOME}`, defaulting to `$HOME/.local/share` if `XDG_DATA_HOME` is unset.
   - [ ] `./PROBE ssh` should create an empty directory on the remote.
   - [ ] `./PROBE ssh` should run `env LD_LIBRARY_PATH=path/to/libprobe.so PROBE_DIR=path/to/blank-dir <command> <args...>` (from earlier) on the remote.
-  - [ ] `./PROBE ssh` should tar, gzip, and download the PROBE log directory to the local host for further processing. Assumme for the moment that `tar` and `gzip` exist on the remote. When the Rust wrapper is complete, we can eliminate this dependency.
+  - [ ] `./PROBE ssh` should tar, gzip, and download the PROBE log directory to the local host for further processing. Assume for the moment that `tar` and `gzip` exist on the remote. When the Rust wrapper is complete, we can eliminate this dependency.
   - Think about avoiding multiple SSH sessions, and think about assumptions on the remote host.
 
-- [ ] Write an [SCP wrapper](https://www.wikiwand.com/en/Secure_copy_protocol). The wrapper should be a shell named `scp` that calls `./PROBE scp <args...>`. `./PROBE scp <args...>` should determine whether we are going remote->local or local->remote. It should look for provenance of the inodes of the target files on the "source" node (could be local or remote) in `${XDG_DATA_HOME:$HOME/.local/share}`. It should copy the releveant provenance tree of just those inodes to the "destination node" (either local or remote). Then it should call the "real" `scp` with the appropriate arguments.
+- [ ] Write an [SCP wrapper](https://www.wikiwand.com/en/Secure_copy_protocol). The wrapper should be a shell named `scp` that calls `./PROBE scp <args...>`. `./PROBE scp <args...>` should determine whether we are going remote->local or local->remote. It should look for provenance of the inodes of the target files on the "source" node (could be local or remote) in `${XDG_DATA_HOME:$HOME/.local/share}`. It should copy the relevant provenance tree of just those inodes to the "destination node" (either local or remote). Then it should call the "real" `scp` with the appropriate arguments.
 
 - [ ] Write an [Rsync wrapper](https://rsync.samba.org/), which does the same thing as the SCP wrapper. Use `--dry-run` to determine which files will be accessed.
 

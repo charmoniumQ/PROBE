@@ -19,8 +19,8 @@
   2. For each non-deterministic input, manipulate the input, how many previously bit-wise reproducible workloads are still bit-wise reproducible. This determines its "probability of this non-det input impacting output."
 3. Create a "determinism completeness table" showing whether each tool (columns) records-and-replays, stabilizes, or detects each particular non-deterministic input (rows). Validate this with an application (could be synthetic) whose output is deterministic for the "yesses" and non-deterministic for the "noes". At the end of each column, what proportion of benchmarks only depended on the "yesses" for that column?
    - Recording-and-replaying an input := record value is unchanged from native execution, replay value uses the recorded value.
-   - Stabalizing an input := changing the record and replay to have the same value.
-   - Detecting an input := detecting when the program accesses a particular input (neither stabalizing nor recording-and-replaying it).
+   - Stabilizing an input := changing the record and replay to have the same value.
+   - Detecting an input := detecting when the program accesses a particular input (neither stabilizing nor recording-and-replaying it).
 4. Create a "portability table" whose rows are pairs <platform on which recording was done, platform on which replaying was done> and columns are whether record/replay X allows it, allows it reproducibly, or disallows it.
 5. Statically link libprobe. Statically linking would improve the portability claims.
 6. Fix arena allocator. This avoids running out of memory while tracing big applications.

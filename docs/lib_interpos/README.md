@@ -442,7 +442,7 @@ Each process in the **process table** is associated with zero or one _parent pro
 The graph whose nodes are processes and edges point to the parent process is a tree.
 
 Each file-version in the **file-version table** is associated with inodes (many-to-one) but zero or more paths due to symlinks and hardlinks.
-The assocation from file-version to inode is not invertible, since one multiple versions of one inode may have been observed.
+The association from file-version to inode is not invertible, since one multiple versions of one inode may have been observed.
 Each file-version is also associated with exactly one _creating process_, and zero or more _reading processes_, i.e., processes that are known to read the file.
 The dataflow graph is simply the graph whose nodes are processes and files and whose edges show creation or reading (see @Sec:soundness).
 By its nature, it is acyclic and bipartite.
@@ -612,7 +612,7 @@ We use the log-normal instead of normal distribution for three reasons:
   The ratio of two normally distributed variables is a very complex distribution (see Eqn. 1 in [@hinkleyRatioTwoCorrelated1969]).
   Contrarily, the ratio of two log-normal variables is itself log-normal.
 
-We infer the log-normal distribution using unbiased maximum-liklihood estimators (this is similar but less biased than the geometric mean).
+We infer the log-normal distribution using unbiased maximum-likelihood estimators (this is similar but less biased than the geometric mean).
 Lastly, we compute the distribution of the overhead ratio of each provenance tracer, presenting its expected value and standard deviation in the tables below [@Tbl:walltime].
 
 <!--

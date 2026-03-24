@@ -195,7 +195,7 @@ where
         bail!("{sleep:?} should be positive\n");
     }
     let iterations: u16 = <u16 as NumCast>::from(timeout.div_duration_f64(sleep).round())
-        .ok_or_else(|| anyhow!("{timeout:?} / {sleep:?} not convertable\n"))
+        .ok_or_else(|| anyhow!("{timeout:?} / {sleep:?} not convertible\n"))
         .stack()?;
     for iteration in 0..iterations {
         let ret = func();

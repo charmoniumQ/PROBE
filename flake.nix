@@ -113,7 +113,7 @@
               pkgs.include-what-you-use
             ];
             checkPhase = ''
-              # When a user buidls this WITHOUT build sandbox isolation, the libc files appear to come from somewhere different.
+              # When a user builds this WITHOUT build sandbox isolation, the libc files appear to come from somewhere different.
               # For some reason, this confuses the `IWYU pragma: no_include`, causing an IWYU failure.
               # So I will disable the check here.
               # It is still enabled in the Justfile, and still works in the devshell.
@@ -336,7 +336,7 @@
             # gdb broken on apple silicon
             ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
         in rec {
-          # Instead, we use the new stdenv while explictly setting $CC.
+          # Instead, we use the new stdenv while explicitly setting $CC.
           # At runtime, programs, including libprobe, sees the new CC.
           # As Glibc maintains backwards compatibility, "compile with old and run with new" should work.
           # We have this because the Crane devshell changes some stuff, so we want to have a non-Crane devshell.

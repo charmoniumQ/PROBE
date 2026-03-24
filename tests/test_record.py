@@ -73,7 +73,7 @@ simple_commands = {
     "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
     "diff": ["diff", "test_file.txt", "test_file.txt"],
     "bash_multi": bash_multi(
-        # echo is a bash bulitin
+        # echo is a bash built-in
         # so we use echo_path to get the real echo executable
         [str(example_path / "echo.exe"), "hi"],
         [str(example_path / "echo.exe"), "hello"],
@@ -84,7 +84,7 @@ simple_commands = {
         [str(example_path / "cat.exe"), "test_file", "redirect_to", "test_file2"],
     ),
     "pipe": bash_multi(
-        # echo is a bash bulitin
+        # echo is a bash built-in
         # so we use echo_path to get the real echo executable
         [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
     ),
@@ -119,7 +119,7 @@ simple_commands = {
     ),
 
     # skip million_stats because it takes a very long time.
-    # Re-enable once we hvae a faster analysis.
+    # Re-enable once we have a faster analysis.
     # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
     # See https://github.com/charmoniumQ/PROBE/pull/135
 }

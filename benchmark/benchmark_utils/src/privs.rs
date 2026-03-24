@@ -128,7 +128,7 @@ where
     ret
 }
 
-/// Permanently drop privileges by assinging effective and saved UID/GID from
+/// Permanently drop privileges by assigning effective and saved UID/GID from
 /// the real UID/GID.
 ///
 /// If this return Err, please don't ignore it. An attacker may be tricking your

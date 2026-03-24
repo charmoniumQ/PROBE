@@ -3,7 +3,7 @@
 ####################
 ARG PROBE_VER
 FROM probe:${PROBE_VER} AS probe
-# The contents of this image can be COPYed later on.
+# The contents of this image can be copied later on.
 
 ####################
 # Main Containerfile goes here

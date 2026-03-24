@@ -28,7 +28,7 @@ struct Arena {
 #define ARENA_LIST_BLOCK_SIZE 64
 struct ArenaListElem {
     struct Arena* arena_list[ARENA_LIST_BLOCK_SIZE];
-    /* We store next list elem so that a value of 0 with an uninitialized arena_list represnts a valid ArenaListElem */
+    /* We store next list elem so that a value of 0 with an uninitialized arena_list represents a valid ArenaListElem */
     size_t next_free_slot;
     struct ArenaListElem* prev;
 };

@@ -1,7 +1,7 @@
 /*
  * This file looks like C, but it is not read by the C compiler!
  * It is a place-holder for C code and is processed by gen_libprov.py and put into libprov_middle.c.
- * It re-uses C's grammar, so I get syntax highlighting and I can parse it into fragments of C syntax easily.
+ * It reuses C's grammar, so I get syntax highlighting and I can parse it into fragments of C syntax easily.
  * Rationale: In this part of the project, there are many repetitions of code automatically generated.
  * For example, for each function $foo, we define a wrapper function $foo that calls the original function client_$foo with the same arguments.
  * Just read libprov_middle.c.
@@ -568,7 +568,7 @@ struct dirent * readdir (DIR *dirstream) {
             if (UNLIKELY(ret == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
-                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
@@ -601,7 +601,7 @@ struct dirent64 * readdir64 (DIR *dirstream) {
             if (UNLIKELY(ret == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
-                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
@@ -635,7 +635,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
             if (UNLIKELY(*result == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
-                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
                 op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
@@ -668,7 +668,7 @@ int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **resul
             if (UNLIKELY(*result == NULL)) {
                 op.data.readdir.ferrno = call_errno;
             } else {
-                /* Note: we will assume these dirents aer the same as openat(fd, ret->name);
+                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
                  * */
                 op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));

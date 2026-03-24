@@ -443,7 +443,7 @@ def combine_twin_nodes(
         else:
             non_combinable_nodes.append(node)
     partitions_list = [
-        # Order of partitions shoudl be deterministic to make the resulting graph deterministically ordered
+        # Order of partitions should be deterministic to make the resulting graph deterministically ordered
         *map(frozenset, neighbors_to_node.values()),
         *map(lambda node: frozenset({node}), non_combinable_nodes),
     ]
@@ -533,7 +533,7 @@ def retain_nodes_in_dag(
         retained_nodes: frozenset[_Node],
         edge_data: typing.Callable[[networkx.DiGraph[_Node], typing.Sequence[_Node]], EdgeData],
 ) -> networkx.DiGraph[_Node]:
-    """Retruns a graph with only the retained nodes, such that:
+    """Returns a graph with only the retained nodes, such that:
 
     - if A and B are retained and connected by a path of non-retained nodes in the input,
       then there is an edge from A to B in the output, whose edge data is edge_data(dag, path_from_A_to_B).

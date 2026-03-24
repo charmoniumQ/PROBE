@@ -109,7 +109,7 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
 
     This is a min-priority queue not a max-priority queue due to heapq. I won't
     implement a `reverse=True`, because as it stands, the priority need not be a
-    number; it is an arbtrary `Comparable` type and may not have a negation
+    number; it is an arbitrary `Comparable` type and may not have a negation
     operation.
 
     https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes

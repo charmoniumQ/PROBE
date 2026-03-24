@@ -132,7 +132,7 @@ An **interval** in a happens-before graph is a generalization of an interval of 
 
 For all accesses to the same file, we list the open/close intervals. TODO
 
-## Worked exmaple
+## Worked example
 
 Consider the provenance logs for `probe record bash -c 'foo < input_file > tmp_file && bar <tmp_file > output_file'`. All of the processes have only one thread.
 

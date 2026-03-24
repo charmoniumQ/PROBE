@@ -6,7 +6,7 @@ I
 
 II
 - During the COVID pandemic, epidemiological simulations done by Neil Ferguson (Imperial College) showed that lockdowns could significantly reduce the death toll.
-- This simulation was not made easilly available for a number of reasons, one of which was the software would be onerous to run on any other system.
+- This simulation was not made easily available for a number of reasons, one of which was the software would be onerous to run on any other system.
 - This, among other issues, reduced public confidence in the simulations
 
 III
@@ -83,7 +83,7 @@ III
 - ![Bayesian Model](../model.png)
 - ![Posterior of runtimes per syscall](../posterior_forest_collector_runtime_per_syscall.png)
 
-# Futher issues
+# Further issues
 
 ## Handling distributed computation
 
@@ -91,7 +91,7 @@ III
 - "Stitch" provenance graphs together after the fact
 - [PASSv2](https://www.usenix.org/legacy/events/usenix09/tech/full_papers/muniswamy-reddy/muniswamy-reddy.pdf) features stitching provenance across "layers"
 
-## Manging storage
+## Managing storage
 
 - Refer to package repositories where possible
 - Long term archival storage issue

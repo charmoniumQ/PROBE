@@ -62,7 +62,7 @@
 // uses a size_t[38] to store the values of the auxiliary vector (index
 // addressed)
 #define AUX_CNT 38
-size_t auxilary[AUX_CNT] = {0};
+size_t auxiliary[AUX_CNT] = {0};
 
 #if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
@@ -162,7 +162,7 @@ static uint64_t probe_syscall6(uint64_t sysnum, uint64_t arg1, uint64_t arg2, ui
 
 // TODO: better error handling that specifies *where* something went wrong;
 // some debug statements would be good too, but want to keep the file
-// compileable with -DUNIT_TESTS for well... unit tests
+// compilable with -DUNIT_TESTS for well... unit tests
 result probe_libc_init(void) {
     // auxiliary vector initialization
     {
@@ -182,7 +182,7 @@ result probe_libc_init(void) {
 
         aux_entry* buf = calloc(size, 1);
         if (buf == NULL) {
-            WARNING("falied to allocate buffer for auxilary vector");
+            WARNING("failed to allocate buffer for auxiliary vector");
             return ENOMEM;
         }
         size = probe_syscall5(SYS_prctl, PR_GET_AUXV, (uintptr_t)buf, size, 0, 0);
@@ -192,7 +192,7 @@ result probe_libc_init(void) {
 
         size_t entries = (size / sizeof(aux_entry));
         for (size_t i = 0; i < entries && i < AUX_CNT; ++i) {
-            auxilary[buf[i].key] = buf[i].val;
+            auxiliary[buf[i].key] = buf[i].val;
         }
         free(buf);
     }
@@ -211,7 +211,7 @@ void exit_with_backup(int status) {
     if (client_exit) {
         client_exit(status);
     }
-    WARNING("unable to aquire client_exit, atexit handlers not run");
+    WARNING("unable to acquire client_exit, atexit handlers not run");
     probe_syscall1(SYS_exit, status);
     __builtin_unreachable();
 }
@@ -565,7 +565,7 @@ size_t probe_libc_strnfind(const char* _Nonnull string, size_t maxlen, char deli
     return index;
 }
 
-size_t probe_libc_getpagesize(void) { return auxilary[AT_PAGESZ]; }
+size_t probe_libc_getpagesize(void) { return auxiliary[AT_PAGESZ]; }
 
 const char* _Nullable probe_libc_getenv(const char* _Nonnull name) {
     if (name == NULL) {

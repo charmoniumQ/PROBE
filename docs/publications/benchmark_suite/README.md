@@ -148,7 +148,7 @@ We include only a few notable applications [@pimentelSurveyCollectingManaging201
    Provenance data improves **manual reproducibility**, because users have a record of the inputs, outputs, and processes used to create a computational artifact.
    Provenance data also has the potential to enable **automatic reproducibility**, if the process trace is detailed enough to be "re-executed".
    This idea is also called "software record/replay".
-   Automatic reproduciblity opens itself up to other applications, like saving space by deleting results and regenerating them on-demand.
+   Automatic reproducibility opens itself up to other applications, like saving space by deleting results and regenerating them on-demand.
    However, not all provenance collectors make this their goal.
 
    [^acm-defns]: "Reproduction", in the ACM sense, where a **different team** uses the **same input artifacts** to generate the output artifact [@acminc.staffArtifactReviewBadging2020].
@@ -246,7 +246,7 @@ Phansalkar et al. [@phansalkarSubsettingSPECCPU20062007] apply dimensionality re
 
 ## Rapid Review
 
-We preformed a rapid review to identify the research state-of-the-art tools for automatic system-level provenance.
+We performed a rapid review to identify the research state-of-the-art tools for automatic system-level provenance.
 
 Rapid Reviews are a lighter-weight alternative to systematic literature reviews with a focus on timely feedback for decision-making.
 Schünemann and Moja [@schunemannReviewsRapidRapid2015] show that Rapid Reviews can yield substantially similar results to a systematic literature review, albeit with less detail.
@@ -270,7 +270,7 @@ We conducted a rapid review with the following parameters:
 
 For each publication selected by the literature review, if it is a secondary study, we augment the set with the primary studies on which the secondary study is based.
 In the augmented set, we aggregate all benchmarks that were used to evaluate the performance of provenance collectors.
-THe benchmarks genrally programs like `tar xvf` that manipulate a large number of files.
+The benchmarks generally programs like `tar xvf` that manipulate a large number of files.
 
 We excluded benchmarks for which we could not even find the original program (e.g., TextTransfer), benchmarks that were not available for Linux (e.g., Internet Explorer), benchmarks with a graphical component (e.g., Notepad++), and benchmarks with an interactive component (e.g., GNU Midnight Commander).
 We used Nix package manager to build the software environment, so the environment is buildable on many different platforms[^nix-footnote].
@@ -806,7 +806,7 @@ We acknowledge support for research on flaky tests from Google and Meta.
 
 \appendix
 
-# Apendices
+# Appendices
 
 ## Notable provenance collectors
 
@@ -820,7 +820,7 @@ It still uses `ptrace`.
 
 **strace** is a well-known system program that uses Linux's `ptrace` functionality to record syscalls, their arguments, and their return code to a file.
 strace even parses datastructures to write strings and arrays rather than pointers.
-In this work, we use an strace configuration that captures all file-related syscalls but read/write[^read/write], file-metadata realated syscalls, socket- and IPC- related sycalls but send/recv, and process-related syscalls.
+In this work, we use an strace configuration that captures all file-related syscalls but read/write[^read/write], file-metadata related syscalls, socket- and IPC- related syscalls but send/recv, and process-related syscalls.
 
 [^read/write]: We do not need to capture individual reads and writes, so long as we capture that the file was opened for reading/writing.
 

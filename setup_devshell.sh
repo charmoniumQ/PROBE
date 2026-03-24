@@ -13,7 +13,7 @@ export CPATH="$PROBE_ROOT/libprobe/include:$CPATH"
 # Rust CLI uses PROBE_LIB to find libprobe binary
 export PROBE_LIB="$PROBE_ROOT/libprobe/.build"
 
-# Ensure libprobe.so gets maked
+# Ensure libprobe.so gets made
 if [ ! -f "$PROBE_LIB/libprobe.so" ]; then
     printf "%sPlease run 'just compile-lib' to compile libprobe%s\n" "$red" "$clr"
 fi

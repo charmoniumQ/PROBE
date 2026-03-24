@@ -76,5 +76,5 @@ RUN <install curl>
 ENV PATH="${PATH}:/nix/var/nix/profiles/default/bin" \
     USER=root
 RUN curl -fsSL https://install.determinate.systems/nix | sh -s -- install linux --extra-conf "sandbox = false" --init none --no-confirm && \
-    ... Contine with installation instructions from ../README.md
+    ... Continue with installation instructions from ../README.md
 ```
