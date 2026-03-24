@@ -4,7 +4,7 @@
  * [FromMemory] and [ToMemory] is a non-self-describing, binary format that is natively understood by C.
  * For example, in Postcard, to serialize a variable-sized string, one just writes the bytes of the string.
  * But structs in C have to have fixed size, so the message would not be transparently interpretable as a struct.
- * Instead, C uses _indirection_: in place of the string, we write a fixed-width integer (pointer) refering to elsewhere where the bytes actually are.
+ * Instead, C uses _indirection_: in place of the string, we write a fixed-width integer (pointer) referring to elsewhere where the bytes actually are.
  *
  * */
 
