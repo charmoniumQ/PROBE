@@ -250,7 +250,7 @@
                 pkgs.nix
                 pkgs.podman
               ]
-              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless;
+              ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk_headless;
             buildPhase = ''
               make --directory=examples/
               RUST_BAKCTRACE=1 pytest
@@ -332,7 +332,7 @@
             ]
             # OpenJDK doesn't build on some platforms
             ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
-            ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk23_headless
+            ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk_headless
             # gdb broken on apple silicon
             ++ pkgs.lib.lists.optional (system != "aarch64-darwin") pkgs.gdb;
         in rec {

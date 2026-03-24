@@ -13,7 +13,7 @@
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
-#include "../generated/libc_hooks.h" // for client_thrd_current
+#include "../generated/bindings.h"        // for CopyFiles
 #include "../include/libprobe/prov_ops.h" // for Op, Path, OpCode, Op::(ano...
 #include "arena.h"                   // for arena_sync, arena_calloc
 #include "debug_logging.h"           // for DEBUG, ASSERTF, DEBUG_LOG

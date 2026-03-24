@@ -347,7 +347,7 @@ impl OpsArena<'_> {
         let header = ArenaHeader::from_bytes(&bytes, instantiation)
             .wrap_err("Failed to create ArenaHeader for OpsArena")?;
 
-        if ((header.used - size_of::<ArenaHeader>()) % size_of::<C_Op>()) != 0 {
+        if (header.used - size_of::<ArenaHeader>()).is_multiple_of(size_of::<C_Op>()) {
             return Err(ArenaError::Misaligned {
                 size: header.used,
                 header_size: size_of::<ArenaHeader>(),

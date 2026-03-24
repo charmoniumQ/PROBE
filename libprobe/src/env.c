@@ -5,7 +5,7 @@
 #include <stdlib.h>  // for malloc
 // IWYU pragma: no_include "linux/limits.h"  for PATH_MAX
 
-#include "../include/libprobe/prov_ops.h" // for FixedPath, LD_PRELOAD_VAR, PROBE_...
+#include "../generated/bindings.h" // for FixedPath, LD_PRELOAD_VAR, PROBE_...
 #include "arena.h"                // for arena_calloc
 #include "debug_logging.h"        // for DEBUG, ASSERTF, EXPECT_NONNULL
 #include "global_state.h"         // for get_libprobe_path, get_probe_dir

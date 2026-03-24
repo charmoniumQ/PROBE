@@ -15,7 +15,7 @@
 // IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
-#include "../generated/libc_hooks.h"  // for client_...
+#include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
 #include "arena.h"                    // for arena_is_initialized, arena_create
 #include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR

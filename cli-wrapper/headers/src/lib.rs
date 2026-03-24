@@ -149,7 +149,7 @@ pub fn object_to_bytes<Type: Sized>(object: Type) -> Vec<u8> {
 
 pub fn object_from_bytes<Type: Sized + Clone>(bytes: Vec<u8>) -> Type {
     assert!(bytes.len() == std::mem::size_of::<Type>());
-    assert!((bytes.as_ptr() as usize) % std::mem::align_of::<Type>() == 0);
+    assert!((bytes.as_ptr() as usize).is_multiple_of(std::mem::align_of::<Type>()));
 
     unsafe { (*{ bytes.as_ptr() as *const Type }).clone() }
 }
