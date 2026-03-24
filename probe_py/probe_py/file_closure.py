@@ -12,7 +12,7 @@ import pathlib
 import typing
 from . import ptypes
 from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
-from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
+from .headers import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
 from .consts import AT_FDCWD
 
 
@@ -88,11 +88,13 @@ def build_oci_image(
                 env.append("--env")
                 env.append(key_val.decode(errors="surrogate"))
         #shell = pathlib.Path(os.environ["SHELL"]).resolve()
+        path = first_op.cwd.path
+        assert path is not None
         cmd = [
             "buildah",
             "config",
             "--workingdir",
-            first_op.cwd.path.decode(),
+            path.decode(),
             "--cmd",
             shlex.join(args),
             *env,
@@ -146,27 +148,32 @@ def get_files(
             if not isinstance(first_op, InitExecEpochOp):
                 console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
-            fds = {AT_FDCWD: pathlib.Path(first_op.cwd.path.decode())}
+            path = first_op.cwd.path
+            assert path is not None
+            fds = {AT_FDCWD: pathlib.Path(path.decode())}
             for tid, thread in exec_epoch.threads.items():
                 for op_no, op in enumerate(thread.ops):
                     if isinstance(op.data, ChdirOp):
-                        path = op.data.path
-                        resolved_path = resolve_path(fds, path)
+                        path2 = op.data.path
+                        assert path2 is not None
+                        resolved_path = resolve_path(fds, path2)
                         fds[AT_FDCWD] = resolved_path
                         if verbose:
                             console.print(f"chdir {resolved_path}")
                         assert resolved_path.is_absolute()
                     elif isinstance(op.data, OpenOp):
-                        path = op.data.path
+                        path2 = op.data.path
+                        assert path2 is not None
                         if op.data.ferrno == 0:
-                            resolved_path = resolve_path(fds, path)
+                            resolved_path = resolve_path(fds, path2)
                             fds[op.data.fd] = resolved_path
-                            yield op, resolved_path, path
+                            yield op, resolved_path, path2
                     elif isinstance(op.data, ExecOp):
-                        path = op.data.path
+                        path2 = op.data.path
+                        assert path2 is not None
                         if op.data.ferrno == 0:
-                            resolved_path = resolve_path(fds, path)
-                            yield op, resolved_path, path
+                            resolved_path = resolve_path(fds, path2)
+                            yield op, resolved_path, path2
                     elif isinstance(op.data, CloseOp):
                         if op.data.fd in fds:
                             del fds[op.data.fd]
@@ -252,9 +259,9 @@ def resolve_path(
         fds: typing.Mapping[int, pathlib.Path],
         path: Path,
 ) -> pathlib.Path:
-    if path.path.startswith(b"/"):
+    if path.path and path.path.startswith(b"/"):
         return pathlib.Path(path.path.decode()) # what a mouthful
-    elif dir_path := fds.get(path.dirfd):
+    elif path.path and (dir_path := fds.get(path.dirfd)):
         return dir_path / pathlib.Path(path.path.decode())
     else:
         raise KeyError(f"dirfd {path.dirfd} not found in fd table")

@@ -15,28 +15,27 @@
 // IWYU pragma: no_include "linux/limits.h"       for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"         for STATX_BASIC_STATS, statx
 
-#include "../generated/bindings.h"        // for FixedPath, ProcessContext, PIDS...
-#include "../generated/libc_hooks.h"      // for client_...
+#include "../generated/libc_hooks.h"  // for client_...
 #include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
-#include "arena.h"                        // for arena_is_initialized, arena_create
-#include "debug_logging.h"                // for ASSERTF, EXPECT, DEBUG, ERROR
-#include "env.h"                          // for getenv_copy
-#include "inode_table.h"                  // for inode_table_init, inode_table_i...
-#include "probe_libc.h"                   // for probe_libc_...
-#include "prov_buffer.h"                  // for prov_log_try, prov_log_record, prov_log_save
-#include "prov_utils.h"                   // for do_init_ops
-#include "util.h"                         // for CHECK_SNPRINTF, list_dir, UNLIKELY
+#include "arena.h"                    // for arena_is_initialized, arena_create
+#include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR
+#include "env.h"                      // for getenv_copy
+#include "inode_table.h"              // for inode_table_init, inode_table_i...
+#include "probe_libc.h"               // for probe_libc_...
+#include "prov_buffer.h"              // for prov_log_try, prov_log_record, prov_log_save
+#include "prov_utils.h"               // for do_init_ops
+#include "util.h"                     // for CHECK_SNPRINTF, list_dir, UNLIKELY
 
 #ifdef NDEBUG
 #define check_fixed_path(path)
 #else
 #define check_fixed_path(path)                                                                     \
     ({                                                                                             \
-        ASSERTF((path)->len > 2, "{\"%s\", %d}", (path)->bytes, (path)->len);                      \
-        ASSERTF((path)->bytes[0] == '/', "{\"%s\", %d}", (path)->bytes, (path)->len);              \
-        ASSERTF((path)->bytes[(path)->len - 1] != '\0', "{\"%s\", %d}", (path)->bytes,             \
+        ASSERTF((path)->len > 2, "{\"%s\", %ld}", (path)->bytes, (path)->len);                     \
+        ASSERTF((path)->bytes[0] == '/', "{\"%s\", %ld}", (path)->bytes, (path)->len);             \
+        ASSERTF((path)->bytes[(path)->len - 1] != '\0', "{\"%s\", %ld}", (path)->bytes,            \
                 (path)->len);                                                                      \
-        ASSERTF((path)->bytes[(path)->len] == '\0', "{\"%s\", %d}", (path)->bytes, (path)->len);   \
+        ASSERTF((path)->bytes[(path)->len] == '\0', "{\"%s\", %ld}", (path)->bytes, (path)->len);  \
     })
 #endif
 
@@ -307,6 +306,7 @@ static inline void drop_threads_after_fork() {
          * 1. Thread creation interposition is not reliable.
          * 2. The thread never makes a prov op. */
         if (state) {
+            DEBUG("arena_drop_after_fork");
             arena_drop_after_fork(&state->data_arena);
             arena_drop_after_fork(&state->ops_arena);
             free(state);
@@ -355,8 +355,8 @@ static inline void emit_init_epoch_op() {
         ERROR("");
     }
     struct Op init_epoch_op = {
-        init_exec_epoch_op_code,
-        {.init_exec_epoch =
+        {.init_exec_epoch_tag = OpData_InitExecEpoch,
+         .init_exec_epoch =
              {
                  .parent_pid = probe_libc_getppid(),
                  .pid = probe_libc_getpid(),
@@ -364,12 +364,11 @@ static inline void emit_init_epoch_op() {
                  .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, -1, 0),
                  .exe = create_path_lazy(AT_FDCWD, exe.bytes, -1, 0),
                  .argv = arena_copy_cmdline(get_data_arena(), cmdline),
-                 .env = arena_copy_argv(get_data_arena(), probe_environ, 0),
+                 .env = arena_copy_argv(get_data_arena(), (StringArray)probe_environ, 0),
                  .std_in = create_path_lazy(-1, NULL, 0, 0),
                  .std_out = create_path_lazy(-1, NULL, 1, 0),
                  .std_err = create_path_lazy(-1, NULL, 2, 0),
              }},
-        {0},
         0,
         0,
     };
@@ -380,7 +379,9 @@ static inline void emit_init_epoch_op() {
 
 static inline void emit_init_thread_op() {
     struct Op init_thread_op = {
-        init_thread_op_code, {.init_thread = {.tid = get_tid()}}, {0}, 0, 0,
+        {.init_thread_tag = OpData_InitThread, .init_thread = {.tid = get_tid()}},
+        0,
+        0,
     };
     prov_log_try(init_thread_op);
     prov_log_record(init_thread_op);

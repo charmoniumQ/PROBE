@@ -73,9 +73,6 @@ __attribute__((visibility("hidden"))) int fd_is_valid(int fd);
 __attribute__((visibility("hidden"))) void list_dir(const char* name, int indent)
     __attribute__((nonnull));
 
-__attribute__((visibility("hidden"))) unsigned char ceil_log2(unsigned int val)
-    __attribute__((pure));
-
 __attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
     char buf[10];
     CHECK_SNPRINTF(buf, 10, "");

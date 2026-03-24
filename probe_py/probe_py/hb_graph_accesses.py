@@ -4,7 +4,7 @@ import os
 import pathlib
 import warnings
 from . import graph_utils
-from . import ops
+from . import headers as ops
 from . import ptypes
 
 
@@ -46,7 +46,7 @@ def hb_graph_to_accesses(
                 f"FD {fd} closed was without our knowledge before {node}.",
             ))
             yield from close(fd, node)
-        parsed_path = pathlib.Path(path.path.decode())
+        parsed_path = pathlib.Path((path.path or b"").decode())
         proc_fd_to_fd[node.pid][fd] = FileDescriptor2(mode, inode, parsed_path, cloexec)
         yield ptypes.Access(ptypes.Phase.BEGIN, mode, inode, parsed_path, node, fd)
 
@@ -76,7 +76,7 @@ def hb_graph_to_accesses(
                         if file_desc.cloexec:
                             yield from close(fd, node)
                     exe_inode = ptypes.InodeVersion.from_probe_path(op_data.path).inode
-                    exe_path = pathlib.Path(op_data.path.path.decode())
+                    exe_path = pathlib.Path((op_data.path.path or b"").decode())
                     yield ptypes.Access(ptypes.Phase.BEGIN, ptypes.AccessMode.EXEC, exe_inode, exe_path, node, None)
                     yield ptypes.Access(ptypes.Phase.END, ptypes.AccessMode.EXEC, exe_inode, exe_path, node, None)
             case ops.CloseOp():
@@ -95,7 +95,7 @@ def hb_graph_to_accesses(
                             f"{node} successfully duped an FD {op_data.old} (-> {op_data.new}) we never traced.",
                         ))
             case ops.CloneOp():
-                if op_data.ferrno == 0 and op_data.task_type == ptypes.TaskType.TASK_PID and not (op_data.flags & os.CLONE_THREAD):
+                if op_data.ferrno == 0 and op_data.task_type == ops.TaskType.PID and not (op_data.flags & os.CLONE_THREAD):
                     target = ptypes.Pid(op_data.task_id)
                     if op_data.flags & os.CLONE_FILES:
                         proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]

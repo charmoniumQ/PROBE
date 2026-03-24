@@ -22,7 +22,7 @@ fi
 export PYGEN_OUTFILE="$PROBE_ROOT/probe_py/probe_py/ops.py"
 
 # Rust code uses CBINDGEN_OUTFILE to determine where to write this file.
-export CBINDGEN_OUTFILE="$PROBE_ROOT/libprobe/generated/bindings.h"
+export CBINDGEN_OUTFILE="$PROBE_ROOT/libprobe/generated/headers.h"
 
 # Ensure PROBE CLI gets built
 if [ ! -f "$PROBE_ROOT/cli-wrapper/target/release/probe" ]; then

@@ -79,17 +79,6 @@ void list_dir(const char* name, int indent) {
     client_closedir(dir);
 }
 
-unsigned char ceil_log2(unsigned int val) {
-    unsigned int ret = 0;
-    bool is_greater = false;
-    while (val > 1) {
-        is_greater |= val & 1;
-        val >>= 1;
-        ret++;
-    }
-    return ret + is_greater;
-}
-
 unsigned int my_atoui(const char* s) {
     /* I reimplemented atoi because the glibc one creates a dependency on __isoc23_strtol@GLIBC_2.38
      * and I want to support older systems.

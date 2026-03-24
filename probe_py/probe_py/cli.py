@@ -20,7 +20,7 @@ from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
-from . import ops
+from . import headers as ops
 from . import parser
 from . import ptypes
 from . import scp as scp_module
@@ -353,7 +353,7 @@ def docker_image(
         console.print(f"Invalid image name {image_name}", style="red")
         raise typer.Exit(code=1)
     with parser.parse_probe_log_ctx(probe_log) as probe_log_obj:
-        if not probe_log_obj.probe_options.copy_files:
+        if not probe_log_obj.process_tree_context.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(
@@ -387,7 +387,7 @@ def oci_image(
 
     """
     with parser.parse_probe_log_ctx(probe_log) as probe_log_obj:
-        if not probe_log_obj.probe_options.copy_files:
+        if not probe_log_obj.process_tree_context.copy_files:
             console.print("No files stored in probe log", style="red")
             raise typer.Exit(code=1)
         file_closure.build_oci_image(

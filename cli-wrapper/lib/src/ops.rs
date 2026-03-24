@@ -116,6 +116,15 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 // implementations that are auto-generated.
 
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
+pub struct StatxTimestamp {
+    i64 tv_sec,
+    u32 tv_nsec,
+
+    #[serde(skip_deserializing)]
+    u32 __padding,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub enum Metadata {
     #[serde(untagged)]
     Mode {
@@ -137,8 +146,8 @@ pub enum Metadata {
     #[serde(untagged)]
     Times {
         is_null: bool,
-        atime: Timeval,
-        mtime: Timeval,
+        atime: TimeVal,
+        mtime: TimeVal,
 
         #[serde(serialize_with = "Metadata::serialize_variant_times")]
         #[serde(skip_deserializing)]
@@ -169,26 +178,26 @@ impl Metadata {
 
 impl FfiFrom<C_UpdateMetadataOp> for Metadata {
     fn ffi_from(value: &C_UpdateMetadataOp, ctx: &ArenaContext) -> Result<Self> {
-        let kind = value.kind;
         let value = value.value;
+        let kind = value.tag;
 
         log::debug!("[unsafe] decoding Metadata tagged union");
         Ok(match kind {
             C_MetadataKind_MetadataMode => Metadata::Mode {
-                mode: unsafe { value.mode },
+                mode: unsafe { value.__bindgen_anon_1.mode },
 
                 _type: (),
             },
             C_MetadataKind_MetadataOwnership => Metadata::Ownership {
-                uid: unsafe { value.ownership }.uid,
-                gid: unsafe { value.ownership }.gid,
+                uid: unsafe { value.__bindgen_anon_2.ownership }.uid,
+                gid: unsafe { value.__bindgen_anon_2.ownership }.gid,
 
                 _type: (),
             },
             C_MetadataKind_MetadataTimes => Metadata::Times {
-                is_null: unsafe { value.times }.is_null,
-                atime: unsafe { value.times }.atime.ffi_into(ctx)?,
-                mtime: unsafe { value.times }.mtime.ffi_into(ctx)?,
+                is_null: unsafe { value.__bindgen_anon_3.times }.is_null,
+                atime: unsafe { value.__bindgen_anon_3.times }.atime.ffi_into(ctx)?,
+                mtime: unsafe { value.__bindgen_anon_3.times }.mtime.ffi_into(ctx)?,
 
                 _type: (),
             },
@@ -287,49 +296,49 @@ pub enum OpInternal {
 
 impl FfiFrom<C_Op> for OpInternal {
     fn ffi_from(value: &C_Op, ctx: &ArenaContext) -> Result<Self> {
-        let kind = value.op_code;
+        let kind = value.data.tag;
         let value = value.data;
 
         log::debug!("[unsafe] decoding Op tagged union [ OpCode={kind} ]");
         Ok(match kind {
             C_OpCode_init_exec_epoch_op_code => {
-                Self::InitExecEpochOp(unsafe { value.init_exec_epoch }.ffi_into(ctx)?)
+                Self::InitExecEpochOp(unsafe { value.__bindgen_anon_10.init_exec_epoch }.ffi_into(ctx)?)
             }
             C_OpCode_init_thread_op_code => {
-                Self::InitThreadOp(unsafe { value.init_thread }.ffi_into(ctx)?)
+                Self::InitThreadOp(unsafe { value.__bindgen_anon_11.init_thread }.ffi_into(ctx)?)
             }
-            C_OpCode_open_op_code => Self::OpenOp(unsafe { value.open }.ffi_into(ctx)?),
-            C_OpCode_close_op_code => Self::CloseOp(unsafe { value.close }.ffi_into(ctx)?),
-            C_OpCode_chdir_op_code => Self::ChdirOp(unsafe { value.chdir }.ffi_into(ctx)?),
-            C_OpCode_exec_op_code => Self::ExecOp(unsafe { value.exec }.ffi_into(ctx)?),
-            C_OpCode_spawn_op_code => Self::SpawnOp(unsafe { value.spawn }.ffi_into(ctx)?),
-            C_OpCode_clone_op_code => Self::CloneOp(unsafe { value.clone }.ffi_into(ctx)?),
+            C_OpCode_open_op_code => Self::OpenOp(unsafe { value.__bindgen_anon_13.open }.ffi_into(ctx)?),
+            C_OpCode_close_op_code => Self::CloseOp(unsafe { value.__bindgen_anon_4.close }.ffi_into(ctx)?),
+            C_OpCode_chdir_op_code => Self::ChdirOp(unsafe { value.__bindgen_anon_2.chdir }.ffi_into(ctx)?),
+            C_OpCode_exec_op_code => Self::ExecOp(unsafe { value.__bindgen_anon_6.exec }.ffi_into(ctx)?),
+            C_OpCode_spawn_op_code => Self::SpawnOp(unsafe { value.__bindgen_anon_17.spawn }.ffi_into(ctx)?),
+            C_OpCode_clone_op_code => Self::CloneOp(unsafe { value.__bindgen_anon_.clone }.ffi_into(ctx)?),
             C_OpCode_exit_process_op_code => {
-                Self::ExitProcessOp(unsafe { value.exit_process }.ffi_into(ctx)?)
+                Self::ExitProcessOp(unsafe { value.__bindgen_anon_7.exit_process }.ffi_into(ctx)?)
             }
             C_OpCode_exit_thread_op_code => {
-                Self::ExitThreadOp(unsafe { value.exit_thread }.ffi_into(ctx)?)
+                Self::ExitThreadOp(unsafe { value.__bindgen_anon_8.exit_thread }.ffi_into(ctx)?)
             }
-            C_OpCode_access_op_code => Self::AccessOp(unsafe { value.access }.ffi_into(ctx)?),
-            C_OpCode_stat_op_code => Self::StatOp(unsafe { value.stat }.ffi_into(ctx)?),
-            C_OpCode_readdir_op_code => Self::ReaddirOp(unsafe { value.readdir }.ffi_into(ctx)?),
-            C_OpCode_wait_op_code => Self::WaitOp(unsafe { value.wait }.ffi_into(ctx)?),
+            C_OpCode_access_op_code => Self::AccessOp(unsafe { value.__bindgen_anon_1.access }.ffi_into(ctx)?),
+            C_OpCode_stat_op_code => Self::StatOp(unsafe { value.__bindgen_anon_18.stat }.ffi_into(ctx)?),
+            C_OpCode_readdir_op_code => Self::ReaddirOp(unsafe { value.__bindgen_anon_15.readdir }.ffi_into(ctx)?),
+            C_OpCode_wait_op_code => Self::WaitOp(unsafe { value.__bindgen_anon_22.wait }.ffi_into(ctx)?),
             C_OpCode_update_metadata_op_code => {
-                Self::UpdateMetadataOp(unsafe { value.update_metadata }.ffi_into(ctx)?)
+                Self::UpdateMetadataOp(unsafe { value.__bindgen_anon_21.update_metadata }.ffi_into(ctx)?)
             }
             C_OpCode_read_link_op_code => {
-                Self::ReadLinkOp(unsafe { value.read_link }.ffi_into(ctx)?)
+                Self::ReadLinkOp(unsafe { value.__bindgen_anon_14.read_link }.ffi_into(ctx)?)
             }
-            C_OpCode_dup_op_code => Self::DupOp(unsafe { value.dup }.ffi_into(ctx)?),
+            C_OpCode_dup_op_code => Self::DupOp(unsafe { value.__bindgen_anon_5.dup }.ffi_into(ctx)?),
             C_OpCode_hard_link_op_code => {
-                Self::HardLinkOp(unsafe { value.hard_link }.ffi_into(ctx)?)
+                Self::HardLinkOp(unsafe { value.__bindgen_anon_9.hard_link }.ffi_into(ctx)?)
             }
             C_OpCode_symbolic_link_op_code => {
-                Self::SymbolicLinkOp(unsafe { value.symbolic_link }.ffi_into(ctx)?)
+                Self::SymbolicLinkOp(unsafe { value.__bindgen_anon_19.symbolic_link }.ffi_into(ctx)?)
             }
-            C_OpCode_unlink_op_code => Self::UnlinkOp(unsafe { value.unlink }.ffi_into(ctx)?),
-            C_OpCode_rename_op_code => Self::RenameOp(unsafe { value.rename }.ffi_into(ctx)?),
-            C_OpCode_mkfile_op_code => Self::MkFileOp(unsafe { value.mkfile }.ffi_into(ctx)?),
+            C_OpCode_unlink_op_code => Self::UnlinkOp(unsafe { value.__bindgen_anon_20.unlink }.ffi_into(ctx)?),
+            C_OpCode_rename_op_code => Self::RenameOp(unsafe { value.__bindgen_anon_16.rename }.ffi_into(ctx)?),
+            C_OpCode_mkfile_op_code => Self::MkFileOp(unsafe { value.__bindgen_anon_1.mkfile }.ffi_into(ctx)?),
             _ => return Err(ProbeError::InvalidVariant(kind)),
         })
     }
@@ -338,9 +347,8 @@ impl FfiFrom<C_Op> for OpInternal {
 #[derive(Debug, Clone, Serialize, Deserialize, PygenDataclass)]
 pub struct Op {
     pub data: OpInternal,
-    pub time: Timespec,
     pub pthread_id: u16,
-    pub iso_c_thread_id: thrd_t,
+    pub iso_c_thread_id: u64,
 
     #[serde(serialize_with = "Op::serialize_type")]
     #[serde(skip_deserializing)]
@@ -360,7 +368,6 @@ impl FfiFrom<C_Op> for Op {
     fn ffi_from(value: &C_Op, ctx: &ArenaContext) -> Result<Self> {
         Ok(Self {
             data: value.ffi_into(ctx)?,
-            time: value.time.ffi_into(ctx)?,
             pthread_id: value.pthread_id,
             iso_c_thread_id: value.iso_c_thread_id,
 

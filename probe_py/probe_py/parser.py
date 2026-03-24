@@ -8,8 +8,8 @@ import tarfile
 import tempfile
 import contextlib
 import charmonium.time_block
-from . import ops
-from .ptypes import ProbeLog, ProbeOptions, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
+from . import headers as ops
+from .ptypes import ProbeLog, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
 @contextlib.contextmanager
@@ -69,15 +69,12 @@ def parse_probe_log_ctx(
                 execs[exec_no] = Exec(exec_no, threads)
             processes[pid] = Process(pid, execs)
 
-        options = json.loads((tmpdir / "options.json").read_bytes())
+        process_tree_context = json.loads((tmpdir / "options.json").read_bytes())
 
         yield ProbeLog(
             processes,
             inodes,
-            ProbeOptions(
-                copy_files=options["copy_files"] != 0,
-                parent_of_root=options["parent_of_root"],
-            ),
+            process_tree_context,
             host,
         )
 
