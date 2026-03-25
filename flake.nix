@@ -202,7 +202,6 @@
               python.pkgs.msgspec
               python.pkgs.networkx
               python.pkgs.numpy
-              python.pkgs.pydantic
               python.pkgs.pydot
               python.pkgs.pygraphviz
               python.pkgs.rich
@@ -300,7 +299,6 @@
             pypkgs.networkx
             pypkgs.numpy
             pypkgs.pydot
-            pypkgs.pydantic
             pypkgs.rich
             pypkgs.sqlalchemy
             pypkgs.tqdm
@@ -316,7 +314,6 @@
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
             pypkgs.types-tqdm
-            pypkgs.ruff
             pypkgs.msgspec
 
             # libprobe build time requirement
