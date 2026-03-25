@@ -68,12 +68,13 @@ def validate_hb_graph(
         hb_graph: HbGraph,
         validate_roots: bool,
 ) -> None:
+    if not networkx.is_directed_acyclic_graph(hb_graph):
+        cycle = list(networkx.find_cycle(hb_graph))
+        warnings.warn(ptypes.UnusualProbeLog(
+            f"Found a cycle in hb graph: {cycle}",
+        ))
+
     if validate_roots:
-        if not networkx.is_directed_acyclic_graph(hb_graph):
-            cycle = list(networkx.find_cycle(hb_graph))
-            warnings.warn(ptypes.UnusualProbeLog(
-                f"Found a cycle in hb graph: {cycle}",
-            ))
         sources = graph_utils.get_sources(hb_graph)
         if len(sources) > 1:
             warnings.warn(ptypes.UnusualProbeLog(

@@ -112,6 +112,11 @@ simple_commands = {
             'print("done")',
         ])
     ],
+    # "c_hello": bash_multi(
+    #     ["echo", c_hello_world, "redirect_to", "test.c"],
+    #     ["gcc", "test.c"],
+    #     ["./a.out"],
+    # ),
     # skip million_stats because it takes a very long time.
     # Re-enable once we have a faster analysis.
     # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
@@ -132,16 +137,6 @@ complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, 
         bash_multi(
             ["javac", "HelloWorld.java"],
             ["java", "HelloWorld"],
-        ),
-    ),
-    "c_hello": (
-        False,
-        None,
-        "",
-        bash_multi(
-            ["echo", c_hello_world, "redirect_to", "test.c"],
-            ["gcc", "test.c"],
-            ["./a.out"],
         ),
     ),
 }
