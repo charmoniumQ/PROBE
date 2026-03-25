@@ -118,7 +118,7 @@ simple_commands = {
     # See https://github.com/charmoniumQ/PROBE/pull/135
 }
 
-complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
+complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, str, list[str]]] = {
     "c_hello_simplified": (
         False,
         pathlib.Path("test.c"),
@@ -137,6 +137,7 @@ complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.P
     "c_hello": (
         False,
         None,
+        "",
         bash_multi(
             ["echo", c_hello_world, "redirect_to", "test.c"],
             ["gcc", "test.c"],
