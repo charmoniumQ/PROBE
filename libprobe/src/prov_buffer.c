@@ -2,9 +2,9 @@
 
 #include "prov_buffer.h"
 
-#include <fcntl.h>    // for AT_FDCWD, O_RDWR, O_CREAT
-#include <limits.h>   // IWYU pragma: keep for PATH_MAX
-#include <sched.h>    // for CLONE_VFORK
+#include <fcntl.h>  // for AT_FDCWD, O_RDWR, O_CREAT
+#include <limits.h> // IWYU pragma: keep for PATH_MAX
+#include <sched.h>  // for CLONE_VFORK
 #include <stdatomic.h>
 #include <stdbool.h>  // for bool, true
 #include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
@@ -14,9 +14,9 @@
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
-#include "../generated/headers.h"    // for CopyFiles
-#include "../generated/libc_hooks.h" // for client_thrd_current
+#include "../generated/headers.h" // for CopyFiles
 #include "../generated/inode_table.h"
+#include "../generated/libc_hooks.h" // for client_thrd_current
 #include "arena.h"                   // for arena_sync, arena_calloc
 #include "debug_logging.h"           // for DEBUG, ASSERTF, DEBUG_LOG
 #include "global_state.h"            // for get_copied_or_overwritten_...
