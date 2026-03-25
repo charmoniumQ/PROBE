@@ -17,11 +17,11 @@
 
 #include "../generated/headers.h"     // for FixedPath, ProcessContext, PIDS...
 #include "../generated/libc_hooks.h"  // for client_...
+#include "../generated/inode_table.h"
 #include "../generated/size_checks.h" // IWYU pragma: keep
 #include "arena.h"                    // for arena_is_initialized, arena_create
 #include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR
 #include "env.h"                      // for getenv_copy
-#include "inode_table.h"              // for inode_table_init, inode_table_i...
 #include "probe_libc.h"               // for probe_libc_...
 #include "prov_buffer.h"              // for prov_log_try, prov_log_record, prov_log_save
 #include "prov_utils.h"               // for do_init_ops
@@ -106,23 +106,6 @@ static inline void init_pid(bool after_fork) {
 
 pid_t get_pid() { return EXPECT(!= 0, __pid); }
 pid_t get_pid_safe() { return probe_libc_getpid(); }
-
-static struct InodeTable __read_inodes;
-static struct InodeTable __copied_or_overwritten_inodes;
-static inline void init_tables() {
-    ASSERTF(!inode_table_is_init(&__read_inodes), "");
-    ASSERTF(!inode_table_is_init(&__copied_or_overwritten_inodes), "");
-    inode_table_init(&__read_inodes);
-    inode_table_init(&__copied_or_overwritten_inodes);
-}
-struct InodeTable* get_read_inodes() {
-    ASSERTF(inode_table_is_init(&__read_inodes), "");
-    return &__read_inodes;
-}
-struct InodeTable* get_copied_or_overwritten_inodes() {
-    ASSERTF(inode_table_is_init(&__copied_or_overwritten_inodes), "");
-    return &__copied_or_overwritten_inodes;
-}
 
 /*
  * Set up by CLI.
@@ -430,7 +413,6 @@ void init_proc() {
     check_function_pointers();
     init_pid(false);
     init_probe_dir();
-    init_tables();
     init_process_tree_context();
     init_process_context();
     create_epoch_dir();

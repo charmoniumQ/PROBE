@@ -16,8 +16,8 @@ OPTCFLAGS := -O3 -DNDEBUG -fPIC
 OPTLDFLAGS := -flto -fpic
 DBGLDFLAGS := -fno-lto -fPIC
 LDFLAGS := -lpthread -pthread -ldl
-GENERATED_SOURCE_FILES := generated/libc_hooks.c
-GENERATED_HEADER_FILES := generated/libc_hooks.h generated/headers.h generated/size_checks.h
+GENERATED_SOURCE_FILES := generated/libc_hooks.c generated/inode_table.c
+GENERATED_HEADER_FILES := generated/libc_hooks.h generated/headers.h generated/size_checks.h generated/inode_table.h
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
 MANUAL_SOURCE_FILES := $(wildcard src/*.c)
 MANUAL_HEADER_FILES := $(wildcard src/*.h)
@@ -39,17 +39,18 @@ $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o
 	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(DBGLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
 	patchelf --remove-rpath $@
 
-$(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
+$(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(OPTCFLAGS) -o $@ $<
 
-$(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
+$(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(DBGCFLAGS) -o $@ $<
 
 $(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
+	python3 ./generator/radix_table.py generated/inode_table.h generated/inode_table.c 'inode table' bool 8 8 16 16
 
 compile_commands.json: $(BUILD_DIR)/libprobe.dbg.so
 	echo '[' > $@
