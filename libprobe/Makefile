@@ -17,7 +17,8 @@ OPTLDFLAGS := -flto -fpic
 DBGLDFLAGS := -fno-lto -fPIC
 LDFLAGS := -lpthread -pthread -ldl
 GENERATED_SOURCE_FILES := generated/libc_hooks.c generated/inode_table.c
-GENERATED_HEADER_FILES := generated/libc_hooks.h generated/headers.h generated/size_checks.h generated/inode_table.h
+GENERATED_HEADER_FILES := generated/libc_hooks.h generated/size_checks.h generated/inode_table.h
+# generated/headeres.h is removed because it always changes every time the cli is recompiled
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
 MANUAL_SOURCE_FILES := $(wildcard src/*.c)
 MANUAL_HEADER_FILES := $(wildcard src/*.h)

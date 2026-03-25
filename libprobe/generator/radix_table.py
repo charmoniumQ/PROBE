@@ -60,7 +60,6 @@ def multilevel_table(
         "  _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
     ]
     c_source.write_text("\n".join([
-        "#include <assert.h>",
         "#include <stdatomic.h>",
         "#include <stdlib.h>",
         "#include \"../src/debug_logging.h\"",
@@ -100,7 +99,7 @@ def multilevel_table(
                 "    size_t i = 0;",
                 f"    while (expected{i}.flag == _{upper}_WAITING) {{",
                 f"      expected{i} = atomic_load(&struct{i}->array[_BITS(index, {lowest_bit[i]}L, {log_lengths[i]}L)]);",
-                "      if (i != 0 && i % 5 == 0) { WARNING(\"Spinning %d times\", ++i); }",
+                "      if (i != 0 && i % 5 == 0) { WARNING(\"Spinning %zu times\", ++i); }",
                 "      i++;",
                 "    }",
                 f"    struct{i+1} = expected{i}.ptr;",
