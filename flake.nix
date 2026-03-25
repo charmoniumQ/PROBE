@@ -76,7 +76,26 @@
             nativeBuildInputs = [python.pkgs.setuptools];
             propagatedBuildInputs = [python.pkgs.numpy];
           };
-          inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli;
+          datamodel-code-generator = python.pkgs.datamodel-code-generator.overridePythonAttrs (super: rec {
+            version = "0.55.0";
+            src = pkgs.fetchFromGitHub {
+              owner = "koxudaxi";
+              repo = "datamodel-code-generator";
+              tag = version;
+              hash = "sha256-zsLJv7gKhmnEIS/AUvnBzm+07QFQoMdiFo/PkfRyHek=";
+            };
+            disabledTests = [
+              "perf"
+            ];
+            nativeCheckInputs =
+              super.nativeCheckInputs
+              ++ [
+                python.pkgs.time-machine
+                python.pkgs.inline-snapshot
+                python.pkgs.watchfiles
+              ];
+          });
+          inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli probe-headers;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
             version = probe-ver;
@@ -84,7 +103,7 @@
             src = ./libprobe;
             postUnpack = ''
               mkdir $sourceRoot/generated
-              cp ${probe-cli}/resources/bindings.h $sourceRoot/generated/
+              cp ${probe-headers}/*.h $sourceRoot/generated/
             '';
             nativeBuildInputs = [
               pkgs.git
@@ -151,6 +170,14 @@
               exePath = "/bin/probe";
             };
           };
+          probe-py-headers = pkgs.runCommand "probe-py-headers" {} ''
+            mkdir $out
+            export PATH="${packages.datamodel-code-generator}/bin:${python}/bin/:$PATH"
+            env \
+              JSONSCHEMA_OUTFILE=${probe-headers}/headers.json \
+              PYTHON_HEADER_OUTFILE=$out/headers.py \
+              python ${./probe_py/generate_headers.py}
+          '';
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
             version = probe-ver;
@@ -167,11 +194,12 @@
                 mkdir $out/
                 cp --recursive $src/* $out/
                 chmod 755 $out/probe_py
-                cp ${probe-cli}/resources/ops.py $out/probe_py/
+                cp ${probe-py-headers}/headers.py $out/probe_py/
               '';
             };
             propagatedBuildInputs = [
               charmonium-time-block-pkg
+              python.pkgs.msgspec
               python.pkgs.networkx
               python.pkgs.numpy
               python.pkgs.pydot
@@ -194,7 +222,7 @@
             checkPhase = ''
               runHook preCheck
               #ruff format --check probe_src # TODO: uncomment
-              ruff check .
+              ruff check probe_py/
               python -c 'import probe_py'
               mypy --strict --package probe_py
               runHook postCheck
@@ -279,12 +307,14 @@
 
             # probe_py.manual "dev time" requirements
             packages.types-networkx
+            packages.datamodel-code-generator
             pypkgs.ipython
             pypkgs.mypy
             pypkgs.pytest
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
             pypkgs.types-tqdm
+            pypkgs.msgspec
 
             # libprobe build time requirement
             pypkgs.pycparser

@@ -9,6 +9,7 @@ import pathlib
 import tarfile
 import time
 import typing
+import msgspec
 
 
 _T = typing.TypeVar("_T")
@@ -73,6 +74,10 @@ def decode_nested_object(
             decode_nested_object(key): decode_nested_object(value)
             for key, value in obj.items()
         }
+    elif isinstance(obj, msgspec.Struct):
+        return decode_nested_object(msgspec.structs.asdict(obj))
+    elif isinstance(obj, pathlib.Path):
+        return str(obj)
     elif isinstance(obj, (set, list, tuple)):
         return [
             decode_nested_object(elem)

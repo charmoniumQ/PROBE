@@ -3,13 +3,13 @@ import tqdm
 import dataclasses
 import pathlib
 import typing
-import json
 import tarfile
 import tempfile
 import contextlib
 import charmonium.time_block
-from . import ops
-from .ptypes import ProbeLog, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec, ProcessTreeContext
+import msgspec
+from . import headers as ops
+from .ptypes import ProbeLog, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
 
 
 @contextlib.contextmanager
@@ -44,11 +44,11 @@ def parse_probe_log_ctx(
                 threads = {}
                 for tid_file in epoch_dir.iterdir():
                     tid = Tid(tid_file.name)
-                    jsonlines = tid_file.read_text().strip().split("\n")
-                    ops_list = [
-                        json.loads(line, object_hook=_op_hook)
-                        for line in jsonlines
-                    ]
+                    ops_list = msgspec.msgpack.decode(
+                        tid_file.read_bytes(),
+                        type=list[ops.Op],
+                        strict=True,
+                    )
                     assert ops_list
                     if not isinstance(ops_list[-1].data, (ops.ExitThreadOp, ops.ExitProcessOp, ops.ExecOp)):
                         # Every thread should end in an ExitThreadOp and possibly an ExitProcessOp
@@ -58,8 +58,10 @@ def parse_probe_log_ctx(
                         # The HB graph would be a tree, main[0] ---clone--> thread2[0].
                         # We can't put an HB edge from the last op of thread2 to the last op of main, and the HB graph 
                         ops_list.append(ops.Op(
-                            data=ops.ExitThreadOp(
-                                status=0,
+                            data_tagged=ops.OpData8(
+                                content=ops.ExitThreadOp(
+                                    status=0,
+                                ),
                             ),
                             pthread_id=ops_list[-1].pthread_id,
                             iso_c_thread_id=ops_list[-1].iso_c_thread_id,
@@ -68,7 +70,11 @@ def parse_probe_log_ctx(
                 execs[exec_no] = Exec(exec_no, threads)
             processes[pid] = Process(pid, execs)
 
-        process_tree_context = ProcessTreeContext(**json.loads((tmpdir / "options.json").read_bytes()))
+        process_tree_context = msgspec.msgpack.decode(
+            (tmpdir / "process_tree_context.msgpack").read_bytes(),
+            type=ops.ProcessTreeContext,
+            strict=True,
+        )
 
         yield ProbeLog(
             processes,
@@ -89,22 +95,8 @@ def parse_probe_log(
         return dataclasses.replace(
             probe_log,
             copied_files={},
-            process_tree_context=dataclasses.replace(probe_log.process_tree_context, copy_files=False),
+            process_tree_context= msgspec.structs.replace(
+                probe_log.process_tree_context,
+                copy_files=ops.CopyFiles.NONE,
+            ),
         )
-
-
-def _op_hook(json_map: typing.Dict[str, typing.Any]) -> typing.Any:
-    ty: str = json_map["_type"]
-    json_map.pop("_type")
-
-    constructor = ops.__dict__[ty]
-
-    # HACK: convert jsonlines' lists of integers into python byte types
-    # This is because json cannot actually represent byte strings, only unicode strings.
-    for ident, ty in constructor.__annotations__.items():
-        if ty == "bytes" and ident in json_map:
-            json_map[ident] = bytes(json_map[ident])
-        if ty == "list[bytes,]" and ident in json_map:
-            json_map[ident] = [bytes(x) for x in json_map[ident]]
-
-    return constructor(**json_map)

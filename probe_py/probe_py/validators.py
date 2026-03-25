@@ -1,6 +1,6 @@
 import typing
-from .ops import InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp, ExitThreadOp, ExitProcessOp
-from .ptypes import Tid, Pid, ProbeLog, TaskType
+from .headers import InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp, ExitThreadOp, ExitProcessOp, TaskType
+from .ptypes import Tid, Pid, ProbeLog
 
 
 """The analyses make a lot of assumptions about the probe_log.

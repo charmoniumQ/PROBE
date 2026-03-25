@@ -12,7 +12,7 @@ import pathlib
 import typing
 from . import ptypes
 from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
-from .ops import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
+from .headers import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
 from .consts import AT_FDCWD
 
 
