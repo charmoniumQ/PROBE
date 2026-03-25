@@ -867,7 +867,6 @@ dependencies = [
  "env_logger",
  "flate2",
  "fs_extra",
- "hotpath",
  "libc",
  "log",
  "memory_parsing",

@@ -95,11 +95,11 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
             if (access == READ_ACCESS) {
                 DEBUG("Reading %s %ld", path->path, path->inode);
                 _Atomic(bool)* _Nonnull read_loc =
-                    inode_table_address_of(&read_inodes, index);
+                    inode_table_address_of_strong(&read_inodes, index);
                 atomic_store(read_loc, true);
             } else if (access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
                 _Atomic(bool)* _Nonnull coo_loc =
-                    inode_table_address_of(&copied_or_overwritten_inodes, index);
+                    inode_table_address_of_strong(&copied_or_overwritten_inodes, index);
                 if (atomic_exchange(coo_loc, true)) {
                     DEBUG("Mutating, but not copying %s %ld since it is copied already or "
                           "overwritten",
@@ -111,11 +111,11 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
                     }
                 }
             } else if (access == TRUNCATE_WRITE_ACCESS) {
-                _Atomic(bool)* _Nonnull read_loc =
-                    inode_table_address_of(&read_inodes, index);
-                if (atomic_load(read_loc)) {
+                const _Atomic(bool)* _Nullable read_loc =
+                    inode_table_address_of_weak(&read_inodes, index);
+                if (read_loc && atomic_load(read_loc)) {
                     _Atomic(bool)* _Nonnull coo_loc =
-                        inode_table_address_of(&copied_or_overwritten_inodes, index);
+                        inode_table_address_of_strong(&copied_or_overwritten_inodes, index);
                     if (atomic_exchange(coo_loc, true)) {
                         DEBUG("Mutating, but not copying %s %ld since it is copied already or "
                               "overwritten",
@@ -134,7 +134,7 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
         } else if (access == READ_ACCESS || access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
             ASSERTF(mode == CopyFiles_Eagerly, "");
             _Atomic(bool)* _Nonnull coo_loc =
-                inode_table_address_of(&copied_or_overwritten_inodes, index);
+                inode_table_address_of_strong(&copied_or_overwritten_inodes, index);
             if (atomic_exchange(coo_loc, true)) {
                 DEBUG("Not copying %s %ld because already did", path->path, path->inode);
             } else {

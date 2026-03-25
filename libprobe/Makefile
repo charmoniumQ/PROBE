@@ -50,7 +50,7 @@ $(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
 $(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
-	python3 ./generator/radix_table.py generated/inode_table.h generated/inode_table.c 'inode table' bool 8 8 16 16
+	python3 ./generator/radix_table.py generated/inode_table.h generated/inode_table.c 'inode table' bool 16 16 16 16
 
 compile_commands.json: $(BUILD_DIR)/libprobe.dbg.so
 	echo '[' > $@
