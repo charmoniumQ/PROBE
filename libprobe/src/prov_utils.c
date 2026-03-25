@@ -13,12 +13,12 @@
 // IWYU pragma: no_include "linux/limits.h"                  for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
 
-#include "../generated/headers.h" // for OpCode, StatResult, Op
-#include "arena.h"                // for arena_strndup
-#include "debug_logging.h"        // for DEBUG, EXPECT_NONNULL, NOT...
-#include "global_state.h"         // for get_data_arena, get_exec_e...
-#include "probe_libc.h"           // for probe_libc_strlen
-#include "util.h"                 // for CHECK_SNPRINTF, BORROWED
+#include "../include/libprobe/prov_ops.h" // for OpCode, StatResult, Op
+#include "arena.h"                        // for arena_strndup
+#include "debug_logging.h"                // for DEBUG, EXPECT_NONNULL, NOT...
+#include "global_state.h"                 // for get_data_arena, get_exec_e...
+#include "probe_libc.h"                   // for probe_libc_strlen
+#include "util.h"                         // for CHECK_SNPRINTF, BORROWED
 
 static const struct Path null_path = {0, NULL, 0, 0, 0, 0, {0}, {0}, 0, false};
 

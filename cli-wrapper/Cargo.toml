@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "probe_cli",
-    "probe_headers",
-    "memory_parsing",
-    "derive_memory_parsing",
+    "cli",
+    "lib",
+    "macros",
+    "headers",
     "my-workspace-hack",
 ]
 

@@ -11,7 +11,7 @@ import stat
 import typing
 import networkx
 import numpy
-from . import headers as ops
+from . import ops
 from . import consts
 
 
@@ -54,7 +54,7 @@ class Host:
         # This ID uniquely identifies the host. It should be considered "confidential".
         # If a stable unique identifier that is tied to the machine is needed for some application,
         # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
-        # In containers (no running systemd) this file exists but is empty, so we should detect-and-skip empty-file.
+        # In contgainers (no running systemd) this file exists but is empty, so we should detect-and-skip empty-file.
         if consts.SYSTEMD_MACHINE_ID.exists() and (data := consts.SYSTEMD_MACHINE_ID.read_text().strip()):
             machine_id_bytes = int(data, 16).to_bytes(16)
             hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)
@@ -99,6 +99,12 @@ class Inode:
         return f"inode {self.type.upper()} {self.number} on {self.device} @{self.host.name}"
 
 
+@dataclasses.dataclass(frozen=True)
+class ProbeOptions:
+    copy_files: bool
+    parent_of_root: Pid
+
+
 @dataclasses.dataclass(frozen=True, order=True)
 class InodeVersion:
     inode: Inode
@@ -136,7 +142,7 @@ class InodeVersion:
                 path.inode,
                 path.mode,
             ),
-            numpy.datetime64(path.mtime.tv_sec * int(1e9) + path.mtime.tv_nsec, "ns"),
+            numpy.datetime64(path.mtime.sec * int(1e9) + path.mtime.nsec, "ns"),
             path.size,
         )
 
@@ -239,7 +245,7 @@ class OpQuint(OpQuad):
 class ProbeLog:
     processes: typing.Mapping[Pid, Process]
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
-    process_tree_context: ops.ProcessTreeContext
+    process_tree_context: ProcessTreeContext
     host: Host
 
     # TODO: refactor
@@ -269,7 +275,7 @@ class ProbeLog:
         for quad, op in self.ops():
             match op.data:
                 case ops.CloneOp():
-                    if op.data.ferrno == 0 and op.data.task_type == ops.TaskType.PID:
+                    if op.data.ferrno == 0 and op.data.task_type == TaskType.PID:
                         parent_pid_map[Pid(op.data.task_id)] = quad.pid
                 case ops.SpawnOp():
                     if op.data.ferrno == 0:
@@ -283,6 +289,27 @@ class ProbeLog:
                 for tid, thread in sorted(exec.threads.items()):
                     total += len(thread.ops)
         return total
+
+
+@dataclasses.dataclass
+class ProcessTreeContext:
+    libprobe_path: str
+    copy_files: int
+    parent_of_root: int
+
+
+# TODO: implement this in probe_py.generated.ops
+class TaskType(enum.IntEnum):
+    PID = 0
+    TID = 1
+    ISO_C_THREAD = 2
+    PTHREAD = 3
+
+
+class FileType(enum.IntEnum):
+    DIR = 0
+    FIFO = 1
+    PIPE = 2
 
 
 class InvalidProbeLog(Exception):

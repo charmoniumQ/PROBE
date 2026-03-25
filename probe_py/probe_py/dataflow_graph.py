@@ -10,7 +10,7 @@ import warnings
 import networkx
 from . import graph_utils
 from .hb_graph_accesses import hb_graph_to_accesses
-from . import headers as ops
+from . import ops
 from . import ptypes
 
 
@@ -123,7 +123,7 @@ def accesses_to_dataflow_graph(
                     # us -> our child
                     # Therefore, we have to be in writing mode
                     case ops.CloneOp():
-                        if op_data.task_type == ops.TaskType.PID and not (op_data.flags & os.CLONE_THREAD):
+                        if op_data.task_type == ptypes.TaskType.PID and not (op_data.flags & os.CLONE_THREAD):
                             ensure_state(quad, PidState.WRITING)
                     case ops.SpawnOp():
                         ensure_state(quad, PidState.WRITING)

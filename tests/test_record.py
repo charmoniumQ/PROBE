@@ -117,13 +117,14 @@ simple_commands = {
     #     ["gcc", "test.c"],
     #     ["./a.out"],
     # ),
+
     # skip million_stats because it takes a very long time.
     # Re-enable once we have a faster analysis.
     # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
     # See https://github.com/charmoniumQ/PROBE/pull/135
 }
 
-complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, str, list[str]]] = {
+complex_commands: collections.abc.Mapping[str, list[str] | tuple[bool, pathlib.Path | None, str, list[str]]] = {
     "c_hello_simplified": (
         False,
         pathlib.Path("test.c"),
@@ -220,7 +221,7 @@ def scratch_directory(
     {**simple_commands, **complex_commands}.values(),
     ids={**simple_commands, **complex_commands}.keys(),
 )
-@pytest.mark.timeout(40)
+@pytest.mark.timeout(20)
 def test_record(
         scratch_directory: pathlib.Path,
         copy_files: str,

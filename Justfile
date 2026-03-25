@@ -5,7 +5,7 @@ test-nix:
     nix build .#probe-bundled
     nix flake check --all-systems
 
-lint-py: update-headers-py
+lint-py: compile-cli
     # fix-py depends on compile-cli for the autogen python code
     #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
     ruff check --fix probe_py/ tests/ libprobe/generator/
@@ -32,15 +32,8 @@ lint-cli:
 
 [working-directory: 'cli-wrapper']
 compile-cli:
-    cargo build --bin probe
-    cargo run --bin probe_headers
-
-[working-directory: 'probe_py']
-update-headers-py: compile-cli
-    ./generate_headers.py
-
-# https://datamodel-code-generator.koxudaxi.dev/type-mappings/
-# --use-root-model-type-alias¶
+    cargo build
+    cargo build --release
 
 [working-directory: 'libprobe']
 clean-lib:

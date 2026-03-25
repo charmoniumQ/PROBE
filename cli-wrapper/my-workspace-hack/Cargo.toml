@@ -18,31 +18,24 @@ publish = false
 [dependencies]
 clap = { version = "4", features = ["cargo", "derive"] }
 clap_builder = { version = "4", default-features = false, features = ["cargo", "color", "help", "std", "suggestions", "usage"] }
-hotpath = { version = "0.14", features = ["hotpath", "hotpath-alloc"] }
+either = { version = "1" }
+libc = { version = "0.2" }
 log = { version = "0.4", default-features = false, features = ["std"] }
-memchr = { version = "2", default-features = false, features = ["std"] }
-num-traits = { version = "0.2" }
-regex = { version = "1" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode"] }
-regex-syntax = { version = "0.8" }
-serde = { version = "1", features = ["alloc", "derive"] }
-serde_core = { version = "1", default-features = false, features = ["alloc", "result", "std"] }
-serde_json = { version = "1", features = ["alloc"] }
+once_cell = { version = "1" }
+regex = { version = "1", default-features = false, features = ["perf", "std", "unicode-perl"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode-perl", "unicode-word-boundary"] }
+regex-syntax = { version = "0.8", default-features = false, features = ["std", "unicode-perl"] }
 
 [build-dependencies]
 clap = { version = "4", features = ["cargo", "derive"] }
 clap_builder = { version = "4", default-features = false, features = ["cargo", "color", "help", "std", "suggestions", "usage"] }
-hotpath = { version = "0.14", features = ["hotpath", "hotpath-alloc"] }
-hotpath-macros = { version = "0.14", features = ["hotpath"] }
+either = { version = "1" }
+libc = { version = "0.2" }
 log = { version = "0.4", default-features = false, features = ["std"] }
-memchr = { version = "2", default-features = false, features = ["std"] }
-num-traits = { version = "0.2" }
-regex = { version = "1" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode"] }
-regex-syntax = { version = "0.8" }
-serde = { version = "1", features = ["alloc", "derive"] }
-serde_core = { version = "1", default-features = false, features = ["alloc", "result", "std"] }
-serde_json = { version = "1", features = ["alloc"] }
-syn = { version = "2", features = ["extra-traits", "fold", "full"] }
+once_cell = { version = "1" }
+regex = { version = "1", default-features = false, features = ["perf", "std", "unicode-perl"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode-perl", "unicode-word-boundary"] }
+regex-syntax = { version = "0.8", default-features = false, features = ["std", "unicode-perl"] }
+syn = { version = "2", features = ["extra-traits", "fold", "full", "visit-mut"] }
 
 ### END HAKARI SECTION

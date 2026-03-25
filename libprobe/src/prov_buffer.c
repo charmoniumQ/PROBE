@@ -13,14 +13,15 @@
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
-#include "../generated/headers.h"    // for CopyFiles
-#include "../generated/libc_hooks.h" // for client_thrd_current
-#include "arena.h"                   // for arena_sync, arena_calloc
-#include "debug_logging.h"           // for DEBUG, ASSERTF, DEBUG_LOG
-#include "global_state.h"            // for get_copied_or_overwritten_...
-#include "inode_table.h"             // for inode_table_put_if_not_exists
-#include "probe_libc.h"              // for probe_libc_memcpy, probe_copy_file
-#include "prov_utils.h"              // for op_to_human_readable, op_t...
+#include "../generated/bindings.h"        // for CopyFiles
+#include "../generated/libc_hooks.h"      // for client_thrd_current
+#include "../include/libprobe/prov_ops.h" // for Op, Path, OpCode, Op::(ano...
+#include "arena.h"                        // for arena_sync, arena_calloc
+#include "debug_logging.h"                // for DEBUG, ASSERTF, DEBUG_LOG
+#include "global_state.h"                 // for get_copied_or_overwritten_...
+#include "inode_table.h"                  // for inode_table_put_if_not_exists
+#include "probe_libc.h"                   // for probe_libc_memcpy, probe_copy_file
+#include "prov_utils.h"                   // for op_to_human_readable, op_t...
 
 void prov_log_save() {
     /* TODO: ensure we call Arena save in atexit, pthread_cleanup_push */

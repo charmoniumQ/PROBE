@@ -6,7 +6,7 @@
 #include <stdint.h>    // for uint16_t
 #include <sys/types.h> // for pid_t
 
-#include "../generated/headers.h" // for CopyFiles
+#include "../generated/bindings.h" // for CopyFiles
 
 /*
  * For each member of global state $X of type $T, we have

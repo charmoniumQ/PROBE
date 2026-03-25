@@ -7,6 +7,9 @@ clr="${esc}[0m"
 export PROBE_ROOT="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 printf "PROBE_ROOT = %s\n" "$PROBE_ROOT"
 
+# Rust frontend uses CPATH to find libprobe headers
+export CPATH="$PROBE_ROOT/libprobe/include:$CPATH"
+
 # Rust CLI uses PROBE_LIB to find libprobe binary
 export PROBE_LIB="$PROBE_ROOT/libprobe/.build"
 
@@ -19,10 +22,7 @@ fi
 export PYGEN_OUTFILE="$PROBE_ROOT/probe_py/probe_py/ops.py"
 
 # Rust code uses CBINDGEN_OUTFILE to determine where to write this file.
-export CBINDGEN_OUTFILE="$PROBE_ROOT/libprobe/generated/headers.h"
-export JSONSCHEMA_OUTFILE="$PROBE_ROOT/libprobe/generated/headers.json"
-export PYTHON_HEADER_OUTFILE="$PROBE_ROOT/probe_py/probe_py/headers.py"
-export SIZE_CHECK_OUTFILE="$PROBE_ROOT/libprobe/generated/size_checks.h"
+export CBINDGEN_OUTFILE="$PROBE_ROOT/libprobe/generated/bindings.h"
 
 # Ensure PROBE CLI gets built
 if [ ! -f "$PROBE_ROOT/cli-wrapper/target/release/probe" ]; then

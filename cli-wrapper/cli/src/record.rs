@@ -1,6 +1,3 @@
-use color_eyre::eyre::{bail, eyre, Result, WrapErr};
-use flate2::Compression;
-use memory_parsing::ToMemory;
 use std::{
     ffi::OsString,
     fs::{self, File},
@@ -10,6 +7,9 @@ use std::{
     thread,
     time::Duration,
 };
+
+use color_eyre::eyre::{bail, eyre, Result, WrapErr};
+use flate2::Compression;
 
 use crate::transcribe;
 
@@ -89,17 +89,19 @@ pub fn record_transcribe(
         .copy_files(copy_files)
         .record()?;
 
-    match transcribe::transcribe_to_tar(&record_dir, &mut tar) {
-        Ok(_) => Ok(status),
+    match transcribe::transcribe(&record_dir, &mut tar) {
+        Ok(_) => (),
         Err(e) => {
             log::error!(
                 "Error transcribing record directory, saving directory '{}'",
                 record_dir.as_ref().to_string_lossy()
             );
             std::mem::forget(record_dir);
-            Err(e).wrap_err("Failed to transcribe record directory")
+            return Err(e).wrap_err("Failed to transcirbe record directory");
         }
-    }
+    };
+
+    Ok(status)
 }
 
 /// Builder for running processes under provenance.
@@ -115,7 +117,6 @@ pub struct Recorder {
 impl Recorder {
     /// runs the built recorder, on success returns the PID of launched process and the TempDir it
     /// was recorded into
-    #[hotpath::measure]
     pub fn record(self) -> Result<(ExitStatus, tempfile::TempDir)> {
         // reading and canonicalizing path to libprobe
         let libprobe_path = fs::canonicalize(match std::env::var_os("PROBE_LIB") {
@@ -160,17 +161,17 @@ impl Recorder {
             copy_files: self.copy_files,
             parent_of_root: std::process::id(),
         };
-        let mut ptc_mem = memory_parsing::Segments::single(
-            0,
-            vec![0u8; std::mem::size_of::<probe_headers::ProcessTreeContext>()],
-        );
-        ptc.to_memory(&mut ptc_mem, 0)?;
-        let ptc_bytes = ptc_mem.get(0).ok_or(eyre!("No bytes generated"))?;
 
-        let ptc_file = record_dir
-            .path()
-            .join(probe_headers::PROCESS_TREE_CONTEXT_FILE);
-        std::fs::write(ptc_file, ptc_bytes)?;
+        /* Check round-trip-ability */
+        let ptc_bytes = probe_headers::object_to_bytes(ptc.clone());
+        assert!(ptc == probe_headers::object_from_bytes(ptc_bytes.clone()));
+
+        fs::write(
+            record_dir
+                .path()
+                .join(probe_headers::PROCESS_TREE_CONTEXT_FILE),
+            ptc_bytes,
+        )?;
 
         let mut child = if self.gdb {
             std::process::Command::new("gdb")
@@ -235,13 +236,16 @@ impl Recorder {
             match exit.code() {
                 Some(code) => log::warn!("Recorded process exited with code {code}"),
                 None => match exit.signal() {
-                    Some(sig) => {
-                        if sig < libc::SIGRTMAX() {
-                            log::warn!("Recorded process exited with realtime signal {sig:?}");
-                        } else {
-                            log::warn!("Recorded process exited with signal {sig:?}");
+                    Some(sig) => match crate::util::sig_to_name(sig) {
+                        Some(name) => log::warn!("Recorded process exited with signal {name}"),
+                        None => {
+                            if sig < libc::SIGRTMAX() {
+                                log::warn!("Recorded process exited with realtime signal {sig}");
+                            } else {
+                                log::warn!("Recorded process exited with unknown signal {sig}");
+                            }
                         }
-                    }
+                    },
                     None => log::warn!("Recorded process exited with unknown error"),
                 },
             }

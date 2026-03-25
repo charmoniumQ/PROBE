@@ -1,7 +1,7 @@
 #pragma once
 #define _GNU_SOURCE
 
-#include "../generated/headers.h"
+#include "../include/libprobe/prov_ops.h"
 #include "probe_libc.h" // for result_sized_mem
 #include <stddef.h>     // for size_t
 

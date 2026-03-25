@@ -56,8 +56,27 @@
       commonArgs = {
         inherit src;
         strictDeps = true;
+
+        # all the crates in this workspace either use rust-bindgen or depend
+        # on local crate that does.
+        nativeBuildInputs = [
+          pkgs.rustPlatform.bindgenHook
+        ];
+
         CARGO_BUILD_TARGET = rust-target;
         CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
+        CPATH = ../libprobe/include;
+
+        # set environment variables for automatic codegen
+        preConfigurePhases = [
+          "codegenPhase"
+        ];
+        codegenPhase = ''
+          export CBINDGEN_OUTFILE="$out/resources/bindings.h"
+          export PYGEN_OUTFILE="$out/resources/ops.py"
+          mkdir --parents "$(dirname "$PYGEN_OUTFILE")"
+          echo "Sending python code to $PYGEN_OUTFILE"
+        '';
       };
 
       # Build *just* the cargo dependencies (of the entire workspace),
@@ -113,48 +132,13 @@
             pname = "probe-cli";
             cargoExtraArgs = "-p probe_cli";
             src = fileSetForCrate [
-              ./probe_cli
-              ./probe_headers
-              ./memory_parsing
-              ./derive_memory_parsing
+              ./cli
+              ./lib
+              ./macros
+              ./headers
               ./my-workspace-hack
             ];
           });
-
-        probe-headers-exe = craneLib.buildPackage (
-          individualCrateArgs
-          // {
-            pname = "probe-headers";
-            cargoExtraArgs = "-p probe_headers";
-            src = fileSetForCrate [
-              ./probe_cli
-              ./probe_headers
-              ./memory_parsing
-              ./derive_memory_parsing
-              ./my-workspace-hack
-            ];
-            nativeBuildInputs = [
-              pkgs.rustPlatform.bindgenHook
-            ];
-            # set environment variables for automatic codegen
-            preConfigurePhases = [
-              "codegenPhase"
-            ];
-            codegenPhase = ''
-              mkdir --parents $out/resources
-              export CBINDGEN_OUTFILE="$out/resources/headers.h"
-            '';
-          }
-        );
-
-        probe-headers = pkgs.runCommand "probe-headers" {} ''
-          mkdir --parents $out
-          cp "${probe-headers-exe}/resources/"* $out
-          export JSONSCHEMA_OUTFILE="$out/headers.json"
-          export SIZE_CHECK_OUTFILE="$out/size_checks.h"
-          export RUST_BACKTRACE=1
-          ${probe-headers-exe}/bin/probe_headers
-        '';
 
         default = probe-cli;
       };

@@ -11,7 +11,6 @@ import tempfile
 import textwrap
 import warnings
 import charmonium.time_block
-import msgspec
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
@@ -21,7 +20,7 @@ from . import dataflow_graph as dataflow_graph_module
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
-from . import headers as ops
+from . import ops
 from . import parser
 from . import ptypes
 from . import scp as scp_module
@@ -312,7 +311,7 @@ def debug_text(
                             pbar.update(1)
                             prefix = f"{pid: {pid_len}d} {exid: {exid_len}d} {tid: {tid_len}d} {op_no: {op_no_len}d} "
                             op_type = type(op.data).__name__
-                            op_data = util.decode_nested_object(msgspec.structs.asdict(op.data))
+                            op_data = util.decode_nested_object(dataclasses.asdict(op.data))
                             op_data_json = json.dumps({key: value for key, value in op_data.items() if not strip_env or key != "env"}, indent=2)
                             print(f"{prefix}{op_type}", file=output_fd)
                             print(textwrap.indent(op_data_json, prefix=len(prefix) * " "), file=output_fd)
