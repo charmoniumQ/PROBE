@@ -5,6 +5,7 @@
 #include <fcntl.h>    // for AT_FDCWD, O_RDWR, O_CREAT
 #include <limits.h>   // IWYU pragma: keep for PATH_MAX
 #include <sched.h>    // for CLONE_VFORK
+#include <stdatomic.h>
 #include <stdbool.h>  // for bool, true
 #include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
 #include <threads.h>  // for thrd_current

@@ -34,7 +34,6 @@ def multilevel_table(
     index_type = f"uint{log_length_rounded}_t" if log_length_rounded < 128 else "unsigned __int128"
     fn_attrs = "__attribute__((visibility(\"hidden\")))"
     c_header.write_text("\n".join([
-        "#include <stdatomic.h>",
         "#include <stdbool.h>",
         "#include <stdint.h>",
         "",
@@ -56,12 +55,13 @@ def multilevel_table(
         f"// sizeof table with one entry = {sizeof_one_entry / 1024:.1f}KiB = {sizeof_one_entry / 1024 / 1024:.1f}MiB",
     ]))
     checks = [
-        f"  if (index > {1 << log_length - 1}UL) {{ fprintf(stderr, \"%d-bit table not big enough to accomodate %lu\\n\", {log_length}, index); abort(); }}",
+        f"  if (index > {1 << log_length - 1}UL) {{ ERROR(\"%d-bit table not big enough to accomodate %lu\\n\", {log_length}, index); }}",
         "  _Static_assert(ATOMIC_BOOL_LOCK_FREE, \"\");",
         "  _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
     ]
     c_source.write_text("\n".join([
         "#include <assert.h>",
+        "#include <stdatomic.h>",
         "#include <stdlib.h>",
         "#include \"../src/debug_logging.h\"",
         f"#include \"{c_header.relative_to(c_source.parent)}\"",

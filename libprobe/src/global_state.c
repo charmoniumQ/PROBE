@@ -4,6 +4,7 @@
 #include <fcntl.h>     // for AT_FDCWD, O_CREAT, O_PATH, O_RD...
 #include <limits.h>    // IWYU pragma: keep for PATH_MAX
 #include <pthread.h>   // for pthread_mutex_t
+#include <stdatomic.h>
 #include <stdbool.h>   // for true, bool, false
 #include <stdlib.h>    // for free
 #include <sys/mman.h>  // IWYU pragma: keep for PROT_*, MAP_*
