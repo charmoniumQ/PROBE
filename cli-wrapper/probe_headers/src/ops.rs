@@ -89,29 +89,19 @@ pub struct OpenOp {
     flags: libc::c_int,
     mode: libc::mode_t,
     fd: i32,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
 pub struct CloseOp {
     fd: i32,
-    ferrno: libc::c_int,
     path: Path,
-}
-
-#[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
-#[repr(C)]
-pub struct ChdirOp {
-    path: Path,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
 pub struct ExecOp {
     path: Path,
-    ferrno: libc::c_int,
     argv: StringArray,
     env: StringArray,
 }
@@ -121,7 +111,6 @@ pub struct ExecOp {
 pub struct SpawnOp {
     exec: ExecOp,
     child_pid: libc::pid_t,
-    ferrno: libc::c_int,
 }
 
 /// cbindgen:prefix-with-name
@@ -141,8 +130,7 @@ pub struct CloneOp {
     run_pthread_atfork_handlers: bool,
     task_type: TaskType,
     task_id: i64,
-    ferrno: libc::c_int,
-}
+    }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
@@ -162,7 +150,6 @@ pub struct AccessOp {
     path: Path,
     mode: libc::c_int,
     flags: libc::c_int,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -194,7 +181,6 @@ pub struct StatResult {
 pub struct StatOp {
     path: Path,
     flags: libc::c_int,
-    ferrno: libc::c_int,
     stat_result: StatResult,
 }
 
@@ -204,7 +190,6 @@ pub struct ReaddirOp {
     dir: Path,
     child: Option<ByteString>,
     all_children: bool,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -216,7 +201,6 @@ pub struct WaitOp {
     status: libc::c_int,
     cancelled: bool,
     usage: Rusage,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug)]
@@ -251,7 +235,6 @@ pub struct UpdateMetadataOp {
     path: Path,
     flags: libc::c_int,
     value: MetadataValue,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -261,7 +244,6 @@ pub struct ReadLinkOp {
     referent: ByteString,
     truncation: bool,
     recursive_dereference: bool,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -271,7 +253,6 @@ pub struct DupOp {
     old: libc::c_int,
     new: libc::c_int,
     flags: libc::c_int,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -279,7 +260,6 @@ pub struct DupOp {
 pub struct HardLinkOp {
     old: Path,
     new: Path,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -287,7 +267,6 @@ pub struct HardLinkOp {
 pub struct SymbolicLinkOp {
     old: ByteString,
     new: Path,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -295,7 +274,6 @@ pub struct SymbolicLinkOp {
 pub struct UnlinkOp {
     path: Path,
     unlink_type: libc::c_int,
-    ferrno: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -303,7 +281,6 @@ pub struct UnlinkOp {
 pub struct RenameOp {
     src: Path,
     dst: Path,
-    ferrno: libc::c_int,
 }
 
 /// cbindgen:prefix-with-name
@@ -322,7 +299,6 @@ pub struct MkFileOp {
     file_type: FileType,
     flags: libc::c_int,
     mode: libc::mode_t,
-    ferrno: libc::c_int,
 }
 
 /// cbindgen:add-sentinel
@@ -333,7 +309,6 @@ pub struct MkFileOp {
 #[serde(tag = "type", content = "content")]
 pub enum OpData {
     Access(AccessOp),
-    Chdir(ChdirOp),
     Clone(CloneOp),
     Close(CloseOp),
     Dup(DupOp),
@@ -366,4 +341,5 @@ pub struct Op {
     data: OpData,
     pthread_id: u16,
     iso_c_thread_id: u64,
+    ferrno: libc::c_int,
 }

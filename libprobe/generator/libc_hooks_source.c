@@ -42,6 +42,7 @@ typedef void* time_t;
 typedef void* uid_t;
 typedef void* va_list;
 typedef void* StringArray;
+typedef void* OpenNumber;
 
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);

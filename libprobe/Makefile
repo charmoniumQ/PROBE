@@ -53,6 +53,7 @@ $(GENERATED_FILES): $(wildcard generator/*.py) $(wildcard generator/*.c) $(MAKEF
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
 	python3 ./generator/radix_table.py generated/inode_table.h generated/inode_table.c 'inode table' bool 16 16 16 16
+	python3 ./generator/radix_table.py generated/open_numbering.h generated/open_numbering.c 'open numbering' uint16_t 16
 
 compile_commands.json: $(BUILD_DIR)/libprobe.dbg.so
 	echo '[' > $@
