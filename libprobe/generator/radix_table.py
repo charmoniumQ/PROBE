@@ -34,6 +34,8 @@ def multilevel_table(
     index_type = f"uint{log_length_rounded}_t" if log_length_rounded < 128 else "unsigned __int128"
     fn_attrs = "__attribute__((visibility(\"hidden\")))"
     c_header.write_text("\n".join([
+        "#pragma once",
+        "#define _GNU_SOURCE",
         "#include <stdbool.h>",
         "#include <stdint.h>",
         "",
@@ -60,10 +62,12 @@ def multilevel_table(
         "  _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
     ]
     c_source.write_text("\n".join([
+        f"#include \"{c_header.relative_to(c_source.parent)}\"",
+        "",
         "#include <stdatomic.h>",
         "#include <stdlib.h>",
+        "",
         "#include \"../src/debug_logging.h\"",
-        f"#include \"{c_header.relative_to(c_source.parent)}\"",
         "",
         "#define _BITS(value, low, length) (((((1L << length) - 1L) << low) & value) >> low)",
         "",

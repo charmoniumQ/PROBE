@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "lookup_on_path.h"
 
 #include <fcntl.h>   // for AT_FDCWD

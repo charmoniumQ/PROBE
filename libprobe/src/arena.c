@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "arena.h"
 
 #include <fcntl.h>    // for AT_FDCWD, O_CREAT, O_RDWR

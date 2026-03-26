@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include "global_state.h"
 
 #include <fcntl.h>     // for AT_FDCWD, O_CREAT, O_PATH, O_RD...
