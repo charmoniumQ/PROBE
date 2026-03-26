@@ -48,7 +48,8 @@ $(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(DBGCFLAGS) -o $@ $<
 
-$(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
+# must exclude __pycache__ from deps
+$(GENERATED_FILES): $(wildcard generator/*.py) $(wildcard generator/*.c) $(MAKEFILE_LIST)
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
 	python3 ./generator/radix_table.py generated/inode_table.h generated/inode_table.c 'inode table' bool 16 16 16 16

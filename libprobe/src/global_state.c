@@ -56,7 +56,7 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
         }                                                                                          \
     })
 
-static inline void* open_and_mmap(const char* path, bool writable, size_t size) {
+static inline void* _Nonnull open_and_mmap(const char* path, bool writable, size_t size) {
     DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
     result_int fd =
         probe_libc_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
@@ -86,7 +86,7 @@ static inline void init_probe_dir() {
     }
     copy_string_to_fixed_path(&__probe_dir, __probe_private_dir_env_val);
 }
-const struct FixedPath* get_probe_dir() {
+const struct FixedPath* _Nonnull get_probe_dir() {
     check_fixed_path((&__probe_dir));
     return &__probe_dir;
 }
@@ -121,7 +121,7 @@ static inline void init_process_tree_context() {
                       (sizeof(PROCESS_TREE_CONTEXT_FILE) + 1));
     __process_tree_context = open_and_mmap(path_buf, false, sizeof(struct ProcessTreeContext));
 }
-static inline const struct ProcessTreeContext* get_process_tree_context() {
+static inline const struct ProcessTreeContext* _Nonnull get_process_tree_context() {
     ASSERTF(__process_tree_context != NULL, "");
     return __process_tree_context;
 }
@@ -158,7 +158,9 @@ ExecEpoch get_exec_epoch_safe() {
     }
 }
 static inline bool is_first_epoch() { return get_exec_epoch() == 0; }
-const struct FixedPath* get_libprobe_path() { return &(get_process_tree_context()->libprobe_path); }
+const struct FixedPath* _Nonnull get_libprobe_path() {
+    return &(get_process_tree_context()->libprobe_path);
+}
 enum CopyFiles get_copy_files_mode() { return get_process_tree_context()->copy_files; }
 
 static inline void create_epoch_dir() {
@@ -184,14 +186,14 @@ static inline void init_default_path() {
     ASSERTF(__default_path.bytes[0] == '\0', "__default_path already initialized");
     __default_path.len = EXPECT(!= 0, confstr(_CS_PATH, __default_path.bytes, PATH_MAX));
 }
-const char* get_default_path() {
+const char* _Nonnull get_default_path() {
     ASSERTF(__default_path.bytes[0] != '\0', "");
     return __default_path.bytes;
 }
 
 static PthreadID __pthread_id_counter = 1;
 
-void free_thread_state(void* arg);
+void free_thread_state(void* _Nonnull arg);
 
 static pthread_key_t __thread_state_key;
 static inline void init_thread_state_key() {
@@ -244,10 +246,10 @@ static inline void init_arenas(struct ThreadState* state) {
     ASSERTF(arena_is_initialized(&state->ops_arena), "");
     ASSERTF(arena_is_initialized(&state->data_arena), "");
 }
-static inline struct ThreadState* get_thread_state() {
+static inline struct ThreadState* _Nonnull get_thread_state() {
     return EXPECT_NONNULL(pthread_getspecific(__thread_state_key));
 }
-void free_thread_state(void* arg) {
+void free_thread_state(void* _Nonnull arg) {
     struct ThreadState* state = EXPECT_NONNULL(arg);
     /* TODO: Insert exit op */
     arena_sync(&state->data_arena);
@@ -301,8 +303,8 @@ static inline void drop_threads_after_fork() {
     }
     __pthread_id_counter = 1;
 }
-struct ArenaDir* get_op_arena() { return &(get_thread_state()->ops_arena); }
-struct ArenaDir* get_data_arena() { return &(get_thread_state()->data_arena); }
+struct ArenaDir* _Nonnull get_op_arena() { return &(get_thread_state()->ops_arena); }
+struct ArenaDir* _Nonnull get_data_arena() { return &(get_thread_state()->data_arena); }
 pid_t get_tid() { return get_thread_state()->tid; }
 pid_t get_tid_safe() { return probe_libc_gettid(); }
 PthreadID get_pthread_id() { return get_thread_state()->pthread_id; }

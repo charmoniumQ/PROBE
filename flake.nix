@@ -146,8 +146,6 @@
               # Unittests are still checked in the Justfile and still work in the  devshell.
               export SKIP_UNITTESTS=1
 
-              export SKIP_FORMAT=1
-
               make check
             '';
           };

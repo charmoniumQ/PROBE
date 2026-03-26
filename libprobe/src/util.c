@@ -1,4 +1,4 @@
-#include "util.h"                    // for BORROWED, OWNED, CHECK_SNPRINTF
+#include "util.h" // for BORROWED, OWNED, CHECK_SNPRINTF
 
 #include <dirent.h>    // for dirent
 #include <fcntl.h>     // for O_CREAT, AT_FDCWD, F_GETFD, O_R...

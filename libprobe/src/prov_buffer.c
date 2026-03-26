@@ -14,13 +14,13 @@
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
 #include "../generated/headers.h" // for CopyFiles
+#include "../generated/inode_table.h"
 #include "../generated/libc_hooks.h" // for client_thrd_current
 #include "arena.h"                   // for arena_sync, arena_calloc
 #include "debug_logging.h"           // for DEBUG, ASSERTF, DEBUG_LOG
 #include "global_state.h"            // for get_copied_or_overwritten_...
 #include "probe_libc.h"              // for probe_libc_memcpy, probe_copy_file
 #include "prov_utils.h"              // for op_to_human_readable, op_t...
-#include "../generated/inode_table.h"
 
 void prov_log_save() {
     /* TODO: ensure we call Arena save in atexit, pthread_cleanup_push */
