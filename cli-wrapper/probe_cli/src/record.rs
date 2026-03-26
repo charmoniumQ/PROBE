@@ -115,7 +115,6 @@ pub struct Recorder {
 impl Recorder {
     /// runs the built recorder, on success returns the PID of launched process and the TempDir it
     /// was recorded into
-    #[hotpath::measure]
     pub fn record(self) -> Result<(ExitStatus, tempfile::TempDir)> {
         // reading and canonicalizing path to libprobe
         let libprobe_path = fs::canonicalize(match std::env::var_os("PROBE_LIB") {

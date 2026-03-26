@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+#include "env.h"
 
 #include <limits.h>  // IWYU pragma: keep for PATH_MAX
 #include <stdbool.h> // for bool, false, true
@@ -10,8 +10,6 @@
 #include "debug_logging.h"        // for DEBUG, ASSERTF, EXPECT_NONNULL
 #include "global_state.h"         // for get_libprobe_path, get_probe_dir
 #include "probe_libc.h"           // for probe_libc_...
-
-#include "env.h"
 
 bool search_on_colon_separated_path(const char* path, const char* needle, size_t needle_len) {
     while (*path != '\0') {

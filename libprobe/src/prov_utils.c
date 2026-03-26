@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "prov_utils.h"
 
 #include <fcntl.h>         // for O_CREAT, AT_FDCWD, O_RDWR

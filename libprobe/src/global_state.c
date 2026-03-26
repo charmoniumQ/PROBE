@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include "global_state.h"
 
 #include <fcntl.h>     // for AT_FDCWD, O_CREAT, O_PATH, O_RD...
@@ -21,7 +20,6 @@
 #include "arena.h"                    // for arena_is_initialized, arena_create
 #include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR
 #include "env.h"                      // for getenv_copy
-#include "inode_table.h"              // for inode_table_init, inode_table_i...
 #include "probe_libc.h"               // for probe_libc_...
 #include "prov_buffer.h"              // for prov_log_try, prov_log_record, prov_log_save
 #include "prov_utils.h"               // for do_init_ops
@@ -58,7 +56,7 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
         }                                                                                          \
     })
 
-static inline void* open_and_mmap(const char* path, bool writable, size_t size) {
+static inline void* _Nonnull open_and_mmap(const char* path, bool writable, size_t size) {
     DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
     result_int fd =
         probe_libc_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
@@ -88,7 +86,7 @@ static inline void init_probe_dir() {
     }
     copy_string_to_fixed_path(&__probe_dir, __probe_private_dir_env_val);
 }
-const struct FixedPath* get_probe_dir() {
+const struct FixedPath* _Nonnull get_probe_dir() {
     check_fixed_path((&__probe_dir));
     return &__probe_dir;
 }
@@ -107,23 +105,6 @@ static inline void init_pid(bool after_fork) {
 pid_t get_pid() { return EXPECT(!= 0, __pid); }
 pid_t get_pid_safe() { return probe_libc_getpid(); }
 
-static struct InodeTable __read_inodes;
-static struct InodeTable __copied_or_overwritten_inodes;
-static inline void init_tables() {
-    ASSERTF(!inode_table_is_init(&__read_inodes), "");
-    ASSERTF(!inode_table_is_init(&__copied_or_overwritten_inodes), "");
-    inode_table_init(&__read_inodes);
-    inode_table_init(&__copied_or_overwritten_inodes);
-}
-struct InodeTable* get_read_inodes() {
-    ASSERTF(inode_table_is_init(&__read_inodes), "");
-    return &__read_inodes;
-}
-struct InodeTable* get_copied_or_overwritten_inodes() {
-    ASSERTF(inode_table_is_init(&__copied_or_overwritten_inodes), "");
-    return &__copied_or_overwritten_inodes;
-}
-
 /*
  * Set up by CLI.
  * Use probe_dir to find and mmap this.
@@ -140,7 +121,7 @@ static inline void init_process_tree_context() {
                       (sizeof(PROCESS_TREE_CONTEXT_FILE) + 1));
     __process_tree_context = open_and_mmap(path_buf, false, sizeof(struct ProcessTreeContext));
 }
-static inline const struct ProcessTreeContext* get_process_tree_context() {
+static inline const struct ProcessTreeContext* _Nonnull get_process_tree_context() {
     ASSERTF(__process_tree_context != NULL, "");
     return __process_tree_context;
 }
@@ -177,7 +158,9 @@ ExecEpoch get_exec_epoch_safe() {
     }
 }
 static inline bool is_first_epoch() { return get_exec_epoch() == 0; }
-const struct FixedPath* get_libprobe_path() { return &(get_process_tree_context()->libprobe_path); }
+const struct FixedPath* _Nonnull get_libprobe_path() {
+    return &(get_process_tree_context()->libprobe_path);
+}
 enum CopyFiles get_copy_files_mode() { return get_process_tree_context()->copy_files; }
 
 static inline void create_epoch_dir() {
@@ -203,14 +186,14 @@ static inline void init_default_path() {
     ASSERTF(__default_path.bytes[0] == '\0', "__default_path already initialized");
     __default_path.len = EXPECT(!= 0, confstr(_CS_PATH, __default_path.bytes, PATH_MAX));
 }
-const char* get_default_path() {
+const char* _Nonnull get_default_path() {
     ASSERTF(__default_path.bytes[0] != '\0', "");
     return __default_path.bytes;
 }
 
 static PthreadID __pthread_id_counter = 1;
 
-void free_thread_state(void* arg);
+void free_thread_state(void* _Nonnull arg);
 
 static pthread_key_t __thread_state_key;
 static inline void init_thread_state_key() {
@@ -263,10 +246,10 @@ static inline void init_arenas(struct ThreadState* state) {
     ASSERTF(arena_is_initialized(&state->ops_arena), "");
     ASSERTF(arena_is_initialized(&state->data_arena), "");
 }
-static inline struct ThreadState* get_thread_state() {
+static inline struct ThreadState* _Nonnull get_thread_state() {
     return EXPECT_NONNULL(pthread_getspecific(__thread_state_key));
 }
-void free_thread_state(void* arg) {
+void free_thread_state(void* _Nonnull arg) {
     struct ThreadState* state = EXPECT_NONNULL(arg);
     /* TODO: Insert exit op */
     arena_sync(&state->data_arena);
@@ -320,8 +303,8 @@ static inline void drop_threads_after_fork() {
     }
     __pthread_id_counter = 1;
 }
-struct ArenaDir* get_op_arena() { return &(get_thread_state()->ops_arena); }
-struct ArenaDir* get_data_arena() { return &(get_thread_state()->data_arena); }
+struct ArenaDir* _Nonnull get_op_arena() { return &(get_thread_state()->ops_arena); }
+struct ArenaDir* _Nonnull get_data_arena() { return &(get_thread_state()->data_arena); }
 pid_t get_tid() { return get_thread_state()->tid; }
 pid_t get_tid_safe() { return probe_libc_gettid(); }
 PthreadID get_pthread_id() { return get_thread_state()->pthread_id; }
@@ -430,7 +413,6 @@ void init_proc() {
     check_function_pointers();
     init_pid(false);
     init_probe_dir();
-    init_tables();
     init_process_tree_context();
     init_process_context();
     create_epoch_dir();

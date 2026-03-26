@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "probe_libc.h"
 
 #include <errno.h>       // IWYU pragma: keep for ENOENT, ENOMEM¸ EWOULDBLOCK

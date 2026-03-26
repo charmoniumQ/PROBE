@@ -71,7 +71,7 @@ clean: clean-cli clean-lib clean-tests
 
 lint: lint-py lint-cli lint-lib lint-nix
 
-compile: compile-cli compile-lib compile-tests
+compile: compile-cli compile-lib compile-tests update-headers-py
 
 test: compile
     python -m pytest -c tests/pytest.ini

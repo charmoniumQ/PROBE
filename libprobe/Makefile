@@ -16,8 +16,9 @@ OPTCFLAGS := -O3 -DNDEBUG -fPIC
 OPTLDFLAGS := -flto -fpic
 DBGLDFLAGS := -fno-lto -fPIC
 LDFLAGS := -lpthread -pthread -ldl
-GENERATED_SOURCE_FILES := generated/libc_hooks.c
-GENERATED_HEADER_FILES := generated/libc_hooks.h generated/headers.h generated/size_checks.h
+GENERATED_SOURCE_FILES := generated/libc_hooks.c generated/inode_table.c
+GENERATED_HEADER_FILES := generated/libc_hooks.h generated/size_checks.h generated/inode_table.h
+# generated/headers.h is removed because it always changes every time the cli is recompiled
 GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
 MANUAL_SOURCE_FILES := $(wildcard src/*.c)
 MANUAL_HEADER_FILES := $(wildcard src/*.h)
@@ -39,17 +40,19 @@ $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o
 	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(DBGLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
 	patchelf --remove-rpath $@
 
-$(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
+$(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(OPTCFLAGS) -o $@ $<
 
-$(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
+$(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(DBGCFLAGS) -o $@ $<
 
-$(GENERATED_FILES): $(wildcard generator/*) $(MAKEFILE_LIST)
+# must exclude __pycache__ from deps
+$(GENERATED_FILES): $(wildcard generator/*.py) $(wildcard generator/*.c) $(MAKEFILE_LIST)
 	mkdir --parents generated/
 	python3 ./generator/gen_libc_hooks.py
+	python3 ./generator/radix_table.py generated/inode_table.h generated/inode_table.c 'inode table' bool 16 16 16 16
 
 compile_commands.json: $(BUILD_DIR)/libprobe.dbg.so
 	echo '[' > $@
@@ -81,6 +84,12 @@ check: compile_commands.json $(GENERATED_FILES) $(BUILD_DIR)/probe_libc_tests.db
 	        exit 1; \
 	    fi \
 	fi
+	if [ "$$SKIP_CHECK_NEEDED_SYMS" = 1 ]; then \
+	    echo "Skipping check_needed_syms.py"; \
+	else \
+		python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so; \
+	fi
+	for file in $(BUILD_DIR)/src/*.dbg.o $(BUILD_DIR)/generated/*.dbg.o; do echo "$$file"; nm --undefined "$$file"; done
 	python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=5
 	test GLIBC_2.14 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
@@ -91,11 +100,6 @@ check: compile_commands.json $(GENERATED_FILES) $(BUILD_DIR)/probe_libc_tests.db
 	fi
 	clang-tidy  $(SOURCE_FILES)
 	python3 ./check_hooked_fns.py $(MANUAL_SOURCE_FILES)
-	if [ "$$SKIP_CHECK_NEEDED_SYMS" = 1 ]; then \
-	    echo "Skipping check_needed_syms.py"; \
-	else \
-		python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so; \
-	fi
 	cppcheck $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG -D__GLIBC__=2 -D__GLIBC_MINOR__=33 -DO_TMPFILE
 	if [ "$$SKIP_UNITTESTS" = 1 ]; then \
 	    echo "Skipping unit test"; \

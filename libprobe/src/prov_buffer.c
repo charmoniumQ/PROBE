@@ -1,11 +1,11 @@
-#define _GNU_SOURCE
-
 #include "prov_buffer.h"
 
-#include <fcntl.h>    // for AT_FDCWD, O_RDWR, O_CREAT
-#include <limits.h>   // IWYU pragma: keep for PATH_MAX
-#include <sched.h>    // for CLONE_VFORK
-#include <stdbool.h>  // for bool, true
+#include <fcntl.h>  // for AT_FDCWD, O_RDWR, O_CREAT
+#include <limits.h> // IWYU pragma: keep for PATH_MAX
+#include <sched.h>  // for CLONE_VFORK
+#include <stdatomic.h>
+#include <stdbool.h> // for bool, true
+#include <stdint.h>
 #include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
 #include <threads.h>  // for thrd_current
 #include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
@@ -13,12 +13,12 @@
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
-#include "../generated/headers.h"    // for CopyFiles
+#include "../generated/headers.h" // for CopyFiles
+#include "../generated/inode_table.h"
 #include "../generated/libc_hooks.h" // for client_thrd_current
 #include "arena.h"                   // for arena_sync, arena_calloc
 #include "debug_logging.h"           // for DEBUG, ASSERTF, DEBUG_LOG
 #include "global_state.h"            // for get_copied_or_overwritten_...
-#include "inode_table.h"             // for inode_table_put_if_not_exists
 #include "probe_libc.h"              // for probe_libc_memcpy, probe_copy_file
 #include "prov_utils.h"              // for op_to_human_readable, op_t...
 
@@ -75,15 +75,32 @@ static int copy_to_store(const struct Path* path) {
     }
 }
 
+static struct InodeTable read_inodes;
+static struct InodeTable copied_or_overwritten_inodes;
+
 static void maybe_copy_to_store(enum Access access, struct Path* path) {
     enum CopyFiles mode = get_copy_files_mode();
     if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly) && path->path && path->stat_valid) {
+        ASSERTF(path->device_major < 256,
+                "Unexpectedly large device major number, %d. Resize inode table levels",
+                path->device_major);
+        ASSERTF(path->device_minor < 256,
+                "Unexpectedly large device minor number, %d. Resize inode table levels",
+                path->device_minor);
+        ASSERTF(path->inode <= (1L << 32),
+                "Unexpectedly large inode, %lu. Resize inode table levels", path->inode);
+        uint64_t index = (((uint64_t)(path->device_major)) << 48L) |
+                         (((uint64_t)(path->device_minor)) << 32L) | path->inode;
         if (mode == CopyFiles_Lazily) {
             if (access == READ_ACCESS) {
                 DEBUG("Reading %s %ld", path->path, path->inode);
-                inode_table_put_if_not_exists(get_read_inodes(), path);
+                _Atomic(bool)* _Nonnull read_loc =
+                    inode_table_address_of_strong(&read_inodes, index);
+                atomic_store(read_loc, true);
             } else if (access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
-                if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+                _Atomic(bool)* _Nonnull coo_loc =
+                    inode_table_address_of_strong(&copied_or_overwritten_inodes, index);
+                if (atomic_exchange(coo_loc, true)) {
                     DEBUG("Mutating, but not copying %s %ld since it is copied already or "
                           "overwritten",
                           path->path, path->inode);
@@ -94,8 +111,12 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
                     }
                 }
             } else if (access == TRUNCATE_WRITE_ACCESS) {
-                if (inode_table_contains(get_read_inodes(), path)) {
-                    if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+                const _Atomic(bool)* _Nullable read_loc =
+                    inode_table_address_of_weak(&read_inodes, index);
+                if (read_loc && atomic_load(read_loc)) {
+                    _Atomic(bool)* _Nonnull coo_loc =
+                        inode_table_address_of_strong(&copied_or_overwritten_inodes, index);
+                    if (atomic_exchange(coo_loc, true)) {
                         DEBUG("Mutating, but not copying %s %ld since it is copied already or "
                               "overwritten",
                               path->path, path->inode);
@@ -112,7 +133,9 @@ static void maybe_copy_to_store(enum Access access, struct Path* path) {
             }
         } else if (access == READ_ACCESS || access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
             ASSERTF(mode == CopyFiles_Eagerly, "");
-            if (inode_table_put_if_not_exists(get_copied_or_overwritten_inodes(), path)) {
+            _Atomic(bool)* _Nonnull coo_loc =
+                inode_table_address_of_strong(&copied_or_overwritten_inodes, index);
+            if (atomic_exchange(coo_loc, true)) {
                 DEBUG("Not copying %s %ld because already did", path->path, path->inode);
             } else {
                 if (copy_to_store(path) != 0) {

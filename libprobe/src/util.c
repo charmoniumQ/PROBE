@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+#include "util.h" // for BORROWED, OWNED, CHECK_SNPRINTF
 
 #include <dirent.h>    // for dirent
 #include <fcntl.h>     // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
@@ -15,7 +15,6 @@
 #include "../generated/libc_hooks.h" // for client_...
 #include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
 #include "probe_libc.h"              // for probe_libc_...
-#include "util.h"                    // for BORROWED, OWNED, CHECK_SNPRINTF
 
 bool is_dir(const char* dir) {
     struct statx statx_buf;
