@@ -83,6 +83,12 @@ check: compile_commands.json $(GENERATED_FILES) $(BUILD_DIR)/probe_libc_tests.db
 	        exit 1; \
 	    fi \
 	fi
+	if [ "$$SKIP_CHECK_NEEDED_SYMS" = 1 ]; then \
+	    echo "Skipping check_needed_syms.py"; \
+	else \
+		python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so; \
+	fi
+	for file in $(BUILD_DIR)/src/*.dbg.o $(BUILD_DIR)/generated/*.dbg.o; do echo "$$file"; nm --undefined "$$file"; done
 	python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=5
 	test GLIBC_2.14 = $(shell python3 ./sorted_symbol_versions.py .build/libprobe.dbg.so | tail --lines=1 | cut --fields=2 --delimiter=' ')
 	clang-check --analyze -extra-arg -Xanalyzer -extra-arg -analyzer-output=text $(SOURCE_FILES)
@@ -93,11 +99,6 @@ check: compile_commands.json $(GENERATED_FILES) $(BUILD_DIR)/probe_libc_tests.db
 	fi
 	clang-tidy  $(SOURCE_FILES)
 	python3 ./check_hooked_fns.py $(MANUAL_SOURCE_FILES)
-	if [ "$$SKIP_CHECK_NEEDED_SYMS" = 1 ]; then \
-	    echo "Skipping check_needed_syms.py"; \
-	else \
-		python3 ./check_needed_syms.py .build/libprobe.dbg.so .build/libprobe.so; \
-	fi
 	cppcheck $(SOURCE_FILES) --check-level=exhaustive -UNDEBUG -D__GLIBC__=2 -D__GLIBC_MINOR__=33 -DO_TMPFILE
 	if [ "$$SKIP_UNITTESTS" = 1 ]; then \
 	    echo "Skipping unit test"; \

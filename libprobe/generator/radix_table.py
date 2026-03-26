@@ -55,7 +55,7 @@ def multilevel_table(
         f"// sizeof table with one entry = {sizeof_one_entry / 1024:.1f}KiB = {sizeof_one_entry / 1024 / 1024:.1f}MiB",
     ]))
     checks = [
-        f"  if (index > {1 << log_length - 1}UL) {{ ERROR(\"%d-bit table not big enough to accommodate %lu\\n\", {log_length}, index); }}",
+        f"  if (index > {(1 << log_length) - 1}UL) {{ ERROR(\"%d-bit table not big enough to accommodate %lu\\n\", {log_length}, index); }}",
         "  _Static_assert(ATOMIC_BOOL_LOCK_FREE, \"\");",
         "  _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
     ]
