@@ -9,6 +9,8 @@ fn inner() -> Result<()> {
     let out_file = std::env::var("CBINDGEN_OUTFILE").wrap_err("CBINDGEN_OUTFILE")?;
     println!("To {out_file}");
 
+    println!("cargo:rerun-if-changed=src/ops.rs");
+
     cbindgen::Builder::new()
         .with_crate(&crate_dir)
         .with_language(cbindgen::Language::C)

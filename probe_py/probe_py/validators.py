@@ -80,7 +80,7 @@ def validate_clone_targets(probe_log: ProbeLog) -> typing.Iterator[str]:
             }
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
-                    if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                    if isinstance(op.data, CloneOp) and op.ferrno == 0:
                         if op.data.task_type == TaskType.PID and Pid(op.data.task_id) not in pids:
                             yield f"CloneOp returned a PID {op.data.task_id} that we didn't track"
                         elif op.data.task_type == TaskType.TID and Tid(op.data.task_id) not in exec_ep.threads:
@@ -99,10 +99,10 @@ def validate_clones_and_waits(probe_log: ProbeLog) -> typing.Iterator[str]:
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
-                    if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+                    if isinstance(op.data, WaitOp) and op.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
                         waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
-                    elif isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+                    elif isinstance(op.data, CloneOp) and op.ferrno == 0:
                         cloned_processes.add((TaskType(op.data.task_type), op.data.task_id))
                         if op.data.task_type == TaskType.PID:
                             # New process implicitly also creates a new thread
@@ -128,9 +128,9 @@ def validate_opens_and_closes(probe_log: ProbeLog) -> typing.Iterator[str]:
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
-                    if isinstance(op.data, OpenOp) and op.data.ferrno == 0:
+                    if isinstance(op.data, OpenOp) and op.ferrno == 0:
                         opened_fds.add(op.data.fd)
-                    elif isinstance(op.data, CloseOp) and op.data.ferrno == 0:
+                    elif isinstance(op.data, CloseOp) and op.ferrno == 0:
                         # Range in Python is up-to-not-including high_fd, so we add one to it.
                         closed_fds.add(op.data.fd)
         reserved_fds = {0, 1, 2}

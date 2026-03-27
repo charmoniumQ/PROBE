@@ -110,7 +110,7 @@ def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, CloneOp) and op.data.ferrno == 0:
+    if isinstance(op.data, CloneOp) and op.ferrno == 0:
         match op.data.task_type:
             case TaskType.TID:
                 target_tid = Tid(op.data.task_id)
@@ -159,7 +159,7 @@ def get_first_task_nodes(
 
 def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, WaitOp) and op.data.ferrno == 0:
+    if isinstance(op.data, WaitOp) and op.ferrno == 0:
         match op.data.task_type:
             case TaskType.TID:
                 target_tid = Tid(op.data.task_id)
@@ -191,7 +191,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
 
 def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, ExecOp) and op.data.ferrno == 0:
+    if isinstance(op.data, ExecOp) and op.ferrno == 0:
         next_exec_no = node.exec_no.next()
         if next_exec_no not in probe_log.processes[node.pid].execs:
             warnings.warn(ptypes.UnusualProbeLog(
@@ -205,7 +205,7 @@ def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
 
 def _create_spawn_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, SpawnOp) and op.data.ferrno == 0:
+    if isinstance(op.data, SpawnOp) and op.ferrno == 0:
         child_pid = Pid(op.data.child_pid)
         if child_pid not in probe_log.processes:
             warnings.warn(ptypes.UnusualProbeLog(
