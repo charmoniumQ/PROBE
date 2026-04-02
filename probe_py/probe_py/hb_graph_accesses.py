@@ -56,7 +56,8 @@ def hb_graph_to_accesses(
     ):
         assert node
         yield node
-        op_data = probe_log.get_op(node).data
+        op = probe_log.get_op(node)
+        op_data = op.data
         match op_data:
             case ops.InitExecEpochOp():
                 if 0 not in proc_fd_to_fd[node.pid]:
@@ -66,12 +67,12 @@ def hb_graph_to_accesses(
                 if 2 not in proc_fd_to_fd[node.pid]:
                     yield from openfd(2, ptypes.AccessMode.TRUNCATE_WRITE, False, node, op_data.std_err)
             case ops.OpenOp():
-                if op_data.ferrno == 0:
+                if op.ferrno == 0:
                     mode = ptypes.AccessMode.from_open_flags(op_data.flags)
                     cloexec = bool(op_data.flags & os.O_CLOEXEC)
                     yield from openfd(op_data.fd, mode, cloexec, node, op_data.path)
             case ops.ExecOp():
-                if op_data.ferrno == 0:
+                if op.ferrno == 0:
                     for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
                         if file_desc.cloexec:
                             yield from close(fd, node)
@@ -80,10 +81,10 @@ def hb_graph_to_accesses(
                     yield ptypes.Access(ptypes.Phase.BEGIN, ptypes.AccessMode.EXEC, exe_inode, exe_path, node, None)
                     yield ptypes.Access(ptypes.Phase.END, ptypes.AccessMode.EXEC, exe_inode, exe_path, node, None)
             case ops.CloseOp():
-                if op_data.ferrno == 0:
+                if op.ferrno == 0:
                     yield from close(op_data.fd, node)
             case ops.DupOp():
-                if op_data.ferrno == 0:
+                if op.ferrno == 0:
                     # dup2 and dup3 close the new FD, if it was open
                     # https://www.man7.org/linux/man-pages/man2/dup.2.html
                     if op_data.new in proc_fd_to_fd[node.pid].keys():
@@ -95,7 +96,7 @@ def hb_graph_to_accesses(
                             f"{node} successfully duped an FD {op_data.old} (-> {op_data.new}) we never traced.",
                         ))
             case ops.CloneOp():
-                if op_data.ferrno == 0 and op_data.task_type == ops.TaskType.PID and not (op_data.flags & os.CLONE_THREAD):
+                if op.ferrno == 0 and op_data.task_type == ops.TaskType.PID and not (op_data.flags & os.CLONE_THREAD):
                     target = ptypes.Pid(op_data.task_id)
                     if op_data.flags & os.CLONE_FILES:
                         proc_fd_to_fd[target] = proc_fd_to_fd[node.pid]

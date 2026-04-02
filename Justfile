@@ -32,7 +32,7 @@ lint-cli:
 
 [working-directory: 'cli-wrapper']
 compile-cli:
-    cargo build --bin probe
+    cargo build
     cargo run --bin probe_headers
 
 [working-directory: 'probe_py']

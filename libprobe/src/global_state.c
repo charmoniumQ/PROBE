@@ -339,22 +339,23 @@ static inline void emit_init_epoch_op() {
         ERROR("");
     }
     struct Op init_epoch_op = {
-        {.init_exec_epoch_tag = OpData_InitExecEpoch,
-         .init_exec_epoch =
-             {
-                 .parent_pid = probe_libc_getppid(),
-                 .pid = probe_libc_getpid(),
-                 .epoch = get_exec_epoch(),
-                 .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, -1, 0),
-                 .exe = create_path_lazy(AT_FDCWD, exe.bytes, -1, 0),
-                 .argv = arena_copy_cmdline(get_data_arena(), cmdline),
-                 .env = arena_copy_argv(get_data_arena(), (StringArray)probe_environ, 0),
-                 .std_in = create_path_lazy(-1, NULL, 0, 0),
-                 .std_out = create_path_lazy(-1, NULL, 1, 0),
-                 .std_err = create_path_lazy(-1, NULL, 2, 0),
-             }},
-        0,
-        0,
+        .data =
+            {
+                .init_exec_epoch_tag = OpData_InitExecEpoch,
+                .init_exec_epoch =
+                    {
+                        .parent_pid = probe_libc_getppid(),
+                        .pid = probe_libc_getpid(),
+                        .epoch = get_exec_epoch(),
+                        .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, -1, 0),
+                        .exe = create_path_lazy(AT_FDCWD, exe.bytes, -1, 0),
+                        .argv = arena_copy_cmdline(get_data_arena(), cmdline),
+                        .env = arena_copy_argv(get_data_arena(), (StringArray)probe_environ, 0),
+                        .std_in = create_path_lazy(-1, NULL, 0, 0),
+                        .std_out = create_path_lazy(-1, NULL, 1, 0),
+                        .std_err = create_path_lazy(-1, NULL, 2, 0),
+                    },
+            },
     };
     prov_log_try(init_epoch_op);
     prov_log_record(init_epoch_op);
@@ -363,9 +364,7 @@ static inline void emit_init_epoch_op() {
 
 static inline void emit_init_thread_op() {
     struct Op init_thread_op = {
-        {.init_thread_tag = OpData_InitThread, .init_thread = {.tid = get_tid()}},
-        0,
-        0,
+        .data = {.init_thread_tag = OpData_InitThread, .init_thread = {.tid = get_tid()}},
     };
     prov_log_try(init_thread_op);
     prov_log_record(init_thread_op);

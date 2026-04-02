@@ -12,7 +12,7 @@ import pathlib
 import typing
 from . import ptypes
 from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
-from .headers import Path, ChdirOp, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
+from .headers import Path, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
 from .consts import AT_FDCWD
 
 
@@ -153,25 +153,17 @@ def get_files(
             fds = {AT_FDCWD: pathlib.Path(path.decode())}
             for tid, thread in exec_epoch.threads.items():
                 for op_no, op in enumerate(thread.ops):
-                    if isinstance(op.data, ChdirOp):
+                    if isinstance(op.data, OpenOp):
                         path2 = op.data.path
                         assert path2 is not None
-                        resolved_path = resolve_path(fds, path2)
-                        fds[AT_FDCWD] = resolved_path
-                        if verbose:
-                            console.print(f"chdir {resolved_path}")
-                        assert resolved_path.is_absolute()
-                    elif isinstance(op.data, OpenOp):
-                        path2 = op.data.path
-                        assert path2 is not None
-                        if op.data.ferrno == 0:
+                        if op.ferrno == 0:
                             resolved_path = resolve_path(fds, path2)
                             fds[op.data.fd] = resolved_path
                             yield op, resolved_path, path2
                     elif isinstance(op.data, ExecOp):
                         path2 = op.data.path
                         assert path2 is not None
-                        if op.data.ferrno == 0:
+                        if op.ferrno == 0:
                             resolved_path = resolve_path(fds, path2)
                             yield op, resolved_path, path2
                     elif isinstance(op.data, CloseOp):

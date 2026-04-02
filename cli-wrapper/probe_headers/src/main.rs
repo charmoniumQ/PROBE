@@ -40,7 +40,6 @@ fn main() -> Result<()> {
         probe_headers::InitThreadOp,
         probe_headers::OpenOp,
         probe_headers::CloseOp,
-        probe_headers::ChdirOp,
         probe_headers::ExecOp,
         probe_headers::SpawnOp,
         probe_headers::ExitProcessOp,

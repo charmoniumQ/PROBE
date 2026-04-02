@@ -105,8 +105,6 @@ const struct Path* op_to_path(const struct Op* op) {
     switch (op->data.tag) {
     case OpData_Open:
         return &op->data.open.path;
-    case OpData_Chdir:
-        return &op->data.chdir.path;
     case OpData_Exec:
         return &op->data.exec.path;
     case OpData_InitExecEpoch:
@@ -156,8 +154,6 @@ BORROWED const char* op_code_to_string(enum OpData_Tag op_code) {
         return "Open";
     case OpData_Close:
         return "Close";
-    case OpData_Chdir:
-        return "Chdir";
     case OpData_Exec:
         return "Exec";
     case OpData_Spawn:

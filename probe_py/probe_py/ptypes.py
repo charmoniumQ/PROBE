@@ -269,10 +269,10 @@ class ProbeLog:
         for quad, op in self.ops():
             match op.data:
                 case ops.CloneOp():
-                    if op.data.ferrno == 0 and op.data.task_type == ops.TaskType.PID:
+                    if op.ferrno == 0 and op.data.task_type == ops.TaskType.PID:
                         parent_pid_map[Pid(op.data.task_id)] = quad.pid
                 case ops.SpawnOp():
-                    if op.data.ferrno == 0:
+                    if op.ferrno == 0:
                         parent_pid_map[Pid(op.data.child_pid)] = quad.pid
         return parent_pid_map
 
