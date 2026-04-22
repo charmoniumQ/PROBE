@@ -57,8 +57,6 @@
 /* len(str(2**63)) + 1 == 20 */
 #define SIGNED_LONG_STRING_SIZE (22)
 
-#define MAX(a, b) ((a) < (b) ? (b) : (a))
-
 __attribute__((visibility("hidden"))) bool is_dir(const char* dir) __attribute__((nonnull));
 
 __attribute__((visibility("hidden"))) OWNED const char* dirfd_path(int dirfd)

@@ -29,12 +29,13 @@
 #else
 // our unit test framework uses a typical (sane) linking scheme and is allowed
 // to liberally use libc so we just alias any libprobe functions we use
-#define client_strerror strerror
-#define client_exit exit
-#define get_pid_safe getpid
+#include <string.h>
+char* client_strerror( int errnum ) { return strerror(errnum); }
+[[noreturn]] void client_exit(int status) { exit(status); }
+int get_pid_safe() { return getpid(); }
+int get_tid_safe() { return gettid(); }
 // HACK: exec epoch doesn't mean anything outside libprobe
-#define get_exec_epoch_safe getpid
-#define get_tid_safe gettid
+ExecEpoch get_exec_epoch_safe() { return 0; }
 #endif
 
 #define OK(x) {.error = 0, .value = (x)}

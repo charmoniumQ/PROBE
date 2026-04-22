@@ -93,12 +93,11 @@ fn derive_enum(
             syn::Fields::Unit => quote::quote!{{}},
         };
         let variant_ident = &variant.ident;
-            let types = get_types(&variant.fields);
-            let tuple_type = quote::quote! {(#(#types),*)};
+        let types = get_types(&variant.fields);
+        let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
         quote::quote!{
             #discriminant => {
-                let pointer = ::memory_parsing::align_pointer::<#tuple_type>(pointer);
-                let ((#(#named_idents),*), pointer) = ::memory_parsing::FromMemory::from_memory(memory, pointer)?;
+                let ((_, #(#named_idents),*), pointer) = <#tuple_type_with_tag as ::memory_parsing::FromMemory>::from_memory(memory, pointer)?;
                 Ok((#ident::#variant_ident #constructor_args, pointer))
             }
         }
@@ -134,9 +133,9 @@ fn derive_enum(
         .iter()
         .map(|variant| {
             let types = get_types(&variant.fields);
-            let tuple_type = quote::quote! {(#(#types),*)};
+            let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
             quote::quote! {
-                let align = align.max(<#tuple_type as ::memory_parsing::SizedMemory>::align());
+                let align = align.max(<#tuple_type_with_tag as ::memory_parsing::SizedMemory>::align());
             }
         })
         .collect::<Vec<_>>();
@@ -145,10 +144,22 @@ fn derive_enum(
         .iter()
         .map(|variant| {
             let types = get_types(&variant.fields);
-            let tuple_type = quote::quote! {(#(#types),*)};
+            let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
             quote::quote! {
-                let tuple_size = ::memory_parsing::align_pointer::<#tuple_type>(tag_size) + <#tuple_type as ::memory_parsing::SizedMemory>::size();
+                let tuple_size = <#tuple_type_with_tag as ::memory_parsing::SizedMemory>::size();
                 let size = size.max(tuple_size);
+            }
+        })
+        .collect::<Vec<_>>();
+    let offsets = input
+        .variants
+        .iter()
+        .map(|variant| {
+            let types = get_types(&variant.fields);
+            let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
+            quote::quote! {
+                let mut variant_offsets = <#tuple_type_with_tag as ::memory_parsing::SizedMemory>::offsets();
+                offsets.append(&mut variant_offsets);
             }
         })
         .collect::<Vec<_>>();
@@ -169,13 +180,14 @@ fn derive_enum(
                 align
             }
             fn size() -> usize {
-                let tag_size = 1;
-                let size = tag_size;
+                let size = 0;
                 #(#sizes)*
                 ::memory_parsing::align_pointer::<Self>(size)
             }
             fn offsets() -> Vec<usize> {
-                vec![]
+                let mut offsets = vec![];
+                #(#offsets)*
+                offsets
             }
             fn c_name() -> Option<&'static str> {
                 Some(#c_name)
@@ -183,7 +195,7 @@ fn derive_enum(
         }
         impl ::memory_parsing::FromMemory for #ident {
             fn from_memory(memory: &::memory_parsing::Segments, mut pointer: usize) -> eyre::Result<(#ident, usize)> {
-                let (tag, pointer) = ::memory_parsing::FromMemory::from_memory(memory, pointer)?;
+                let (tag, _) = <u8 as ::memory_parsing::FromMemory>::from_memory(memory, pointer)?;
                 match tag {
                     #(#from_memory_match_arms)*
                     _ => Err(eyre::eyre!("tag {tag} is not recognized for {}", stringify!(#ident))),

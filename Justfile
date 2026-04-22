@@ -33,7 +33,16 @@ lint-cli:
 [working-directory: 'cli-wrapper']
 compile-cli:
     cargo build
-    cargo run --bin probe_headers
+    cargo run --bin generate
+
+serialization-test:
+    cd cli-wrapper && cargo build
+    cd cli-wrapper && cargo run --bin generate
+    cd libprobe && make .build/serialization_test.exe
+    rm --recursive --force arenas
+    ./libprobe/.build/serialization_test.exe
+    ./cli-wrapper/target/debug/serialization_test
+    rm --recursive --force arenas
 
 [working-directory: 'probe_py']
 update-headers-py: compile-cli
