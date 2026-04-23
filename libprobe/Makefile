@@ -40,6 +40,9 @@ $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o
 	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(DBGLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o))
 	patchelf --remove-rpath $@
 
+$(BUILD_DIR)/serialization_test.exe: $(MAKEFILE_LIST) serialization_test.c src/arena.c src/probe_libc.c
+	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(DBGLDFLAGS) $(DBGCFLAGS) -o $@ -DUNIT_TESTS serialization_test.c src/arena.c src/probe_libc.c
+
 $(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(OPTCFLAGS) -o $@ $<

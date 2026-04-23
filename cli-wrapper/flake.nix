@@ -153,7 +153,7 @@
           export JSONSCHEMA_OUTFILE="$out/headers.json"
           export SIZE_CHECK_OUTFILE="$out/size_checks.h"
           export RUST_BACKTRACE=1
-          ${probe-headers-exe}/bin/probe_headers
+          ${probe-headers-exe}/bin/generate
         '';
 
         default = probe-cli;

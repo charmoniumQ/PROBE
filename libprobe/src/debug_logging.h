@@ -8,11 +8,6 @@
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
 #include "probe_libc.h"   // IWYU pragma: keep for strerror_with_backup
 
-#ifndef NDEBUG
-#define DEBUG_LOG 1
-#else
-#endif
-
 #ifndef SOURCE_VERSION
 #define SOURCE_VERSION ""
 #endif
@@ -21,7 +16,7 @@
     fprintf(stderr, SOURCE_VERSION " %d.%d.%d " __FILE__ ":%d:%s(): " str "\n", get_pid_safe(),    \
             get_exec_epoch_safe(), get_tid_safe(), __LINE__, __func__, ##__VA_ARGS__)
 
-#ifdef DEBUG_LOG
+#ifndef NDEBUG
 #define DEBUG(str, ...) LOG("DEBUG " str, ##__VA_ARGS__)
 #else
 #define DEBUG(...)

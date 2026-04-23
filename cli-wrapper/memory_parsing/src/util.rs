@@ -18,7 +18,10 @@ pub(crate) fn primitive_from_bytes<Type: Sized + Clone>(
                 ))
             }
         }
-        None => Err(eyre::eyre!("{pointer} not mapped")),
+        None => Err(eyre::eyre!(
+            "0x{pointer:08x} not mapped for {}",
+            std::any::type_name::<Type>()
+        )),
     }
 }
 
@@ -48,6 +51,9 @@ pub(crate) fn primitive_to_bytes<Type: Sized>(
                 ))
             }
         }
-        None => Err(eyre::eyre!("{pointer} not mapped")),
+        None => Err(eyre::eyre!(
+            "0x{pointer:08x} not mapped for {}",
+            std::any::type_name::<Type>()
+        )),
     }
 }

@@ -19,7 +19,6 @@
 #include "../generated/size_checks.h" // IWYU pragma: keep
 #include "arena.h"                    // for arena_is_initialized, arena_create
 #include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR
-#include "env.h"                      // for getenv_copy
 #include "probe_libc.h"               // for probe_libc_...
 #include "prov_buffer.h"              // for prov_log_try, prov_log_record, prov_log_save
 #include "prov_utils.h"               // for do_init_ops

@@ -10,6 +10,15 @@ edition.workspace = true
 name = "probe_headers"
 path = "src/lib.rs"
 
+[[bin]]
+name = "generate"
+path = "src/generate.rs"
+
+[[bin]]
+name = "serialization_test"
+path = "src/serialization_test.rs"
+
+
 [dependencies]
 clap = {version = "4.5.35", features = ["derive"]}
 eyre = "0.6.12"

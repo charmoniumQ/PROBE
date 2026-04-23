@@ -29,12 +29,13 @@
 #else
 // our unit test framework uses a typical (sane) linking scheme and is allowed
 // to liberally use libc so we just alias any libprobe functions we use
-#define client_strerror strerror
-#define client_exit exit
-#define get_pid_safe getpid
+#include <string.h>
+char* _Nonnull client_strerror(int errnum) { return strerror(errnum); }
+[[noreturn]] void client_exit(int status) { exit(status); }
+int get_pid_safe() { return getpid(); }
+int get_tid_safe() { return gettid(); }
 // HACK: exec epoch doesn't mean anything outside libprobe
-#define get_exec_epoch_safe getpid
-#define get_tid_safe gettid
+ExecEpoch get_exec_epoch_safe() { return 0; }
 #endif
 
 #define OK(x) {.error = 0, .value = (x)}
@@ -206,7 +207,10 @@ void exit_with_backup(int status) {
     }
     reenter = 1;
 
-    if (client_exit) {
+#ifndef UNIT_TESTS
+    if (client_exit)
+#endif
+    {
         client_exit(status);
     }
     WARNING("unable to acquire client_exit, atexit handlers not run");
@@ -219,7 +223,10 @@ void exit_with_backup(int status) {
 #define STRERROR_BUFFER 32
 char* _Nullable strerror_with_backup(int errnum) {
     static char backup_strerror_buf[STRERROR_BUFFER];
-    if (client_strerror) {
+#ifndef UNIT_TESTS
+    if (client_strerror)
+#endif
+    {
         return client_strerror(errnum);
     }
 

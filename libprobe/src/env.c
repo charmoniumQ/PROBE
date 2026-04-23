@@ -6,7 +6,6 @@
 // IWYU pragma: no_include "linux/limits.h"  for PATH_MAX
 
 #include "../generated/headers.h" // for FixedPath, LD_PRELOAD_VAR, PROBE_...
-#include "arena.h"                // for arena_calloc
 #include "debug_logging.h"        // for DEBUG, ASSERTF, EXPECT_NONNULL
 #include "global_state.h"         // for get_libprobe_path, get_probe_dir
 #include "probe_libc.h"           // for probe_libc_...
@@ -114,54 +113,4 @@ char const* const* update_env_with_probe_vars(char const* const* env, size_t* ne
     new_env[*new_env_size] = NULL;
 
     return (const char* const*)new_env;
-}
-
-// getconf -a | grep ARG_MAX
-#define ARG_MAX 2505728
-
-char const* const* arena_copy_argv(struct ArenaDir* arena_dir, char const* const* argv,
-                                   size_t argc) {
-    if (argc == 0) {
-        /* Compute argc and store in argc */
-        for (char const* const* argv_p = argv; *argv_p; ++argv_p) {
-            ++argc;
-        }
-    }
-
-    char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
-
-    for (size_t i = 0; i < argc; ++i) {
-        size_t length = probe_libc_strnlen(argv[i], ARG_MAX);
-        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
-        probe_libc_memcpy(argv_copy[i], argv[i], length + 1);
-        ASSERTF(!argv_copy[i][length], "");
-    }
-
-    ASSERTF(!argv[argc], "");
-    argv_copy[argc] = NULL;
-
-    return (const char* const*)argv_copy;
-}
-
-char const* const* arena_copy_cmdline(struct ArenaDir* arena_dir, result_sized_mem cmdline) {
-    size_t argc = probe_libc_memcount(cmdline.value, cmdline.size, '\0');
-
-    char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
-
-    const char* ptr = cmdline.value;
-    for (size_t i = 0; i < argc; ++i) {
-        size_t length = probe_libc_strnlen(ptr, cmdline.size);
-        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
-        probe_libc_memcpy(argv_copy[i], ptr, length + 1);
-        ASSERTF(!argv_copy[i][length], "");
-        ptr += length + 1;
-    }
-
-#ifndef NDEBUG
-    ptr -= 1;
-    ASSERTF(!*ptr, "'%s'", ptr);
-#endif
-    argv_copy[argc] = NULL;
-
-    return (const char* const*)argv_copy;
 }

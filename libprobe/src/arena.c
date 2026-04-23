@@ -12,7 +12,8 @@
 #include "../generated/headers.h"
 #include "debug_logging.h" // for EXPECT, ASSERTF, EXPECT_NONNULL
 #include "probe_libc.h"    // for probe_libc_...
-#include "util.h"          // for ceil_log2, MAX
+
+#define MAX(a, b) ((a) < (b) ? (b) : (a))
 
 unsigned char ceil_log2(unsigned int val) {
     unsigned int ret = 0;
@@ -228,4 +229,54 @@ bool arena_is_initialized(struct ArenaDir* arena_dir) {
             "is_initialized signals disagree %ld %p", arena_dir->__next_instantiation,
             arena_dir->__tail);
     return arena_dir->__tail != NULL;
+}
+
+// getconf -a | grep ARG_MAX
+#define ARG_MAX 2505728
+
+char const* const* arena_copy_argv(struct ArenaDir* arena_dir, char const* const* argv,
+                                   size_t argc) {
+    if (argc == 0) {
+        /* Compute argc and store in argc */
+        for (char const* const* argv_p = argv; *argv_p; ++argv_p) {
+            ++argc;
+        }
+    }
+
+    char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
+
+    for (size_t i = 0; i < argc; ++i) {
+        size_t length = probe_libc_strnlen(argv[i], ARG_MAX);
+        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
+        probe_libc_memcpy(argv_copy[i], argv[i], length + 1);
+        ASSERTF(!argv_copy[i][length], "");
+    }
+
+    ASSERTF(!argv[argc], "");
+    argv_copy[argc] = NULL;
+
+    return (const char* const*)argv_copy;
+}
+
+char const* const* arena_copy_cmdline(struct ArenaDir* arena_dir, result_sized_mem cmdline) {
+    size_t argc = probe_libc_memcount(cmdline.value, cmdline.size, '\0');
+
+    char** argv_copy = arena_calloc(arena_dir, argc + 1, sizeof(char*));
+
+    const char* ptr = cmdline.value;
+    for (size_t i = 0; i < argc; ++i) {
+        size_t length = probe_libc_strnlen(ptr, cmdline.size);
+        argv_copy[i] = arena_calloc(arena_dir, length + 1, sizeof(char));
+        probe_libc_memcpy(argv_copy[i], ptr, length + 1);
+        ASSERTF(!argv_copy[i][length], "");
+        ptr += length + 1;
+    }
+
+#ifndef NDEBUG
+    ptr -= 1;
+    ASSERTF(!*ptr, "'%s'", ptr);
+#endif
+    argv_copy[argc] = NULL;
+
+    return (const char* const*)argv_copy;
 }
