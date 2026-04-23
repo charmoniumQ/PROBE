@@ -30,7 +30,7 @@
 // our unit test framework uses a typical (sane) linking scheme and is allowed
 // to liberally use libc so we just alias any libprobe functions we use
 #include <string.h>
-char* client_strerror( int errnum ) { return strerror(errnum); }
+char* _Nonnull client_strerror(int errnum) { return strerror(errnum); }
 [[noreturn]] void client_exit(int status) { exit(status); }
 int get_pid_safe() { return getpid(); }
 int get_tid_safe() { return gettid(); }
@@ -207,7 +207,10 @@ void exit_with_backup(int status) {
     }
     reenter = 1;
 
-    if (client_exit) {
+#ifndef UNIT_TESTS
+    if (client_exit)
+#endif
+    {
         client_exit(status);
     }
     WARNING("unable to acquire client_exit, atexit handlers not run");
@@ -220,7 +223,10 @@ void exit_with_backup(int status) {
 #define STRERROR_BUFFER 32
 char* _Nullable strerror_with_backup(int errnum) {
     static char backup_strerror_buf[STRERROR_BUFFER];
-    if (client_strerror) {
+#ifndef UNIT_TESTS
+    if (client_strerror)
+#endif
+    {
         return client_strerror(errnum);
     }
 
