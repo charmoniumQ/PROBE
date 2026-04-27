@@ -84,8 +84,12 @@ class Device:
 class Inode:
     host: Host
     device: Device
-    number: int
+    inode: int
     mode: int
+
+    @staticmethod
+    def from_ops_inode(inode: ops.Inode) -> Inode:
+        return Inode(Host.localhost(), Device(inode.device_major, inode.device_minor), inode.inode, inode.mode)
 
     @property
     def type(self) -> str:
@@ -96,19 +100,18 @@ class Inode:
         return stat.S_ISFIFO(self.mode)
 
     def __str__(self) -> str:
-        return f"inode {self.type.upper()} {self.number} on {self.device} @{self.host.name}"
+        return f"inode {self.type.upper()} {self.inode} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True, order=True)
 class InodeVersion:
-    inode: Inode
+    host_inode: Inode
     # If you assume no clock adjustemnts, it is monotonic with other mtimes on the same Host;
     # other Hosts will not be synchronized (vector clock).
     # It's better to assume nothing; different mtime still implies different object, but no ordering.
     # mtime nanoseconds precision (whether or not we have nanosecond resolution)
     mtime: numpy.datetime64
     size: int
-    other_id: int = 0
 
     @staticmethod
     def from_local_path(path: pathlib.Path) -> InodeVersion:
@@ -128,19 +131,6 @@ class InodeVersion:
         )
 
     @staticmethod
-    def from_probe_path(path: ops.Path) -> InodeVersion:
-        return InodeVersion(
-            Inode(
-                Host.localhost(),
-                Device(path.device_major, path.device_minor),
-                path.inode,
-                path.mode,
-            ),
-            numpy.datetime64(path.mtime.tv_sec * int(1e9) + path.mtime.tv_nsec, "ns"),
-            path.size,
-        )
-
-    @staticmethod
     def from_id_string(id_string: str) -> InodeVersion:
         # See `libprobe/src/prov_utils.c:path_to_id_string()`
         array = [
@@ -157,6 +147,14 @@ class InodeVersion:
             ),
             numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
             array[5],
+        )
+
+    @staticmethod
+    def from_ops_inode(inode: ops.Inode) -> InodeVersion:
+        return InodeVersion(
+            Inode.from_ops_inode(inode),
+            numpy.datetime64(inode.mtime.tv_sec * int(1e9) + inode.mtime.tv_nsec, "ns"),
+            inode.size,
         )
 
 
@@ -259,7 +257,7 @@ class ProbeLog:
     def get_root_pid(self) -> Pid:
         for quad, op in self.ops():
             match op.data:
-                case ops.InitExecEpochOp():
+                case ops.InitExecEpoch():
                     if op.data.parent_pid == self.process_tree_context.parent_of_root:
                         return Pid(quad.pid)
         raise RuntimeError("No root process found")
@@ -268,10 +266,10 @@ class ProbeLog:
         parent_pid_map = dict[Pid, Pid]()
         for quad, op in self.ops():
             match op.data:
-                case ops.CloneOp():
+                case ops.Clone():
                     if op.ferrno == 0 and op.data.task_type == ops.TaskType.PID:
                         parent_pid_map[Pid(op.data.task_id)] = quad.pid
-                case ops.SpawnOp():
+                case ops.Spawn():
                     if op.ferrno == 0:
                         parent_pid_map[Pid(op.data.child_pid)] = quad.pid
         return parent_pid_map
@@ -341,7 +339,7 @@ class Access:
     inode: Inode
     path: pathlib.Path
     op_node: OpQuad
-    fd: int | None
+    open_number: ops.OpenNumber | None
 
 if typing.TYPE_CHECKING:
     HbGraph: typing.TypeAlias = networkx.DiGraph[OpQuad]

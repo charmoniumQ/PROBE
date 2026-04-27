@@ -5,8 +5,8 @@ import typing
 import warnings
 import charmonium.time_block
 import networkx
-from .ptypes import Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, InodeVersion, OpQuad, HbGraph
-from .headers import CloneOp, ExecOp, WaitOp, OpenOp, SpawnOp, InitExecEpochOp, InitThreadOp, Op, CloseOp, DupOp, StatOp, TaskType
+from .ptypes import Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, OpQuad, HbGraph
+from .headers import Clone, Exec, Wait, Open, Spawn, InitExecEpoch, InitThread, Op, Close, Dup, Stat, TaskType
 from . import graph_utils
 from . import ptypes
 
@@ -110,7 +110,7 @@ def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
 
 def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, CloneOp) and op.ferrno == 0:
+    if isinstance(op.data, Clone) and op.ferrno == 0:
         match op.data.task_type:
             case TaskType.TID:
                 target_tid = Tid(op.data.task_id)
@@ -159,7 +159,7 @@ def get_first_task_nodes(
 
 def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, WaitOp) and op.ferrno == 0:
+    if isinstance(op.data, Wait) and op.ferrno == 0:
         match op.data.task_type:
             case TaskType.TID:
                 target_tid = Tid(op.data.task_id)
@@ -191,7 +191,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
 
 def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, ExecOp) and op.ferrno == 0:
+    if isinstance(op.data, Exec) and op.ferrno == 0:
         next_exec_no = node.exec_no.next()
         if next_exec_no not in probe_log.processes[node.pid].execs:
             warnings.warn(ptypes.UnusualProbeLog(
@@ -205,7 +205,7 @@ def _create_exec_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
 
 def _create_spawn_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
     op = probe_log.get_op(node)
-    if isinstance(op.data, SpawnOp) and op.ferrno == 0:
+    if isinstance(op.data, Spawn) and op.ferrno == 0:
         child_pid = Pid(op.data.child_pid)
         if child_pid not in probe_log.processes:
             warnings.warn(ptypes.UnusualProbeLog(
@@ -245,11 +245,11 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
             data["label"] += f"{node.op_no}: "
         if len(list(hb_graph.predecessors(node))) == 0:
             data["label"] += "root"
-        elif isinstance(op.data, InitExecEpochOp):
+        elif isinstance(op.data, InitExecEpoch):
             data["label"] += f"PID {node.pid} exec {node.exec_no}"
-        elif isinstance(op.data, InitThreadOp):
+        elif isinstance(op.data, InitThread):
             data["label"] += f"TID {node.tid}"
-        elif isinstance(op.data, ExecOp):
+        elif isinstance(op.data, Exec):
             data["label"] += textwrap.fill(
                 "exec " + textwrap.shorten(
                     shlex.join([
@@ -263,21 +263,15 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False)
                 ),
                 width=80,
             )
-        elif isinstance(op.data, OpenOp):
+        elif isinstance(op.data, Open):
             access = {os.O_RDONLY: "readable", os.O_WRONLY: "writable", os.O_RDWR: "read/writable"}[op.data.flags & os.O_ACCMODE]
-            data["label"] += f"Open ({access})  fd={op.data.fd}"
-            data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{(op.data.path.path or b'').decode()}"
-        elif isinstance(op.data, StatOp):
+            data["label"] += f"Open ({access})"
+        elif isinstance(op.data, Stat):
             data["label"] += "Stat"
-            data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{(op.data.path.path or b'').decode()}"
-        elif isinstance(op.data, CloseOp):
-            data["label"] += f"Close fd={op.data.fd}"
-            data["label"] += f"\n{InodeVersion.from_probe_path(op.data.path).inode!s}"
-            data["label"] += f"\n{(op.data.path.path or b'').decode()}"
-        elif isinstance(op.data, DupOp):
-            data["label"] += f"DupOp fd={op.data.old} → fd={op.data.new}"
+        elif isinstance(op.data, Close):
+            data["label"] += "Close"
+        elif isinstance(op.data, Dup):
+            data["label"] += "Dup"
         else:
             data["label"] += f"{op.data.__class__.__name__}"
             data["labelfontsize"] = 8

@@ -12,8 +12,7 @@ import pathlib
 import typing
 from . import ptypes
 from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
-from .headers import Path, OpenOp, CloseOp, InitExecEpochOp, ExecOp, Op
-from .consts import AT_FDCWD
+from .headers import Open, InitExecEpoch, Exec, Close, Op, PathArg, OpenNumber, AT_FDCWD
 
 
 def build_oci_image(
@@ -28,8 +27,8 @@ def build_oci_image(
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
     first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
-    if not isinstance(first_op, InitExecEpochOp):
-        console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
+    if not isinstance(first_op, InitExecEpoch):
+        console.print("First op is not InitExecEpoch. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = pathlib.Path(_tmpdir)
@@ -72,8 +71,8 @@ def build_oci_image(
             console.print("Could not find root process; Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
         last_op = probe_log.processes[pid].execs[initial_exec_no].threads[pid.main_thread()].ops[-1].data
-        if not isinstance(last_op, ExecOp):
-            console.print(f"Last op is not ExecOp: {last_op}. Are you sure this probe_log is valid?")
+        if not isinstance(last_op, Exec):
+            console.print(f"Last op is not Exec: {last_op}. Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
         args = [
             arg.decode() for arg in last_op.argv
@@ -88,13 +87,12 @@ def build_oci_image(
                 env.append("--env")
                 env.append(key_val.decode(errors="surrogate"))
         #shell = pathlib.Path(os.environ["SHELL"]).resolve()
-        path = first_op.cwd.path
-        assert path is not None
+        path = probe_log.process_tree_context.working_directory.decode()
         cmd = [
             "buildah",
             "config",
             "--workingdir",
-            path.decode(),
+            path,
             "--cmd",
             shlex.join(args),
             *env,
@@ -137,7 +135,8 @@ def get_files(
         probe_log: ProbeLog,
         verbose: bool,
         console: rich.console.Console,
-) -> typing.Iterator[tuple[Op, pathlib.Path, Path | None]]:
+) -> typing.Iterator[tuple[Op, pathlib.Path, PathArg | None]]:
+    raise NotImplementedError()
     for pid, process in probe_log.processes.items():
         for exec_epoch_no, exec_epoch in process.execs.items():
             root_pid = get_root_pid(probe_log)
@@ -145,30 +144,30 @@ def get_files(
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
             first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
-            if not isinstance(first_op, InitExecEpochOp):
-                console.print("First op is not InitExecEpochOp. Are you sure this probe_log is valid?")
+            if not isinstance(first_op, InitExecEpoch):
+                console.print("First op is not InitExecEpoch. Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
-            path = first_op.cwd.path
-            assert path is not None
-            fds = {AT_FDCWD: pathlib.Path(path.decode())}
+            fds: dict[OpenNumber, pathlib.Path] = {
+                AT_FDCWD: probe_log.process_tree_context.working_directory,
+            }
             for tid, thread in exec_epoch.threads.items():
                 for op_no, op in enumerate(thread.ops):
-                    if isinstance(op.data, OpenOp):
+                    if isinstance(op.data, Open):
                         path2 = op.data.path
                         assert path2 is not None
                         if op.ferrno == 0:
                             resolved_path = resolve_path(fds, path2)
-                            fds[op.data.fd] = resolved_path
+                            fds[op.data.open_number] = resolved_path
                             yield op, resolved_path, path2
-                    elif isinstance(op.data, ExecOp):
+                    elif isinstance(op.data, Exec):
                         path2 = op.data.path
                         assert path2 is not None
                         if op.ferrno == 0:
                             resolved_path = resolve_path(fds, path2)
                             yield op, resolved_path, path2
-                    elif isinstance(op.data, CloseOp):
+                    elif isinstance(op.data, Close):
                         if op.data.fd in fds:
-                            del fds[op.data.fd]
+                            del fds[op.data.open_number]
 
 
 def copy_file_closure(
@@ -189,13 +188,14 @@ def copy_file_closure(
 
     `copy` refers to whether we should copy files from disk or symlink them.
     """
-    to_copy = dict[pathlib.Path, Path | None]()
-    to_copy_exes = dict[pathlib.Path, Path | None]()
+    raise NotImplementedError()
+    to_copy = dict[pathlib.Path, PathArg | None]()
+    to_copy_exes = dict[pathlib.Path, PathArg | None]()
     for op, resolved_path, path in get_files(probe_log, verbose, console):
         match op:
-            case OpenOp():
+            case Open():
                 to_copy_exes[resolved_path] = path
-            case ExecOp():
+            case Exec():
                 to_copy_exes[resolved_path] = path
 
     shell = pathlib.Path(os.environ["SHELL"])
@@ -216,7 +216,8 @@ def copy_file_closure(
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         if maybe_path is not None:
-            ino_ver = InodeVersion.from_probe_path(maybe_path)
+            # ino_ver = InodeVersion.from_probe_path(maybe_path)
+            pass
         else:
             ino_ver = None
         if ino_ver is not None and (inode_content := inodes.get(ino_ver)) is not None:
@@ -248,22 +249,23 @@ def copy_file_closure(
 
 
 def resolve_path(
-        fds: typing.Mapping[int, pathlib.Path],
-        path: Path,
+        fds: typing.Mapping[OpenNumber, pathlib.Path],
+        path: PathArg,
 ) -> pathlib.Path:
-    if path.path and path.path.startswith(b"/"):
-        return pathlib.Path(path.path.decode()) # what a mouthful
-    elif path.path and (dir_path := fds.get(path.dirfd)):
-        return dir_path / pathlib.Path(path.path.decode())
+    if path.directory in fds:
+        if path.name:
+            return fds[path.directory] / path.name.decode()
+        else:
+            return fds[path.directory]
     else:
-        raise KeyError(f"dirfd {path.dirfd} not found in fd table")
+        raise KeyError(f"dirfd {path.directory} not found in fd table")
 
 
 def get_root_pid(probe_log: ProbeLog) -> Pid | None:
     possible_root = []
     for pid, process in probe_log.processes.items():
         first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0].data
-        assert isinstance(first_op, InitExecEpochOp)
+        assert isinstance(first_op, InitExecEpoch)
         possible_root.append(pid)
     if possible_root:
         # TODO: Fix this; min works for Linux because PIDs are assigned sequentially

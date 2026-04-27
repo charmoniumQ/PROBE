@@ -50,19 +50,15 @@ def parse_probe_log_ctx(
                         strict=True,
                     )
                     assert ops_list
-                    if not isinstance(ops_list[-1].data, (ops.ExitThreadOp, ops.ExitProcessOp, ops.ExecOp)):
-                        # Every thread should end in an ExitThreadOp and possibly an ExitProcessOp
+                    if not isinstance(ops_list[-1].data, (ops.ExitThread, ops.ExitProcess, ops.Exec)):
+                        # Every thread should end in an ExitThread and possibly an ExitProcess
                         # Consider:
                         # void main() { pthread_create(thread2); }
                         # void thread2() { }
                         # The HB graph would be a tree, main[0] ---clone--> thread2[0].
                         # We can't put an HB edge from the last op of thread2 to the last op of main, and the HB graph 
                         ops_list.append(ops.Op(
-                            data_tagged=ops.OpData7(
-                                content=ops.ExitThreadOp(
-                                    status=0,
-                                ),
-                            ),
+                            data=ops.ExitThread(status=0),
                             pthread_id=ops_list[-1].pthread_id,
                             iso_c_thread_id=ops_list[-1].iso_c_thread_id,
                             ferrno=0,

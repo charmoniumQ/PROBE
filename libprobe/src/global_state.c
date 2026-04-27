@@ -21,7 +21,6 @@
 #include "debug_logging.h"            // for ASSERTF, EXPECT, DEBUG, ERROR
 #include "probe_libc.h"               // for probe_libc_...
 #include "prov_buffer.h"              // for prov_log_try, prov_log_record, prov_log_save
-#include "prov_utils.h"               // for do_init_ops
 #include "util.h"                     // for CHECK_SNPRINTF, list_dir, UNLIKELY
 
 #ifdef NDEBUG
@@ -142,7 +141,7 @@ static inline void init_process_context() {
     __process_context->epoch_no += 1;
 }
 void uninit_process_context() {
-    /* TODO: */
+    /* TODO: Uncomment this */
     /* probe_libc_munmap(__process_context, sizeof(struct ProcessContext)); */
 }
 static inline const struct ProcessContext* get_process_context() {
@@ -325,11 +324,14 @@ static inline void check_function_pointers() {
 }
 
 static inline void emit_init_epoch_op() {
+    /*
+    // We odn't need to get the cwd, because we store the cwd along the way.
     static struct FixedPath cwd = {};
-    static struct FixedPath exe = {};
     if (probe_libc_getcwd(cwd.bytes, PROBE_PATH_MAX).error) {
         ERROR("");
     }
+    */
+    static struct FixedPath exe = {};
     if (client_readlinkat(AT_FDCWD, "/proc/self/exe", exe.bytes, PROBE_PATH_MAX) < 0) {
         ERROR("");
     }
@@ -346,17 +348,19 @@ static inline void emit_init_epoch_op() {
                         .parent_pid = probe_libc_getppid(),
                         .pid = probe_libc_getpid(),
                         .epoch = get_exec_epoch(),
-                        .cwd = create_path_lazy(AT_FDCWD, cwd.bytes, -1, 0),
-                        .exe = create_path_lazy(AT_FDCWD, exe.bytes, -1, 0),
+                        .exe =
+                            {
+                                .directory = {0},
+                                .name = arena_strndup(get_data_arena(), exe.bytes, exe.len + 1),
+                            },
                         .argv = arena_copy_cmdline(get_data_arena(), cmdline),
                         .env = arena_copy_argv(get_data_arena(), (StringArray)probe_environ, 0),
-                        .std_in = create_path_lazy(-1, NULL, 0, 0),
-                        .std_out = create_path_lazy(-1, NULL, 1, 0),
-                        .std_err = create_path_lazy(-1, NULL, 2, 0),
+                        .std_in = get_inode(0),
+                        .std_out = get_inode(1),
+                        .std_err = get_inode(2),
                     },
             },
     };
-    prov_log_try(init_epoch_op);
     prov_log_record(init_epoch_op);
     free(cmdline.value);
 }
@@ -365,7 +369,6 @@ static inline void emit_init_thread_op() {
     struct Op init_thread_op = {
         .data = {.init_thread_tag = OpData_InitThread, .init_thread = {.tid = get_tid()}},
     };
-    prov_log_try(init_thread_op);
     prov_log_record(init_thread_op);
 }
 
@@ -426,7 +429,7 @@ void init_proc() {
 
 void ensure_thread_initted() {
     if (!is_proc_inited()) {
-        // FIXME: reduce entrypoints to initialization
+        // TODO: reduce entrypoints to initialization
         WARNING("In interposition, but PROBE not already initialized. Initializing now.");
         init_proc();
     }

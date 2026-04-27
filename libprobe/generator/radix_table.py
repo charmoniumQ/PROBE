@@ -33,10 +33,11 @@ def multilevel_table(
     last_level = n_levels - 1
     index_type = f"uint{log_length_rounded}_t" if log_length_rounded < 128 else "unsigned __int128"
     fn_attrs = "__attribute__((visibility(\"hidden\")))"
+    print(value_type)
     c_header.write_text("\n".join([
         "#pragma once",
         "#define _GNU_SOURCE",
-        "#include <stdbool.h>",
+        *(["#include <stdbool.h>"] if value_type == "bool" else []),
         "#include <stdint.h>",
         "",
         f"enum _{camel_case}Flag {{ _{upper}_UNALLOCATED = 0, _{upper}_WAITING }};",
@@ -56,9 +57,12 @@ def multilevel_table(
         "",
         f"// sizeof table with one entry = {sizeof_one_entry / 1024:.1f}KiB = {sizeof_one_entry / 1024 / 1024:.1f}MiB",
     ]))
+    printf_flag = {
+        32: "%u",
+        64: "%lu",
+    }[log_length_rounded]
     checks = [
-        f"  if (index > {(1 << log_length) - 1}UL) {{ ERROR(\"%d-bit table not big enough to accommodate %lu\\n\", {log_length}, index); }}",
-        "  _Static_assert(ATOMIC_BOOL_LOCK_FREE, \"\");",
+        f"  if (index > {(1 << log_length) - 1}UL) {{ ERROR(\"%d-bit table not big enough to accommodate {printf_flag}\\n\", {log_length}, index); }}",
         "  _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
     ]
     c_source.write_text("\n".join([

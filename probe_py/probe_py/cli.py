@@ -155,11 +155,11 @@ def hb_graph(
         case OpType.ALL:
             pass
         case OpType.MINIMAL:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpochOp))
+            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpoch))
         case OpType.FILE:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: isinstance(op.data, (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp)))
+            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: isinstance(op.data, (ops.Open, ops.Close, ops.Dup, ops.Exec)))
         case OpType.SUCCESSFUL:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.ReaddirOp))
+            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.Readdir))
     hb_graph_module.label_nodes(probe_log_obj, hbg, show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
@@ -316,14 +316,6 @@ def debug_text(
                             op_data_json = json.dumps({key: value for key, value in op_data.items() if not strip_env or key != "env"}, indent=2)
                             print(f"{prefix}{op_type}", file=output_fd)
                             print(textwrap.indent(op_data_json, prefix=len(prefix) * " "), file=output_fd)
-        for ino_ver, path in tqdm.tqdm(
-                sorted(probe_log_obj.copied_files.items()),
-                desc="Printing inodes",
-        ):
-            print(
-                f"device={ino_ver.inode.device.major_id}.{ino_ver.inode.device.minor_id} inode={ino_ver.inode.number} mtime={ino_ver.mtime} -> {ino_ver.size} blob",
-                file=output_fd
-            )
 
 
 @export_app.command()

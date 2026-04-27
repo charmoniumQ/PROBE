@@ -1,5 +1,5 @@
 import typing
-from .headers import InitExecEpochOp, InitThreadOp, WaitOp, ExecOp, OpenOp, CloseOp, CloneOp, ExitThreadOp, ExitProcessOp, TaskType
+from .headers import InitExecEpoch, InitThread, Wait, Exec, Clone, ExitThread, ExitProcess, TaskType
 from .ptypes import Tid, Pid, ProbeLog
 
 
@@ -23,7 +23,6 @@ def validate_probe_log(
     yield from validate_exec_epoch_presence(probe_log)
     yield from validate_clone_targets(probe_log)
     yield from validate_clones_and_waits(probe_log)
-    yield from validate_opens_and_closes(probe_log)
 
 
 def validate_init_ops(
@@ -37,20 +36,20 @@ def validate_init_ops(
                 op_idx = 0
                 op = thread.ops[op_idx]
                 if tid == pid.main_thread():
-                    if not isinstance(op.data, InitExecEpochOp):
-                        yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitExecEpochOp, not {op.data}"
+                    if not isinstance(op.data, InitExecEpoch):
+                        yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitExecEpoch, not {op.data}"
                     op_idx += 1
 
                 op = thread.ops[op_idx]
-                if not isinstance(op.data, InitThreadOp):
-                    yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitThreadOp, not {op.data}"
+                if not isinstance(op.data, InitThread):
+                    yield f"{pid}.{exec_no}.{tid}.{op_idx} should be InitThread, not {op.data}"
                 op_idx += 1
 
                 for op_no, op in enumerate(thread.ops[op_idx:]):
-                    if isinstance(op, (InitExecEpochOp, InitThreadOp)):
+                    if isinstance(op, (InitExecEpoch, InitThread)):
                         yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is Init*Op, but it does not appear early enough"
-                    elif isinstance(op, (ExitThreadOp, ExitProcessOp)) and op_no != last_op_no:
-                        yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is ExitThreadOp, but it does not appear last"
+                    elif isinstance(op, (ExitThread, ExitProcess)) and op_no != last_op_no:
+                        yield f"{pid}.{exec_no}.{tid}.{op_no + op_idx} is ExitThread, but it does not appear last"
 
 
 def validate_exec_epoch_presence(probe_log: ProbeLog) -> typing.Iterator[str]:
@@ -80,15 +79,15 @@ def validate_clone_targets(probe_log: ProbeLog) -> typing.Iterator[str]:
             }
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
-                    if isinstance(op.data, CloneOp) and op.ferrno == 0:
+                    if isinstance(op.data, Clone) and op.ferrno == 0:
                         if op.data.task_type == TaskType.PID and Pid(op.data.task_id) not in pids:
-                            yield f"CloneOp returned a PID {op.data.task_id} that we didn't track"
+                            yield f"Clone returned a PID {op.data.task_id} that we didn't track"
                         elif op.data.task_type == TaskType.TID and Tid(op.data.task_id) not in exec_ep.threads:
-                            yield f"CloneOp returned a TID {op.data.task_id} that we didn't track"
+                            yield f"Clone returned a TID {op.data.task_id} that we didn't track"
                         elif op.data.task_type == TaskType.PTHREAD and op.data.task_id not in pthread_ids:
-                            yield f"CloneOp returned a pthread ID {op.data.task_id} that we didn't track"
+                            yield f"Clone returned a pthread ID {op.data.task_id} that we didn't track"
                         elif op.data.task_type == TaskType.ISO_C_THREAD and op.data.task_id not in iso_c_thread_ids:
-                            yield f"CloneOp returned a ISO C Thread ID {op.data.task_id} that we didn't track"
+                            yield f"Clone returned a ISO C Thread ID {op.data.task_id} that we didn't track"
 
 
 def validate_clones_and_waits(probe_log: ProbeLog) -> typing.Iterator[str]:
@@ -99,10 +98,10 @@ def validate_clones_and_waits(probe_log: ProbeLog) -> typing.Iterator[str]:
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
-                    if isinstance(op.data, WaitOp) and op.ferrno == 0:
+                    if isinstance(op.data, Wait) and op.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
                         waited_processes.add((TaskType(op.data.task_type), op.data.task_id))
-                    elif isinstance(op.data, CloneOp) and op.ferrno == 0:
+                    elif isinstance(op.data, Clone) and op.ferrno == 0:
                         cloned_processes.add((TaskType(op.data.task_type), op.data.task_id))
                         if op.data.task_type == TaskType.PID:
                             # New process implicitly also creates a new thread
@@ -116,25 +115,6 @@ def validate_execs(probe_log: ProbeLog) -> typing.Iterator[str]:
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
                 for op in thread.ops:
-                    if isinstance(op.data, ExecOp):
+                    if isinstance(op.data, Exec):
                         if not op.data.argv:
                             yield "No arguments stored in exec syscall"
-
-
-def validate_opens_and_closes(probe_log: ProbeLog) -> typing.Iterator[str]:
-    for pid, process in probe_log.processes.items():
-        opened_fds = set[int]()
-        closed_fds = set[int]()
-        for exec_no, exec_ep in process.execs.items():
-            for tid, thread in exec_ep.threads.items():
-                for op in thread.ops:
-                    if isinstance(op.data, OpenOp) and op.ferrno == 0:
-                        opened_fds.add(op.data.fd)
-                    elif isinstance(op.data, CloseOp) and op.ferrno == 0:
-                        # Range in Python is up-to-not-including high_fd, so we add one to it.
-                        closed_fds.add(op.data.fd)
-        reserved_fds = {0, 1, 2}
-        opened_fds -= reserved_fds
-        closed_fds -= reserved_fds
-        if opened_fds != closed_fds:
-            yield f"Opened different fds than we closed {opened_fds=} {closed_fds=}"

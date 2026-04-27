@@ -16,3 +16,5 @@ On the one hand, the information is passed _by_ (i.e., created/set by) the paren
 Resolved: Track it all in ExecOp, unless the current ExecOp is "unmarked". All probe-interposed exec*-family lib calls "mark" the target exec-op, indicated by the process_context.
 
 arenas and possibly other objects are held by pointer, necessitating 1 extra pointer dereference and sometimes 1 func call. Instead, access them directly (possibly through macros).
+
+Don't even log dups. If we copy the open number, and we never use raw FDs, we don't need to log dups and related fd ops.

@@ -1,6 +1,6 @@
 import collections
 from .ptypes import ProbeLog, HbGraph, OpQuad
-from .headers import CloneOp, WaitOp
+from .headers import Clone, Wait
 
 
 def get_max_parallelism_latest(hb_graph: HbGraph, probe_log: ProbeLog) -> int:
@@ -20,18 +20,18 @@ def get_max_parallelism_latest(hb_graph: HbGraph, probe_log: ProbeLog) -> int:
 
         visited.add(node)
 
-        # waitOp can be reached from the cloneOp and the last op of the child process
-        # is waitOp is reached via the cloneOp we ignore the node
-        if isinstance(node_op, WaitOp):
-            if parent and isinstance(parent_op, CloneOp):
+        # wait can be reached from the clone and the last op of the child process
+        # is wait is reached via the clone we ignore the node
+        if isinstance(node_op, Wait):
+            if parent and isinstance(parent_op, Clone):
                 visited.remove(node)
                 continue
         # for every clone the new process runs in parallel with other so we increment the counter
-        if isinstance(node_op, CloneOp):
+        if isinstance(node_op, Clone):
             counter += 1
             max_counter = max(counter, max_counter)
-        # for every waitOp the control comes back to the parent process so we decrement the counter
-        elif isinstance(node_op, WaitOp):
+        # for every wait the control comes back to the parent process so we decrement the counter
+        elif isinstance(node_op, Wait):
             if node_op.task_id!=0:
                 counter -= 1
         

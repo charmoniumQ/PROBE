@@ -62,7 +62,7 @@ simple_commands = {
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
     "createFile": [str(example_path / "createFile.exe")],
-    # FIXME
+    # TODO
     # "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
