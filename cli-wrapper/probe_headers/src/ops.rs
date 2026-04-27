@@ -51,7 +51,7 @@ pub struct StatxTimestamp {
 pub struct Inode {
     device_major: u32,
     device_minor: u32,
-    inode: libc::ino_t,
+    number: libc::ino_t,
     mode: u16,
     mtime: StatxTimestamp,
     ctime: StatxTimestamp,

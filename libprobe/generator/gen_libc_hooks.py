@@ -14,7 +14,7 @@ ignore_actions = False
 
 
 # whether to DEBUG() at the start of every interposed function.
-debug_print_start_of_interposition = True
+debug_print_start_of_interposition = False
 
 
 _T = typing.TypeVar("_T")

@@ -84,12 +84,12 @@ class Device:
 class Inode:
     host: Host
     device: Device
-    inode: int
+    number: int
     mode: int
 
     @staticmethod
     def from_ops_inode(inode: ops.Inode) -> Inode:
-        return Inode(Host.localhost(), Device(inode.device_major, inode.device_minor), inode.inode, inode.mode)
+        return Inode(Host.localhost(), Device(inode.device_major, inode.device_minor), inode.number, inode.mode)
 
     @property
     def type(self) -> str:
@@ -100,12 +100,12 @@ class Inode:
         return stat.S_ISFIFO(self.mode)
 
     def __str__(self) -> str:
-        return f"inode {self.type.upper()} {self.inode} on {self.device} @{self.host.name}"
+        return f"inode {self.type.upper()} {self.number} on {self.device} @{self.host.name}"
 
 
 @dataclasses.dataclass(frozen=True, order=True)
 class InodeVersion:
-    host_inode: Inode
+    inode: Inode
     # If you assume no clock adjustemnts, it is monotonic with other mtimes on the same Host;
     # other Hosts will not be synchronized (vector clock).
     # It's better to assume nothing; different mtime still implies different object, but no ordering.

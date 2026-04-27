@@ -111,7 +111,6 @@
         probe-cli = craneLib.buildPackage (individualCrateArgs
           // {
             pname = "probe-cli";
-            cargoExtraArgs = "-p probe_cli";
             src = fileSetForCrate [
               ./probe_cli
               ./probe_headers
@@ -125,7 +124,6 @@
           individualCrateArgs
           // {
             pname = "probe-headers";
-            cargoExtraArgs = "-p probe_headers";
             src = fileSetForCrate [
               ./probe_cli
               ./probe_headers

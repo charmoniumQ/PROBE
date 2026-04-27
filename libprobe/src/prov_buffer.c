@@ -43,7 +43,7 @@ enum AccessType {
 static inline void path_to_id_string(const struct Inode inode, BORROWED char* string) {
     CHECK_SNPRINTF(
         string, PATH_MAX, "%04x-%04x-%016lx-%016lldx-%08x-%016lx", inode.device_major,
-        inode.device_minor, inode.inode,
+        inode.device_minor, inode.number,
         /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
         (long long int)inode.mtime.tv_sec, inode.mtime.tv_nsec, inode.size);
 }
@@ -66,19 +66,19 @@ static int copy_to_store(int fd, struct Inode inode) {
     if (access == 0) {
         return 0;
     } else if ((inode.mode & S_IFMT) == S_IFDIR) {
-        ERROR("Can't copy directory %ld", inode.inode);
+        ERROR("Can't copy directory %ld", inode.number);
         // TODO: implement this
         // We need to copy the inode metadata (not actual contents) linked in this directory
         return 0;
     } else if ((inode.mode & S_IFMT) == S_IFREG) {
-        DEBUG("Copying regular file %ld", inode.inode);
+        DEBUG("Copying regular file %ld", inode.number);
         return (int)probe_copy_file(fd, AT_FDCWD, store_path.bytes, inode.size);
     } else if ((inode.mode & S_IFMT) == S_IFCHR) {
-        DEBUG("Copying block device file %ld", inode.inode);
+        DEBUG("Copying block device file %ld", inode.number);
         // TODO
         return 0;
     } else {
-        ERROR("Not sure how to copy special file inode=%ld, (mode & S_IFMT)=%d", inode.inode,
+        ERROR("Not sure how to copy special file inode=%ld, (mode & S_IFMT)=%d", inode.number,
               inode.mode & S_IFMT);
         return 0;
     }
@@ -96,13 +96,13 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
         ASSERTF(inode.device_minor < 256,
                 "Unexpectedly large device minor number, %d. Resize inode table levels",
                 inode.device_minor);
-        ASSERTF(inode.inode <= (1L << 32),
-                "Unexpectedly large inode, %lu. Resize inode table levels", inode.inode);
+        ASSERTF(inode.number <= (1L << 32),
+                "Unexpectedly large inode, %lu. Resize inode table levels", inode.number);
         uint64_t index = (((uint64_t)(inode.device_major)) << 48L) |
-                         (((uint64_t)(inode.device_minor)) << 32L) | inode.inode;
+                         (((uint64_t)(inode.device_minor)) << 32L) | inode.number;
         if (mode == CopyFiles_Lazily) {
             if (access == READ_ACCESS) {
-                DEBUG("Reading %ld", inode.inode);
+                DEBUG("Reading %ld", inode.number);
                 _Atomic(bool)* _Nonnull read_loc =
                     inode_table_address_of_strong(&read_inodes, index);
                 atomic_store(read_loc, true);
@@ -112,9 +112,9 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
                 if (atomic_exchange(coo_loc, true)) {
                     DEBUG("Mutating, but not copying %ld since it is copied already or "
                           "overwritten",
-                          inode.inode);
+                          inode.number);
                 } else {
-                    DEBUG("Mutating, therefore copying %ld", inode.inode);
+                    DEBUG("Mutating, therefore copying %ld", inode.number);
                     if (copy_to_store(fd, inode) != 0) {
                         ERROR("Copying failed");
                     }
@@ -128,15 +128,15 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
                     if (atomic_exchange(coo_loc, true)) {
                         DEBUG("Mutating, but not copying %ld since it is copied already or "
                               "overwritten",
-                              inode.inode);
+                              inode.number);
                     } else {
-                        DEBUG("Replace after read %ld", inode.inode);
+                        DEBUG("Replace after read %ld", inode.number);
                         if (copy_to_store(fd, inode) != 0) {
                             ERROR("Copying failed");
                         }
                     }
                 } else {
-                    DEBUG("Mutating, but not copying %ld since it was never read", inode.inode);
+                    DEBUG("Mutating, but not copying %ld since it was never read", inode.number);
                 }
             }
         } else if (access == READ_ACCESS || access == READ_WRITE_ACCESS || access == WRITE_ACCESS) {
@@ -144,7 +144,7 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
             _Atomic(bool)* _Nonnull coo_loc =
                 inode_table_address_of_strong(&copied_or_overwritten_inodes, index);
             if (atomic_exchange(coo_loc, true)) {
-                DEBUG("Not copying %ld because already did", inode.inode);
+                DEBUG("Not copying %ld because already did", inode.number);
             } else {
                 if (copy_to_store(fd, inode) != 0) {
                     ERROR("Copying failed");
@@ -165,7 +165,7 @@ struct Inode get_inode(int fd) {
     return (struct Inode){
         .device_major = statx_buf.stx_dev_major,
         .device_minor = statx_buf.stx_dev_minor,
-        .inode = statx_buf.stx_ino,
+        .number = statx_buf.stx_ino,
         .mode = statx_buf.stx_mode,
         .mtime = *(struct StatxTimestamp*)&statx_buf.stx_mtime,
         .ctime = *(struct StatxTimestamp*)&statx_buf.stx_ctime,
