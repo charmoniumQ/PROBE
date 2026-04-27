@@ -158,6 +158,8 @@ impl Recorder {
                 .map_err(|e| eyre!("{e:?}"))?,
             copy_files: self.copy_files,
             parent_of_root: std::process::id(),
+            working_directory: probe_headers::FixedPath::from_path_ref(std::env::current_dir()?)
+                .map_err(|e| eyre!("{e:?}"))?,
         };
         let mut ptc_mem = memory_parsing::Segments::single(
             0,

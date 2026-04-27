@@ -56,6 +56,7 @@ fn inner() -> Result<()> {
         "StringArray",
         "char const * _Nullable const * _Nonnull",
     );
+    let source = source + "\ntypedef struct OpenNumber OpenNumber;";
     std::fs::write(&out_file, source).wrap_err("writing C headers")?;
 
     Ok(())

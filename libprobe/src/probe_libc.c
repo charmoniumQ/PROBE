@@ -459,33 +459,26 @@ result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* _Nullable offse
     SYSCALL_ERROR_RESULT(result_ssize_t, retval);
 }
 
-result probe_copy_file(int src_dirfd, const char* _Nullable src_path, int dst_dirfd,
-                       const char* _Nullable dst_path, ssize_t size) {
+result probe_copy_file(int src_fd, int dst_dirfd, const char* _Nullable dst_path, ssize_t size) {
     // See https://stackoverflow.com/a/2180157
-
-    result_int src_fd = probe_libc_openat(src_dirfd, src_path, O_RDONLY, 0);
-    if (src_fd.error)
-        return (result)src_fd.error;
-
     result_int dst_fd = probe_libc_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
     if (dst_fd.error) {
-        probe_libc_close(src_fd.value);
+        probe_libc_close(src_fd);
         return (result)dst_fd.error;
     }
 
     off_t copied = 0;
     while (copied < size) {
-        result_ssize_t written =
-            probe_libc_sendfile(dst_fd.value, src_fd.value, &copied, SSIZE_MAX);
+        result_ssize_t written = probe_libc_sendfile(dst_fd.value, src_fd, &copied, SSIZE_MAX);
         if (written.error) {
-            probe_libc_close(src_fd.value);
+            probe_libc_close(src_fd);
             probe_libc_close(dst_fd.value);
             return written.error;
         }
         copied += written.value;
     }
 
-    probe_libc_close(src_fd.value);
+    probe_libc_close(src_fd);
     probe_libc_close(dst_fd.value);
 
     return 0;

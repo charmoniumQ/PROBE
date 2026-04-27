@@ -6,27 +6,13 @@
 #include <stdbool.h> // for bool
 
 struct Op;
-struct Path;
 struct StatResult;
 struct Rusage;
 struct stat;
 struct statx;
 struct rusage;
 
-__attribute__((visibility("hidden"))) struct Path
-create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags);
-
-__attribute__((visibility("hidden"))) void path_to_id_string(const struct Path* path,
-                                                             BORROWED char* string)
-    __attribute__((nonnull));
-
 __attribute__((visibility("hidden"))) void do_init_ops(bool was_epoch_initted);
-
-__attribute__((visibility("hidden"))) const struct Path* op_to_path(const struct Op* op)
-    __attribute__((nonnull));
-
-__attribute__((visibility("hidden"))) const struct Path* op_to_second_path(const struct Op* op)
-    __attribute__((nonnull));
 
 __attribute__((visibility("hidden"))) void op_to_human_readable(char* dest, int size, struct Op* op)
     __attribute__((nonnull));

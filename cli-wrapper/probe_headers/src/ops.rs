@@ -48,69 +48,83 @@ pub struct StatxTimestamp {
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, PartialEq, Eq, Clone)]
 #[repr(C)]
-pub struct Path {
-    // TODO: Make this just be Inode
-    dirfd: i32,
-    path: Option<ByteString>,
+pub struct Inode {
     device_major: u32,
     device_minor: u32,
-    inode: libc::ino_t,
+    number: libc::ino_t,
     mode: u16,
     mtime: StatxTimestamp,
     ctime: StatxTimestamp,
     size: u64,
-    stat_valid: bool,
+}
+
+// Making this be a struct helps the typing get "stronger"
+// Open Numbers can only be used where Open Numbers are expected.
+#[derive(MemoryParsable, JsonSchema, Serialize, Debug, PartialEq, Eq, Clone)]
+#[repr(C)]
+pub struct OpenNumber {
+    value: u16,
+}
+
+/// cbindgen:prefix-with-name
+#[derive(MemoryParsable, JsonSchema, Serialize, Debug, PartialEq, Eq, Clone)]
+#[repr(C)]
+pub struct PathArg {
+    directory: OpenNumber,
+    name: Option<ByteString>,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct InitExecEpochOp {
+pub struct InitExecEpoch {
     parent_pid: libc::pid_t,
     pid: libc::pid_t,
     epoch: u32,
-    cwd: Path,
-    exe: Path,
+    exe: PathArg,
     argv: StringArray,
     env: StringArray,
-    std_in: Path,
-    std_out: Path,
-    std_err: Path,
+    std_in: Inode,
+    std_out: Inode,
+    std_err: Inode,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct InitThreadOp {
+pub struct InitThread {
     tid: libc::pid_t,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct OpenOp {
-    path: Path,
+pub struct Open {
+    path: PathArg,
+    open_number: OpenNumber,
+    inode: Inode,
     flags: libc::c_int,
     mode: libc::mode_t,
-    fd: i32,
+    creat: bool,
+    dir: bool,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct CloseOp {
-    fd: i32,
-    path: Path,
+pub struct Close {
+    open_number: OpenNumber,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct ExecOp {
-    path: Path,
+pub struct Exec {
+    path: PathArg,
+    inode: Inode,
     argv: StringArray,
     env: StringArray,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct SpawnOp {
-    exec: ExecOp,
+pub struct Spawn {
+    exec: Exec,
     child_pid: libc::pid_t,
 }
 
@@ -126,7 +140,7 @@ pub enum TaskType {
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct CloneOp {
+pub struct Clone {
     flags: libc::c_int,
     run_pthread_atfork_handlers: bool,
     task_type: TaskType,
@@ -135,20 +149,20 @@ pub struct CloneOp {
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct ExitProcessOp {
+pub struct ExitProcess {
     status: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct ExitThreadOp {
+pub struct ExitThread {
     status: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct AccessOp {
-    path: Path,
+pub struct Access {
+    path: PathArg,
     mode: libc::c_int,
     flags: libc::c_int,
 }
@@ -179,23 +193,23 @@ pub struct StatResult {
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct StatOp {
-    path: Path,
+pub struct Stat {
+    path: PathArg,
     flags: libc::c_int,
     stat_result: StatResult,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct ReaddirOp {
-    dir: Path,
+pub struct Readdir {
+    dir: PathArg,
     child: Option<ByteString>,
     all_children: bool,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct WaitOp {
+pub struct Wait {
     task_type: TaskType,
     task_id: i64,
     options: libc::c_int,
@@ -212,12 +226,21 @@ pub struct Ownership {
     gid: libc::gid_t,
 }
 
+// Note that all types participating in an enum should be structs.
+// So that we can put the "type" tag in there.
+#[derive(MemoryParsable, JsonSchema, Serialize, Debug)]
+#[repr(C)]
+#[derive(Clone)]
+pub struct Mode {
+    value: libc::mode_t,
+}
+
 /// cbindgen:prefix-with-name
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(u8)]
-#[serde(tag = "type", content = "content")]
+#[serde(tag = "type")]
 pub enum MetadataValue {
-    Mode(libc::mode_t),
+    Mode(Mode),
     Ownership(Ownership),
     Times(Times),
 }
@@ -232,16 +255,16 @@ pub struct Times {
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct UpdateMetadataOp {
-    path: Path,
+pub struct UpdateMetadata {
+    path: PathArg,
     flags: libc::c_int,
     value: MetadataValue,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct ReadLinkOp {
-    linkpath: Path,
+pub struct ReadLink {
+    linkpath: PathArg,
     referent: ByteString,
     truncation: bool,
     recursive_dereference: bool,
@@ -249,39 +272,44 @@ pub struct ReadLinkOp {
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct DupOp {
-    path: Path,
-    old: libc::c_int,
-    new: libc::c_int,
+pub struct Dup {
+    old: OpenNumber,
     flags: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct HardLinkOp {
-    old: Path,
-    new: Path,
+pub struct HardLink {
+    old: PathArg,
+    new: PathArg,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct SymbolicLinkOp {
+pub struct SymbolicLink {
     old: ByteString,
-    new: Path,
+    new: PathArg,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct UnlinkOp {
-    path: Path,
+pub struct Unlink {
+    path: PathArg,
     unlink_type: libc::c_int,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
-pub struct RenameOp {
-    src: Path,
-    dst: Path,
+pub struct Rename {
+    src: PathArg,
+    dst: PathArg,
+}
+
+#[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
+#[repr(C)]
+pub struct MkFile {
+    path: PathArg,
+    file_type: FileType,
 }
 
 /// cbindgen:prefix-with-name
@@ -293,43 +321,33 @@ pub enum FileType {
     Pipe,
 }
 
-#[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
-#[repr(C)]
-pub struct MkFileOp {
-    path: Path,
-    file_type: FileType,
-    flags: libc::c_int,
-    mode: libc::mode_t,
-}
-
 /// cbindgen:add-sentinel
 /// cbindgen:prefix-with-name
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(u8)]
-#[allow(clippy::large_enum_variant)] /* TODO: reduce op size */
-#[serde(tag = "type", content = "content")]
+#[serde(tag = "type")]
 pub enum OpData {
-    Access(AccessOp),
-    Clone(CloneOp),
-    Close(CloseOp),
-    Dup(DupOp),
-    Exec(ExecOp),
-    ExitProcess(ExitProcessOp),
-    ExitThread(ExitThreadOp),
-    HardLink(HardLinkOp),
-    InitExecEpoch(InitExecEpochOp),
-    InitThread(InitThreadOp),
-    MkFile(MkFileOp),
-    Open(OpenOp),
-    ReadLink(ReadLinkOp),
-    Readdir(ReaddirOp),
-    Rename(RenameOp),
-    Spawn(SpawnOp),
-    Stat(StatOp),
-    SymbolicLink(SymbolicLinkOp),
-    Unlink(UnlinkOp),
-    UpdateMetadata(UpdateMetadataOp),
-    Wait(WaitOp),
+    Access(Access),
+    Clone(Clone),
+    Close(Close),
+    Dup(Dup),
+    Exec(Exec),
+    ExitProcess(ExitProcess),
+    ExitThread(ExitThread),
+    HardLink(HardLink),
+    InitExecEpoch(InitExecEpoch),
+    InitThread(InitThread),
+    Open(Open),
+    ReadLink(ReadLink),
+    Readdir(Readdir),
+    Rename(Rename),
+    Spawn(Spawn),
+    Stat(Stat),
+    SymbolicLink(SymbolicLink),
+    Unlink(Unlink),
+    UpdateMetadata(UpdateMetadata),
+    Wait(Wait),
+    MkFile(MkFile),
 }
 
 // echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out
@@ -338,7 +356,6 @@ pub enum OpData {
 #[repr(C)]
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 pub struct Op {
-    #[serde(rename = "data_tagged")]
     data: OpData,
     pthread_id: u16,
     iso_c_thread_id: u64,

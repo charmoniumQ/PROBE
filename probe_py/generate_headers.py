@@ -28,7 +28,7 @@ def autogen_code(jsonschema: pathlib.Path, headers_py: pathlib.Path) -> None:
             "--target-python-version=3.12", # "|"-unions and type alias
             "--capitalize-enum-members",
             "--use-generic-container-types", # Sequence instead of list
-            # "--collapse-root-models",
+            # "--collapse-root-models", # copy Union types at every use-site, rather than definint it once
             # "--enable-faux-immutability",
             # "--strict-types", "str", "bytes", "int", "float", "bool",
             # "--use-annotated",
@@ -41,28 +41,13 @@ def autogen_code(jsonschema: pathlib.Path, headers_py: pathlib.Path) -> None:
 
 def fixup_autogen_ast(headers_py: pathlib.Path) -> None:
     module = ast.parse(headers_py.read_text())
-    add_op_data_property(module)
     remove_unset(module)
     add_immutable(module)
-    add_tags(module)
+    fix_tagged_enums(module)
     replace_bytestring_sequence(module)
     fixup_imports(module)
+    add_typedefs(module)
     headers_py.write_text(ast.unparse(module))
-
-
-def add_op_data_property(module: ast.mod) -> None:
-    op_class = find_class(module, "Op")
-    op_data_content_variants = []
-    for op_data_class in find_classes(module, re.compile(r"OpData\d+")):
-        content_field = find_field(op_data_class, "content")
-        if isinstance(content_field.annotation, ast.Name):
-            op_data_content_variants.append(content_field.annotation.id)
-    data_property = ast.parse(f"""
-@property
-def data(self) -> {" | ".join(op_data_content_variants)}:
-    return self.data_tagged.content
-    """)
-    op_class.body.append(data_property.body[0])
 
 
 def remove_unset(module: ast.Module) -> None:
@@ -78,7 +63,7 @@ def remove_unset(module: ast.Module) -> None:
 
 
 def add_immutable(module: ast.Module) -> None:
-    for class_def in find_classes(module, re.compile(r".+")):
+    for class_def in find_classes(module):
         is_struct = any(
             isinstance(base, ast.Name) and base.id == "Struct"
             for base in class_def.bases
@@ -88,22 +73,33 @@ def add_immutable(module: ast.Module) -> None:
             # class_def.keywords.append(ast.keyword(arg="array_like", value=ast.Constant(value=True)))
 
 
-def add_tags(module: ast.Module) -> None:
-    for class_def in [
-            *find_classes(module, re.compile(r"OpData\d+")),
-            *find_classes(module, re.compile(r"MetadataValue\d+")),
-    ]:
-        class_def.keywords.append(ast.keyword(arg="tag_field", value=ast.Constant(value="type")))
-        type_field = find_field(class_def, "type")
-        assert isinstance(type_field.annotation, ast.Subscript)
-        tag = type_field.annotation.slice
-        assert isinstance(tag, ast.Constant)
-        class_def.keywords.append(ast.keyword(arg="tag", value=tag))
-        class_def.body = [
-            statement
-            for statement in class_def.body
-            if statement != type_field
+def fix_tagged_enums(module: ast.Module) -> None:
+    classes_to_replace: dict[str, str] = {}
+    for class_def in module.body[:]:
+        if isinstance(class_def, ast.ClassDef):
+            try:
+                type_field = find_field(class_def, "type")
+            except KeyError:
+                pass
+            else:
+                assert isinstance(type_field, ast.AnnAssign)
+                assert isinstance(type_field.annotation, ast.Subscript)
+                assert isinstance(type_field.annotation.value, ast.Name)
+                assert type_field.annotation.value.id == "Literal"
+                assert isinstance(type_field.annotation.slice, ast.Constant)
+                assert isinstance(type_field.annotation.slice.value, str)
+                tag_value = type_field.annotation.slice.value
+                find_class(module, tag_value) # assert class with this tag exists
+                classes_to_replace[class_def.name] = tag_value
+                module.body.remove(class_def)
+
+    for old_class, new_class in classes_to_replace.items():
+        module.body = [
+            replace(stmt, ast.Name(id=old_class), ast.Name(id=new_class))
+            for stmt in module.body
         ]
+        new_class_def = find_class(module, new_class)
+        new_class_def.keywords.append(ast.keyword(arg="tag", value=ast.Constant(value=True)))
 
 
 def replace_bytestring_sequence(module: ast.Module) -> None:
@@ -130,11 +126,37 @@ def fixup_imports(module: ast.mod) -> None:
     if isinstance(module, (ast.Module, ast.Interactive)):
         for statement in module.body:
             if isinstance(statement, ast.ImportFrom):
-                statement.names = [
-                    alias
-                    for alias in statement.names
-                    if alias.name not in {"UNSET", "UnsetType", "Literal"}
-                ]
+                if statement.module == "msgspec":
+                    statement.names = [
+                        alias
+                        for alias in statement.names
+                        if alias.name not in {"UNSET", "UnsetType"}
+                    ]
+                elif statement.module == "typing":
+                    statement.names = [
+                        alias
+                        for alias in statement.names
+                        if alias.name not in {"Literal",}
+                    ] + [ast.alias("Final")]
+
+
+def add_typedefs(module: ast.mod) -> None:
+    if isinstance(module, (ast.Module, ast.Interactive)):
+        module.body = module.body + [
+            ast.AnnAssign(
+                target=ast.Name(id='AT_FDCWD'),
+                annotation=ast.Subscript(
+                    value=ast.Name(id="Final"),
+                    slice=ast.Name(id="OpenNumber"),
+                ),
+                value=ast.Call(
+                    func=ast.Name(id="OpenNumber"),
+                    args=[ast.Constant(value=-100)],
+                    keywords=[],
+                ),
+                simple=True,
+            ),
+        ]
 
 
 def insert_after_imports(
@@ -148,7 +170,10 @@ def insert_after_imports(
     module.body[last_import + 1 : last_import + 1] = statements
 
 
-def find_classes(module: ast.mod, name: str | re.Pattern[str]) -> collections.abc.Iterator[ast.ClassDef]:
+def find_classes(
+        module: ast.mod,
+        name: str | re.Pattern[str] = re.compile(r".+"),
+) -> collections.abc.Iterator[ast.ClassDef]:
     if isinstance(module, (ast.Module, ast.Interactive)):
         for statement in module.body:
             if isinstance(statement, ast.ClassDef):
@@ -172,14 +197,13 @@ def find_field(class_def: ast.ClassDef, name: str) -> ast.AnnAssign:
     raise KeyError(f"field {name} not found in class {class_def.name}")
 
 
-def find_method(class_def: ast.ClassDef, name: str) -> ast.FunctionDef:
-    for statement in class_def.body:
-        if isinstance(statement, ast.FunctionDef):
-            if statement.name == name:
-                return statement
-    raise KeyError(f"field {name} not found in class {class_def.name}")
-
-
+@typing.overload
+def replace(
+        haystack: ast.Module,
+        needle: ast.expr,
+        substitute: ast.expr,
+) -> ast.stmt:
+    pass
 @typing.overload
 def replace(
         haystack: ast.stmt,
@@ -195,35 +219,27 @@ def replace(
 ) -> ast.expr:
     pass
 def replace(
-        haystack: ast.stmt | ast.expr,
+        haystack: ast.Module | ast.stmt | ast.expr,
         needle: ast.expr,
         substitute: ast.expr,
-) -> ast.stmt | ast.expr | str | list[typing.Any]:
+) -> ast.Module | ast.stmt | ast.expr | str | list[typing.Any]:
     match haystack:
-        case None | int():
+        case None | int() | str():
             return haystack
-        case str():
-            if isinstance(needle, ast.Name) and isinstance(substitute, ast.Name) and haystack == needle.id:
-                print(needle.id, "->", substitute.id)
-                return substitute.id
-            else:
-                return haystack
         case list():
             return [
                 replace(elem, needle, substitute)
                 for elem in haystack
             ]
         case ast.AST():
-            # use ast.compare in Python >= 3.14
+            # TODO: use ast.compare in Python >= 3.14
             if ast.unparse(haystack) == ast.unparse(needle):
-                print("repl", ast.unparse(haystack), "->", ast.unparse(substitute))
                 return substitute
             else:
-                ret = type(haystack)(**{
-                    keyword: replace(value, needle, substitute)
-                    for keyword, value in haystack.__dict__.items() 
+                return type(haystack)(**{
+                    keyword: replace(value, needle, substitute) if keyword != "parent" else value
+                    for keyword, value in haystack.__dict__.items()
                 })
-                return ret
 
 
 if __name__ == "__main__":

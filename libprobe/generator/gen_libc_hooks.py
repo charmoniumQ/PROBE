@@ -649,7 +649,6 @@ typedef void* __type_voidp;
 // Clang and GCC disagree on how to construct this struct inline.
 // So I will construct it not inline, here.
 const struct Rusage null_usage = {};
-static const struct Path null_path = {0, NULL, 0, 0, 0, 0, {0}, {0}, 0, false};
 _Static_assert(sizeof(struct Rusage) == sizeof(struct rusage), "");
 _Static_assert(sizeof(struct StatxTimestamp) == sizeof(struct statx_timestamp), "");
 _Static_assert(sizeof(struct TimeVal) == sizeof(struct timeval), "");

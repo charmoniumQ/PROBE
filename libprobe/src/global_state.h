@@ -58,6 +58,8 @@ __attribute__((visibility("hidden"))) PthreadID increment_pthread_id();
 
 __attribute__((visibility("hidden"))) const char* _Nonnull get_default_path();
 
+__attribute__((visibility("hidden"))) struct FdTable* _Nonnull get_fd_table();
+
 __attribute__((visibility("hidden"))) void ensure_thread_initted();
 
 __attribute__((visibility("hidden"))) void init_thread(PthreadID);

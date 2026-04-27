@@ -12,72 +12,9 @@
 // IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
 
 #include "../generated/headers.h" // for OpCode, StatResult, Op
-#include "arena.h"                // for arena_strndup
 #include "debug_logging.h"        // for DEBUG, EXPECT_NONNULL, NOT...
-#include "global_state.h"         // for get_data_arena, get_exec_e...
 #include "probe_libc.h"           // for probe_libc_strlen
 #include "util.h"                 // for CHECK_SNPRINTF, BORROWED
-
-static const struct Path null_path = {0, NULL, 0, 0, 0, 0, {0}, {0}, 0, false};
-
-struct Path create_path_lazy(int dirfd, BORROWED const char* path, int fd, int flags) {
-    ASSERTF((path && dirfd != -1) || (!path && (dirfd == -1 || (flags & AT_EMPTY_PATH))),
-            "Either dirfd and path are both set, both unset, or AT_EMPTY_PATH: %d %s %d", dirfd,
-            path, fd);
-    ASSERTF(dirfd != 0 || (path && path[0] == '/'), "dirfd==0 implies absolute path: %d %s %d",
-            dirfd, path, fd);
-    struct Path ret = {
-        dirfd,
-        (path != NULL ? EXPECT_NONNULL(arena_strndup(get_data_arena(), path, PATH_MAX)) : NULL),
-        -1,
-        -1,
-        -1,
-        0,
-        {0},
-        {0},
-        0,
-        false,
-    };
-
-    struct statx statx_buf;
-    result stat_ret;
-    if (fd != -1) {
-        stat_ret = probe_libc_statx(fd, NULL, flags | AT_EMPTY_PATH,
-                                    STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
-                                        STATX_CTIME | STATX_SIZE,
-                                    &statx_buf);
-        if (stat_ret != 0) {
-            WARNING("We got a bad FD; could be the client's fault? fd=%d stat_ret=%d", fd,
-                    stat_ret);
-        }
-    } else {
-        stat_ret = probe_libc_statx(dirfd, path, flags,
-                                    STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME |
-                                        STATX_CTIME | STATX_SIZE,
-                                    &statx_buf);
-    }
-    if (stat_ret == 0) {
-        ret.device_major = statx_buf.stx_dev_major;
-        ret.device_minor = statx_buf.stx_dev_minor;
-        ret.mode = statx_buf.stx_mode;
-        ret.inode = statx_buf.stx_ino;
-        ret.mtime = *(struct StatxTimestamp*)&statx_buf.stx_mtime;
-        ret.ctime = *(struct StatxTimestamp*)&statx_buf.stx_ctime;
-        ret.size = statx_buf.stx_size;
-        ret.stat_valid = true;
-    } else {
-        /* DEBUG("Stat of %d,%s is not valid", dirfd, path); */
-    }
-    return ret;
-}
-
-void path_to_id_string(const struct Path* path, BORROWED char* string) {
-    CHECK_SNPRINTF(
-        string, PATH_MAX, "%04x-%04x-%016lx-%016lldx-%08x-%016lx", path->device_major,
-        path->device_minor, path->inode,
-        /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
-        (long long int)path->mtime.tv_sec, path->mtime.tv_nsec, path->size);
-}
 
 int fopen_to_flags(BORROWED const char* fopentype) {
     /* Table from fopen to open is documented here:
@@ -98,49 +35,6 @@ int fopen_to_flags(BORROWED const char* fopentype) {
         return O_RDWR | O_CREAT | O_APPEND;
     } else {
         NOT_IMPLEMENTED("Unknown fopentype %s", fopentype);
-    }
-}
-
-const struct Path* op_to_path(const struct Op* op) {
-    switch (op->data.tag) {
-    case OpData_Open:
-        return &op->data.open.path;
-    case OpData_Exec:
-        return &op->data.exec.path;
-    case OpData_InitExecEpoch:
-        return &op->data.init_exec_epoch.exe;
-    case OpData_Access:
-        return &op->data.access.path;
-    case OpData_Stat:
-        return &op->data.stat.path;
-    case OpData_UpdateMetadata:
-        return &op->data.update_metadata.path;
-    case OpData_ReadLink:
-        return &op->data.read_link.linkpath;
-    case OpData_HardLink:
-        return &op->data.hard_link.old;
-    case OpData_SymbolicLink:
-        return &op->data.symbolic_link.new_;
-    case OpData_Unlink:
-        return &op->data.unlink.path;
-    case OpData_Rename:
-        return &op->data.rename.src;
-    case OpData_MkFile:
-        return &op->data.mk_file.path;
-    case OpData_Readdir:
-        return &op->data.readdir.dir;
-    default:
-        return &null_path;
-    }
-}
-const struct Path* op_to_second_path(const struct Op* op) {
-    switch (op->data.tag) {
-    case OpData_HardLink:
-        return &op->data.hard_link.new_;
-    case OpData_Rename:
-        return &op->data.rename.dst;
-    default:
-        return &null_path;
     }
 }
 
@@ -186,8 +80,6 @@ BORROWED const char* op_code_to_string(enum OpData_Tag op_code) {
         return "Unlink";
     case OpData_Rename:
         return "Rename";
-    case OpData_MkFile:
-        return "MkFile";
     default:
         return "UnknownOp";
     }
@@ -195,9 +87,6 @@ BORROWED const char* op_code_to_string(enum OpData_Tag op_code) {
 
 static const size_t MAX_OPCODE_STRING_LENGTH = 256;
 
-int path_to_string(const struct Path* path, char* buffer, int buffer_length) {
-    return CHECK_SNPRINTF(buffer, buffer_length, "%s", path->path);
-}
 void op_to_human_readable(char* dest, int size, struct Op* op) {
     const char* op_str = op_code_to_string(op->data.tag);
     probe_libc_strncpy(dest, op_str, size);
@@ -208,17 +97,9 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
     dest++;
     size--;
 
-    const struct Path* path = op_to_path(op);
-    if (path->dirfd != -1) {
-        int path_size = path_to_string(path, dest, size);
-        dest += path_size;
-        size -= path_size;
-    }
-
     switch (op->data.tag) {
     case OpData_Open: {
-        int fd_size =
-            CHECK_SNPRINTF(dest, size, " fd=%d flags=%d", op->data.open.fd, op->data.open.flags);
+        int fd_size = CHECK_SNPRINTF(dest, size, " flags=%d", op->data.open.flags);
         dest += fd_size;
         size -= fd_size;
         break;
@@ -232,7 +113,7 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
         break;
     }
     case OpData_Close: {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.fd);
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.open_number.value);
         dest += fd_size;
         size -= fd_size;
         break;

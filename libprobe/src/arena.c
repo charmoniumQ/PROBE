@@ -54,10 +54,10 @@ static inline void arena_reinstantiate(struct ArenaDir* arena_dir, size_t min_ca
              arena_dir->__next_instantiation);
 
     result_int fd = probe_libc_openat(AT_FDCWD, arena_dir->__dir_buffer, O_RDWR | O_CREAT, 0666);
-    // FIXME: check in optimized too
+    // TODO: check in optimized too
     ASSERTF(fd.error == 0, "openat error=%d (%s)", fd.error, arena_dir->__dir_buffer);
 
-    // FIXME: check in optimized too (probably with an (UN)LIKELY macro)
+    // TODO: check in optimized too (probably with an (UN)LIKELY macro)
     EXPECT(== 0, probe_libc_ftruncate(fd.value, capacity));
 
     /* mmap here corresponds to munmap in either arena_destroy or arena_uninstantiate_all_but_last */
@@ -124,7 +124,7 @@ void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size)
 
 void arena_create(struct ArenaDir* arena_dir, char* dir_buffer, size_t dir_len,
                   size_t dir_buffer_max, size_t arena_capacity) {
-    // FIXME: error handling on optimized builds too
+    // TODO: error handling on optimized builds too
     EXPECT(== 0, probe_libc_mkdirat(AT_FDCWD, dir_buffer, 0777));
     struct ArenaListElem* tail = EXPECT_NONNULL(malloc(sizeof(struct ArenaListElem)));
     /* malloc here corresponds to free in arena_destroy */

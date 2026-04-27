@@ -55,6 +55,7 @@ pub struct ProcessTreeContext {
     pub libprobe_path: FixedPath,
     pub copy_files: CopyFiles,
     pub parent_of_root: u32,
+    pub working_directory: FixedPath,
 }
 
 #[repr(C)]
