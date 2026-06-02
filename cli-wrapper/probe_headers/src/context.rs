@@ -1,3 +1,4 @@
+use crate::ops::Inode;
 use derive_memory_parsing::MemoryParsable;
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -56,6 +57,10 @@ pub struct ProcessTreeContext {
     pub copy_files: CopyFiles,
     pub parent_of_root: u32,
     pub working_directory: FixedPath,
+    pub working_directory_inode: Inode,
+    pub std_in: Inode,
+    pub std_out: Inode,
+    pub std_err: Inode,
 }
 
 #[repr(C)]

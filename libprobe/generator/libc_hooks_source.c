@@ -196,10 +196,16 @@ void closefrom (int lowfd) {
 int dup3 (int old, int new, int flags) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled() && ret != -1)) {
+            OpenNumber old_dst = get_open_number(new);
             prov_log_record((struct Op) {
                 .data = {
                     .dup_tag = OpData_Dup,
-                    .dup = {dup_open_numbers(old, new), 0},
+                    .dup = {
+                        .src = get_open_number(old),
+                        .old_dst = old_dst,
+                        .dst = new_open_number(new),
+                        .flags = 0,
+                    },
                 },
                 .ferrno = 0,
             });
@@ -211,10 +217,16 @@ int dup3 (int old, int new, int flags) {
 int dup (int old) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled() && ret != -1)) {
+            OpenNumber old_dst = get_open_number(ret);
             prov_log_record((struct Op) {
                 .data = {
                     .dup_tag = OpData_Dup,
-                    .dup = {dup_open_numbers(old, ret), 0},
+                    .dup = {
+                        .src = get_open_number(old),
+                        .old_dst = old_dst,
+                        .dst = new_open_number(ret),
+                        .flags = 0,
+                    },
                 },
                 .ferrno = 0,
             });
@@ -263,11 +275,14 @@ int fcntl (int filedes, int command, ...) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
             if (LIKELY(ret >= 0) && (command == F_DUPFD || command == F_DUPFD_CLOEXEC)) {
+                OpenNumber old_dst = get_open_number(ret);
                 prov_log_record((struct Op) {
                     .data = {
                         .dup_tag = OpData_Dup,
                         .dup = {
-                            .old = get_open_number(filedes),
+                            .src = get_open_number(filedes),
+                            .old_dst = old_dst,
+                            .dst = new_open_number(ret),
                             .flags = (command == F_DUPFD_CLOEXEC) ? O_CLOEXEC : 0,
                         },
                     },
@@ -283,7 +298,19 @@ fn fcntl64 = fcntl;
 int fchdir (int filedes) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled() && ret == 0)) {
-            dup_open_numbers(filedes, AT_FDCWD);
+            OpenNumber old_dst = get_open_number(AT_FDCWD);
+            prov_log_record((struct Op) {
+                .data = {
+                    .dup_tag = OpData_Dup,
+                    .dup = {
+                        .src = get_open_number(filedes),
+                        .old_dst = old_dst,
+                        .dst = new_open_number(AT_FDCWD),
+                        .flags = 0,
+                    },
+                },
+                .ferrno = 0,
+            });
         }
     });
 }
@@ -2228,15 +2255,17 @@ int pipe2(int pipefd[2], int flags) {
     void* post_call = ({
         /* A successful pipe call is equivalent to two opens on a fifo file into specific FDs */
         if (LIKELY(ret == 0)) {
-            struct Op open_read_end_op = {
+            struct Inode inode = get_inode(pipefd[0]);
+            prov_log_record((struct Op){
                 .data = {
                     .open_tag = OpData_Open,
                     .open = {
                         .path = {
-                            .directory = new_open_number(pipefd[0]),
+                            .directory = {.fd = -99, .number = 0},
                             .name = NULL,
                         },
-                        .inode = get_inode(pipefd[0]),
+                        .open_number = new_open_number(pipefd[0]),
+                        .inode = inode,
                         .flags = O_RDONLY,
                         .mode = 0,
                         .creat = true,
@@ -2244,15 +2273,17 @@ int pipe2(int pipefd[2], int flags) {
                     },
                 },
                 .ferrno = 0,
-            };
-            struct Op open_write_end_op = {
+            });
+            prov_log_record((struct Op){
                 .data = {
                     .open_tag = OpData_Open,
                     .open = {
                         .path = {
-                            .directory = new_open_number(pipefd[1]),
+                            .directory = {.fd = -99, .number = 0},
                             .name = NULL,
                         },
+                        .open_number = new_open_number(pipefd[1]),
+                        .inode = inode,
                         .flags = O_CREAT | O_TRUNC | O_WRONLY,
                         .mode = 0,
                         .dir = false,
@@ -2260,13 +2291,10 @@ int pipe2(int pipefd[2], int flags) {
                     },
                 },
                 .ferrno = 0,
-            };
-            prov_log_record(open_read_end_op);
-            prov_log_record(open_write_end_op);
+            });
         }
     });
 }
-
 int pipe(int pipefd[2]) {
     void* call = ({
         int ret = pipe2(pipefd, 0);
@@ -2281,9 +2309,10 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
                     .open_tag = OpData_Open,
                     .open = {
                         .path = {
-                            .directory = get_open_number(fd),
+                            .directory = {.fd=-99, .number=0},
                             .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
                         },
+                        .open_number = get_open_number(fd),
                         .inode = get_inode(ret),
                         .flags = 0,
                         .mode = mode,

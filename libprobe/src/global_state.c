@@ -352,9 +352,6 @@ static inline void emit_init_epoch_op() {
                             },
                         .argv = arena_copy_cmdline(get_data_arena(), cmdline),
                         .env = arena_copy_argv(get_data_arena(), (StringArray)probe_environ, 0),
-                        .std_in = get_inode(0),
-                        .std_out = get_inode(1),
-                        .std_err = get_inode(2),
                     },
             },
     };

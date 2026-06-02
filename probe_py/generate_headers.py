@@ -147,13 +147,10 @@ def add_typedefs(module: ast.mod) -> None:
                 target=ast.Name(id='AT_FDCWD'),
                 annotation=ast.Subscript(
                     value=ast.Name(id="Final"),
-                    slice=ast.Name(id="OpenNumber"),
+                    slice=ast.Name(id="int"),
                 ),
-                value=ast.Call(
-                    func=ast.Name(id="OpenNumber"),
-                    args=[ast.Constant(value=-100)],
-                    keywords=[],
-                ),
+                # cpp -E <(echo -e '#include <fcntl.h>\nAT_FDCWD') | tail --lines=1
+                value=ast.Constant(value=2**16 - 100),
                 simple=True,
             ),
         ]

@@ -113,7 +113,7 @@ void op_to_human_readable(char* dest, int size, struct Op* op) {
         break;
     }
     case OpData_Close: {
-        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.open_number.value);
+        int fd_size = CHECK_SNPRINTF(dest, size, " fd=%d ", op->data.close.open_number.fd);
         dest += fd_size;
         size -= fd_size;
         break;

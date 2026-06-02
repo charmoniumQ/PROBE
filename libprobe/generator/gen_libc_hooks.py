@@ -620,7 +620,6 @@ libc_hooks_c_preamble = """
 #include <stdint.h>                                          // for int64_t
 #include <stdio.h>                                           // for fileno
 #include <stdlib.h>                                          // for free
-#include <string.h>                                          // for memcpy
 #include <sys/resource.h>                                    // IWYU pragma: keep for rusage
 #include <sys/stat.h>                                        // for chmod, statx
 #include <sys/time.h>                                        // for futimes, timeval
