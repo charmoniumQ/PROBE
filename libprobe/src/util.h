@@ -4,10 +4,10 @@
 
 // https://stackoverflow.com/a/78062291/1078199
 #include <stdarg.h>    // for va_arg, va_end, va_start, va_list
+#include <stddef.h>    // for size_t
 #include <stdbool.h>   // for bool
-#include <stdio.h>     // for snprintf, size_t
 #include <sys/types.h> // for ssize_t
-
+#include "libc_subset.h"
 #include "debug_logging.h" // for ASSERTF
 
 /*

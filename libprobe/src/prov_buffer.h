@@ -2,8 +2,9 @@
 
 #include "../generated/headers.h" // for OpenNumber
 #include <stdbool.h>              // for bool
-#include <stdio.h>                // for FILE*
 #include <sys/types.h>            // for mode_t
+#include "libc_subset.h"          // IWYU pragma: keep for FILE
+// IWYU pragma: no_include <stdio.h>
 
 __attribute__((visibility("hidden"))) void prov_log_save();
 

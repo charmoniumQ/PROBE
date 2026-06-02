@@ -3,10 +3,10 @@
 #define _GNU_SOURCE
 
 #include <errno.h> // for errno
-#include <stdio.h> // for fprintf, stderr
 
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
 #include "probe_libc.h"   // IWYU pragma: keep for exit_with_backup
+#include "libc_subset.h"
 
 #ifndef SOURCE_VERSION
 #define SOURCE_VERSION ""

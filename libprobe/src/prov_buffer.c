@@ -20,9 +20,9 @@
 #include "debug_logging.h"            // for DEBUG, ERROR, ASSERTF
 #include "errno.h"                    // for errno
 #include "global_state.h"             // for get_data_arena, get_op_arena
+#include "libc_subset.h"              // for fileno
 #include "linux/stat.h"               // for statx, STATX_CTIME, STATX_INO
 #include "probe_libc.h"               // for probe_copy_file, probe_libc_fa...
-#include "stdio.h"                    // for fileno
 #include "util.h"                     // for BORROWED, CHECK_SNPRINTF
 
 void prov_log_save() {

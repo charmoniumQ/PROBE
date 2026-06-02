@@ -3,11 +3,9 @@
 #include <fcntl.h>         // for O_CREAT, AT_FDCWD, O_RDWR
 #include <limits.h>        // IWYU pragma: keep for PATH_MAX
 #include <stdbool.h>       // for bool, true, false
-#include <sys/resource.h>  // IWYU pragma: keep for rusage
 #include <sys/stat.h>      // IWYU pragma: keep for stat, statx, statx_timestamp
 #include <sys/sysmacros.h> // for major, minor
 #include <time.h>          // for timespec
-// IWYU pragma: no_include "bits/types/struct_rusage.h"      for rusage, rusage::(anonymous)
 // IWYU pragma: no_include "linux/limits.h"                  for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"                    for statx, statx_timestamp
 
