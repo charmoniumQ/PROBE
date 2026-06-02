@@ -160,6 +160,11 @@ impl Recorder {
             parent_of_root: std::process::id(),
             working_directory: probe_headers::FixedPath::from_path_ref(std::env::current_dir()?)
                 .map_err(|e| eyre!("{e:?}"))?,
+            interpose_read_writes: false, // safe fallback; libprobe should overwrite this
+            working_directory_inode: probe_headers::Inode::get_inode(".")?,
+            std_in: probe_headers::Inode::get_inode("/dev/stdin")?,
+            std_out: probe_headers::Inode::get_inode("/dev/stdout")?,
+            std_err: probe_headers::Inode::get_inode("/dev/stderr")?,
         };
         let mut ptc_mem = memory_parsing::Segments::single(
             0,

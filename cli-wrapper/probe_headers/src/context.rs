@@ -1,3 +1,4 @@
+use crate::ops::Inode;
 use derive_memory_parsing::MemoryParsable;
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -54,8 +55,13 @@ pub struct FixedPath {
 pub struct ProcessTreeContext {
     pub libprobe_path: FixedPath,
     pub copy_files: CopyFiles,
+    pub interpose_read_writes: bool,
     pub parent_of_root: u32,
     pub working_directory: FixedPath,
+    pub working_directory_inode: Inode,
+    pub std_in: Inode,
+    pub std_out: Inode,
+    pub std_err: Inode,
 }
 
 #[repr(C)]

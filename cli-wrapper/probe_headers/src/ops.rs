@@ -15,27 +15,6 @@ pub struct TimeVal {
     tv_usec: SusecondsT,
 }
 
-#[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
-#[repr(C)]
-pub struct Rusage {
-    ru_utime: TimeVal,
-    ru_stime: TimeVal,
-    ru_maxrss: libc::c_long,
-    ru_ixrss: libc::c_long,
-    ru_idrss: libc::c_long,
-    ru_isrss: libc::c_long,
-    ru_minflt: libc::c_long,
-    ru_majflt: libc::c_long,
-    ru_nswap: libc::c_long,
-    ru_inblock: libc::c_long,
-    ru_oublock: libc::c_long,
-    ru_msgsnd: libc::c_long,
-    ru_msgrcv: libc::c_long,
-    ru_nsignals: libc::c_long,
-    ru_nvcsw: libc::c_long,
-    ru_nivcsw: libc::c_long,
-}
-
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, PartialEq, Eq, Clone)]
 #[repr(C)]
 pub struct StatxTimestamp {
@@ -58,12 +37,40 @@ pub struct Inode {
     size: u64,
 }
 
+impl Inode {
+    pub fn get_inode(path: &str) -> eyre::Result<Inode> {
+        use eyre::WrapErr;
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::metadata(path).with_context(|| format!("path={}", path))?;
+        Ok(Inode {
+            device_major: TryInto::<u32>::try_into(meta.dev() >> 32)?,
+            device_minor: TryInto::<u32>::try_into(meta.dev() & 0xFFFFFFFF)?,
+            number: meta.ino(),
+            mode: TryInto::<u16>::try_into(meta.mode())?,
+            ctime: StatxTimestamp {
+                tv_sec: meta.ctime(),
+                tv_nsec: TryInto::<u32>::try_into(meta.ctime_nsec())?,
+                __padding: 0,
+            },
+            mtime: StatxTimestamp {
+                tv_sec: meta.mtime(),
+                tv_nsec: TryInto::<u32>::try_into(meta.mtime_nsec())?,
+                __padding: 0,
+            },
+            size: meta.size(),
+        })
+    }
+}
+
 // Making this be a struct helps the typing get "stronger"
 // Open Numbers can only be used where Open Numbers are expected.
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, PartialEq, Eq, Clone)]
 #[repr(C)]
 pub struct OpenNumber {
-    value: u16,
+    fd: u16,
+
+    #[serde(rename = "raw_number")]
+    number: u16,
 }
 
 /// cbindgen:prefix-with-name
@@ -83,9 +90,6 @@ pub struct InitExecEpoch {
     exe: PathArg,
     argv: StringArray,
     env: StringArray,
-    std_in: Inode,
-    std_out: Inode,
-    std_err: Inode,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -99,6 +103,7 @@ pub struct InitThread {
 pub struct Open {
     path: PathArg,
     open_number: OpenNumber,
+    fd: libc::c_int,
     inode: Inode,
     flags: libc::c_int,
     mode: libc::mode_t,
@@ -272,7 +277,9 @@ pub struct ReadLink {
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
 pub struct Dup {
-    old: OpenNumber,
+    src: OpenNumber,
+    dst: OpenNumber,
+    old_dst: OpenNumber,
     flags: libc::c_int,
 }
 
