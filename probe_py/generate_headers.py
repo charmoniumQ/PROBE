@@ -140,6 +140,27 @@ def fixup_imports(module: ast.mod) -> None:
                     ] + [ast.alias("Final")]
 
 
+def add_properties(module: ast.mod) -> None:
+    open_number_class = find_class(module, "OpenNumber")
+    open_number_class.body.extend(ast.parse("""
+
+@property
+def number(self) -> int:
+    return self.raw_number & 0x3FFF
+
+@property
+def is_read(self) -> bool:
+    return bool(self.raw_number & 0x4000)
+
+@property
+def is_write(self) -> bool:
+    return bool(self.raw_number & 0x8000)
+
+def __str__(self) -> str:
+    return f"{self.fd},{self.number}{"R" if self.is_read else ""}{"W" if self.is_write else ""}"
+""").body)
+
+
 def add_typedefs(module: ast.mod) -> None:
     if isinstance(module, (ast.Module, ast.Interactive)):
         module.body = module.body + [
@@ -153,7 +174,29 @@ def add_typedefs(module: ast.mod) -> None:
                 value=ast.Constant(value=2**16 - 100),
                 simple=True,
             ),
+            ast.AnnAssign(
+                target=ast.Name(id='O_CLOEXEC'),
+                annotation=ast.Subscript(
+                    value=ast.Name(id="Final"),
+                    slice=ast.Name(id="int"),
+                ),
+                # cpp -E <(echo -e '#include <fcntl.h>\nO_CLOEXEC') | tail --lines=1
+                value=ast.Constant(0o2000000),
+                simple=True,
+            ),
+            ast.AnnAssign(
+                target=ast.Name(id='FD_CLOEXEC'),
+                annotation=ast.Subscript(
+                    value=ast.Name(id="Final"),
+                    slice=ast.Name(id="int"),
+                ),
+                # cpp -E <(echo -e '#include <fcntl.h>\nFD_CLOEXEC') | tail --lines=1
+                value=ast.Constant(1),
+                simple=True,
+            ),
         ]
+    else:
+        raise TypeError()
 
 
 def insert_after_imports(

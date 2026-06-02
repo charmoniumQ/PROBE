@@ -269,7 +269,7 @@ funcs = {
 funcs = {
     **funcs,
     **{
-        node.name: dataclasses.replace(orig_funcs[typing.cast(ID, node.init).name], name=node.name)
+        node.name: dataclasses.replace(funcs[typing.cast(ID, node.init).name], name=node.name)
         for node in ast.ext
         if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
     },
@@ -382,24 +382,6 @@ PRINT_FLAGS = {
 
 
 generator = GccCGenerator()
-
-
-def find_decl(
-        block: typing.Sequence[Node],
-        name: str,
-        comment: typing.Any,
-) -> Decl | None:
-    relevant_stmts = [
-        stmt
-        for stmt in block
-        if isinstance(stmt, Decl) and stmt.name == name
-    ]
-    if not relevant_stmts:
-        return None
-    elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
-    else:
-        return relevant_stmts[0]
 
 
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
@@ -558,13 +540,17 @@ libc_hooks_h_preamble = """
 #include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
 #include <signal.h>               // for siginfo_t
 #include <spawn.h>                // for posix_spawn_file_actions_t
+#include <stdbool.h>              // for bool
 #include <sys/time.h>             // for timeval
 #include <sys/types.h>            // for pid_t, mode_t, ssize_t, gid_t, uid_t
 #include <sys/wait.h>             // IWYU pragma: keep for idtype_t
 #include "../src/libc_subset.h"   // IWYU pragma: keep for FILE
 // IWYU pragma: no_include <stdio.h> for FILE
 
+struct aiocb;
+struct iovec;
 struct rusage;
+struct sigevent;
 struct stat;
 struct statx;
 struct timeval;
