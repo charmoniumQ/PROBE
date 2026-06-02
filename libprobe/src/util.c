@@ -69,10 +69,10 @@ void list_dir(const char* name, int indent) {
                 probe_libc_memcmp(entry->d_name, "..", 3) == 0)
                 continue;
             CHECK_SNPRINTF(path, ((int)sizeof(path)), "%s/%s", name, entry->d_name);
-            LOG("%*s%s/", indent, "", entry->d_name);
+            LOG("... ", "%*s%s/", indent, "", entry->d_name);
             list_dir(path, indent + 2);
         } else {
-            LOG("%*s%s\n", indent, "", entry->d_name);
+            LOG("... ", "%*s%s\n", indent, "", entry->d_name);
         }
     }
     client_closedir(dir);

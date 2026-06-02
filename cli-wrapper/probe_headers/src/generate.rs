@@ -17,7 +17,7 @@ macro_rules! size_checks {
 /* This wants to be a build-script, but it needs access to impls defined in this crate. */
 fn main() -> Result<()> {
     let out_file = std::env::var_os("JSONSCHEMA_OUTFILE").wrap_err_with(|| "JSONSCHEMA_OUTFILE")?;
-    let schema = schemars::schema_for!(probe_headers::All);
+    let schema = schemars::schema_for!(probe_headers::JSONExports);
     let out_file_opened = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -33,7 +33,6 @@ fn main() -> Result<()> {
         Option::<ByteString>,
         StringArray,
         probe_headers::TimeVal,
-        probe_headers::Rusage,
         probe_headers::StatxTimestamp,
         probe_headers::PathArg,
         probe_headers::Inode,

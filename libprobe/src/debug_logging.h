@@ -6,27 +6,27 @@
 #include <stdio.h> // for fprintf, stderr
 
 #include "global_state.h" // for get_exec_epoch_safe, get_pid_safe, get_tid...
-#include "probe_libc.h"   // IWYU pragma: keep for strerror_with_backup
+#include "probe_libc.h"   // IWYU pragma: keep for exit_with_backup
 
 #ifndef SOURCE_VERSION
 #define SOURCE_VERSION ""
 #endif
 
-#define LOG(str, ...)                                                                              \
-    fprintf(stderr, SOURCE_VERSION " %d.%d.%d " __FILE__ ":%d:%s(): " str "\n", get_pid_safe(),    \
+#define LOG(level, str, ...)                                                                              \
+    fprintf(stderr, level "%d.%d.%d " __FILE__ ":%d:%s(): "str "\n", get_pid_safe(), \
             get_exec_epoch_safe(), get_tid_safe(), __LINE__, __func__, ##__VA_ARGS__)
 
 #ifndef NDEBUG
-#define DEBUG(str, ...) LOG("DEBUG " str, ##__VA_ARGS__)
+#define DEBUG(str, ...) LOG("DEBUG ", str, ##__VA_ARGS__)
 #else
 #define DEBUG(...)
 #endif
 
-#define WARNING(str, ...) LOG("WARNING " str " (errno=%d)", ##__VA_ARGS__, errno)
+#define WARNING(str, ...) LOG("WARNING ", str " (errno=%d)", ##__VA_ARGS__, errno)
 
 #define ERROR(str, ...)                                                                            \
     ({                                                                                             \
-        LOG("ERROR " str " (%s)", ##__VA_ARGS__, strerror_with_backup(errno));                     \
+        LOG("ERROR ", str " (errno=%d)", ##__VA_ARGS__, errno);                                     \
         exit_with_backup(103);                                                                     \
     })
 

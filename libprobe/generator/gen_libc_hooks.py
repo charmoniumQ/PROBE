@@ -330,6 +330,30 @@ def raise_thunk(exception: Exception) -> typing.Callable[..., typing.NoReturn]:
     return lambda *args, **kwarsg: raise_(exception)
 
 
+PRINT_FLAGS = {
+    "int": "%d",
+    "unsigned int": "%u",
+    "char *": "%s",
+    "mode_t": "%u",
+    "void *": "%p",
+    "off_t": "%zu",
+    "id_t": "%u",
+    "pid_t": "%u",
+    "uid_t": "%u",
+    "gid_t": "%u",
+    "struct stat *": "stat %p",
+    "size_t": "%zu",
+    "ssize_t": "%zd",
+    "DIR *": "DIR %p",
+    "FILE *": "FILE %p",
+    "int *": "int %p",
+    "bool": "%u",
+}
+
+
+generator = GccCGenerator()
+
+
 def find_decl(
         block: typing.Sequence[Node],
         name: str,
@@ -349,21 +373,25 @@ def find_decl(
 
 
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
-    pre_call_stmts = [
-        pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="DEBUG"),
-            args=pycparser.c_ast.ExprList(exprs=[
-                pycparser.c_ast.Constant(type="string", value=f'"Interposed {func.name}' + (" %s" if func.name.startswith("fopen") else "") + '"'),
-                *([pycparser.c_ast.ID(name="filename")] if func.name.startswith("fopen") else []),
-            ]),
-        ),
-    ] if debug_print_start_of_interposition else []
-    pre_call_stmts.append(
-        pycparser.c_ast.FuncCall(
-            name=pycparser.c_ast.ID(name="ensure_thread_initted"),
-            args=pycparser.c_ast.ExprList(exprs=[]),
-        ),
-    )
+    printable_args = []
+    printable_args_flags = []
+    for param_name, param_type in func.params:
+        c_string = generator.visit(param_type).replace(" restrict", "").replace("const ", "")
+        if flag := PRINT_FLAGS.get(c_string):
+            printable_args.append(pycparser.c_ast.ID(name=param_name))
+            printable_args_flags.append(flag)
+    pre_call_stmts = []
+
+    if debug_print_start_of_interposition:
+        pre_call_stmts.append(
+            pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(name="DEBUG"),
+                args=pycparser.c_ast.ExprList(exprs=[
+                    pycparser.c_ast.Constant(type="string", value=f'"Interposed {func.name}(' + ", ".join(printable_args_flags) + ')"'),
+                    *printable_args
+                ]),
+            )
+        )
 
     noreturn = bool(find_decl(func.stmts, "noreturn", func.name))
 
@@ -434,6 +462,19 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             0,
             define_var(c_ast_int, "call_errno", pycparser.c_ast.ID(name="errno")),
         )
+
+        if debug_print_start_of_interposition:
+            c_string = generator.visit(func.return_type).replace(" restrict", "").replace("const ", "")
+            if return_type_flag := PRINT_FLAGS.get(c_string):
+                post_call_stmts.append(
+                    pycparser.c_ast.FuncCall(
+                        name=pycparser.c_ast.ID(name="DEBUG"),
+                        args=pycparser.c_ast.ExprList(exprs=[
+                            pycparser.c_ast.Constant(type="string", value=f'"{func.name} returned {return_type_flag}"'),
+                            pycparser.c_ast.ID(name="ret"),
+                        ]),
+                    ),
+                )
 
         post_call_stmts.append(
             Assignment(
@@ -648,8 +689,6 @@ typedef void* __type_voidp;
 
 // Clang and GCC disagree on how to construct this struct inline.
 // So I will construct it not inline, here.
-const struct Rusage null_usage = {};
-_Static_assert(sizeof(struct Rusage) == sizeof(struct rusage), "");
 _Static_assert(sizeof(struct StatxTimestamp) == sizeof(struct statx_timestamp), "");
 _Static_assert(sizeof(struct TimeVal) == sizeof(struct timeval), "");
 

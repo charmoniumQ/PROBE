@@ -215,7 +215,6 @@ pub struct Wait {
     options: libc::c_int,
     status: libc::c_int,
     cancelled: bool,
-    usage: Rusage,
 }
 
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug)]
@@ -265,7 +264,7 @@ pub struct UpdateMetadata {
 #[repr(C)]
 pub struct ReadLink {
     linkpath: PathArg,
-    referent: ByteString,
+    referent: Option<ByteString>,
     truncation: bool,
     recursive_dereference: bool,
 }

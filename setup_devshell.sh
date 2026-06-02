@@ -24,13 +24,9 @@ export JSONSCHEMA_OUTFILE="$PROBE_ROOT/libprobe/generated/headers.json"
 export PYTHON_HEADER_OUTFILE="$PROBE_ROOT/probe_py/probe_py/headers.py"
 export SIZE_CHECK_OUTFILE="$PROBE_ROOT/libprobe/generated/size_checks.h"
 
-# Ensure PROBE CLI gets built
-if [ ! -f "$PROBE_ROOT/cli-wrapper/target/release/probe" ]; then
-    printf "%sPlease run 'just compile-cli' to compile probe binary%s\n" "$red" "$clr"
-fi
-
 # Add PROBE CLI to path
-export PATH="$PROBE_ROOT/cli-wrapper/target/debug:$PATH"
+CARGO_TARGET_PATH="$(env --chdir=cli-wrapper cargo metadata --format-version 1 | jq --raw-output '.target_directory')"
+export PATH="${CARGO_TARGET_PATH}/debug:$PATH"
 
 # Add probe_py to the Python path
 # PYTHONPATH gets consumed by Python tooling

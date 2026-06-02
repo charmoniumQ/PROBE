@@ -16,21 +16,22 @@ OPTCFLAGS := -O3 -DNDEBUG -fPIC
 OPTLDFLAGS := -flto -fpic
 DBGLDFLAGS := -fno-lto -fPIC
 LDFLAGS := -lpthread -pthread -ldl
-GENERATED_SOURCE_FILES := generated/libc_hooks.c generated/inode_table.c generated/fd_table.c
-GENERATED_HEADER_FILES := generated/libc_hooks.h generated/size_checks.h generated/inode_table.h generated/fd_table.h
-# generated/headers.h is removed because it always changes every time the cli is recompiled
-GENERATED_FILES := $(GENERATED_SOURCE_FILES) $(GENERATED_HEADER_FILES)
-MANUAL_SOURCE_FILES := $(wildcard src/*.c)
-MANUAL_HEADER_FILES := $(wildcard src/*.h)
-SOURCE_FILES := $(GENERATED_SOURCE_FILES) $(MANUAL_SOURCE_FILES)
-HEADER_FILES := $(GENERATED_HEADER_FILES) $(MANUAL_HEADER_FILES)
 BUILD_DIR := .build
+
+FULL := true
+
+ifeq ($(FULL),true)
+	GENERATED_FILES := generated/libc_hooks.c generated/inode_table.c generated/fd_table.c
+    MANUAL_SOURCE_FILES := $(filter-out %_min.c,$(wildcard src/*.c))
+else
+	GENERATED_FILES := generated/libc_hooks.c
+    MANUAL_SOURCE_FILES := $(wildcard src/*_min.c)
+endif
+
+SOURCE_FILES := $(GENERATED_FILES) $(MANUAL_SOURCE_FILES)
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so
 .PHONY: all
-
-generated: $(GENERATED_FILES)
-.PHONY: generated
 
 $(BUILD_DIR)/libprobe.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o)) $(MAKEFILE_LIST)
 	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(OPTLDFLAGS) -shared -o $@ $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.o))
@@ -43,11 +44,11 @@ $(BUILD_DIR)/libprobe.dbg.so: $(addprefix $(BUILD_DIR)/,$(SOURCE_FILES:.c=.dbg.o
 $(BUILD_DIR)/serialization_test.exe: $(MAKEFILE_LIST) serialization_test.c src/arena.c src/probe_libc.c
 	$(CC) -MJ $@.compile_command.json $(LDFLAGS) $(DBGLDFLAGS) $(DBGCFLAGS) -o $@ -DUNIT_TESTS serialization_test.c src/arena.c src/probe_libc.c
 
-$(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
+$(BUILD_DIR)/%.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(OPTCFLAGS) -o $@ $<
 
-$(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST) $(GENERATED_FILES)
+$(BUILD_DIR)/%.dbg.o: %.c $(HEADER_FILES) $(MAKEFILE_LIST)
 	mkdir --parents $(dir $@)
 	$(CC) -MJ $@.compile_command.json -c $(CFLAGS) $(DBGCFLAGS) -o $@ $<
 
@@ -86,7 +87,11 @@ check: compile_commands.json $(GENERATED_FILES) $(BUILD_DIR)/probe_libc_tests.db
 	    if ! clang-format --dry-run --Werror $(MANUAL_SOURCE_FILES) $(MANUAL_HEADER_FILES); then \
 	        echo 'Try `make format`'; \
 	        exit 1; \
-	    fi \
+	    fi; \
+	    if egrep -n -R  ' +$$' --exclude-dir=.cache --exclude-dir=.build --exclude-dir=generated --exclude-dir=__pycache__; then \
+	        echo 'Whitespace at end-of-line'; \
+	        exit 1; \
+	    fi; \
 	fi
 	if [ "$$SKIP_CHECK_NEEDED_SYMS" = 1 ]; then \
 	    echo "Skipping check_needed_syms.py"; \

@@ -53,7 +53,8 @@ fn derive_struct(
             }
             impl ::memory_parsing::FromMemory for #ident {
                 fn from_memory(memory: &::memory_parsing::Segments, pointer: usize) -> eyre::Result<(#ident, usize)> {
-                    let ((#(#named_idents),*), new_pointer) = ::memory_parsing::FromMemory::from_memory(memory, pointer)?;
+                    use eyre::WrapErr;
+                    let ((#(#named_idents),*), new_pointer) = ::memory_parsing::FromMemory::from_memory(memory, pointer).context(format!("while parsing {}", #c_name))?;
                     Ok((#ident #constructor_args, new_pointer))
                 }
             }
@@ -84,6 +85,15 @@ fn derive_enum(
             format!("Must be #[repr({ENUM_TYPE_NAME})]"),
         ));
     }
+    let any_variant_has_fields = input
+        .variants
+        .iter()
+        .any(|variant| !variant.fields.is_empty());
+    let c_name = if any_variant_has_fields {
+        format!("union {}", ident)
+    } else {
+        format!("{}", ident)
+    };
     let discriminants = get_discriminants(input)?;
     let from_memory_match_arms = input.variants.iter().zip(discriminants.iter()).map(|(variant, discriminant)| {
         let named_idents = get_named_idents(&variant.fields);
@@ -95,9 +105,11 @@ fn derive_enum(
         let variant_ident = &variant.ident;
         let types = get_types(&variant.fields);
         let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
+        let variant_name = format!("{}", variant_ident);
         quote::quote!{
             #discriminant => {
-                let ((_, #(#named_idents),*), pointer) = <#tuple_type_with_tag as ::memory_parsing::FromMemory>::from_memory(memory, pointer)?;
+                use eyre::WrapErr;
+                let ((_, #(#named_idents),*), pointer) = <#tuple_type_with_tag as ::memory_parsing::FromMemory>::from_memory(memory, pointer).context(format!("while parsing {}.{}", #c_name, #variant_name))?;
                 Ok((#ident::#variant_ident #constructor_args, pointer))
             }
         }
@@ -163,15 +175,6 @@ fn derive_enum(
             }
         })
         .collect::<Vec<_>>();
-    let any_variant_has_fields = input
-        .variants
-        .iter()
-        .any(|variant| !variant.fields.is_empty());
-    let c_name = if any_variant_has_fields {
-        format!("union {}", ident)
-    } else {
-        format!("{}", ident)
-    };
     Ok(quote::quote! {
         impl ::memory_parsing::SizedMemory for #ident {
             fn align() -> usize {
@@ -195,7 +198,8 @@ fn derive_enum(
         }
         impl ::memory_parsing::FromMemory for #ident {
             fn from_memory(memory: &::memory_parsing::Segments, mut pointer: usize) -> eyre::Result<(#ident, usize)> {
-                let (tag, _) = <u8 as ::memory_parsing::FromMemory>::from_memory(memory, pointer)?;
+                use eyre::WrapErr;
+                let (tag, _) = <u8 as ::memory_parsing::FromMemory>::from_memory(memory, pointer).context(format!("while parsing {}", #c_name))?;
                 match tag {
                     #(#from_memory_match_arms)*
                     _ => Err(eyre::eyre!("tag {tag} is not recognized for {}", stringify!(#ident))),

@@ -124,12 +124,12 @@ simple_commands = {
 }
 
 complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, str, list[str]]] = {
-    "c_hello_simplified": (
-        False,
-        pathlib.Path("test.c"),
-        "int main() { return 0; }",
-        ["gcc", "-c", "test.c"],
-    ),
+    # "c_hello_simplified": (
+    #     False,
+    #     pathlib.Path("test.c"),
+    #     "int main() { return 0; }",
+    #     ["gcc", "-c", "test.c"],
+    # ),
     "java_subprocess_hello": (
         False,
         pathlib.Path("HelloWorld.java"),

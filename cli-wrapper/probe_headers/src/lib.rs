@@ -6,8 +6,8 @@ pub use arena::*;
 pub use context::*;
 pub use ops::*;
 
+#[repr(C)]
+pub struct CExports(Op, ProcessTreeContext, ProcessContext, ArenaHeader);
+
 #[derive(schemars::JsonSchema)]
-pub struct All {
-    pub op: Op,
-    pub process_tree_context: ProcessTreeContext,
-}
+pub struct JSONExports(pub Op, pub ProcessTreeContext);

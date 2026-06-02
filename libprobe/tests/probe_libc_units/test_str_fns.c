@@ -105,7 +105,7 @@ static inline void assert_strncpy_equal(const char *src, size_t n) {
     strncpy(expected, src, n);
     probe_libc_strncpy(actual, src, n);
 
-    cr_assert_arr_eq(actual, expected, n, 
+    cr_assert_arr_eq(actual, expected, n,
         "Expected strncpy result: \"%.*s\", but got: \"%.*s\"",
         (int)n, expected, (int)n, actual);
 }

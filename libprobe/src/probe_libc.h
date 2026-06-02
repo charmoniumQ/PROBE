@@ -48,7 +48,6 @@ extern char* _Nullable* _Nonnull environ;
 ATTR_HIDDEN result probe_libc_init(void);
 
 __attribute__((noreturn, visibility("hidden"))) void exit_with_backup(int status);
-ATTR_HIDDEN char* _Nonnull strerror_with_backup(int errnum);
 
 ATTR_HIDDEN int probe_libc_memcmp(const void* _Nonnull s1, const void* _Nonnull s2, size_t n);
 ATTR_HIDDEN void* _Nonnull probe_libc_memcpy(void* restrict _Nonnull dest,
