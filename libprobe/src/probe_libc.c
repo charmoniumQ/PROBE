@@ -25,12 +25,10 @@
 
 #include "../src/debug_logging.h" // for DEBUG, ERROR
 #ifndef UNIT_TESTS
-#include "../generated/libc_hooks.h" // for client_exit, client_strerror
+#include "../generated/libc_hooks.h" // for client_exit
 #else
 // our unit test framework uses a typical (sane) linking scheme and is allowed
 // to liberally use libc so we just alias any libprobe functions we use
-#include <string.h>
-char* _Nonnull client_strerror(int errnum) { return strerror(errnum); }
 [[noreturn]] void client_exit(int status) { exit(status); }
 int get_pid_safe() { return getpid(); }
 int get_tid_safe() { return gettid(); }
@@ -218,23 +216,6 @@ void exit_with_backup(int status) {
     __builtin_unreachable();
 }
 
-// 9 bytes from the format string, max 20 bytes from stringing a 64-bit
-// integer, 1 for null byte, and two for good luck (and alignment)
-#define STRERROR_BUFFER 32
-char* _Nullable strerror_with_backup(int errnum) {
-    static char backup_strerror_buf[STRERROR_BUFFER];
-#ifndef UNIT_TESTS
-    if (client_strerror)
-#endif
-    {
-        return client_strerror(errnum);
-    }
-
-    snprintf(backup_strerror_buf, STRERROR_BUFFER, "[ERRNO: %d]", errnum);
-    return backup_strerror_buf;
-}
-#undef STRERROR_BUFFER
-
 int probe_libc_memcmp(const void* _Nonnull s1, const void* _Nonnull s2, size_t n) {
     const unsigned char* c1 = (const unsigned char*)s1;
     const unsigned char* c2 = (const unsigned char*)s2;
@@ -337,8 +318,7 @@ result_int probe_libc_openat(int dirfd, const char* _Nullable path, int flags, m
 void probe_libc_close(int fd) {
     ssize_t retval = probe_syscall1(SYS_close, fd);
     if (retval) {
-        WARNING("failed to close fd %d with error: %s (%zd)", fd, strerror_with_backup((int)retval),
-                retval);
+        WARNING("failed to close fd %d with error: %zd", fd, retval);
     }
 }
 

@@ -112,6 +112,7 @@ macro_rules! impl_memory_parsable_for_tuple {
             }
             impl<$([<T $num>]: std::fmt::Debug + FromMemory),*> FromMemory for ($([<T $num>],)*) {
                 fn from_memory(memory: &Segments, pointer: usize) -> Result<(Self, usize)> {
+                    use eyre::WrapErr;
                     assert!(is_aligned::<Self>(pointer));
                     if LOGGING {
                         eprintln!("(tuple) mem[0x{pointer:08x}]");
@@ -123,14 +124,14 @@ macro_rules! impl_memory_parsable_for_tuple {
                             eprintln!("(tuple.{} {type_name}) mem[0x{pointer:08x}]", $num);
                         }
                         let [<ret $num>] = FromMemory::from_memory(memory, pointer);
+                        let type_name = std::any::type_name::< [<T $num>] >();
                         if LOGGING {
-                            let type_name = std::any::type_name::< [<T $num>] >();
                             match &[<ret $num>] {
                                 Ok((obj, _)) => eprintln!("= (tuple.{} {type_name}) {obj:?}", $num),
                                 Err(err) => eprintln!("err for {type_name}: {err:?}"),
                             }
                         }
-                        let ([<t $num>], pointer) = [<ret $num>]?;
+                        let ([<t $num>], pointer) = [<ret $num>].context(format!("while parsing field {} as {}", $num, type_name))?;
                     )*
                     Ok((($([<t $num>],)*), align_pointer::<Self>(pointer)))
                 }

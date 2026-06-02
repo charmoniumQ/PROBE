@@ -40,10 +40,7 @@ fn inner() -> Result<()> {
         .with_no_includes()
         .with_tab_width(4)
         .with_style(cbindgen::Style::Tag)
-        .include_item("ProcessTreeContext")
-        .include_item("ProcessContext")
-        .include_item("Op")
-        .include_item("ArenaHeader")
+        .include_item("CExports")
         .generate()
         .wrap_err("Generating bindings")?
         .write_to_file(&out_file);

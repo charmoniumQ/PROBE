@@ -65,15 +65,7 @@ activate_venv() {
 install_packages() {
     print_status "Installing required Python packages..."
     
-    pip install --upgrade pip
-    
-    pip install pandas
-    pip install numpy
-    pip install scikit-learn
-    pip install matplotlib
-    pip install seaborn
-    pip install scipy
-    pip install joblib
+    pip install --upgrade pip pandas numpy scikit-learn matplotlib seaborn scipy joblib
     
     print_success "All packages installed successfully"
     

@@ -46,7 +46,6 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
 // Use a macro so we get the location of the callee in the dbeug log
 #define checked_mkdir(path)                                                                        \
     ({                                                                                             \
-        DEBUG("mkdir '%s'", path);                                                                 \
         result mkdir_ret = probe_libc_mkdirat(AT_FDCWD, path, 0777);                               \
         if (mkdir_ret != 0) {                                                                      \
             list_dir(path, 2);                                                                     \
@@ -168,7 +167,6 @@ static inline void create_epoch_dir() {
 
     /* mkdir epoch */
     if (is_first_epoch()) {
-        DEBUG("First epoch");
         /* mkdir process dirs */
         CHECK_SNPRINTF(path_buf + probe_dir->len, (int)(PATH_MAX - probe_dir->len),
                        "/" PIDS_SUBDIR "/%d", __pid);
@@ -288,7 +286,6 @@ static inline void drop_threads_after_fork() {
          * 1. Thread creation interposition is not reliable.
          * 2. The thread never makes a prov op. */
         if (state) {
-            DEBUG("arena_drop_after_fork");
             arena_drop_after_fork(&state->data_arena);
             arena_drop_after_fork(&state->ops_arena);
             free(state);

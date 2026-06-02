@@ -294,8 +294,9 @@
         };
         devShells = let
           probe-python = python.withPackages (pypkgs: [
-            # probe_py.manual runtime requirements
+            # probe_py runtime requirements
             charmonium-time-block-pkg
+            pypkgs.msgspec
             pypkgs.networkx
             pypkgs.numpy
             pypkgs.pydot
@@ -305,7 +306,7 @@
             pypkgs.typer
             pypkgs.xdg-base-dirs
 
-            # probe_py.manual "dev time" requirements
+            # probe_py "dev time" requirements
             packages.types-networkx
             packages.datamodel-code-generator
             pypkgs.ipython
@@ -314,7 +315,6 @@
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
             pypkgs.types-tqdm
-            pypkgs.msgspec
 
             # libprobe build time requirement
             pypkgs.pycparser
@@ -329,6 +329,9 @@
           '';
           shellPackages =
             [
+              pkgs.jq
+              pkgs.codespell
+
               # Rust tools
               pkgs.cargo-audit
               pkgs.cargo-deny

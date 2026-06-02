@@ -16,7 +16,7 @@ all: $(filter-out minimal_libprobe.exe,$(SOURCE_FILES:.c=.exe)) minimal_libprobe
 	$(CC) $(CFLAGS) -o $@ $<
 
 %.so: %.c
-	$(CC) $(CFLAGS) -fpic -shared -o $@ $<
+	$(CC) $(CFLAGS) -lpthread -pthread -ldl -fno-lto -fPIC -shared -o $@ $<
 
 clean:
 	touch tmp.so tmp.exe

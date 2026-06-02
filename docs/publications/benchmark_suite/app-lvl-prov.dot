@@ -4,7 +4,7 @@ digraph {
   C [label="L blur"];
   D [label="R blur"];
   E [label="stereo map"];
-  A -> C [label="gaus blur"];
-  B -> D [label="gaus blur"];
+  A -> C [label="gauss blur"];
+  B -> D [label="gauss blur"];
   {C, D} -> E [label="align"];
 }

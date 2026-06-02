@@ -47,21 +47,6 @@ typedef void* OpenNumber;
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
-FILE * fopen (const char *filename, const char *opentype) {
-    void* call = ({
-        FILE* ret = fopen_wrapper(filename, opentype);        
-    });    
-}
-fn fopen64 = fopen;
-FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
-    void* call = ({
-        fclose(stream);
-        FILE* ret = fopen_wrapper(filename, opentype);        
-    });
-}
-fn freopen64 = freopen;
-
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
 int fclose (FILE *stream) {
@@ -75,7 +60,6 @@ int fclose (FILE *stream) {
                 },
                 .ferrno = 0,
             });
-            reset_open_number(fd);
         }
     });
 }
@@ -86,6 +70,21 @@ int fcloseall(void) {
         int ret = 0;
     });
 }
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html */
+FILE * fopen (const char *filename, const char *opentype) {
+    void* call = ({
+        FILE* ret = fopen_wrapper(filename, opentype);
+    });
+}
+fn fopen64 = fopen;
+FILE * freopen (const char *filename, const char *opentype, FILE *stream) {
+    void* call = ({
+        fclose(stream);
+        FILE* ret = fopen_wrapper(filename, opentype);
+    });
+}
+fn freopen64 = freopen;
 
 /* Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html */
 int openat(int dirfd, const char *filename, int flags, ...) {
@@ -137,11 +136,12 @@ int creat (const char *filename, mode_t mode) {
 fn creat64 = creat;
 int close (int filedes) {
     void* post_call = ({
+        OpenNumber on = reset_open_number(filedes);
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
             prov_log_record((struct Op) {
                 .data = {
                     .close_tag = OpData_Close,
-                    .close = {.open_number = reset_open_number(filedes)},
+                    .close = {.open_number = on},
                 },
                 .ferrno = 0,
             });
@@ -192,6 +192,21 @@ void closefrom (int lowfd) {
     });
 }
 
+/* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
+int dup3 (int old, int new, int flags) {
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled() && ret != -1)) {
+            prov_log_record((struct Op) {
+                .data = {
+                    .dup_tag = OpData_Dup,
+                    .dup = {dup_open_numbers(old, new), 0},
+                },
+                .ferrno = 0,
+            });
+        }
+    });
+}
+
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Dup]licating-Descriptors.html */
 int dup (int old) {
     void* post_call = ({
@@ -209,21 +224,6 @@ int dup (int old) {
 int dup2 (int old, int new) {
     void* call = ({
         int ret = dup3(old, new, 0);
-    });
-}
-
-/* Docs: https://www.man7.org/linux/man-pages/man2/dup.2.html */
-int dup3 (int old, int new, int flags) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled() && ret != -1)) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .dup_tag = OpData_Dup,
-                    .dup = {dup_open_numbers(old, new), 0},
-                },
-                .ferrno = 0,
-            });
-        }
     });
 }
 
@@ -262,7 +262,7 @@ int fcntl (int filedes, int command, ...) {
     });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            if (LIKELY(ret == 0) && command == F_DUPFD || command == F_DUPFD_CLOEXEC) {
+            if (LIKELY(ret >= 0) && (command == F_DUPFD || command == F_DUPFD_CLOEXEC)) {
                 prov_log_record((struct Op) {
                     .data = {
                         .dup_tag = OpData_Dup,
@@ -277,9 +277,16 @@ int fcntl (int filedes, int command, ...) {
         }
     });
 }
+fn fcntl64 = fcntl;
 
-/* Need: We need this so that opens relative to the current working directory can be resolved */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-Directory.html */
+int fchdir (int filedes) {
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled() && ret == 0)) {
+            dup_open_numbers(filedes, AT_FDCWD);
+        }
+    });
+}
 int chdir (const char *filename) {
     void* call = ({
         int ret;
@@ -291,19 +298,13 @@ int chdir (const char *filename) {
         }
     });
 }
-int fchdir (int filedes) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled() && ret == 0)) {
-            dup_open_numbers(filedes, AT_FDCWD);
-        }
-    });
-}
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-a-Directory.html */
 DIR * opendir (const char *dirname) {
     void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            struct Op op = {
+        if (LIKELY(prov_log_is_enabled() && ret)) {
+            int fd = dirfd(ret);
+            prov_log_record((struct Op){
                 .data = {
                     .open_tag = OpData_Open,
                     .open = {
@@ -311,8 +312,8 @@ DIR * opendir (const char *dirname) {
                             .directory = get_open_number(AT_FDCWD),
                             .name = arena_strndup(get_data_arena(), dirname, PATH_MAX),
                         },
-                        .open_number = {0},
-                        .inode = {0},
+                        .open_number = new_open_number(fd),
+                        .inode = get_inode(fd),
                         .mode = 0,
                         /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
                         .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
@@ -320,23 +321,16 @@ DIR * opendir (const char *dirname) {
                         .creat = false,
                     },
                 },
-                .ferrno = call_errno,
-            };            
-            if (LIKELY(ret != NULL)) {
-                op.ferrno = 0;
-                int fd = dirfd(ret);
-                op.data.open.open_number = get_open_number(fd);
-                op.data.open.inode = get_inode(fd);
-            }
-            prov_log_record(op);
+                .ferrno = 0,
+            });
         }
     });
 }
 DIR * fdopendir (int fd) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
-            OpenNumber on = get_open_number(fd);        
-            struct Op op = {
+            OpenNumber on = get_open_number(fd);
+            prov_log_record((struct Op){
                 .data = {
                     .open_tag = OpData_Open,
                     .open = {
@@ -354,8 +348,7 @@ DIR * fdopendir (int fd) {
                     },
                 },
                 .ferrno = UNLIKELY(ret == NULL) ? call_errno : 0,
-            };
-            prov_log_record(op);
+            });
         }
     });
 }
@@ -436,7 +429,7 @@ int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
                     },
                 },
                 .ferrno = call_errno,
-            };            
+            };
             if (LIKELY(*result != NULL)) {
                 op.ferrno = 0;
                 /* Note: we will assume these dirents are the same as openat(fd, ret->name);
@@ -481,7 +474,7 @@ int closedir (DIR *dirstream) {
     void* pre_call = ({ int fd = dirfd(dirstream); });
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled() && ret == 0)) {
-            struct Op op = {
+            prov_log_record((struct Op){
                 .data = {
                     .close_tag = OpData_Close,
                     .close = {
@@ -489,9 +482,7 @@ int closedir (DIR *dirstream) {
                     },
                 },
                 .ferrno = 0,
-            };
-            reset_open_number(fd);
-            prov_log_record(op);
+            });
         }
     });
 }
@@ -635,11 +626,6 @@ int nftw (const char *filename, nftw_func func, int descriptors, int flag) {
 /* I can't include ftw.h on some systems because it defines fstatat as extern int on some machines. */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html */
-int link (const char *oldname, const char *newname) {
-    void* call = ({
-        int ret = linkat(AT_FDCWD, oldname, AT_FDCWD, newname, 0);
-    });
-}
 int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int flags) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -662,12 +648,9 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
         }
     });
 }
-
-/* TODO: debug */
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
-int symlink (const char *oldname, const char *newname) {
+int link (const char *oldname, const char *newname) {
     void* call = ({
-        int ret = symlinkat(oldname, AT_FDCWD, newname);
+        int ret = linkat(AT_FDCWD, oldname, AT_FDCWD, newname, 0);
     });
 }
 
@@ -692,13 +675,14 @@ int symlinkat(const char *target, int newdirfd, const char *linkpath) {
     });
 }
 
-/* TODO */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
-ssize_t readlink (const char *filename, char *buffer, size_t size) {
+int symlink (const char *oldname, const char *newname) {
     void* call = ({
-        ssize_t ret = readlinkat(AT_FDCWD, filename, buffer, size);
+        int ret = symlinkat(oldname, AT_FDCWD, newname);
     });
 }
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Symbolic-Links.html */
 ssize_t readlinkat (int dir_fd, const char *filename, char *buffer, size_t size) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -716,7 +700,7 @@ ssize_t readlinkat (int dir_fd, const char *filename, char *buffer, size_t size)
                     },
                 },
                 .ferrno = call_errno,
-            };            
+            };
             if (LIKELY(ret != -1)) {
                 op.ferrno = 0;
                 op.data.read_link.referent = arena_strndup(get_data_arena(), buffer, ret + 1);
@@ -726,6 +710,11 @@ ssize_t readlinkat (int dir_fd, const char *filename, char *buffer, size_t size)
             }
             prov_log_record(op);
         }
+    });
+}
+ssize_t readlink (const char *filename, char *buffer, size_t size) {
+    void* call = ({
+        ssize_t ret = readlinkat(AT_FDCWD, filename, buffer, size);
     });
 }
 char * canonicalize_file_name (const char *name) {
@@ -784,11 +773,6 @@ char * realpath (const char *restrict name, char *restrict resolved) {
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Deleting-Files.html */
-int rmdir (const char *filename) {
-    void* call = ({
-        int ret = remove(filename);
-    });
-}
 int remove (const char *filename) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -808,13 +792,13 @@ int remove (const char *filename) {
         }
     });
 }
-
-/* Docs: https://www.man7.org/linux/man-pages/man2/unlink.2.html */
-int unlink (const char *filename) {
+int rmdir (const char *filename) {
     void* call = ({
-        int ret = unlinkat(AT_FDCWD, filename, 0);
+        int ret = remove(filename);
     });
 }
+
+/* Docs: https://www.man7.org/linux/man-pages/man2/unlink.2.html */
 int unlinkat(int dirfd, const char *pathname, int flags) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -834,21 +818,12 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
         }
     });
 }
-
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Renaming-Files.html */
-int rename (const char *oldname, const char *newname) {
+int unlink (const char *filename) {
     void* call = ({
-        int ret = renameat2(AT_FDCWD, oldname, AT_FDCWD, newname, 0);
+        int ret = unlinkat(AT_FDCWD, filename, 0);
     });
 }
 
-/* Docs: https://www.man7.org/linux/man-pages/man2/rename.2.html */
-int renameat(int olddirfd, const char *oldpath,
-           int newdirfd, const char *newpath) {
-    void* call = ({
-        int ret = renameat2(olddirfd, oldpath, newdirfd, newpath, 0);
-    });
-}
 int renameat2(int olddirfd, const char *oldpath,
             int newdirfd, const char *newpath, unsigned int flags) {
     void* post_call = ({
@@ -873,10 +848,18 @@ int renameat2(int olddirfd, const char *oldpath,
     });
 }
 
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-Directories.html */
-int mkdir(const char* filename, mode_t mode) {
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Renaming-Files.html */
+int rename (const char *oldname, const char *newname) {
     void* call = ({
-        int ret = mkdirat(AT_FDCWD, filename, mode);
+        int ret = renameat2(AT_FDCWD, oldname, AT_FDCWD, newname, 0);
+    });
+}
+
+/* Docs: https://www.man7.org/linux/man-pages/man2/rename.2.html */
+int renameat(int olddirfd, const char *oldpath,
+           int newdirfd, const char *newpath) {
+    void* call = ({
+        int ret = renameat2(olddirfd, oldpath, newdirfd, newpath, 0);
     });
 }
 
@@ -899,12 +882,14 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode) {
     });
 }
 
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html */
-int stat (const char *filename, struct stat *buf) {
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Creating-Directories.html */
+int mkdir(const char* filename, mode_t mode) {
     void* call = ({
-        int ret = fstatat(AT_FDCWD, filename, buf, 0);
+        int ret = mkdirat(AT_FDCWD, filename, mode);
     });
 }
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Reading-Attributes.html */
 int fstat (int filedes, struct stat *buf) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
@@ -928,11 +913,6 @@ int fstat (int filedes, struct stat *buf) {
             }
             prov_log_record(op);
         }
-    });
-}
-int lstat (const char *filename, struct stat *buf) {
-    void* call = ({
-        int ret = fstatat(AT_FDCWD, filename, buf, AT_SYMLINK_NOFOLLOW);
     });
 }
 fn newfstatat = fstatat;
@@ -960,6 +940,16 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
             }
             prov_log_record(op);
         }
+    });
+}
+int stat (const char *filename, struct stat *buf) {
+    void* call = ({
+        int ret = fstatat(AT_FDCWD, filename, buf, 0);
+    });
+}
+int lstat (const char *filename, struct stat *buf) {
+    void* call = ({
+        int ret = fstatat(AT_FDCWD, filename, buf, AT_SYMLINK_NOFOLLOW);
     });
 }
 
@@ -991,6 +981,32 @@ int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask
 }
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/File-Owner.html */
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled())) {
+            prov_log_record((struct Op) {
+                .data = {
+                    .update_metadata_tag = OpData_UpdateMetadata,
+                    .update_metadata = {
+                        .path = {
+                            .directory = get_open_number(dirfd),
+                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                        },
+                        .flags = flags,
+                        .value = {
+                            .ownership_tag = MetadataValue_Ownership,
+                            .ownership = {
+                                .uid = owner,
+                                .gid = group,
+                            },
+                        },
+                    },
+                },
+                .ferrno = LIKELY(ret == 0) ? 0 : call_errno,
+            });
+        }
+    });
+}
 int chown (const char *filename, uid_t owner, gid_t group) {
     void* call = ({
         int ret = fchownat(AT_FDCWD, filename, owner, group, 0);
@@ -1029,33 +1045,6 @@ int lchown(const char *pathname, uid_t owner, gid_t group) {
         int ret = fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
     });
 }
-int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .update_metadata_tag = OpData_UpdateMetadata,
-                    .update_metadata = {
-                        .path = {
-                            .directory = get_open_number(dirfd),
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
-                        },
-                        .flags = flags,
-                        .value = {
-                            .ownership_tag = MetadataValue_Ownership,
-                            .ownership = {
-                                .uid = owner,
-                                .gid = group,
-                            },
-                        },
-                    },
-                },
-                .ferrno = LIKELY(ret == 0) ? 0 : call_errno,
-            });
-        }
-    });
-}
-
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Setting-Permissions.html  */
 int chmod (const char *filename, mode_t mode) {
@@ -1112,13 +1101,6 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
     });
 }
 
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Testing-File-Access.html */
-int access (const char *filename, int how) {
-    void* call = ({
-        int ret = faccessat(AT_FDCWD, filename, how, 0);
-    });
-}
-
 /* Docs: https://www.man7.org/linux/man-pages/man3/faccessat.3p.html */
 int faccessat(int dirfd, const char *pathname, int mode, int flags) {
     void* post_call = ({
@@ -1138,6 +1120,13 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
                 .ferrno = LIKELY(ret == 0) ? 0 : call_errno
             });
         }
+    });
+}
+
+/* Docs: https://www.gnu.org/software/libc/manual/html_node/Testing-File-Access.html */
+int access (const char *filename, int how) {
+    void* call = ({
+        int ret = faccessat(AT_FDCWD, filename, how, 0);
     });
 }
 
@@ -1666,6 +1655,10 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
         StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
         StringArray copied_updated_env = arena_copy_argv(get_data_arena(), (StringArray)updated_env, envc);
 
+        if (file_actions) {
+            ERROR("PROBE does not support posix_spawn with file_actions");
+        }
+
         struct Op spawn_op = {
             .data = {
                 .spawn_tag = OpData_Spawn,
@@ -1715,6 +1708,10 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
         StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+
+        if (file_actions) {
+            ERROR("PROBE does not support posix_spawn with file_actions");
+        }
 
         struct Op spawn_op = {
             .data = {
@@ -1919,7 +1916,7 @@ int clone(
         if (UNLIKELY((!(flags & CLONE_FILES)) != (!(flags & CLONE_VM)))) {
             ERROR("PROBE does not support this type of cloning CLONE_FILES=%d CLONE_VM=%d. flags=%d", !!(flags & CLONE_FILES), !!(flags & CLONE_VM), flags);
         }
-        
+
         struct Op op = {
             .data = {
                 .clone_tag = OpData_Clone,
@@ -1986,36 +1983,25 @@ pid_t wait3 (int *status_ptr, int options, struct rusage *usage) {
 }
 pid_t wait4 (pid_t pid, int *status_ptr, int options, struct rusage *usage) {
     void* pre_call = ({
-        struct Op wait_op = {
-            .data = {
-                .wait_tag = OpData_Wait,
-                .wait = {
-                    .task_type = TaskType_Pid,
-                    .task_id = -1,
-                    .options = options,
-                    .status = 0,
-                    .usage = null_usage,
-                },
-            },
-        };
         int real_status = 0;
         if (!status_ptr) {
             status_ptr = &real_status;
         }
     });
     void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            if (UNLIKELY(ret == -1)) {
-                wait_op.ferrno = call_errno;
-            } else {
-                wait_op.ferrno = 0;
-                wait_op.data.wait.task_id = ret;
-                wait_op.data.wait.status = status_ptr ? *status_ptr : real_status;
-                if (usage) {
-                    memcpy(&wait_op.data.wait.usage, usage, sizeof(struct rusage));
-                }
-            }
-            prov_log_record(wait_op);
+        if (LIKELY(prov_log_is_enabled() && ret > 0)) {
+            prov_log_record((struct Op) {
+                .data = {
+                    .wait_tag = OpData_Wait,
+                    .wait = {
+                        .task_type = TaskType_Pid,
+                        .task_id = ret,
+                        .options = options,
+                        .status = (status_ptr ? *status_ptr : real_status),
+                    },
+                },
+                .ferrno = 0,
+            });
         }
    });
 }
@@ -2032,7 +2018,6 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
                     .options = options,
                     .status = 0,
                     .cancelled = false,
-                    .usage = null_usage,
                 },
             },
         };
@@ -2239,12 +2224,6 @@ int pthread_cancel(pthread_t thread) {
 void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {}
 int munmap(void* addr, size_t length) { }
 
-int pipe(int pipefd[2]) {
-    void* call = ({
-        int ret = pipe2(pipefd, 0);
-    });
-}
-
 int pipe2(int pipefd[2], int flags) {
     void* post_call = ({
         /* A successful pipe call is equivalent to two opens on a fifo file into specific FDs */
@@ -2288,15 +2267,15 @@ int pipe2(int pipefd[2], int flags) {
     });
 }
 
-int mkfifo(const char* pathname, mode_t mode) {
+int pipe(int pipefd[2]) {
     void* call = ({
-        int ret = mkfifoat(AT_FDCWD, pathname, mode);
+        int ret = pipe2(pipefd, 0);
     });
 }
 
 int mkfifoat(int fd, const char* pathname, mode_t mode) {
     void* post_call = ({
-        if (call_errno == 0) {        
+        if (call_errno == 0) {
             prov_log_record((struct Op){
                 .data = {
                     .open_tag = OpData_Open,
@@ -2315,9 +2294,13 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
         }
     });
 }
+int mkfifo(const char* pathname, mode_t mode) {
+    void* call = ({
+        int ret = mkfifoat(AT_FDCWD, pathname, mode);
+    });
+}
 
 // functions we're not interposing, but need for libprobe functionality
-char* strerror(int errnum) { }
 void exit(int status) {
     void* precall = ({
         struct Op op = {
@@ -2329,12 +2312,34 @@ void exit(int status) {
     bool noreturn = true;
 }
 
+int mkostemp(char *template, int flags) {
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled() && ret > 0)) {
+            prov_log_record((struct Op) {
+                .data = {
+                    .open_tag = OpData_Open,
+                    .open = {
+                        .path = {
+                            .directory = get_open_number(AT_FDCWD),
+                            .name = arena_strndup(get_data_arena(), template, PATH_MAX),
+                        },
+                        .inode = get_inode(ret),
+                        .creat = true,
+                        .dir = false,
+                        .flags = O_RDWR | O_CREAT | O_EXCL | flags,
+                        .mode = 0,
+                    },
+                },
+            });
+        }
+    });
+};
 int mkstemp(char* template) {
     void* call = ({
         int ret = mkostemp(template, 0);
     });
 }
-int mkostemp(char *template, int flags) {
+int mkostemps(char* template, int suffixlen, int flags) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled() && ret > 0)) {
             prov_log_record((struct Op) {
@@ -2359,28 +2364,6 @@ int mkostemp(char *template, int flags) {
 int mkstemps(char *template, int suffixlen) {
     void* call = ({
         int ret = mkostemps(template, suffixlen, 0);
-    });
-};
-int mkostemps(char* template, int suffixlen, int flags) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled() && ret > 0)) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .open_tag = OpData_Open,
-                    .open = {
-                        .path = {
-                            .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), template, PATH_MAX),
-                        },
-                        .inode = get_inode(ret),
-                        .creat = true,
-                        .dir = false,
-                        .flags = O_RDWR | O_CREAT | O_EXCL | flags,
-                        .mode = 0,
-                    },
-                },
-            });
-        }
     });
 };
 

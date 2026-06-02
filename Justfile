@@ -78,7 +78,10 @@ compile-tests:
 
 clean: clean-cli clean-lib clean-tests
 
-lint: lint-py lint-cli lint-lib lint-nix
+lint: lint-py lint-cli lint-lib lint-nix codespell
+
+codespell:
+    codespell
 
 compile: compile-cli compile-lib compile-tests update-headers-py
 

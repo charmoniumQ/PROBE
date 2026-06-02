@@ -20,7 +20,7 @@ def multilevel_table(
         16 if log_length <= 16 else
         32 if log_length <= 32 else
         64 if log_length <= 64 else
-        128 if log_length <= 128 else 
+        128 if log_length <= 128 else
         raise_(ValueError("Cannot go bigger than 64 log_lengths"))
     )
     lowest_bit = [log_length - sum(log_lengths[:i + 1]) for i in range(n_levels)]

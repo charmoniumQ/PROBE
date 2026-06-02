@@ -71,4 +71,4 @@ jobs:
     # CI and consumers will run `nix flake check`
     # However, we still want to build the devshell so the build artifacts get uploaded to Cachix.
     - name: Build devshell
-      run: nix develop --command true
+      run: nix develop --command just codespell
