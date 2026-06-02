@@ -176,29 +176,25 @@ struct Inode get_inode(int fd) {
 static struct FdTable fd_table;
 
 OpenNumber get_open_number(int fd) {
-    return (OpenNumber){atomic_load(fd_table_address_of_strong(&fd_table, fd))};
+    uint16_t number = atomic_load(fd_table_address_of_strong(&fd_table, fd));
+    return (OpenNumber){.fd = fd, .number = number};
 }
 
+/* Return the old open number and mark it as invalid in the future. */
 OpenNumber reset_open_number(int fd) {
-    return (OpenNumber){atomic_exchange(fd_table_address_of_strong(&fd_table, fd), 0)};
+    uint16_t number = atomic_load(fd_table_address_of_strong(&fd_table, fd));
+    DEBUG("reset_open_number: %d,%u", fd, number);
+    return (OpenNumber){.fd = fd, .number = number};
 }
-
-void set_open_number(int fd, OpenNumber open_no) {
-    atomic_store(fd_table_address_of_strong(&fd_table, fd), open_no.value);
-}
-
-OpenNumber dup_open_numbers(int old, int new) {
-    OpenNumber ret = get_open_number(old);
-    set_open_number(new, ret);
-    return ret;
-}
-
-_Atomic(uint16_t) unused_open_number = 1;
 
 OpenNumber new_open_number(int fd) {
-    OpenNumber ret = {atomic_fetch_add(&unused_open_number, 1)};
-    set_open_number(fd, ret);
-    return ret;
+    _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
+    uint16_t new_number = atomic_fetch_add(address, 1) + 1;
+    DEBUG("new_open_number: %d,%u", fd, new_number);
+    return (OpenNumber){
+        .fd = fd,
+        .number = new_number,
+    };
 }
 
 int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
@@ -355,10 +351,6 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
 
     errno = saved_errno;
     return file;
-}
-
-OpenNumber close_wrapper(int fd) {
-    return (OpenNumber){atomic_exchange(fd_table_address_of_strong(&fd_table, fd), 0)};
 }
 
 /*

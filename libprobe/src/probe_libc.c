@@ -7,7 +7,6 @@
 #include <linux/prctl.h> // for PR_*
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
-#include <stdio.h>       // for sprintf
 #include <stdlib.h>      // for malloc
 #include <sys/auxv.h>    // IWYU pragma: keep for AT_NULL, AT_PAGESZ
 #include <sys/syscall.h> // for SYS_dup, SYS_exit, SYS_getcwd
