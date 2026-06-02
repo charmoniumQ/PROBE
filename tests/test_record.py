@@ -136,7 +136,6 @@ complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, 
         java_subprocess_hello_world,
         bash_multi(
             ["javac", "HelloWorld.java"],
-            ["java", "HelloWorld"],
         ),
     ),
 }

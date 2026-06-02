@@ -5,6 +5,7 @@
 #include <stdatomic.h>
 #include <stdbool.h> // for bool, true
 #include <stdint.h>
+#include <string.h>
 #include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
 #include <threads.h>  // for thrd_current
 #include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
@@ -42,7 +43,7 @@ enum AccessType {
 
 static inline void path_to_id_string(const struct Inode inode, BORROWED char* string) {
     CHECK_SNPRINTF(
-        string, PATH_MAX, "%04x-%04x-%016lx-%016lldx-%08x-%016lx", inode.device_major,
+        string, PATH_MAX, "/inodes/%04x-%04x-%016lx-%016lldx-%08x-%016lx", inode.device_major,
         inode.device_minor, inode.number,
         /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
         (long long int)inode.mtime.tv_sec, inode.mtime.tv_nsec, inode.size);
@@ -55,8 +56,7 @@ static int copy_to_store(int fd, struct Inode inode) {
         store_path = *get_probe_dir();
         initialized = true;
     }
-    store_path.bytes[store_path.len] = '/';
-    path_to_id_string(inode, store_path.bytes + store_path.len + 1);
+    path_to_id_string(inode, store_path.bytes + store_path.len);
     /*
     ** We take precautions to avoid calling copy(f) if copy(f) is already called in the same process.
     ** But it may have been already called in a different process!
@@ -66,16 +66,14 @@ static int copy_to_store(int fd, struct Inode inode) {
     if (access == 0) {
         return 0;
     } else if ((inode.mode & S_IFMT) == S_IFDIR) {
-        ERROR("Can't copy directory %ld", inode.number);
+        DEBUG("Can't copy directory %ld", inode.number);
         // TODO: implement this
-        // We need to copy the inode metadata (not actual contents) linked in this directory
         return 0;
     } else if ((inode.mode & S_IFMT) == S_IFREG) {
-        DEBUG("Copying regular file %ld", inode.number);
+        DEBUG("Copying regular file fd=%d, dev=%d,%d, inode=%ld to path=%s", fd, inode.device_major, inode.device_minor, inode.number, store_path.bytes);
         return (int)probe_copy_file(fd, AT_FDCWD, store_path.bytes, inode.size);
     } else if ((inode.mode & S_IFMT) == S_IFCHR) {
-        DEBUG("Copying block device file %ld", inode.number);
-        // TODO
+        DEBUG("Ignoring block device file %ld", inode.number);
         return 0;
     } else {
         ERROR("Not sure how to copy special file inode=%ld, (mode & S_IFMT)=%d", inode.number,
@@ -115,8 +113,9 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
                           inode.number);
                 } else {
                     DEBUG("Mutating, therefore copying %ld", inode.number);
-                    if (copy_to_store(fd, inode) != 0) {
-                        ERROR("Copying failed");
+                    int ret = copy_to_store(fd, inode);
+                    if (ret != 0) {
+                        ERROR("Copying failed, %d", ret);
                     }
                 }
             } else if (access == TRUNCATE_WRITE_ACCESS) {
@@ -131,8 +130,9 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
                               inode.number);
                     } else {
                         DEBUG("Replace after read %ld", inode.number);
-                        if (copy_to_store(fd, inode) != 0) {
-                            ERROR("Copying failed");
+                        int ret = copy_to_store(fd, inode);
+                        if (ret != 0) {
+                            ERROR("Copying failed, %d", ret);
                         }
                     }
                 } else {
@@ -146,8 +146,9 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
             if (atomic_exchange(coo_loc, true)) {
                 DEBUG("Not copying %ld because already did", inode.number);
             } else {
-                if (copy_to_store(fd, inode) != 0) {
-                    ERROR("Copying failed");
+                int ret = copy_to_store(fd, inode);
+                if (ret != 0) {
+                    ERROR("Copying failed, %d", ret);
                 }
             }
         }

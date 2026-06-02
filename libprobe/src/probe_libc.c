@@ -63,6 +63,9 @@ size_t auxiliary[AUX_CNT] = {0};
 #if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
 
+// TODO: Investigate using client_X versus probe_libc_X.
+// I think we only hve to use probe_libc_X in cases where client_X may not be provided or when we need X before client is looked up.
+
 static uint64_t probe_syscall0(uint64_t sysnum) {
     SYSCALL_REG(rax) = sysnum;
 
@@ -442,22 +445,55 @@ result probe_copy_file(int src_fd, int dst_dirfd, const char* _Nullable dst_path
     // See https://stackoverflow.com/a/2180157
     result_int dst_fd = probe_libc_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
     if (dst_fd.error) {
-        probe_libc_close(src_fd);
+        DEBUG("Error at openat");
         return (result)dst_fd.error;
     }
 
+    bool error = false;
     off_t copied = 0;
+    result_ssize_t written;
     while (copied < size) {
-        result_ssize_t written = probe_libc_sendfile(dst_fd.value, src_fd, &copied, SSIZE_MAX);
+        written = probe_libc_sendfile(dst_fd.value, src_fd, &copied, SSIZE_MAX);
         if (written.error) {
-            probe_libc_close(src_fd);
-            probe_libc_close(dst_fd.value);
-            return written.error;
+            DEBUG("sendfile error %d copied=%ld of %ld", written.error, copied, size);
+            error = true;
+            break;
         }
         copied += written.value;
     }
 
-    probe_libc_close(src_fd);
+    if (error) {
+        // Error on first sendfile
+        // File might not support sendfile.
+        // Keep in mind that size can be wrong
+        // In these cases, we want to fall back to normal read/writes
+#define BLOCK_SIZE 4096
+        while (copied < size) {
+            static char buffer[BLOCK_SIZE];
+            size_t remaining = size - copied;
+            ssize_t read = client_pread(src_fd, buffer, remaining < BLOCK_SIZE ? remaining : BLOCK_SIZE, copied);
+            if (read < 0) {
+                DEBUG("Error at read");
+                probe_libc_close(dst_fd.value);
+                return read;
+            }
+            if (read == 0) {
+                break;
+            }
+            off_t new_position = copied + read;
+            while (copied < new_position) {
+                ssize_t written2 =
+                    client_pwrite(dst_fd.value, buffer, new_position - copied, copied);
+                if (written2 < 0) {
+                    DEBUG("Error at write");
+                    probe_libc_close(dst_fd.value);
+                    return -written2;
+                }
+                copied += written2;
+            }
+        }
+    }
+
     probe_libc_close(dst_fd.value);
 
     return 0;
