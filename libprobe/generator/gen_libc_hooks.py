@@ -17,6 +17,9 @@ ignore_actions = False
 debug_print_start_of_interposition = False
 
 
+interpose_read_writes = True
+
+
 _T = typing.TypeVar("_T")
 def expect_type(typ: type[_T], data: typing.Any) -> _T:
     if not isinstance(data, typ):
@@ -156,6 +159,25 @@ def strip_restrict(ty: TypeDecl | PtrDecl) -> TypeDecl | PtrDecl:
     else:
         return ty
 
+
+def find_decl(
+        block: typing.Sequence[Node],
+        name: str,
+        comment: typing.Any,
+) -> Decl | None:
+    relevant_stmts = [
+        stmt
+        for stmt in block
+        if isinstance(stmt, Decl) and stmt.name == name
+    ]
+    if not relevant_stmts:
+        return None
+    elif len(relevant_stmts) > 1:
+        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
+    else:
+        return relevant_stmts[0]
+
+
 @dataclasses.dataclass(frozen=True)
 class ParsedFunc:
     name: str
@@ -164,6 +186,7 @@ class ParsedFunc:
     return_type: TypeDecl
     variadic: bool = False
     stmts: typing.Sequence[Node] = ()
+    is_read_write: bool = False
 
     @staticmethod
     def from_decl(decl: Decl) -> ParsedFunc:
@@ -180,9 +203,11 @@ class ParsedFunc:
 
     @staticmethod
     def from_defn(func_def: pycparser.c_ast.FuncDef) -> ParsedFunc:
+        stmts = tuple(func_def.body.block_items) if func_def.body.block_items is not None else ()
         return dataclasses.replace(
             ParsedFunc.from_decl(func_def.decl),
-            stmts=tuple(func_def.body.block_items) if func_def.body.block_items is not None else (),
+            stmts=stmts,
+            is_read_write=bool(find_decl(stmts, "is_read_write", func_def.decl.name))
         )
 
     def declaration(self) -> pycparser.c_ast.FuncDecl:
@@ -231,13 +256,18 @@ class ParsedFunc:
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
 ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument", "-I."])
-orig_funcs = {
+funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
     if isinstance(node, pycparser.c_ast.FuncDef)
 }
 funcs = {
-    **orig_funcs,
+    name: func
+    for name, func in funcs.items()
+    if not func.is_read_write or interpose_read_writes
+}
+funcs = {
+    **funcs,
     **{
         node.name: dataclasses.replace(orig_funcs[typing.cast(ID, node.init).name], name=node.name)
         for node in ast.ext
@@ -584,7 +614,7 @@ __attribute__((visibility("default"))) void closefrom(int lowfd);
 #endif
 
 void init_function_pointers();
-"""
+""" + f"static const bool INTERPOSE_READ_WRITES = {str(interpose_read_writes).lower()};\n"
 (generated / "libc_hooks.h").write_text(
     warning + "\n\n" +
     libc_hooks_h_preamble.strip() + "\n\n" +
@@ -599,6 +629,7 @@ libc_hooks_c_preamble = """
 
 #include "libc_hooks.h"
 
+#include <aio.h>                                             // for aiocb
 #include <dirent.h>                                          // for DIR, dirfd
 #include <dlfcn.h>                                           // for dlsym
 #include <errno.h>                                           // for errno
@@ -636,6 +667,10 @@ libc_hooks_c_preamble = """
 #include "../src/prov_utils.h"                               // for create_p...
 #include "../src/pthread_helper.h"                           // for pthread_helper
 #include "../src/util.h"                                     // for LIKELY
+
+struct iovec;
+struct rusage;
+struct sigevent;
 
 #if defined(__GLIBC__) && __GLIBC_MINOR__ >= 34
 # include <linux/close_range.h>                              // for CLOSE_RANGE_CLOEXEC

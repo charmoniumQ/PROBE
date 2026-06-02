@@ -1,11 +1,12 @@
 #include "util.h" // for BORROWED, OWNED, CHECK_SNPRINTF
 
-#include <dirent.h>    // for dirent
-#include <fcntl.h>     // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
-#include <limits.h>    // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
-#include <stdbool.h>   // for bool, false
-#include <stdlib.h>    // for malloc
-#include <sys/stat.h>  // for S_IFDIR, S_IFMT, statx, STATX_TYPE
+#include <dirent.h>   // for dirent
+#include <fcntl.h>    // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
+#include <limits.h>   // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
+#include <stdbool.h>  // for bool, false
+#include <stdlib.h>   // for malloc
+#include <sys/stat.h> // for S_IFDIR, S_IFMT, statx, STATX_TYPE
+#include <sys/sysmacros.h>
 #include <sys/types.h> // for ssize_t, off_t
 // IWYU pragma: no_include "asm-generic/errno-base.h"   for EBADF
 // IWYU pragma: no_include "bits/posix1_lim.h"          for SSIZE_MAX
@@ -87,4 +88,27 @@ unsigned int my_atoui(const char* s) {
         n = 10 * n - (*s - '0');
     }
     return n;
+}
+
+void print_open_fd(int fd) {
+    struct stat st;
+    if (client_fstat(fd, &st) == -1) {
+        DEBUG("fd %d -> unknown stat", fd);
+        return;
+    }
+
+    char proc_path[64];
+    char target[PATH_MAX];
+    snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
+    ssize_t len = client_readlink(proc_path, target, sizeof(target) - 1);
+    if (len == -1) {
+        DEBUG("fd %d -> path=unknown, device=%u,%u inode=%zu", fd, major(st.st_dev),
+              minor(st.st_dev), st.st_ino);
+        return;
+    }
+
+    target[len] = '\0';
+
+    DEBUG("fd %d -> path=%s, device=%u,%u inode=%zu", fd, target, major(st.st_dev),
+          minor(st.st_dev), st.st_ino);
 }

@@ -2396,17 +2396,157 @@ int mkstemps(char *template, int suffixlen) {
     });
 };
 
+ssize_t read(int fd, void* buf, size_t count) {
+    void* post_call = ({
+        // Note that ret == 0 could mean we hit EOF
+        // which does ret as reading data from the file.
+        if (ret >= 0) {
+            mark_access(fd, false);
+        }
+    });
+}
+
+ssize_t write(int fd, const void* buf, size_t count) {
+    void* post_call = ({
+        if (ret > 0) {
+            mark_access(fd, true);
+        }
+    });
+    bool is_read_write = true;
+}
+
+
+ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
+    void* post_call = ({
+        if (ret >= 0) {
+            mark_access(fd, false);
+        }
+    });
+    bool is_read_write = true;
+}
+ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
+    void* post_call = ({
+        if (ret > 0) {
+            mark_access(fd, true);
+        }
+    });
+    bool is_read_write = true;
+}
+
+ssize_t readv(int fd, const struct iovec *iov, int iovcnt) {
+    void* post_call = ({
+        if (ret >= 0) {
+            mark_access(fd, false);
+        }
+    });
+    bool is_read_write = true;
+}
+ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
+    void* post_call = ({
+        if (ret > 0) {
+            mark_access(fd, true);
+        }
+    });
+    bool is_read_write = true;
+}
+ssize_t preadv(int fd, const struct iovec *iov, int iovcnt, off_t offset) {
+    void* post_call = ({
+        if (ret >= 0) {
+            mark_access(fd, false);
+        }
+    });
+    bool is_read_write = true;
+}
+ssize_t pwritev(int fd, const struct iovec *iov, int iovcnt, off_t offset) {
+    void* post_call = ({
+        if (ret > 0) {
+            mark_access(fd, true);
+        }
+    });
+    bool is_read_write = true;
+}
+ssize_t preadv2(int fd, const struct iovec *iov, int iovcnt, off_t offset, int flags) {
+    void* post_call = ({
+        if (ret >= 0) {
+            mark_access(fd, false);
+        }
+    });
+    bool is_read_write = true;
+}
+ssize_t pwritev2(int fd, const struct iovec *iov, int iovcnt, off_t offset, int flags) {
+    void* post_call = ({
+        if (ret > 0) {
+            mark_access(fd, true);
+        }
+    });
+    bool is_read_write = true;
+}
+
+int aio_read(struct aiocb* aiocbp) {
+    void* post_call = ({
+        mark_access(aiocbp->aio_fildes, false);
+    });
+    bool is_read_write = true;
+}
+
+int aio_write(struct aiocb* aiocbp) {
+    void* post_call = ({
+        mark_access(aiocbp->aio_fildes, true);
+    });
+    bool is_read_write = true;
+}
+
+
+int lio_listio (int __mode,
+		       struct aiocb *const __list[],
+		       int __nent, struct sigevent * __sig) {
+    void* post_call = ({
+        for (int i = 0; i < __nent; ++i) {
+            if (__list[i]->aio_lio_opcode == LIO_READ) {
+                mark_access(__list[i]->aio_fildes, false);
+            } else if(__list[i]->aio_lio_opcode == LIO_WRITE) {
+                mark_access(__list[i]->aio_fildes, true);
+            }
+        }
+    });
+    bool is_read_write = true;
+}
+
+
+ssize_t copy_file_range(int fd_in, off_t* off_in, int fd_out, off_t* off_out,
+                        size_t size, unsigned int flags) {
+    void* post_call = ({
+        if (ret >= 0) {
+            mark_access(fd_in, false);
+            mark_access(fd_out, true);
+        }
+    });
+    bool is_read_write = true;
+}
+
+
+size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
+    void* post_call = ({
+        int fd = fileno(stream);
+        if (fd >= 0 && ret >= 0) {
+            mark_access(fd, false);
+        }
+    });
+    bool is_read_write = true;
+}
+size_t fwrite(const void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
+    void* post_call = ({
+        int fd = fileno(stream);
+        if (fd >= 0 && ret > 0) {
+            mark_access(fd, true);
+        }
+    });
+    bool is_read_write = true;
+}
+
+
 /*
 TODO:
-
-Reads and writes:
-read
-4 p(read|write)(|64)
-8 p(read|write)v(|2|64|64v2)
-1 copy_file_range
-4 aio_(read|write)(|64)
-2 lio_listio(|64)
-https://sourceware.org/glibc/manual/2.41/html_node/Low_002dLevel-I_002fO.html
 
 mmap, mmap64, munmap, shm_open, shm_unlink, memfd_create
 

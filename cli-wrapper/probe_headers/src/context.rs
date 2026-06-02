@@ -55,6 +55,7 @@ pub struct FixedPath {
 pub struct ProcessTreeContext {
     pub libprobe_path: FixedPath,
     pub copy_files: CopyFiles,
+    pub interpose_read_writes: bool,
     pub parent_of_root: u32,
     pub working_directory: FixedPath,
     pub working_directory_inode: Inode,
