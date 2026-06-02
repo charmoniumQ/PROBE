@@ -116,7 +116,8 @@ static inline void init_process_tree_context() {
      * Note that sizeof("abc") already includes 1 extra for the null byte. */
     probe_libc_memcpy(path_buf + probe_dir->len, "/" PROCESS_TREE_CONTEXT_FILE "\0",
                       (sizeof(PROCESS_TREE_CONTEXT_FILE) + 1));
-    __process_tree_context = open_and_mmap(path_buf, false, sizeof(struct ProcessTreeContext));
+    __process_tree_context = open_and_mmap(path_buf, true, sizeof(struct ProcessTreeContext));
+    __process_tree_context->interpose_read_writes = INTERPOSE_READ_WRITES;
 }
 static inline const struct ProcessTreeContext* _Nonnull get_process_tree_context() {
     ASSERTF(__process_tree_context != NULL, "");
