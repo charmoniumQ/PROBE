@@ -23,6 +23,7 @@ allowed = {
     "dlsym",
     "environ",
     "fileno",
+    "fprintf",
     "free",
     "malloc",
     "memcpy",
@@ -35,6 +36,7 @@ allowed = {
     "pthread_rwlock_wrlock",
     "pthread_setspecific",
     "realloc",
+    "snprintf",
     "stderr",
     "thrd_current",
 }
