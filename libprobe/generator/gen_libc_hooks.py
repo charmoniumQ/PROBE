@@ -528,10 +528,11 @@ libc_hooks_h_preamble = """
 #include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
 #include <signal.h>               // for siginfo_t
 #include <spawn.h>                // for posix_spawn_file_actions_t
-#include <stdio.h>                // for L_tmpnam, FILE, size_t
 #include <sys/time.h>             // for timeval
 #include <sys/types.h>            // for pid_t, mode_t, ssize_t, gid_t, uid_t
 #include <sys/wait.h>             // IWYU pragma: keep for idtype_t
+#include "../src/libc_subset.h"   // IWYU pragma: keep for FILE
+// IWYU pragma: no_include <stdio.h> for FILE
 
 struct rusage;
 struct stat;
@@ -571,14 +572,7 @@ typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 #define __MUSL__
 #endif
 
-// Musl defines tmpnam(char*)
-// Glibc defines tmpnam(char[L_tmpnam])
-// We use tmpnam(char[L_tmpnam]) and let this macro handle the difference
-#ifdef __MUSL__
 #define __PROBE_L_tmpnam
-#elif __USE_GNU
-#define __PROBE_L_tmpnam L_tmpnam
-#endif
 
 // Musl does not define closefrom; gcc does and we interpose it.
 __attribute__((visibility("default"))) void closefrom(int lowfd);
@@ -618,25 +612,24 @@ libc_hooks_c_preamble = """
 #include <stdarg.h>                                          // for va_arg
 #include <stdbool.h>                                         // for false, true
 #include <stdint.h>                                          // for int64_t
-#include <stdio.h>                                           // for fileno
-#include <stdlib.h>                                          // for free
-#include <sys/resource.h>                                    // IWYU pragma: keep for rusage
 #include <sys/stat.h>                                        // for chmod, statx
 #include <sys/time.h>                                        // for futimes, timeval
 #include <sys/wait.h>                                        // for wait, wait3
-#include <unistd.h>                                          // for vfork, access, chdir
 #include <utime.h>                                           // for utimbuf
 // IWYU pragma: no_include "bits/statx-generic.h"               for statx
 // IWYU pragma: no_include "bits/types/siginfo_t.h"             for si_pid, si_status
-// IWYU pragma: no_include "bits/types/struct_rusage.h"         for rusage
 // IWYU pragma: no_include "linux/limits.h"                     for PATH_MAX
 // IWYU pragma: no_include "linux/stat.h"                       for statx, statx_timestamp
+// IWYU pragma: no_include <stdio.h>                            for FILE, we have libc_subset.h
+// IWYU pragma: no_include <stdlib.h>
+// IWYU pragma: no_include "unistd.h"
 
 #include "../generated/headers.h"                            // for Op, OpCode
 #include "../src/arena.h"                                    // for prov_log...
 #include "../src/debug_logging.h"                            // for DEBUG
 #include "../src/env.h"                                      // for arena_co...
 #include "../src/global_state.h"                             // for ensure_i...
+#include "../src/libc_subset.h"                              // IWYU pragma: keep for fileno
 #include "../src/lookup_on_path.h"                           // for lookup_o...
 #include "../src/probe_libc.h"                               // for probe_libc_...
 #include "../src/prov_buffer.h"                              // for prov_log...
@@ -691,7 +684,6 @@ typedef void* __type_voidp;
 _Static_assert(sizeof(struct StatxTimestamp) == sizeof(struct statx_timestamp), "");
 _Static_assert(sizeof(struct TimeVal) == sizeof(struct timeval), "");
 
-#pragma clang diagnostic ignored "-Wignored-attributes"
 """
 
 (generated / "libc_hooks.c").write_text(

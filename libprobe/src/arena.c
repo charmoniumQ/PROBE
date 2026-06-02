@@ -4,14 +4,14 @@
 #include <stdbool.h>  // for bool, false, true
 #include <stddef.h>   // for size_t, NULL
 #include <stdint.h>   // for uintptr_t
-#include <stdio.h>    // for snprintf
 #include <stdlib.h>   // for free, malloc
 #include <sys/mman.h> // IWYU pragma: keep for MAP_FAILED, MS_SYNC, MAP_SHARED, PROT_READ
 // IWYU pragma: no_include "bits/mman-linux.h"          for MS_SYNC, MAP_SHARED, PROT_READ
 
 #include "../generated/headers.h"
 #include "debug_logging.h" // for EXPECT, ASSERTF, EXPECT_NONNULL
-#include "probe_libc.h"    // for probe_libc_...
+#include "libc_subset.h"
+#include "probe_libc.h" // for probe_libc_...
 
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 
