@@ -81,7 +81,7 @@ clean: clean-cli clean-lib clean-tests
 lint: lint-py lint-cli lint-lib lint-nix codespell
 
 codespell:
-    codespell '--skip=*/venv/*,*/.mypy_cache/*,./.direnv/*'
+    codespell
 
 compile: compile-cli compile-lib compile-tests update-headers-py
 
