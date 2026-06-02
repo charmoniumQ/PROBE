@@ -330,7 +330,6 @@
           shellPackages =
             [
               pkgs.jq
-              pkgs.codespell
 
               # Rust tools
               pkgs.cargo-audit
@@ -362,6 +361,7 @@
               pkgs.alejandra
               pkgs.just
               pkgs.ruff
+              pkgs.codespell
             ]
             # OpenJDK doesn't build on some platforms
             ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.nextflow
