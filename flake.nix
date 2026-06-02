@@ -330,7 +330,6 @@
           shellPackages =
             [
               pkgs.jq
-              pkgs.codespell
 
               # Rust tools
               pkgs.cargo-audit
