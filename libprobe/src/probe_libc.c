@@ -64,7 +64,7 @@ size_t auxiliary[AUX_CNT] = {0};
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
 
 // TODO: Investigate using client_X versus probe_libc_X.
-// I think we only hve to use probe_libc_X in cases where client_X may not be provided or when we need X before client is looked up.
+// I think we only have to use probe_libc_X in cases where client_X may not be provided or when we need X before client is looked up.
 
 static uint64_t probe_syscall0(uint64_t sysnum) {
     SYSCALL_REG(rax) = sysnum;
