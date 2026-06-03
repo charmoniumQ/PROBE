@@ -262,11 +262,6 @@ funcs = {
     if isinstance(node, pycparser.c_ast.FuncDef)
 }
 funcs = {
-    name: func
-    for name, func in funcs.items()
-    if not func.is_read_write or interpose_read_writes
-}
-funcs = {
     **funcs,
     **{
         node.name: dataclasses.replace(funcs[typing.cast(ID, node.init).name], name=node.name)
@@ -420,12 +415,12 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             raise RuntimeError(f"{func.name} accesses errno")
 
     pre_call_action = find_decl(func.stmts, "pre_call", func.name)
-    if not ignore_actions and pre_call_action:
+    if not ignore_actions and pre_call_action and (not func.is_read_write or interpose_read_writes):
         pre_call_stmts.extend(expect_type(Compound, pre_call_action.init).block_items)
 
     post_call_action = find_decl(func.stmts, "post_call", func.name)
     assert not noreturn or not post_call_action
-    if not ignore_actions and post_call_action:
+    if not ignore_actions and post_call_action and (not func.is_read_write or interpose_read_writes):
         post_call_stmts.extend(
             expect_type(Compound, post_call_action.init).block_items,
         )
@@ -441,7 +436,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         ),
     )
 
-    call_stmts_block = find_decl(func.stmts, "call", func.name) if not ignore_actions else None
+    call_stmts_block = find_decl(func.stmts, "call", func.name) if not ignore_actions and (not func.is_read_write or interpose_read_writes) else None
     if call_stmts_block is None:
         call_expr = pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(

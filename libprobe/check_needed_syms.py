@@ -36,6 +36,7 @@ allowed = {
     "pthread_rwlock_wrlock",
     "pthread_setspecific",
     "realloc",
+    "sendfile",
     "snprintf",
     "stderr",
     "thrd_current",

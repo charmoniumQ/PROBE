@@ -436,69 +436,6 @@ result_sized_mem probe_read_all_alloc_path(int dirfd, const char* _Nonnull path)
     return ret;
 }
 
-result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* _Nullable offset, size_t count) {
-    ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
-    SYSCALL_ERROR_RESULT(result_ssize_t, retval);
-}
-
-result probe_copy_file(int src_fd, int dst_dirfd, const char* _Nullable dst_path, ssize_t size) {
-    // See https://stackoverflow.com/a/2180157
-    result_int dst_fd = probe_libc_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
-    if (dst_fd.error) {
-        DEBUG("Error at openat");
-        return (result)dst_fd.error;
-    }
-
-    bool error = false;
-    off_t copied = 0;
-    result_ssize_t written;
-    while (copied < size) {
-        written = probe_libc_sendfile(dst_fd.value, src_fd, &copied, SSIZE_MAX);
-        if (written.error) {
-            DEBUG("sendfile error %d copied=%ld of %ld", written.error, copied, size);
-            error = true;
-            break;
-        }
-        copied += written.value;
-    }
-
-    if (error) {
-        // Error on first sendfile
-        // File might not support sendfile.
-        // Keep in mind that size can be wrong
-        // In these cases, we want to fall back to normal read/writes
-#define BLOCK_SIZE 4096
-        while (copied < size) {
-            static char buffer[BLOCK_SIZE];
-            size_t remaining = size - copied;
-            ssize_t read = client_pread(src_fd, buffer, remaining < BLOCK_SIZE ? remaining : BLOCK_SIZE, copied);
-            if (read < 0) {
-                DEBUG("Error at read");
-                probe_libc_close(dst_fd.value);
-                return read;
-            }
-            if (read == 0) {
-                break;
-            }
-            off_t new_position = copied + read;
-            while (copied < new_position) {
-                ssize_t written2 =
-                    client_pwrite(dst_fd.value, buffer, new_position - copied, copied);
-                if (written2 < 0) {
-                    DEBUG("Error at write");
-                    probe_libc_close(dst_fd.value);
-                    return -written2;
-                }
-                copied += written2;
-            }
-        }
-    }
-
-    probe_libc_close(dst_fd.value);
-
-    return 0;
-}
-
 result_mem probe_libc_mmap(void* _Nullable addr, size_t len, int prot, int flags, int fd) {
     ssize_t retval = probe_syscall6(SYS_mmap, (uintptr_t)addr, len, prot, flags, fd, /*offset*/ 0);
     // can't use SYSCALL_ERROR_WRAPPER because of the type coercion

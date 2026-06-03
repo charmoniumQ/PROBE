@@ -5,11 +5,12 @@
 #include <stdatomic.h>
 #include <stdbool.h> // for bool, true
 #include <stdint.h>
-#include <string.h>
+#include <sys/sendfile.h>
 #include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
 #include <threads.h>  // for thrd_current
 #include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
 #include <unistd.h>   // for F_OK
+// IWYU pragma: no_include "bits/posix1_lim.h" for SSIZE_MAX, we have limits.h
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
@@ -49,6 +50,63 @@ static inline void path_to_id_string(const struct Inode inode, BORROWED char* st
         (long long int)inode.mtime.tv_sec, inode.mtime.tv_nsec, inode.size);
 }
 
+int copy_file(int src_fd, int dst_dirfd, const char* _Nullable dst_path, ssize_t size) {
+    // See https://stackoverflow.com/a/2180157
+    int dst_fd = client_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
+    if (dst_fd < 0) {
+        DEBUG("Error at openat");
+        return (result)-dst_fd;
+    }
+
+    bool error = false;
+    off_t copied = 0;
+    while (copied < size) {
+        ssize_t written = sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
+        if (written < 0) {
+            DEBUG("sendfile error %ld copied=%ld of %ld", -written, copied, size);
+            error = true;
+            break;
+        }
+        copied += written;
+    }
+
+    if (error) {
+        // Error on first sendfile
+        // File might not support sendfile.
+        // Keep in mind that size can be wrong
+        // In these cases, we want to fall back to normal read/writes
+#define BLOCK_SIZE 4096
+        while (copied < size) {
+            static char buffer[BLOCK_SIZE];
+            size_t remaining = size - copied;
+            ssize_t read = client_pread(src_fd, buffer,
+                                        remaining < BLOCK_SIZE ? remaining : BLOCK_SIZE, copied);
+            if (read < 0) {
+                DEBUG("Error at read");
+                client_close(dst_fd);
+                return read;
+            }
+            if (read == 0) {
+                break;
+            }
+            off_t new_position = copied + read;
+            while (copied < new_position) {
+                ssize_t written = client_pwrite(dst_fd, buffer, new_position - copied, copied);
+                if (written <= 0) {
+                    DEBUG("Error at write");
+                    client_close(dst_fd);
+                    return (int)-written;
+                }
+                copied += written;
+            }
+        }
+    }
+
+    client_close(dst_fd);
+
+    return 0;
+}
+
 static int copy_to_store(int fd, struct Inode inode) {
     static thread_local struct FixedPath store_path;
     static thread_local bool initialized = false;
@@ -70,8 +128,9 @@ static int copy_to_store(int fd, struct Inode inode) {
         // TODO: implement this
         return 0;
     } else if ((inode.mode & S_IFMT) == S_IFREG) {
-        DEBUG("Copying regular file fd=%d, dev=%d,%d, inode=%ld to path=%s", fd, inode.device_major, inode.device_minor, inode.number, store_path.bytes);
-        return (int)probe_copy_file(fd, AT_FDCWD, store_path.bytes, inode.size);
+        DEBUG("Copying regular file fd=%d, dev=%d,%d, inode=%ld to path=%s", fd, inode.device_major,
+              inode.device_minor, inode.number, store_path.bytes);
+        return (int)copy_file(fd, AT_FDCWD, store_path.bytes, inode.size);
     } else if ((inode.mode & S_IFMT) == S_IFCHR) {
         DEBUG("Ignoring block device file %ld", inode.number);
         return 0;
