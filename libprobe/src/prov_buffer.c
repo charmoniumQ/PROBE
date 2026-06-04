@@ -285,6 +285,9 @@ void mark_access(int fd, bool is_write) {
 }
 
 int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
+    int saved_errno = errno;
+    errno = 0;
+    int call_errno = 0;
     enum AccessType access;
     if ((flags & O_ACCMODE) == O_RDONLY) {
         access = READ_ACCESS;
@@ -301,17 +304,12 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
     DEBUG("open_wrapper(%d, \"%s\", %d, %d), access=%d", dirfd, filename, flags, mode, access);
 
     int nondestructive_flags = (flags & ~(O_CREAT | O_TRUNC | O_TMPFILE)) | O_RDONLY;
-    int saved_errno = 0;
     int fd = client_openat(dirfd, filename, nondestructive_flags, mode);
+    call_errno = errno;
     struct Inode inode;
     if (fd >= 0) {
         inode = get_inode(fd);
         maybe_copy_to_store(access, fd, inode);
-    } else {
-        // FIXME: This should be call_errno.
-        // saved_errno should be at the top.
-        saved_errno = errno;
-        // TODO: note the fact that the file did NOT exist
     }
 
     // TODO: If failed in a way that destructively-open would not fix, add op and leave
@@ -322,10 +320,9 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         }
         // TODO: try interpreting flags instead of doing close+open
         fd = client_openat(dirfd, filename, flags, mode);
+        call_errno = errno;
         if (fd >= 0) {
             inode = get_inode(fd);
-        } else {
-            saved_errno = errno;
         }
     }
 
@@ -356,9 +353,11 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
                 },
             .ferrno = 0,
         });
-        errno = 0;
-    } else {
+    }
+    if (call_errno == 0) {
         errno = saved_errno;
+    } else {
+        errno = call_errno;
     }
     return fd;
 }
@@ -371,6 +370,9 @@ const int ACCESS_FLAGS[] = {
 };
 
 FILE* fopen_wrapper(const char* filename, const char* opentype) {
+    int saved_errno = errno;
+    errno = 0;
+    int call_errno;
     DEBUG("fopen_wrapper(\"%s\", \"%s\")", filename, opentype);
     bool has_plus = false;
     for (const char* f = filename; *f; ++f) {
@@ -392,15 +394,12 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
     } else {
         ERROR("unrecognized opentype: \"%s\"", opentype);
     }
-    int saved_errno = 0;
     FILE* file = client_fopen(filename, "r");
+    call_errno = errno;
     struct Inode inode;
     if (file) {
         inode = get_inode(fileno(file));
         maybe_copy_to_store(access, fileno(file), inode);
-    } else {
-        saved_errno = errno;
-        // TODO: note the fact that the file did NOT exist
     }
 
     // TODO: If failed in a way that destructively-open would not fix, add op and leave
@@ -414,10 +413,9 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
         } else {
             file = client_fopen(filename, opentype);
         }
+        call_errno = errno;
         if (file) {
             inode = get_inode(fileno(file));
-        } else {
-            saved_errno = errno;
         }
     }
 
@@ -447,9 +445,11 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
                 },
             .ferrno = 0,
         });
-        errno = 0;
-    } else {
+    }
+    if (call_errno == 0) {
         errno = saved_errno;
+    } else {
+        errno = call_errno;
     }
     return file;
 }

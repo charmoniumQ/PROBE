@@ -79,10 +79,15 @@ compile-tests:
 
 clean: clean-cli clean-lib clean-tests
 
-lint: lint-py lint-cli lint-lib lint-nix codespell
+lint: lint-py lint-cli lint-lib lint-nix codespell check-no-fixmes
 
 codespell:
     codespell
+
+check-no-fixmes:
+    # TODO should be used for persistent unfinished tasks
+    # FIXME should be used for unfinished tasks that need to be finished before commit
+    ! grep "FIXME:" --recursive probe_py libprobe cli-wrapper 
 
 compile: compile-cli compile-lib compile-tests update-headers-py
 
