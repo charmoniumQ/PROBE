@@ -63,7 +63,7 @@ void list_dir(const char* name, int indent) {
     if (!(dir = client_opendir(name)))
         return;
 
-    while ((entry = client_readdir(dir))) {
+    while ((entry = readdir(dir))) {
         if (entry->d_type == DT_DIR) {
             char path[1024];
             if (probe_libc_memcmp(entry->d_name, ".", 2) == 0 ||

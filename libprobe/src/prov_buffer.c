@@ -61,7 +61,7 @@ int copy_file(int src_fd, int dst_dirfd, const char* _Nullable dst_path, ssize_t
     bool error = false;
     off_t copied = 0;
     while (copied < size) {
-        ssize_t written = sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
+        ssize_t written = client_sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
         if (written < 0) {
             DEBUG("sendfile error %ld copied=%ld of %ld", -written, copied, size);
             error = true;

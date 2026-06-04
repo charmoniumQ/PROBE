@@ -155,7 +155,7 @@ int close_range (unsigned int lowfd, unsigned int maxfd, int flags) {
         DIR* dp = EXPECT_NONNULL(client_opendir("/proc/self/fd"));
         struct dirent* dirp;
         DEBUG("close_range %d %d %d -> close", lowfd, maxfd, flags);
-        while ((dirp = client_readdir(dp)) != NULL) {
+        while ((dirp = readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 unsigned int fd = (unsigned int) my_atoui(dirp->d_name);
                 if (lowfd <= fd && fd <= maxfd) {
@@ -179,7 +179,7 @@ void closefrom (int lowfd) {
         DIR* dp = EXPECT_NONNULL(client_opendir("/proc/self/fd"));
         struct dirent* dirp;
         DEBUG("closefrom %d -> close", lowfd);
-        while ((dirp = client_readdir(dp)) != NULL) {
+        while ((dirp = readdir(dp)) != NULL) {
             if (LIKELY('0' <= dirp->d_name[0] && dirp->d_name[0] <= '9')) {
                 int fd = (int) my_atoui(dirp->d_name);
                 if (lowfd <= fd) {
@@ -353,149 +353,123 @@ DIR * opendir (const char *dirname) {
         }
     });
 }
-DIR * fdopendir (int fd) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            OpenNumber on = get_open_number(fd);
-            prov_log_record((struct Op){
-                .data = {
-                    .open_tag = OpData_Open,
-                    .open = {
-                        .path = {
-                            .directory = on,
-                            .name = NULL,
-                        },
-                        .open_number = on,
-                        .inode = get_inode(fd),
-                        .mode = 0,
-                        /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
-                        .flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC,
-                        .dir = true,
-                        .creat = false,
-                    },
-                },
-                .ferrno = UNLIKELY(ret == NULL) ? call_errno : 0,
-            });
-        }
-    });
-}
 
-/* TODO: interpose and sort dirent iteration */
-/* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html */
-struct dirent * readdir (DIR *dirstream) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            int fd = dirfd(dirstream);
-            struct Op op = {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(fd),
-                            .name = NULL,
-                        },
-                        .child = NULL,
-                        .all_children = false,
-                    },
-                },
-                .ferrno = call_errno,
-            };
-            if (LIKELY(ret != NULL)) {
-                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
-                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
-                 * */
-                op.ferrno = 0;
-                op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
-            }
-            prov_log_record(op);
-        }
-    });
-}
-struct dirent64 * readdir64 (DIR *dirstream) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            struct Op op = {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(dirfd(dirstream)),
-                            .name = NULL,
-                        },
-                        .child = NULL,
-                        .all_children = false,
-                    },
-                },
-                .ferrno = call_errno,
-            };
-            if (LIKELY(ret != NULL)) {
-                op.ferrno = 0;
-                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
-                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
-                 * */
-                op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name));
-            }
-            prov_log_record(op);
-        }
-    });
-}
+/* /\* TODO: interpose and sort dirent iteration *\/ */
+/* /\* https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html *\/ */
+/* struct dirent * readdir (DIR *dirstream) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             int fd = dirfd(dirstream); */
+/*             struct Op op = { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(fd), */
+/*                             .name = NULL, */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = false, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = call_errno, */
+/*             }; */
+/*             if (LIKELY(ret != NULL)) { */
+/*                 /\* Note: we will assume these dirents are the same as openat(fd, ret->name); */
+/*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
+/*                  * *\/ */
+/*                 op.ferrno = 0; */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name)); */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
+/* struct dirent64 * readdir64 (DIR *dirstream) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             struct Op op = { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(dirfd(dirstream)), */
+/*                             .name = NULL, */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = false, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = call_errno, */
+/*             }; */
+/*             if (LIKELY(ret != NULL)) { */
+/*                 op.ferrno = 0; */
+/*                 /\* Note: we will assume these dirents are the same as openat(fd, ret->name); */
+/*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
+/*                  * *\/ */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name)); */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
 
-int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            struct Op op = {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(dirfd(dirstream)),
-                            .name = NULL,
-                        },
-                        .child = NULL,
-                        .all_children = false,
-                    },
-                },
-                .ferrno = call_errno,
-            };
-            if (LIKELY(*result != NULL)) {
-                op.ferrno = 0;
-                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
-                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
-                 * */
-                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
-            }
-            prov_log_record(op);
-        }
-    });
-}
-int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            struct Op op = {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(dirfd(dirstream)),
-                            .name = NULL,
-                        },
-                        .child = NULL,
-                        .all_children = false,
-                    },
-                },
-                .ferrno = call_errno,
-            };
-            if (LIKELY(*result != NULL)) {
-                op.ferrno = 0;
-                /* Note: we will assume these dirents are the same as openat(fd, ret->name);
-                 * This is roughly, "the file-system implementation is self-consistent between readdir and openat."
-                 * */
-                op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name));
-            }
-            prov_log_record(op);
-        }
-    });
-}
+/* int readdir_r (DIR *dirstream, struct dirent *entry, struct dirent **result) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             struct Op op = { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(dirfd(dirstream)), */
+/*                             .name = NULL, */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = false, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = call_errno, */
+/*             }; */
+/*             if (LIKELY(*result != NULL)) { */
+/*                 op.ferrno = 0; */
+/*                 /\* Note: we will assume these dirents are the same as openat(fd, ret->name); */
+/*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
+/*                  * *\/ */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name)); */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
+/* int readdir64_r (DIR *dirstream, struct dirent64 *entry, struct dirent64 **result) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             struct Op op = { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(dirfd(dirstream)), */
+/*                             .name = NULL, */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = false, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = call_errno, */
+/*             }; */
+/*             if (LIKELY(*result != NULL)) { */
+/*                 op.ferrno = 0; */
+/*                 /\* Note: we will assume these dirents are the same as openat(fd, ret->name); */
+/*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
+/*                  * *\/ */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name)); */
+/*             } */
+/*             prov_log_record(op); */
+/*         } */
+/*     }); */
+/* } */
 
 int closedir (DIR *dirstream) {
     void* pre_call = ({ int fd = dirfd(dirstream); });
@@ -514,142 +488,143 @@ int closedir (DIR *dirstream) {
     });
 }
 
-/* https://www.gnu.org/software/libc/manual/html_node/Random-Access-Directory.html */
-void rewinddir (DIR *dirstream) { }
-long int telldir (DIR *dirstream) { }
-void seekdir (DIR *dirstream, long int pos) { }
+/* /\* https://www.gnu.org/software/libc/manual/html_node/Random-Access-Directory.html *\/ */
+/* void rewinddir (DIR *dirstream) { } */
+/* long int telldir (DIR *dirstream) { } */
+/* void seekdir (DIR *dirstream, long int pos) { } */
 
-/* https://www.gnu.org/software/libc/manual/html_node/Scanning-Directory-Content.html */
-int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const struct dirent *), int (*cmp) (const struct dirent **, const struct dirent **)) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), dir, PATH_MAX),
-                        },
-                        .child = NULL,
-                        .all_children = true,
-                    },
-                },
-                .ferrno = LIKELY(ret == 0) ? 0 : call_errno,
-            });
-        }
-    });
-}
-int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record((struct Op){
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), dir, PATH_MAX),
-                        },
-                        .child = NULL,
-                        .all_children = true,
-                    },
-                },
-                .ferrno = LIKELY(ret == 0) ? 0 : call_errno,
-            });
-        }
-    });
-}
+/* /\* https://www.gnu.org/software/libc/manual/html_node/Scanning-Directory-Content.html *\/ */
+/* int scandir (const char *dir, struct dirent ***namelist, int (*selector) (const struct dirent *), int (*cmp) (const struct dirent **, const struct dirent **)) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_record((struct Op) { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(AT_FDCWD), */
+/*                             .name = arena_strndup(get_data_arena(), dir, PATH_MAX), */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = true, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = LIKELY(ret == 0) ? 0 : call_errno, */
+/*             }); */
+/*         } */
+/*     }); */
+/* } */
+/* int scandir64 (const char *dir, struct dirent64 ***namelist, int (*selector) (const struct dirent64 *), int (*cmp) (const struct dirent64 **, const struct dirent64 **)) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_record((struct Op){ */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(AT_FDCWD), */
+/*                             .name = arena_strndup(get_data_arena(), dir, PATH_MAX), */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = true, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = LIKELY(ret == 0) ? 0 : call_errno, */
+/*             }); */
+/*         } */
+/*     }); */
+/* } */
 
-/* Docs: https://www.man7.org/linux/man-pages/man3/scandir.3.html */
-int scandirat(int dir_fd, const char *restrict dirp,
-            struct dirent ***restrict namelist,
-            int (*filter)(const struct dirent *),
-            int (*compar)(const struct dirent **, const struct dirent **)) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(dir_fd),
-                            .name = arena_strndup(get_data_arena(), dirp, PATH_MAX),
-                        },
-                        .child = NULL,
-                        .all_children = true,
-                    },
-                },
-                .ferrno = LIKELY(ret == 0) ? 0 : call_errno,
-            });
-        }
-    });
-}
+/* /\* Docs: https://www.man7.org/linux/man-pages/man3/scandir.3.html *\/ */
+/* int scandirat(int dir_fd, const char *restrict dirp, */
+/*             struct dirent ***restrict namelist, */
+/*             int (*filter)(const struct dirent *), */
+/*             int (*compar)(const struct dirent **, const struct dirent **)) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_record((struct Op) { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(dir_fd), */
+/*                             .name = arena_strndup(get_data_arena(), dirp, PATH_MAX), */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = true, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = LIKELY(ret == 0) ? 0 : call_errno, */
+/*             }); */
+/*         } */
+/*     }); */
+/* } */
 
-/* https://www.gnu.org/software/libc/manual/html_node/Low_002dlevel-Directory-Access.html */
-ssize_t getdents64 (int fd, void *buffer, size_t length) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(fd),
-                            .name = NULL,
-                        },
-                        .child = NULL,
-                        .all_children = true,
-                    },
-                },
-                .ferrno = UNLIKELY(ret == -1) ? call_errno : 0
-            });
-        }
-    });
-}
+/* /\* https://www.gnu.org/software/libc/manual/html_node/Low_002dlevel-Directory-Access.html *\/ */
+/* ssize_t getdents64 (int fd, void *buffer, size_t length) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_record((struct Op) { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(fd), */
+/*                             .name = NULL, */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = true, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = UNLIKELY(ret == -1) ? call_errno : 0 */
+/*             }); */
+/*         } */
+/*     }); */
+/* } */
 
-/* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-with-Directory-Trees.html */
-/* Need: These operations walk a directory recursively */
-int ftw (const char *filename, ftw_func func, int descriptors) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
-                        },
-                        .child = NULL,
-                        .all_children = true,
-                    },
-                },
-                .ferrno = LIKELY(ret == 0) ? 0 : call_errno,
-            });
-        }
-    });
-}
-int nftw (const char *filename, nftw_func func, int descriptors, int flag) {
-    void* post_call = ({
-        if (LIKELY(prov_log_is_enabled())) {
-            prov_log_record((struct Op) {
-                .data = {
-                    .readdir_tag = OpData_Readdir,
-                    .readdir = {
-                        .dir = {
-                            .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
-                        },
-                        .child = NULL,
-                        .all_children = true,
-                    },
-                },
-                .ferrno = LIKELY(ret == 0) ? 0 : call_errno
-            });
-        }
-    });
-}
+/* /\* Docs: https://www.gnu.org/software/libc/manual/html_node/Working-with-Directory-Trees.html *\/ */
+/* /\* Need: These operations walk a directory recursively *\/ */
+/* int ftw (const char *filename, ftw_func func, int descriptors) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_record((struct Op) { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(AT_FDCWD), */
+/*                             .name = arena_strndup(get_data_arena(), filename, PATH_MAX), */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = true, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = LIKELY(ret == 0) ? 0 : call_errno, */
+/*             }); */
+/*         } */
+/*     }); */
+/* } */
+/* int nftw (const char *filename, nftw_func func, int descriptors, int flag) { */
+/*     void* post_call = ({ */
+/*         if (LIKELY(prov_log_is_enabled())) { */
+/*             prov_log_record((struct Op) { */
+/*                 .data = { */
+/*                     .readdir_tag = OpData_Readdir, */
+/*                     .readdir = { */
+/*                         .dir = { */
+/*                             .directory = get_open_number(AT_FDCWD), */
+/*                             .name = arena_strndup(get_data_arena(), filename, PATH_MAX), */
+/*                         }, */
+/*                         .child = NULL, */
+/*                         .all_children = true, */
+/*                     }, */
+/*                 }, */
+/*                 .ferrno = LIKELY(ret == 0) ? 0 : call_errno */
+/*             }); */
+/*         } */
+/*     }); */
+/* } */
+
 /* I can't include ftw.h on some systems because it defines fstatat as extern int on some machines. */
 
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Hard-Links.html */
@@ -2544,6 +2519,16 @@ size_t fwrite(const void* restrict ptr, size_t size, size_t n, FILE* restrict st
     bool is_read_write = true;
 }
 
+
+ssize_t sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
+    void* post_call = ({
+        if (ret > 0) {
+            mark_access(in_fd, false);
+            mark_access(out_fd, true);
+        }
+    });
+    bool is_read_write = true;
+}
 
 /*
 TODO:
