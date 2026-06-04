@@ -18,3 +18,7 @@ Resolved: Track it all in ExecOp, unless the current ExecOp is "unmarked". All p
 arenas and possibly other objects are held by pointer, necessitating 1 extra pointer dereference and sometimes 1 func call. Instead, access them directly (possibly through macros).
 
 Don't even log dups. If we copy the open number, and we never use raw FDs, we don't need to log dups and related fd ops.
+
+Don't copy argv, env twice. We already copy it in Exec, don't need to copy it in InitExecEpoch
+
+We have more atomics than necessary. If we assume no races between open and other operations on the same FD, we don't need fd_table to be atomic?
