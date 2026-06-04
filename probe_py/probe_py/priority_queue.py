@@ -33,8 +33,8 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
     _counter: int = 0
 
     def __init__(
-            self,
-            initial: typing.Iterable[tuple[_Task, _Priority]] = (),
+        self,
+        initial: typing.Iterable[tuple[_Task, _Priority]] = (),
     ) -> None:
         self._heap = []
         self._priorities = {}

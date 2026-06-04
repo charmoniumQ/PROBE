@@ -37,6 +37,7 @@ class ExecState:
 @dataclasses.dataclass(frozen=True, order=True)
 class InodeVersionNode:
     """A particular version of the inode"""
+
     inode: ptypes.Inode
     version: int
 
@@ -47,6 +48,7 @@ class InodeVersionNode:
 # make these new classes, so I can use isinstance
 class IVNs(frozenset[InodeVersionNode]):
     pass
+
 
 class Quads(frozenset[ptypes.OpQuad]):
     def thread_triple(self) -> ptypes.ThreadTriple:
@@ -73,21 +75,29 @@ CUTOFF: typing.Final[int] = 4
 
 @charmonium.time_block.decor(print_start=False)
 def hb_graph_to_dataflow_graph(
-        probe_log: ptypes.ProbeLog,
-        hb_graph: hb_graph_mod.HbGraph,
+    probe_log: ptypes.ProbeLog,
+    hb_graph: hb_graph_mod.HbGraph,
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = networkx.DiGraph()
     analysis = Analysis.init(probe_log, hb_graph)
     inode_intervals = find_intervals(analysis)
-    print(f"{len(inode_intervals)} inodes, {sum(len(intervals) for intervals in inode_intervals.values())} intervals")
-    top_k = heapq.nlargest(10, ((len(intervals), inode) for inode, intervals in inode_intervals.items()))
+    print(
+        f"{len(inode_intervals)} inodes, {sum(len(intervals) for intervals in inode_intervals.values())} intervals"
+    )
+    top_k = heapq.nlargest(
+        10, ((len(intervals), inode) for inode, intervals in inode_intervals.items())
+    )
     if top_k[0][0] > CUTOFF:
         print(f"Top inodes with more than {CUTOFF} intervals:")
         for len_inode_intervals, inode in top_k:
             if len_inode_intervals < 5:
                 break
             print(f"  {len_inode_intervals} {inode}")
-    for inode, intervals in tqdm.tqdm(inode_intervals.items(), total=len(inode_intervals), desc="Inode intervals to stitch"):
+    for inode, intervals in tqdm.tqdm(
+        inode_intervals.items(),
+        total=len(inode_intervals),
+        desc="Inode intervals to stitch",
+    ):
         if not any(path.is_relative_to("/dev") for path in analysis.paths[inode]):
             stitch_intervals(dfg, analysis, inode, intervals)
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
@@ -115,9 +125,7 @@ def stitch_threads(dfg: UncompressedDataflowGraph, analysis: Analysis) -> None:
         # If I don't put an arrow from me to that peer, none of my successors will be able to.
         # I should put it to the highest peer that meets the condition.
         highest_peers = {
-            peer
-            for peer in analysis.highest_peers[node]
-            if peer.exec_pair() == node.exec_pair()
+            peer for peer in analysis.highest_peers[node] if peer.exec_pair() == node.exec_pair()
         } - {
             peer
             for pred in analysis.hb_graph.successors(node)
@@ -145,25 +153,30 @@ class OpenNumberInfo:
     open: ptypes.OpQuad
     open_mode: ptypes.AccessMode
     close_bound: vector_clock.VectorTime | None = None
-    closes: list[tuple[ptypes.OpQuad, ptypes.AccessMode | None]] = dataclasses.field(default_factory=list)
+    closes: list[tuple[ptypes.OpQuad, ptypes.AccessMode | None]] = dataclasses.field(
+        default_factory=list
+    )
 
     def add_close(self, quad: ptypes.OpQuad, mode: ptypes.AccessMode | None) -> None:
         self.closes.append((quad, mode))
         closes = self.order.lower_bounds(close for close, _ in self.closes)
-        self.close_bound = vector_clock.upper_bound([self.order.vector_clocks[close] for close in closes])
+        self.close_bound = vector_clock.upper_bound(
+            [self.order.vector_clocks[close] for close in closes]
+        )
 
     def is_open(self, quad: ptypes.OpQuad) -> bool:
         before_the_open = not (self.open <= quad)
-        after_all_closes = self.close_bound <= self.order.vector_clocks[quad] if self.close_bound is not None else False
+        after_all_closes = (
+            self.close_bound <= self.order.vector_clocks[quad]
+            if self.close_bound is not None
+            else False
+        )
         if not before_the_open and not after_all_closes:
             return self._expensive_is_open(quad)
         return not before_the_open and not after_all_closes
 
     def _expensive_is_open(self, quad: ptypes.OpQuad) -> bool:
-        return not any(
-            self.order.leq(close, quad)
-            for close, _ in self.closes
-        )
+        return not any(self.order.leq(close, quad) for close, _ in self.closes)
 
 
 @dataclasses.dataclass
@@ -187,17 +200,21 @@ class Analysis:
                 OpenNumberInfo,
             ],
         ],
-    ] = dataclasses.field(default_factory=lambda: collections.defaultdict(lambda: collections.defaultdict(dict)))
+    ] = dataclasses.field(
+        default_factory=lambda: collections.defaultdict(lambda: collections.defaultdict(dict))
+    )
     last: dict[ptypes.Pid, ptypes.OpQuad] = dataclasses.field(default_factory=dict)
     execs: list[tuple[ptypes.OpQuad, ptypes.OpQuad]] = dataclasses.field(default_factory=list)
     clones: list[tuple[ptypes.OpQuad, ptypes.OpQuad]] = dataclasses.field(default_factory=list)
-    paths: dict[ptypes.Inode, collections.Counter[pathlib.Path]] = dataclasses.field(default_factory=lambda: collections.defaultdict(collections.Counter))
+    paths: dict[ptypes.Inode, collections.Counter[pathlib.Path]] = dataclasses.field(
+        default_factory=lambda: collections.defaultdict(collections.Counter)
+    )
 
     @charmonium.time_block.decor(print_start=True)
     @staticmethod
     def init(
-            probe_log: ptypes.ProbeLog,
-            hb_graph: hb_graph_mod.HbGraph,
+        probe_log: ptypes.ProbeLog,
+        hb_graph: hb_graph_mod.HbGraph,
     ) -> Analysis:
         with charmonium.time_block.ctx("vector clocks", print_start=False):
             order = vector_clock.from_dag(hb_graph, lambda node: node.thread_triple())
@@ -209,7 +226,7 @@ class Analysis:
             hb_graph=hb_graph,
             order=order,
             highest_peers=highest_peers,
-            sources=set(graph_utils.get_sources(hb_graph))
+            sources=set(graph_utils.get_sources(hb_graph)),
         )
 
     @charmonium.time_block.decor(print_start=True)
@@ -221,7 +238,12 @@ class Analysis:
             (ptc.std_in, 0, "/dev/stdin", ptypes.AccessMode.READ),
             (ptc.std_out, 1, "/dev/stdout", ptypes.AccessMode.WRITE),
             (ptc.std_err, 2, "/dev/stderr", ptypes.AccessMode.WRITE),
-            (ptc.working_directory_inode, headers.AT_FDCWD, bytes(ptc.working_directory).decode().strip(), ptypes.AccessMode.DIRECTORY),
+            (
+                ptc.working_directory_inode,
+                headers.AT_FDCWD,
+                bytes(ptc.working_directory).decode().strip(),
+                ptypes.AccessMode.DIRECTORY,
+            ),
         ]:
             inode = ptypes.Inode.from_ops_inode(ops_inode)
             self.paths[inode][pathlib.Path(path)] += 1
@@ -235,7 +257,9 @@ class Analysis:
                 print(f"Initial open {first_quad.exec_pair()}: {fd},0 {inode}")
 
         total = len(self.hb_graph)
-        for quad in tqdm.tqdm(networkx.topological_sort(self.hb_graph), total=total, desc="Analysis"):
+        for quad in tqdm.tqdm(
+            networkx.topological_sort(self.hb_graph), total=total, desc="Analysis"
+        ):
             data = self.probe_log.get_op(quad).data
 
             if quad.tid == quad.pid.main_thread():
@@ -250,7 +274,9 @@ class Analysis:
                     inode = ptypes.Inode.from_ops_inode(data.inode)
                     if self.verbose:
                         print(f"Open {quad}: {data.open_number} {inode} {access_mode}")
-                    assert data.open_number.number != 0, "zero open-number should not be used for newly opened files"
+                    assert data.open_number.number != 0, (
+                        "zero open-number should not be used for newly opened files"
+                    )
                     assert data.open_number.number not in open_numbers[data.open_number.fd]
                     open_numbers[data.open_number.fd][data.open_number.number] = OpenNumberInfo(
                         order=self.order,
@@ -273,15 +299,25 @@ class Analysis:
 
                     # Handle path names
                     if data.path.name:
-                        directory_oni = self.open_numbers[quad.exec_pair()][data.path.directory.fd].get(data.path.directory.number)
+                        directory_oni = self.open_numbers[quad.exec_pair()][
+                            data.path.directory.fd
+                        ].get(data.path.directory.number)
                         if directory_oni is None:
-                            warnings.warn(ptypes.UnusualProbeLog(f"Use of unknown open number as dir exec={quad.exec_pair()}, on={data.path.directory}"))
+                            warnings.warn(
+                                ptypes.UnusualProbeLog(
+                                    f"Use of unknown open number as dir exec={quad.exec_pair()}, on={data.path.directory}"
+                                )
+                            )
                             dir_paths = collections.Counter([pathlib.Path("?")])
                         else:
                             dir_inode = directory_oni.inode
                             maybe_dir_paths = self.paths.get(dir_inode)
                             if maybe_dir_paths is None:
-                                warnings.warn(ptypes.UnusualProbeLog(f"Unknown directory path for {quad.exec_pair()} {data.path.directory}"))
+                                warnings.warn(
+                                    ptypes.UnusualProbeLog(
+                                        f"Unknown directory path for {quad.exec_pair()} {data.path.directory}"
+                                    )
+                                )
                                 dir_paths = collections.Counter([pathlib.Path("?")])
                             else:
                                 dir_paths = maybe_dir_paths
@@ -292,16 +328,22 @@ class Analysis:
                 case headers.Close():
                     oni = open_numbers[data.open_number.fd].get(data.open_number.number)
                     if oni is None:
-                        warnings.warn(ptypes.UnusualProbeLog(
-                            f"Close of unknown open number quad={quad}, on={data.open_number}, data={data}"
-                        ))
+                        warnings.warn(
+                            ptypes.UnusualProbeLog(
+                                f"Close of unknown open number quad={quad}, on={data.open_number}, data={data}"
+                            )
+                        )
                     else:
                         if self.probe_log.process_tree_context.interpose_read_writes:
-                            downgraded_access = oni.open_mode.downgrade(data.open_number.is_write, data.open_number.is_read)
+                            downgraded_access = oni.open_mode.downgrade(
+                                data.open_number.is_write, data.open_number.is_read
+                            )
                         else:
                             downgraded_access = oni.open_mode
                         if self.verbose:
-                            print(f"Close {quad}: {data.open_number} {oni.inode} {downgraded_access}")
+                            print(
+                                f"Close {quad}: {data.open_number} {oni.inode} {downgraded_access}"
+                            )
                         oni.closes.append((quad, downgraded_access))
 
                 case headers.Dup():
@@ -310,7 +352,9 @@ class Analysis:
                     # This dup might be an implicit close.
                     if oni := open_numbers[data.old_dst.fd].get(data.old_dst.number):
                         if self.probe_log.process_tree_context.interpose_read_writes:
-                            downgraded_access = oni.open_mode.downgrade(data.old_dst.is_write, data.old_dst.is_read)
+                            downgraded_access = oni.open_mode.downgrade(
+                                data.old_dst.is_write, data.old_dst.is_read
+                            )
                         else:
                             downgraded_access = oni.open_mode
                         oni.closes.append((quad, downgraded_access))
@@ -324,7 +368,7 @@ class Analysis:
                         for on, oni in open_numbers[open_number_obj.fd].items()
                         if oni.is_open(quad) and on < open_number_obj.number
                     ]
-                    for (open_number_obj, oni) in same_fd_earlier_number_unclosed_onis2:
+                    for open_number_obj, oni in same_fd_earlier_number_unclosed_onis2:
                         if self.verbose:
                             print(f"Close (implicit) {quad}: {open_number_obj}")
                         oni.closes.append((quad, oni.open_mode))
@@ -332,13 +376,15 @@ class Analysis:
                     # dst now points to src
                     oni = open_numbers[data.src.fd].get(data.src.number)
                     if oni is None:
-                        warnings.warn(ptypes.UnusualProbeLog(
-                            f"Dup of unknown open number {quad} {data.src}"
-                        ))
+                        warnings.warn(
+                            ptypes.UnusualProbeLog(f"Dup of unknown open number {quad} {data.src}")
+                        )
                     else:
                         if self.verbose:
                             print(f"Dup {quad}: {data.src}->{data.dst} ({oni.inode})")
-                        assert data.dst.number not in open_numbers[data.dst.fd], f"Open number already used: {quad}, {data.dst.number}"
+                        assert data.dst.number not in open_numbers[data.dst.fd], (
+                            f"Open number already used: {quad}, {data.dst.number}"
+                        )
                         open_numbers[data.dst.fd][data.dst.number] = OpenNumberInfo(
                             order=self.order,
                             inode=oni.inode,
@@ -350,16 +396,23 @@ class Analysis:
                     if data.task_type == headers.TaskType.PID:
                         # Copy currently-open open_numbers
                         target_pid = ptypes.Pid(data.task_id)
-                        target_quad = ptypes.OpQuad(target_pid, ptypes.initial_exec_no, target_pid.main_thread(), 0)
+                        target_quad = ptypes.OpQuad(
+                            target_pid,
+                            ptypes.initial_exec_no,
+                            target_pid.main_thread(),
+                            0,
+                        )
                         self.clones.append((quad, target_quad))
                         for fd, onis in open_numbers.items():
                             for on, oni in onis.items():
                                 if oni.is_open(quad):
-                                    self.open_numbers[target_quad.exec_pair()][fd][on] = OpenNumberInfo(
-                                        order=self.order,
-                                        inode=oni.inode,
-                                        open=target_quad,
-                                        open_mode=oni.open_mode,
+                                    self.open_numbers[target_quad.exec_pair()][fd][on] = (
+                                        OpenNumberInfo(
+                                            order=self.order,
+                                            inode=oni.inode,
+                                            open=target_quad,
+                                            open_mode=oni.open_mode,
+                                        )
                                     )
 
                 case headers.Exec():
@@ -371,7 +424,9 @@ class Analysis:
                     # - fcntl(int fd, F_DUPFD_CLOEXEC/F_DUPFD, int arg)
                     # - fcntl(fd, F_SETFD/F_SETFL)
                     # Conservatively assume not cloexec
-                    target_quad = ptypes.OpQuad(quad.pid, quad.exec_no.next(), quad.pid.main_thread(), 0)
+                    target_quad = ptypes.OpQuad(
+                        quad.pid, quad.exec_no.next(), quad.pid.main_thread(), 0
+                    )
                     self.execs.append((quad, target_quad))
                     if self.verbose:
                         print(f"Exec {quad} -> {target_quad}")
@@ -387,10 +442,7 @@ class Analysis:
                                     open_mode=oni.open_mode,
                                 )
 
-            if all(
-                    successor.pid != quad.pid
-                    for successor in self.hb_graph.successors(quad)
-            ):
+            if all(successor.pid != quad.pid for successor in self.hb_graph.successors(quad)):
                 # Last of the PID.
                 # Implicitly close all files
                 for fd, onis in open_numbers.items():
@@ -400,9 +452,11 @@ class Analysis:
 
 
 def find_intervals(
-        analysis: Analysis,
+    analysis: Analysis,
 ) -> Map[ptypes.Inode, Map[partial_order.Interval[ptypes.OpQuad], ptypes.AccessMode]]:
-    ret: dict[ptypes.Inode, dict[partial_order.Interval[ptypes.OpQuad], ptypes.AccessMode]] = collections.defaultdict(dict)
+    ret: dict[ptypes.Inode, dict[partial_order.Interval[ptypes.OpQuad], ptypes.AccessMode]] = (
+        collections.defaultdict(dict)
+    )
     for exec, onis_by_fd in analysis.open_numbers.items():
         for fd, onis_by_on in onis_by_fd.items():
             for on, oni in onis_by_on.items():
@@ -419,21 +473,18 @@ def find_intervals(
 
 
 def stitch_intervals(
-        dfg: UncompressedDataflowGraph,
-        analysis: Analysis,
-        inode: ptypes.Inode,
-        intervals: Map[partial_order.Interval[ptypes.OpQuad], ptypes.AccessMode],
-        print_inodes: bool = False,
+    dfg: UncompressedDataflowGraph,
+    analysis: Analysis,
+    inode: ptypes.Inode,
+    intervals: Map[partial_order.Interval[ptypes.OpQuad], ptypes.AccessMode],
+    print_inodes: bool = False,
 ) -> None:
     # FIXME: find out why this is necessary
     if inode.type == "d":
         return
     source_interval = analysis.order.interval(analysis.sources, analysis.sources)
     intervals = {
-        **{
-            key: value
-            for key, value in intervals.items()
-        },
+        **{key: value for key, value in intervals.items()},
         source_interval: ptypes.AccessMode.WRITE,
     }
     order = analysis.order.interval_order()
@@ -444,22 +495,29 @@ def stitch_intervals(
     for interval in networkx.topological_sort(dag):
         assert len({node.exec_pair() for node in interval.upper_bound}) == 1
         assert len({node.exec_pair() for node in interval.lower_bound}) == 1
-        assert {node.exec_pair() for node in interval.lower_bound} == {node.exec_pair() for node in interval.upper_bound}
+        assert {node.exec_pair() for node in interval.lower_bound} == {
+            node.exec_pair() for node in interval.upper_bound
+        }
         if intervals[interval].can_write:
             versions[interval] = InodeVersionNode(inode, len(versions))
             if interval != source_interval:
                 for node in interval.lower_bound:
                     dfg.add_edge(node, versions[interval], label=EdgeType.FILE)
-        #print("  interval:", format_interval(interval), intervals[interval].name, versions.get(interval))
+        # print("  interval:", format_interval(interval), intervals[interval].name, versions.get(interval))
 
     # for int0, int1 in dag.edges():
     #     print("  edge:", format_interval(int0), "->", format_interval(int1))
 
     for write_interval in networkx.topological_sort(dag):
-        write_exec_pair = list(write_interval.upper_bound)[0].exec_pair() 
+        write_exec_pair = list(write_interval.upper_bound)[0].exec_pair()
         if intervals[write_interval].can_write:
             if print_inodes:
-                print("  write:", format_interval(interval), intervals[write_interval].name, versions[write_interval])
+                print(
+                    "  write:",
+                    format_interval(interval),
+                    intervals[write_interval].name,
+                    versions[write_interval],
+                )
             my_highest_peers = highest_peers[write_interval] | set(dag.successors(write_interval))
             # FIXME: highest peer should take a predicate, return the highest peers satisfying the predicate.
             # Maybe it should be the set of peers satisfying the predicate until the first one that doesn't.
@@ -480,7 +538,11 @@ def stitch_intervals(
                             dfg.add_edge(versions[write_interval], dst, label=EdgeType.FILE)
                         traversal.send(True)
                     elif intervals[read_interval].can_mutate:
-                        dfg.add_edge(versions[write_interval], versions[read_interval], label=EdgeType.FILE)
+                        dfg.add_edge(
+                            versions[write_interval],
+                            versions[read_interval],
+                            label=EdgeType.FILE,
+                        )
                         traversal.send(False)
                     elif intervals[read_interval].is_truncating:
                         traversal.send(False)
@@ -488,9 +550,9 @@ def stitch_intervals(
 
 @charmonium.time_block.decor(print_start=False)
 def compress(
-        analysis: Analysis,
-        dfg: UncompressedDataflowGraph,
-        verbose: bool = True,
+    analysis: Analysis,
+    dfg: UncompressedDataflowGraph,
+    verbose: bool = True,
 ) -> DataflowGraph:
     dfg_old = trivial_compress(dfg)
 
@@ -498,21 +560,27 @@ def compress(
     if verbose:
         n_pre_quads = sum(isinstance(node, Quads) for node in dfg_old.nodes())
         n_post_quads = sum(isinstance(node, Quads) for node in dfg_new.nodes())
-        print(f"Read/write collapsed {n_pre_quads} -> {n_post_quads} quads; {len(dfg_old.nodes())} -> {len(dfg_new.nodes())} nodes; {len(dfg_old.edges())} -> {len(dfg_new.edges())} edges")
+        print(
+            f"Read/write collapsed {n_pre_quads} -> {n_post_quads} quads; {len(dfg_old.nodes())} -> {len(dfg_new.nodes())} nodes; {len(dfg_old.edges())} -> {len(dfg_new.edges())} edges"
+        )
     dfg_old = dfg_new
 
     dfg_new = compress_twin_ivns(dfg_old)
     if verbose:
         n_pre_ivns = sum(isinstance(node, IVNs) for node in dfg_old.nodes())
         n_post_ivns = sum(isinstance(node, IVNs) for node in dfg_new.nodes())
-        print(f"Combined twin inodes {n_pre_ivns} -> {n_post_ivns} IVNs; {len(dfg_old.nodes())} -> {len(dfg_new.nodes())} nodes; {len(dfg_old.edges())} -> {len(dfg_new.edges())} edges")
+        print(
+            f"Combined twin inodes {n_pre_ivns} -> {n_post_ivns} IVNs; {len(dfg_old.nodes())} -> {len(dfg_new.nodes())} nodes; {len(dfg_old.edges())} -> {len(dfg_new.edges())} edges"
+        )
     dfg_old = dfg_new
 
     dfg_new = collapse_thread_cycles(dfg_old)
     if verbose:
         n_pre_quads = sum(isinstance(node, Quads) for node in dfg_old.nodes())
         n_post_quads = sum(isinstance(node, Quads) for node in dfg_new.nodes())
-        print(f"Collapsed cycles {n_pre_quads} -> {n_post_quads} quads; {len(dfg_old.nodes())} -> {len(dfg_new.nodes())} nodes; {len(dfg_old.edges())} -> {len(dfg_new.edges())} edges")
+        print(
+            f"Collapsed cycles {n_pre_quads} -> {n_post_quads} quads; {len(dfg_old.nodes())} -> {len(dfg_new.nodes())} nodes; {len(dfg_old.edges())} -> {len(dfg_new.edges())} edges"
+        )
     dfg_old = dfg_new
 
     return dfg_old
@@ -553,8 +621,8 @@ def compress_twin_ivns(dfg_in: DataflowGraph) -> DataflowGraph:
 
 @charmonium.time_block.decor(print_start=False)
 def read_write_collapse(
-        analysis: Analysis,
-        dfg_in: DataflowGraph,
+    analysis: Analysis,
+    dfg_in: DataflowGraph,
 ) -> DataflowGraph:
     "Collapse N reads + M writes into 1 node with FSA"
     triples_to_nodes = dict[ptypes.ThreadTriple, list[tuple[int, Quads]]]()
@@ -565,22 +633,22 @@ def read_write_collapse(
                 earliest_op_no = min(quad.op_no for quad in node)
                 triples_to_nodes.setdefault(thread_triple, []).append((earliest_op_no, node))
             except ValueError as exc:
-                raise ValueError(f"This algorithm assumes all nodes represent quads from just one thread, got: {node.thread_triples()} {str(exc)}")
+                raise ValueError(
+                    f"This algorithm assumes all nodes represent quads from just one thread, got: {node.thread_triples()} {str(exc)}"
+                )
     all_runs = list[list[Quads]]()
-    for thread_triple, nodes in tqdm.tqdm(list(triples_to_nodes.items()), desc="Read/write collapse thread-triples"):
+    for thread_triple, nodes in tqdm.tqdm(
+        list(triples_to_nodes.items()), desc="Read/write collapse thread-triples"
+    ):
         state = PidState.READING
         nodes = sorted(nodes, key=lambda pair: pair[0])
         this_run = list[Quads]()
         for _, node in nodes:
             out_of_thread_preds = [
-                pred
-                for pred in dfg_in.predecessors(node)
-                if is_out_of_thread(thread_triple, pred)
+                pred for pred in dfg_in.predecessors(node) if is_out_of_thread(thread_triple, pred)
             ]
             out_of_thread_succs = [
-                succ
-                for succ in dfg_in.successors(node)
-                if is_out_of_thread(thread_triple, succ)
+                succ for succ in dfg_in.successors(node) if is_out_of_thread(thread_triple, succ)
             ]
             match state:
                 case PidState.READING:
@@ -606,9 +674,7 @@ def read_write_collapse(
         if this_run:
             all_runs.append(this_run)
     node_mapper: Map[Quads | IVNs, Quads | IVNs] = {
-        node: Quads(quad for node in run for quad in node)
-        for run in all_runs
-        for node in run
+        node: Quads(quad for node in run for quad in node) for run in all_runs for node in run
     }
     with charmonium.time_block.ctx("map nodes"):
         ret = graph_utils.map_nodes(
@@ -625,29 +691,19 @@ def collapse_thread_cycles(dfg_in: DataflowGraph) -> DataflowGraph:
     with charmonium.time_block.ctx("simple_cycles", print_start=False):
         cycles = list(networkx.simple_cycles(dfg_in, 2))
     equivalence_classes = disjoint_sets.DisjointSets[Quads](
-        node
-        for node in dfg_in.nodes()
-        if isinstance(node, Quads)
+        node for node in dfg_in.nodes() if isinstance(node, Quads)
     )
     for cycle in tqdm.tqdm(cycles, desc="Cycles"):
         if all(isinstance(node, Quads) for node in cycle):
             quads_cycle = typing.cast(list[Quads], cycle)
-            exec_pairs = {
-                quad.exec_pair()
-                for quads in quads_cycle
-                for quad in quads
-            }
+            exec_pairs = {quad.exec_pair() for quads in quads_cycle for quad in quads}
             if len(exec_pairs) == 1:
                 for quads in quads_cycle:
                     assert isinstance(quads, Quads)
                     equivalence_classes.union(quads, quads_cycle[0])
     mapper = dict[Quads | IVNs, Quads | IVNs]()
     for equivalence_class in equivalence_classes.sets():
-        sum_node = Quads({
-            quad
-            for quads in equivalence_class
-            for quad in quads
-        })
+        sum_node = Quads({quad for quads in equivalence_class for quad in quads})
         for quads in equivalence_class:
             mapper[quads] = sum_node
     ret = networkx.relabel_nodes(dfg_in, mapper)
@@ -656,7 +712,7 @@ def collapse_thread_cycles(dfg_in: DataflowGraph) -> DataflowGraph:
 
 
 def trivial_compress(
-        dfg_in: UncompressedDataflowGraph,
+    dfg_in: UncompressedDataflowGraph,
 ) -> DataflowGraph:
     def node_mapper(node: ptypes.OpQuad | InodeVersionNode) -> Quads | IVNs:
         if isinstance(node, ptypes.OpQuad):
@@ -665,19 +721,20 @@ def trivial_compress(
             return IVNs({node})
         else:
             raise TypeError(node)
+
     return graph_utils.map_nodes(node_mapper, dfg_in, False)
 
 
 def label_nodes(
-        analysis: Analysis,
-        dfg: DataflowGraph,
-        relative_to: pathlib.Path | None,
-        max_args: int = 5,
-        max_arg_length: int = 80,
-        max_path_length: int = 200,
-        max_path_segment_length: int = 40,
-        max_paths_per_inode: int = 10,
-        max_inodes_per_set: int = 100,
+    analysis: Analysis,
+    dfg: DataflowGraph,
+    relative_to: pathlib.Path | None,
+    max_args: int = 5,
+    max_arg_length: int = 80,
+    max_path_length: int = 200,
+    max_path_segment_length: int = 40,
+    max_paths_per_inode: int = 10,
+    max_inodes_per_set: int = 100,
 ) -> None:
     paths = set()
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="extractr files from dfg"):
@@ -685,7 +742,9 @@ def label_nodes(
             for ivn in node:
                 for path in analysis.paths.get(ivn.inode, collections.Counter[pathlib.Path]()):
                     paths.add(path)
-    supplemental_info = supplement.Supplemental.from_files(tqdm.tqdm(paths, desc="supplemental info on files"))
+    supplemental_info = supplement.Supplemental.from_files(
+        tqdm.tqdm(paths, desc="supplemental info on files")
+    )
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="label dfg"):
         data2 = dfg.nodes(data=True)[node]
         match node:
@@ -717,16 +776,18 @@ def label_nodes(
 
 
 def label_quads(
-        quads: Quads,
-        data: NodeData,
-        analysis: Analysis,
-        max_args: int,
-        max_arg_length: int,
+    quads: Quads,
+    data: NodeData,
+    analysis: Analysis,
+    max_args: int,
+    max_arg_length: int,
 ) -> None:
     thread_triple = list(quads)[0].thread_triple()
     min_op_no = min(quad.op_no for quad in quads)
     max_op_no = max(quad.op_no for quad in quads)
-    data["id"] = f"pid_{thread_triple.pid}_exec_{thread_triple.exec_no}_thread_{thread_triple.tid}_ops_{min_op_no}_to_{max_op_no}"
+    data["id"] = (
+        f"pid_{thread_triple.pid}_exec_{thread_triple.exec_no}_thread_{thread_triple.tid}_ops_{min_op_no}_to_{max_op_no}"
+    )
     data["label"] = ""
     data["cluster"] = f"Process {thread_triple.pid}"
     data["shape"] = "oval"
@@ -739,13 +800,9 @@ def label_quads(
                 else:
                     data["label"] += "(child process)"
             else:
+                args = [arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]]
                 args = [
-                    arg.decode(errors="backslashreplace")
-                    for arg in op_data.argv[0:max_args]
-                ]
-                args = [
-                    arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…"
-                    for arg in args
+                    arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…" for arg in args
                 ]
                 if len(args) > max_args:
                     args_str = shlex.join(args[:max_args]) + ", …"
@@ -757,8 +814,8 @@ def label_quads(
 
 
 def uncompress_ivns(
-        dfg: DataflowGraph,
-        analysis: Analysis,
+    dfg: DataflowGraph,
+    analysis: Analysis,
 ) -> None:
     paths = set()
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="extractr files from dfg"):
@@ -766,12 +823,16 @@ def uncompress_ivns(
             for ivn in node:
                 for path in analysis.paths.get(ivn.inode, collections.Counter[pathlib.Path]()):
                     paths.add(path)
-    supplemental_info = supplement.Supplemental.from_files(tqdm.tqdm(paths, desc="supplemental info on files"))
+    supplemental_info = supplement.Supplemental.from_files(
+        tqdm.tqdm(paths, desc="supplemental info on files")
+    )
     package_nodes = {}
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="extractr files from dfg"):
         if isinstance(node, IVNs):
             for inode_version in node:
-                ivn_paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
+                ivn_paths = analysis.paths.get(
+                    inode_version.inode, collections.Counter[pathlib.Path]()
+                )
                 for path in ivn_paths:
                     if (info := supplemental_info.files[path].venv_file_info) is not None:
                         package_nodes[inode_version] = info
@@ -786,7 +847,11 @@ def uncompress_ivns(
         graph_utils.filter_nodes(
             lambda node: bool(node) if isinstance(node, IVNs) else True,
             graph_utils.map_nodes(
-                lambda node: IVNs(node & package_nodes.keys()) if isinstance(node, IVNs) else IVNs(frozenset({})),
+                lambda node: (
+                    IVNs(node & package_nodes.keys())
+                    if isinstance(node, IVNs)
+                    else IVNs(frozenset({}))
+                ),
                 dfg,
             ),
         ),
@@ -794,15 +859,15 @@ def uncompress_ivns(
 
 
 def label_ivns(
-        ivns: IVNs,
-        data: NodeData,
-        analysis: Analysis,
-        relative_to: pathlib.Path | None,
-        max_path_length: int,
-        max_path_segment_length: int,
-        max_paths_per_inode: int,
-        max_inodes_per_set: int,
-        supplemental_info: supplement.Supplemental,
+    ivns: IVNs,
+    data: NodeData,
+    analysis: Analysis,
+    relative_to: pathlib.Path | None,
+    max_path_length: int,
+    max_path_segment_length: int,
+    max_paths_per_inode: int,
+    max_inodes_per_set: int,
+    supplemental_info: supplement.Supplemental,
 ) -> None:
     inode_labels = []
     # Sorting ensures consistent labels
@@ -826,7 +891,9 @@ def label_ivns(
                     if len(inode_labels) > max_paths_per_inode:
                         break
         if not paths:
-            inode_labels.append(f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}")
+            inode_labels.append(
+                f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"
+            )
             if len(inode_labels) > max_paths_per_inode:
                 break
     if len(ivns) > max_inodes_per_set:
@@ -839,10 +906,10 @@ def label_ivns(
 
 
 def shorten_path(
-        input: pathlib.Path,
-        max_path_length: int,
-        max_path_segment_length: int,
-        relative_to: pathlib.Path | None,
+    input: pathlib.Path,
+    max_path_length: int,
+    max_path_segment_length: int,
+    relative_to: pathlib.Path | None,
 ) -> str:
     if relative_to and (input.is_absolute() and relative_to.is_absolute()):
         input2 = input.relative_to(relative_to, walk_up=True)
@@ -878,11 +945,9 @@ def node_sort_key(node: Quads | IVNs | ptypes.OpQuad | InodeVersionNode) -> typi
 
 def format_interval(interval: partial_order.Interval[ptypes.OpQuad]) -> str:
     upper_bound = ", ".join(
-        f"{quad.pid}.{quad.exec_no}.{quad.tid}.{quad.op_no}"
-        for quad in interval.upper_bound
+        f"{quad.pid}.{quad.exec_no}.{quad.tid}.{quad.op_no}" for quad in interval.upper_bound
     )
     lower_bound = ", ".join(
-        f"{quad.pid}.{quad.exec_no}.{quad.tid}.{quad.op_no}"
-        for quad in interval.lower_bound
+        f"{quad.pid}.{quad.exec_no}.{quad.tid}.{quad.op_no}" for quad in interval.lower_bound
     )
     return f"[{upper_bound}]--[{lower_bound}]"

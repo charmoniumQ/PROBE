@@ -25,10 +25,10 @@ class VectorTime:
             max(len(pred) for pred in predecessors) if predecessors else 0,
         )
         ret = numpy.zeros(max_thread, dtype=_TimeVal)
-        ret[:len(self)] = self.clocks
+        ret[: len(self)] = self.clocks
         ret[current_thread] += 1
         for pred in predecessors:
-            numpy.maximum(ret[:len(pred)], pred.clocks, out=ret[:len(pred)])
+            numpy.maximum(ret[: len(pred)], pred.clocks, out=ret[: len(pred)])
         return VectorTime(ret)
 
     def __le__(self, other: VectorTime) -> bool:
@@ -61,8 +61,8 @@ _ThreadLabel = typing.TypeVar("_ThreadLabel", bound=typing.Hashable)
 
 @dataclasses.dataclass(frozen=True)
 class VectorClockPartialOrder(
-        typing.Generic[_Node, _ThreadLabel],
-        partial_order.PartialOrder[_Node],
+    typing.Generic[_Node, _ThreadLabel],
+    partial_order.PartialOrder[_Node],
 ):
     nodes: It[_Node]
     vector_clocks: Map[_Node, VectorTime]
@@ -78,8 +78,8 @@ class VectorClockPartialOrder(
 
 @charmonium.time_block.decor(print_start=False)
 def from_dag(
-        dag: networkx.DiGraph[_Node],
-        thread_fn: typing.Callable[[_Node], _ThreadLabel],
+    dag: networkx.DiGraph[_Node],
+    thread_fn: typing.Callable[[_Node], _ThreadLabel],
 ) -> VectorClockPartialOrder[_Node, _ThreadLabel]:
     # Last node for each thread.
     # This is needed for garbage collections

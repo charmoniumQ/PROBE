@@ -18,14 +18,10 @@ DEBUG_ASSERTIONS: typing.Final[bool] = False
 
 class PartialOrder(abc.ABC, typing.Generic[_Node]):
     @abc.abstractmethod
-    def leq(self, node0: _Node, node1: _Node) -> bool:
-        ...
+    def leq(self, node0: _Node, node1: _Node) -> bool: ...
 
     def is_antichain(self, nodes: It[_Node]) -> bool:
-        return all(
-            not self.leq(node0, node1)
-            for node0, node1 in itertools.combinations(nodes, 2)
-        )
+        return all(not self.leq(node0, node1) for node0, node1 in itertools.combinations(nodes, 2))
 
     def is_peer(self, u: _Node, v: _Node) -> bool:
         return not self.leq(u, v) and not self.leq(v, u)
@@ -33,13 +29,14 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
     def sorted(self, nodes: It[_Node]) -> Seq[_Node]:
         dag: networkx.DiGraph[_Node] = networkx.DiGraph()
         dag.add_nodes_from(nodes)
-        dag.add_edges_from([
-            (source, target)
-            for source in nodes
-            for target in nodes
-            if self.leq(source, target)
-            and source != target
-        ])
+        dag.add_edges_from(
+            [
+                (source, target)
+                for source in nodes
+                for target in nodes
+                if self.leq(source, target) and source != target
+            ]
+        )
         assert networkx.is_directed_acyclic_graph(dag)
         if DEBUG_ASSERTIONS:
             pass
@@ -54,21 +51,19 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
                 uppermost_nodes.add(candidate)
                 covered_nodes.update(
                     descendant
-                    for descendant in sorted_nodes[i+1:]
+                    for descendant in sorted_nodes[i + 1 :]
                     if self.leq(candidate, descendant)
                 )
         if DEBUG_ASSERTIONS:
             assert all(
                 any(
                     uppermost_node == node or self.leq(uppermost_node, node)
-                    for uppermost_node in uppermost_nodes)
+                    for uppermost_node in uppermost_nodes
+                )
                 for node in nodes
             )
             assert not any(
-                self.leq(a, b)
-                for a in uppermost_nodes
-                for b in uppermost_nodes
-                if a != b
+                self.leq(a, b) for a in uppermost_nodes for b in uppermost_nodes if a != b
             )
         return frozenset(uppermost_nodes)
 
@@ -80,9 +75,7 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
             if candidate not in covered_nodes:
                 bottom_nodes.add(candidate)
                 covered_nodes.update(
-                    ancestor
-                    for ancestor in sorted_nodes[i+1:]
-                    if self.leq(ancestor, candidate)
+                    ancestor for ancestor in sorted_nodes[i + 1 :] if self.leq(ancestor, candidate)
                 )
         if DEBUG_ASSERTIONS:
             assert all(
@@ -92,43 +85,36 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
                 )
                 for node in nodes
             )
-            assert not any(
-                self.leq(a, b)
-                for a in bottom_nodes
-                for b in bottom_nodes
-                if a != b
-            )
+            assert not any(self.leq(a, b) for a in bottom_nodes for b in bottom_nodes if a != b)
         return frozenset(bottom_nodes)
 
     def non_ancestors(
-            self,
-            candidates: It[_Node],
-            lower_bounds: It[_Node],
+        self,
+        candidates: It[_Node],
+        lower_bounds: It[_Node],
     ) -> It[_Node]:
         "Return all candidates that are not ancestors of any element in lower_bounds."
-        return frozenset({
-            candidate
-            for candidate in candidates
-            if not any(
-                    self.leq(candidate, lower_bound)
-                    for lower_bound in lower_bounds
-            )
-        })
+        return frozenset(
+            {
+                candidate
+                for candidate in candidates
+                if not any(self.leq(candidate, lower_bound) for lower_bound in lower_bounds)
+            }
+        )
 
     def non_descendants(
-            self,
-            candidates: It[_Node],
-            upper_bounds: It[_Node],
+        self,
+        candidates: It[_Node],
+        upper_bounds: It[_Node],
     ) -> It[_Node]:
         "Return all candidates that are not descendent of any element in upper_bounds."
-        return frozenset({
-            candidate
-            for candidate in candidates
-            if not any(
-                    self.leq(upper_bound, candidate)
-                    for upper_bound in upper_bounds
-            )
-        })
+        return frozenset(
+            {
+                candidate
+                for candidate in candidates
+                if not any(self.leq(upper_bound, candidate) for upper_bound in upper_bounds)
+            }
+        )
 
     def interval(self, upper_bound: It[_Node], lower_bound: It[_Node]) -> Interval[_Node]:
         return Interval(self, frozenset(upper_bound), frozenset(lower_bound))
@@ -155,6 +141,7 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
 @dataclasses.dataclass(frozen=True)
 class ReversedOrder(PartialOrder[_Node]):
     order: PartialOrder[_Node]
+
     def leq(self, a: _Node, b: _Node) -> bool:
         return self.order.leq(b, a)
 
@@ -169,14 +156,20 @@ class Interval(typing.Generic[_Node]):
         return hash(self.upper_bound) ^ hash(self.lower_bound)
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, Interval) and self.upper_bound == other.upper_bound and self.lower_bound == other.lower_bound
+        return (
+            isinstance(other, Interval)
+            and self.upper_bound == other.upper_bound
+            and self.lower_bound == other.lower_bound
+        )
 
     def __post_init__(self) -> None:
         if DEBUG_ASSERTIONS:
-            assert self.leq.is_antichain(self.upper_bound), \
+            assert self.leq.is_antichain(self.upper_bound), (
                 f"{self.upper_bound} is not an antichain"
-            assert self.leq.is_antichain(self.lower_bound), \
+            )
+            assert self.leq.is_antichain(self.lower_bound), (
                 f"{self.lower_bound} is not an antichain"
+            )
 
     def __bool__(self) -> bool:
         "Whether the interval is non-empty"
@@ -193,47 +186,44 @@ class Interval(typing.Generic[_Node]):
         leq = intervals[0].leq
         if DEBUG_ASSERTIONS:
             assert all(interval.leq is leq for interval in intervals)
-        upper_bound = leq.upper_bounds(frozenset(
-            node
-            for interval in intervals
-            for node in interval.upper_bound
-        ))
-        lower_bound = leq.lower_bounds(frozenset(
-            node
-            for interval in intervals
-            for node in interval.lower_bound
-        ))
+        upper_bound = leq.upper_bounds(
+            frozenset(node for interval in intervals for node in interval.upper_bound)
+        )
+        lower_bound = leq.lower_bounds(
+            frozenset(node for interval in intervals for node in interval.lower_bound)
+        )
         return Interval(leq, frozenset(upper_bound), frozenset(lower_bound))
 
     def all_less_than(self, other: Interval[_Node]) -> bool:
-        other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = \
-            self.leq.non_descendants(other.upper_bound, self.lower_bound)
+        other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = self.leq.non_descendants(
+            other.upper_bound, self.lower_bound
+        )
         return not other_upper_bounds_that_are_not_descendent_of_self_lower_bounds
 
 
 @dataclasses.dataclass(frozen=True)
 class IntervalOrder(typing.Generic[_Node], PartialOrder[Interval[_Node]]):
     node_order: PartialOrder[_Node]
+
     def leq(self, interval0: Interval[_Node], interval1: Interval[_Node]) -> bool:
         return interval0.all_less_than(interval1)
 
 
 @charmonium.time_block.decor(print_start=False)
 def peers(
-        order: PartialOrder[_Node],
-        dag: networkx.DiGraph[_Node],
+    order: PartialOrder[_Node],
+    dag: networkx.DiGraph[_Node],
 ) -> Map[_Node, Interval[_Node]]:
     my_highest_peers = highest_peers(order, dag)
     my_lowest_peers = highest_peers(order.reverse(), dag.reverse())
     return {
-        node: order.interval(my_highest_peers[node], my_lowest_peers[node])
-        for node in dag.nodes()
+        node: order.interval(my_highest_peers[node], my_lowest_peers[node]) for node in dag.nodes()
     }
 
 
 def highest_peers(
-        order: PartialOrder[_Node],
-        dag: networkx.DiGraph[_Node],
+    order: PartialOrder[_Node],
+    dag: networkx.DiGraph[_Node],
 ) -> Map[_Node, frozenset[_Node]]:
     if DEBUG_ASSERTIONS:
         assert networkx.is_directed_acyclic_graph(dag)
@@ -263,25 +253,38 @@ def highest_peers(
         siblings_that_are_highest_peers = {
             sibling
             for sibling in siblings
-            if not order.leq(sibling, node) and not order.leq(node, sibling) and not any(order.leq(highest_peer_of_parent_and_me, sibling) for highest_peer_of_parent_and_me in highest_peers_of_parent_and_me)
+            if not order.leq(sibling, node)
+            and not order.leq(node, sibling)
+            and not any(
+                order.leq(highest_peer_of_parent_and_me, sibling)
+                for highest_peer_of_parent_and_me in highest_peers_of_parent_and_me
+            )
         }
-        highest_peers[node] = highest_peers_of_parent_and_me | siblings_that_are_highest_peers 
+        highest_peers[node] = highest_peers_of_parent_and_me | siblings_that_are_highest_peers
         if DEBUG_ASSERTIONS:
             assert order.is_antichain(highest_peers[node])
-            highest_peer_groups = {"highest peers of parent and me": highest_peers_of_parent_and_me, "siblings that are peers": siblings_that_are_highest_peers}
+            highest_peer_groups = {
+                "highest peers of parent and me": highest_peers_of_parent_and_me,
+                "siblings that are peers": siblings_that_are_highest_peers,
+            }
             for label, highest_peer_group in highest_peer_groups.items():
                 for highest_peer in highest_peer_group:
                     for parent_of_highest_peer in dag.predecessors(highest_peer):
-                        assert order.leq(parent_of_highest_peer, node), (label, node, highest_peer, parent_of_highest_peer)
+                        assert order.leq(parent_of_highest_peer, node), (
+                            label,
+                            node,
+                            highest_peer,
+                            parent_of_highest_peer,
+                        )
 
     return {node: frozenset(peers) for node, peers in highest_peers.items()}
 
 
 def topo_sort_subset(
-        order: PartialOrder[_Node],
-        dag: networkx.DiGraph[_Node],
-        upper_bound: It[_Node],
-        lower_bound: It[_Node],
+    order: PartialOrder[_Node],
+    dag: networkx.DiGraph[_Node],
+    upper_bound: It[_Node],
+    lower_bound: It[_Node],
 ) -> typing.Generator[_Node | None, bool | None, None]:
     """Antichain traversal with pruning
 
@@ -316,7 +319,8 @@ def topo_sort_subset(
             next_frontier.update(
                 successor
                 for successor in dag.successors(node)
-                if successor in lower_bound or not any(order.leq(lb, successor) for lb in lower_bound)
+                if successor in lower_bound
+                or not any(order.leq(lb, successor) for lb in lower_bound)
             )
         if not frontier:
             frontier = list(order.upper_bounds(next_frontier))

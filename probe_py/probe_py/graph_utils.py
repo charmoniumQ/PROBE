@@ -18,9 +18,9 @@ It: typing.TypeAlias = collections.abc.Iterable[_T_co]
 
 
 def map_nodes(
-        mapper: typing.Callable[[_Node], _Node2],
-        graph: networkx.DiGraph[_Node],
-        check_unique: bool = True,
+    mapper: typing.Callable[[_Node], _Node2],
+    graph: networkx.DiGraph[_Node],
+    check_unique: bool = True,
 ) -> networkx.DiGraph[_Node2]:
     if check_unique:
         dups = util.duplicates(graph.nodes(), mapper)
@@ -31,8 +31,8 @@ def map_nodes(
 
 
 def filter_nodes(
-        predicate: typing.Callable[[_Node], bool],
-        graph: networkx.DiGraph[_Node],
+    predicate: typing.Callable[[_Node], bool],
+    graph: networkx.DiGraph[_Node],
 ) -> networkx.DiGraph[_Node]:
     # Set for fast containment-check
     kept_nodes_set = set()
@@ -48,13 +48,13 @@ def filter_nodes(
             (src, dst)
             for src, dst in tqdm.tqdm(graph.edges(), desc="filter edges", total=len(graph.edges()))
             if src in kept_nodes_set and dst in kept_nodes_set
-        ]
+        ],
     )
 
 
 def union(
-        graph0: networkx.DiGraph[_Node],
-        graph1: networkx.DiGraph[_Node],
+    graph0: networkx.DiGraph[_Node],
+    graph1: networkx.DiGraph[_Node],
 ) -> networkx.DiGraph[_Node]:
     # networkx.union requires names to be unique. This one does not.
     # FIXME: merge data items
@@ -67,12 +67,13 @@ def union(
 
 
 def serialize_graph(
-        graph: networkx.DiGraph[_Node],
-        output: pathlib.Path,
-        id_mapper: typing.Callable[[_Node], str] | None = None,
-        cluster_labels: collections.abc.Mapping[str, str] = {},
+    graph: networkx.DiGraph[_Node],
+    output: pathlib.Path,
+    id_mapper: typing.Callable[[_Node], str] | None = None,
+    cluster_labels: collections.abc.Mapping[str, str] = {},
 ) -> None:
     if id_mapper is None:
+
         def id_mapper(node: _Node) -> str:
             data = graph.nodes(data=True)[node]
             if "id" in data:
@@ -80,8 +81,13 @@ def serialize_graph(
                 assert isinstance(ident, str)
             else:
                 ident = str(node)
-            assert "'" not in ident and '"' not in ident and "\\" not in ident, (ident, node, data)
+            assert "'" not in ident and '"' not in ident and "\\" not in ident, (
+                ident,
+                node,
+                data,
+            )
             return ident
+
     graph2 = map_nodes(id_mapper, graph)
 
     for _, data in graph2.nodes(data=True):
@@ -112,18 +118,18 @@ def serialize_graph(
 
 
 def search_with_pruning(
-        digraph: networkx.DiGraph[_Node],
-        start: _Node,
-        breadth_first: bool = True,
-        sort_nodes: typing.Callable[[list[_Node]], list[_Node]] = lambda lst: lst,
+    digraph: networkx.DiGraph[_Node],
+    start: _Node,
+    breadth_first: bool = True,
+    sort_nodes: typing.Callable[[list[_Node]], list[_Node]] = lambda lst: lst,
 ) -> typing.Generator[_Node | None, bool | None, None]:
     """DFS/BFS but send False to prune this branch
 
-        traversal = bfs_with_pruning
-        for node in traversal:
-            assert node is not None
-            # work on node
-            traversal.send(condition) # send True to descend or False to prune
+    traversal = bfs_with_pruning
+    for node in traversal:
+        assert node is not None
+        # work on node
+        traversal.send(condition) # send True to descend or False to prune
 
     """
     queue = collections.deque([start])
@@ -147,29 +153,20 @@ def search_with_pruning(
 
 
 def get_sources(dag: networkx.DiGraph[_Node]) -> list[_Node]:
-    return [
-        node
-        for node in dag.nodes()
-        if dag.in_degree(node) == 0
-    ]
+    return [node for node in dag.nodes() if dag.in_degree(node) == 0]
 
 
 def get_sinks(dag: networkx.DiGraph[_Node]) -> list[_Node]:
-    return [
-        node
-        for node in dag.nodes()
-        if dag.out_degree(node) == 0
-    ]
+    return [node for node in dag.nodes() if dag.out_degree(node) == 0]
 
 
 def topological_sort_depth_first(
-        dag: networkx.DiGraph[_Node],
-        score_children: typing.Callable[[_Node, _Node], int] = lambda _parent, _child: 0,
+    dag: networkx.DiGraph[_Node],
+    score_children: typing.Callable[[_Node, _Node], int] = lambda _parent, _child: 0,
 ) -> typing.Iterable[_Node]:
     """Topological sort that breaks ties by depth first, and then by lowest child score."""
     queue = priority_queue.PriorityQueue[_Node, tuple[int, int]](
-        (node, (dag.in_degree(node), 0))
-        for node in dag.nodes()
+        (node, (dag.in_degree(node), 0)) for node in dag.nodes()
     )
     counter = 0
     while queue:
@@ -179,7 +176,9 @@ def topological_sort_depth_first(
             # Since we handled the parent, we essentially removed it from the graph
             # decrementing the in-degree of its children by one.
             # To make it be depth first, we make it "win" all ties, among currently existing entries.
-            for child in sorted(dag.successors(node), key=lambda child: score_children(node, child)):
+            for child in sorted(
+                dag.successors(node), key=lambda child: score_children(node, child)
+            ):
                 in_degree, tie_breaker = queue[child]
                 queue[child] = (in_degree - 1, -counter)
         else:
@@ -215,27 +214,19 @@ def combine_twin_nodes(
             non_combinable_nodes.append(node)
 
     mapper = {
-        **{
-            node: frozenset(nodes)
-            for nodes in neighbors_to_node.values()
-            for node in nodes
-        },
-        **{
-            node: frozenset({node})
-            for node in non_combinable_nodes
-        },
+        **{node: frozenset(nodes) for nodes in neighbors_to_node.values() for node in nodes},
+        **{node: frozenset({node}) for node in non_combinable_nodes},
     }
 
     quotient = typing.cast(
-        "networkx.DiGraph[frozenset[_Node]]",
-        networkx.relabel_nodes(graph, mapper)
+        "networkx.DiGraph[frozenset[_Node]]", networkx.relabel_nodes(graph, mapper)
     )
     return quotient
 
 
 def retain_nodes_in_digraph(
-        digraph: networkx.DiGraph[_Node],
-        retained_nodes: frozenset[_Node],
+    digraph: networkx.DiGraph[_Node],
+    retained_nodes: frozenset[_Node],
 ) -> networkx.DiGraph[_Node]:
     """
     See retain_nodes_in_dag but for digraphs.
@@ -249,11 +240,9 @@ def retain_nodes_in_digraph(
     # Retain only those SCCs containing a retained node, stitching the edges together appropriately.
     condensation = retain_nodes_in_dag(
         condensation,
-        frozenset({
-            scc
-            for scc, data in condensation.nodes(data=True)
-            if data["members"] & retained_nodes
-        }),
+        frozenset(
+            {scc for scc, data in condensation.nodes(data=True) if data["members"] & retained_nodes}
+        ),
         edge_data=lambda _digraph, _path: {},
     )
 
@@ -268,16 +257,10 @@ def retain_nodes_in_digraph(
     ret: networkx.DiGraph[_Node] = networkx.DiGraph()
 
     # Add nodes, keeping old edge data
-    ret.add_nodes_from(
-        (node, digraph.nodes[node])
-        for node in retained_nodes
-    )
+    ret.add_nodes_from((node, digraph.nodes[node]) for node in retained_nodes)
 
     # Add edges between SCCs, using an arbitrary representative.
-    ret.add_edges_from(
-        (src_scc[0], dst_scc[0])
-        for src_scc, dst_scc in condensation2.edges()
-    )
+    ret.add_edges_from((src_scc[0], dst_scc[0]) for src_scc, dst_scc in condensation2.edges())
 
     # Add edges within SCCs
     ret.add_edges_from(
@@ -288,11 +271,7 @@ def retain_nodes_in_digraph(
     )
 
     # Need to connect last to first to complete the cycle within an SCC.
-    ret.add_edges_from(
-        (scc[-1], scc[0])
-        for scc in condensation2.nodes()
-        if len(scc) > 1
-    )
+    ret.add_edges_from((scc[-1], scc[0]) for scc in condensation2.nodes() if len(scc) > 1)
 
     assert set(ret.nodes()) == retained_nodes
 
@@ -300,9 +279,9 @@ def retain_nodes_in_digraph(
 
 
 def retain_nodes_in_dag(
-        dag: networkx.DiGraph[_Node],
-        retained_nodes: frozenset[_Node],
-        edge_data: typing.Callable[[networkx.DiGraph[_Node], typing.Sequence[_Node]], EdgeData],
+    dag: networkx.DiGraph[_Node],
+    retained_nodes: frozenset[_Node],
+    edge_data: typing.Callable[[networkx.DiGraph[_Node], typing.Sequence[_Node]], EdgeData],
 ) -> networkx.DiGraph[_Node]:
     """Returns a graph with only the retained nodes, such that:
 
@@ -319,8 +298,12 @@ def retain_nodes_in_dag(
     # Node -> list of pairs of (path to latest retained predecessor, latest retained predecessor)
     # Note that there can be multiple "latest" due to partial ordering.
     # Note that could be itself (not truly a predecessor), but it simplifies the logic.
-    latest_retained_predecessors: dict[_Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]]] = {}
-    earliest_retained_successors: dict[_Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]]] = {}
+    latest_retained_predecessors: dict[
+        _Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]]
+    ] = {}
+    earliest_retained_successors: dict[
+        _Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]]
+    ] = {}
 
     for node in networkx.topological_sort(dag):
         if node in retained_nodes:
@@ -329,7 +312,9 @@ def retain_nodes_in_dag(
             latest_retained_predecessors[node] = tuple(
                 ((*path_to_retained_predecessor, node), retained_predecessor)
                 for predecessor in dag.predecessors(node)
-                for path_to_retained_predecessor, retained_predecessor in latest_retained_predecessors[predecessor]
+                for path_to_retained_predecessor, retained_predecessor in latest_retained_predecessors[
+                    predecessor
+                ]
             )
 
     for node in reversed(list(networkx.topological_sort(dag))):
@@ -341,9 +326,11 @@ def retain_nodes_in_dag(
             earliest_retained_successors[node] = tuple(
                 ((node, *path_to_retained_successor), retained_successor)
                 for successor in dag.successors(node)
-                for path_to_retained_successor, retained_successor in earliest_retained_successors[successor]
+                for path_to_retained_successor, retained_successor in earliest_retained_successors[
+                    successor
+                ]
             )
-    
+
     new_graph: networkx.DiGraph[_Node] = networkx.DiGraph()
     for node, node_data in dag.nodes(data=True):
         if node in retained_nodes:
@@ -373,17 +360,27 @@ def retain_nodes_in_dag(
 
 
 def create_digraph(
-        nodes: It[_Node | tuple[_Node, dict[str, typing.Any]]],
-        edges: It[tuple[_Node, _Node] | tuple[_Node, _Node, dict[str, typing.Any]]],
+    nodes: It[_Node | tuple[_Node, dict[str, typing.Any]]],
+    edges: It[tuple[_Node, _Node] | tuple[_Node, _Node, dict[str, typing.Any]]],
 ) -> networkx.DiGraph[_Node]:
     output: "networkx.DiGraph[_Node]" = networkx.DiGraph()
     for node in nodes:
-        if isinstance(node, tuple) and len(node) == 2 and isinstance(node[1], dict) and all(isinstance(key, str) for key in node[1]):
+        if (
+            isinstance(node, tuple)
+            and len(node) == 2
+            and isinstance(node[1], dict)
+            and all(isinstance(key, str) for key in node[1])
+        ):
             output.add_node(node[0], **node[1])
         else:
             output.add_node(node)  # type: ignore
     for edge in edges:
-        if isinstance(edge, tuple) and len(edge) == 3 and isinstance(edge[2], dict) and all(isinstance(key, str) for key in edge[2]):
+        if (
+            isinstance(edge, tuple)
+            and len(edge) == 3
+            and isinstance(edge[2], dict)
+            and all(isinstance(key, str) for key in edge[2])
+        ):
             output.add_edge(edge[0], edge[1], **edge[2])
         else:
             output.add_edge(edge[0], edge[1])
@@ -391,9 +388,9 @@ def create_digraph(
 
 
 def would_create_cycle(
-        dag: networkx.DiGraph[_Node],
-        src: _Node,
-        dst: _Node,
+    dag: networkx.DiGraph[_Node],
+    src: _Node,
+    dst: _Node,
 ) -> bool:
     for desc in networkx.descendants(dag, dst):
         if desc == src:
@@ -402,7 +399,7 @@ def would_create_cycle(
 
 
 def remove_self_edges(
-        graph: networkx.DiGraph[_Node],
+    graph: networkx.DiGraph[_Node],
 ) -> networkx.DiGraph[_Node]:
     for src, dst in list(graph.edges()):
         if src == dst:
@@ -414,8 +411,8 @@ _Priority = typing.TypeVar("_Priority", bound=util.Comparable)
 
 
 def topo_sort_with_cycles(
-        graph: networkx.DiGraph[_Node],
-        key: typing.Callable[[_Node], _Priority],
+    graph: networkx.DiGraph[_Node],
+    key: typing.Callable[[_Node], _Priority],
 ) -> collections.abc.Iterator[_Node]:
     """
     Yield nodes in topological order if possible.
@@ -432,11 +429,7 @@ def topo_sort_with_cycles(
             indegree[succ] += 1
 
     # Start with all zero-indegree nodes
-    queue = collections.deque(
-        node
-        for node, deg in indegree.items()
-        if deg == 0
-    )
+    queue = collections.deque(node for node, deg in indegree.items() if deg == 0)
 
     processed = set[_Node]()
 
@@ -448,8 +441,8 @@ def topo_sort_with_cycles(
                 # Try nodes with the lower in-degrees first
                 # Ties broken by key
                 for node, _ in sorted(
-                        indegree.items(),
-                        key=lambda pair: (pair[1], key(pair[0])),
+                    indegree.items(),
+                    key=lambda pair: (pair[1], key(pair[0])),
                 )
                 if node not in processed
             )
