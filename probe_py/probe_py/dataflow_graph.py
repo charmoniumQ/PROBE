@@ -501,7 +501,12 @@ def stitch_intervals(
                 for node in interval.lower_bound:
                     dfg.add_edge(node, versions[interval], label=EdgeType.FILE)
         if print_inodes:
-            print("  interval:", format_interval(interval), intervals[interval].name, versions.get(interval))
+            print(
+                "  interval:",
+                format_interval(interval),
+                intervals[interval].name,
+                versions.get(interval),
+            )
 
     if print_inodes:
         for int0, int1 in dag.edges():
