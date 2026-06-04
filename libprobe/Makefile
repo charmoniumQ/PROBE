@@ -20,14 +20,8 @@ BUILD_DIR := .build
 
 FULL := true
 
-ifeq ($(FULL),true)
-	GENERATED_FILES := generated/libc_hooks.c generated/inode_table.c generated/fd_table.c
-    MANUAL_SOURCE_FILES := $(filter-out %_min.c,$(wildcard src/*.c))
-else
-	GENERATED_FILES := generated/libc_hooks.c
-    MANUAL_SOURCE_FILES := $(wildcard src/*_min.c)
-endif
-
+GENERATED_FILES := generated/libc_hooks.c generated/inode_table.c generated/fd_table.c
+MANUAL_SOURCE_FILES := $(filter-out %_min.c,$(wildcard src/*.c))
 SOURCE_FILES := $(GENERATED_FILES) $(MANUAL_SOURCE_FILES)
 
 all: compile_commands.json $(BUILD_DIR)/libprobe.so $(BUILD_DIR)/libprobe.dbg.so

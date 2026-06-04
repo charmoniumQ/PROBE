@@ -97,7 +97,7 @@ def hb_graph_to_dataflow_graph(
         total=len(inode_intervals),
         desc="Inode intervals to stitch",
     ):
-        if not any(path.is_relative_to("/dev") for path in analysis.paths[inode]):
+        if all(path.parts[1] not in {"dev", "proc", "sys"} for path in analysis.paths[inode]):
             stitch_intervals(dfg, analysis, inode, intervals)
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
         stitch_threads(dfg, analysis)
@@ -459,15 +459,16 @@ def find_intervals(
     for exec, onis_by_fd in analysis.open_numbers.items():
         for fd, onis_by_on in onis_by_fd.items():
             for on, oni in onis_by_on.items():
-                closes = util.groupby_dict(
-                    oni.closes,
-                    key_func=lambda pair: pair[1],
-                    value_func=lambda pair: pair[0],
-                )
-                for mode, close_quads in closes.items():
-                    if mode:
-                        close_quads2 = analysis.order.lower_bounds(close_quads)
-                        ret[oni.inode][analysis.order.interval({oni.open}, close_quads2)] = mode
+                if oni.inode.type != "d":
+                    closes = util.groupby_dict(
+                        oni.closes,
+                        key_func=lambda pair: pair[1],
+                        value_func=lambda pair: pair[0],
+                    )
+                    for mode, close_quads in closes.items():
+                        if mode:
+                            close_quads2 = analysis.order.lower_bounds(close_quads)
+                            ret[oni.inode][analysis.order.interval({oni.open}, close_quads2)] = mode
     return ret
 
 
@@ -478,9 +479,6 @@ def stitch_intervals(
     intervals: Map[partial_order.Interval[ptypes.OpQuad], ptypes.AccessMode],
     print_inodes: bool = False,
 ) -> None:
-    # FIXME: find out why this is necessary
-    if inode.type == "d":
-        return
     source_interval = analysis.order.interval(analysis.sources, analysis.sources)
     intervals = {
         **{key: value for key, value in intervals.items()},
@@ -502,10 +500,12 @@ def stitch_intervals(
             if interval != source_interval:
                 for node in interval.lower_bound:
                     dfg.add_edge(node, versions[interval], label=EdgeType.FILE)
-        # print("  interval:", format_interval(interval), intervals[interval].name, versions.get(interval))
+        if print_inodes:
+            print("  interval:", format_interval(interval), intervals[interval].name, versions.get(interval))
 
-    # for int0, int1 in dag.edges():
-    #     print("  edge:", format_interval(int0), "->", format_interval(int1))
+    if print_inodes:
+        for int0, int1 in dag.edges():
+            print("  edge:", format_interval(int0), "->", format_interval(int1))
 
     for write_interval in networkx.topological_sort(dag):
         write_exec_pair = list(write_interval.upper_bound)[0].exec_pair()
@@ -518,7 +518,7 @@ def stitch_intervals(
                     versions[write_interval],
                 )
             my_highest_peers = highest_peers[write_interval] | set(dag.successors(write_interval))
-            # FIXME: highest peer should take a predicate, return the highest peers satisfying the predicate.
+            # TODO: highest peer should take a predicate, return the highest peers satisfying the predicate.
             # Maybe it should be the set of peers satisfying the predicate until the first one that doesn't.
             my_highest_peers = order.upper_bounds(my_highest_peers)
             traversal = partial_order.topo_sort_subset(order, dag, my_highest_peers, set())
