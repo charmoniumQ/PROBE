@@ -4,9 +4,10 @@ This algo just connects inodes to processes.
 Downside, is you don't know which inode writers connect to which inode readers, if there are multiple inode writers.
 """
 
+
 @charmonium.time_block.decor(print_start=False)
 def hb_graph_to_dataflow_graph_simple(
-        probe_log: ptypes.ProbeLog,
+    probe_log: ptypes.ProbeLog,
 ) -> tuple[
     DataflowGraph,
     Map[ptypes.Inode, frozenset[pathlib.Path]],
@@ -28,7 +29,9 @@ def hb_graph_to_dataflow_graph_simple(
     inode_to_paths = collections.defaultdict[ptypes.Inode, set[pathlib.Path]](set)
     cwds = dict[ptypes.Pid, pathlib.Path]()
 
-    for quad in tqdm.tqdm(networkx.topological_sort(hbg), desc="dfg", total=len(hbg.nodes())):
+    for quad in tqdm.tqdm(
+        networkx.topological_sort(hbg), desc="dfg", total=len(hbg.nodes())
+    ):
         op_data = probe_log.get_op(quad).data
         match op_data:
             case ops.InitExecEpochOp():
@@ -58,7 +61,9 @@ def hb_graph_to_dataflow_graph_simple(
                                 old_ivn = InodeVersionNode(inode, version)
                                 dataflow_graph.add_edge(old_ivn, new_ivn)
                             inode_versions[inode] = new_version
-                            dataflow_graph.add_edge(ee_to_init[quad.exec_pair()], new_ivn)
+                            dataflow_graph.add_edge(
+                                ee_to_init[quad.exec_pair()], new_ivn
+                            )
             case ops.ChdirOp():
                 path = _to_path(cwds, inode_to_paths, quad, op_data.path)
                 if path:
@@ -67,7 +72,11 @@ def hb_graph_to_dataflow_graph_simple(
                 if op_data.task_type == ptypes.TaskType.TASK_PID:
                     dataflow_graph.add_edge(
                         ee_to_init[quad.exec_pair()],
-                        ee_to_init[ptypes.ExecPair(ptypes.Pid(op_data.task_id), ptypes.ExecNo(0))],
+                        ee_to_init[
+                            ptypes.ExecPair(
+                                ptypes.Pid(op_data.task_id), ptypes.ExecNo(0)
+                            )
+                        ],
                     )
             case ops.ExecOp():
                 if op_data.ferrno == 0:
@@ -75,16 +84,17 @@ def hb_graph_to_dataflow_graph_simple(
                     if target in ee_to_init:
                         dataflow_graph.add_edge(
                             ee_to_init[quad.exec_pair()],
-                            ee_to_init[ptypes.ExecPair(quad.pid, ptypes.ExecNo(quad.exec_no + 1))],
+                            ee_to_init[
+                                ptypes.ExecPair(
+                                    quad.pid, ptypes.ExecNo(quad.exec_no + 1)
+                                )
+                            ],
                         )
                     else:
-                        warnings.warn(ptypes.UnusualProbeLog(f"Next exec of {quad} is not traced"))
+                        warnings.warn(
+                            ptypes.UnusualProbeLog(f"Next exec of {quad} is not traced")
+                        )
 
-    inode_to_paths2 = {
-        key: frozenset(val)
-        for key, val in inode_to_paths.items()
-    }
+    inode_to_paths2 = {key: frozenset(val) for key, val in inode_to_paths.items()}
 
     return null_compression(dataflow_graph), inode_to_paths2, hbg, None
-
-

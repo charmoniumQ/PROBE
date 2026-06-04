@@ -26,6 +26,7 @@ _Node = typing.TypeVar("_Node")
 
 class AccessMode(enum.IntEnum):
     """In what way are we accessing the inode version?"""
+
     READ = enum.auto()
     WRITE = enum.auto()
     READ_WRITE = enum.auto()
@@ -49,6 +50,7 @@ class AccessMode(enum.IntEnum):
 @dataclasses.dataclass(frozen=True)
 class AccessEpoch[_Node]:
     """An access epoch is a set of nodes, denoted by a segment, in which the node may be accessed."""
+
     mode: AccessMode
     bounds: graph_utils.Segment[_Node]
     version: int | None = None
@@ -57,6 +59,7 @@ class AccessEpoch[_Node]:
 @dataclasses.dataclass(frozen=True)
 class ExecNode:
     """An exec, denoted by Pid and ExecNo"""
+
     pid: ptypes.Pid
     exec_no: ptypes.ExecNo
 
@@ -64,6 +67,7 @@ class ExecNode:
 @dataclasses.dataclass(frozen=True)
 class InodeVersionNode:
     """A particular version of the inode"""
+
     inode: ptypes.Inode
     version: int
     paths: frozenset[pathlib.Path] = frozenset({})
@@ -73,8 +77,12 @@ class InodeVersionNode:
 
 
 if typing.TYPE_CHECKING:
-    DataflowGraph: typing.TypeAlias = networkx.DiGraph[hb_graph.OpNode | InodeVersionNode]
-    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[hb_graph.OpNode | frozenset[InodeVersionNode]]
+    DataflowGraph: typing.TypeAlias = networkx.DiGraph[
+        hb_graph.OpNode | InodeVersionNode
+    ]
+    CompressedDataflowGraph: typing.TypeAlias = networkx.DiGraph[
+        hb_graph.OpNode | frozenset[InodeVersionNode]
+    ]
     EpochGraph: typing.TypeAlias = networkx.DiGraph[AccessEpoch[hb_graph.OpNode]]
 else:
     DataflowGraph = networkx.DiGraph
@@ -102,18 +110,31 @@ class FdTable(collections.UserDict[int, FileDescriptor]):
 
 
 def hb_graph_to_dataflow_graph2(
-        probe_log: ptypes.ProbeLog,
-        hbg: hb_graph.HbGraph,
-        check: bool = False,
+    probe_log: ptypes.ProbeLog,
+    hbg: hb_graph.HbGraph,
+    check: bool = False,
 ) -> DataflowGraph:
-    interesting_op_types = (ops.OpenOp, ops.CloseOp, ops.DupOp, ops.ExecOp, ops.SpawnOp, ops.InitExecEpochOp, ops.CloneOp)
+    interesting_op_types = (
+        ops.OpenOp,
+        ops.CloseOp,
+        ops.DupOp,
+        ops.ExecOp,
+        ops.SpawnOp,
+        ops.InitExecEpochOp,
+        ops.CloneOp,
+    )
     reduced_hb_graph = hb_graph.retain_only(
         probe_log,
         hbg,
-        lambda node, op: isinstance(op.data, interesting_op_types) and getattr(op.data, "ferrno", 0) == 0,
+        lambda node, op: (
+            isinstance(op.data, interesting_op_types)
+            and getattr(op.data, "ferrno", 0) == 0
+        ),
     )
 
-    pid_to_state = collections.defaultdict[ptypes.Pid, PidState](lambda: PidState.READING)
+    pid_to_state = collections.defaultdict[ptypes.Pid, PidState](
+        lambda: PidState.READING
+    )
     last_op_in_process = dict[ptypes.Pid, hb_graph.OpNode]()
     proc_fd_to_fd = collections.defaultdict[ptypes.Pid, FdTable](lambda: FdTable())
     inode_to_version = collections.defaultdict[ptypes.Inode, int](lambda: 0)
@@ -134,25 +155,35 @@ def hb_graph_to_dataflow_graph2(
         last_op_in_process[node.pid] = node
 
     def ensure_state(node: hb_graph.OpNode, desired_state: PidState) -> None:
-        if desired_state == PidState.WRITING and pid_to_state[node.pid] == PidState.READING:
+        if (
+            desired_state == PidState.WRITING
+            and pid_to_state[node.pid] == PidState.READING
+        ):
             # Reading -> writing for free
             pid_to_state[node.pid] = PidState.WRITING
-        elif desired_state == PidState.READING and pid_to_state[node.pid] == PidState.WRITING:
+        elif (
+            desired_state == PidState.READING
+            and pid_to_state[node.pid] == PidState.WRITING
+        ):
             # Writing -> reading by starting a new node.
             add_node(node)
         assert pid_to_state[node.pid] == desired_state
 
     def add_access(
-            access: AccessMode,
-            op_node: hb_graph.OpNode,
-            inode: ptypes.Inode,
-            version_num: int | None = None,
+        access: AccessMode,
+        op_node: hb_graph.OpNode,
+        inode: ptypes.Inode,
+        version_num: int | None = None,
     ) -> None:
         if version_num is None:
             version_num = inode_to_version[inode]
         version = InodeVersionNode(inode, version_num, frozenset(inode_to_paths[inode]))
-        next_version = InodeVersionNode(inode, version_num + 1, frozenset(inode_to_paths[inode]))
-        ensure_state(op_node, PidState.READING if access == AccessMode.READ else PidState.WRITING)
+        next_version = InodeVersionNode(
+            inode, version_num + 1, frozenset(inode_to_paths[inode])
+        )
+        ensure_state(
+            op_node, PidState.READING if access == AccessMode.READ else PidState.WRITING
+        )
         op_node = last_op_in_process[op_node.pid]
         match access:
             case AccessMode.WRITE:
@@ -176,15 +207,17 @@ def hb_graph_to_dataflow_graph2(
             if file_desc.access_mode != AccessMode.READ:
                 # Reads are handled at the open
                 # Everything else is handled at the close
-                add_access(file_desc.access_mode, op_node, file_desc.inode, file_desc.version)
+                add_access(
+                    file_desc.access_mode, op_node, file_desc.inode, file_desc.version
+                )
         else:
             pass
             # warnings.warn(f"Process {op_node.pid} successfully closed an FD {fd} we never traced. This could come from pipe or pipe2.")
 
     for node in tqdm.tqdm(
-            networkx.topological_sort(reduced_hb_graph),
-            total=len(reduced_hb_graph),
-            desc="Finding DFG",
+        networkx.topological_sort(reduced_hb_graph),
+        total=len(reduced_hb_graph),
+        desc="Finding DFG",
     ):
         op = probe_log.get_op(*node.op_quad())
         match op.data:
@@ -261,15 +294,16 @@ def hb_graph_to_dataflow_graph2(
                     ensure_state(node, PidState.WRITING)
                     parent_pid[target] = node.pid
             case ops.SpawnOp():
-                warnings.warn("Not implemented: track what the heck happens after a posix_spawn call")
+                warnings.warn(
+                    "Not implemented: track what the heck happens after a posix_spawn call"
+                )
                 target = ptypes.Pid(op.data.child_pid)
                 proc_fd_to_fd[target] = copy.deepcopy(proc_fd_to_fd[node.pid])
                 ensure_state(node, PidState.WRITING)
                 parent_pid[target] = node.pid
 
         is_last_op_in_process = not any(
-            successor.pid == node.pid
-            for successor in reduced_hb_graph.successors(node)
+            successor.pid == node.pid for successor in reduced_hb_graph.successors(node)
         )
         if is_last_op_in_process:
             for fd, file_desc in list(proc_fd_to_fd[node.pid].items()):
@@ -285,22 +319,24 @@ def hb_graph_to_dataflow_graph2(
 
 
 def combine_indistinguishable_inodes(
-        dataflow_graph: DataflowGraph,
+    dataflow_graph: DataflowGraph,
 ) -> CompressedDataflowGraph:
     def same_neighbors(
-            node0: hb_graph.OpNode | InodeVersionNode,
-            node1: hb_graph.OpNode | InodeVersionNode,
+        node0: hb_graph.OpNode | InodeVersionNode,
+        node1: hb_graph.OpNode | InodeVersionNode,
     ) -> bool:
         return (
             isinstance(node0, InodeVersionNode)
-            and
-            isinstance(node1, InodeVersionNode)
-            and
-            frozenset(dataflow_graph.predecessors(node0)) == frozenset(dataflow_graph.predecessors(node1))
-            and
-            frozenset(dataflow_graph.successors(node0)) == frozenset(dataflow_graph.successors(node1))
+            and isinstance(node1, InodeVersionNode)
+            and frozenset(dataflow_graph.predecessors(node0))
+            == frozenset(dataflow_graph.predecessors(node1))
+            and frozenset(dataflow_graph.successors(node0))
+            == frozenset(dataflow_graph.successors(node1))
         )
-    def node_mapper(node_set: frozenset[hb_graph.OpNode | InodeVersionNode]) -> hb_graph.OpNode | frozenset[InodeVersionNode]:
+
+    def node_mapper(
+        node_set: frozenset[hb_graph.OpNode | InodeVersionNode],
+    ) -> hb_graph.OpNode | frozenset[InodeVersionNode]:
         first_node = next(iter(node_set))
         if isinstance(first_node, hb_graph.OpNode):
             assert all(isinstance(node, hb_graph.OpNode) for node in node_set)
@@ -308,6 +344,7 @@ def combine_indistinguishable_inodes(
         else:
             assert all(isinstance(node, InodeVersionNode) for node in node_set)
             return typing.cast(frozenset[InodeVersionNode], node_set)
+
     print("computing quotient")
     quotient = networkx.quotient_graph(dataflow_graph, same_neighbors)
     for _, data in quotient.nodes(data=True):
@@ -322,9 +359,9 @@ def combine_indistinguishable_inodes(
 
 
 def validate_dataflow_graph(
-        probe_log: ptypes.ProbeLog,
-        dataflow_graph: DataflowGraph,
-        # dataflow_graph_tc: DataflowGraph | None,
+    probe_log: ptypes.ProbeLog,
+    dataflow_graph: DataflowGraph,
+    # dataflow_graph_tc: DataflowGraph | None,
 ) -> None:
     # if dataflow_graph_tc is None:
     #     dataflow_graph_tc = graph_utils.add_self_loops(networkx.transitive_closure(dataflow_graph), False)
@@ -337,7 +374,9 @@ def validate_dataflow_graph(
     #     raise ptypes.InvalidProbeLog(f"Found a cycle in graph: {cycle}; see {output}")
 
     if not networkx.is_weakly_connected(dataflow_graph):
-        warnings.warn(f"Graph is not strongly connected: {'\n'.join(map(str, networkx.weakly_connected_components(dataflow_graph)))}")
+        warnings.warn(
+            f"Graph is not strongly connected: {'\n'.join(map(str, networkx.weakly_connected_components(dataflow_graph)))}"
+        )
 
     # inode_to_last_node: dict[ptypes.Inode, None | InodeVersionNode] = {
     #     node.inode: None
@@ -362,24 +401,24 @@ def validate_dataflow_graph(
     #             if node.version not in {0, 1}:
     #                 raise ptypes.InvalidProbeLog(f"Version of an initial access should be 0 or 1 not {node.version} ")
     #         inode_to_last_node[node.inode] = node
-        # TODO: Check CloseOp and OpenOp
-        # OpenOp.path should match CloseOp.path
+    # TODO: Check CloseOp and OpenOp
+    # OpenOp.path should match CloseOp.path
 
 
 def label_nodes(
-        probe_log: ptypes.ProbeLog,
-        dataflow_graph: CompressedDataflowGraph,
-        max_args: int = 5,
-        max_arg_length: int = 80,
-        max_path_segment_length: int = 20,
-        max_paths_per_inode: int = 1,
-        max_inodes_per_set: int = 5,
+    probe_log: ptypes.ProbeLog,
+    dataflow_graph: CompressedDataflowGraph,
+    max_args: int = 5,
+    max_arg_length: int = 80,
+    max_path_segment_length: int = 20,
+    max_paths_per_inode: int = 1,
+    max_inodes_per_set: int = 5,
 ) -> None:
     count = dict[tuple[ptypes.Pid, ptypes.ExecNo], int]()
     for node in tqdm.tqdm(
-            networkx.topological_sort(dataflow_graph),
-            total=len(dataflow_graph),
-            desc="Labelling DFG nodes",
+        networkx.topological_sort(dataflow_graph),
+        total=len(dataflow_graph),
+        desc="Labelling DFG nodes",
     ):
         data = dataflow_graph.nodes(data=True)[node]
         match node:
@@ -402,22 +441,28 @@ def label_nodes(
                     else:
                         data["label"] = f"(child proc {node.pid})"
                 else:
-                    data["label"] = f"proc {node.pid} v{count[(node.pid, node.exec_no)]}"
+                    data["label"] = (
+                        f"proc {node.pid} v{count[(node.pid, node.exec_no)]}"
+                    )
                     count[(node.pid, node.exec_no)] += 1
                 data["label"] += "\n" + type(op.data).__name__
                 data["id"] = str(node)
             case frozenset():
+
                 def shorten_path(input: pathlib.Path) -> str:
                     return ("/" if input.is_absolute() else "") + "/".join(
                         textwrap.shorten(part, width=max_path_segment_length)
                         for part in input.parts
                         if part != "/"
                     )
+
                 inode_labels = []
                 for inode in list(node)[:max_inodes_per_set]:
                     inode_label = []
                     inode_label.append(f"{inode.inode.number} v{inode.version}")
-                    for path in sorted(inode.paths, key=lambda path: len(str(path)))[:max_paths_per_inode]:
+                    for path in sorted(inode.paths, key=lambda path: len(str(path)))[
+                        :max_paths_per_inode
+                    ]:
                         inode_label.append(shorten_path(path))
                     inode_labels.append("\n".join(inode_label))
                 data["label"] = "\n".join(inode_labels)
@@ -425,10 +470,14 @@ def label_nodes(
                 data["id"] = str(hash(node))
 
     for node0, node1, data in tqdm.tqdm(
-            dataflow_graph.edges(data=True),
-            desc="Labelling DFG edges",
+        dataflow_graph.edges(data=True),
+        desc="Labelling DFG edges",
     ):
-        if isinstance(node0, hb_graph.OpNode) and isinstance(node1, hb_graph.OpNode) and node0.pid != node1.pid:
+        if (
+            isinstance(node0, hb_graph.OpNode)
+            and isinstance(node1, hb_graph.OpNode)
+            and node0.pid != node1.pid
+        ):
             data["style"] = "dashed"
 
     # dataflow_graph_tc = graph_utils.add_self_loops(networkx.transitive_closure(dataflow_graph), False)

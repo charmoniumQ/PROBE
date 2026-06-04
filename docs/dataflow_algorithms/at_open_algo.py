@@ -17,10 +17,11 @@ import rich.console
 #####
 # analysis.py:23
 
+
 @dataclasses.dataclass(frozen=True)
 class ProcessNode:
     pid: int
-    cmd: tuple[str,...]
+    cmd: tuple[str, ...]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -32,6 +33,7 @@ class FileAccess:
     def label(self) -> str:
         return f"{self.path!s} inode {self.inode_version.inode}"
 
+
 #####
 # New
 
@@ -41,14 +43,25 @@ Tid = int
 OpNode = tuple[Pid, ExecNo, Tid, int]
 HbGraph = networkx.DiGraph[OpNode]
 DfGraph = networkx.DiGraph[FileAccess | ProcessNode]
+
+
 class ProbeLog:
     pass
+
 
 #####
 # analysis.py:47
 
 
-def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traversed: set[int] , dataflow_graph: DfGraph, cmd_map: dict[int, list[str]], inode_version_map: dict[int, set[InodeVersion]], hb_graph: HbGraph) -> None:
+def traverse_hb_for_dfgraph(
+    probe_log: ProbeLog,
+    starting_node: OpNode,
+    traversed: set[int],
+    dataflow_graph: DfGraph,
+    cmd_map: dict[int, list[str]],
+    inode_version_map: dict[int, set[InodeVersion]],
+    hb_graph: HbGraph,
+) -> None:
     starting_pid = starting_node.pid
 
     starting_op = get_op(probe_log, *starting_node.op_quad())
@@ -61,7 +74,6 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
     print("starting at", starting_node, starting_op)
 
     for edge in networkx.bfs_edges(hb_graph, starting_node):
-
         pid, exec_epoch_no, tid, op_index = edge[0].op_quad()
 
         # check if the process is already visited when waitOp occurred
@@ -74,9 +86,19 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
             access_mode = op.flags & os.O_ACCMODE
             processNode = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
             dataflow_graph.add_node(processNode, label=processNode.cmd)
-            inode = Inode(Host.localhost(), Device(op.path.device_major, op.path.device_minor), op.path.inode)
+            inode = Inode(
+                Host.localhost(),
+                Device(op.path.device_major, op.path.device_minor),
+                op.path.inode,
+            )
             path_str = op.path.path.decode("utf-8")
-            curr_version = InodeVersion(inode, numpy.datetime64(op.path.mtime.sec * int(1e9) + op.path.mtime.nsec, "ns"), op.path.size)
+            curr_version = InodeVersion(
+                inode,
+                numpy.datetime64(
+                    op.path.mtime.sec * int(1e9) + op.path.mtime.nsec, "ns"
+                ),
+                op.path.size,
+            )
             inode_version_map.setdefault(op.path.inode, set())
             inode_version_map[op.path.inode].add(curr_version)
             fileNode = FileAccess(curr_version, pathlib.Path(path_str))
@@ -89,7 +111,9 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
             elif access_mode == os.O_WRONLY:
                 dataflow_graph.add_edge(processNode, fileNode)
             elif access_mode == 2:
-                console.print(f"Found file {path_str} with access mode O_RDWR", style="red")
+                console.print(
+                    f"Found file {path_str} with access mode O_RDWR", style="red"
+                )
             else:
                 raise Exception("unknown access mode")
         elif isinstance(op, CloneOp):
@@ -101,27 +125,50 @@ def traverse_hb_for_dfgraph(probe_log: ProbeLog, starting_node: OpNode, traverse
                 if edge[0].tid != edge[1].tid:
                     target_nodes[op.task_id].append(edge[1])
                     continue
-            if op.task_type != TaskType.TASK_PTHREAD and op.task_type != TaskType.TASK_ISO_C_THREAD:
-
-                processNode1 = ProcessNode(pid = pid, cmd=tuple(cmd_map[pid]))
-                processNode2 = ProcessNode(pid = op.task_id, cmd=tuple(cmd_map[op.task_id]))
-                dataflow_graph.add_node(processNode1, label = " ".join(arg for arg in processNode1.cmd))
-                dataflow_graph.add_node(processNode2, label = " ".join(arg for arg in processNode2.cmd))
+            if (
+                op.task_type != TaskType.TASK_PTHREAD
+                and op.task_type != TaskType.TASK_ISO_C_THREAD
+            ):
+                processNode1 = ProcessNode(pid=pid, cmd=tuple(cmd_map[pid]))
+                processNode2 = ProcessNode(
+                    pid=op.task_id, cmd=tuple(cmd_map[op.task_id])
+                )
+                dataflow_graph.add_node(
+                    processNode1, label=" ".join(arg for arg in processNode1.cmd)
+                )
+                dataflow_graph.add_node(
+                    processNode2, label=" ".join(arg for arg in processNode2.cmd)
+                )
                 dataflow_graph.add_edge(processNode1, processNode2)
             target_nodes[op.task_id] = list()
         elif isinstance(op, WaitOp) and op.options == 0:
             for node in target_nodes[op.task_id]:
-                traverse_hb_for_dfgraph(probe_log, node, traversed, dataflow_graph, cmd_map, inode_version_map, hb_graph)
+                traverse_hb_for_dfgraph(
+                    probe_log,
+                    node,
+                    traversed,
+                    dataflow_graph,
+                    cmd_map,
+                    inode_version_map,
+                    hb_graph,
+                )
                 traversed.add(node.tid)
         # return back to the WaitOp of the parent process
         if isinstance(next_op, WaitOp):
-            if next_op.task_id == starting_pid or next_op.task_id == starting_op.pthread_id:
+            if (
+                next_op.task_id == starting_pid
+                or next_op.task_id == starting_op.pthread_id
+            ):
                 return
 
 
 def probe_log_to_dataflow_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> DfGraph:
     dataflow_graph = DfGraph()
-    root_node = [n for n in hb_graph.nodes() if hb_graph.out_degree(n) > 0 and hb_graph.in_degree(n) == 0][0]
+    root_node = [
+        n
+        for n in hb_graph.nodes()
+        if hb_graph.out_degree(n) > 0 and hb_graph.in_degree(n) == 0
+    ][0]
     traversed: set[int] = set()
     cmd_map = collections.defaultdict[int, list[str]](list)
     for edge in list(hb_graph.edges())[::-1]:
@@ -132,7 +179,15 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> DfGra
                 cmd_map[tid] = [arg.decode(errors="surrogate") for arg in op.argv]
 
     inode_version_map: dict[int, set[InodeVersion]] = {}
-    traverse_hb_for_dfgraph(probe_log, root_node, traversed, dataflow_graph, cmd_map, inode_version_map, hb_graph)
+    traverse_hb_for_dfgraph(
+        probe_log,
+        root_node,
+        traversed,
+        dataflow_graph,
+        cmd_map,
+        inode_version_map,
+        hb_graph,
+    )
 
     file_version: dict[str, int] = {}
     for inode, versions in inode_version_map.items():
@@ -148,6 +203,6 @@ def probe_log_to_dataflow_graph(probe_log: ProbeLog, hb_graph: HbGraph) -> DfGra
         if isinstance(node, FileAccess):
             str_id = f"{inode}_{version.mtime}"
             label = f"{node.path} inode {node.inode_version.inode.number} fv {file_version[str_id]} "
-            networkx.set_node_attributes(dataflow_graph, {node: label}, "label") # type: ignore
+            networkx.set_node_attributes(dataflow_graph, {node: label}, "label")  # type: ignore
 
     return dataflow_graph
