@@ -52,20 +52,6 @@ def filter_nodes(
     )
 
 
-def union(
-    graph0: networkx.DiGraph[_Node],
-    graph1: networkx.DiGraph[_Node],
-) -> networkx.DiGraph[_Node]:
-    # networkx.union requires names to be unique. This one does not.
-    # FIXME: merge data items
-    result: networkx.DiGraph[_Node] = networkx.DiGraph()
-    result.add_nodes_from(graph0.nodes())
-    result.add_nodes_from(graph1.nodes())
-    result.add_edges_from(graph0.edges())
-    result.add_edges_from(graph1.edges())
-    return result
-
-
 def serialize_graph(
     graph: networkx.DiGraph[_Node],
     output: pathlib.Path,
