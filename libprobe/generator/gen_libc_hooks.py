@@ -17,7 +17,7 @@ ignore_actions = False
 debug_print_start_of_interposition = False
 
 
-interpose_read_writes = False
+interpose_read_writes = True
 
 
 _T = typing.TypeVar("_T")
