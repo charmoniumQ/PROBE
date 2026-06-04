@@ -220,7 +220,6 @@ class ProbeLog:
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
     process_tree_context: ops.ProcessTreeContext
     host: Host
-    _path: pathlib.Path | None
 
     # TODO: refactor
     # I think we should have probe_log.ops[quad] and probe_log.ops -> iterator
