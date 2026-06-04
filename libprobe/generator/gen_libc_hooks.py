@@ -531,7 +531,6 @@ libc_hooks_h_preamble = """
 
 #include <dirent.h>               // for DIR
 #include <features.h>             // for __USE_GNU
-#include <ftw.h>                  // for FTW
 #include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
 #include <signal.h>               // for siginfo_t
 #include <spawn.h>                // for posix_spawn_file_actions_t
@@ -571,8 +570,6 @@ typedef uint64_t thrd_start_t;
  * So we will use a typedef alias.
  */
 typedef int (*fn_ptr_int_void_ptr)(void*);
-typedef int (*ftw_func)(const char *, const struct stat *, int);
-typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 
 /*
  * Smooth out differences between GCC vs Clang and Musl vs Glibc.
@@ -616,7 +613,6 @@ libc_hooks_c_preamble = """
 #include <errno.h>                                           // for errno
 #include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
 #include <features.h>                                        // for __USE_GNU
-#include <ftw.h>                                             // for ftw, nftw
 #include <limits.h>                                          // IWYU pragma: keep for INT_MAX, PATH_MAX
 #include <pthread.h>                                         // for pthread_...
 #include <sched.h>                                           // for CLONE_TH...

@@ -35,6 +35,7 @@ allowed = {
     "pthread_rwlock_unlock",
     "pthread_rwlock_wrlock",
     "pthread_setspecific",
+    "readdir",
     "realloc",
     "sendfile",
     "snprintf",

@@ -315,7 +315,7 @@ static inline void check_function_pointers() {
     ASSERTF(client_fork, "");
     ASSERTF(client_realpath, "");
     ASSERTF(client_opendir, "");
-    ASSERTF(client_closedir, "");    
+    ASSERTF(client_closedir, "");
     ASSERTF(client_readlinkat, "");
 #endif
 }
