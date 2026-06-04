@@ -17,6 +17,9 @@ ignore_actions = False
 debug_print_start_of_interposition = False
 
 
+interpose_read_writes = True
+
+
 _T = typing.TypeVar("_T")
 def expect_type(typ: type[_T], data: typing.Any) -> _T:
     if not isinstance(data, typ):
@@ -156,6 +159,25 @@ def strip_restrict(ty: TypeDecl | PtrDecl) -> TypeDecl | PtrDecl:
     else:
         return ty
 
+
+def find_decl(
+        block: typing.Sequence[Node],
+        name: str,
+        comment: typing.Any,
+) -> Decl | None:
+    relevant_stmts = [
+        stmt
+        for stmt in block
+        if isinstance(stmt, Decl) and stmt.name == name
+    ]
+    if not relevant_stmts:
+        return None
+    elif len(relevant_stmts) > 1:
+        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
+    else:
+        return relevant_stmts[0]
+
+
 @dataclasses.dataclass(frozen=True)
 class ParsedFunc:
     name: str
@@ -164,6 +186,7 @@ class ParsedFunc:
     return_type: TypeDecl
     variadic: bool = False
     stmts: typing.Sequence[Node] = ()
+    is_read_write: bool = False
 
     @staticmethod
     def from_decl(decl: Decl) -> ParsedFunc:
@@ -180,9 +203,11 @@ class ParsedFunc:
 
     @staticmethod
     def from_defn(func_def: pycparser.c_ast.FuncDef) -> ParsedFunc:
+        stmts = tuple(func_def.body.block_items) if func_def.body.block_items is not None else ()
         return dataclasses.replace(
             ParsedFunc.from_decl(func_def.decl),
-            stmts=tuple(func_def.body.block_items) if func_def.body.block_items is not None else (),
+            stmts=stmts,
+            is_read_write=bool(find_decl(stmts, "is_read_write", func_def.decl.name))
         )
 
     def declaration(self) -> pycparser.c_ast.FuncDecl:
@@ -231,15 +256,15 @@ class ParsedFunc:
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
 ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument", "-I."])
-orig_funcs = {
+funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
     if isinstance(node, pycparser.c_ast.FuncDef)
 }
 funcs = {
-    **orig_funcs,
+    **funcs,
     **{
-        node.name: dataclasses.replace(orig_funcs[typing.cast(ID, node.init).name], name=node.name)
+        node.name: dataclasses.replace(funcs[typing.cast(ID, node.init).name], name=node.name)
         for node in ast.ext
         if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
     },
@@ -354,24 +379,6 @@ PRINT_FLAGS = {
 generator = GccCGenerator()
 
 
-def find_decl(
-        block: typing.Sequence[Node],
-        name: str,
-        comment: typing.Any,
-) -> Decl | None:
-    relevant_stmts = [
-        stmt
-        for stmt in block
-        if isinstance(stmt, Decl) and stmt.name == name
-    ]
-    if not relevant_stmts:
-        return None
-    elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
-    else:
-        return relevant_stmts[0]
-
-
 def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     printable_args = []
     printable_args_flags = []
@@ -408,12 +415,12 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             raise RuntimeError(f"{func.name} accesses errno")
 
     pre_call_action = find_decl(func.stmts, "pre_call", func.name)
-    if not ignore_actions and pre_call_action:
+    if not ignore_actions and pre_call_action and (not func.is_read_write or interpose_read_writes):
         pre_call_stmts.extend(expect_type(Compound, pre_call_action.init).block_items)
 
     post_call_action = find_decl(func.stmts, "post_call", func.name)
     assert not noreturn or not post_call_action
-    if not ignore_actions and post_call_action:
+    if not ignore_actions and post_call_action and (not func.is_read_write or interpose_read_writes):
         post_call_stmts.extend(
             expect_type(Compound, post_call_action.init).block_items,
         )
@@ -429,7 +436,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         ),
     )
 
-    call_stmts_block = find_decl(func.stmts, "call", func.name) if not ignore_actions else None
+    call_stmts_block = find_decl(func.stmts, "call", func.name) if not ignore_actions and (not func.is_read_write or interpose_read_writes) else None
     if call_stmts_block is None:
         call_expr = pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(
@@ -524,17 +531,20 @@ libc_hooks_h_preamble = """
 
 #include <dirent.h>               // for DIR
 #include <features.h>             // for __USE_GNU
-#include <ftw.h>                  // for FTW
 #include <pthread.h>              // IWYU pragma: keep for pthread_t, pthread_attr_t
 #include <signal.h>               // for siginfo_t
 #include <spawn.h>                // for posix_spawn_file_actions_t
+#include <stdbool.h>              // for bool
 #include <sys/time.h>             // for timeval
 #include <sys/types.h>            // for pid_t, mode_t, ssize_t, gid_t, uid_t
 #include <sys/wait.h>             // IWYU pragma: keep for idtype_t
 #include "../src/libc_subset.h"   // IWYU pragma: keep for FILE
 // IWYU pragma: no_include <stdio.h> for FILE
 
+struct aiocb;
+struct iovec;
 struct rusage;
+struct sigevent;
 struct stat;
 struct statx;
 struct timeval;
@@ -560,8 +570,6 @@ typedef uint64_t thrd_start_t;
  * So we will use a typedef alias.
  */
 typedef int (*fn_ptr_int_void_ptr)(void*);
-typedef int (*ftw_func)(const char *, const struct stat *, int);
-typedef int (*nftw_func)(const char *, const struct stat *, int, struct FTW *);
 
 /*
  * Smooth out differences between GCC vs Clang and Musl vs Glibc.
@@ -584,7 +592,7 @@ __attribute__((visibility("default"))) void closefrom(int lowfd);
 #endif
 
 void init_function_pointers();
-"""
+""" + f"static const bool INTERPOSE_READ_WRITES = {str(interpose_read_writes).lower()};\n"
 (generated / "libc_hooks.h").write_text(
     warning + "\n\n" +
     libc_hooks_h_preamble.strip() + "\n\n" +
@@ -599,12 +607,12 @@ libc_hooks_c_preamble = """
 
 #include "libc_hooks.h"
 
+#include <aio.h>                                             // for aiocb
 #include <dirent.h>                                          // for DIR, dirfd
 #include <dlfcn.h>                                           // for dlsym
 #include <errno.h>                                           // for errno
 #include <fcntl.h>                                           // for AT_FDCWD, O_TMPFILE
 #include <features.h>                                        // for __USE_GNU
-#include <ftw.h>                                             // for ftw, nftw
 #include <limits.h>                                          // IWYU pragma: keep for INT_MAX, PATH_MAX
 #include <pthread.h>                                         // for pthread_...
 #include <sched.h>                                           // for CLONE_TH...
@@ -636,6 +644,10 @@ libc_hooks_c_preamble = """
 #include "../src/prov_utils.h"                               // for create_p...
 #include "../src/pthread_helper.h"                           // for pthread_helper
 #include "../src/util.h"                                     // for LIKELY
+
+struct iovec;
+struct rusage;
+struct sigevent;
 
 #if defined(__GLIBC__) && __GLIBC_MINOR__ >= 34
 # include <linux/close_range.h>                              // for CLOSE_RANGE_CLOEXEC

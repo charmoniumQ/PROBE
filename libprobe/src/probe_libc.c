@@ -63,6 +63,9 @@ size_t auxiliary[AUX_CNT] = {0};
 #if defined(__x86_64__) && defined(__linux__)
 #define SYSCALL_REG(reg) register uint64_t reg __asm__(#reg)
 
+// TODO: Investigate using client_X versus probe_libc_X.
+// I think we only have to use probe_libc_X in cases where client_X may not be provided or when we need X before client is looked up.
+
 static uint64_t probe_syscall0(uint64_t sysnum) {
     SYSCALL_REG(rax) = sysnum;
 
@@ -431,36 +434,6 @@ result_sized_mem probe_read_all_alloc_path(int dirfd, const char* _Nonnull path)
     result_sized_mem ret = probe_read_all_alloc(fd.value);
     probe_libc_close(fd.value);
     return ret;
-}
-
-result_ssize_t probe_libc_sendfile(int out_fd, int in_fd, off_t* _Nullable offset, size_t count) {
-    ssize_t retval = probe_syscall4(SYS_sendfile, out_fd, in_fd, (uintptr_t)offset, count);
-    SYSCALL_ERROR_RESULT(result_ssize_t, retval);
-}
-
-result probe_copy_file(int src_fd, int dst_dirfd, const char* _Nullable dst_path, ssize_t size) {
-    // See https://stackoverflow.com/a/2180157
-    result_int dst_fd = probe_libc_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
-    if (dst_fd.error) {
-        probe_libc_close(src_fd);
-        return (result)dst_fd.error;
-    }
-
-    off_t copied = 0;
-    while (copied < size) {
-        result_ssize_t written = probe_libc_sendfile(dst_fd.value, src_fd, &copied, SSIZE_MAX);
-        if (written.error) {
-            probe_libc_close(src_fd);
-            probe_libc_close(dst_fd.value);
-            return written.error;
-        }
-        copied += written.value;
-    }
-
-    probe_libc_close(src_fd);
-    probe_libc_close(dst_fd.value);
-
-    return 0;
 }
 
 result_mem probe_libc_mmap(void* _Nullable addr, size_t len, int prot, int flags, int fd) {

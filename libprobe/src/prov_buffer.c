@@ -9,6 +9,7 @@
 #include <threads.h>  // for thrd_current
 #include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
 #include <unistd.h>   // for F_OK
+// IWYU pragma: no_include "bits/posix1_lim.h" for SSIZE_MAX, we have limits.h
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
@@ -42,10 +43,67 @@ enum AccessType {
 
 static inline void path_to_id_string(const struct Inode inode, BORROWED char* string) {
     CHECK_SNPRINTF(
-        string, PATH_MAX, "%04x-%04x-%016lx-%016lldx-%08x-%016lx", inode.device_major,
+        string, PATH_MAX, "/inodes/%04x-%04x-%016lx-%016lldx-%08x-%016lx", inode.device_major,
         inode.device_minor, inode.number,
         /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
         (long long int)inode.mtime.tv_sec, inode.mtime.tv_nsec, inode.size);
+}
+
+int copy_file(int src_fd, int dst_dirfd, const char* _Nullable dst_path, ssize_t size) {
+    // See https://stackoverflow.com/a/2180157
+    int dst_fd = client_openat(dst_dirfd, dst_path, O_WRONLY | O_CREAT, 0666);
+    if (dst_fd < 0) {
+        DEBUG("Error at openat");
+        return (result)-dst_fd;
+    }
+
+    bool error = false;
+    off_t copied = 0;
+    while (copied < size) {
+        ssize_t written = client_sendfile(dst_fd, src_fd, &copied, SSIZE_MAX);
+        if (written < 0) {
+            DEBUG("sendfile error %ld copied=%ld of %ld", -written, copied, size);
+            error = true;
+            break;
+        }
+        copied += written;
+    }
+
+    if (error) {
+        // Error on first sendfile
+        // File might not support sendfile.
+        // Keep in mind that size can be wrong
+        // In these cases, we want to fall back to normal read/writes
+#define BLOCK_SIZE 4096
+        while (copied < size) {
+            static char buffer[BLOCK_SIZE];
+            size_t remaining = size - copied;
+            ssize_t read = client_pread(src_fd, buffer,
+                                        remaining < BLOCK_SIZE ? remaining : BLOCK_SIZE, copied);
+            if (read < 0) {
+                DEBUG("Error at read");
+                client_close(dst_fd);
+                return read;
+            }
+            if (read == 0) {
+                break;
+            }
+            off_t new_position = copied + read;
+            while (copied < new_position) {
+                ssize_t written = client_pwrite(dst_fd, buffer, new_position - copied, copied);
+                if (written <= 0) {
+                    DEBUG("Error at write");
+                    client_close(dst_fd);
+                    return (int)-written;
+                }
+                copied += written;
+            }
+        }
+    }
+
+    client_close(dst_fd);
+
+    return 0;
 }
 
 static int copy_to_store(int fd, struct Inode inode) {
@@ -55,8 +113,7 @@ static int copy_to_store(int fd, struct Inode inode) {
         store_path = *get_probe_dir();
         initialized = true;
     }
-    store_path.bytes[store_path.len] = '/';
-    path_to_id_string(inode, store_path.bytes + store_path.len + 1);
+    path_to_id_string(inode, store_path.bytes + store_path.len);
     /*
     ** We take precautions to avoid calling copy(f) if copy(f) is already called in the same process.
     ** But it may have been already called in a different process!
@@ -66,16 +123,15 @@ static int copy_to_store(int fd, struct Inode inode) {
     if (access == 0) {
         return 0;
     } else if ((inode.mode & S_IFMT) == S_IFDIR) {
-        ERROR("Can't copy directory %ld", inode.number);
+        DEBUG("Can't copy directory %ld", inode.number);
         // TODO: implement this
-        // We need to copy the inode metadata (not actual contents) linked in this directory
         return 0;
     } else if ((inode.mode & S_IFMT) == S_IFREG) {
-        DEBUG("Copying regular file %ld", inode.number);
-        return (int)probe_copy_file(fd, AT_FDCWD, store_path.bytes, inode.size);
+        DEBUG("Copying regular file fd=%d, dev=%d,%d, inode=%ld to path=%s", fd, inode.device_major,
+              inode.device_minor, inode.number, store_path.bytes);
+        return (int)copy_file(fd, AT_FDCWD, store_path.bytes, inode.size);
     } else if ((inode.mode & S_IFMT) == S_IFCHR) {
-        DEBUG("Copying block device file %ld", inode.number);
-        // TODO
+        DEBUG("Ignoring block device file %ld", inode.number);
         return 0;
     } else {
         ERROR("Not sure how to copy special file inode=%ld, (mode & S_IFMT)=%d", inode.number,
@@ -115,8 +171,9 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
                           inode.number);
                 } else {
                     DEBUG("Mutating, therefore copying %ld", inode.number);
-                    if (copy_to_store(fd, inode) != 0) {
-                        ERROR("Copying failed");
+                    int ret = copy_to_store(fd, inode);
+                    if (ret != 0) {
+                        ERROR("Copying failed, %d", ret);
                     }
                 }
             } else if (access == TRUNCATE_WRITE_ACCESS) {
@@ -131,8 +188,9 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
                               inode.number);
                     } else {
                         DEBUG("Replace after read %ld", inode.number);
-                        if (copy_to_store(fd, inode) != 0) {
-                            ERROR("Copying failed");
+                        int ret = copy_to_store(fd, inode);
+                        if (ret != 0) {
+                            ERROR("Copying failed, %d", ret);
                         }
                     }
                 } else {
@@ -146,8 +204,9 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
             if (atomic_exchange(coo_loc, true)) {
                 DEBUG("Not copying %ld because already did", inode.number);
             } else {
-                if (copy_to_store(fd, inode) != 0) {
-                    ERROR("Copying failed");
+                int ret = copy_to_store(fd, inode);
+                if (ret != 0) {
+                    ERROR("Copying failed, %d", ret);
                 }
             }
         }
@@ -162,6 +221,12 @@ struct Inode get_inode(int fd) {
     if (stat_ret != 0) {
         ERROR("We got a bad FD; could be the client's fault? fd=%d stat_ret=%d", fd, stat_ret);
     }
+    if (statx_buf.stx_ino == 0) {
+        ERROR("Weird inode for %d: dev=%u_%u ino=%llu %d %lld %lld %llu", fd,
+              statx_buf.stx_dev_major, statx_buf.stx_dev_minor, statx_buf.stx_ino,
+              statx_buf.stx_mode, statx_buf.stx_mtime.tv_sec, statx_buf.stx_ctime.tv_sec,
+              statx_buf.stx_size);
+    }
     return (struct Inode){
         .device_major = statx_buf.stx_dev_major,
         .device_minor = statx_buf.stx_dev_minor,
@@ -175,6 +240,11 @@ struct Inode get_inode(int fd) {
 
 static struct FdTable fd_table;
 
+const uint16_t MIN_OPEN_NUMBER = 3;
+const uint16_t NUMBER_MASK = 0x3FFF;
+const uint16_t WRITE_BIT = 0x8000;
+const uint16_t READ_BIT = 0x4000;
+
 OpenNumber get_open_number(int fd) {
     uint16_t number = atomic_load(fd_table_address_of_strong(&fd_table, fd));
     return (OpenNumber){.fd = fd, .number = number};
@@ -183,13 +253,21 @@ OpenNumber get_open_number(int fd) {
 /* Return the old open number and mark it as invalid in the future. */
 OpenNumber reset_open_number(int fd) {
     uint16_t number = atomic_load(fd_table_address_of_strong(&fd_table, fd));
-    DEBUG("reset_open_number: %d,%u", fd, number);
+    DEBUG("reset_open_number: %d,%u", fd, number & NUMBER_MASK);
     return (OpenNumber){.fd = fd, .number = number};
 }
 
 OpenNumber new_open_number(int fd) {
     _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
-    uint16_t new_number = atomic_fetch_add(address, 1) + 1;
+    uint16_t old_number = atomic_load(address) & 0x3FFF;
+    uint16_t new_number;
+    if (old_number == 0) {
+        new_number = MIN_OPEN_NUMBER;
+    } else {
+        new_number = old_number + 1;
+    }
+    atomic_store(address, new_number);
+    ASSERTF(new_number >= MIN_OPEN_NUMBER, "");
     DEBUG("new_open_number: %d,%u", fd, new_number);
     return (OpenNumber){
         .fd = fd,
@@ -197,11 +275,20 @@ OpenNumber new_open_number(int fd) {
     };
 }
 
+void mark_access(int fd, bool is_write) {
+    _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
+#ifndef NDEBUG
+    uint16_t number = atomic_load(address) & NUMBER_MASK;
+    DEBUG("Mark %d,%d as %s", fd, number, is_write ? "write" : "read");
+#endif
+    atomic_fetch_or(address, is_write ? WRITE_BIT : READ_BIT);
+}
+
 int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
     enum AccessType access;
     if ((flags & O_ACCMODE) == O_RDONLY) {
         access = READ_ACCESS;
-    } else if (flags & (O_TRUNC | O_CREAT)) {
+    } else if (flags & O_TRUNC) {
         access = TRUNCATE_WRITE_ACCESS;
     } else if ((flags & O_ACCMODE) == O_WRONLY) {
         access = WRITE_ACCESS;
@@ -221,6 +308,8 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         inode = get_inode(fd);
         maybe_copy_to_store(access, fd, inode);
     } else {
+        // FIXME: This should be call_errno.
+        // saved_errno should be at the top.
         saved_errno = errno;
         // TODO: note the fact that the file did NOT exist
     }
@@ -229,8 +318,7 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
 
     if (flags != nondestructive_flags) {
         if (fd >= 0) {
-            DEBUG("Closing the RW version");
-            close(fd);
+            client_close(fd);
         }
         // TODO: try interpreting flags instead of doing close+open
         fd = client_openat(dirfd, filename, flags, mode);
@@ -241,58 +329,68 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         }
     }
 
-    OpenNumber open_number = {0};
     if (fd >= 0) {
-        new_open_number(fd);
-    }
-    prov_log_record((struct Op){
-        .data =
-            {
-                .open_tag = OpData_Open,
-                .open =
-                    {
-                        .path =
-                            {
-                                .directory = get_open_number(dirfd),
-                                .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
-                            },
-                        .open_number = open_number,
-                        .inode = inode,
-                        .flags = flags,
-                        .mode = mode,
-                        .dir = false,
-                        .creat =
-                            false, /* This is only used when we _know_ that the file was created, like in pipe() */
-                    },
-            },
-        .ferrno = 0,
-    });
-    if (fd < 0) {
-        errno = saved_errno;
-    } else {
+        OpenNumber open_number = new_open_number(fd);
+        DEBUG("on %d,%d; inode %lu; dev=%d,%d", open_number.fd, open_number.number, inode.number,
+              inode.device_major, inode.device_minor);
+        ASSERTF(open_number.number > 0, "");
+        prov_log_record((struct Op){
+            .data =
+                {
+                    .open_tag = OpData_Open,
+                    .open =
+                        {
+                            .path =
+                                {
+                                    .directory = get_open_number(dirfd),
+                                    .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                                },
+                            .open_number = open_number,
+                            .inode = inode,
+                            .flags = flags,
+                            .mode = mode,
+                            .dir = false,
+                            /* This is only used when we _know_ that the file was created, like in pipe() */
+                            .creat = false,
+                        },
+                },
+            .ferrno = 0,
+        });
         errno = 0;
+    } else {
+        errno = saved_errno;
     }
     return fd;
 }
 
+const int ACCESS_FLAGS[] = {
+    [READ_ACCESS] = O_RDONLY,
+    [WRITE_ACCESS] = O_WRONLY,
+    [READ_WRITE_ACCESS] = O_RDWR,
+    [TRUNCATE_WRITE_ACCESS] = O_WRONLY | O_TRUNC,
+};
+
 FILE* fopen_wrapper(const char* filename, const char* opentype) {
     DEBUG("fopen_wrapper(\"%s\", \"%s\")", filename, opentype);
-    enum AccessType access;
-    switch (opentype[0]) {
-    case 'r':
-        access = READ_ACCESS;
-        break;
-    case 'w':
-        access = WRITE_ACCESS;
-        break;
-    case 'a':
-        access = WRITE_ACCESS;
-        break;
-    default:
-        ERROR("unreachable code, opentype=\"%s\"", opentype);
+    bool has_plus = false;
+    for (const char* f = filename; *f; ++f) {
+        if (*f == '+') {
+            has_plus = true;
+            break;
+        }
     }
-    if (opentype[1] == '+') {
+    enum AccessType access;
+    if (opentype[0] == 'w') {
+        // "w" or "w+"
+        access = TRUNCATE_WRITE_ACCESS;
+    } else if (has_plus) {
         access = READ_WRITE_ACCESS;
+    } else if (opentype[0] == 'a') {
+        access = WRITE_ACCESS;
+    } else if (opentype[0] == 'r') {
+        access = READ_ACCESS;
+    } else {
+        ERROR("unrecognized opentype: \"%s\"", opentype);
     }
     int saved_errno = 0;
     FILE* file = client_fopen(filename, "r");
@@ -323,33 +421,36 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
         }
     }
 
-    OpenNumber open_number = {0};
     if (file) {
-        new_open_number(fileno(file));
+        OpenNumber open_number = new_open_number(fileno(file));
+        DEBUG("on %d,%d; ret=FILE %p, inode %lu; dev=%d,%d", open_number.fd, open_number.number,
+              file, inode.number, inode.device_major, inode.device_minor);
+        ASSERTF(open_number.number > 0, "");
+        prov_log_record((struct Op){
+            .data =
+                {
+                    .open_tag = OpData_Open,
+                    .open =
+                        {
+                            .path =
+                                {
+                                    .directory = get_open_number(AT_FDCWD),
+                                    .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                                },
+                            .open_number = open_number,
+                            .inode = inode,
+                            .flags = ACCESS_FLAGS[access],
+                            .mode = 0,
+                            .dir = false,
+                            .creat = false,
+                        },
+                },
+            .ferrno = 0,
+        });
+        errno = 0;
+    } else {
+        errno = saved_errno;
     }
-    prov_log_record((struct Op){
-        .data =
-            {
-                .open_tag = OpData_Open,
-                .open =
-                    {
-                        .path =
-                            {
-                                .directory = get_open_number(AT_FDCWD),
-                                .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
-                            },
-                        .open_number = open_number,
-                        .inode = inode,
-                        .flags = 0,
-                        .mode = 0,
-                        .dir = false,
-                        .creat = false,
-                    },
-            },
-        .ferrno = 0,
-    });
-
-    errno = saved_errno;
     return file;
 }
 
@@ -359,27 +460,6 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
 void prov_log_record(struct Op op) {
     // TODO: construct op in op arena place instead of copying into arena.
     ASSERTF(0 <= op.data.tag && op.data.tag < OpData_Sentinel, "%d", op.data.tag);
-    /* #ifdef DEBUG_LOG */
-    /*     char str[PATH_MAX * 2]; */
-    /*     op_to_human_readable(str, PATH_MAX * 2, &op); */
-    /*     if (op.data.tag != OpData_Readdir) { */
-    /*         DEBUG("recording op: %s (%d)", str, op.data.tag); */
-    /*     } */
-    /*     if (op.data.tag == OpData_InitExecEpoch) { */
-    /*         DEBUG("Init exec:"); */
-    /*         for (size_t idx = 0; op.data.init_exec_epoch.argv[idx]; ++idx) { */
-    /*             fprintf(stderr, "'%s' ", op.data.init_exec_epoch.argv[idx]); */
-    /*         } */
-    /*         fprintf(stderr, "\n"); */
-    /*     } else if (op.data.tag == OpData_Exec) { */
-    /*         DEBUG("Exec:"); */
-    /*         fprintf(stderr, "'%s' ", op.data.exec.path.path); */
-    /*         for (size_t idx = 0; op.data.exec.argv[idx]; ++idx) { */
-    /*             fprintf(stderr, "'%s' ", op.data.exec.argv[idx]); */
-    /*         } */
-    /*         fprintf(stderr, "\n"); */
-    /*     } */
-    /* #endif */
 
     // TODO: Time the performance of this
     //if (op.time.tv_sec == 0 && op.time.tv_nsec == 0) {

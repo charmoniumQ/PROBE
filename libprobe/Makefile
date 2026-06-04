@@ -142,7 +142,7 @@ install:
 
 clean:
 	mkdir --parents $(BUILD_DIR)/
-	rm --force --recursive $(BUILD_DIR)/ $(GENERATED_FILES) compile_commands.json
+	rm --force --recursive $(BUILD_DIR)/ $(GENERATED_FILES) compile_commands.json generated/*
 .PHONY: clean
 
 format:
