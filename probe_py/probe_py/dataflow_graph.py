@@ -18,6 +18,7 @@ from . import hb_graph as hb_graph_mod
 from . import headers
 from . import partial_order
 from . import ptypes
+from . import supplement
 from . import util
 from . import vector_clock
 
@@ -743,6 +744,15 @@ def label_nodes(
     max_paths_per_inode: int = 10,
     max_inodes_per_set: int = 100,
 ) -> None:
+    paths = set()
+    for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="extractr files from dfg"):
+        if isinstance(node, IVNs):
+            for ivn in node:
+                for path in analysis.paths.get(ivn.inode, collections.Counter[pathlib.Path]()):
+                    paths.add(path)
+    supplemental_info = supplement.Supplemental.from_files(
+        tqdm.tqdm(paths, desc="supplemental info on files")
+    )
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="label dfg"):
         data2 = dfg.nodes(data=True)[node]
         match node:
@@ -764,6 +774,7 @@ def label_nodes(
                     max_path_segment_length=max_path_segment_length,
                     max_paths_per_inode=max_paths_per_inode,
                     max_inodes_per_set=max_inodes_per_set,
+                    supplemental_info=supplemental_info,
                 )
             case _:
                 raise TypeError()
@@ -810,6 +821,51 @@ def label_quads(
         data["label"] += f"Thread {int(quad.tid) - int(quad.pid)}"
 
 
+def uncompress_ivns(
+    dfg: DataflowGraph,
+    analysis: Analysis,
+) -> None:
+    paths = set()
+    for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="extractr files from dfg"):
+        if isinstance(node, IVNs):
+            for ivn in node:
+                for path in analysis.paths.get(ivn.inode, collections.Counter[pathlib.Path]()):
+                    paths.add(path)
+    supplemental_info = supplement.Supplemental.from_files(
+        tqdm.tqdm(paths, desc="supplemental info on files")
+    )
+    package_nodes = {}
+    for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="extractr files from dfg"):
+        if isinstance(node, IVNs):
+            for inode_version in node:
+                ivn_paths = analysis.paths.get(
+                    inode_version.inode, collections.Counter[pathlib.Path]()
+                )
+                for path in ivn_paths:
+                    if (info := supplemental_info.files[path].venv_file_info) is not None:
+                        package_nodes[inode_version] = info
+    dfg = graph_utils.union(
+        graph_utils.filter_nodes(
+            lambda node: bool(node) if isinstance(node, IVNs) else True,
+            graph_utils.map_nodes(
+                lambda node: IVNs(node - package_nodes.keys()) if isinstance(node, IVNs) else node,
+                dfg,
+            ),
+        ),
+        graph_utils.filter_nodes(
+            lambda node: bool(node) if isinstance(node, IVNs) else True,
+            graph_utils.map_nodes(
+                lambda node: (
+                    IVNs(node & package_nodes.keys())
+                    if isinstance(node, IVNs)
+                    else IVNs(frozenset({}))
+                ),
+                dfg,
+            ),
+        ),
+    )
+
+
 def label_ivns(
     ivns: IVNs,
     data: NodeData,
@@ -819,6 +875,7 @@ def label_ivns(
     max_path_segment_length: int,
     max_paths_per_inode: int,
     max_inodes_per_set: int,
+    supplemental_info: supplement.Supplemental,
 ) -> None:
     inode_labels = []
     # Sorting ensures consistent labels
@@ -831,8 +888,16 @@ def label_ivns(
             type_str = f" (type={type})"
         paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
         for path, frequency in list(paths.most_common()):
-            path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
-            inode_labels.append(f"{path_str}{type_str}")
+            if (info := supplemental_info.files[path].venv_file_info) is None:
+                path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
+                inode_labels.append(f"{path_str}{type_str}")
+            else:
+                for package in info.packages:
+                    label = f"{package.name} {package.version}"
+                    if label not in inode_labels:
+                        inode_labels.append(label)
+                    if len(inode_labels) > max_paths_per_inode:
+                        break
         if not paths:
             inode_labels.append(
                 f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"

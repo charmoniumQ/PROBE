@@ -78,6 +78,7 @@ def parse_probe_log_ctx(
             inodes,
             process_tree_context,
             host,
+            tmpdir,
         )
 
 
@@ -96,4 +97,5 @@ def parse_probe_log(
                 probe_log.process_tree_context,
                 copy_files=ops.CopyFiles.NONE,
             ),
+            _path=None,
         )
