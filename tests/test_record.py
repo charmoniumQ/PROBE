@@ -123,18 +123,18 @@ simple_commands = {
     # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
     # See https://github.com/charmoniumQ/PROBE/pull/135
     "test_rw_c": [str(example_path / "test_rw.exe")],
-    "test_rw_py": ["python", str(example_path / "test_rw.py")],
+    "test_rw_py": ["python", str(example_path / "../test_rw.py")],
 }
 
 complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, str, list[str]]] = {
     # "c_hello_simplified": (
-    #     False,
+    #     True,
     #     pathlib.Path("test.c"),
     #     "int main() { return 0; }",
     #     ["gcc", "-c", "test.c"],
     # ),
     "java_subprocess_hello": (
-        False,
+        True,
         pathlib.Path("HelloWorld.java"),
         java_subprocess_hello_world,
         bash_multi(
@@ -299,7 +299,7 @@ def test_downstream_analyses(
             (scratch_directory / command[1]).write_text(command[2])
         command = command[3]
     else:
-        strict = False
+        strict = True
 
     class PopenKwargs(typing.TypedDict):
         check: bool

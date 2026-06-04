@@ -330,6 +330,7 @@ _DOWNGRADE_MATRIX: typing.Mapping[AccessMode, tuple[None | Exception | AccessMod
     AccessMode.DLOPEN: (None, AccessMode.DLOPEN, ValueError(), ValueError()),
     # AccessMode.READ: (None, AccessMode.READ, ValueError(), ValueError()),
     AccessMode.READ: (None, AccessMode.READ, AccessMode.WRITE, AccessMode.READ_WRITE),
+    AccessMode.DIRECTORY: (None, AccessMode.READ, AccessMode.WRITE, AccessMode.READ_WRITE),
     AccessMode.WRITE: (None, ValueError(), AccessMode.WRITE, ValueError()),
     AccessMode.READ_WRITE: (None, AccessMode.READ, AccessMode.WRITE, AccessMode.READ_WRITE),
     # If we open in truncate write, we _could_ do a read, but that would be pointless.
