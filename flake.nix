@@ -199,6 +199,8 @@
             };
             propagatedBuildInputs = [
               charmonium-time-block-pkg
+              python.pkgs.dulwich
+              python.pkgs.frozendict
               python.pkgs.msgspec
               python.pkgs.networkx
               python.pkgs.numpy
@@ -296,6 +298,8 @@
           probe-python = python.withPackages (pypkgs: [
             # probe_py runtime requirements
             charmonium-time-block-pkg
+            pypkgs.dulwich
+            pypkgs.frozendict
             pypkgs.msgspec
             pypkgs.networkx
             pypkgs.numpy
@@ -340,6 +344,7 @@
               # Replay tools
               pkgs.buildah
               pkgs.podman
+              pkgs.file
 
               # Python env
               probe-python

@@ -194,11 +194,9 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    hb_graph_module.label_nodes(probe_log_obj, hbg)
-    dfg, inode_to_paths = dataflow_graph_module.hb_graph_to_dataflow_graph2(probe_log_obj, hbg)
-    compressed_dfg = dataflow_graph_module.combine_indistinguishable_inodes(dfg)
-    dataflow_graph_module.label_nodes(probe_log_obj, compressed_dfg, inode_to_paths)
-    graph_utils.serialize_graph(compressed_dfg, output)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg)
+    dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to)
+    graph_utils.serialize_graph(dfg, output)
 
 
 @export_app.command()
@@ -304,17 +302,15 @@ def debug_text(
                 exid_len = len(str(max_exid))
                 for exid, exec_epoch in sorted(process.execs.items()):
                     print(f"{pid: {pid_len}d} start of exec {exid} / {max_exid}", file=output_fd)
-                    tid_len = max(len(str(tid)) for tid in exec_epoch.threads.keys())
                     for tid, thread in sorted(exec_epoch.threads.items()):
                         print(f"{pid: {pid_len}d} {exid: {exid_len}d} start of thread {tid}", file=output_fd)
-                        op_no_len = len(str(len(thread.ops)))
                         for op_no, op in enumerate(thread.ops):
                             pbar.update(1)
-                            prefix = f"{pid: {pid_len}d} {exid: {exid_len}d} {tid: {tid_len}d} {op_no: {op_no_len}d} "
+                            prefix = "        "
                             op_type = type(op.data).__name__
                             op_data = util.decode_nested_object(msgspec.structs.asdict(op.data))
                             op_data_json = json.dumps({key: value for key, value in op_data.items() if not strip_env or key != "env"}, indent=2)
-                            print(f"{prefix}{op_type}", file=output_fd)
+                            print(f"{prefix}{op_no} {op_type}", file=output_fd)
                             print(textwrap.indent(op_data_json, prefix=len(prefix) * " "), file=output_fd)
 
 

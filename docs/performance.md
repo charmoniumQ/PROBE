@@ -1,24 +1,15 @@
-Opens now call stat twice:
-- once before the open to make sure we aren't going to truncate an inode that we need.
-- once after the open, so we know what file is getting read.
-Both of these can be reduced.
-The first only needs to be done when the flags are O_TRUNC, at which point we would call maybe_copy_file.
-(Still need to maybe_copy_file, after the file is opened).
-The second only needs to happen if the first does not.
-Perhaps the stats on dup can even be removed.
+Do we need to call stat when `O_TRUNC` is set?
 
 Try reducing the size of the Op structure in libprobe. Can do away with timestamp and thread IDs.
 
 Try only storing the diff of the environment the current process's initial environment in exec.
 
-Deduplicate information that is currently in both: ExecOp and InitExecOp.
-On the one hand, the information is passed _by_ (i.e., created/set by) the parent exec op. On the other hand, the "root" exec would be missing, as that comes from probe CLI, prior to LD_PRELOAD being set. Also if we ever find ourselves in a process created by a raw syscall, it may be nice to note our current surroundings.
-Resolved: Track it all in ExecOp, unless the current ExecOp is "unmarked". All probe-interposed exec*-family lib calls "mark" the target exec-op, indicated by the process_context.
+TODO: arenas and possibly other objects are held by pointer, necessitating 1 extra pointer dereference and sometimes 1 func call. Instead, access them directly (possibly through macros).
 
-arenas and possibly other objects are held by pointer, necessitating 1 extra pointer dereference and sometimes 1 func call. Instead, access them directly (possibly through macros).
+Don't even log dups. If we copy the open number, and we never use raw FDs, we don't need to log dups and related fd ops. But we would have to resolve the case where a newly execed process calls write on an inherited filedescriptor. Exec clears out the memory, so we may not easily remember the open-number associated with that FD.
 
-Don't even log dups. If we copy the open number, and we never use raw FDs, we don't need to log dups and related fd ops.
+TODO: We have more atomics than necessary. If we assume no races between open and other operations on the same FD, we don't need fd_table to be atomic?
 
-Don't copy argv, env twice. We already copy it in Exec, don't need to copy it in InitExecEpoch
+TODO: Delete `call_errno`/`save_errno` handling. If a libc function returns a non-error return, the value of `errno` is undefined, so we don't have to set it. If we return an error, we just have to be sure that we don't call any `client_` functions that may set `errno`.
 
-We have more atomics than necessary. If we assume no races between open and other operations on the same FD, we don't need fd_table to be atomic?
+TODO: Test the performance impact of interpose read/writes.

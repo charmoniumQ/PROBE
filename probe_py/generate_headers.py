@@ -46,6 +46,7 @@ def fixup_autogen_ast(headers_py: pathlib.Path) -> None:
     fix_tagged_enums(module)
     replace_bytestring_sequence(module)
     fixup_imports(module)
+    add_properties(module)
     add_typedefs(module)
     headers_py.write_text(ast.unparse(module))
 
