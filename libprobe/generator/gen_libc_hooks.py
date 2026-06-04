@@ -12,12 +12,18 @@ from pycparser_types import CGenerator, Assignment, Compound, Decl, Node, ID, Ty
 # Don't produce ops
 ignore_actions = False
 
+# Whether to call init
+call_init = True
 
 # whether to DEBUG() at the start of every interposed function.
 debug_print_start_of_interposition = False
 
 
 interpose_read_writes = True
+
+
+if not ignore_actions:
+    assert call_init
 
 
 _T = typing.TypeVar("_T")
@@ -399,6 +405,15 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                 ]),
             )
         )
+
+    if call_init:
+        pre_call_stmts.append(
+            pycparser.c_ast.FuncCall(
+                name=pycparser.c_ast.ID(name="ensure_thread_initted"),
+                args=pycparser.c_ast.ExprList(exprs=[]),
+            ),
+        )
+
 
     noreturn = bool(find_decl(func.stmts, "noreturn", func.name))
 

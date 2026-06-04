@@ -50,7 +50,10 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 /* Need: In case an analysis wants to use open-to-close consistency */
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Closing-Streams.html */
 int fclose (FILE *stream) {
-    void* pre_call = ({ int fd = fileno(stream); });
+    void* pre_call = ({
+        int fd = fileno(stream);
+        print_open_fd(fd);
+    });
     void* post_call = ({
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
             prov_log_record((struct Op) {
@@ -135,8 +138,12 @@ int creat (const char *filename, mode_t mode) {
 }
 fn creat64 = creat;
 int close (int filedes) {
+    void* pre_call = ({
+        print_open_fd(filedes);
+    });
     void* post_call = ({
         OpenNumber on = reset_open_number(filedes);
+        DEBUG("closing: %d,%u", filedes, on.number);
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
             prov_log_record((struct Op) {
                 .data = {

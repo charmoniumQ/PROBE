@@ -112,6 +112,7 @@ simple_commands = {
             'print("done")',
         ])
     ],
+    # FIXME
     # "c_hello": bash_multi(
     #     ["echo", c_hello_world, "redirect_to", "test.c"],
     #     ["gcc", "test.c"],
@@ -121,6 +122,8 @@ simple_commands = {
     # Re-enable once we have a faster analysis.
     # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
     # See https://github.com/charmoniumQ/PROBE/pull/135
+    "test_rw_c": [str(example_path / "test_rw.exe")],
+    "test_rw_py": ["python", str(example_path / "test_rw.py")],
 }
 
 complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, str, list[str]]] = {

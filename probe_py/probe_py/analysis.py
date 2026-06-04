@@ -1,5 +1,6 @@
 import collections
-from .ptypes import ProbeLog, HbGraph, OpQuad
+from .ptypes import ProbeLog, OpQuad
+from .hb_graph import HbGraph
 from .headers import Clone, Wait
 
 

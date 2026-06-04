@@ -9,7 +9,6 @@ import random
 import socket
 import stat
 import typing
-import networkx
 import numpy
 from . import headers as ops
 from . import consts
@@ -182,7 +181,7 @@ class ExecPair:
     exec_no: ExecNo
 
     def __str__(self) -> str:
-        return f"PID {self.pid} Exec {self.exec_no}"
+        return f"{self.pid}.{self.exec_no}"
 
 
 @dataclasses.dataclass(frozen=True, order=True)
@@ -195,7 +194,7 @@ class ThreadTriple:
         return ExecPair(self.pid, self.exec_no)
 
     def __str__(self) -> str:
-        return f"PID {self.pid} Exec {self.exec_no} TID {self.tid}"
+        return f"{self.pid}.{self.exec_no}.{self.tid}"
 
 
 @dataclasses.dataclass(frozen=True, order=True)
@@ -212,25 +211,7 @@ class OpQuad:
         return ExecPair(self.pid, self.exec_no)
 
     def __str__(self) -> str:
-        return f"PID {self.pid} Exec {self.exec_no} TID {self.tid} op {self.op_no}"
-
-
-@dataclasses.dataclass(frozen=True)
-class OpQuint(OpQuad):
-    deduplicator: int
-
-    def deduplicate(self, other: OpQuad) -> OpQuint:
-        if self.quad() != other:
-            return OpQuint.from_quad(other, 0)
-        else:
-            return OpQuint.from_quad(other, self.deduplicator + 1)
-
-    @staticmethod
-    def from_quad(quad: OpQuad, deduplicator: int = 0) -> OpQuint:
-        return OpQuint(quad.pid, quad.exec_no, quad.tid, quad.op_no, deduplicator)
-
-    def quad(self) -> OpQuad:
-        return OpQuad(self.pid, self.exec_no, self.tid, self.op_no)
+        return f"{self.pid}.{self.exec_no}.{self.tid}.{self.op_no}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -239,6 +220,7 @@ class ProbeLog:
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
     process_tree_context: ops.ProcessTreeContext
     host: Host
+    _path: pathlib.Path | None
 
     # TODO: refactor
     # I think we should have probe_log.ops[quad] and probe_log.ops -> iterator
@@ -299,21 +281,26 @@ class AccessMode(enum.Enum):
     WRITE = enum.auto()
     READ_WRITE = enum.auto()
     TRUNCATE_WRITE = enum.auto()
+    DIRECTORY = enum.auto()
 
     @property
-    def is_read(self) -> bool:
+    def can_read(self) -> bool:
         return self in {AccessMode.EXEC, AccessMode.DLOPEN, AccessMode.READ, AccessMode.READ_WRITE}
 
     @property
-    def is_mutating_write(self) -> bool:
+    def is_truncating(self) -> bool:
+        return self in {AccessMode.TRUNCATE_WRITE}
+
+    @property
+    def can_mutate(self) -> bool:
         return self in {AccessMode.WRITE, AccessMode.READ_WRITE}
 
     @property
-    def is_write(self) -> bool:
+    def can_write(self) -> bool:
         return self in {AccessMode.WRITE, AccessMode.READ_WRITE, AccessMode.TRUNCATE_WRITE}
 
     @staticmethod
-    def from_open_flags(flags: int) -> "AccessMode":
+    def from_open_flags(flags: int) -> AccessMode:
         access_mode = flags & os.O_ACCMODE
         if access_mode == os.O_RDONLY:
             return AccessMode.READ
@@ -326,22 +313,28 @@ class AccessMode(enum.Enum):
         else:
             raise InvalidProbeLog(f"Invalid open flags: 0x{flags:x}")
 
+    def downgrade(self, is_write: bool, is_read: bool) -> AccessMode | None:
+        """
+        Suppose the actual access mode was only ever accessed in the provided way.
+        What should the new 'downgraded' access mode be?
+        """
+        result = _DOWNGRADE_MATRIX[self][is_write * 2 + is_read]
+        if isinstance(result, Exception):
+            raise ValueError(f"{is_write=} and {is_read=} should not be possible for {self.name}")
+        else:
+            return result
 
-class Phase(enum.StrEnum):
-    BEGIN = enum.auto()
-    END = enum.auto()
 
-
-@dataclasses.dataclass
-class Access:
-    phase: Phase
-    mode: AccessMode
-    inode: Inode
-    path: pathlib.Path
-    op_node: OpQuad
-    open_number: ops.OpenNumber | None
-
-if typing.TYPE_CHECKING:
-    HbGraph: typing.TypeAlias = networkx.DiGraph[OpQuad]
-else:
-    HbGraph = networkx.DiGraph
+# FIXME
+_DOWNGRADE_MATRIX: typing.Mapping[AccessMode, tuple[None | Exception | AccessMode, ...]] = {
+    AccessMode.EXEC: (None, AccessMode.EXEC, ValueError(), ValueError()),
+    AccessMode.DLOPEN: (None, AccessMode.DLOPEN, ValueError(), ValueError()),
+    # AccessMode.READ: (None, AccessMode.READ, ValueError(), ValueError()),
+    AccessMode.READ: (None, AccessMode.READ, AccessMode.WRITE, AccessMode.READ_WRITE),
+    AccessMode.WRITE: (None, ValueError(), AccessMode.WRITE, ValueError()),
+    AccessMode.READ_WRITE: (None, AccessMode.READ, AccessMode.WRITE, AccessMode.READ_WRITE),
+    # If we open in truncate write, we _could_ do a read, but that would be pointless.
+    # The DFG edge would already be there.
+    # So the only "meaningful" thing we can do is write.
+    AccessMode.TRUNCATE_WRITE: (None, None, AccessMode.TRUNCATE_WRITE, AccessMode.TRUNCATE_WRITE),
+}
