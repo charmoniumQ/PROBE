@@ -328,7 +328,6 @@ pub enum FileType {
     Pipe,
 }
 
-
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 #[repr(C)]
 pub struct PosixSpawnAddAction {
