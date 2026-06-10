@@ -327,11 +327,14 @@ class Analysis:
                 case headers.Close():
                     oni = open_numbers[data.open_number.fd].get(data.open_number.number)
                     if oni is None:
-                        warnings.warn(
-                            ptypes.UnusualProbeLog(
-                                f"Close of unknown open number quad={quad}, on={data.open_number}, data={data}"
-                            )
-                        )
+                        pass
+                        # Some objects like eventpolls are associated with FDs in a manner we don't track for performance reasons
+                        # These will cause "close of unknown open number", and do not represent an error.
+                        # warnings.warn(
+                        #     ptypes.UnusualProbeLog(
+                        #         f"Close of unknown open number quad={quad}, on={data.open_number}, data={data}"
+                        #     )
+                        # )
                     else:
                         if self.verbose:
                             print(
