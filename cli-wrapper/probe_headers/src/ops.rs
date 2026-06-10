@@ -130,6 +130,7 @@ pub struct Exec {
 #[repr(C)]
 pub struct Spawn {
     exec: Exec,
+    file_actions: u64,
     child_pid: libc::pid_t,
 }
 
@@ -327,6 +328,23 @@ pub enum FileType {
     Pipe,
 }
 
+#[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
+#[repr(C)]
+pub struct PosixSpawnAddAction {
+    pointer: u64,
+    action: PosixSpawnAction,
+}
+
+/// cbindgen:prefix-with-name
+#[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
+#[repr(u8)]
+#[serde(tag = "type")]
+pub enum PosixSpawnAction {
+    Dup(Dup),
+    Open(Open),
+    Close(Close),
+}
+
 /// cbindgen:add-sentinel
 /// cbindgen:prefix-with-name
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
@@ -354,6 +372,7 @@ pub enum OpData {
     UpdateMetadata(UpdateMetadata),
     Wait(Wait),
     MkFile(MkFile),
+    PosixSpawnAddAction(PosixSpawnAddAction),
 }
 
 // echo -e '#include <stdio.h>\\n#include <threads.h>\\nint main() { printf("%ld %ld\\\\n", sizeof(thrd_t), sizeof(thrd_start_t)); return 0; }' | gcc -Og -g -x c - && ./a.out && rm a.out

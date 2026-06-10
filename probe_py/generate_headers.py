@@ -100,7 +100,8 @@ def fix_tagged_enums(module: ast.Module) -> None:
             for stmt in module.body
         ]
         new_class_def = find_class(module, new_class)
-        new_class_def.keywords.append(ast.keyword(arg="tag", value=ast.Constant(value=True)))
+        if not any(keyword.arg == "tag" for keyword in new_class_def.keywords):
+            new_class_def.keywords.append(ast.keyword(arg="tag", value=ast.Constant(value=True)))
 
 
 def replace_bytestring_sequence(module: ast.Module) -> None:

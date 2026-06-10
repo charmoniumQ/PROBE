@@ -43,6 +43,7 @@ typedef void* uid_t;
 typedef void* va_list;
 typedef void* StringArray;
 typedef void* OpenNumber;
+typedef void* intptr_t;
 
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
@@ -1664,10 +1665,6 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
         StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
         StringArray copied_updated_env = arena_copy_argv(get_data_arena(), (StringArray)updated_env, envc);
 
-        if (file_actions) {
-            ERROR("PROBE does not support posix_spawn with file_actions");
-        }
-
         struct Op spawn_op = {
             .data = {
                 .spawn_tag = OpData_Spawn,
@@ -1680,6 +1677,7 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
                         .argv = copied_argv,
                         .env = copied_updated_env,
                     },
+                    .file_actions = (intptr_t) file_actions,
                     .child_pid = 0,
                 },
             },
@@ -1718,10 +1716,6 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
         StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
         StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
 
-        if (file_actions) {
-            ERROR("PROBE does not support posix_spawn with file_actions");
-        }
-
         struct Op spawn_op = {
             .data = {
                 .spawn_tag = OpData_Spawn,
@@ -1734,8 +1728,9 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
                         .argv = copied_argv,
                         .env = copied_updated_env,
                     },
+                    .file_actions = (intptr_t) file_actions,
                     .child_pid = 0,
-                }
+                },
             },
         };
     });
@@ -2579,6 +2574,51 @@ ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
         }
     });
 }
+
+/*
+** TODO: this is a bit harder because we don't want to actually open the file _yet_.
+** The file may even be /proc/self/...
+** So we can't get the inode.
+ */
+int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t* restrict file_actions, int fildes,
+                                   const char* restrict path, int oflag, mode_t mode) {
+    void* post_call = ({
+        if (LIKELY(ret == 0)) {
+            ERROR("Does not support file_actions_addopen");
+        }
+    });
+}
+
+int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *file_actions, int fildes, int newfildes) {
+    void* post_call = ({
+        if (LIKELY(prov_log_is_enabled() && ret == 0)) {
+            prov_log_record((struct Op) {
+                .data = {
+                    .posix_spawn_add_action_tag = OpData_PosixSpawnAddAction,
+                    .posix_spawn_add_action = {
+                        .pointer = (intptr_t) file_actions,
+                        .action = {
+                            .dup_tag = PosixSpawnAction_Dup,
+                            .dup = {
+                                .src = get_open_number(fildes),
+                                .old_dst = get_open_number(newfildes),
+                                .dst = get_open_number(newfildes),
+                                .flags = 0,
+                            },
+                        },
+                    },
+                },
+                .ferrno = 0,
+            });
+        }
+    });
+}
+
+/*
+** NOTE: we don't urgently need to interpose posix_spawn_file_actions_addclose
+** missing a close does not imply missing dataflow edges;
+** it implies extra, which is allowed in the conservative assumption.
+ */
 
 /*
 TODO:
