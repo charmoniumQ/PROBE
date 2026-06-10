@@ -327,25 +327,22 @@ class Analysis:
                 case headers.Close():
                     oni = open_numbers[data.open_number.fd].get(data.open_number.number)
                     if oni is None:
-                        pass
-                        # Some objects like eventpolls are associated with FDs in a manner we don't track for performance reasons
-                        # These will cause "close of unknown open number", and do not represent an error.
-                        # warnings.warn(
-                        #     ptypes.UnusualProbeLog(
-                        #         f"Close of unknown open number quad={quad}, on={data.open_number}, data={data}"
-                        #     )
-                        # )
+                        warnings.warn(
+                            ptypes.UnusualProbeLog(
+                                f"Close of unknown open number quad={quad}, on={data.open_number}, data={data}"
+                            )
+                        )
                     else:
+                        if self.verbose:
+                            print(
+                                f"Close {quad}: {data.open_number} {oni.inode.number} opened at {oni.open}",
+                            )
                         if self.probe_log.process_tree_context.interpose_read_writes:
                             downgraded_access = oni.open_mode.downgrade(
                                 data.open_number.is_write, data.open_number.is_read
                             )
                         else:
                             downgraded_access = oni.open_mode
-                        if self.verbose:
-                            print(
-                                f"Close {quad}: {data.open_number} {oni.inode} {downgraded_access}"
-                            )
                         oni.closes.append((quad, downgraded_access))
 
                 case headers.Dup():

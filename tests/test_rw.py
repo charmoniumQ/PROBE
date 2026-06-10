@@ -10,8 +10,9 @@ def sink() -> None:
     pathlib.Path("a").read_text()
 
 
-for function in [source, sink]:
-    process = multiprocessing.Process(target=function)
-    process.start()
-    process.join()
-    process.close()
+if __name__ == "__main__":
+    for function in [source, sink]:
+        process = multiprocessing.Process(target=function)
+        process.start()
+        process.join()
+        process.close()

@@ -26,11 +26,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1755754141,
-        "narHash": "sha256-PzXHKUZvostIJvvG5t5SN5p0NbpZvZcnDhW4BDZAMew=",
+        "lastModified": 1781066467,
+        "narHash": "sha256-F7kA/SePB9Ed6vF/1jQ9CFS+noOxFuW0sYmNlA76JVs=",
         "owner": "charmoniumQ",
         "repo": "charmonium.time_block",
-        "rev": "9f533ef55205909953bf8082961b58fcb59b473e",
+        "rev": "88c38117bcdc56bab2817f852b08172ce01f75c9",
         "type": "github"
       },
       "original": {
@@ -96,11 +96,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1774273680,
-        "narHash": "sha256-a++tZ1RQsDb1I0NHrFwdGuRlR5TORvCEUksM459wKUA=",
+        "lastModified": 1780747962,
+        "narHash": "sha256-IX7G1dlKrOqPOImfbo7ADDfV5yU1+j+MRChI3TL4tAA=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "fdc7b8f7b30fdbedec91b71ed82f36e1637483ed",
+        "rev": "cbb5cf358f50aa6acc9efd6113b7bcfbc352cd73",
         "type": "github"
       },
       "original": {
