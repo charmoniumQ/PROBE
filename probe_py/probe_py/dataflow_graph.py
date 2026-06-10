@@ -189,7 +189,7 @@ class Analysis:
         frozenset[ptypes.OpQuad],
     ]
     sources: set[ptypes.OpQuad]
-    verbose: bool = True
+    verbose: bool = False
     open_numbers: dict[
         ptypes.ExecPair,
         dict[
