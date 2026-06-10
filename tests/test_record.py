@@ -17,6 +17,8 @@ ld_debug = False
 # Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
 stderr_to_file = True
 
+probe_debug_log = True
+
 
 def bash(*cmd: str) -> list[str]:
     return ["bash", "-c", shlex.join(cmd).replace(" redirect_to ", " > ")]
@@ -98,20 +100,7 @@ simple_commands = {
             ["cat", "file0", "file2", "redirect_to", "file3"],
         ),
     ),
-    "python_multiprocessing_threads": [
-        "python",
-        "-c",
-        "\n".join([
-            "import multiprocessing, threading",
-            'thread = threading.Thread(target=print, args=("hello from thread",))',
-            "thread.start()",
-            'proc = multiprocessing.Process(target=print, args=("hello from proc",))',
-            "proc.start()",
-            "proc.join()",
-            "thread.join()",
-            'print("done")',
-        ])
-    ],
+    "python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
     # FIXME
     # "c_hello": bash_multi(
     #     ["echo", c_hello_world, "redirect_to", "test.c"],
@@ -123,7 +112,7 @@ simple_commands = {
     # "million_stats": [str(example_path / "multiple_stats.exe"), str(int(1e6)), "test_file.txt"],
     # See https://github.com/charmoniumQ/PROBE/pull/135
     "test_rw_c": [str(example_path / "test_rw.exe")],
-    "test_rw_py": ["python", str(example_path / "../test_rw.py")],
+    "test_rw_py": ["python", str(example_path / "rw.py")],
 }
 
 complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, str, list[str]]] = {
@@ -149,7 +138,8 @@ complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, 
 def does_podman_work() -> bool:
     return shutil.which("podman") is not None and subprocess.run(
         ["podman", "run", "--rm", "ubuntu:24.04", "pwd"],
-        check=False
+        check=False,
+        capture_output=True,
     ).returncode == 0
 
 
@@ -157,15 +147,16 @@ def does_podman_work() -> bool:
 def does_docker_work() -> bool:
     return shutil.which("docker") is not None and subprocess.run(
         ["docker", "run", "--rm", "ubuntu:24.04", "pwd"],
-        check=False
+        check=False,
+        capture_output=True,
     ).returncode == 0
 
 
 @pytest.fixture(scope="session")
 def does_buildah_work() -> bool:
     name = f"probe-{random.randint(0, 2**32 - 1):08x}"
-    proc = subprocess.run(["buildah", "from", "--name", name, "scratch"])
-    return proc.returncode == 0 and subprocess.run(["buildah", "rm", name], check=False).returncode == 0
+    proc = subprocess.run(["buildah", "from", "--name", name, "scratch"], capture_output=True)
+    return proc.returncode == 0 and subprocess.run(["buildah", "rm", name], check=False, capture_output=True).returncode == 0
 
 
 @pytest.fixture(scope="session")
@@ -174,6 +165,7 @@ def compile_examples() -> None:
     subprocess.run(
         ["make", "--directory", f"{test_root}/examples"],
         check=True,
+        capture_output=True,
     )
 
 
@@ -205,78 +197,6 @@ def scratch_directory(
     return scratch_dir
 
 
-@pytest.mark.parametrize("copy_files", [
-    "none",
-    "lazily",
-    # "eagerly",
-])
-@pytest.mark.parametrize("debug", [
-    False,
-    # True,
-], ids=[
-    "opt",
-    # "dbg",
-])
-@pytest.mark.parametrize(
-    "command",
-    {**simple_commands, **complex_commands}.values(),
-    ids={**simple_commands, **complex_commands}.keys(),
-)
-@pytest.mark.timeout(40)
-def test_record(
-        scratch_directory: pathlib.Path,
-        copy_files: str,
-        debug: bool,
-        command: list[str] | tuple[bool, pathlib.Path, str, list[str]],
-        does_podman_work: bool,
-        does_docker_work: bool,
-        does_buildah_work: bool,
-        compile_examples: None,
-) -> None:
-    (scratch_directory / "test_file.txt").write_text("hello world")
-    print(scratch_directory)
-
-    if isinstance(command, tuple):
-        strict = command[0]
-        if command[1] is not None:
-            (scratch_directory / command[1]).write_text(command[2])
-        command = command[3]
-    else:
-        strict = True
-
-    subprocess.run(command, check=True, cwd=scratch_directory)
-
-    cmd = ["probe", "record", *(["--debug"] if debug else []), "--copy-files", copy_files, *command]
-    print(shlex.join(cmd))
-    subprocess.run(cmd, check=True, cwd=scratch_directory)
-
-    should_have_copy_files = copy_files in {"eagerly", "lazily"}
-    cmd = ["probe", "py", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
-    print(shlex.join(cmd))
-
-    # TODO: this doesn't work because we don't capture libraries currently.
-    # if should_have_copy_files:
-    if False:
-
-        if does_buildah_work and does_podman_work:
-            cmd = ["probe", "py", "export", "oci-image", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
-            assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
-            cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
-
-        if does_buildah_work and does_docker_work:
-            cmd = ["probe", "py", "export", "docker-image", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
-            assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
-            cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
-            print(shlex.join(cmd))
-            subprocess.run(cmd, check=True, cwd=scratch_directory)
-
-
 @pytest.mark.parametrize(
     "command",
     [*simple_commands.values(), *complex_commands.values()],
@@ -291,7 +211,7 @@ def test_downstream_analyses(
         does_buildah_work: bool,
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("")
-    print(scratch_directory)
+    print("Scratch directory:", scratch_directory)
 
     if isinstance(command, tuple):
         strict = command[0]
@@ -327,18 +247,46 @@ def test_downstream_analyses(
         subprocess.run(cmd, **args)
 
     (scratch_directory / "command.sh").write_text(shlex.join(command))
-    full_command = ["probe", "record", "--debug", "--copy-files=none", *command]
 
     env = os.environ.copy()
     if ld_debug:
         env["LD_DEBUG"] = "all"
 
-    print(shlex.join(full_command))
-    if stderr_to_file:
-        with (scratch_directory / "probe_debug.log").open("w") as output:
-            subprocess.run(full_command, **args, stderr=output, env=env)
-    else:
-        subprocess.run(full_command, **args, env=env)
+    for copy_files in ["none", "eagerly"]:
+        cmd = ["probe", "record", "--overwrite", *(["--debug"] if probe_debug_log else []), "--copy-files", copy_files, *command]
+        print(shlex.join(cmd))
+        if stderr_to_file:
+            with (scratch_directory / "probe_debug.log").open("w") as output:
+                subprocess.run(cmd, **args, stderr=output, env=env)
+        else:
+            subprocess.run(cmd, **args, env=env)
+
+    should_have_copy_files = copy_files in {"eagerly", "lazily"}
+    cmd = ["probe", "py", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
+    print(shlex.join(cmd))
+
+    # TODO: this doesn't work because we don't capture libraries currently.
+    # if should_have_copy_files:
+    if False:
+
+        if does_buildah_work and does_podman_work:
+            cmd = ["probe", "py", "export", "oci-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
+            assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
+            cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
+
+        if does_buildah_work and does_docker_work:
+            cmd = ["probe", "py", "export", "docker-image", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
+            assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
+            cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True, cwd=scratch_directory)
+
 
     cmd = ["probe", "py", "export", "debug-text"]
     print(shlex.join(cmd))
@@ -346,13 +294,11 @@ def test_downstream_analyses(
 
     cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    with (scratch_directory / "hb-graph.out").open("w") as output:
-        subprocess.run(cmd, **args, stdout=output)
+    subprocess.run(cmd, **args)
 
     cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose"]
     print(shlex.join(cmd))
-    with (scratch_directory / "dataflow-graph.out").open("w") as output:
-        subprocess.run(cmd, **args, stdout=output)
+    subprocess.run(cmd, **args)
 
 
 def test_fail(
