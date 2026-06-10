@@ -2538,6 +2538,49 @@ ssize_t sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
 }
 
 /*
+** TODO: Track IPC.
+**
+** This is just going to help identify file descriptions passed over sockets
+ */
+ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
+    void* post_call = ({
+        struct cmsghdr *control_message;
+        for (control_message = CMSG_FIRSTHDR(message); control_message != NULL; control_message = CMSG_NXTHDR(message, control_message)) {
+            if (control_message->cmsg_level == SOL_SOCKET && control_message->cmsg_type == SCM_RIGHTS) {
+                int received_fd;
+                memcpy(&received_fd, CMSG_DATA(control_message), sizeof(received_fd));
+                print_open_fd(received_fd);
+                OpenNumber new_on = new_open_number(received_fd);
+                char proc_path[64];
+                char fd_path[PATH_MAX];
+                snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", received_fd);
+                ssize_t len = client_readlink(proc_path, fd_path, sizeof(fd_path) - 1);
+                fd_path[len] = '\0';
+                int flags = client_fcntl(received_fd, F_GETFD);
+                prov_log_record((struct Op) {
+                    .data = {
+                        .open_tag = OpData_Open,
+                        .open = {
+                            .path = {
+                                .directory = get_open_number(AT_FDCWD),
+                                .name = arena_strndup(get_data_arena(), fd_path, PATH_MAX),
+                            },
+                            .open_number = new_on,
+                            .fd = received_fd,
+                            .flags = flags,
+                            .mode = 0,
+                            .creat = false,
+                            .dir = false,
+                        },
+                    },
+                    .ferrno = 0,
+                });
+            }
+        }
+    });
+}
+
+/*
 TODO:
 
 mmap, mmap64, munmap, shm_open, shm_unlink, memfd_create
