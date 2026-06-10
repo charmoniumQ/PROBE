@@ -52,17 +52,17 @@ fn derive_struct(
                 }
             }
             impl ::memory_parsing::FromMemory for #ident {
-                fn from_memory(memory: &::memory_parsing::Segments, pointer: usize) -> eyre::Result<(#ident, usize)> {
+                fn from_memory(__memory: &::memory_parsing::Segments, __pointer: usize) -> eyre::Result<(#ident, usize)> {
                     use eyre::WrapErr;
-                    let ((#(#named_idents),*), new_pointer) = ::memory_parsing::FromMemory::from_memory(memory, pointer).context(format!("while parsing {}", #c_name))?;
-                    Ok((#ident #constructor_args, new_pointer))
+                    let ((#(#named_idents),*), __new_pointer) = ::memory_parsing::FromMemory::from_memory(__memory, __pointer).context(format!("while parsing {}", #c_name))?;
+                    Ok((#ident #constructor_args, __new_pointer))
                 }
             }
             impl ::memory_parsing::ToMemory for #ident {
-                fn to_memory(&self, memory: &mut ::memory_parsing::Segments, mut pointer: usize) -> eyre::Result<usize> {
+                fn to_memory(&self, __memory: &mut ::memory_parsing::Segments, mut __pointer: usize) -> eyre::Result<usize> {
                     let #ident #constructor_args = &self;
-                    let tuple = (#(#named_idents,)*);
-                    tuple.to_memory(memory, pointer)
+                    let __tuple = (#(#named_idents,)*);
+                    __tuple.to_memory(__memory, __pointer)
                 }
             }
         })
@@ -109,8 +109,8 @@ fn derive_enum(
         quote::quote!{
             #discriminant => {
                 use eyre::WrapErr;
-                let ((_, #(#named_idents),*), pointer) = <#tuple_type_with_tag as ::memory_parsing::FromMemory>::from_memory(memory, pointer).context(format!("while parsing {}.{}", #c_name, #variant_name))?;
-                Ok((#ident::#variant_ident #constructor_args, pointer))
+                let ((_, #(#named_idents),*), __pointer) = <#tuple_type_with_tag as ::memory_parsing::FromMemory>::from_memory(__memory, __pointer).context(format!("while parsing {}.{}", #c_name, #variant_name))?;
+                Ok((#ident::#variant_ident #constructor_args, __pointer))
             }
         }
     }).collect::<Vec<_>>();
@@ -130,12 +130,12 @@ fn derive_enum(
             let tuple_type = quote::quote! {(#(#types),*)};
             quote::quote! {
                 #ident::#variant_ident #constructor_args => {
-                    let discriminant: u8 = #discriminant;
-                    let pointer = discriminant.to_memory(memory, pointer)?;
-                    let pointer = ::memory_parsing::align_pointer::<#tuple_type>(pointer);
-                    let tuple = (#(#named_idents,)*);
-                    let pointer = tuple.to_memory(memory, pointer)?;
-                    Ok(pointer)
+                    let __discriminant: u8 = #discriminant;
+                    let __pointer = __discriminant.to_memory(__memory, __pointer)?;
+                    let __pointer = ::memory_parsing::align_pointer::<#tuple_type>(__pointer);
+                    let __tuple = (#(#named_idents,)*);
+                    let __pointer = __tuple.to_memory(__memory, __pointer)?;
+                    Ok(__pointer)
                 },
             }
         })
@@ -147,7 +147,7 @@ fn derive_enum(
             let types = get_types(&variant.fields);
             let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
             quote::quote! {
-                let align = align.max(<#tuple_type_with_tag as ::memory_parsing::SizedMemory>::align());
+                let __align = __align.max(<#tuple_type_with_tag as ::memory_parsing::SizedMemory>::align());
             }
         })
         .collect::<Vec<_>>();
@@ -158,8 +158,8 @@ fn derive_enum(
             let types = get_types(&variant.fields);
             let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
             quote::quote! {
-                let tuple_size = <#tuple_type_with_tag as ::memory_parsing::SizedMemory>::size();
-                let size = size.max(tuple_size);
+                let __tuple_size = <#tuple_type_with_tag as ::memory_parsing::SizedMemory>::size();
+                let __size = __size.max(__tuple_size);
             }
         })
         .collect::<Vec<_>>();
@@ -170,44 +170,44 @@ fn derive_enum(
             let types = get_types(&variant.fields);
             let tuple_type_with_tag = quote::quote! {(u8, #(#types),*)};
             quote::quote! {
-                let mut variant_offsets = <#tuple_type_with_tag as ::memory_parsing::SizedMemory>::offsets();
-                offsets.append(&mut variant_offsets);
+                let mut __variant_offsets = <#tuple_type_with_tag as ::memory_parsing::SizedMemory>::offsets();
+                __offsets.append(&mut __variant_offsets);
             }
         })
         .collect::<Vec<_>>();
     Ok(quote::quote! {
         impl ::memory_parsing::SizedMemory for #ident {
             fn align() -> usize {
-                let align = 1;
+                let __align = 1;
                 #(#aligns)*
-                align
+                __align
             }
             fn size() -> usize {
-                let size = 0;
+                let __size = 0;
                 #(#sizes)*
-                ::memory_parsing::align_pointer::<Self>(size)
+                ::memory_parsing::align_pointer::<Self>(__size)
             }
             fn offsets() -> Vec<usize> {
-                let mut offsets = vec![];
+                let mut __offsets = vec![];
                 #(#offsets)*
-                offsets
+                __offsets
             }
             fn c_name() -> Option<&'static str> {
                 Some(#c_name)
             }
         }
         impl ::memory_parsing::FromMemory for #ident {
-            fn from_memory(memory: &::memory_parsing::Segments, mut pointer: usize) -> eyre::Result<(#ident, usize)> {
+            fn from_memory(__memory: &::memory_parsing::Segments, mut __pointer: usize) -> eyre::Result<(#ident, usize)> {
                 use eyre::WrapErr;
-                let (tag, _) = <u8 as ::memory_parsing::FromMemory>::from_memory(memory, pointer).context(format!("while parsing {}", #c_name))?;
-                match tag {
+                let (__tag, _) = <u8 as ::memory_parsing::FromMemory>::from_memory(__memory, __pointer).context(format!("while parsing {}", #c_name))?;
+                match __tag {
                     #(#from_memory_match_arms)*
-                    _ => Err(eyre::eyre!("tag {tag} is not recognized for {}", stringify!(#ident))),
+                    _ => Err(eyre::eyre!("tag {__tag} is not recognized for {}", stringify!(#ident))),
                 }
             }
         }
         impl ::memory_parsing::ToMemory for #ident {
-            fn to_memory(&self, memory: &mut ::memory_parsing::Segments, mut pointer: usize) -> eyre::Result<usize> {
+            fn to_memory(&self, __memory: &mut ::memory_parsing::Segments, mut __pointer: usize) -> eyre::Result<usize> {
                 match self {
                     #(#to_memory_match_arms)*
                 }
