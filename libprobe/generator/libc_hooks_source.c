@@ -2584,20 +2584,7 @@ int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t* restrict file_a
                                    const char* restrict path, int oflag, mode_t mode) {
     void* post_call = ({
         if (LIKELY(ret == 0)) {
-            //ERROR("Does not support file_actions_addopen");
-            prov_log_record((struct Op) {
-                .data = {
-                    .posix_spawn_add_action_tag = OpData_PosixSpawnAddAction,
-                    .posix_spawn_add_action = {
-                        .pointer = (intptr_t) file_actions,
-                        .action = {
-                            .open_tag = PosixSpawnAction_Open,
-                            .open = {0},
-                        },
-                    },
-                },
-                .ferrno = 0,
-            });
+            ERROR("Does not support file_actions_addopen");
         }
     });
 }
@@ -2626,6 +2613,12 @@ int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *file_actions, i
         }
     });
 }
+
+/*
+** NOTE: we don't urgently need to interpose posix_spawn_file_actions_addclose
+** missing a close does not imply missing dataflow edges;
+** it implies extra, which is allowed in the conservative assumption.
+ */
 
 /*
 TODO:
