@@ -564,6 +564,7 @@ struct stat;
 struct statx;
 struct timeval;
 struct utimbuf;
+struct msghdr;
 
 // IWYU pragma: no_include "bits/pthreadtypes.h" for pthread_t
 // IWYU pragma: no_include "bits/types/idtype_t.h" for idtype_t
@@ -635,6 +636,8 @@ libc_hooks_c_preamble = """
 #include <stdarg.h>                                          // for va_arg
 #include <stdbool.h>                                         // for false, true
 #include <stdint.h>                                          // for int64_t
+#include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>                                        // for chmod, statx
 #include <sys/time.h>                                        // for futimes, timeval
 #include <sys/wait.h>                                        // for wait, wait3
@@ -646,6 +649,7 @@ libc_hooks_c_preamble = """
 // IWYU pragma: no_include <stdio.h>                            for FILE, we have libc_subset.h
 // IWYU pragma: no_include <stdlib.h>
 // IWYU pragma: no_include "unistd.h"
+// IWYU pragma: no_include "asm-generic/socket.h"               for SOL_SOCKET, already included in sys/socket.h
 
 #include "../generated/headers.h"                            // for Op, OpCode
 #include "../src/arena.h"                                    // for prov_log...
