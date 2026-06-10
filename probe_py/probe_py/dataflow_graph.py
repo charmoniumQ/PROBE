@@ -336,16 +336,16 @@ class Analysis:
                         #     )
                         # )
                     else:
+                        if self.verbose:
+                            print(
+                                f"Close {quad}: {data.open_number} {oni.inode.number} opened at {oni.open}",
+                            )
                         if self.probe_log.process_tree_context.interpose_read_writes:
                             downgraded_access = oni.open_mode.downgrade(
                                 data.open_number.is_write, data.open_number.is_read
                             )
                         else:
                             downgraded_access = oni.open_mode
-                        if self.verbose:
-                            print(
-                                f"Close {quad}: {data.open_number} {oni.inode} {downgraded_access}"
-                            )
                         oni.closes.append((quad, downgraded_access))
 
                 case headers.Dup():

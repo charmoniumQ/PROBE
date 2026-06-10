@@ -144,7 +144,6 @@ int close (int filedes) {
     });
     void* post_call = ({
         OpenNumber on = reset_open_number(filedes);
-        DEBUG("closing: %d,%u", filedes, on.number);
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
             prov_log_record((struct Op) {
                 .data = {
@@ -2375,6 +2374,7 @@ int mkstemps(char *template, int suffixlen) {
 
 ssize_t read(int fd, void* buf, size_t count) {
     void* post_call = ({
+        print_open_fd(fd);
         // Note that ret == 0 could mean we hit EOF
         // which does ret as reading data from the file.
         if (ret >= 0) {
@@ -2385,6 +2385,7 @@ ssize_t read(int fd, void* buf, size_t count) {
 
 ssize_t write(int fd, const void* buf, size_t count) {
     void* post_call = ({
+        print_open_fd(fd);
         if (ret > 0) {
             mark_access(fd, true);
         }
@@ -2505,6 +2506,7 @@ ssize_t copy_file_range(int fd_in, off_t* off_in, int fd_out, off_t* off_out,
 size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     void* post_call = ({
         int fd = fileno(stream);
+        print_open_fd(fd);
         if (fd >= 0 && ret >= 0) {
             mark_access(fd, false);
         }
@@ -2514,6 +2516,7 @@ size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
 size_t fwrite(const void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     void* post_call = ({
         int fd = fileno(stream);
+        print_open_fd(fd);
         if (fd >= 0 && ret > 0) {
             mark_access(fd, true);
         }
@@ -2539,38 +2542,66 @@ ssize_t sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
  */
 ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
     void* post_call = ({
-        struct cmsghdr *control_message;
-        for (control_message = CMSG_FIRSTHDR(message); control_message != NULL; control_message = CMSG_NXTHDR(message, control_message)) {
-            if (control_message->cmsg_level == SOL_SOCKET && control_message->cmsg_type == SCM_RIGHTS) {
-                int received_fd;
-                memcpy(&received_fd, CMSG_DATA(control_message), sizeof(received_fd));
-                print_open_fd(received_fd);
-                OpenNumber new_on = new_open_number(received_fd);
-                char proc_path[64];
-                char fd_path[PATH_MAX];
-                snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", received_fd);
-                ssize_t len = client_readlink(proc_path, fd_path, sizeof(fd_path) - 1);
-                fd_path[len] = '\0';
-                int flags = client_fcntl(received_fd, F_GETFD);
-                prov_log_record((struct Op) {
-                    .data = {
-                        .open_tag = OpData_Open,
-                        .open = {
-                            .path = {
-                                .directory = get_open_number(AT_FDCWD),
-                                .name = arena_strndup(get_data_arena(), fd_path, PATH_MAX),
+        struct cmsghdr* control_message;
+        if (LIKELY(ret >= 0 && prov_log_is_enabled())) {
+            for (control_message = CMSG_FIRSTHDR(message); control_message != NULL; control_message = CMSG_NXTHDR(message, control_message)) {
+                if (control_message->cmsg_level == SOL_SOCKET && control_message->cmsg_type == SCM_RIGHTS) {
+                    int received_fd;
+                    memcpy(&received_fd, CMSG_DATA(control_message), sizeof(received_fd));
+                    print_open_fd(received_fd);
+                    OpenNumber new_on = new_open_number(received_fd);
+                    char proc_path[64];
+                    char fd_path[PATH_MAX];
+                    snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", received_fd);
+                    ssize_t len = client_readlink(proc_path, fd_path, sizeof(fd_path) - 1);
+                    fd_path[len] = '\0';
+                    int flags = client_fcntl(received_fd, F_GETFD);
+                    prov_log_record((struct Op) {
+                        .data = {
+                            .open_tag = OpData_Open,
+                            .open = {
+                                .path = {
+                                    .directory = get_open_number(AT_FDCWD),
+                                    .name = arena_strndup(get_data_arena(), fd_path, PATH_MAX),
+                                },
+                                .open_number = new_on,
+                                .fd = received_fd,
+                                .flags = flags,
+                                .mode = 0,
+                                .creat = false,
+                                .dir = false,
                             },
-                            .open_number = new_on,
-                            .fd = received_fd,
-                            .flags = flags,
-                            .mode = 0,
-                            .creat = false,
-                            .dir = false,
                         },
-                    },
-                    .ferrno = 0,
-                });
+                        .ferrno = 0,
+                    });
+                }
             }
+        }
+    });
+}
+
+int socket(int domain, int type, int protocol) {
+    void* post_call = ({
+        if (LIKELY(ret >= 0 && prov_log_is_enabled())) {
+            OpenNumber on = new_open_number(ret);
+            prov_log_record((struct Op) {
+                .data = {
+                    .open_tag = OpData_Open,
+                    .open = {
+                        .path = {
+                            .directory = get_open_number(AT_FDCWD),
+                            .name = arena_strndup(get_data_arena(), "socket", PATH_MAX),
+                        },
+                        .open_number = on,
+                        .fd = ret,
+                        .flags = O_RDWR,
+                        .mode = 0,
+                        .creat = false,
+                        .dir = false,
+                    },
+                },
+                .ferrno = 0,
+            });
         }
     });
 }
