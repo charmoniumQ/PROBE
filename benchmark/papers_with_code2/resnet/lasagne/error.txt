@@ -1,0 +1,10 @@
+```
+root@d81fe85e4e51:/Recipes-master/papers/deep_residual_learning# python Deep_Residual_Learning_CIFAR-10.py 
+WARNING (theano.configdefaults): g++ not detected ! Theano will be unable to execute optimized C-implementations (for both CPU and GPU) and will default to Python implementations. Performance will be severely degraded. To remove this warning, set Theano flags cxx to an empty string.
+Traceback (most recent call last):
+  File "Deep_Residual_Learning_CIFAR-10.py", line 88, in <module>
+    from lasagne.layers import ExpressionLayer
+ImportError: cannot import name ExpressionLayer
+```
+
+The Lasagne I installed, v0.1, is the only tagged version.
