@@ -69,6 +69,8 @@
           pythonImportsCheck = ["mandala"];
         };
         pythonWithPackages = python.withPackages (pypkgs: [
+          pypkgs.nbconvert
+          pypkgs.httpx
           pypkgs.typer
           pypkgs.rich
           pypkgs.mypy

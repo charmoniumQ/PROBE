@@ -16,9 +16,9 @@ RUN curl -sk https://raw.githubusercontent.com/torch/ezinstall/master/install-de
 
 RUN git clone https://github.com/torch/distro.git ~/torch --recursive && \
     cd ~/torch && \
-    ./install.sh
+    ./install.sh -b
 
-RUN luarocks install nn cunn cutorch
+# RUN luarocks install nn cunn cutorch
 
 # RUN source /root/torch/install/bin/torch-activate && \
 #     git clone -b R4 https://github.com/soumith/cudnn.torch.git ~/cudnn.torch && \

@@ -14,15 +14,11 @@ RUN git clone https://github.com/tensorflow/models.git
 
 WORKDIR /workspace/models
 
-RUN pip install --upgrade pip && \
-    pip install -r official/requirements.txt
+RUN pip install -q protobuf~=3.20.3 tensorflow_datasets tensorflow-text tensorflow matplotlib importlib-resources
 
-ENV PYTHONPATH=/workspace/models
+COPY script.py ./
 
-# Directory for datasets and checkpoints
-RUN mkdir -p /data /output
-
-CMD python official/vision/train.py \
-    --experiment=resnet_imagenet \
-    --mode=train_and_eval \
-    --model_dir=/output
+# CMD python official/vision/train.py \
+#     --experiment=resnet_imagenet \
+#     --mode=train_and_eval \
+#     --model_dir=/output
