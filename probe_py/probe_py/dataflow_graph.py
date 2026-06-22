@@ -789,23 +789,27 @@ def label_quads(
     data["cluster"] = f"Process {thread_triple.pid}"
     data["shape"] = "oval"
     for quad in quads:
-        op_data = analysis.probe_log.get_op(quad).data
-        if isinstance(op_data, headers.InitExecEpoch):
-            if quad.exec_no == 0:
-                if quad.pid == analysis.probe_log.get_root_pid():
-                    data["label"] += "(root process)"
+        try:
+            op_data = analysis.probe_log.get_op(quad).data
+        except KeyError:
+            data["label"] += "Unknown"
+        else:
+            if isinstance(op_data, headers.InitExecEpoch):
+                if quad.exec_no == 0:
+                    if quad.pid == analysis.probe_log.get_root_pid():
+                        data["label"] += "(root process)"
+                    else:
+                        data["label"] += "(child process)"
                 else:
-                    data["label"] += "(child process)"
-            else:
-                args = [arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]]
-                args = [
-                    arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…" for arg in args
-                ]
-                if len(args) > max_args:
-                    args_str = shlex.join(args[:max_args]) + ", …"
-                else:
-                    args_str = shlex.join(args)
-                data["label"] += args_str
+                    args = [arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]]
+                    args = [
+                        arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…" for arg in args
+                    ]
+                    if len(args) > max_args:
+                        args_str = shlex.join(args[:max_args]) + ", …"
+                    else:
+                        args_str = shlex.join(args)
+                    data["label"] += args_str
     if thread_triple.tid != thread_triple.pid.main_thread():
         data["label"] += f"Thread {int(quad.tid) - int(quad.pid)}"
 
