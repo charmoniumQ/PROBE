@@ -9,6 +9,8 @@ use std::{
     process::{ExitCode, ExitStatus},
 };
 
+mod file_info;
+
 mod record;
 
 mod transcribe;
