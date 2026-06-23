@@ -102,6 +102,8 @@ pub struct InitThread {
 #[repr(C)]
 pub struct Open {
     path: PathArg,
+    #[cfg(feature = "PROBE_RECORD_REALPATHS")]
+    pub real_path: Option<ByteString>,
     open_number: OpenNumber,
     fd: libc::c_int,
     inode: Inode,
@@ -381,8 +383,8 @@ pub enum OpData {
 #[repr(C)]
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, Clone)]
 pub struct Op {
-    data: OpData,
-    pthread_id: u16,
-    iso_c_thread_id: u64,
-    ferrno: libc::c_int,
+    pub data: OpData,
+    pub pthread_id: u16,
+    pub iso_c_thread_id: u64,
+    pub ferrno: libc::c_int,
 }

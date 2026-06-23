@@ -82,3 +82,5 @@ __attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
 __attribute__((visibility("hidden"))) unsigned int my_atoui(const char* s) __attribute__((nonnull));
 
 __attribute__((visibility("hidden"))) void print_open_fd(int fd);
+
+__attribute__((visibility("hidden"))) char* get_real_path(int fd);

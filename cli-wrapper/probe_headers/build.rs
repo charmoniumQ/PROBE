@@ -53,7 +53,12 @@ fn inner() -> Result<()> {
         "StringArray",
         "char const * _Nullable const * _Nonnull",
     );
-    let source = source + "\ntypedef struct OpenNumber OpenNumber;";
+    let source = source + "\ntypedef struct OpenNumber OpenNumber;\n";
+    let source = if cfg!(feature = "PROBE_RECORD_REALPATHS") {
+        source + "#define PROBE_RECORD_REALPATHS 1\n"
+    } else {
+        source
+    };
     std::fs::write(&out_file, source).wrap_err("writing C headers")?;
 
     Ok(())
