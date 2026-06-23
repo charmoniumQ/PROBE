@@ -1,5 +1,6 @@
 use color_eyre::eyre::{eyre, Result, WrapErr};
-use std::path::Path;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn transcribe_to_tar<P: AsRef<Path>, T: std::io::Write>(
     record_dir: P,
@@ -15,7 +16,8 @@ pub(crate) fn transcribe_to_tar<P: AsRef<Path>, T: std::io::Write>(
 fn transcribe_to_dir<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<()> {
     transcribe_process_tree_context(&in_dir, &out_dir)?;
     copy_inodes(&in_dir, &out_dir)?;
-    transcribe_ops(&in_dir, &out_dir)?;
+    let files = transcribe_ops(&in_dir, &out_dir)?;
+    transcribe_file_info(&out_dir, &files)?;
     Ok(())
 }
 
@@ -55,7 +57,10 @@ fn copy_inodes<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Res
     Ok(())
 }
 
-fn transcribe_ops<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> Result<()> {
+fn transcribe_ops<P1: AsRef<Path>, P2: AsRef<Path>>(
+    in_dir: P1,
+    out_dir: P2,
+) -> Result<HashSet<PathBuf>> {
     let pids_out_dir = out_dir.as_ref().join(probe_headers::PIDS_SUBDIR);
     std::fs::create_dir(&pids_out_dir)?;
     std::fs::read_dir(in_dir.as_ref().join(probe_headers::PIDS_SUBDIR))?
@@ -65,11 +70,19 @@ fn transcribe_ops<P1: AsRef<Path>, P2: AsRef<Path>>(in_dir: P1, out_dir: P2) -> 
             let pid_out_dir = pids_out_dir.join(pid.to_string());
             transcribe_pid(&pid_in_dir, pid_out_dir)
         })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(())
+        .try_fold(
+            HashSet::new(),
+            |mut set, item: Result<HashSet<PathBuf>>| -> Result<HashSet<PathBuf>> {
+                set.extend(item?);
+                Ok(set)
+            },
+        )
 }
 
-fn transcribe_pid<P1: AsRef<Path>, P2: AsRef<Path>>(pid_in_dir: P1, pid_out_dir: P2) -> Result<()> {
+fn transcribe_pid<P1: AsRef<Path>, P2: AsRef<Path>>(
+    pid_in_dir: P1,
+    pid_out_dir: P2,
+) -> Result<HashSet<PathBuf>> {
     std::fs::create_dir(&pid_out_dir)?;
     std::fs::read_dir(&pid_in_dir)?
         .map(|entry| {
@@ -78,14 +91,19 @@ fn transcribe_pid<P1: AsRef<Path>, P2: AsRef<Path>>(pid_in_dir: P1, pid_out_dir:
             let exec_out_dir = pid_out_dir.as_ref().join(exec.to_string());
             transcribe_exec(&exec_in_dir, exec_out_dir)
         })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(())
+        .try_fold(
+            HashSet::new(),
+            |mut set, item: Result<HashSet<PathBuf>>| -> Result<HashSet<PathBuf>> {
+                set.extend(item?);
+                Ok(set)
+            },
+        )
 }
 
 fn transcribe_exec<P1: AsRef<Path>, P2: AsRef<Path>>(
     exec_in_dir: P1,
     exec_out_dir: P2,
-) -> Result<()> {
+) -> Result<HashSet<PathBuf>> {
     std::fs::create_dir(&exec_out_dir).wrap_err("Failed to create ExecEpoch output directory")?;
     std::fs::read_dir(&exec_in_dir)
         .wrap_err("Error opening ExecEpoch directory")?
@@ -95,14 +113,19 @@ fn transcribe_exec<P1: AsRef<Path>, P2: AsRef<Path>>(
             let tid_out_file = exec_out_dir.as_ref().join(tid.to_string());
             transcribe_tid(&tid_in_dir, tid_out_file)
         })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(())
+        .try_fold(
+            HashSet::new(),
+            |mut set, item: Result<HashSet<PathBuf>>| -> Result<HashSet<PathBuf>> {
+                set.extend(item?);
+                Ok(set)
+            },
+        )
 }
 
 pub fn transcribe_tid<P1: AsRef<Path>, P2: AsRef<Path>>(
     tid_in_dir: P1,
     tid_out_file: P2,
-) -> Result<()> {
+) -> Result<HashSet<PathBuf>> {
     let data_arena_dir = tid_in_dir.as_ref().join(probe_headers::DATA_SUBDIR);
     let ops_arena_dir = tid_in_dir.as_ref().join(probe_headers::OPS_SUBDIR);
     let data_arena = {
@@ -113,7 +136,7 @@ pub fn transcribe_tid<P1: AsRef<Path>, P2: AsRef<Path>>(
     let mut ops = vec![];
 
     let op_size = <probe_headers::Op as memory_parsing::SizedMemory>::size();
-    std::fs::read_dir(&ops_arena_dir)
+    let files = std::fs::read_dir(&ops_arena_dir)
         .wrap_err(format!("Error opening ops directory {:?}", ops_arena_dir))?
         .map(|entry| {
             let ops_arena_file = entry.wrap_err("direntry")?.path();
@@ -139,15 +162,33 @@ pub fn transcribe_tid<P1: AsRef<Path>, P2: AsRef<Path>>(
                         range.end,
                         // memory_parsing::Segment::new(op_pointer, ops_arena_segment.get(op_pointer).unwrap()[..op_size].to_vec()),
                     ))?;
-                    ops.push(ret.0.clone());
-                    Ok(())
+                    let op = ret.0;
+                    ops.push(op.clone());
+                    Ok(if cfg!(feature = "PROBE_RECORD_REALPATHS") {
+                        if let probe_headers::OpData::Open(open) = op.data {
+                            if let Some(path_bytes) =  open.real_path {
+                                Some(PathBuf::from(String::from_utf8(path_bytes.0).unwrap()))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    })
                 })
-                .collect::<Result<Vec<_>>>()
-                .wrap_err(format!("parsing ops in {:?}", ops_arena_file))?;
-
-            Ok(())
+                .try_fold(HashSet::new(), |mut set, item: Result<Option<PathBuf>>| {
+                    if let Some(path) = item? {
+                        set.insert(path);
+                    }
+                    Ok(set)
+                })
         })
-        .collect::<Result<Vec<_>>>()?;
+        .try_fold(HashSet::new(), |mut set, item: Result<HashSet<PathBuf>>| -> Result<HashSet<PathBuf>> {
+            set.extend(item?);
+            Ok(set)
+        })?;
 
     let mut tid_out_file = std::fs::OpenOptions::new()
         .create_new(true)
@@ -160,7 +201,7 @@ pub fn transcribe_tid<P1: AsRef<Path>, P2: AsRef<Path>>(
         ops.serialize(&mut serializer)?;
     }
 
-    Ok(())
+    Ok(files)
 }
 
 fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
@@ -171,4 +212,21 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         .ok_or(eyre!("Unable to parse as Unicode"))?
         .parse::<usize>()
         .map_err(|err| eyre!("{:?}", err))
+}
+
+fn transcribe_file_info<P: AsRef<Path>>(
+    dir: P,
+    files: &HashSet<PathBuf>,
+) -> Result<()> {
+    eprintln!("{:?} files", files.len());
+    let file_infos = probe_headers::from_files(files);
+    let mut file_infos_file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(dir.as_ref().join("file_infos"))?;
+    let mut serializer =
+        rmp_serde::encode::Serializer::new(&mut file_infos_file).with_struct_map();
+    use serde::Serialize;
+    file_infos.serialize(&mut serializer)?;
+    Ok(())
 }
