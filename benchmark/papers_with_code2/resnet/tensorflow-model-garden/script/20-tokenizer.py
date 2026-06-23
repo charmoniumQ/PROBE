@@ -56,32 +56,3 @@ plt.ylim(plt.ylim())
 max_length = max(all_lengths)
 plt.plot([max_length, max_length], plt.ylim())
 plt.title(f'Maximum tokens per example: {max_length}')
-
-MAX_TOKENS = 128
-def prepare_batch(pt, en):
-    pt = tokenizers.pt.tokenize(pt)
-    pt = pt[:, :MAX_TOKENS]
-    pt = pt.to_tensor()
-    en = tokenizers.en.tokenize(en)
-    en = en[:, :(MAX_TOKENS+1)]
-    en_inputs = en[:, :-1].to_tensor()
-    en_labels = en[:, 1:].to_tensor()
-    return (pt, en_inputs), en_labels
-
-BUFFER_SIZE = 20000
-BATCH_SIZE = 64
-
-def make_batches(ds):
-    return (
-        ds
-        .shuffle(BUFFER_SIZE)
-        .batch(BATCH_SIZE)
-        .map(prepare_batch, tf.data.AUTOTUNE)
-        .prefetch(buffer_size=tf.data.AUTOTUNE)
-    )
-
-train_batches = make_batches(train_examples)
-val_batches = make_batches(val_examples)
-
-tf.data.Dataset.save(train_batches, 'train_batches')
-tf.data.Dataset.save(val_batches, 'val_batches')
