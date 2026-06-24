@@ -170,11 +170,11 @@ workloads = {
         ),
         join_cmds(
             ["env", "-", "python", "/scripts/10-download.py"],
-            # ["env", "-", "python", "/scripts/20-tokenizer.py"],
-            # ["env", "-", "python", "/scripts/25-batch.py"],
-            # ["env", "-", "python", "/scripts/30-plots.py"],
-            # ["env", "-", "python", "/scripts/40-build-transformer.py"],
-            # ["env", "-", "python", "/scripts/50-train.py"],
+            ["env", "-", "python", "/scripts/20-tokenizer.py"],
+            ["env", "-", "python", "/scripts/25-batch.py"],
+            ["env", "-", "python", "/scripts/30-plots.py"],
+            ["env", "-", "python", "/scripts/40-build-transformer.py"],
+            ["env", "-", "python", "/scripts/50-train.py"],
         ),
         root_dir / "benchmark2/resnet-tf-mg/context",
         [

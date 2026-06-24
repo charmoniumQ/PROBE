@@ -531,7 +531,9 @@ const char* _Nullable probe_libc_getenv(const char* _Nonnull name) {
     size_t name_len = probe_libc_strnlen(name, -1);
     for (size_t i = 0; probe_environ != NULL; ++i) {
         const char* curr = probe_environ[i];
-        if (!curr) { break; }
+        if (!curr) {
+            break;
+        }
         if (probe_libc_strncmp(name, curr, name_len) == 0 && curr[name_len] == '=') {
             return curr + name_len + 1;
         }
