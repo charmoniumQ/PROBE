@@ -46,6 +46,7 @@ pub fn record_no_transcribe(
         .record()
         .wrap_err("Recorder::record")?;
 
+    std::fs::create_dir(&output)?;
     fs_extra::dir::move_dir(&dir, &output, &fs_extra::dir::CopyOptions::new()).wrap_err(eyre!(
         "moving {:?} to {:?}",
         &dir,
@@ -81,13 +82,13 @@ pub fn record_transcribe(
 
     let file = File::create_new(&output).wrap_err("Failed to create output file")?;
 
-    let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
-
     let (status, record_dir) = Recorder::new(cmd)
         .gdb(gdb)
         .debug(debug)
         .copy_files(copy_files)
         .record()?;
+
+    let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
 
     match transcribe::transcribe_to_tar(&record_dir, &mut tar) {
         Ok(_) => Ok(status),
