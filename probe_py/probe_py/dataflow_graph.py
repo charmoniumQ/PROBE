@@ -86,7 +86,7 @@ def hb_graph_to_dataflow_graph(
     top_k = heapq.nlargest(
         10, ((len(intervals), inode) for inode, intervals in inode_intervals.items())
     )
-    if top_k[0][0] > CUTOFF:
+    if top_k and top_k[0] and top_k[0][0] > CUTOFF:
         print(f"Top inodes with more than {CUTOFF} intervals:")
         for len_inode_intervals, inode in top_k:
             if len_inode_intervals < 5:

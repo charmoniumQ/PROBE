@@ -131,9 +131,13 @@ tracers = {
         ],
         pathlib.Path("dataflow-graph.dot"),
     ),
-    # "ptu": ProvTracer([
-    #     nix_build(".#provenance_to_use") / "bin/ptu",
-    # ]),
+    "ptu": ProvTracer(
+        [
+            nix_build(".#provenance_to_use") / "bin/ptu",
+        ],
+        None,
+        pathlib.Path("cde-package/provenance.cde-root.1.log"),
+    ),
     "rzip": lambda: ProvTracer(
         [
             nix_build(".#reprozip") / "bin/reprozip",
@@ -193,11 +197,11 @@ repetitions = 2
 schema = {
     "tracer": str,
     "workload": str,
-    "iteration": polars.UInt8,
-    "wall_time": polars.Float32,
-    "cpu_time": polars.Float32,
-    "kernel_time": polars.Float32,
-    "memory": polars.Float32,
+    "iteration": polars.Int64,
+    "wall_time": polars.Float64,
+    "cpu_time": polars.Float64,
+    "kernel_time": polars.Float64,
+    "memory": polars.Float64,
 }
 import sqlalchemy
 engine = sqlalchemy.create_engine(connection)
