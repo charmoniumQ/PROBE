@@ -38,3 +38,10 @@ index ad3249f..6464129 100644
 @@ -2540 +2540 @@ void CDE_end_file_renameat(struct tcb* tcp) {
 -      if (!IS_ABSPATH(dst_filename) && tcp->u_arg[2] != AT_FDCWD) {
 +      if (!IS_ABSPATH(dst_filename) && ((int) tcp->u_arg[2] != AT_FDCWD)) {
+diff --git a/strace-4.6/okapi.c b/strace-4.6/okapi.c
+index dba254c..a582f46 100644
+--- a/strace-4.6/okapi.c
++++ b/strace-4.6/okapi.c
+@@ -71,0 +72,2 @@ CDE is currently licensed under GPL v3:
++#include "strutils.h"
++#define endswith str_endswith
