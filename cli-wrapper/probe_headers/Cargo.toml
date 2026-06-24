@@ -29,6 +29,13 @@ schemars = "1.2.0"
 libc = "0.2.180"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+lazy_static = "1.5.0"
+csv = "1.4.0"
+file-format = "0.29.0"
+regex = "1.12.4"
+gix = "0.85.0"
+which = "8.0.4"
+mailparse = "0.16.1"
 
 [build-dependencies]
 eyre = "0.6.12"
@@ -38,3 +45,6 @@ cbindgen = "0.28.0"
 workspace = true
 
 [dev-dependencies]
+
+[features]
+PROBE_RECORD_REALPATHS = []

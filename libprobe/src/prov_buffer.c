@@ -332,17 +332,16 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
               inode.device_major, inode.device_minor);
         ASSERTF(open_number.number > 0, "");
         prov_log_record((struct Op){
-            .data =
-                {
-                    .open_tag = OpData_Open,
-                    .open =
-                        {
-                            .path =
-                                {
-                                    .directory = get_open_number(dirfd),
-                                    .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
-                                },
-                            .open_number = open_number,
+            .data = {.open_tag = OpData_Open,
+                     .open = {.path =
+                                  {
+                                      .directory = get_open_number(dirfd),
+                                      .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                                  },
+#ifdef PROBE_RECORD_REALPATHS
+                     .real_path = arena_strndup(get_data_arena(), get_real_path(fd), PATH_MAX),
+#endif
+                         .open_number = open_number,
                             .inode = inode,
                             .flags = flags,
                             .mode = mode,
@@ -425,16 +424,16 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
               file, inode.number, inode.device_major, inode.device_minor);
         ASSERTF(open_number.number > 0, "");
         prov_log_record((struct Op){
-            .data =
-                {
-                    .open_tag = OpData_Open,
-                    .open =
-                        {
-                            .path =
-                                {
-                                    .directory = get_open_number(AT_FDCWD),
-                                    .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
-                                },
+            .data = {.open_tag = OpData_Open,
+                     .open = {
+                         .path =
+                             {
+                                 .directory = get_open_number(AT_FDCWD),
+                                 .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                             },
+#ifdef PROBE_RECORD_REALPATHS
+                     .real_path = arena_strndup(get_data_arena(), get_real_path(fileno(file)), PATH_MAX),
+#endif                         
                             .open_number = open_number,
                             .inode = inode,
                             .flags = ACCESS_FLAGS[access],

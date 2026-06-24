@@ -90,25 +90,28 @@ unsigned int my_atoui(const char* s) {
     return n;
 }
 
-void print_open_fd(int fd) {
+void print_open_fd(__attribute__((unused)) int fd) {
+#ifndef NDEBUG
     struct stat st;
     if (client_fstat(fd, &st) == -1) {
         DEBUG("fd %d -> unknown stat", fd);
         return;
     }
+    char* real_path = get_real_path(fd);
+    DEBUG("fd %d -> path=%s, device=%u,%u inode=%zu", fd, real_path, major(st.st_dev),
+        minor(st.st_dev), st.st_ino);    
+#endif
+}
 
+char* get_real_path(int fd) {
     char proc_path[64];
-    char target[PATH_MAX];
+    static char target[PATH_MAX];
     snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
     ssize_t len = client_readlink(proc_path, target, sizeof(target) - 1);
     if (len == -1) {
-        DEBUG("fd %d -> path=unknown, device=%u,%u inode=%zu", fd, major(st.st_dev),
-              minor(st.st_dev), st.st_ino);
-        return;
+        target[0] = '\0';
+    } else {
+        target[len] = '\0';
     }
-
-    target[len] = '\0';
-
-    DEBUG("fd %d -> path=%s, device=%u,%u inode=%zu", fd, target, major(st.st_dev),
-          minor(st.st_dev), st.st_ino);
+    return target;
 }
