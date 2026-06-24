@@ -104,7 +104,7 @@
                 python.pkgs.watchfiles
               ];
           });
-          inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use;
+          inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use provenance-to-use-dir;
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli probe-headers;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";

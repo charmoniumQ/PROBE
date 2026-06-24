@@ -109,6 +109,7 @@ tracers = {
             "record",
             "--copy-files=none",
             "--no-transcribe",
+            "--overwrite",
         ],
         None,
         None,
@@ -118,7 +119,8 @@ tracers = {
             nix_build(".#probe") / "bin/probe",
             "record",
             "--copy-files=none",
-            "--output=/scratch/probe_log"
+            "--output=/scratch/probe_log",
+            "--overwrite",
         ],
         [
             nix_build(".#probe") / "bin/probe",
@@ -131,9 +133,10 @@ tracers = {
         ],
         pathlib.Path("dataflow-graph.dot"),
     ),
-    "ptu": ProvTracer(
+    "ptu": lambda: ProvTracer(
         [
-            nix_build(".#provenance_to_use") / "bin/ptu",
+            nix_build(".#provenance-to-use-dir") / "bin/ptu",
+            "/scratch/cde-package",
         ],
         None,
         pathlib.Path("cde-package/provenance.cde-root.1.log"),
@@ -145,36 +148,39 @@ tracers = {
             "--overwrite",
             "--dir=/scratch/rpz",
         ],
-        [
-            nix_build(".#reprounzip") / "bin/reprounzip",
-            "graph",
-            "/scratch/provenance.dot",
-            "--dir=/scratch/rpz",
-        ],
+        join_cmds(
+            ["rm", "--force", "/scratch/provenance.dot"],
+            [
+                nix_build(".#reprounzip") / "bin/reprounzip",
+                "graph",
+                "/scratch/provenance.dot",
+                "--dir=/scratch/rpz",
+            ]
+        ),
         pathlib.Path("provenance.dot"),
     ),
 }
 
 
 workloads = {
-    # "resnet-tf-mg": Workload(
-    #     join_cmds(
-    #         ["python", "/scripts/10-download.py"],
-    #         ["python", "/scripts/20-tokenizer.py"],
-    #     ),
-    #     join_cmds(
-    #         ["python", "/scripts/10-download.py"],
-    #         ["python", "/scripts/20-tokenizer.py"],
-    #         ["python", "/scripts/25-batch.py"],
-    #         ["python", "/scripts/30-plots.py"],
-    #         ["python", "/scripts/40-build-transformer.py"],
-    #         ["python", "/scripts/50-train.py"],
-    #     ),
-    #     root_dir / "benchmark2/resnet-tf-mg/context",
-    #     [
-    #         (root_dir / "benchmark2/resnet-tf-mg/scripts", pathlib.Path("/scripts"), "ro")
-    #     ]
-    # ),
+    "resnet-tf-mg": Workload(
+        join_cmds(
+            ["python", "/scripts/10-download.py"],
+            ["python", "/scripts/20-tokenizer.py"],
+        ),
+        join_cmds(
+            ["python", "/scripts/10-download.py"],
+            ["python", "/scripts/20-tokenizer.py"],
+            ["python", "/scripts/25-batch.py"],
+            ["python", "/scripts/30-plots.py"],
+            ["python", "/scripts/40-build-transformer.py"],
+            ["python", "/scripts/50-train.py"],
+        ),
+        root_dir / "benchmark2/resnet-tf-mg/context",
+        [
+            (root_dir / "benchmark2/resnet-tf-mg/scripts", pathlib.Path("/scripts"), "ro")
+        ]
+    ),
     "touch": Workload(
         None,
         ["touch", "test"],
@@ -270,6 +276,9 @@ for tracer_name, workload_name, iteration in tqdm.tqdm(trials_to_do, desc="trial
         )
         assert tracer.artifact
         artifact_path = results_dir / "artifacts" / tracer_name / workload_name
+        artifact_path.parent.mkdir(exist_ok=True, parents=True)
+        if artifact_path.exists():
+            artifact_path.unlink()
         shutil.move(scratch_dir / tracer.artifact, artifact_path)
     df = df.vstack(polars.DataFrame({
         "tracer": [tracer_name],
