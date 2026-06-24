@@ -491,6 +491,12 @@ char* _Nonnull probe_libc_strndup(const char* _Nonnull s, size_t n) {
 }
 
 int probe_libc_strncmp(const char* _Nonnull a, const char* _Nonnull b, size_t maxlen) {
+    if (!a && !b) {
+        return true;
+    }
+    if (!!a ^ !!b) {
+        return false;
+    }
     size_t i = 0;
     for (; a[i] != '\0' && b[i] != '\0' && i < maxlen; ++i) {
         int_fast16_t diff = (int_fast16_t)(unsigned char)a[i] - (int_fast16_t)(unsigned char)b[i];
@@ -525,6 +531,7 @@ const char* _Nullable probe_libc_getenv(const char* _Nonnull name) {
     size_t name_len = probe_libc_strnlen(name, -1);
     for (size_t i = 0; probe_environ != NULL; ++i) {
         const char* curr = probe_environ[i];
+        if (!curr) { break; }
         if (probe_libc_strncmp(name, curr, name_len) == 0 && curr[name_len] == '=') {
             return curr + name_len + 1;
         }

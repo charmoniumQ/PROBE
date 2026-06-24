@@ -60,6 +60,7 @@ example_path = pathlib.Path("../../../examples")
 
 
 simple_commands = {
+    "env-echo": [env, "-", str(example_path / "echo.exe"), "hello", "world"],
     "echo": [str(example_path / "echo.exe"), "hello", "world"],
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
