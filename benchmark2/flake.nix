@@ -129,6 +129,13 @@
               wrapProgram $out/bin/ptu --prefix PATH : ${pkgs.lib.strings.makeBinPath [pkgs.coreutils]}
             '';
           };
+          provenance-to-use-dir = pkgs.writeShellScriptBin "ptu" ''
+            destination="$1"
+            shift
+            ${provenance-to-use}/bin/ptu "$@"
+            ${pkgs.coreutils}/bin/rm --recursive --force "$destination"
+            ${pkgs.coreutils}/bin/mv cde-package "$destination"
+          '';
           scandir = python.pkgs.buildPythonPackage rec {
             pname = "scandir";
             version = "1.10.0";
