@@ -1,3 +1,4 @@
+import shutil
 import json
 import tqdm
 import random
@@ -10,9 +11,18 @@ import pathlib
 import shlex
 
 
+def join_cmds(*cmds: list[str | pathlib.Path]) -> list[str | pathlib.Path]:
+    return [
+        "sh",
+        "-c",
+        " && ".join(shlex.join(map(str, cmd)) for cmd in cmds),
+    ]
+
+
 @functools.lru_cache
 def nix_build(buildable: str) -> pathlib.Path:
-    cmd = ["nix", "build", buildable, "--print-out-paths"]
+    print(f"Building: {buildable}")
+    cmd = ["nix", "build", buildable, "--print-out-paths", "--show-trace"]
     proc = subprocess.run(
         cmd,
         check=False,
@@ -26,7 +36,7 @@ def nix_build(buildable: str) -> pathlib.Path:
     else:
         assert proc.stdout.count("\n") == 1
         assert proc.stdout.startswith("/nix/store/")
-        return pathlib.Path(proc.stdout)
+        return pathlib.Path(proc.stdout.strip())
 
 
 @dataclasses.dataclass
@@ -34,33 +44,41 @@ class Workload:
     setup: list[str | pathlib.Path] | None
     run: list[str | pathlib.Path]
     context: pathlib.Path
+    mounts: list[tuple[pathlib.Path, pathlib.Path, str]]
 
 
 @dataclasses.dataclass
 class PrefixTool:
     prefix: list[str | pathlib.Path]
 
+
 @dataclasses.dataclass
 class ProvTracer(PrefixTool):
-    pass
+    make_artifact: list[str | pathlib.Path] | None
+    artifact: pathlib.Path | None
 
 
 root_dir = pathlib.Path(__file__).resolve().parent.parent.resolve()
-scratch_dir = root_dir / "scratch"
-scratch_dir.mkdir()
-results_dir = root_dir / "results"
-results_dir.mkdir()
+scratch_dir = root_dir / ".cache"
+scratch_dir.mkdir(exist_ok=True)
+results_dir = root_dir / ".results"
+results_dir.mkdir(exist_ok=True)
 results_file = results_dir / "db.sqlite"
-connection = f"sqlite://{results_file!s}"
+connection = f"sqlite:///{results_file!s}"
 cpus = [1]
 ncpus = 1
+time_json = scratch_dir / "time.json"
 
 
-podman = lambda image: PrefixTool([
+podman = lambda image, mounts: PrefixTool([
     "podman",
     "run",
     "--volume=/nix/store:/nix/store:ro",
-    f"--volume={scratch_dir}/output:rw"
+    f"--volume={scratch_dir}:/scratch:rw",
+    *([
+        f"--volume={src!s}:{dst!s}:{mode}"
+        for src, dst, mode in mounts
+    ]),
     # Not needed if we use PROBE from /nix/store
     # "--env", f"PROBE_LIB={path_to_probe_lib}",
     # "--env", f"probe={path_to_probe_bin}",
@@ -74,48 +92,91 @@ podman = lambda image: PrefixTool([
 ])
 
 
-timer = PrefixTool([
-    nix_build(".#timer") / "bin/timer",
+timer_thunk = lambda: PrefixTool([
+    nix_build("nixpkgs#time") / "bin/time",
+    "--format",
+    '{"wall_time": %e, "kernel_time": %s, "user_time": %U, "memory": %M, "returncode": %x}',
+    "--output",
+    "/scratch/time.json",
 ])
 
 
 tracers = {
-    "none": ProvTracer([]),
-    "probe": ProvTracer([
-        nix_build(".#probe") / "bin/probe",
-        "record",
-        "--no-transcribe",
-    ]),
-    "ptu": ProvTracer([
-        nix_build(".#provenance_to_use") / "bin/ptu",
-    ]),
-    "rzip": ProvTracer([
-        nix_build(".#reprozip") / "bin/reprozip",
-    ])
+    "none": lambda: ProvTracer([], None, None),
+    "probe": lambda: ProvTracer(
+        [
+            nix_build(".#probe") / "bin/probe",
+            "record",
+            "--copy-files=none",
+            "--no-transcribe",
+        ],
+        None,
+        None,
+    ),
+    "probe-2": lambda: ProvTracer(
+        [
+            nix_build(".#probe") / "bin/probe",
+            "record",
+            "--copy-files=none",
+            "--output=/scratch/probe_log"
+        ],
+        [
+            nix_build(".#probe") / "bin/probe",
+            "py",
+            "export",
+            "dataflow-graph",
+            "--probe-log=/scratch/probe_log",
+            "/scratch/dataflow-graph.dot",
+            "--loose",
+        ],
+        pathlib.Path("dataflow-graph.dot"),
+    ),
+    # "ptu": ProvTracer([
+    #     nix_build(".#provenance_to_use") / "bin/ptu",
+    # ]),
+    "rzip": lambda: ProvTracer(
+        [
+            nix_build(".#reprozip") / "bin/reprozip",
+            "trace",
+            "--overwrite",
+            "--dir=/scratch/rpz",
+        ],
+        [
+            nix_build(".#reprounzip") / "bin/reprounzip",
+            "graph",
+            "/scratch/provenance.dot",
+            "--dir=/scratch/rpz",
+        ],
+        pathlib.Path("provenance.dot"),
+    ),
 }
 
 
-def join_cmds(*cmds: list[str | pathlib.Path]) -> list[str | pathlib.Path]:
-    return [
-        "sh",
-        "-c",
-        " && ".join(shlex.join(map(str, cmd)) for cmd in cmds),
-    ]
-
-
 workloads = {
-    "resnet/tf-mg": Workload(
+    # "resnet-tf-mg": Workload(
+    #     join_cmds(
+    #         ["python", "/scripts/10-download.py"],
+    #         ["python", "/scripts/20-tokenizer.py"],
+    #     ),
+    #     join_cmds(
+    #         ["python", "/scripts/10-download.py"],
+    #         ["python", "/scripts/20-tokenizer.py"],
+    #         ["python", "/scripts/25-batch.py"],
+    #         ["python", "/scripts/30-plots.py"],
+    #         ["python", "/scripts/40-build-transformer.py"],
+    #         ["python", "/scripts/50-train.py"],
+    #     ),
+    #     root_dir / "benchmark2/resnet-tf-mg/context",
+    #     [
+    #         (root_dir / "benchmark2/resnet-tf-mg/scripts", pathlib.Path("/scripts"), "ro")
+    #     ]
+    # ),
+    "touch": Workload(
         None,
-        join_cmds(
-            ["python", "10-download.py"],
-            ["python", "20-tokenizer.py"],
-            ["python", "25-batch.py"],
-            ["python", "30-plots.py"],
-            ["python", "40-build-transformer.py"],
-            ["python", "50-train.py"],
-        ),
-        reot_dir / "benchmark2/papers_with_code/resnet/tensorflow-model-garden/context",
-    ),
+        ["touch", "test"],
+        root_dir / "benchmark2/resnet-tf-mg/context",
+        [],
+    )
 }
 
 
@@ -128,16 +189,26 @@ def podman_build(context: pathlib.Path, tag: str) -> None:
     )
 
 
-def experiment(
-        repetitions: int = 2,
-):
-    if results_file.exists():
-        df = polars.read_database(
-            query = "SELECT * FROM experiment", 
-            connection=connection,
-        )
-    else:
-        df = polars.DataFrame({
+repetitions = 2
+schema = {
+    "tracer": str,
+    "workload": str,
+    "iteration": polars.UInt8,
+    "wall_time": polars.Float32,
+    "cpu_time": polars.Float32,
+    "kernel_time": polars.Float32,
+    "memory": polars.Float32,
+}
+import sqlalchemy
+engine = sqlalchemy.create_engine(connection)
+if sqlalchemy.inspect(engine).has_table("experiment"):
+    df = polars.read_database(
+        query="SELECT * FROM experiment", 
+        connection=engine,
+    )
+else:
+    df = polars.DataFrame(
+        data={
             "tracer": [],
             "workload": [],
             "iteration": [],
@@ -145,40 +216,70 @@ def experiment(
             "cpu_time": [],
             "kernel_time": [],
             "memory": [],
-        })
-    trials = set(itertools.product(
-        tracers.keys(),
-        workloads.keys(),
-        range(repetitions),
-    ))
-    trials_to_do = list(trials - set(df.select("tracer", "workload", "iteration")))
-    random.Random(0).shuffle(trials_to_do)
-    for tracer, workload, iteration in tqdm.tqdm(trials_to_do, desc="trials"):
-        if workloads[workload].setup:
-            raise NotImplementedError()
-        podman_build(workloads[workload].context, workload)
-        cmd = podman(workload).prefix + timer.prefix + tracers[tracer].prefix + workloads[workload].run
+        },
+        schema=schema,
+    )
+trials = set(itertools.product(
+    tracers.keys(),
+    workloads.keys(),
+    range(repetitions),
+))
+trials_done = set(df.select(["tracer", "workload", "iteration"]).rows())
+trials_to_do = list(trials - trials_done)
+random.Random(0).shuffle(trials_to_do)
+print("initial")
+print(df)
+for tracer_name, workload_name, iteration in tqdm.tqdm(trials_to_do, desc="trials"):
+    timer = timer_thunk()
+    workload = workloads[workload_name]
+    tracer = tracers[tracer_name]()
+    if workload.setup:
+        cmd = podman(workload_name, workload.mounts).prefix + workload.run
+        print(f"Running {tracer_name} {workload_name} setup")
+        print(shlex.join(map(str, cmd)))
         proc = subprocess.run(
             cmd,
-            capture_output=True,
-            check=False,
+            check=True,
         )
-        if proc.returncode != 0:
-            print(proc.stdout.decode(errors="ignore"))
-            print(proc.stderr.decode(errors="ignore"))
-            raise NotImplementedError()
-        resources = json.loads((scratch_dir / "times.json").read_bytes())
-        df = df.vstack(polars.DataFrame({
-            "tracer": [tracer],
-            "workload": [workload],
-            "iteration": [iteration],
-            "wall_time": [resources["wall_time"]],
-            "cpu_time": [resources["cpu_time"]],
-            "kernel_time": [resources["kernel_time"]],
-            "memory": [resources["memory"]],
-        }))
-        df.write_database(
-            table_name="experiment",
-            connection=connection,
-            if_table_exists="replace",
+    podman_build(workload.context, workload_name)
+    if time_json.exists():
+        time_json.unlink()
+    cmd = podman(workload_name, workload.mounts).prefix + timer.prefix + tracer.prefix + workload.run
+    print(f"Running {tracer_name} {workload_name}")
+    print(shlex.join(map(str, cmd)))
+    proc = subprocess.run(
+        cmd,
+        check=True,
+    )
+    resources = json.loads(time_json.read_bytes() if time_json.exists() else "{}")
+    if resources.get("returncode") != 0:
+        print(shlex.join(map(str, cmd)))
+        raise RuntimeError()
+
+    if tracer.make_artifact and iteration == 0:
+        cmd = podman(workload_name, workload.mounts).prefix + tracer.make_artifact
+        print(f"Running {tracer_name} {workload_name} artifact")
+        print(shlex.join(map(str, cmd)))
+        proc = subprocess.run(
+            cmd,
+            check=True,
         )
+        assert tracer.artifact
+        artifact_path = results_dir / "artifacts" / tracer_name / workload_name
+        shutil.move(scratch_dir / tracer.artifact, artifact_path)
+    df = df.vstack(polars.DataFrame({
+        "tracer": [tracer_name],
+        "workload": [workload_name],
+        "iteration": [iteration],
+        "wall_time": [resources["wall_time"]],
+        "cpu_time": [resources["user_time"]],
+        "kernel_time": [resources["kernel_time"]],
+        "memory": [float(resources["memory"])],
+    }, schema=schema))
+    df.write_database(
+        table_name="experiment",
+        connection=engine,
+        if_table_exists="replace",
+    )
+print("done")
+print(df)

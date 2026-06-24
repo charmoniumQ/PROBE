@@ -1,6 +1,7 @@
 **/result
 
 # cache directories
+**/.results
 **/.mypy_cache
 **/.direnv
 **/.cache

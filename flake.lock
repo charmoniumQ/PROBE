@@ -16,6 +16,25 @@
         "type": "github"
       }
     },
+    "benchmark2": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "benchmark2",
+        "type": "path"
+      },
+      "original": {
+        "path": "benchmark2",
+        "type": "path"
+      },
+      "parent": []
+    },
     "charmonium-time-block": {
       "inputs": {
         "flake-utils": [
@@ -129,6 +148,7 @@
     },
     "root": {
       "inputs": {
+        "benchmark2": "benchmark2",
         "charmonium-time-block": "charmonium-time-block",
         "cli-wrapper": "cli-wrapper",
         "flake-utils": "flake-utils",

@@ -21,6 +21,13 @@
         flake-utils.follows = "flake-utils";
       };
     };
+    benchmark2 = {
+      url = ./benchmark2;
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
     charmonium-time-block = {
       url = "github:charmoniumQ/charmonium.time_block";
       inputs = {
@@ -36,7 +43,8 @@
     old-nixpkgs,
     flake-utils,
     cli-wrapper,
-    charmonium-time-block,
+      benchmark2,
+      charmonium-time-block,
     ...
   }: let
     targets = import ./targets.nix;
@@ -49,6 +57,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
+        benchmark2-pkgs = benchmark2.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
         # Otherwise, if old-nixpkgs is a flake,
@@ -95,6 +104,7 @@
                 python.pkgs.watchfiles
               ];
           });
+          inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use;
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli probe-headers;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
@@ -309,6 +319,9 @@
             pypkgs.tqdm
             pypkgs.typer
             pypkgs.xdg-base-dirs
+            pypkgs.polars
+            pypkgs.pandas # Polars: writing with 'sqlalchemy' engine currently requires pandas.
+            pypkgs.pyarrow
 
             # probe_py "dev time" requirements
             packages.types-networkx
