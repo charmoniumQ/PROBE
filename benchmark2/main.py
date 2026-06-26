@@ -1,14 +1,18 @@
-import shutil
-import json
-import tqdm
-import random
-import itertools
-import polars
-import functools
-import subprocess
+import collections.abc
 import dataclasses
+import functools
+import itertools
+import json
 import pathlib
+import random
 import shlex
+import shutil
+import subprocess
+import typing
+
+import polars
+import sqlalchemy
+import tqdm
 
 
 def join_cmds(*cmds: list[str | pathlib.Path]) -> list[str | pathlib.Path]:
@@ -181,12 +185,12 @@ workloads = {
             (root_dir / "benchmark2/resnet-tf-mg/scripts", pathlib.Path("/scripts"), "ro")
         ]
     ),
-    "touch": Workload(
-        None,
-        ["touch", "test"],
-        root_dir / "benchmark2/resnet-tf-mg/context",
-        [],
-    )
+    # "touch": Workload(
+    #     None,
+    #     ["touch", "test"],
+    #     root_dir / "benchmark2/resnet-tf-mg/context",
+    #     [],
+    # )
 }
 
 
@@ -199,7 +203,56 @@ def podman_build(context: pathlib.Path, tag: str) -> None:
     )
 
 
-repetitions = 2
+def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Mapping[str, typing.Any]:
+    timer = timer_thunk()
+    workload = workloads[workload_name]
+    tracer = tracers[tracer_name]()
+
+    podman_build(workload.context, workload_name)
+
+    if workload.setup:
+        cmd = podman(workload_name, workload.mounts).prefix + workload.run
+        print(f"Running {tracer_name} {workload_name} setup")
+        print(shlex.join(map(str, cmd)))
+        subprocess.run(
+            cmd,
+            check=True,
+        )
+    if time_json.exists():
+        time_json.unlink()
+
+    cmd = podman(workload_name, workload.mounts).prefix + timer.prefix + tracer.prefix + workload.run
+    print(f"Running {tracer_name} {workload_name}")
+    print(shlex.join(map(str, cmd)))
+    subprocess.run(
+        cmd,
+        check=True,
+    )
+
+    resources = json.loads(time_json.read_bytes() if time_json.exists() else "{}")
+    if resources.get("returncode") != 0:
+        print(shlex.join(map(str, cmd)))
+        raise RuntimeError()
+
+    if tracer.make_artifact and iteration == 0:
+        cmd = podman(workload_name, workload.mounts).prefix + tracer.make_artifact
+        print(f"Running {tracer_name} {workload_name} artifact")
+        print(shlex.join(map(str, cmd)))
+        subprocess.run(
+            cmd,
+            check=True,
+        )
+        assert tracer.artifact
+        artifact_path = results_dir / "artifacts" / tracer_name / workload_name
+        artifact_path.parent.mkdir(exist_ok=True, parents=True)
+        if artifact_path.exists():
+            artifact_path.unlink()
+        shutil.move(scratch_dir / tracer.artifact, artifact_path)
+
+    return resources
+
+
+repetitions = 5
 schema = {
     "tracer": str,
     "workload": str,
@@ -209,7 +262,6 @@ schema = {
     "kernel_time": polars.Float64,
     "memory": polars.Float64,
 }
-import sqlalchemy
 engine = sqlalchemy.create_engine(connection)
 if sqlalchemy.inspect(engine).has_table("experiment"):
     df = polars.read_database(
@@ -229,70 +281,35 @@ else:
         },
         schema=schema,
     )
-trials = set(itertools.product(
-    tracers.keys(),
-    workloads.keys(),
-    range(repetitions),
-))
-trials_done = set(df.select(["tracer", "workload", "iteration"]).rows())
-trials_to_do = list(trials - trials_done)
-random.Random(0).shuffle(trials_to_do)
+
 print("initial")
 print(df)
-for tracer_name, workload_name, iteration in tqdm.tqdm(trials_to_do, desc="trials"):
-    timer = timer_thunk()
-    workload = workloads[workload_name]
-    tracer = tracers[tracer_name]()
-    if workload.setup:
-        cmd = podman(workload_name, workload.mounts).prefix + workload.run
-        print(f"Running {tracer_name} {workload_name} setup")
-        print(shlex.join(map(str, cmd)))
-        proc = subprocess.run(
-            cmd,
-            check=True,
-        )
-    podman_build(workload.context, workload_name)
-    if time_json.exists():
-        time_json.unlink()
-    cmd = podman(workload_name, workload.mounts).prefix + timer.prefix + tracer.prefix + workload.run
-    print(f"Running {tracer_name} {workload_name}")
-    print(shlex.join(map(str, cmd)))
-    proc = subprocess.run(
-        cmd,
-        check=True,
-    )
-    resources = json.loads(time_json.read_bytes() if time_json.exists() else "{}")
-    if resources.get("returncode") != 0:
-        print(shlex.join(map(str, cmd)))
-        raise RuntimeError()
 
-    if tracer.make_artifact and iteration == 0:
-        cmd = podman(workload_name, workload.mounts).prefix + tracer.make_artifact
-        print(f"Running {tracer_name} {workload_name} artifact")
-        print(shlex.join(map(str, cmd)))
-        proc = subprocess.run(
-            cmd,
-            check=True,
+
+trials_done = set(df.select(["tracer", "workload", "iteration"]).rows())
+for it in range(repetitions):
+    trials = set(itertools.product(
+        tracers.keys(),
+        workloads.keys(),
+        (it,),
+    ))
+    trials_to_do = list(trials - trials_done)
+    random.Random(0).shuffle(trials_to_do)
+    for tracer_name, workload_name, iteration in tqdm.tqdm(trials_to_do, desc="trials"):
+        resources = do_trial(tracer_name, workload_name)
+        df = df.vstack(polars.DataFrame({
+            "tracer": [tracer_name],
+            "workload": [workload_name],
+            "iteration": [iteration],
+            "wall_time": [resources["wall_time"]],
+            "cpu_time": [resources["user_time"]],
+            "kernel_time": [resources["kernel_time"]],
+            "memory": [float(resources["memory"])],
+        }, schema=schema))
+        df.write_database(
+            table_name="experiment",
+            connection=engine,
+            if_table_exists="replace",
         )
-        assert tracer.artifact
-        artifact_path = results_dir / "artifacts" / tracer_name / workload_name
-        artifact_path.parent.mkdir(exist_ok=True, parents=True)
-        if artifact_path.exists():
-            artifact_path.unlink()
-        shutil.move(scratch_dir / tracer.artifact, artifact_path)
-    df = df.vstack(polars.DataFrame({
-        "tracer": [tracer_name],
-        "workload": [workload_name],
-        "iteration": [iteration],
-        "wall_time": [resources["wall_time"]],
-        "cpu_time": [resources["user_time"]],
-        "kernel_time": [resources["kernel_time"]],
-        "memory": [float(resources["memory"])],
-    }, schema=schema))
-    df.write_database(
-        table_name="experiment",
-        connection=engine,
-        if_table_exists="replace",
-    )
 print("done")
 print(df)

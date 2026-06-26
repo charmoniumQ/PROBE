@@ -8,7 +8,7 @@ import networkx
 from . import partial_order
 
 _ThreadId = typing.NewType("_ThreadId", int)
-_TimeVal: typing.TypeAlias = numpy.int16
+_TimeVal: typing.TypeAlias = numpy.int32
 
 
 # TODO: use Numpy arrays
