@@ -23,6 +23,7 @@ pub fn record_no_transcribe(
     debug: bool,
     copy_files: probe_headers::CopyFiles,
     cmd: Vec<OsString>,
+    fix_random: bool,
 ) -> Result<ExitStatus> {
     let output = match output {
         Some(x) => x,
@@ -43,6 +44,7 @@ pub fn record_no_transcribe(
         .gdb(gdb)
         .debug(debug)
         .copy_files(copy_files)
+        .fix_random(fix_random)
         .record()
         .wrap_err("Recorder::record")?;
 
@@ -63,6 +65,7 @@ pub fn record_transcribe(
     debug: bool,
     copy_files: probe_headers::CopyFiles,
     cmd: Vec<OsString>,
+    fix_random: bool,
 ) -> Result<ExitStatus> {
     let output = match output {
         Some(x) => x,
@@ -87,6 +90,7 @@ pub fn record_transcribe(
         .gdb(gdb)
         .debug(debug)
         .copy_files(copy_files)
+        .fix_random(fix_random)
         .record()?;
 
     match transcribe::transcribe_to_tar(&record_dir, &mut tar) {
@@ -110,6 +114,7 @@ pub struct Recorder {
     debug: bool,
     copy_files: probe_headers::CopyFiles,
     cmd: Vec<OsString>,
+    fix_random: bool,
 }
 
 impl Recorder {
@@ -165,6 +170,7 @@ impl Recorder {
             std_in: probe_headers::Inode::get_inode("/dev/stdin")?,
             std_out: probe_headers::Inode::get_inode("/dev/stdout")?,
             std_err: probe_headers::Inode::get_inode("/dev/stderr")?,
+            fix_random: self.fix_random,
         };
         let mut ptc_mem = memory_parsing::Segments::single(
             0,
@@ -177,6 +183,18 @@ impl Recorder {
             .path()
             .join(probe_headers::PROCESS_TREE_CONTEXT_FILE);
         std::fs::write(ptc_file, ptc_bytes)?;
+
+        if self.fix_random {
+            let personality_ret = unsafe { libc::personality(0xffffffff) };
+            if personality_ret == -1 {
+                panic!("Could not get personality");
+            }
+            let persona = personality_ret as libc::c_ulong;
+            let new_persona = persona | (libc::ADDR_NO_RANDOMIZE as u64);
+            if unsafe { libc::personality(new_persona) } == -1 {
+                panic!("Could not set personality");
+            }
+        }
 
         let mut child = if self.gdb {
             std::process::Command::new("gdb")
@@ -266,6 +284,7 @@ impl Recorder {
             debug: false,
             cmd,
             copy_files: probe_headers::CopyFiles::Lazily,
+            fix_random: false,
         }
     }
 
@@ -283,6 +302,11 @@ impl Recorder {
 
     pub fn copy_files(mut self, copy_files: probe_headers::CopyFiles) -> Self {
         self.copy_files = copy_files;
+        self
+    }
+
+    pub fn fix_random(mut self, fix_random: bool) -> Self {
+        self.fix_random = fix_random;
         self
     }
 }

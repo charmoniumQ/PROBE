@@ -30,6 +30,9 @@ fn inner_main() -> Result<ExitStatus> {
                     arg!(-f --overwrite "Overwrite existing output if it exists.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
+                    arg!(-r --"fix-random" "Fix the value of /dev/u?random.")
+                        .required(false)
+                        .value_parser(value_parser!(bool)),
                     arg!(-n --"no-transcribe" "Emit PROBE record rather than PROBE log.")
                         .required(false)
                         .value_parser(value_parser!(bool)),
@@ -81,6 +84,7 @@ fn inner_main() -> Result<ExitStatus> {
             let no_transcribe = sub.get_flag("no-transcribe");
             let gdb = sub.get_flag("gdb");
             let debug = sub.get_flag("debug");
+            let fix_random = sub.get_flag("fix-random");
             let copy_files = sub
                 .get_one::<probe_headers::CopyFiles>("copy-files")
                 .cloned()
@@ -92,9 +96,13 @@ fn inner_main() -> Result<ExitStatus> {
                 .collect::<Vec<_>>();
 
             if no_transcribe {
-                record::record_no_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
+                record::record_no_transcribe(
+                    output, overwrite, gdb, debug, copy_files, cmd, fix_random,
+                )
             } else {
-                record::record_transcribe(output, overwrite, gdb, debug, copy_files, cmd)
+                record::record_transcribe(
+                    output, overwrite, gdb, debug, copy_files, cmd, fix_random,
+                )
             }
             .wrap_err("Record command failed")
         }

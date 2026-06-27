@@ -38,6 +38,8 @@ __attribute__((visibility("hidden"))) pid_t get_tid_safe();
 
 __attribute__((visibility("hidden"))) pid_t get_tid();
 
+__attribute__((visibility("hidden"))) bool get_fix_random();
+
 __attribute__((visibility("hidden"))) const struct FixedPath* _Nonnull get_probe_dir();
 
 __attribute__((visibility("hidden"))) const struct FixedPath* _Nonnull get_libprobe_path();

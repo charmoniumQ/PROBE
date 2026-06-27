@@ -44,6 +44,8 @@ typedef void* va_list;
 typedef void* StringArray;
 typedef void* OpenNumber;
 typedef void* intptr_t;
+typedef void* clockid_t;
+typedef void* clock_t;
 
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
@@ -210,7 +212,7 @@ int dup3 (int old, int new, int flags) {
                     .dup = {
                         .src = get_open_number(old),
                         .old_dst = old_dst,
-                        .dst = new_open_number(new),
+                        .dst = new_open_number(new, false),
                         .flags = 0,
                     },
                 },
@@ -231,7 +233,7 @@ int dup (int old) {
                     .dup = {
                         .src = get_open_number(old),
                         .old_dst = old_dst,
-                        .dst = new_open_number(ret),
+                        .dst = new_open_number(ret, false),
                         .flags = 0,
                     },
                 },
@@ -289,7 +291,7 @@ int fcntl (int filedes, int command, ...) {
                         .dup = {
                             .src = get_open_number(filedes),
                             .old_dst = old_dst,
-                            .dst = new_open_number(ret),
+                            .dst = new_open_number(ret, false),
                             .flags = (command == F_DUPFD_CLOEXEC) ? O_CLOEXEC : 0,
                         },
                     },
@@ -312,7 +314,7 @@ int fchdir (int filedes) {
                     .dup = {
                         .src = get_open_number(filedes),
                         .old_dst = old_dst,
-                        .dst = new_open_number(AT_FDCWD),
+                        .dst = new_open_number(AT_FDCWD, false),
                         .flags = 0,
                     },
                 },
@@ -346,7 +348,7 @@ DIR * opendir (const char *dirname) {
                             .directory = get_open_number(AT_FDCWD),
                             .name = arena_strndup(get_data_arena(), dirname, PATH_MAX),
                         },
-                        .open_number = new_open_number(fd),
+                        .open_number = new_open_number(fd, false),
                         .inode = get_inode(fd),
                         .mode = 0,
                         /* https://github.com/esmil/musl/blob/master/src/dirent/opendir.c */
@@ -2240,7 +2242,7 @@ int pipe2(int pipefd[2], int flags) {
                             .directory = {.fd = -99, .number = 0},
                             .name = NULL,
                         },
-                        .open_number = new_open_number(pipefd[0]),
+                        .open_number = new_open_number(pipefd[0], false),
                         .inode = inode,
                         .flags = O_RDONLY,
                         .mode = 0,
@@ -2258,7 +2260,7 @@ int pipe2(int pipefd[2], int flags) {
                             .directory = {.fd = -99, .number = 0},
                             .name = NULL,
                         },
-                        .open_number = new_open_number(pipefd[1]),
+                        .open_number = new_open_number(pipefd[1], false),
                         .inode = inode,
                         .flags = O_CREAT | O_TRUNC | O_WRONLY,
                         .mode = 0,
@@ -2373,6 +2375,15 @@ int mkstemps(char *template, int suffixlen) {
 };
 
 ssize_t read(int fd, void* buf, size_t count) {
+    void* call = ({
+        ssize_t ret;
+        if (UNLIKELY(is_rand(fd))) {
+            memset(buf, 0, count);
+            ret = count;
+        } else {
+            ret = client_read(fd, buf, count);
+        }
+    });
     void* post_call = ({
         print_open_fd(fd);
         // Note that ret == 0 could mean we hit EOF
@@ -2504,6 +2515,15 @@ ssize_t copy_file_range(int fd_in, off_t* off_in, int fd_out, off_t* off_out,
 
 
 size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
+    void* call = ({
+        size_t ret;
+        if (UNLIKELY(is_rand(fileno(stream)))) {
+            memset(ptr, 0, n);
+            ret = n;
+        } else {
+            ret = fread(ptr, size, n, stream);
+        }
+    });
     void* post_call = ({
         int fd = fileno(stream);
         print_open_fd(fd);
@@ -2549,7 +2569,7 @@ ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
                     int received_fd;
                     memcpy(&received_fd, CMSG_DATA(control_message), sizeof(received_fd));
                     print_open_fd(received_fd);
-                    OpenNumber new_on = new_open_number(received_fd);
+                    OpenNumber new_on = new_open_number(received_fd, false);
                     char proc_path[64];
                     char fd_path[PATH_MAX];
                     snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", received_fd);
@@ -2583,7 +2603,7 @@ ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
 int socket(int domain, int type, int protocol) {
     void* post_call = ({
         if (LIKELY(ret >= 0 && prov_log_is_enabled())) {
-            OpenNumber on = new_open_number(ret);
+            OpenNumber on = new_open_number(ret, false);
             prov_log_record((struct Op) {
                 .data = {
                     .open_tag = OpData_Open,
@@ -2641,6 +2661,53 @@ int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *file_actions, i
                 },
                 .ferrno = 0,
             });
+        }
+    });
+}
+
+ssize_t getrandom(void* buf, size_t size, unsigned int flags) {
+    void* call = ({
+        ssize_t ret;
+        if (get_fix_random()) {
+            memset(buf, 0, size);
+            ret = size;
+        } else {
+            ret = client_getrandom(buf, size, flags);
+        }
+    });
+}
+
+int getentropy(void* buffer, size_t length) {
+    void* call = ({
+        int ret;
+        if (get_fix_random()) {
+            memset(buffer, 0, length);
+            ret = length;
+        } else {
+            ret = client_getentropy(buffer, length);
+        }
+    });
+}
+
+int clock_gettime(clockid_t clockid, struct timespec* tp) {
+    void* call = ({
+        int ret;
+        if (get_fix_random()) {
+            memset(tp, 0, sizeof(struct timespec));
+            ret = 0;
+        } else {
+            ret = clock_gettime(clockid, tp);
+        }
+    });
+}
+
+clock_t clock(void) {
+    void* call = ({
+        clock_t ret;
+        if (get_fix_random()) {
+            ret = 0;
+        } else {
+            ret = client_clock();
         }
     });
 }

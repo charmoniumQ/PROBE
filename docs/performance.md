@@ -13,3 +13,9 @@ TODO: We have more atomics than necessary. If we assume no races between open an
 TODO: Delete `call_errno`/`save_errno` handling. If a libc function returns a non-error return, the value of `errno` is undefined, so we don't have to set it. If we return an error, we just have to be sure that we don't call any `client_` functions that may set `errno`.
 
 TODO: Test the performance impact of interpose read/writes.
+
+Delete print_open_fd
+
+Look in to is_rand
+
+Compare syscalls with stat with/without PROBE
