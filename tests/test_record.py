@@ -17,7 +17,7 @@ ld_debug = False
 # Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
 stderr_to_file = True
 
-probe_debug_log = True
+probe_debug_log = False
 
 
 def bash(*cmd: str) -> list[str]:
@@ -252,7 +252,7 @@ def test_downstream_analyses(
     if ld_debug:
         env["LD_DEBUG"] = "all"
 
-    for copy_files in ["none", "eagerly"]:
+    for copy_files in ["none", "lazily"]:
         cmd = ["probe", "record", "--overwrite", *(["--debug"] if probe_debug_log else []), "--copy-files", copy_files, *command]
         print(shlex.join(cmd))
         if stderr_to_file:
