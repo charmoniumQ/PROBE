@@ -2521,7 +2521,7 @@ size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
             memset(ptr, 0, n);
             ret = n;
         } else {
-            ret = fread(ptr, size, n, stream);
+            ret = client_fread(ptr, size, n, stream);
         }
     });
     void* post_call = ({
