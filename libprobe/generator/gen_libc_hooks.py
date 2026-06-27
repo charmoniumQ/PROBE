@@ -562,6 +562,7 @@ struct rusage;
 struct sigevent;
 struct stat;
 struct statx;
+struct timespec;
 struct timeval;
 struct utimbuf;
 struct msghdr;
@@ -641,6 +642,7 @@ libc_hooks_c_preamble = """
 #include <sys/stat.h>                                        // for chmod, statx
 #include <sys/time.h>                                        // for futimes, timeval
 #include <sys/wait.h>                                        // for wait, wait3
+#include <time.h>                                            // for timespec, clock, clock_gettime
 #include <utime.h>                                           // for utimbuf
 // IWYU pragma: no_include "bits/statx-generic.h"               for statx
 // IWYU pragma: no_include "bits/types/siginfo_t.h"             for si_pid, si_status

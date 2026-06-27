@@ -27,8 +27,10 @@ __attribute__((visibility("hidden"))) struct Inode get_inode(int fd);
 __attribute__((visibility("hidden"))) FILE* fopen_wrapper(const char* filename,
                                                           const char* opentype);
 
-__attribute__((visibility("hidden"))) OpenNumber new_open_number(int fd);
+__attribute__((visibility("hidden"))) OpenNumber new_open_number(int fd, bool is_rand);
 
 __attribute__((visibility("hidden"))) OpenNumber dup_open_numbers(int old, int new);
 
 __attribute__((visibility("hidden"))) void mark_access(int fd, bool is_write);
+
+__attribute__((visibility("hidden"))) bool is_rand(int fd);

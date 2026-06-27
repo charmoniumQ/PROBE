@@ -241,9 +241,10 @@ struct Inode get_inode(int fd) {
 static struct FdTable fd_table;
 
 const uint16_t MIN_OPEN_NUMBER = 3;
-const uint16_t NUMBER_MASK = 0x3FFF;
+const uint16_t NUMBER_MASK = 0x1FFF;
 const uint16_t WRITE_BIT = 0x8000;
 const uint16_t READ_BIT = 0x4000;
+const uint16_t RAND_BIT = 0x2000;
 
 OpenNumber get_open_number(int fd) {
     uint16_t number = atomic_load(fd_table_address_of_strong(&fd_table, fd));
@@ -257,7 +258,7 @@ OpenNumber reset_open_number(int fd) {
     return (OpenNumber){.fd = fd, .number = number};
 }
 
-OpenNumber new_open_number(int fd) {
+OpenNumber new_open_number(int fd, bool is_rand) {
     _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
     uint16_t old_number = atomic_load(address) & 0x3FFF;
     uint16_t new_number;
@@ -265,6 +266,9 @@ OpenNumber new_open_number(int fd) {
         new_number = MIN_OPEN_NUMBER;
     } else {
         new_number = old_number + 1;
+    }
+    if (UNLIKELY(is_rand)) {
+        new_number |= RAND_BIT;
     }
     atomic_store(address, new_number);
     ASSERTF(new_number >= MIN_OPEN_NUMBER, "");
@@ -282,6 +286,11 @@ void mark_access(int fd, bool is_write) {
     DEBUG("Mark %d,%d as %s", fd, number, is_write ? "write" : "read");
 #endif
     atomic_fetch_or(address, is_write ? WRITE_BIT : READ_BIT);
+}
+
+bool is_rand(int fd) {
+    _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
+    return atomic_load(address) & RAND_BIT;
 }
 
 int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
@@ -327,10 +336,18 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
     }
 
     if (fd >= 0) {
-        OpenNumber open_number = new_open_number(fd);
-        DEBUG("on %d,%d; inode %lu; dev=%d,%d", open_number.fd, open_number.number, inode.number,
-              inode.device_major, inode.device_minor);
+        bool is_rand =
+            get_fix_random() && inode.device_major == 0 &&
+            UNLIKELY(inode.device_minor == 6 && (inode.number == 8 || inode.number == 9));
+        OpenNumber open_number = new_open_number(fd, is_rand);
+        DEBUG("on %d,%d; inode %lu; dev=%d,%d, is_rand=%d", open_number.fd, open_number.number,
+              inode.number, inode.device_major, inode.device_minor, is_rand);
         ASSERTF(open_number.number > 0, "");
+        if (inode.device_major == 0 && inode.device_minor == 6 &&
+            (inode.number == 8 || inode.number == 9)) {
+            _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
+            atomic_fetch_or(address, RAND_BIT);
+        }
         prov_log_record((struct Op){
             .data =
                 {
@@ -420,9 +437,13 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
     }
 
     if (file) {
-        OpenNumber open_number = new_open_number(fileno(file));
-        DEBUG("on %d,%d; ret=FILE %p, inode %lu; dev=%d,%d", open_number.fd, open_number.number,
-              file, inode.number, inode.device_major, inode.device_minor);
+        bool is_rand =
+            get_fix_random() && inode.device_major == 0 &&
+            UNLIKELY(inode.device_minor == 6 && (inode.number == 8 || inode.number == 9));
+        OpenNumber open_number = new_open_number(fileno(file), is_rand);
+        DEBUG("on %d,%d; ret=FILE %p, inode %lu; dev=%d,%d rand=%d", open_number.fd,
+              open_number.number, file, inode.number, inode.device_major, inode.device_minor,
+              is_rand);
         ASSERTF(open_number.number > 0, "");
         prov_log_record((struct Op){
             .data =

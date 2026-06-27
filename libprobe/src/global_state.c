@@ -124,6 +124,10 @@ static inline const struct ProcessTreeContext* _Nonnull get_process_tree_context
     return __process_tree_context;
 }
 
+__attribute__((visibility("hidden"))) bool get_fix_random() {
+    return __process_tree_context->fix_random;
+}
+
 /*
  * Set up by CLI or previous epoch.
  * use probe_dir and pid to find this.

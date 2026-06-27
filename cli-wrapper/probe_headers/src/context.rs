@@ -62,6 +62,7 @@ pub struct ProcessTreeContext {
     pub std_in: Inode,
     pub std_out: Inode,
     pub std_err: Inode,
+    pub fix_random: bool,
 }
 
 #[repr(C)]
