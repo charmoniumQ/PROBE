@@ -2696,7 +2696,7 @@ int clock_gettime(clockid_t clockid, struct timespec* tp) {
             memset(tp, 0, sizeof(struct timespec));
             ret = 0;
         } else {
-            ret = clock_gettime(clockid, tp);
+            ret = client_clock_gettime(clockid, tp);
         }
     });
 }
