@@ -47,7 +47,7 @@
     (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python314;
+        python = pkgs.python312;
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
@@ -61,7 +61,7 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
-        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py314;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
       in rec {
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
