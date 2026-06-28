@@ -252,7 +252,7 @@ def test_downstream_analyses(
     if ld_debug:
         env["LD_DEBUG"] = "all"
 
-    for copy_files in ["none", "lazily"]:
+    for copy_files in ["none", "eagerly"]:
         cmd = ["probe", "record", "--overwrite", *(["--debug"] if probe_debug_log else []), "--copy-files", copy_files, *command]
         print(shlex.join(cmd))
         if stderr_to_file:
