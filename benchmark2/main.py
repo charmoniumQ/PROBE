@@ -11,8 +11,8 @@ import subprocess
 import typing
 
 import polars
-import sqlalchemy
 import tqdm
+import yaml
 
 
 def join_cmds(*cmds: list[str | pathlib.Path]) -> list[str | pathlib.Path]:
@@ -52,12 +52,8 @@ class Workload:
 
 
 @dataclasses.dataclass
-class PrefixTool:
+class ProvTracer:
     prefix: list[str | pathlib.Path]
-
-
-@dataclasses.dataclass
-class ProvTracer(PrefixTool):
     make_artifact: list[str | pathlib.Path] | None
     artifact: pathlib.Path | None
 
@@ -67,18 +63,33 @@ scratch_dir = root_dir / ".cache"
 scratch_dir.mkdir(exist_ok=True)
 results_dir = root_dir / ".results"
 results_dir.mkdir(exist_ok=True)
-results_file = results_dir / "db.sqlite"
-connection = f"sqlite:///{results_file!s}"
+results_file = results_dir / "db.parquet"
 cpus = [1]
 ncpus = 1
-time_json = scratch_dir / "time.json"
+time_json = scratch_dir / "time.yaml"
+benchmark_utils = pathlib.Path("~/.cache/cargo-builds/debug").expanduser()
 
 
-podman = lambda image, mounts: PrefixTool([
+stabilize = [
+    benchmark_utils / "systemd-stabilize",
+    "--reserved-cpus=0",
+    # f"--reserved-memory={1024*1024*1024}",
+    "--",
+    benchmark_utils / "host-stabilize",
+    "--reserved-cpus=0",
+    "--disable-smt",
+    "--disable-freq-scaling",
+    "--drop-fs-cache",
+    "--",
+]
+
+
+podman = lambda image, mounts: [
     "podman",
     "run",
     "--volume=/nix/store:/nix/store:ro",
     f"--volume={scratch_dir}:/scratch:rw",
+    f"--volume={benchmark_utils}:{benchmark_utils}:ro",
     *([
         f"--volume={src!s}:{dst!s}:{mode}"
         for src, dst, mode in mounts
@@ -93,16 +104,20 @@ podman = lambda image, mounts: PrefixTool([
     f"--cpus={ncpus}",
     "--rm",
     image,
-])
+]
 
 
-timer_thunk = lambda: PrefixTool([
-    nix_build("nixpkgs#time") / "bin/time",
-    "--format",
-    '{"wall_time": %e, "kernel_time": %s, "user_time": %U, "memory": %M, "returncode": %x}',
-    "--output",
-    "/scratch/time.json",
-])
+no_random = [benchmark_utils / "no-random"]
+
+
+timer = [
+    benchmark_utils / "process-stabilize",
+    # "--disable-aslr",
+    "--repetitions=1",
+    # "--key=",
+    "/scratch/time.yaml",
+    "--",
+]
 
 
 tracers = {
@@ -170,7 +185,6 @@ workloads = {
     "resnet-tf-mg": Workload(
         join_cmds(
             ["python", "/scripts/10-download.py"],
-            ["python", "/scripts/20-tokenizer.py"],
         ),
         join_cmds(
             ["env", "-", "python", "/scripts/10-download.py"],
@@ -204,14 +218,13 @@ def podman_build(context: pathlib.Path, tag: str) -> None:
 
 
 def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Mapping[str, typing.Any]:
-    timer = timer_thunk()
     workload = workloads[workload_name]
     tracer = tracers[tracer_name]()
 
     podman_build(workload.context, workload_name)
 
     if workload.setup:
-        cmd = podman(workload_name, workload.mounts).prefix + workload.run
+        cmd = podman(workload_name, workload.mounts) + workload.run
         print(f"Running {tracer_name} {workload_name} setup")
         print(shlex.join(map(str, cmd)))
         subprocess.run(
@@ -221,7 +234,7 @@ def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Mapping[st
     if time_json.exists():
         time_json.unlink()
 
-    cmd = podman(workload_name, workload.mounts).prefix + timer.prefix + tracer.prefix + workload.run
+    cmd = stabilize + podman(workload_name, workload.mounts) + no_random + timer + tracer.prefix + workload.run
     print(f"Running {tracer_name} {workload_name}")
     print(shlex.join(map(str, cmd)))
     subprocess.run(
@@ -229,45 +242,57 @@ def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Mapping[st
         check=True,
     )
 
-    resources = json.loads(time_json.read_bytes() if time_json.exists() else "{}")
-    if resources.get("returncode") != 0:
-        print(shlex.join(map(str, cmd)))
-        raise RuntimeError()
+    resources = yaml.load(time_json.read_bytes() if time_json.exists() else "{}", Loader=TupleKeyLoader)
 
-    if tracer.make_artifact and iteration == 0:
-        cmd = podman(workload_name, workload.mounts).prefix + tracer.make_artifact
-        print(f"Running {tracer_name} {workload_name} artifact")
-        print(shlex.join(map(str, cmd)))
-        subprocess.run(
-            cmd,
-            check=True,
-        )
-        assert tracer.artifact
-        artifact_path = results_dir / "artifacts" / tracer_name / workload_name
-        artifact_path.parent.mkdir(exist_ok=True, parents=True)
-        if artifact_path.exists():
-            artifact_path.unlink()
-        shutil.move(scratch_dir / tracer.artifact, artifact_path)
+    # if tracer.make_artifact and iteration == 0:
+    #     cmd = podman(workload_name, workload.mounts) + tracer.make_artifact
+    #     print(f"Running {tracer_name} {workload_name} artifact")
+    #     print(shlex.join(map(str, cmd)))
+    #     subprocess.run(
+    #         cmd,
+    #         check=True,
+    #     )
+    #     assert tracer.artifact
+    #     artifact_path = results_dir / "artifacts" / tracer_name / workload_name
+    #     artifact_path.parent.mkdir(exist_ok=True, parents=True)
+    #     if artifact_path.exists():
+    #         artifact_path.unlink()
+    #     shutil.move(scratch_dir / tracer.artifact, artifact_path)
 
     return resources
 
 
+class TupleKeyLoader(yaml.SafeLoader):
+    pass
+
+def construct_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if isinstance(key, list):
+            key = tuple(key)
+        value = loader.construct_object(value_node, deep=True)
+        mapping[key] = value
+    return mapping
+
+TupleKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    construct_mapping,
+)
+
+
 repetitions = 5
 schema = {
-    "tracer": str,
-    "workload": str,
-    "iteration": polars.Int64,
-    "wall_time": polars.Float64,
-    "cpu_time": polars.Float64,
-    "kernel_time": polars.Float64,
-    "memory": polars.Float64,
+    "tracer": polars.Categorical(),
+    "workload": polars.Categorical(),
+    "iteration": polars.Int8(),
+    "wall_time": polars.datatypes.Duration("us"),
+    "cpu_time": polars.datatypes.Duration("us"),
+    "kernel_time": polars.datatypes.Duration("us"),
+    "memory": polars.UInt64(),
 }
-engine = sqlalchemy.create_engine(connection)
-if sqlalchemy.inspect(engine).has_table("experiment"):
-    df = polars.read_database(
-        query="SELECT * FROM experiment", 
-        connection=engine,
-    )
+if results_file.exists():
+    df = polars.read_parquet(results_file)
 else:
     df = polars.DataFrame(
         data={
@@ -301,15 +326,11 @@ for it in range(repetitions):
             "tracer": [tracer_name],
             "workload": [workload_name],
             "iteration": [iteration],
-            "wall_time": [resources["wall_time"]],
-            "cpu_time": [resources["user_time"]],
-            "kernel_time": [resources["kernel_time"]],
-            "memory": [float(resources["memory"])],
+            "wall_time": [resources["rusage"]["stop"] - resources["rusage"]["start"]],
+            "cpu_time": [resources["rusage"]["cpu_user_us"]],
+            "kernel_time": [resources["rusage"]["cpu_system_us"]],
+            "memory": [resources["rusage"]["peak_memory_usage"]],
         }, schema=schema))
-        df.write_database(
-            table_name="experiment",
-            connection=engine,
-            if_table_exists="replace",
-        )
+        df.write_parquet(results_file)
 print("done")
 print(df)
