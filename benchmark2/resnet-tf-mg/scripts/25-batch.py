@@ -4,7 +4,7 @@ import tensorflow_text
 train_examples = tf.data.Dataset.load('train_examples')
 val_examples = tf.data.Dataset.load('val_examples')
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
 MAX_TOKENS = 128
 def prepare_batch(pt, en):
@@ -32,5 +32,5 @@ def make_batches(ds):
 train_batches = make_batches(train_examples)
 val_batches = make_batches(val_examples)
 
-tf.data.Dataset.save(train_batches, 'train_batches')
-tf.data.Dataset.save(val_batches, 'val_batches')
+tf.data.Dataset.save(train_batches, '/scratch/train_batches')
+tf.data.Dataset.save(val_batches, '/scratch/val_batches')

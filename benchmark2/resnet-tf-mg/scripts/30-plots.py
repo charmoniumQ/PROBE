@@ -7,8 +7,8 @@ root = pathlib.Path(__file__).resolve().parent.resolve()
 sys.path.insert(0, str(root))
 import components
 
-train_batches = tf.data.Dataset.load('train_batches')
-val_batches = tf.data.Dataset.load('val_batches')
+train_batches = tf.data.Dataset.load('/scratch/train_batches')
+val_batches = tf.data.Dataset.load('/scratch/val_batches')
 
 pos_encoding = components.positional_encoding(length=2048, depth=512)
 
