@@ -10,8 +10,8 @@ root = pathlib.Path(__file__).resolve().parent.resolve()
 sys.path.insert(0, str(root))
 import components
 
-train_batches = tf.data.Dataset.load('train_batches')
-val_batches = tf.data.Dataset.load('val_batches')
+train_batches = tf.data.Dataset.load('/scratch/train_batches')
+val_batches = tf.data.Dataset.load('/scratch/val_batches')
 
 
 for (pt, en), en_labels in train_batches.take(1):
@@ -26,7 +26,7 @@ print(en_labels[0][:10])
 
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
 embed_pt = components.PositionalEmbedding(vocab_size=tokenizers.pt.get_vocab_size().numpy(), d_model=512)
 embed_en = components.PositionalEmbedding(vocab_size=tokenizers.en.get_vocab_size().numpy(), d_model=512)

@@ -13,10 +13,10 @@ model_name = 'ted_hrlr_translate_pt_en_converter'
 tf.keras.utils.get_file(
     f'{model_name}.zip',
     f'https://storage.googleapis.com/download.tensorflow.org/models/{model_name}.zip',
-    cache_dir='.', cache_subdir='', extract=True
+    cache_dir='/scratch/', cache_subdir='', extract=True
 )
 
-tokenizers = tf.saved_model.load(f'{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
 print([item for item in dir(tokenizers.en) if not item.startswith('_')])
 

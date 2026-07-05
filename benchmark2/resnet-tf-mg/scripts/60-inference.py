@@ -6,7 +6,7 @@ import tensorflow_text
 import components
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
 MAX_TOKENS=128
 class Translator(tf.Module):
@@ -78,9 +78,9 @@ num_heads = 8
 dropout_rate = 0.1
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
-transformer = new_model = tf.keras.models.load_model('trained_model.keras')
+transformer = new_model = tf.keras.models.load_model('/scratch/trained_model.keras')
 #transformer.load_weights('trained_model.weights.h5')
 
 translator = Translator(tokenizers, transformer)

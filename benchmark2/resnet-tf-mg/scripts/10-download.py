@@ -16,8 +16,8 @@ ted_hrlr_translate_dataset_builder._DATA_URL = (
     data_dir="/scratch/data"
 )
 
-tf.data.Dataset.save(train_examples, 'train_examples')
-tf.data.Dataset.save(val_examples, 'val_examples')
+tf.data.Dataset.save(train_examples, '/scratch/train_examples')
+tf.data.Dataset.save(val_examples, '/scratch/val_examples')
 
 for pt_examples, en_examples in train_examples.batch(3).take(1):
     print('> Examples in Portuguese:')

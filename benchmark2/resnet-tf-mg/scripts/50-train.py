@@ -9,8 +9,8 @@ root = pathlib.Path(__file__).resolve().parent.resolve()
 sys.path.insert(0, str(root))
 import components
 
-train_batches = tf.data.Dataset.load('train_batches')
-val_batches = tf.data.Dataset.load('val_batches')
+train_batches = tf.data.Dataset.load('/scratch/train_batches')
+val_batches = tf.data.Dataset.load('/scratch/val_batches')
 
 
 # Instantiate the optimizer (in this example it's `tf.keras.optimizers.Adam`):
@@ -69,7 +69,7 @@ num_heads = 8
 dropout_rate = 0.1
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
 transformer = components.Transformer(
     num_layers=num_layers,
@@ -102,6 +102,6 @@ transformer.fit(train_batches,
                 epochs=1,
                 validation_data=val_batches)
 
-transformer.save('trained_model.keras')
-transformer.save_weights('trained_model.weights.h5')
+transformer.save('/scratch/trained_model.keras')
+transformer.save_weights('/scratch/trained_model.weights.h5')
 print('Trained model weights saved.')
