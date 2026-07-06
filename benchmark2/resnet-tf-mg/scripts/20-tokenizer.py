@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
+import matplotlib
+matplotlib.use('Agg')
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 import tensorflow as tf
 import tensorflow_text
 
-train_examples = tf.data.Dataset.load('train_examples')
-val_examples = tf.data.Dataset.load('val_examples')
+train_examples = tf.data.Dataset.load('/scratch/train_examples')
+val_examples = tf.data.Dataset.load('/scratch/val_examples')
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
 tf.keras.utils.get_file(
@@ -56,3 +59,4 @@ plt.ylim(plt.ylim())
 max_length = max(all_lengths)
 plt.plot([max_length, max_length], plt.ylim())
 plt.title(f'Maximum tokens per example: {max_length}')
+plt.savefig('/scratch/token_lengths.png')
