@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import argparse
+
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tensorflow_text
@@ -9,17 +11,22 @@ root = pathlib.Path(__file__).resolve().parent.resolve()
 sys.path.insert(0, str(root))
 import components
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--num-layers', type=int, default=4)
+parser.add_argument('--d-model', type=int, default=128)
+parser.add_argument('--dff', type=int, default=512)
+parser.add_argument('--num-heads', type=int, default=8)
+parser.add_argument('--dropout-rate', type=float, default=0.1)
+parser.add_argument('--epochs', type=int, default=1)
+parser.add_argument('--warmup-steps', type=int, default=4000)
+args = parser.parse_args()
+
 train_batches = tf.data.Dataset.load('/scratch/train_batches')
 val_batches = tf.data.Dataset.load('/scratch/val_batches')
 
 
-# Instantiate the optimizer (in this example it's `tf.keras.optimizers.Adam`):
-
-# In[ ]:
-
-
-d_model = 128
-learning_rate = components.CustomSchedule(d_model)
+d_model = args.d_model
+learning_rate = components.CustomSchedule(d_model, warmup_steps=args.warmup_steps)
 
 optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                      epsilon=1e-9)
@@ -62,23 +69,17 @@ def masked_accuracy(label, pred):
   return tf.reduce_sum(match)/tf.reduce_sum(mask)
 
 
-num_layers = 4
-d_model = 128
-dff = 512
-num_heads = 8
-dropout_rate = 0.1
-
 model_name = 'ted_hrlr_translate_pt_en_converter'
 tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
 transformer = components.Transformer(
-    num_layers=num_layers,
-    d_model=d_model,
-    num_heads=num_heads,
-    dff=dff,
+    num_layers=args.num_layers,
+    d_model=args.d_model,
+    num_heads=args.num_heads,
+    dff=args.dff,
     input_vocab_size=tokenizers.pt.get_vocab_size().numpy(),
     target_vocab_size=tokenizers.en.get_vocab_size().numpy(),
-    dropout_rate=dropout_rate)
+    dropout_rate=args.dropout_rate)
 
 # output = transformer((pt, en))
 
@@ -99,7 +100,7 @@ transformer.compile(
 
 
 transformer.fit(train_batches,
-                epochs=1,
+                epochs=args.epochs,
                 validation_data=val_batches)
 
 transformer.save('/scratch/trained_model.keras')

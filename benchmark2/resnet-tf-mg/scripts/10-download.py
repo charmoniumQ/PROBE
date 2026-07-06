@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import argparse
+
 import tensorflow_datasets as tfds
 import tensorflow as tf
 
@@ -8,12 +10,18 @@ ted_hrlr_translate_dataset_builder._DATA_URL = (
     "https://web.archive.org/web/20240301220426if_/http://www.phontron.com/data/qi18naacl-dataset.tar.gz"
 )
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--train-split', default='train[:1%]')
+parser.add_argument('--val-split', default='validation[:1%]')
+parser.add_argument('--data-dir', default='/scratch/data')
+args = parser.parse_args()
+
 (train_examples, val_examples), metadata = tfds.load(
     'ted_hrlr_translate/pt_to_en',
-    split=['train[:1%]', 'validation[:1%]'],
+    split=[args.train_split, args.val_split],
     with_info=True,
     as_supervised=True,
-    data_dir="/scratch/data"
+    data_dir=args.data_dir
 )
 
 tf.data.Dataset.save(train_examples, '/scratch/train_examples')

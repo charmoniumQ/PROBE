@@ -1,14 +1,29 @@
 #!/usr/bin/env python
 
+import argparse
+
+import matplotlib
+matplotlib.use('Agg')
+
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import tensorflow_text
+
+import sys
+import pathlib
+root = pathlib.Path(__file__).resolve().parent.resolve()
+sys.path.insert(0, str(root))
 import components
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--max-tokens', type=int, default=128,
+                    help='Maximum token length for translation generation')
+args = parser.parse_args()
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
 tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
-MAX_TOKENS=128
+MAX_TOKENS = args.max_tokens
 class Translator(tf.Module):
   def __init__(self, tokenizers, transformer):
     self.tokenizers = tokenizers
@@ -71,17 +86,11 @@ class Translator(tf.Module):
 # Create an instance of this `Translator` class, and try it out a few times:
 
 # In[ ]:
-num_layers = 4
-d_model = 128
-dff = 512
-num_heads = 8
-dropout_rate = 0.1
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
 tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
-transformer = new_model = tf.keras.models.load_model('/scratch/trained_model.keras')
-#transformer.load_weights('trained_model.weights.h5')
+transformer = tf.keras.models.load_model('/scratch/trained_model.keras', compile=False)
 
 translator = Translator(tokenizers, transformer)
 def print_translation(sentence, tokens, ground_truth):

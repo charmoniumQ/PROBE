@@ -196,6 +196,7 @@ class Transformer(tf.keras.Model):
     def __init__(self, *, num_layers, d_model, num_heads, dff,
                  input_vocab_size, target_vocab_size, dropout_rate=0.1):
         super().__init__()
+        d_model = int(d_model)
         self.encoder = Encoder(num_layers=num_layers, d_model=d_model,
                                num_heads=num_heads, dff=dff,
                                vocab_size=input_vocab_size,
@@ -214,7 +215,7 @@ class Transformer(tf.keras.Model):
     def get_config(self):
         return {
             "num_layers": self.encoder.num_layers,
-            "d_model": float(self.encoder.d_model),
+            "d_model": self.encoder.d_model,
             "num_heads": self.num_heads,
             "dff": self.dff,
             "input_vocab_size": self.input_vocab_size,

@@ -1,12 +1,20 @@
+import argparse
+
 import tensorflow as tf
 import tensorflow_text
 
-train_examples = tf.data.Dataset.load('train_examples')
-val_examples = tf.data.Dataset.load('val_examples')
+parser = argparse.ArgumentParser()
+parser.add_argument('--max-tokens', type=int, default=128)
+parser.add_argument('--buffer-size', type=int, default=20000)
+parser.add_argument('--batch-size', type=int, default=64)
+args = parser.parse_args()
+
+train_examples = tf.data.Dataset.load('/scratch/train_examples')
+val_examples = tf.data.Dataset.load('/scratch/val_examples')
 model_name = 'ted_hrlr_translate_pt_en_converter'
 tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
 
-MAX_TOKENS = 128
+MAX_TOKENS = args.max_tokens
 def prepare_batch(pt, en):
     pt = tokenizers.pt.tokenize(pt)
     pt = pt[:, :MAX_TOKENS]
@@ -17,8 +25,8 @@ def prepare_batch(pt, en):
     en_labels = en[:, 1:].to_tensor()
     return (pt, en_inputs), en_labels
 
-BUFFER_SIZE = 20000
-BATCH_SIZE = 64
+BUFFER_SIZE = args.buffer_size
+BATCH_SIZE = args.batch_size
 
 def make_batches(ds):
     return (
