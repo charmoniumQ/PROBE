@@ -1,9 +1,11 @@
 from __future__ import annotations
 import asyncio
 import subprocess
+import os
 import pathlib
 import typing
 import shlex
+import shutil
 import pydantic
 import yaml
 import util
@@ -65,28 +67,14 @@ class Repo(pydantic.BaseModel):
     unrecorded_commands: list[str] = []
     commands: list[str] = []
 
-    def dockerfile(self, probe_tag: str) -> list[str]:
-        return [
-            f"FROM {self.environment.base_image}",
-            *self.environment.get_rootful_steps(),
-            "RUN useradd --system --user-group user --create-home",
-            # "USER user",
-            # TODO: re-enable user de-escalation when we start to run lots of code.
-            *(["COPY --chown=user:user repo /home/user/repo"] if self.location is not None else []),
-            "WORKDIR /home/user/repo",
-            *self.environment.get_rootless_steps(),
-            f"COPY --from=probe:{probe_tag} /nix /nix",
-            f"COPY --from=probe:{probe_tag} /bin/probe /bin/probe",
-            *(["COPY --chown=user:user pre_run.sh ."] if self.unrecorded_commands else []),
-            *(["COPY --chown=user:user run.sh ."] if self.commands else []),
-        ]
-
     async def to_docker(
             self,
             name: str,
             probe_tag: str,
             podman_or_docker: str,
             tag: str,
+            de_escalate: bool,
+            dry_run: bool,
             verbose: bool,
     ) -> None:
         work_dir = cache_dir / name
@@ -108,19 +96,74 @@ class Repo(pydantic.BaseModel):
                     ],
                     hide_output=not verbose,
                 )
+            copy_repo_command = ["COPY --chown=user:user repo /home/user/repo"]
+        else:
+            copy_repo_command = []
 
         if self.unrecorded_commands:
             pre_run = work_dir / "pre_run.sh"
             pre_run.write_text("#!/usr/bin/env bash\nset -euxo pipefail\n" + "\n".join(self.unrecorded_commands))
             pre_run.chmod(0o755)
+            copy_pre_run_command = ["COPY --chown=user:user pre_run.sh ."]
+        else:
+            copy_pre_run_command = []
 
         if self.commands:
             run = work_dir / "run.sh"
             run.write_text("#!/usr/bin/env bash\nset -euxo pipefail\n" + "\n".join(self.commands))
             run.chmod(0o755)
+            copy_run_command = ["COPY --chown=user:user run.sh ."]
+        else:
+            copy_run_command = []
+
+
+        if "SSL_CERT_FILE" in os.environ:
+            # Copy from root, but make me the owner of the copy.
+            with pathlib.Path(os.environ["SSL_CERT_FILE"]).open("rb") as input:
+                with (work_dir / "cert.pem").open("wb") as output:
+                    shutil.copyfileobj(input, output)
+            cert_commands = [
+                "COPY cert.pem /cert.pem",
+                "ENV SSL_CERT_FILE=/cert.pem \\",
+                "    PIP_CERT=/cert.pem \\",
+                "    REQUESTS_CA_BUNDLE=/cert.pem",
+            ]
+        else:
+            cert_commands = []
+        # http_proxy has to be lowercase.
+        # See https://everything.curl.dev/usingcurl/proxies/env.html
+        proxy_var_values = [
+            f"{var}={os.environ[var]}"
+            for var in ["https_proxy", "http_proxy", "HTTPS_PROXY", "HTTP_PROXY", "no_proxy"]
+            if var in os.environ
+        ]
+        if proxy_var_values:
+            proxy_var_commands = ["ENV " + " ".join(proxy_var_values)]
+        else:
+            proxy_var_commands = []
+
+        if de_escalate:
+            de_escalate_cmds = ["USER user"]
+        else:
+            de_escalate_cmds = []
+
+        dockerfile_source = [
+            f"FROM {self.environment.base_image}",
+            *proxy_var_commands,
+            *cert_commands,
+            *self.environment.get_rootful_steps(),
+            "RUN useradd --system --user-group user --create-home",
+            *de_escalate_cmds,
+            *copy_repo_command,
+            "WORKDIR /home/user/repo",
+            *self.environment.get_rootless_steps(),
+            f"COPY --from=probe:{probe_tag} /nix /nix",
+            f"COPY --from=probe:{probe_tag} /bin/probe /bin/probe",
+            *copy_pre_run_command,
+            *copy_run_command,
+        ]
 
         dockerfile_path = work_dir / "Dockerfile"
-        dockerfile_source = self.dockerfile(probe_tag)
         dockerfile_path.write_text("\n".join(dockerfile_source))
 
         if verbose:
@@ -128,15 +171,20 @@ class Repo(pydantic.BaseModel):
             for line in dockerfile_source:
                 print("  " + line)
 
-        await util.async_subprocess_run(
-            [podman_or_docker, "build", f"--file={dockerfile_path}", f"--tag={tag}", str(work_dir)],
-            hide_output=not verbose,
-        )
+        cmd = [podman_or_docker, "build", f"--file={dockerfile_path}", f"--tag={tag}", str(work_dir)]
+        if dry_run:
+            print(shlex.join(cmd))
+        else:
+            await util.async_subprocess_run(cmd, hide_output=not verbose)
+
+
+subproject_root = pathlib.Path(__file__).resolve().parent
+project_root = subproject_root.parent.parent.parent
 
 
 repos: list[Repo] = pydantic.TypeAdapter(list[Repo]).validate_python(
     yaml.safe_load(
-        pathlib.Path("repos.yaml").read_text()
+        (subproject_root / "repos.yaml").read_text()
     )
 )
 
@@ -151,7 +199,8 @@ def main(
         probe_tag: str = "0.0.13",
         podman_or_docker: str = "docker",
         verbose: bool = True,
-        run: bool = False,
+        dry_run: bool = True,
+        de_escalate: bool = False,
         downloads_dir = pathlib.Path(".cache2")
 ) -> None:
     for repo in repos:
@@ -160,7 +209,7 @@ def main(
     else:
         print(f"Repo {name} not found")
         raise typer.Abort()
-    asyncio.run(repo.to_docker(name, probe_tag, podman_or_docker, f"{name}:{probe_tag}", verbose))
+    asyncio.run(repo.to_docker(name, probe_tag, podman_or_docker, f"{name}:{probe_tag}", de_escalate, dry_run, verbose))
     cmd = [
         podman_or_docker,
         "run",
@@ -171,10 +220,10 @@ def main(
         "--rm",
         f"{name}:{probe_tag}",
     ]
-    if run:
-        subprocess.run(cmd)
-    else:
+    if dry_run:
         print(shlex.join(cmd))
+    else:
+        subprocess.run(cmd)
 
 
 if __name__ == "__main__":

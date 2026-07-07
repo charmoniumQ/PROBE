@@ -81,7 +81,7 @@
       - pip install torch torchvision torchaudio --find-links https://download.pytorch.org/whl/torch_stable.html
       - pip install --requirement requirements.txt
       - pip install --no-build-isolation --editable .
-      - pip install fv_core
+      - pip install fvcore opencv-python pillow==9.1.0
   commands:
     - cd projects/HandLer
     - python train.py --config-file configs/yt_trk.yaml
@@ -97,8 +97,15 @@
     python: "3.6"
     apt_packages:
       - git-core
+      - gcc
+      - g++
+      - python3-dev
+      - libgl1
+      - libglib2.0-0t64
     venv_commands:
+      - pip install --upgrade pip
       # Note: nonstandard name for requirements.txt
-      - pip install --requirement requirement.txt
-      - pip install torch
-      - pip install --no-build-isolation --editable .
+      # - pip install --requirement requirement.txt
+      # But this is a bit wrong because it installs a different detectron2 rather than the version in this repo.
+      - pip install torch numpy wheel cython
+      # - pip install --no-build-isolation --editable .
