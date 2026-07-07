@@ -1,3 +1,4 @@
+import collections
 import collections.abc
 import dataclasses
 import functools
@@ -5,12 +6,14 @@ import itertools
 import json
 import pathlib
 import random
+import re
 import shlex
 import shutil
 import subprocess
 import typing
 
 import polars
+import sqlite3
 import tqdm
 import yaml
 
@@ -46,7 +49,7 @@ def nix_build(buildable: str) -> pathlib.Path:
 @dataclasses.dataclass
 class Workload:
     setup: list[str | pathlib.Path] | None
-    run: list[str | pathlib.Path]
+    run: list[tuple[str, list[str | pathlib.Path]]]
     context: pathlib.Path
     mounts: list[tuple[pathlib.Path, pathlib.Path, str]]
 
@@ -56,6 +59,7 @@ class ProvTracer:
     prefix: list[str | pathlib.Path]
     make_artifact: list[str | pathlib.Path] | None
     artifact: pathlib.Path | None
+    count_ops: typing.Callable[[], collections.abc.Mapping[str, int]]
 
 
 root_dir = pathlib.Path(__file__).resolve().parent.parent.resolve()
@@ -76,6 +80,7 @@ stabilize = [
     # f"--reserved-memory={1024*1024*1024}",
     "--",
     benchmark_utils / "host-stabilize",
+    "--disable-aslr",
     "--reserved-cpus=0",
     "--disable-smt",
     "--disable-freq-scaling",
@@ -112,7 +117,6 @@ no_random = [benchmark_utils / "no-random"]
 
 timer = [
     benchmark_utils / "process-stabilize",
-    # "--disable-aslr",
     "--repetitions=1",
     # "--key=",
     "/scratch/time.yaml",
@@ -121,8 +125,18 @@ timer = [
 
 
 tracers = {
-    "none": lambda: ProvTracer([], None, None),
-    "probe": lambda: ProvTracer(
+    "none": lambda: ProvTracer([], None, None, lambda: {}),
+    "strace": lambda: ProvTracer(
+        [
+            nix_build(".#strace.out") / "bin/strace",
+            "--follow-forks",
+            "--output=/scratch/strace.log"
+        ],
+        None,
+        None,
+        lambda: strace_counts(scratch_dir / "strace.log"),
+    ),
+    "probe-fast": lambda: ProvTracer(
         [
             nix_build(".#probe") / "bin/probe",
             "record",
@@ -132,12 +146,13 @@ tracers = {
         ],
         None,
         None,
+        lambda: {},
     ),
-    "probe-2": lambda: ProvTracer(
+    "probe-slow": lambda: ProvTracer(
         [
             nix_build(".#probe") / "bin/probe",
             "record",
-            "--copy-files=none",
+            "--copy-files=eagerly",
             "--output=/scratch/probe_log",
             "--overwrite",
         ],
@@ -151,6 +166,7 @@ tracers = {
             "--loose",
         ],
         pathlib.Path("dataflow-graph.dot"),
+        lambda: probe_counts(scratch_dir / "probe_log"),
     ),
     "ptu": lambda: ProvTracer(
         [
@@ -159,6 +175,7 @@ tracers = {
         ],
         None,
         pathlib.Path("cde-package/provenance.cde-root.1.log"),
+        lambda: ptu_counts(scratch_dir / "cde-package/provenance.cde-root.1.log"),
     ),
     "rzip": lambda: ProvTracer(
         [
@@ -177,8 +194,54 @@ tracers = {
             ]
         ),
         pathlib.Path("provenance.dot"),
+        lambda: reprozip_counts(scratch_dir / "rpz/trace.sqlite3")
     ),
 }
+
+
+def probe_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
+    proc = subprocess.run(
+        ["probe", "py", "op-counts", "--probe-log", str(log)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(proc.stdout.strip().split("\n")[-1])
+
+
+def strace_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
+    line_regex = re.compile(r"^(?P<pid>\d+) +(?P<op>.+?)\(")
+    pids = set()
+    ops = collections.Counter[str]()
+    for line in log.read_text().split("\n"):
+        if match := line_regex.match(line):
+            pids.add(int(match.group("pid")))
+            ops[match.group("op")[:7]] += 1
+    return {**ops, "pids": len(pids)}
+
+
+def ptu_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
+    line_regex = re.compile(r"(?P<time>\d+) (?P<pid>\d+) (?P<op>[A-Z]+)")
+    pids = set()
+    ops = collections.Counter[str]()
+    for line in log.read_text().split("\n"):
+        if match := line_regex.match(line):
+            pids.add(int(match.group("pid")))
+            ops[match.group("op")[:7]] += 1
+    return {**ops, "pids": len(pids)}
+
+
+def reprozip_counts(db: pathlib.Path) -> collections.abc.Mapping[str, int]:
+    connection = sqlite3.connect(db)
+    cursor = connection.cursor()
+    return {
+        table: cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in [
+                "executed_files",
+                "opened_files",
+                "processes",
+        ]
+    }
 
 
 workloads = {
@@ -186,25 +249,28 @@ workloads = {
         join_cmds(
             ["python", "/scripts/10-download.py"],
         ),
-        join_cmds(
-            ["env", "-", "python", "/scripts/10-download.py"],
-            ["env", "-", "python", "/scripts/20-tokenizer.py"],
-            ["env", "-", "python", "/scripts/25-batch.py"],
-            ["env", "-", "python", "/scripts/30-plots.py"],
-            ["env", "-", "python", "/scripts/40-build-transformer.py"],
-            ["env", "-", "python", "/scripts/50-train.py"],
-        ),
+        [
+            ("download", ["env", "-", "python", "/scripts/10-download.py"]),
+            ("tokenize", ["env", "-", "python", "/scripts/20-tokenizer.py"]),
+            ("batch", ["env", "-", "python", "/scripts/25-batch.py"]),
+            ("plots", ["env", "-", "python", "/scripts/30-plots.py"]),
+            ("transformer", ["env", "-", "python", "/scripts/40-build-transformer.py"]),
+            ("train", ["env", "-", "python", "/scripts/50-train.py"]),
+            ("inference", ["env", "-", "python", "/scripts/60-inference.py"]),
+        ],
         root_dir / "benchmark2/resnet-tf-mg/context",
         [
             (root_dir / "benchmark2/resnet-tf-mg/scripts", pathlib.Path("/scripts"), "ro")
         ]
     ),
-    # "touch": Workload(
-    #     None,
-    #     ["touch", "test"],
-    #     root_dir / "benchmark2/resnet-tf-mg/context",
-    #     [],
-    # )
+    "simple": Workload(
+        ["python", "-c", "import pathlib, random\npathlib.Path('/scratch/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
+        [
+            ("open-close", ["python", "-c", "import pathlib\nfor _ in range(100):\n  pathlib.Path('/scratch/test.txt').read_text()"]),
+        ],
+        root_dir / "benchmark2/resnet-tf-mg/context",
+        [],
+    )
 }
 
 
@@ -217,32 +283,34 @@ def podman_build(context: pathlib.Path, tag: str) -> None:
     )
 
 
-def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Mapping[str, typing.Any]:
+def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Iterator[tuple[str, collections.abc.Mapping[str, typing.Any], collections.abc.Mapping[str, typing.Any]]]:
     workload = workloads[workload_name]
     tracer = tracers[tracer_name]()
 
     podman_build(workload.context, workload_name)
 
     if workload.setup:
-        cmd = podman(workload_name, workload.mounts) + workload.run
+        cmd = podman(workload_name, workload.mounts) + workload.setup
         print(f"Running {tracer_name} {workload_name} setup")
         print(shlex.join(map(str, cmd)))
         subprocess.run(
             cmd,
             check=True,
         )
-    if time_json.exists():
-        time_json.unlink()
 
-    cmd = stabilize + podman(workload_name, workload.mounts) + no_random + timer + tracer.prefix + workload.run
-    print(f"Running {tracer_name} {workload_name}")
-    print(shlex.join(map(str, cmd)))
-    subprocess.run(
-        cmd,
-        check=True,
-    )
-
-    resources = yaml.load(time_json.read_bytes() if time_json.exists() else "{}", Loader=TupleKeyLoader)
+    for label, stage_cmd in workload.run:
+        if time_json.exists():
+            time_json.unlink()
+        cmd = stabilize + podman(workload_name, workload.mounts) + no_random + timer + tracer.prefix + stage_cmd
+        print(f"Running {tracer_name} {workload_name}")
+        print(shlex.join(map(str, cmd)))
+        subprocess.run(
+            cmd,
+            check=True,
+        )
+        ops = tracer.count_ops()
+        resources = yaml.load(time_json.read_bytes() if time_json.exists() else "{}", Loader=TupleKeyLoader)
+        yield label, resources, ops
 
     # if tracer.make_artifact and iteration == 0:
     #     cmd = podman(workload_name, workload.mounts) + tracer.make_artifact
@@ -258,8 +326,6 @@ def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Mapping[st
     #     if artifact_path.exists():
     #         artifact_path.unlink()
     #     shutil.move(scratch_dir / tracer.artifact, artifact_path)
-
-    return resources
 
 
 class TupleKeyLoader(yaml.SafeLoader):
@@ -281,15 +347,17 @@ TupleKeyLoader.add_constructor(
 )
 
 
-repetitions = 5
+repetitions = 10
 schema = {
     "tracer": polars.Categorical(),
     "workload": polars.Categorical(),
+    "stage": polars.Categorical(),
     "iteration": polars.Int8(),
     "wall_time": polars.datatypes.Duration("us"),
     "cpu_time": polars.datatypes.Duration("us"),
     "kernel_time": polars.datatypes.Duration("us"),
     "memory": polars.UInt64(),
+    "op_counts": polars.List(polars.Struct({"key": polars.String, "value": polars.UInt32})),
 }
 if results_file.exists():
     df = polars.read_parquet(results_file)
@@ -298,11 +366,13 @@ else:
         data={
             "tracer": [],
             "workload": [],
+            "stage": [],
             "iteration": [],
             "wall_time": [],
             "cpu_time": [],
             "kernel_time": [],
             "memory": [],
+            "op_counts": [],
         },
         schema=schema,
     )
@@ -312,7 +382,7 @@ print(df)
 
 
 trials_done = set(df.select(["tracer", "workload", "iteration"]).rows())
-for it in range(repetitions):
+for it in tqdm.trange(repetitions, desc="trials"):
     trials = set(itertools.product(
         tracers.keys(),
         workloads.keys(),
@@ -320,17 +390,23 @@ for it in range(repetitions):
     ))
     trials_to_do = list(trials - trials_done)
     random.Random(0).shuffle(trials_to_do)
-    for tracer_name, workload_name, iteration in tqdm.tqdm(trials_to_do, desc="trials"):
-        resources = do_trial(tracer_name, workload_name)
-        df = df.vstack(polars.DataFrame({
-            "tracer": [tracer_name],
-            "workload": [workload_name],
-            "iteration": [iteration],
-            "wall_time": [resources["rusage"]["stop"] - resources["rusage"]["start"]],
-            "cpu_time": [resources["rusage"]["cpu_user_us"]],
-            "kernel_time": [resources["rusage"]["cpu_system_us"]],
-            "memory": [resources["rusage"]["peak_memory_usage"]],
-        }, schema=schema))
-        df.write_parquet(results_file)
+    for tracer_name, workload_name, iteration in trials_to_do:
+        for stage, resources, ops in do_trial(tracer_name, workload_name):
+            new_row = polars.DataFrame({
+                "tracer": [tracer_name],
+                "workload": [workload_name],
+                "stage": [stage],
+                "iteration": [iteration],
+                "wall_time": [resources["rusage"]["stop"] - resources["rusage"]["start"]],
+                "cpu_time": [resources["rusage"]["cpu_user_us"]],
+                "kernel_time": [resources["rusage"]["cpu_system_us"]],
+                "memory": [resources["rusage"]["peak_memory_usage"]],
+                "op_counts": [[
+                    {"key": key, "value": value}
+                    for key, value in ops.items()
+                ]],
+            }, schema=schema)
+            df = df.vstack(new_row)
+            df.write_parquet(results_file)
 print("done")
 print(df)

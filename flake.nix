@@ -104,7 +104,7 @@
                 python.pkgs.watchfiles
               ];
           });
-          inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use provenance-to-use-dir;
+          inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use provenance-to-use-dir strace;
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli probe-headers;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
@@ -322,6 +322,7 @@
             pypkgs.polars
             pypkgs.pandas # Polars: writing with 'sqlalchemy' engine currently requires pandas.
             pypkgs.pyarrow
+            pypkgs.statsmodels
 
             # probe_py "dev time" requirements
             packages.types-networkx

@@ -172,21 +172,27 @@ result probe_libc_init(void) {
 
         aux_entry tmp;
         ssize_t size = probe_syscall5(SYS_prctl, PR_GET_AUXV, (uintptr_t)&tmp, /*size*/ 0, 0, 0);
+        aux_entry* buf;
         if (size < 0) {
-            // the only listed error condition for PR_GET_AUXV is EFAULT for an
-            // invalid address, so an error here implies some kind of kernel
-            // state corruption
-            ERROR("failed to PR_GET_AUXV; something is broken in the kernel");
-        }
-
-        aux_entry* buf = calloc(size, 1);
-        if (buf == NULL) {
-            WARNING("failed to allocate buffer for auxiliary vector");
-            return ENOMEM;
-        }
-        size = probe_syscall5(SYS_prctl, PR_GET_AUXV, (uintptr_t)buf, size, 0, 0);
-        if (size < 0) {
-            ERROR("failed to PR_GET_AUXV; either calloc or the kernel is corrupted");
+            result_int fd = probe_libc_openat(AT_FDCWD, "/proc/self/auxval", O_RDONLY, 0);
+            if (fd.error) {
+                ERROR("prctl(PR_GET_AUXV, ...) failed and openat(\"/proc/self/auxval\") also failed.");
+            }
+            result_sized_mem buf_result = probe_read_all_alloc(fd.value);
+            if (buf_result.error) {
+                ERROR("prctl(PR_GET_AUXV, ...) failed, openat(\"/proc/self/auxval\") succeeded, but probe_read_all_alloc(...) failed.");
+            }
+            buf = buf_result.value;
+        } else {
+            buf = calloc(size, 1);
+            if (buf == NULL) {
+                WARNING("failed to allocate buffer for auxiliary vector");
+                return ENOMEM;
+            }
+            size = probe_syscall5(SYS_prctl, PR_GET_AUXV, (uintptr_t)buf, size, 0, 0);
+            if (size < 0) {
+                ERROR("failed to PR_GET_AUXV; either calloc or the kernel is corrupted");
+            }
         }
 
         size_t entries = (size / sizeof(aux_entry));
