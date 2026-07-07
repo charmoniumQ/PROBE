@@ -43,7 +43,7 @@ enum AccessType {
 
 static inline void path_to_id_string(const struct Inode inode, BORROWED char* string) {
     CHECK_SNPRINTF(
-        string, PATH_MAX, "/inodes/%04x-%04x-%016lx-%016lldx-%08x-%016lx", inode.device_major,
+        string, PATH_MAX, "/inodes/%04x-%04x-%016lx-%016llx-%08x-%016lx", inode.device_major,
         inode.device_minor, inode.number,
         /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
         (long long int)inode.mtime.tv_sec, inode.mtime.tv_nsec, inode.size);

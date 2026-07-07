@@ -15,6 +15,7 @@
         python = pkgs.python312;
       in rec {
         packages = rec {
+          strace = pkgs.strace;
           rpaths = python.pkgs.buildPythonPackage rec {
             pname = "rpaths";
             version = "1.0.0";

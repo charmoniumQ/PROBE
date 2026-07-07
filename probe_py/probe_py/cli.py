@@ -1,4 +1,5 @@
 from typing_extensions import Annotated
+import collections
 import dataclasses
 import enum
 import json
@@ -312,6 +313,32 @@ def debug_text(
                             op_data_json = json.dumps({key: value for key, value in op_data.items() if not strip_env or key != "env"}, indent=2)
                             print(f"{prefix}{op_no} {op_type}", file=output_fd)
                             print(textwrap.indent(op_data_json, prefix=len(prefix) * " "), file=output_fd)
+
+
+@app.command()
+def op_counts(
+        probe_log: Annotated[
+            pathlib.Path,
+            probe_log_help,
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Print the number of ops
+    """
+    ret = collections.Counter[str]()
+    with (
+            parser.parse_probe_log_ctx(probe_log) as probe_log_obj,
+    ):
+        for pid, process in sorted(probe_log_obj.processes.items()):
+            ret["count_procs"] += 1
+            for exid, exec_epoch in sorted(process.execs.items()):
+                ret["count_execs"] += 1
+                for tid, thread in sorted(exec_epoch.threads.items()):
+                    ret["count_tids"] += 1
+                    for op_no, op in enumerate(thread.ops):
+                        op_name = op.data.__class__.__name__
+                        ret[f"op_{op_name}"] += 1
+    print(json.dumps(ret))
 
 
 @export_app.command()
