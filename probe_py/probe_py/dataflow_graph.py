@@ -76,9 +76,10 @@ CUTOFF: typing.Final[int] = 4
 def hb_graph_to_dataflow_graph(
     probe_log: ptypes.ProbeLog,
     hb_graph: hb_graph_mod.HbGraph,
+    verbose: bool,
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = networkx.DiGraph()
-    analysis = Analysis.init(probe_log, hb_graph)
+    analysis = Analysis.init(probe_log, hb_graph, verbose)
     inode_intervals = find_intervals(analysis)
     print(
         f"{len(inode_intervals)} inodes, {sum(len(intervals) for intervals in inode_intervals.values())} intervals"
@@ -106,7 +107,7 @@ def hb_graph_to_dataflow_graph(
         for clone_quad, target in analysis.clones:
             dfg.add_edge(clone_quad, target, label=EdgeType.FORK)
         stitch_program_order(dfg, analysis)
-    compressed_dfg = compress(analysis, dfg)
+    compressed_dfg = compress(analysis, dfg, verbose)
     return analysis, compressed_dfg
 
 
@@ -189,7 +190,7 @@ class Analysis:
         frozenset[ptypes.OpQuad],
     ]
     sources: set[ptypes.OpQuad]
-    verbose: bool = False
+    verbose: bool
     open_numbers: dict[
         ptypes.ExecPair,
         dict[
@@ -214,6 +215,7 @@ class Analysis:
     def init(
         probe_log: ptypes.ProbeLog,
         hb_graph: hb_graph_mod.HbGraph,
+        verbose: bool,
     ) -> Analysis:
         with charmonium.time_block.ctx("vector clocks", print_start=False):
             order = vector_clock.from_dag(hb_graph, lambda node: node.thread_triple())
@@ -226,6 +228,7 @@ class Analysis:
             order=order,
             highest_peers=highest_peers,
             sources=set(graph_utils.get_sources(hb_graph)),
+            verbose=verbose,
         )
 
     @charmonium.time_block.decor(print_start=True)
@@ -274,7 +277,7 @@ class Analysis:
                     if self.verbose:
                         print(f"Open {quad}: {data.open_number} {inode} {access_mode}")
                     assert data.open_number.number != 0, (
-                        "zero open-number should not be used for newly opened files"
+                        f"zero open-number should not be used for newly opened files: {quad} {data.open_number} {inode} {access_mode}"
                     )
                     assert data.open_number.number not in open_numbers[data.open_number.fd]
                     open_numbers[data.open_number.fd][data.open_number.number] = OpenNumberInfo(
@@ -559,7 +562,7 @@ def stitch_intervals(
 def compress(
     analysis: Analysis,
     dfg: UncompressedDataflowGraph,
-    verbose: bool = True,
+    verbose: bool,
 ) -> DataflowGraph:
     dfg_old = trivial_compress(dfg)
 

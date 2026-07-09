@@ -195,7 +195,7 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, debug)
     dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to)
     graph_utils.serialize_graph(dfg, output)
 

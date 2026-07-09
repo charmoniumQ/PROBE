@@ -328,6 +328,7 @@
             packages.types-networkx
             packages.datamodel-code-generator
             pypkgs.ipython
+            pypkgs.ipdb
             pypkgs.mypy
             pypkgs.pytest
             pypkgs.pytest-asyncio
