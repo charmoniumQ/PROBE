@@ -25,3 +25,4 @@
 
 probe_log
 .dmypy.json
+.scratch/

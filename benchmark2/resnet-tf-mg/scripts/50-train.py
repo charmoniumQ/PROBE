@@ -19,10 +19,11 @@ parser.add_argument('--num-heads', type=int, default=8)
 parser.add_argument('--dropout-rate', type=float, default=0.1)
 parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--warmup-steps', type=int, default=4000)
+parser.add_argument('--data-dir', default='/output')
 args = parser.parse_args()
 
-train_batches = tf.data.Dataset.load('/scratch/train_batches')
-val_batches = tf.data.Dataset.load('/scratch/val_batches')
+train_batches = tf.data.Dataset.load(args.data_dir + '/train_batches')
+val_batches = tf.data.Dataset.load(args.data_dir + '/val_batches')
 
 
 d_model = args.d_model
@@ -70,7 +71,7 @@ def masked_accuracy(label, pred):
 
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(args.data_dir + f'/{model_name}_extracted/{model_name}')
 
 transformer = components.Transformer(
     num_layers=args.num_layers,
@@ -103,6 +104,6 @@ transformer.fit(train_batches,
                 epochs=args.epochs,
                 validation_data=val_batches)
 
-transformer.save('/scratch/trained_model.keras')
-transformer.save_weights('/scratch/trained_model.weights.h5')
+transformer.save(args.data_dir + '/trained_model.keras')
+transformer.save_weights(args.data_dir + '/trained_model.weights.h5')
 print('Trained model weights saved.')

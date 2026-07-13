@@ -15,7 +15,23 @@
         python = pkgs.python312;
       in rec {
         packages = rec {
-          strace = pkgs.strace;
+          inherit (pkgs) strace mcp-server-filesystem;
+          langchain_mcp_adapters = python.pkgs.buildPythonPackage rec {
+            pname = "langchain_mcp_adapters";
+            version = "0.3.0";
+            src = pkgs.fetchPypi {
+              inherit pname version;
+              sha256 = "fa6c9497015eb2807de5d0c341a36e1d2445cecbae1f4a24e922fc5b94f1a36c";
+            };
+            pyproject = true;
+            build-system = [python.pkgs.pdm-backend];
+            propagatedBuildInputs = [
+              python.pkgs.langchain-core
+              python.pkgs.mcp
+              python.pkgs.typing-extensions
+            ];
+            pythonImportsCheck = ["langchain_mcp_adapters"];
+          };
           rpaths = python.pkgs.buildPythonPackage rec {
             pname = "rpaths";
             version = "1.0.0";

@@ -342,8 +342,8 @@ int chdir (const char *filename) {
 /* Docs: https://www.gnu.org/software/libc/manual/html_node/Opening-a-Directory.html */
 DIR * opendir (const char *dirname) {
     void* post_call = ({
-        if (LIKELY(prov_log_is_enabled() && ret)) {
-            int fd = dirfd(ret);
+        int fd;
+        if (LIKELY(prov_log_is_enabled() && ret && (fd = dirfd(ret)) > 0)) {
             ASSERTF(fd != 0, "fd was zero");
             prov_log_record((struct Op){
                 .data = {
@@ -2237,12 +2237,8 @@ int munmap(void* addr, size_t length) { }
 int pipe2(int pipefd[2], int flags) {
     void* post_call = ({
         /* A successful pipe call is equivalent to two opens on a fifo file into specific FDs */
-        if (LIKELY(ret == 0)) {
-            print_open_fd(pipefd[0]);
-            print_open_fd(pipefd[1]);
+        if (LIKELY(ret == 0 && pipefd[0] > 0 && pipefd[1] > 0)) {
             struct Inode inode = get_inode(pipefd[0]);
-            ASSERTF(pipefd[0] != 0, "fd was zero");
-            ASSERTF(pipefd[1] != 0, "fd was zero");
             prov_log_record((struct Op){
                 .data = {
                     .open_tag = OpData_Open,
@@ -2577,7 +2573,7 @@ ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
                 if (control_message->cmsg_level == SOL_SOCKET && control_message->cmsg_type == SCM_RIGHTS) {
                     int received_fd;
                     memcpy(&received_fd, CMSG_DATA(control_message), sizeof(received_fd));
-                    ASSERT(received_fd > 0, "fd was zero or negative");
+                    ASSERTF(received_fd > 0, "fd was zero or negative");
                     print_open_fd(received_fd);
                     OpenNumber new_on = new_open_number(received_fd, false);
                     char proc_path[64];
