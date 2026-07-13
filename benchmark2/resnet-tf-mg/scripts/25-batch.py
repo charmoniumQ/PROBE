@@ -7,12 +7,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--max-tokens', type=int, default=128)
 parser.add_argument('--buffer-size', type=int, default=20000)
 parser.add_argument('--batch-size', type=int, default=64)
+parser.add_argument('--data-dir', default='/output')
 args = parser.parse_args()
 
-train_examples = tf.data.Dataset.load('/scratch/train_examples')
-val_examples = tf.data.Dataset.load('/scratch/val_examples')
+train_examples = tf.data.Dataset.load(args.data_dir + '/train_examples')
+val_examples = tf.data.Dataset.load(args.data_dir + '/val_examples')
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(args.data_dir + f'/{model_name}_extracted/{model_name}')
 
 MAX_TOKENS = args.max_tokens
 def prepare_batch(pt, en):
@@ -40,5 +41,5 @@ def make_batches(ds):
 train_batches = make_batches(train_examples)
 val_batches = make_batches(val_examples)
 
-tf.data.Dataset.save(train_batches, '/scratch/train_batches')
-tf.data.Dataset.save(val_batches, '/scratch/val_batches')
+tf.data.Dataset.save(train_batches, args.data_dir + '/train_batches')
+tf.data.Dataset.save(val_batches, args.data_dir + '/val_batches')

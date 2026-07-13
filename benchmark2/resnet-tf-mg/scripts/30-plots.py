@@ -1,5 +1,6 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import argparse
 
 import sys
 import pathlib
@@ -7,8 +8,12 @@ root = pathlib.Path(__file__).resolve().parent.resolve()
 sys.path.insert(0, str(root))
 import components
 
-train_batches = tf.data.Dataset.load('/scratch/train_batches')
-val_batches = tf.data.Dataset.load('/scratch/val_batches')
+parser = argparse.ArgumentParser()
+parser.add_argument('--data-dir', default='/output')
+args = parser.parse_args()
+
+train_batches = tf.data.Dataset.load(args.data_dir + '/train_batches')
+val_batches = tf.data.Dataset.load(args.data_dir + '/val_batches')
 
 pos_encoding = components.positional_encoding(length=2048, depth=512)
 
@@ -36,4 +41,4 @@ plt.subplot(2,1,2)
 plt.plot(dots)
 plt.xlim([950, 1050])
 plt.ylim([0,1])
-plt.savefig("dots.png")
+plt.savefig(args.data_dir + "/dots.png")

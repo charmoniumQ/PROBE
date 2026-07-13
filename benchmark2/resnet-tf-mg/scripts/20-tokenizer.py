@@ -3,23 +3,28 @@
 import matplotlib
 matplotlib.use('Agg')
 
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
 import tensorflow as tf
 import tensorflow_text
 
-train_examples = tf.data.Dataset.load('/scratch/train_examples')
-val_examples = tf.data.Dataset.load('/scratch/val_examples')
+parser = argparse.ArgumentParser()
+parser.add_argument('--data-dir', default='/output')
+args = parser.parse_args()
+
+train_examples = tf.data.Dataset.load(args.data_dir + '/train_examples')
+val_examples = tf.data.Dataset.load(args.data_dir + '/val_examples')
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
 tf.keras.utils.get_file(
     f'{model_name}.zip',
     f'https://storage.googleapis.com/download.tensorflow.org/models/{model_name}.zip',
-    cache_dir='/scratch/', cache_subdir='', extract=True
+    cache_dir=args.data_dir, cache_subdir='', extract=True
 )
 
-tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(args.data_dir + f'/{model_name}_extracted/{model_name}')
 
 print([item for item in dir(tokenizers.en) if not item.startswith('_')])
 
@@ -59,4 +64,4 @@ plt.ylim(plt.ylim())
 max_length = max(all_lengths)
 plt.plot([max_length, max_length], plt.ylim())
 plt.title(f'Maximum tokens per example: {max_length}')
-plt.savefig('/scratch/token_lengths.png')
+plt.savefig(args.data_dir + '/token_lengths.png')

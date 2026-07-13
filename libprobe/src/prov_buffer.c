@@ -326,7 +326,7 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         }
     }
 
-    if (fd >= 0) {
+    if (fd > 0) {
         OpenNumber open_number = new_open_number(fd);
         DEBUG("on %d,%d; inode %lu; dev=%d,%d", open_number.fd, open_number.number, inode.number,
               inode.device_major, inode.device_minor);
@@ -419,8 +419,9 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
         }
     }
 
-    if (file) {
-        OpenNumber open_number = new_open_number(fileno(file));
+    int fd;
+    if (file && (fd = fileno(file)) > 0) {
+        OpenNumber open_number = new_open_number(fd);
         DEBUG("on %d,%d; ret=FILE %p, inode %lu; dev=%d,%d", open_number.fd, open_number.number,
               file, inode.number, inode.device_major, inode.device_minor);
         ASSERTF(open_number.number > 0, "");

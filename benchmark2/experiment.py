@@ -52,6 +52,8 @@ class Workload:
     run: list[tuple[str, list[str | pathlib.Path]]]
     context: pathlib.Path
     mounts: list[tuple[pathlib.Path, pathlib.Path, str]]
+    inputs: list[str]
+    outputs: list[str]
 
 
 @dataclasses.dataclass
@@ -63,11 +65,13 @@ class ProvTracer:
 
 
 root_dir = pathlib.Path(__file__).resolve().parent.parent.resolve()
-scratch_dir = root_dir / ".cache"
+scratch_dir = root_dir / ".scratch"
 scratch_dir.mkdir(exist_ok=True)
 results_dir = root_dir / ".results"
 results_dir.mkdir(exist_ok=True)
 results_file = results_dir / "db.parquet"
+output_dir = root_dir / ".results" / "output"
+output_dir.mkdir(exist_ok=True)
 cpus = [1]
 ncpus = 1
 time_json = scratch_dir / "time.yaml"
@@ -99,6 +103,7 @@ podman = lambda image, mounts: [
         f"--volume={src!s}:{dst!s}:{mode}"
         for src, dst, mode in mounts
     ]),
+    "--interactive", # allows stdin, needed for MCP model server in experiment2.py
     # Not needed if we use PROBE from /nix/store
     # "--env", f"PROBE_LIB={path_to_probe_lib}",
     # "--env", f"probe={path_to_probe_bin}",
@@ -246,10 +251,10 @@ def reprozip_counts(db: pathlib.Path) -> collections.abc.Mapping[str, int]:
 
 workloads = {
     "resnet-tf-mg": Workload(
-        join_cmds(
+        setup=join_cmds(
             ["python", "/scripts/10-download.py"],
         ),
-        [
+        run=[
             ("download", ["env", "-", "python", "/scripts/10-download.py"]),
             ("tokenize", ["env", "-", "python", "/scripts/20-tokenizer.py"]),
             ("batch", ["env", "-", "python", "/scripts/25-batch.py"]),
@@ -258,18 +263,38 @@ workloads = {
             ("train", ["env", "-", "python", "/scripts/50-train.py"]),
             ("inference", ["env", "-", "python", "/scripts/60-inference.py"]),
         ],
-        root_dir / "benchmark2/resnet-tf-mg/context",
-        [
+        context=root_dir / "benchmark2/resnet-tf-mg/context",
+        mounts=[
             (root_dir / "benchmark2/resnet-tf-mg/scripts", pathlib.Path("/scripts"), "ro")
-        ]
+        ],
+        outputs=[
+            "/output/trained_model.*",
+            "/output/val_batches/*.pb",
+            "/output/train_batches/*.pb",
+            "/output/val_examples/*.pb",
+            "/output/train_examples/*.pb",
+            "/output/token_lengths.png",
+            "/output/ted_hrlr_translate_pt_en_converter_extracted/ted_hrlr_translate_pt_en_converter/saved_model.pb",
+            "/output/ted_hrlr_translate_pt_en_converter.zip",
+        ],
+        inputs=[
+            "/scripts/*.py",
+            "/usr/local/lib/python3.11/dist-packages/tensorflow/__init__.py",
+        ],
     ),
     "simple": Workload(
         ["python", "-c", "import pathlib, random\npathlib.Path('/scratch/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
         [
             ("open-close", ["python", "-c", "import pathlib\nfor _ in range(100):\n  pathlib.Path('/scratch/test.txt').read_text()"]),
         ],
-        root_dir / "benchmark2/resnet-tf-mg/context",
-        [],
+        context=root_dir / "benchmark2/resnet-tf-mg/context",
+        mounts=[],
+        outputs=[
+            "/scratch/test.txt",
+        ],
+        inputs=[
+            "/usr/bin/python",
+        ]
     )
 }
 
@@ -298,10 +323,12 @@ def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Iterator[t
             check=True,
         )
 
+    (output_dir / workload_name).mkdir(exist_ok=True)
     for label, stage_cmd in workload.run:
         if time_json.exists():
             time_json.unlink()
-        cmd = stabilize + podman(workload_name, workload.mounts) + no_random + timer + tracer.prefix + stage_cmd
+        mounts = [*workload.mounts, (output_dir / workload_name, pathlib.Path("/output"), "rw")]
+        cmd = stabilize + podman(workload_name, mounts) + no_random + timer + tracer.prefix + stage_cmd
         print(f"Running {tracer_name} {workload_name}")
         print(shlex.join(map(str, cmd)))
         subprocess.run(
@@ -347,7 +374,7 @@ TupleKeyLoader.add_constructor(
 )
 
 
-repetitions = 10
+repetitions = 11
 schema = {
     "tracer": polars.Categorical(),
     "workload": polars.Categorical(),
@@ -359,54 +386,61 @@ schema = {
     "memory": polars.UInt64(),
     "op_counts": polars.List(polars.Struct({"key": polars.String, "value": polars.UInt32})),
 }
-if results_file.exists():
-    df = polars.read_parquet(results_file)
-else:
-    df = polars.DataFrame(
-        data={
-            "tracer": [],
-            "workload": [],
-            "stage": [],
-            "iteration": [],
-            "wall_time": [],
-            "cpu_time": [],
-            "kernel_time": [],
-            "memory": [],
-            "op_counts": [],
-        },
-        schema=schema,
-    )
-
-print("initial")
-print(df)
 
 
-trials_done = set(df.select(["tracer", "workload", "iteration"]).rows())
-for it in tqdm.trange(repetitions, desc="trials"):
-    trials = set(itertools.product(
-        tracers.keys(),
-        workloads.keys(),
-        (it,),
-    ))
-    trials_to_do = list(trials - trials_done)
-    random.Random(0).shuffle(trials_to_do)
-    for tracer_name, workload_name, iteration in trials_to_do:
-        for stage, resources, ops in do_trial(tracer_name, workload_name):
-            new_row = polars.DataFrame({
-                "tracer": [tracer_name],
-                "workload": [workload_name],
-                "stage": [stage],
-                "iteration": [iteration],
-                "wall_time": [resources["rusage"]["stop"] - resources["rusage"]["start"]],
-                "cpu_time": [resources["rusage"]["cpu_user_us"]],
-                "kernel_time": [resources["rusage"]["cpu_system_us"]],
-                "memory": [resources["rusage"]["peak_memory_usage"]],
-                "op_counts": [[
-                    {"key": key, "value": value}
-                    for key, value in ops.items()
-                ]],
-            }, schema=schema)
-            df = df.vstack(new_row)
-            df.write_parquet(results_file)
-print("done")
-print(df)
+def main() -> None:
+    if results_file.exists():
+        df = polars.read_parquet(results_file)
+    else:
+        df = polars.DataFrame(
+            data={
+                "tracer": [],
+                "workload": [],
+                "stage": [],
+                "iteration": [],
+                "wall_time": [],
+                "cpu_time": [],
+                "kernel_time": [],
+                "memory": [],
+                "op_counts": [],
+            },
+            schema=schema,
+        )
+
+    print("initial")
+    print(df)
+
+
+    trials_done = set(df.select(["tracer", "workload", "iteration"]).rows())
+    for it in tqdm.trange(repetitions, desc="trials"):
+        trials = set(itertools.product(
+            tracers.keys(),
+            workloads.keys(),
+            (it,),
+        ))
+        trials_to_do = list(trials - trials_done)
+        random.Random(0).shuffle(trials_to_do)
+        for tracer_name, workload_name, iteration in trials_to_do:
+            for stage, resources, ops in do_trial(tracer_name, workload_name):
+                new_row = polars.DataFrame({
+                    "tracer": [tracer_name],
+                    "workload": [workload_name],
+                    "stage": [stage],
+                    "iteration": [iteration],
+                    "wall_time": [resources["rusage"]["stop"] - resources["rusage"]["start"]],
+                    "cpu_time": [resources["rusage"]["cpu_user_us"]],
+                    "kernel_time": [resources["rusage"]["cpu_system_us"]],
+                    "memory": [resources["rusage"]["peak_memory_usage"]],
+                    "op_counts": [[
+                        {"key": key, "value": value}
+                        for key, value in ops.items()
+                    ]],
+                }, schema=schema)
+                df = df.vstack(new_row)
+                df.write_parquet(results_file)
+    print("done")
+    print(df)
+
+
+if __name__ == "__main__":
+    main()

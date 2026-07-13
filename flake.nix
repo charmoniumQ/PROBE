@@ -43,8 +43,8 @@
     old-nixpkgs,
     flake-utils,
     cli-wrapper,
-      benchmark2,
-      charmonium-time-block,
+    benchmark2,
+    charmonium-time-block,
     ...
   }: let
     targets = import ./targets.nix;
@@ -56,6 +56,122 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
+        pythonOverridden = python.override {
+          packageOverrides = final: prev: {
+            "langchain-protocol" = prev.buildPythonPackage rec {
+              pname = "langchain-protocol";
+              version = "0.0.18";
+              pyproject = true;
+              src = pkgs.fetchPypi {
+                pname = "langchain_protocol";
+                inherit version;
+                sha256 = "ec3e11782f1ed0c9db38e5a9ed01b0e7a0d3fba406faa8aef6594b73c56a63e6";
+              };
+              build-system = [prev.hatchling];
+              dependencies = [prev.typing-extensions];
+              doCheck = false;
+            };
+            "langchain-core" = prev.langchain-core.overridePythonAttrs (old: rec {
+              version = "1.4.9";
+              src = pkgs.fetchPypi {
+                pname = "langchain_core";
+                inherit version;
+                sha256 = "f8078901145bed0466755277500a5a22822a7b628808c4c0a28d4fc88895fcf2";
+              };
+              sourceRoot = "langchain_core-${version}";
+              dependencies = old.dependencies ++ [final."langchain-protocol"];
+              doCheck = false;
+            });
+            "langgraph-checkpoint" = prev.langgraph-checkpoint.overridePythonAttrs (old: rec {
+              version = "4.1.1";
+              src = pkgs.fetchPypi {
+                pname = "langgraph_checkpoint";
+                inherit version;
+                sha256 = "6c2bdb530c91f91d7d9c1bd100925d0fc4f498d418c17f3587d1526279482a25";
+              };
+              sourceRoot = "langgraph_checkpoint-${version}";
+              dependencies = [final."langchain-core" prev.ormsgpack];
+              doCheck = false;
+            });
+            "langgraph-prebuilt" = prev.langgraph-prebuilt.overridePythonAttrs (old: rec {
+              version = "1.1.0";
+              src = pkgs.fetchPypi {
+                pname = "langgraph_prebuilt";
+                inherit version;
+                sha256 = "3c579cf6eed2d17f9c157c2d0fcaddcd8688524e7022d3b22b37a3bf4589d528";
+              };
+              sourceRoot = "langgraph_prebuilt-${version}";
+              dependencies = [final."langchain-core" final."langgraph-checkpoint"];
+              doCheck = false;
+            });
+            "langgraph-sdk" = prev.langgraph-sdk.overridePythonAttrs (old: rec {
+              version = "0.4.2";
+              src = pkgs.fetchPypi {
+                pname = "langgraph_sdk";
+                inherit version;
+                sha256 = "b88f0f5f6328ac0680d6790614a905b2bcfa257f2276dba4e38f0e86db0aa738";
+              };
+              sourceRoot = "langgraph_sdk-${version}";
+              dependencies = old.dependencies ++ [final."langchain-core" final."langchain-protocol" prev.websockets];
+              pythonRelaxDeps = ["websockets"];
+              doCheck = false;
+            });
+            "langgraph" = prev.langgraph.overridePythonAttrs (old: rec {
+              version = "1.2.9";
+              src = pkgs.fetchPypi {
+                pname = "langgraph";
+                inherit version;
+                sha256 = "385f87bc1802c35af7e0aa479278ecba8582d103515eb48256cb2ddcd42d0bd4";
+              };
+              sourceRoot = "langgraph-${version}";
+              dependencies = [
+                final."langchain-core"
+                final."langgraph-checkpoint"
+                final."langgraph-prebuilt"
+                final."langgraph-sdk"
+                prev.pydantic
+                prev.xxhash
+              ];
+              doCheck = false;
+            });
+            "langchain" = prev.langchain.overridePythonAttrs (old: rec {
+              version = "1.3.13";
+              src = pkgs.fetchPypi {
+                pname = "langchain";
+                inherit version;
+                sha256 = "bcf874680f31e9970f0db2264509df5bc2115d9680e9d651d537eb49bf1a7d8a";
+              };
+              sourceRoot = "langchain-${version}";
+              dependencies = [final."langchain-core" final."langgraph" prev.pydantic];
+              doCheck = false;
+            });
+            "langchain-openai" = prev.langchain-openai.overridePythonAttrs (old: {
+              dependencies = [final."langchain-core" prev.openai prev.tiktoken];
+              doCheck = false;
+            });
+            "langchain-deepseek" = prev.langchain-deepseek.overridePythonAttrs (old: {
+              dependencies = [final."langchain-core" final."langchain-openai"];
+              doCheck = false;
+            });
+            "langchain_mcp_adapters" = prev.buildPythonPackage rec {
+              pname = "langchain_mcp_adapters";
+              version = "0.3.0";
+              pyproject = true;
+              src = pkgs.fetchPypi {
+                inherit pname version;
+                sha256 = "fa6c9497015eb2807de5d0c341a36e1d2445cecbae1f4a24e922fc5b94f1a36c";
+              };
+              build-system = [prev.pdm-backend];
+              propagatedBuildInputs = [
+                final."langchain-core"
+                prev.mcp
+                prev.typing-extensions
+              ];
+              pythonImportsCheck = ["langchain_mcp_adapters"];
+              doCheck = false;
+            };
+          };
+        };
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         benchmark2-pkgs = benchmark2.packages."${system}";
         # IF flake = false, we need to do this instead
@@ -104,7 +220,7 @@
                 python.pkgs.watchfiles
               ];
           });
-          inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use provenance-to-use-dir strace;
+          inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use provenance-to-use-dir strace mcp-server-filesystem;
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli probe-headers;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
@@ -305,7 +421,7 @@
           };
         };
         devShells = let
-          probe-python = python.withPackages (pypkgs: [
+          probe-python = pythonOverridden.withPackages (pypkgs: [
             # probe_py runtime requirements
             charmonium-time-block-pkg
             pypkgs.dulwich
@@ -334,6 +450,9 @@
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
             pypkgs.types-tqdm
+            pypkgs.langchain
+            pypkgs.langchain-deepseek
+            pypkgs.langchain_mcp_adapters
 
             # libprobe build time requirement
             pypkgs.pycparser

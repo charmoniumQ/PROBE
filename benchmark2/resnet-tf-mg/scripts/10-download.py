@@ -13,7 +13,7 @@ ted_hrlr_translate_dataset_builder._DATA_URL = (
 parser = argparse.ArgumentParser()
 parser.add_argument('--train-split', default='train[:1%]')
 parser.add_argument('--val-split', default='validation[:1%]')
-parser.add_argument('--data-dir', default='/scratch/data')
+parser.add_argument('--data-dir', default='/output')
 args = parser.parse_args()
 
 (train_examples, val_examples), metadata = tfds.load(
@@ -24,8 +24,8 @@ args = parser.parse_args()
     data_dir=args.data_dir
 )
 
-tf.data.Dataset.save(train_examples, '/scratch/train_examples')
-tf.data.Dataset.save(val_examples, '/scratch/val_examples')
+tf.data.Dataset.save(train_examples, args.data_dir + '/train_examples')
+tf.data.Dataset.save(val_examples, args.data_dir + '/val_examples')
 
 for pt_examples, en_examples in train_examples.batch(3).take(1):
     print('> Examples in Portuguese:')

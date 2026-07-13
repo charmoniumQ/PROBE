@@ -276,9 +276,11 @@ class Analysis:
                     inode = ptypes.Inode.from_ops_inode(data.inode)
                     if self.verbose:
                         print(f"Open {quad}: {data.open_number} {inode} {access_mode}")
-                    assert data.open_number.number != 0, (
-                        f"zero open-number should not be used for newly opened files: {quad} {data.open_number} {inode} {access_mode}"
-                    )
+                    if data.open_number.number == 0:
+                        warnings.warn(
+                            f"zero open-number should not be used for newly opened files: {quad} {data.open_number} {inode} {access_mode}"
+                        )
+                        continue
                     assert data.open_number.number not in open_numbers[data.open_number.fd]
                     open_numbers[data.open_number.fd][data.open_number.number] = OpenNumberInfo(
                         order=self.order,

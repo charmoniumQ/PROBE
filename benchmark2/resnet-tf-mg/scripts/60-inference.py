@@ -18,10 +18,11 @@ import components
 parser = argparse.ArgumentParser()
 parser.add_argument('--max-tokens', type=int, default=128,
                     help='Maximum token length for translation generation')
+parser.add_argument('--data-dir', default='/output')
 args = parser.parse_args()
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(args.data_dir + f'/{model_name}_extracted/{model_name}')
 
 MAX_TOKENS = args.max_tokens
 class Translator(tf.Module):
@@ -88,9 +89,9 @@ class Translator(tf.Module):
 # In[ ]:
 
 model_name = 'ted_hrlr_translate_pt_en_converter'
-tokenizers = tf.saved_model.load(f'/scratch/{model_name}_extracted/{model_name}')
+tokenizers = tf.saved_model.load(args.data_dir + f'/{model_name}_extracted/{model_name}')
 
-transformer = tf.keras.models.load_model('/scratch/trained_model.keras', compile=False)
+transformer = tf.keras.models.load_model(args.data_dir + '/trained_model.keras', compile=False)
 
 translator = Translator(tokenizers, transformer)
 def print_translation(sentence, tokens, ground_truth):

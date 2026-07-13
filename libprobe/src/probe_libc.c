@@ -176,11 +176,13 @@ result probe_libc_init(void) {
         if (size < 0) {
             result_int fd = probe_libc_openat(AT_FDCWD, "/proc/self/auxval", O_RDONLY, 0);
             if (fd.error) {
-                ERROR("prctl(PR_GET_AUXV, ...) failed and openat(\"/proc/self/auxval\") also failed.");
+                ERROR("prctl(PR_GET_AUXV, ...) failed and openat(\"/proc/self/auxval\") also "
+                      "failed.");
             }
             result_sized_mem buf_result = probe_read_all_alloc(fd.value);
             if (buf_result.error) {
-                ERROR("prctl(PR_GET_AUXV, ...) failed, openat(\"/proc/self/auxval\") succeeded, but probe_read_all_alloc(...) failed.");
+                ERROR("prctl(PR_GET_AUXV, ...) failed, openat(\"/proc/self/auxval\") succeeded, "
+                      "but probe_read_all_alloc(...) failed.");
             }
             buf = buf_result.value;
         } else {
