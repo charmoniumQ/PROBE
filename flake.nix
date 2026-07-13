@@ -453,6 +453,7 @@
             pypkgs.langchain
             pypkgs.langchain-deepseek
             pypkgs.langchain_mcp_adapters
+            pypkgs.openai-agents
 
             # libprobe build time requirement
             pypkgs.pycparser
