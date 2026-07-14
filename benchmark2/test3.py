@@ -1,36 +1,61 @@
 import json
-import textwrap
 import os
 import asyncio
 import shlex
 import agents.mcp
-import openai.types.responses
+import pydantic
 
 
 MODEL = "deepseek-v4-flash"
+MAX_TURNS = 50
+PROMPT = """
+Find the version of Python that is used
+
+Use the following JSON schema for your response: {schema}
+"""
+
+
+class Output(pydantic.BaseModel):
+    python_exe: str
+    version: str
+
+
+class InferredProvenance(pydantic.BaseModel):
+    outputs: list[Output]
 
 
 async def main() -> None:
     cmd = [
-        # "podman",
-        # "run",
-        # "--volume=/nix/store:/nix/store:ro",
-        # "--volume=/home/sam/box/PROBE/.cache:/scratch:rw",
-        # "--volume=/home/sam/.cache/cargo-builds/debug:/home/sam/.cache/cargo-builds/debug:ro",
-        # "--volume=/home/sam/box/PROBE/benchmark2/resnet-tf-mg/scripts:/scripts:ro",
-        # "--rm",
-        # "--interactive",
-        # "resnet-tf-mg",
-
-        # "sh",
-        # "-c",
-        # shlex.join([
-
-            "/nix/store/xm7q9hcw4hrgbnh8a950v73yr9p9jzcv-mcp-server-filesystem-2026.1.26/bin/mcp-server-filesystem",
-            "/",
-
-        # ])
-        # + " 2>/dev/null",
+       "podman",
+       "run",
+       "--volume=/nix/store:/nix/store:ro",
+       "--volume=/home/sam/box/PROBE/.cache:/scratch:ro",
+       "--volume=/home/sam/box/PROBE/.results/output/resnet-tf-mg:/output:ro",
+       "--volume=/home/sam/.cache/cargo-builds/debug:/home/sam/.cache/cargo-builds/debug:ro",
+       "--volume=/home/sam/box/PROBE/benchmark2/resnet-tf-mg/scripts:/scripts:ro",
+       "--rm",
+       "--interactive",
+       "resnet-tf-mg",
+       "sh",
+       "-c",
+       shlex.join([
+           "/nix/store/xm7q9hcw4hrgbnh8a950v73yr9p9jzcv-mcp-server-filesystem-2026.1.26/bin/mcp-server-filesystem",
+           "/usr",
+           "/home",
+           "/bin",
+           "/etc",
+           "/lib",
+           "/lib32",
+           "/lib64",
+           # "/opt",
+           # "/dev",
+           # "/proc",
+           # "/sys",
+           "/scratch",
+           "/output",
+           "/scripts",
+       ])
+       + " 2>/dev/null",
     ]
     print(shlex.join(cmd))
     client = agents.AsyncOpenAI(
@@ -43,6 +68,7 @@ async def main() -> None:
             "command": cmd[0],
             "args": cmd[1:],
         },
+        client_session_timeout_seconds=60,
         tool_filter=agents.mcp.ToolFilterStatic(
             allowed_tool_names=[
                 "read_text_file",
@@ -61,8 +87,16 @@ async def main() -> None:
             name="Assistant",
             model=model,
             mcp_servers=[mcp_file_server],
+            model_settings=agents.ModelSettings(
+                extra_body={
+                    "response_format": {
+                        "type": "json_object"
+                    }
+                }
+            ),
         )
-        result = agents.Runner.run_streamed(agent, "Find the version of Python that is used")
+        prompt = PROMPT.format(schema=json.dumps(InferredProvenance.model_json_schema()))
+        result = agents.Runner.run_streamed(agent, input=prompt, max_turns=MAX_TURNS)
         async for event in result.stream_events():
             match event:
                 case agents.stream_events.AgentUpdatedStreamEvent():
@@ -135,7 +169,7 @@ async def main() -> None:
                             print()
                         case agents.items.ToolCallOutputItem():
                             # print(event.type, type(event), type(event.item), type(event.item.raw_item))
-                            # print("    output=", event.item.raw_item["output"], sep="")
+                            # print("    output=", event.item.raw_item["output"]x, sep="")
                             # print()
                             pass
                         case agents.items.MessageOutputItem():
@@ -156,10 +190,20 @@ async def main() -> None:
                     print("    attrs=", event.type, type(event), ":", ", ".join(my_dir(event)), sep="")
                     print()
 
-        response = result.get_final_response()
+    print("result text:", result.final_output)
 
-    print("\n\nFinal answer:")
-    print(response.output_text)
+    usage = result.context_wrapper.usage
+    print(f"Input tokens:      {usage.input_tokens}")
+    print(f"Output tokens:     {usage.output_tokens}")
+    print(f"Total tokens:      {usage.total_tokens}")
+
+    # Present for reasoning models
+    if hasattr(usage, "output_tokens_details"):
+        details = usage.output_tokens_details
+        if hasattr(details, "reasoning_tokens"):
+            print(f"Reasoning tokens:  {details.reasoning_tokens}")
+
+    obj = InferredProvenance.model_validate_json(result.final_output)
 
 
 def my_dir(obj: object) -> list[str]:
