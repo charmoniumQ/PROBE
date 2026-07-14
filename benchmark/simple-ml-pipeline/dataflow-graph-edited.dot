@@ -1,0 +1,99 @@
+strict digraph {
+rankdir=TB;
+inodes_191236092_v_0 [label="run3.sh", shape=rectangle];
+pid_344130_exec_0_thread_344130_ops_0_to_18 [label="(child process)", cluster="Process 344130", shape=oval];
+pid_344131_exec_0_thread_344131_ops_0_to_3 [label="(child process)", cluster="Process 344131", shape=oval];
+pid_344139_exec_0_thread_344139_ops_0_to_3 [label="(child process)", cluster="Process 344139", shape=oval];
+pid_344159_exec_0_thread_344159_ops_0_to_3 [label="(child process)", cluster="Process 344159", shape=oval];
+pid_344129_exec_0_thread_344129_ops_2_to_2 [label="", cluster="Process 344129", shape=oval];
+pid_344129_exec_1_thread_344129_ops_0_to_58 [label="bash ./run3.sh", cluster="Process 344129", shape=oval];
+pid_344130_exec_1_thread_344130_ops_0_to_0 [label=uname, cluster="Process 344130", shape=oval];
+pid_344131_exec_1_thread_344131_ops_0_to_3 [label="python data-acquisition.py", cluster="Process 344131", shape=oval];
+pid_344139_exec_1_thread_344139_ops_0_to_3 [label="python data-processing.py", cluster="Process 344139", shape=oval];
+pid_344159_exec_1_thread_344159_ops_0_to_3 [label="python model-training.py", cluster="Process 344159", shape=oval];
+pid_344131_exec_2_thread_344131_ops_0_to_3042 [label="venv/bin/python data-acquisition.py", cluster="Process 344131", shape=oval];
+pid_344139_exec_2_thread_344139_ops_0_to_6428 [label="venv/bin/python data-processing.py", cluster="Process 344139", shape=oval];
+pid_344159_exec_2_thread_344159_ops_0_to_6821 [label="venv/bin/python model-training.py", cluster="Process 344159", shape=oval];
+pid_344131_exec_2_thread_344131_ops_3044_to_3056 [label="", cluster="Process 344131", shape=oval];
+inodes_1330986_v_0 [label="<unk 1330986> (type=p) ver=0\nvenv/bin/activate", shape=rectangle];
+inodes_202335455_v_0 [label="venv/pyvenv.cfg\n…", shape=rectangle];
+inodes_201321846_v_0 [label="data-acquisition.py", shape=rectangle];
+inodes_124674463_v_1 [label=<system files>, shape=rectangle];
+inodes_202341029_v_0 [label=<system files>, shape=rectangle];
+inodes_202338942_v_0 [label=<system files>, shape=rectangle];
+inodes_201239516_v_1 [label="data/raw_data.csv", shape=rectangle];
+inodes_185966710_v_0 [label="data-processing.py", shape=rectangle];
+inodes_202338581_v_0 [label="…", shape=rectangle];
+inodes_201239519_v_1 [label="data/processed/X_train.csv\ndata/processed/y_train.csv", shape=rectangle];
+inodes_201239520_v_1 [label="data/processed/X_test.csv\ndata/processed/y_test.csv\nmodels/scaler.pkl", shape=rectangle];
+inodes_185966712_v_0 [label="model-training.py", shape=rectangle];
+inodes_201239531_v_1 [label="models/final_model.pkl\nmodels/training_results.json", shape=rectangle];
+inodes_191236092_v_0 -> pid_344129_exec_1_thread_344129_ops_0_to_58;
+inodes_191236092_v_0 -> pid_344130_exec_0_thread_344130_ops_0_to_18;
+inodes_191236092_v_0 -> pid_344131_exec_0_thread_344131_ops_0_to_3;
+inodes_191236092_v_0 -> pid_344139_exec_0_thread_344139_ops_0_to_3;
+inodes_191236092_v_0 -> pid_344159_exec_0_thread_344159_ops_0_to_3;
+pid_344129_exec_1_thread_344129_ops_0_to_58 -> pid_344130_exec_0_thread_344130_ops_0_to_18;
+pid_344129_exec_1_thread_344129_ops_0_to_58 -> pid_344131_exec_0_thread_344131_ops_0_to_3;
+pid_344129_exec_1_thread_344129_ops_0_to_58 -> pid_344139_exec_0_thread_344139_ops_0_to_3;
+pid_344129_exec_1_thread_344129_ops_0_to_58 -> pid_344159_exec_0_thread_344159_ops_0_to_3;
+pid_344130_exec_0_thread_344130_ops_0_to_18 -> pid_344130_exec_1_thread_344130_ops_0_to_0;
+pid_344131_exec_0_thread_344131_ops_0_to_3 -> pid_344131_exec_1_thread_344131_ops_0_to_3;
+pid_344139_exec_0_thread_344139_ops_0_to_3 -> pid_344139_exec_1_thread_344139_ops_0_to_3;
+pid_344159_exec_0_thread_344159_ops_0_to_3 -> pid_344159_exec_1_thread_344159_ops_0_to_3;
+inodes_1330986_v_0 -> pid_344129_exec_1_thread_344129_ops_0_to_58;
+inodes_202335455_v_0 -> pid_344131_exec_2_thread_344131_ops_0_to_3042;
+inodes_202335455_v_0 -> pid_344139_exec_2_thread_344139_ops_0_to_6428;
+inodes_202335455_v_0 -> pid_344159_exec_2_thread_344159_ops_0_to_6821;
+pid_344131_exec_2_thread_344131_ops_0_to_3042 -> inodes_124674463_v_1;
+pid_344131_exec_2_thread_344131_ops_0_to_3042 -> pid_344131_exec_2_thread_344131_ops_3044_to_3056;
+pid_344139_exec_2_thread_344139_ops_0_to_6428 -> inodes_201239519_v_1;
+pid_344139_exec_2_thread_344139_ops_0_to_6428 -> inodes_201239520_v_1;
+pid_344159_exec_2_thread_344159_ops_0_to_6821 -> inodes_201239531_v_1;
+inodes_201321846_v_0 -> pid_344131_exec_2_thread_344131_ops_0_to_3042;
+inodes_202341029_v_0 -> pid_344131_exec_2_thread_344131_ops_3044_to_3056;
+inodes_202341029_v_0 -> pid_344139_exec_2_thread_344139_ops_0_to_6428;
+pid_344131_exec_2_thread_344131_ops_3044_to_3056 -> inodes_201239516_v_1;
+inodes_202338942_v_0 -> pid_344131_exec_2_thread_344131_ops_3044_to_3056;
+inodes_202338942_v_0 -> pid_344139_exec_2_thread_344139_ops_0_to_6428;
+inodes_202338942_v_0 -> pid_344159_exec_2_thread_344159_ops_0_to_6821;
+inodes_201239516_v_1 -> pid_344139_exec_2_thread_344139_ops_0_to_6428;
+inodes_185966710_v_0 -> pid_344139_exec_2_thread_344139_ops_0_to_6428;
+inodes_202338581_v_0 -> pid_344139_exec_2_thread_344139_ops_0_to_6428;
+inodes_202338581_v_0 -> pid_344159_exec_2_thread_344159_ops_0_to_6821;
+inodes_201239519_v_1 -> pid_344159_exec_2_thread_344159_ops_0_to_6821;
+inodes_185966712_v_0 -> pid_344159_exec_2_thread_344159_ops_0_to_6821;
+pid_344129_exec_0_thread_344129_ops_2_to_2 -> pid_344129_exec_1_thread_344129_ops_0_to_58;
+pid_344131_exec_1_thread_344131_ops_0_to_3 -> pid_344131_exec_2_thread_344131_ops_0_to_3042;
+pid_344139_exec_1_thread_344139_ops_0_to_3 -> pid_344139_exec_2_thread_344139_ops_0_to_6428;
+pid_344159_exec_1_thread_344159_ops_0_to_3 -> pid_344159_exec_2_thread_344159_ops_0_to_6821;
+subgraph "cluster_Process 344129" {
+label="Process 344129";
+pid_344129_exec_0_thread_344129_ops_2_to_2 [label="", cluster="Process 344129", shape=oval];
+pid_344129_exec_1_thread_344129_ops_0_to_58 [label="bash ./run3.sh", cluster="Process 344129", shape=oval];
+}
+subgraph "cluster_Process 344130" {
+label="Process 344130";
+pid_344130_exec_0_thread_344130_ops_0_to_18 [label="(child process)", cluster="Process 344130", shape=oval];
+pid_344130_exec_1_thread_344130_ops_0_to_0 [label=uname, cluster="Process 344130", shape=oval];
+}
+subgraph "cluster_Process 344131" {
+label="Process 344131";
+pid_344131_exec_0_thread_344131_ops_0_to_3 [label="(child process)", cluster="Process 344131", shape=oval];
+pid_344131_exec_1_thread_344131_ops_0_to_3 [label="python data-acquisition.py", cluster="Process 344131", shape=oval];
+pid_344131_exec_2_thread_344131_ops_0_to_3042 [label="venv/bin/python data-acquisition.py", cluster="Process 344131", shape=oval];
+pid_344131_exec_2_thread_344131_ops_3044_to_3056 [label="", cluster="Process 344131", shape=oval];
+}
+subgraph "cluster_Process 344139" {
+label="Process 344139";
+pid_344139_exec_0_thread_344139_ops_0_to_3 [label="(child process)", cluster="Process 344139", shape=oval];
+pid_344139_exec_1_thread_344139_ops_0_to_3 [label="python data-processing.py", cluster="Process 344139", shape=oval];
+pid_344139_exec_2_thread_344139_ops_0_to_6428 [label="venv/bin/python data-processing.py", cluster="Process 344139", shape=oval];
+}
+subgraph "cluster_Process 344159" {
+label="Process 344159";
+pid_344159_exec_0_thread_344159_ops_0_to_3 [label="(child process)", cluster="Process 344159", shape=oval];
+pid_344159_exec_1_thread_344159_ops_0_to_3 [label="python model-training.py", cluster="Process 344159", shape=oval];
+pid_344159_exec_2_thread_344159_ops_0_to_6821 [label="venv/bin/python model-training.py", cluster="Process 344159", shape=oval];
+}
+}

@@ -48,6 +48,10 @@ debug_option = typer.Option(
     "--debug/--no-debug",
     help="Whether to enter a debugger on errors",
 )
+verbose_option = typer.Option(
+    "--verbose/--no-verbose",
+    help="Whether to have verbose output",
+)
 def restore_sanity(strict: bool, debug: bool) -> None:
     # Typer messes with the excepthook
     sys.excepthook =  sys.__excepthook__
@@ -179,13 +183,14 @@ def dataflow_graph(
         ignore_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
-        ] = "/nix/store/,/dev/,/proc/,/sys/",
+        ] = "/nix/store/,/dev/,/proc/,/sys/,*.pyc,*/.local/state/nix/profile/*",
         relative_to: Annotated[
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
         ] = pathlib.Path().resolve(),
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
+        verbose: Annotated[bool, verbose_option] = False,
 ) -> None:
     """
     Write a dataflow graph for probe_log.
@@ -195,8 +200,8 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, debug)
-    dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict)
+    dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to, ignore_paths=ignore_paths.split(","))
     graph_utils.serialize_graph(dfg, output)
 
 

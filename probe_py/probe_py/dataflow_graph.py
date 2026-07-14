@@ -3,6 +3,7 @@ from collections.abc import Mapping as Map, Iterable as It
 import collections
 import dataclasses
 import enum
+import fnmatch
 import heapq
 import pathlib
 import shlex
@@ -77,9 +78,10 @@ def hb_graph_to_dataflow_graph(
     probe_log: ptypes.ProbeLog,
     hb_graph: hb_graph_mod.HbGraph,
     verbose: bool,
+    loose: bool,
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = networkx.DiGraph()
-    analysis = Analysis.init(probe_log, hb_graph, verbose)
+    analysis = Analysis.init(probe_log, hb_graph, verbose, loose)
     inode_intervals = find_intervals(analysis)
     print(
         f"{len(inode_intervals)} inodes, {sum(len(intervals) for intervals in inode_intervals.values())} intervals"
@@ -191,6 +193,7 @@ class Analysis:
     ]
     sources: set[ptypes.OpQuad]
     verbose: bool
+    loose: bool
     open_numbers: dict[
         ptypes.ExecPair,
         dict[
@@ -216,6 +219,7 @@ class Analysis:
         probe_log: ptypes.ProbeLog,
         hb_graph: hb_graph_mod.HbGraph,
         verbose: bool,
+        loose: bool,
     ) -> Analysis:
         with charmonium.time_block.ctx("vector clocks", print_start=False):
             order = vector_clock.from_dag(hb_graph, lambda node: node.thread_triple())
@@ -229,6 +233,7 @@ class Analysis:
             highest_peers=highest_peers,
             sources=set(graph_utils.get_sources(hb_graph)),
             verbose=verbose,
+            loose=loose,
         )
 
     @charmonium.time_block.decor(print_start=True)
@@ -346,9 +351,22 @@ class Analysis:
                                 f"Close {quad}: {data.open_number} {oni.inode.number} opened at {oni.open}",
                             )
                         if self.probe_log.process_tree_context.interpose_read_writes:
-                            downgraded_access = oni.open_mode.downgrade(
-                                data.open_number.is_write, data.open_number.is_read
-                            )
+                            try:
+                                downgraded_access = oni.open_mode.downgrade(
+                                    data.open_number.is_write, data.open_number.is_read
+                                )
+                            except ValueError as exc:
+                                if self.loose:
+                                    downgraded_access = (
+                                        (None, ptypes.AccessMode.READ),
+                                        (ptypes.AccessMode.WRITE, ptypes.AccessMode.READ_WRITE),
+                                    )[data.open_number.is_write][data.open_number.is_read]
+                                    string = ("R" if data.open_number.is_read else "") + ("W" if data.open_number.is_write else "")
+                                    warnings.warn(ptypes.UnusualProbeLog(
+                                        f"Downgrading {oni.open_mode} to {downgraded_access} due to {string!r} accesses, which should not be possible."
+                                    ))
+                                else:
+                                    raise exc
                         else:
                             downgraded_access = oni.open_mode
                         oni.closes.append((quad, downgraded_access))
@@ -747,6 +765,7 @@ def label_nodes(
     max_path_segment_length: int = 40,
     max_paths_per_inode: int = 10,
     max_inodes_per_set: int = 100,
+    ignore_paths: It[str] = (),
 ) -> None:
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="label dfg"):
         data2 = dfg.nodes(data=True)[node]
@@ -769,6 +788,7 @@ def label_nodes(
                     max_path_segment_length=max_path_segment_length,
                     max_paths_per_inode=max_paths_per_inode,
                     max_inodes_per_set=max_inodes_per_set,
+                    ignore_paths=ignore_paths,
                 )
             case _:
                 raise TypeError()
@@ -828,6 +848,7 @@ def label_ivns(
     max_path_segment_length: int,
     max_paths_per_inode: int,
     max_inodes_per_set: int,
+    ignore_paths: It[str] = (),
 ) -> None:
     inode_labels = []
     # Sorting ensures consistent labels
@@ -840,8 +861,9 @@ def label_ivns(
             type_str = f" (type={type})"
         paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
         for path, frequency in list(paths.most_common()):
-            path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
-            inode_labels.append(f"{path_str}{type_str}")
+            if not any(fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths):
+                path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
+                inode_labels.append(f"{path_str}{type_str}")
         if not paths:
             inode_labels.append(
                 f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"
@@ -850,6 +872,8 @@ def label_ivns(
                 break
     if len(ivns) > max_inodes_per_set:
         inode_labels.append("…")
+    if not inode_labels:
+        inode_labels.append("<system files>")
     data["label"] = "\n".join(inode_labels)
     data["shape"] = "rectangle"
     number = ivns_sorted[0].inode.number
