@@ -52,6 +52,24 @@ def groupby_dict(
     return ret
 
 
+def groupby_dict_single(
+        data: typing.Iterable[_T],
+        key_func: typing.Callable[[_T], _V],
+        value_func: typing.Callable[[_T], _U] = typing.cast(typing.Callable[[_T], _U], lambda x: x),
+        error: None | typing.Callable[[_V, list[_U]], Exception] = None,
+) -> typing.Mapping[_V, _U]:
+    ret: dict[_V, _U] = {}
+    for key, group in itertools.groupby(data, key_func):
+        group2 = list(value_func(item) for item in group)
+        if len(group2) > 1:
+            if error is None:
+                raise ValueError(f"{key} has multiple matches, {group2}")
+            else:
+                raise error(key, group2)
+        ret[key] = group2[0]
+    return ret
+
+
 def duplicates(
         elements: typing.Iterable[_T],
         mapper: typing.Callable[[_T], _U]

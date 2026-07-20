@@ -103,6 +103,9 @@ def hb_graph_to_dataflow_graph(
         if all(path.parts[1] not in {"dev", "proc", "sys"} for path in analysis.paths[inode]):
             stitch_intervals(dfg, analysis, inode, intervals)
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
+        root_pid = analysis.probe_log.get_root_pid()
+        first_quad = ptypes.OpQuad(root_pid, ptypes.initial_exec_no, root_pid.main_thread(), 0)
+        dfg.add_node(first_quad)
         stitch_threads(dfg, analysis)
         for exec_quad, target in analysis.execs:
             dfg.add_edge(exec_quad, target, label=EdgeType.EXEC)
@@ -332,6 +335,7 @@ class Analysis:
                                 dir_paths = maybe_dir_paths
                         for dir_path in dir_paths:
                             path_obj = dir_path / data.path.name.decode()
+                            assert path_obj.is_absolute()
                             self.paths[inode][path_obj] += 1
 
                 case headers.Close():
@@ -758,7 +762,7 @@ def trivial_compress(
 def label_nodes(
     analysis: Analysis,
     dfg: DataflowGraph,
-    relative_to: pathlib.Path | None,
+    relative_to: pathlib.Path,
     max_args: int = 5,
     max_arg_length: int = 80,
     max_path_length: int = 200,
@@ -843,7 +847,7 @@ def label_ivns(
     ivns: IVNs,
     data: NodeData,
     analysis: Analysis,
-    relative_to: pathlib.Path | None,
+    relative_to: pathlib.Path,
     max_path_length: int,
     max_path_segment_length: int,
     max_paths_per_inode: int,
@@ -885,11 +889,11 @@ def shorten_path(
     input: pathlib.Path,
     max_path_length: int,
     max_path_segment_length: int,
-    relative_to: pathlib.Path | None,
+    relative_to: pathlib.Path,
 ) -> str:
-    if relative_to and (input.is_absolute() and relative_to.is_absolute()):
+    if relative_to != pathlib.Path("/") and input.is_absolute() and relative_to.is_absolute():
         input2 = input.relative_to(relative_to, walk_up=True)
-        if sum(part == ".." for part in input2.parts) > 5:
+        if sum(part == ".." for part in input2.parts) > 2:
             input2 = input
     else:
         input2 = input

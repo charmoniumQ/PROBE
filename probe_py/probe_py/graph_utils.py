@@ -17,16 +17,30 @@ EdgeData = typing.Mapping[str, typing.Any]
 It: typing.TypeAlias = collections.abc.Iterable[_T_co]
 
 
+@typing.overload
 def map_nodes(
     mapper: typing.Callable[[_Node], _Node2],
     graph: networkx.DiGraph[_Node],
     check_unique: bool = True,
 ) -> networkx.DiGraph[_Node2]:
+    ...
+@typing.overload
+def map_nodes(
+    mapper: typing.Callable[[_Node], _Node2],
+    graph: networkx.Graph[_Node],
+    check_unique: bool = True,
+) -> networkx.Graph[_Node2]:
+    ...
+def map_nodes(
+    mapper: typing.Callable[[_Node], _Node2],
+    graph: networkx.Graph[_Node],
+    check_unique: bool = True,
+) -> networkx.Graph[_Node2]:
     if check_unique:
         dups = util.duplicates(graph.nodes(), mapper)
         assert not dups, dups
     dct = {node: mapper(node) for node in graph.nodes()}
-    ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
+    ret = typing.cast("networkx.Graph[_Node2]", networkx.relabel_nodes(graph, dct))
     return ret
 
 
@@ -53,7 +67,7 @@ def filter_nodes(
 
 
 def serialize_graph(
-    graph: networkx.DiGraph[_Node],
+    graph: networkx.Graph[_Node],
     output: pathlib.Path,
     id_mapper: typing.Callable[[_Node], str] | None = None,
     cluster_labels: collections.abc.Mapping[str, str] = {},

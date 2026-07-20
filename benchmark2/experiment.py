@@ -8,7 +8,6 @@ import pathlib
 import random
 import re
 import shlex
-import shutil
 import subprocess
 import typing
 
@@ -18,12 +17,15 @@ import tqdm
 import yaml
 
 
-def join_cmds(*cmds: list[str | pathlib.Path]) -> list[str | pathlib.Path]:
+def join_cmds(*cmds: list[str]) -> list[str]:
     return [
         "sh",
         "-c",
         " && ".join(shlex.join(map(str, cmd)) for cmd in cmds),
     ]
+
+
+project_root = pathlib.Path(__file__).resolve().parent.parent
 
 
 @functools.lru_cache
@@ -34,7 +36,8 @@ def nix_build(buildable: str) -> pathlib.Path:
         cmd,
         check=False,
         capture_output=True,
-        text=True
+        text=True,
+        cwd=project_root,
     )
     if proc.returncode != 0:
         print(proc.stderr)
@@ -48,8 +51,8 @@ def nix_build(buildable: str) -> pathlib.Path:
 
 @dataclasses.dataclass
 class Workload:
-    setup: list[str | pathlib.Path] | None
-    run: list[tuple[str, list[str | pathlib.Path]]]
+    setup: list[str]
+    run: list[tuple[str, list[str]]]
     context: pathlib.Path
     mounts: list[tuple[pathlib.Path, pathlib.Path, str]]
     inputs: list[str]
@@ -58,9 +61,9 @@ class Workload:
 
 @dataclasses.dataclass
 class ProvTracer:
-    prefix: list[str | pathlib.Path]
-    make_artifact: list[str | pathlib.Path] | None
-    artifact: pathlib.Path | None
+    prefix: list[str]
+    make_artifact: list[str]
+    artifact: pathlib.Path
     count_ops: typing.Callable[[], collections.abc.Mapping[str, int]]
 
 
@@ -130,61 +133,68 @@ timer = [
 
 
 tracers = {
-    "none": lambda: ProvTracer([], None, None, lambda: {}),
+    "none": lambda: ProvTracer([], ["sh", "-c", "echo > /scratch/blank"], pathlib.Path("blank"), lambda: {}),
     "strace": lambda: ProvTracer(
         [
-            nix_build(".#strace.out") / "bin/strace",
+            str(nix_build(".#strace.out") / "bin/strace"),
             "--follow-forks",
             "--output=/scratch/strace.log"
         ],
-        None,
-        None,
+        [
+            "true",
+        ],
+        pathlib.Path("strace.log"),
         lambda: strace_counts(scratch_dir / "strace.log"),
     ),
     "probe-fast": lambda: ProvTracer(
         [
-            nix_build(".#probe") / "bin/probe",
+            str(nix_build(".#probe") / "bin/probe"),
             "record",
             "--copy-files=none",
             "--no-transcribe",
             "--overwrite",
         ],
-        None,
-        None,
+        [
+            "sh",
+            "-c",
+            "echo > /scratch/artifact",
+        ],
+        pathlib.Path("artifact"),
         lambda: {},
     ),
     "probe-slow": lambda: ProvTracer(
         [
-            nix_build(".#probe") / "bin/probe",
+            str(nix_build(".#probe") / "bin/probe"),
             "record",
             "--copy-files=eagerly",
             "--output=/scratch/probe_log",
             "--overwrite",
         ],
         [
-            nix_build(".#probe") / "bin/probe",
+            str(nix_build(".#probe") / "bin/probe"),
             "py",
             "export",
-            "dataflow-graph",
+            "workflow",
             "--probe-log=/scratch/probe_log",
-            "/scratch/dataflow-graph.dot",
+            "/*",
             "--loose",
+            "--output=/scratch/workflow.yaml",
         ],
-        pathlib.Path("dataflow-graph.dot"),
+        pathlib.Path("workflow.yaml"),
         lambda: probe_counts(scratch_dir / "probe_log"),
     ),
     "ptu": lambda: ProvTracer(
         [
-            nix_build(".#provenance-to-use-dir") / "bin/ptu",
+            str(nix_build(".#provenance-to-use-dir") / "bin/ptu"),
             "/scratch/cde-package",
         ],
-        None,
+        ["true"],
         pathlib.Path("cde-package/provenance.cde-root.1.log"),
         lambda: ptu_counts(scratch_dir / "cde-package/provenance.cde-root.1.log"),
     ),
     "rzip": lambda: ProvTracer(
         [
-            nix_build(".#reprozip") / "bin/reprozip",
+            str(nix_build(".#reprozip") / "bin/reprozip"),
             "trace",
             "--overwrite",
             "--dir=/scratch/rpz",
@@ -192,7 +202,7 @@ tracers = {
         join_cmds(
             ["rm", "--force", "/scratch/provenance.dot"],
             [
-                nix_build(".#reprounzip") / "bin/reprounzip",
+                str(nix_build(".#reprounzip") / "bin/reprounzip"),
                 "graph",
                 "/scratch/provenance.dot",
                 "--dir=/scratch/rpz",
@@ -283,17 +293,71 @@ workloads = {
         ],
     ),
     "simple": Workload(
-        ["python", "-c", "import pathlib, random\npathlib.Path('/scratch/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
-        [
-            ("open-close", ["python", "-c", "import pathlib\nfor _ in range(100):\n  pathlib.Path('/scratch/test.txt').read_text()"]),
+        setup=["python", "-c", "import pathlib, random\npathlib.Path('/scratch/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
+        run=[
+            ("stage 1", ["python", "-c", """
+import pathlib
+pathlib.Path("/scratch/test.txt").read_text()
+pathlib.Path("/scratch/test2.txt").write_text("hi")
+"""]),
+            ("stage 2", ["python", "-c", """
+import pathlib
+pathlib.Path("/scratch/test2.txt").read_text()
+pathlib.Path("/scratch/test3.txt").write_text("hi")
+"""]),
         ],
         context=root_dir / "benchmark2/resnet-tf-mg/context",
         mounts=[],
         outputs=[
-            "/scratch/test.txt",
+            "/scratch/test*",
         ],
         inputs=[
             "/usr/bin/python",
+        ]
+    ),
+    "torch-attention": Workload(
+        setup=[],
+        run=[
+            ("s11", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", "/scratch/data"]),
+            ("s21", ["shuf", "-n", "1000", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra1.txt"]),
+            ("s22", ["shuf", "-n", "1000", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra2.txt"]),
+            ("s12", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", "/scratch/data", "--anki", "fra"]),
+            ("s23", ["shuf", "-n", "100", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra3.txt"]),
+            ("s24", ["shuf", "-n", "100", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra4.txt"]),
+            ("s31", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra1.txt", "--output", "/scratch/data/eng-fra1.txt_clean", "--max-length", "5", "--report-dir", "/scratch/clean-data", "--lang1", "eng", "--lang2", "fra"]),
+            ("s32", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra2.txt", "--output", "/scratch/data/eng-fra2.txt_clean", "--max-length", "4", "--report-dir", "/scratch/clean-data", "--lang1", "eng", "--lang2", "fra"]),
+            ("s33", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra3.txt", "--output", "/scratch/data/eng-fra3.txt_clean", "--normalize", "--max-length", "6", "--report-dir", "/scratch/clean-data_final", "--lang1", "eng", "--lang2", "fra"]),
+            ("s34", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra2.txt", "--output", "/scratch/data/eng-fra4.txt_clean", "--normalize", "--report-dir", "/scratch/clean-data_november", "--lang1", "eng", "--lang2", "fra"]),
+            # ("s41", ["/venv/bin/python", "/scripts/verify_datasets.py", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra3.txt_clean", "--max-length", "10", "--seed", "1", "--report-dir", "/scratch/verify1"]),
+            # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra3.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", "/scratch/verify2"]),
+            # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra4.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", "/scratch/verify3"]),
+            ("s44", ["ls", "-l", "/scratch/data/"]),
+            ("s44", ["cp", "/scratch/data/eng-fra1.txt_clean", "/scratch/data/eng-fra.txt"]),
+            ("s51", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v1"]),
+            ("s52", ["cp", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra.txt"]),
+            ("s53", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v2"]),
+            ("s54", ["cp", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra.txt"]),
+            ("s55", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v3"]),
+            ("s56", ["cp", "/scratch/data/eng-fra1.txt_clean", "/scratch/data/eng-fra.txt"]),
+            ("s57", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.01", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v4"]),
+            ("s61", ["/venv/bin/python", "/scripts/compare.py", "/scratch/train/run_v1", "/scratch/train/run_v2", "--output-dir", "/scratch/comparison"]),
+            ("s62", ["/venv/bin/python", "/scripts/compare.py", "/scratch/train/run_v1", "/scratch/train/run_v3", "--output-dir", "/scratch/comparison"]),
+            # ["mkdir", "/scratch/inferrence"],
+            # ["sh", "-c", "grep '^> ' /scratch/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /scratch/train/run_v1 --interactive > /scratch/inferrence/p1"],
+            # ["sh", "-c", "grep '^> ' /scratch/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 100 | python evaluate.py --run-dir /scratch/train/run_v1 --interactive > /scratch/inferrence/p2"],
+            # ["sh", "-c", "grep '^> ' /scratch/train/run_v3/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /scratch/train/run_v3 --interactive > /scratch/inferrence/p3"],
+        ],
+        context=root_dir / "benchmark2/torch_attention/context",
+        mounts=[
+            (root_dir / "benchmark2/torch_attention/scripts", pathlib.Path("/scripts"), "ro"),
+        ],
+        inputs=[
+            "/scripts/*.py",
+            "/scripts/*.py",
+            "/venv/lib/python3.14/site-packages/torch/__init__.py",
+        ],
+        outputs=[
+            "/scratch/*",
         ]
     )
 }
@@ -308,7 +372,10 @@ def podman_build(context: pathlib.Path, tag: str) -> None:
     )
 
 
-def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Iterator[tuple[str, collections.abc.Mapping[str, typing.Any], collections.abc.Mapping[str, typing.Any]]]:
+def do_trial(
+        tracer_name: str,
+        workload_name: str,
+) -> collections.abc.Iterator[tuple[str, collections.abc.Mapping[str, typing.Any], collections.abc.Mapping[str, typing.Any]]]:
     workload = workloads[workload_name]
     tracer = tracers[tracer_name]()
 
@@ -317,7 +384,7 @@ def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Iterator[t
     if workload.setup:
         cmd = podman(workload_name, workload.mounts) + workload.setup
         print(f"Running {tracer_name} {workload_name} setup")
-        print(shlex.join(map(str, cmd)))
+        print(shlex.join(cmd))
         subprocess.run(
             cmd,
             check=True,
@@ -330,7 +397,7 @@ def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Iterator[t
         mounts = [*workload.mounts, (output_dir / workload_name, pathlib.Path("/output"), "rw")]
         cmd = stabilize + podman(workload_name, mounts) + no_random + timer + tracer.prefix + stage_cmd
         print(f"Running {tracer_name} {workload_name}")
-        print(shlex.join(map(str, cmd)))
+        print(shlex.join(cmd))
         subprocess.run(
             cmd,
             check=True,
@@ -339,24 +406,10 @@ def do_trial(tracer_name: str, workload_name: str) -> collections.abc.Iterator[t
         resources = yaml.load(time_json.read_bytes() if time_json.exists() else "{}", Loader=TupleKeyLoader)
         yield label, resources, ops
 
-    # if tracer.make_artifact and iteration == 0:
-    #     cmd = podman(workload_name, workload.mounts) + tracer.make_artifact
-    #     print(f"Running {tracer_name} {workload_name} artifact")
-    #     print(shlex.join(map(str, cmd)))
-    #     subprocess.run(
-    #         cmd,
-    #         check=True,
-    #     )
-    #     assert tracer.artifact
-    #     artifact_path = results_dir / "artifacts" / tracer_name / workload_name
-    #     artifact_path.parent.mkdir(exist_ok=True, parents=True)
-    #     if artifact_path.exists():
-    #         artifact_path.unlink()
-    #     shutil.move(scratch_dir / tracer.artifact, artifact_path)
-
 
 class TupleKeyLoader(yaml.SafeLoader):
     pass
+
 
 def construct_mapping(loader, node, deep=False):
     mapping = {}
