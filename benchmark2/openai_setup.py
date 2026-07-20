@@ -31,7 +31,13 @@ You may use the filesystem.
 
 You may use the shell history in /scratch/shell_history.
 
+The environment variables are in /scratch/env.
+
 You may use the artifact (if any) in /scratch/artifact.
+
+Do not run search_files against /.
+
+Do not attempt to use bash.
 
 Output paths:
 {output_paths}
@@ -40,10 +46,6 @@ Input paths:
 {input_paths}
 
 Use the following JSON schema for your response: {schema}
-
-Do not run search_files against /.
-
-Do not attempt to use bash.
 
 """
 

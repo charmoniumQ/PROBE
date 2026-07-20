@@ -2,6 +2,7 @@ from typing_extensions import Annotated
 import collections
 import dataclasses
 import enum
+import fnmatch
 import json
 import os
 import pathlib
@@ -29,6 +30,7 @@ from . import scp as scp_module
 from . import ssh_argparser
 from . import util
 from . import validators
+from . import workflows
 from .persistent_provenance_db import get_engine
 
 
@@ -203,6 +205,52 @@ def dataflow_graph(
     analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict)
     dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to, ignore_paths=ignore_paths.split(","))
     graph_utils.serialize_graph(dfg, output)
+
+    
+@export_app.command()
+@charmonium.time_block.decor(print_start=False)
+def workflow(
+        paths_of_interest: Annotated[
+            str,
+            typer.Argument(help="Comma-separated inputs"),
+        ] = "/*",
+        output: Annotated[
+            pathlib.Path,
+            typer.Option()
+        ] = pathlib.Path("workflow.yaml"),
+        probe_log: Annotated[
+            pathlib.Path,
+            probe_log_help,
+        ] = pathlib.Path("probe_log"),
+        cwd: Annotated[
+            pathlib.Path,
+            typer.Option(help="Resolve relative paths in paths_of_interest relative to this path"),
+        ] = pathlib.Path().resolve(),
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
+        verbose: Annotated[bool, verbose_option] = False,
+) -> None:
+    restore_sanity(strict, debug)
+    probe_log_obj = parser.parse_probe_log(probe_log)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict)
+    paths_of_interest2 = [
+        cwd / pathlib.Path(path)
+        for path in paths_of_interest.split(",")
+    ]
+    all_paths = {
+        path
+        for path_counter in analysis.paths.values()
+        for path in path_counter
+    }
+    paths_of_interest3 = frozenset({
+        path
+        for path in all_paths
+        if any(fnmatch.fnmatch(str(path), str(path_of_interest)) for path_of_interest in paths_of_interest2)
+    })
+    workflow = workflows.workflowize(probe_log_obj, analysis, dfg, paths_of_interest3)
+    workflows.serialize_yaml(workflow, output)
+    
 
 
 @export_app.command()

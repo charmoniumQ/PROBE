@@ -337,6 +337,7 @@
               python.pkgs.tqdm
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
+              python.pkgs.pyyaml
             ];
             nativeCheckInputs = [
               packages.types-networkx
