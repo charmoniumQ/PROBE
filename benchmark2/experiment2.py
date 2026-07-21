@@ -1,120 +1,41 @@
 import asyncio
-import collections.abc
 import dataclasses
 import json
 import pathlib
 import shlex
-import shutil
 import subprocess
-import typing
 import yaml
-# from langchain_setup import run_model
-from openai_setup import run_model, InferredProvenance, Output
+from openai_setup import run_model
+from openai_setup import InferredProvenance, Output
 import experiment
 
 
-def run_exp(workload_name: str, tracer_name: str) -> None:
-    workload = experiment.workloads[workload_name]
-    tracer = experiment.tracers[tracer_name]()
-
-    experiment.podman_build(workload.context, workload_name)
-
-    # setup
-    (experiment.output_dir / workload_name).mkdir(exist_ok=True)
-    mounts = [*workload.mounts, (experiment.output_dir / workload_name, pathlib.Path("/output"), "rw")]
-    if workload.setup:
-        cmd = experiment.podman(workload_name, mounts) + workload.setup
-        print(f"Running {tracer_name} {workload_name} setup")
-        print(shlex.join(map(str, cmd)))
-        subprocess.run(
-            cmd,
-            check=True,
-        )
-
-    # main run
-    cmd = experiment.podman(workload_name, mounts) + tracer.prefix + ["sh", "-c", "set -ex\n" + "\n".join(shlex.join(map(str, cmd)) for _, cmd in workload.run)]
-    print(f"Running {tracer_name} {workload_name}")
-    print(shlex.join(map(str, cmd)))
-    subprocess.run(
-        cmd,
-        check=True,
-    )
-
-    # extract artifact
-    cmd = experiment.podman(workload_name, mounts) + tracer.make_artifact
-    print(f"Running {tracer_name} {workload_name} artifact")
-    print(shlex.join(map(str, cmd)))
-    subprocess.run(
-        cmd,
-        check=True,
-    )
-    assert tracer.artifact
-    initial_artifact_path = experiment.scratch_dir / tracer.artifact
-    assert initial_artifact_path.exists()
-    final_artifact_path = experiment.results_dir / "artifacts" / tracer_name / workload_name
-    final_artifact_path.parent.mkdir(exist_ok=True, parents=True)
-    if final_artifact_path.exists():
-        final_artifact_path.unlink()
-    shutil.move(initial_artifact_path, final_artifact_path)
+inferred_prov_path = experiment.results_dir / "inferred_prov"
+inferred_prov_path.mkdir(exist_ok=True)
 
 
-def get_artifact_path(workload_name: str, tracer_name: str) -> pathlib.Path:
-    artifact_path = experiment.results_dir / "artifacts" / tracer_name / workload_name
-    if artifact_path.exists():
-        return artifact_path
+def infer_provenance(
+        tracer_name: str,
+        workload_name: str,
+) -> InferredProvenance:
+    script_path = inferred_prov_path / f"{tracer_name}-{workload_name}.json"
+    if script_path.exists():
+        return InferredProvenance.model_validate_json(script_path.read_text())
     else:
-        run_exp(workload_name, tracer_name)
-        assert artifact_path.exists()
-        return artifact_path
+        return asyncio.run(real_infer_provenance(tracer_name, workload_name))
 
 
-def llm_infer_prov(
-        workload_name: str,
+async def real_infer_provenance(
         tracer_name: str,
-        workload: experiment.Workload,
-        tracer: experiment.ProvTracer,
-) -> None:
-    if workload.setup:
-        cmd = experiment.podman(workload_name, workload.mounts) + workload.setup
-        print(f"Running {tracer_name} {workload_name} setup")
-        print(shlex.join(map(str, cmd)))
-        subprocess.run(
-            cmd,
-            check=True,
-        )
-    cmd = experiment.podman(workload_name, workload.mounts) + experiment.join_cmds(*[cmd for _, cmd in workload.run])
-    print(f"Running {tracer_name} {workload_name}")
-    print(shlex.join(map(str, cmd)))
-    subprocess.run(
-        cmd,
-        check=True,
-    )
-
-    assert tracer.make_artifact
-
-    cmd = experiment.podman(workload_name, workload.mounts) + tracer.make_artifact
-    print(f"Running {tracer_name} {workload_name} artifact")
-    print(shlex.join(map(str, cmd)))
-    subprocess.run(
-        cmd,
-        check=True,
-    )
-    assert tracer.artifact
-    artifact_path = experiment.results_dir / "artifacts" / tracer_name / workload_name
-    artifact_path.parent.mkdir(exist_ok=True, parents=True)
-    if artifact_path.exists():
-        artifact_path.unlink()
-    shutil.move(experiment.scratch_dir / tracer.artifact, artifact_path)
-
-
-async def assess_artifact(
         workload_name: str,
-        tracer_name: str,
-        artifact_path: pathlib.Path,
-) -> collections.abc.Mapping[str, typing.Any]:
+) -> InferredProvenance:
     workload = experiment.workloads[workload_name]
     mcp_server_filesystem = experiment.nix_build(".#mcp-server-filesystem") / "bin/mcp-server-filesystem"
-    mounts = [*workload.mounts, (experiment.output_dir  / workload_name, pathlib.Path("/output"), "ro")]
+    tracer_output_dir, workload_output_dir, mounts = experiment.get_mounts(tracer_name, workload_name, False)
+
+    if not list(workload_output_dir.iterdir()):
+        experiment.do_trial(tracer_name, workload_name, True, True, True)
+        assert list(workload_output_dir.iterdir())
 
     top_level_dirs = subprocess.run(
         args=experiment.podman(workload_name, mounts) + ["sh", "-c", "echo /*/ | xargs --max-args 1 echo"],
@@ -123,15 +44,11 @@ async def assess_artifact(
         text=True,
     ).stdout.strip().split("\n")
     top_level_dirs = [dir for dir in top_level_dirs if not dir == "nix/"]
-    print(top_level_dirs)
 
     server_cmd = experiment.podman(workload_name, mounts) + ["sh", "-c", shlex.join([str(mcp_server_filesystem), *top_level_dirs]) + " 2>/dev/null"]
 
-    shutil.rmtree(experiment.scratch_dir)
-    experiment.scratch_dir.mkdir()
-    (experiment.scratch_dir / "shell_history").write_text("\n".join(shlex.join(map(str, cmd)) for _, cmd in workload.run))
-    shutil.copy(artifact_path, experiment.scratch_dir / "artifact")
-    (experiment.scratch_dir / "env").write_text(subprocess.run(
+    (tracer_output_dir / "shell_history").write_text("\n".join(shlex.join(map(str, cmd)) for _, cmd in workload.run))
+    (tracer_output_dir / "env").write_text(subprocess.run(
         experiment.podman(workload_name, mounts) + ["env"],
         capture_output=True,
         text=True,
@@ -158,23 +75,31 @@ async def assess_artifact(
     assert len(output_paths) < 30
     assert len(input_paths) < 30
 
+    tracer = experiment.tracers[tracer_name]()
+
     scripts = await run_model(
         input_paths,
         output_paths,
         server_cmd,
+        tracer_name,
+        tracer_output_dir / tracer.artifact,
     )
-    script_path = experiment.results_dir / "scripts" / tracer_name / (workload_name + ".json")
+    script_path = inferred_prov_path / f"{tracer_name}-{workload_name}.json"
     script_path.parent.mkdir(exist_ok=True, parents=True)
     script_path.write_text(json.dumps(scripts, cls=DCJSONEncoder))
 
     return scripts
 
 
-def get_correct_prov(
+def load_recorded_provenance(
         workload_name: str,
-) -> InferredProvenance:
+) -> list[Output]:
     workload = experiment.workloads[workload_name]
-    mounts = [*workload.mounts, (experiment.output_dir  / workload_name, pathlib.Path("/output"), "ro")]
+    this_tracer_out, _, mounts = experiment.get_mounts("probe-slow", workload_name, False)
+
+    # Parse graph
+    if not this_tracer_out.exists():
+        experiment.do_trial("probe-slow", workload_name, True, True, True)
 
     # Get input/output paths
     input_paths = set(subprocess.run(
@@ -188,9 +113,7 @@ def get_correct_prov(
         text=True,
     ).stdout.strip().split("\n"))
 
-    # Parse graph
-    artifact_path = get_artifact_path(workload_name, "probe-slow")
-    workflow = yaml.safe_load(artifact_path.read_text())
+    workflow = yaml.safe_load(this_tracer_out.read_text())
     inferred_provs = []
     paths_of_interest = input_paths | output_paths
     for rule in workflow["rules"]:
@@ -202,7 +125,8 @@ def get_correct_prov(
                 input_paths=inputs,
                 commands_to_reproduce=[rule["command"]],
             ))
-    return InferredProvenance(outputs=inferred_provs)
+
+    return inferred_provs
 
 
 def rewrite_with_mounts(path: pathlib.Path, mounts: list[tuple[pathlib.Path, pathlib.Path, str]]) -> pathlib.Path:
@@ -222,14 +146,15 @@ class DCJSONEncoder(json.JSONEncoder):
 
 
 if __name__ == "__main__":
-    workload_name = "torch-attention"
+    workload_name = "simple"
     tracer_name = "none"
-    scripts = asyncio.run(assess_artifact(
-        workload_name,
+
+    scripts = infer_provenance(
         tracer_name,
-        get_artifact_path(workload_name, tracer_name)
-    ))
-    # for output in get_correct_prov(workload_name).outputs:
+        workload_name,
+    )
+
+    # for output in load_recorded_provenance(workload_name):
     #     print(output.output_path)
     #     for input_path in output.input_paths:
     #         print("  " + input_path)
