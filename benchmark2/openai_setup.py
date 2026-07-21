@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import pathlib
 import pprint
 import textwrap
@@ -13,36 +14,31 @@ import experiment
 MODEL = "deepseek-v4-flash"
 
 
-class Output(pydantic.BaseModel):
+class Rule(pydantic.BaseModel):
     output_path: str
     input_paths: list[str]
     commands_to_reproduce: list[list[str]]
 
 
 class Outputs(pydantic.BaseModel):
-    outputs: list[Output]
+    outputs: dict[str, Rule]
 
 
 class InferredProvenance(pydantic.BaseModel):
-    outputs: Outputs
+    outputs: dict[str, Rule]
     usage: dict[str, typing.Any]
 
 
 PROMPT = """
-For each of output path:
+For each output path below, determine which input paths influenced it and write a script that regenerates it.
 
-1. Determine all other output paths and all input paths that may have influenced directly or indirectly to the given output.
-2. Write a script that will regenerate the output, assuming input paths and other files are present.
+You may use the filesystem tools to examine:
+- Shell history at /{tracer_output}/shell_history
+- Environment variables at /{tracer_output}/env
+- The {tracer_name} artifact at /{tracer_output}/{tracer_artifact!s}
+- Output files and input files
 
-You may use the filesystem.
-
-You may use the shell history in /{tracer_output}/shell_history.
-
-The environment variables are in /{tracer_output}/env.
-
-The {tracer_name} artifact is in /{tracer_output}/{tracer_artifact!s}.
-
-Do not attempt to invoke the bash tool.
+Once you have gathered enough information (typically within 5-10 tool calls), produce your final answer as a single JSON object matching this schema: {schema}
 
 Output paths:
 {output_paths}
@@ -50,11 +46,9 @@ Output paths:
 Input paths:
 {input_paths}
 
-Use the following JSON schema for your response: {schema}
-
 """
 
-MAX_TURNS = 70
+MAX_TURNS = 100
 MCP_TIMEOUT = 120
 
 SCHEMA = json.dumps(Outputs.model_json_schema())
@@ -71,7 +65,7 @@ async def run_model(
         api_key=os.environ.get('DEEPSEEK_API_KEY'),
         base_url="https://api.deepseek.com",
     )
-    model = agents.OpenAIChatCompletionsModel(model=MODEL, openai_client=client)
+    model = agents.OpenAIChatCompletionsModel(model=MODEL, openai_client=client, buffer_streamed_tool_calls=True)
     async with agents.mcp.MCPServerStdio(
         params={
             "command": server_cmd[0],
@@ -81,7 +75,6 @@ async def run_model(
         tool_filter=agents.mcp.ToolFilterStatic(
             allowed_tool_names=[
                 "read_text_file",
-                "read_media_file",
                 "read_multiple_files",
                 "list_directory",
                 "list_directory_with_sizes",
@@ -96,14 +89,9 @@ async def run_model(
         agent = agents.Agent(
             name="Assistant",
             model=model,
+            instructions="You are a build provenance analyzer. Your task is to determine the input files and commands needed to reproduce each output file. Use the filesystem tools to gather information, then produce your final answer as a JSON object matching the requested schema. Once you have sufficient information, stop making tool calls and output the JSON immediately.",
             mcp_servers=[mcp_file_server],
-            model_settings=agents.ModelSettings(
-                extra_body={
-                    "response_format": {
-                        "type": "json_object"
-                    }
-                }
-            ),
+            model_settings=agents.ModelSettings(),
         )
         for tool in agent.tools:
             print(tool.name)
@@ -120,6 +108,7 @@ async def run_model(
             prompt,
             max_turns=MAX_TURNS,
         )
+        all_message_text = []
         async for event in result.stream_events():
             match event:
                 case agents.stream_events.AgentUpdatedStreamEvent():
@@ -133,19 +122,35 @@ async def run_model(
                             print()
                         case agents.items.ToolCallOutputItem():
                             print("ToolCallOutputItem:")
-                            for output in event.item.raw_item["output"]:
-                                assert isinstance(output, dict)
-                                match output["type"]:
-                                    case "text" | "input_text":
-                                        print(f"    len(output['text'])={len(output['text'])}")
-                                    case _:
-                                        print(f"    output['type']={output['type']}")
-                                        print(textwrap.indent(pprint.pformat(output), prefix="    "))
+                            raw_output = event.item.raw_item.get("output", event.item.raw_item.get("raw_output", ""))
+                            if isinstance(raw_output, str):
+                                print(f"    len(output)={len(raw_output)}")
+                            elif isinstance(raw_output, list):
+                                for i, output in enumerate(raw_output):
+                                    if isinstance(output, dict):
+                                        match output.get("type"):
+                                            case "text" | "input_text":
+                                                print(f"    [{i}] text: len={len(output.get('text', ''))}")
+                                            case _:
+                                                print(f"    [{i}] type={output.get('type')}")
+                                    elif isinstance(output, str):
+                                        print(f"    [{i}] len(str)={len(output)}")
+                                    else:
+                                        print(f"    [{i}] type={type(output).__name__}")
+                            elif isinstance(raw_output, dict):
+                                for key, val in raw_output.items():
+                                    if isinstance(val, str):
+                                        print(f"    {key}: len={len(val)}")
+                                    else:
+                                        print(f"    {key}: {pprint.pformat(val)}")
+                            else:
+                                print(f"    type={type(raw_output).__name__}")
                             print()
                         case agents.items.MessageOutputItem():
                             first_time = True
                             for subevent in event.item.raw_item.content:
                                 if text := getattr(subevent, "text", ""):
+                                    all_message_text.append(text)
                                     if first_time:
                                         print("Message output:")
                                         first_time = False
@@ -172,16 +177,30 @@ async def run_model(
 
     usage = result.context_wrapper.usage
 
-    # Present for reasoning models
     if hasattr(usage, "output_tokens_details"):
         details = usage.output_tokens_details
         if hasattr(details, "reasoning_tokens"):
             print(f"Reasoning tokens:  {details.reasoning_tokens}")
 
-    return InferredProvenance.model_validate(dict(
-        output=result.final_output,
-        usage=usage,
-    ))
+    full_text = "".join(all_message_text)
+    json_match = re.search(r'\{[\s\S]*\}', full_text)
+    final_output = json_match.group(0) if json_match else (result.final_output or "")
+
+    final_output = final_output.strip()
+    final_output = re.sub(r'^```(?:json)?\s*\n', '', final_output)
+    final_output = re.sub(r'\n```\s*$', '', final_output)
+
+    return InferredProvenance(
+        outputs=Outputs.model_validate(
+            json.loads(final_output) if isinstance(final_output, str) else final_output
+        ).outputs,
+        usage={
+            "requests": usage.requests,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "total_tokens": usage.total_tokens,
+        },
+    )
 
 
 def my_dir(obj: object) -> list[str]:

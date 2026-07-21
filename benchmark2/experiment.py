@@ -329,12 +329,13 @@ pathlib.Path(f"{sandbox_workload_out}/test3.txt").write_text("hi")
         ]
     ),
     "torch-attention": Workload(
-        setup=[],
+        setup=join_cmds(
+            ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data"],
+            ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data", "--anki", "fra"],
+        ),
         run=[
-            ("s11", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data"]),
             ("s21", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra1.txt"]),
             ("s22", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra2.txt"]),
-            ("s12", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data", "--anki", "fra"]),
             ("s23", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra3.txt"]),
             ("s24", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra4.txt"]),
             ("s31", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra1.txt", "--output", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", "--max-length", "5", "--report-dir", f"{sandbox_workload_out}/clean-data", "--lang1", "eng", "--lang2", "fra"]),

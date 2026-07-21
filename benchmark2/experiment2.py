@@ -6,7 +6,7 @@ import shlex
 import subprocess
 import yaml
 from openai_setup import run_model
-from openai_setup import InferredProvenance, Output
+from openai_setup import InferredProvenance, Rule
 import experiment
 
 
@@ -22,7 +22,10 @@ def infer_provenance(
     if script_path.exists():
         return InferredProvenance.model_validate_json(script_path.read_text())
     else:
-        return asyncio.run(real_infer_provenance(tracer_name, workload_name))
+        obj = asyncio.run(real_infer_provenance(tracer_name, workload_name))
+        script_path.parent.mkdir(exist_ok=True, parents=True)
+        script_path.write_text(json.dumps(obj, cls=DCJSONEncoder))
+        return obj
 
 
 async def real_infer_provenance(
@@ -37,13 +40,8 @@ async def real_infer_provenance(
         experiment.do_trial(tracer_name, workload_name, True, True, True)
         assert list(workload_output_dir.iterdir())
 
-    top_level_dirs = subprocess.run(
-        args=experiment.podman(workload_name, mounts) + ["sh", "-c", "echo /*/ | xargs --max-args 1 echo"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip().split("\n")
-    top_level_dirs = [dir for dir in top_level_dirs if not dir == "nix/"]
+    # Only expose relevant directories to the MCP filesystem server
+    top_level_dirs = [str(experiment.sandbox_workload_out), str(experiment.sandbox_tracer_out), "/bin", "/usr", "/etc", "/opt", "/lib"]
 
     server_cmd = experiment.podman(workload_name, mounts) + ["sh", "-c", shlex.join([str(mcp_server_filesystem), *top_level_dirs]) + " 2>/dev/null"]
 
@@ -84,16 +82,13 @@ async def real_infer_provenance(
         tracer_name,
         tracer_output_dir / tracer.artifact,
     )
-    script_path = inferred_prov_path / f"{tracer_name}-{workload_name}.json"
-    script_path.parent.mkdir(exist_ok=True, parents=True)
-    script_path.write_text(json.dumps(scripts, cls=DCJSONEncoder))
 
     return scripts
 
 
 def load_recorded_provenance(
         workload_name: str,
-) -> list[Output]:
+) -> dict[str, Rule]:
     workload = experiment.workloads[workload_name]
     this_tracer_out, _, mounts = experiment.get_mounts("probe-slow", workload_name, False)
 
@@ -114,17 +109,18 @@ def load_recorded_provenance(
     ).stdout.strip().split("\n"))
 
     workflow = yaml.safe_load(this_tracer_out.read_text())
-    inferred_provs = []
+    inferred_provs = {}
     paths_of_interest = input_paths | output_paths
     for rule in workflow["rules"]:
         inputs = [str(path) for path in rule["inputs"] if str(path) in paths_of_interest]
         outputs = [str(path) for path in rule["outputs"] if str(path) in paths_of_interest]
         for output in outputs:
-            inferred_provs.append(Output(
+            assert output not in inferred_provs
+            inferred_provs[output] = Rule(
                 output_path=output,
                 input_paths=inputs,
                 commands_to_reproduce=[rule["command"]],
-            ))
+            )
 
     return inferred_provs
 
@@ -146,21 +142,70 @@ class DCJSONEncoder(json.JSONEncoder):
 
 
 if __name__ == "__main__":
-    workload_name = "simple"
-    tracer_name = "none"
+    workload_name = "resnet-tf-mg"
+    tracer_name = "rzip"
 
-    scripts = infer_provenance(
+    inferred = infer_provenance(
         tracer_name,
         workload_name,
     )
+    print(inferred.usage)
 
-    # for output in load_recorded_provenance(workload_name):
-    #     print(output.output_path)
-    #     for input_path in output.input_paths:
-    #         print("  " + input_path)
-    #     for command in output.commands_to_reproduce:
-    #         print(shlex.join(command))
-    #     print()
+    recorded_provenance = load_recorded_provenance(workload_name)
+
+    default_rule = Rule(output_path=output, input_paths=[], commands_to_reproduce=[])
+    n_inputs_total = 0
+    n_inputs_extraneous = 0
+    n_inputs_missed = 0
+    n_cmds_total = 0
+    n_cmds_extraneous = 0
+    n_cmds_missed = 0
+
+    n_rules_sound = 0
+    n_rules_efficient = 0
+    n_rules = 0
+
+    for output, recorded_rule in recorded_provenance.items():
+        inferred_rule = inferred.outputs.get(output, default_rule)
+        inputs_inferrence_missed = frozenset(recorded_rule.input_paths) - frozenset(inferred_rule.input_paths)
+        inputs_inferrence_extraneous = frozenset(inferred_rule.input_paths) - frozenset(recorded_rule.input_paths)
+        inputs_inferrence_correct = frozenset(recorded_rule.input_paths) & frozenset(inferred_rule.input_paths)
+        cmds_inferrence_missed = frozenset(recorded_rule.commands_to_reproduce) - frozenset(inferred_rule.commands_to_reproduce)
+        cmds_inferrence_extraneous = frozenset(inferred_rule.commands_to_reproduce) - frozenset(recorded_rule.commands_to_reproduce)
+        cmds_inferrence_correct = frozenset(recorded_rule.commands_to_reproduce) & frozenset(inferred_rule.commands_to_reproduce)
+
+        n_inputs_total += len(recorded_rule.input_paths)
+        n_inputs_extraneous += len(inputs_inferrence_extraneous)
+        n_inputs_missed += len(inputs_inferrence_missed)
+        n_cmds_total += len(recorded_rule.input_paths)
+        n_cmds_extraneous += len(cmds_inferrence_extraneous)
+        n_cmds_missed += len(cmds_inferrence_missed)
+
+        n_rules += 1
+
+        if not inputs_inferrence_extraneous:
+            n_rules_efficient += 1
+
+        if not inputs_inferrence_missed:
+            n_rules_sound += 1
+
+        print(output)
+        for var, val in dict(
+            inputs_inferrence_missed=inputs_inferrence_missed,
+            inputs_inferrence_extraneous=inputs_inferrence_extraneous,
+            inputs_inferrence_correct=inputs_inferrence_correct,
+            cmds_inferrence_missed=cmds_inferrence_missed,
+            cmds_inferrence_extraneous=cmds_inferrence_extraneous,
+            cmds_inferrence_correct=cmds_inferrence_correct,
+        ).items():
+            if val:
+                print(var, val)
+
+    print(f"{n_inputs_extraneous / n_inputs_total * 100:.0f}% inputs extraneous")
+    print(f"{n_inputs_extraneous / n_inputs_total * 100:.0f}% inputs missed")
+    print(f"{n_cmds_extraneous / n_cmds_total * 100:.0f}% cmds extraneous")
+    print(f"{n_cmds_extraneous / n_cmds_total * 100:.0f}% cmds missed")
+    print(f"{n_rules_sound / n_rules * 100:.0f}% rules sound")
 
     # tracers = experiment.tracers.keys() - {"probe-fast"}
     # for workload_name, tracer_name in itertools.product(experiment.workloads.keys(), tracers):
