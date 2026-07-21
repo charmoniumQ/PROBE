@@ -105,8 +105,6 @@ def workflowize(
         else:
             child_to_exec_parent[child] = child
 
-    for pid in probe_log.processes.keys():
-        print("hello", pid, child_to_exec_parent[pid], pid_to_command[child_to_exec_parent[pid]])
     pid_to_nodes = dict[ptypes.Pid, list[dataflow_graph.Quads]]()
     for node in dfg.nodes():
         if isinstance(node, dataflow_graph.Quads):

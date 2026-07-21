@@ -1,12 +1,13 @@
-import collections.abc
 import os
 import json
+import pathlib
 import pprint
 import textwrap
 import typing
 import agents.mcp
 import openai
 import pydantic
+import experiment
 
 
 MODEL = "deepseek-v4-flash"
@@ -18,8 +19,14 @@ class Output(pydantic.BaseModel):
     commands_to_reproduce: list[list[str]]
 
 
-class InferredProvenance(pydantic.BaseModel):
+class Outputs(pydantic.BaseModel):
     outputs: list[Output]
+
+
+class InferredProvenance(pydantic.BaseModel):
+    outputs: Outputs
+    usage: dict[str, typing.Any]
+
 
 PROMPT = """
 For each of output path:
@@ -29,15 +36,13 @@ For each of output path:
 
 You may use the filesystem.
 
-You may use the shell history in /scratch/shell_history.
+You may use the shell history in /{tracer_output}/shell_history.
 
-The environment variables are in /scratch/env.
+The environment variables are in /{tracer_output}/env.
 
-You may use the artifact (if any) in /scratch/artifact.
+The {tracer_name} artifact is in /{tracer_output}/{tracer_artifact!s}.
 
-Do not run search_files against /.
-
-Do not attempt to use bash.
+Do not attempt to invoke the bash tool.
 
 Output paths:
 {output_paths}
@@ -52,12 +57,16 @@ Use the following JSON schema for your response: {schema}
 MAX_TURNS = 70
 MCP_TIMEOUT = 120
 
+SCHEMA = json.dumps(Outputs.model_json_schema())
+
 
 async def run_model(
         input_paths: list[str],
         output_paths: list[str],
-        server_cmd: list[str]
-) -> collections.abc.Mapping[str, typing.Any]:
+        server_cmd: list[str],
+        tracer_name: str,
+        tracer_artifact: pathlib.Path,
+) -> InferredProvenance:
     client = agents.AsyncOpenAI(
         api_key=os.environ.get('DEEPSEEK_API_KEY'),
         base_url="https://api.deepseek.com",
@@ -101,7 +110,10 @@ async def run_model(
         prompt = PROMPT.format(
             output_paths="\n".join(output_paths),
             input_paths="\n".join(input_paths),
-            schema=json.dumps(InferredProvenance.model_json_schema()),
+            schema=SCHEMA,
+            tracer_output=str(experiment.sandbox_tracer_out),
+            tracer_name=tracer_name,
+            tracer_artifact=tracer_artifact,
         )
         result = agents.Runner.run_streamed(
             agent,
@@ -121,13 +133,14 @@ async def run_model(
                             print()
                         case agents.items.ToolCallOutputItem():
                             print("ToolCallOutputItem:")
-                            # print(textwrap.indent(pprint.pformat(event.item), prefix="    "))
-                            output = json.loads(event.item.raw_item["output"])
-                            match output["type"]:
-                                case "text":
-                                    print(f"    len(output['text'])={len(output['text'])}")
-                                case _:
-                                    print(f"    output['type']={output['type']}")
+                            for output in event.item.raw_item["output"]:
+                                assert isinstance(output, dict)
+                                match output["type"]:
+                                    case "text" | "input_text":
+                                        print(f"    len(output['text'])={len(output['text'])}")
+                                    case _:
+                                        print(f"    output['type']={output['type']}")
+                                        print(textwrap.indent(pprint.pformat(output), prefix="    "))
                             print()
                         case agents.items.MessageOutputItem():
                             first_time = True
@@ -165,13 +178,10 @@ async def run_model(
         if hasattr(details, "reasoning_tokens"):
             print(f"Reasoning tokens:  {details.reasoning_tokens}")
 
-    obj = InferredProvenance.model_validate_json(result.final_output)
-    print("result:", obj)
-
-    return {
-        "result": obj,
-        "usage": usage,
-    }
+    return InferredProvenance.model_validate(dict(
+        output=result.final_output,
+        usage=usage,
+    ))
 
 
 def my_dir(obj: object) -> list[str]:

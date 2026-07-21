@@ -8,6 +8,7 @@ import pathlib
 import random
 import re
 import shlex
+import shutil
 import subprocess
 import typing
 
@@ -64,29 +65,34 @@ class ProvTracer:
     prefix: list[str]
     make_artifact: list[str]
     artifact: pathlib.Path
-    count_ops: typing.Callable[[], collections.abc.Mapping[str, int]]
+    count_ops: typing.Callable[[pathlib.Path], collections.abc.Mapping[str, int]]
 
 
 root_dir = pathlib.Path(__file__).resolve().parent.parent.resolve()
-scratch_dir = root_dir / ".scratch"
-scratch_dir.mkdir(exist_ok=True)
 results_dir = root_dir / ".results"
 results_dir.mkdir(exist_ok=True)
 results_file = results_dir / "db.parquet"
-output_dir = root_dir / ".results" / "output"
-output_dir.mkdir(exist_ok=True)
+host_workload_out = root_dir / ".results" / "workload"
+host_workload_out.mkdir(exist_ok=True)
+host_tracer_out = root_dir / ".results" / "tracer"
+host_tracer_out.mkdir(exist_ok=True)
+host_timer_out = root_dir / ".results" / "timer"
+host_timer_out.mkdir(exist_ok=True)
+sandbox_workload_out = pathlib.Path("/workload_output")
+sandbox_tracer_out = pathlib.Path("/tracer_output")
+sandbox_timer_out = pathlib.Path("/timer_output")
+host_tracer_out.mkdir(exist_ok=True)
 cpus = [1]
 ncpus = 1
-time_json = scratch_dir / "time.yaml"
 benchmark_utils = pathlib.Path("~/.cache/cargo-builds/debug").expanduser()
 
 
 stabilize = [
-    benchmark_utils / "systemd-stabilize",
+    str(benchmark_utils / "systemd-stabilize"),
     "--reserved-cpus=0",
     # f"--reserved-memory={1024*1024*1024}",
     "--",
-    benchmark_utils / "host-stabilize",
+    str(benchmark_utils / "host-stabilize"),
     "--disable-aslr",
     "--reserved-cpus=0",
     "--disable-smt",
@@ -96,55 +102,60 @@ stabilize = [
 ]
 
 
-podman = lambda image, mounts: [
-    "podman",
-    "run",
-    "--volume=/nix/store:/nix/store:ro",
-    f"--volume={scratch_dir}:/scratch:rw",
-    f"--volume={benchmark_utils}:{benchmark_utils}:ro",
-    *([
-        f"--volume={src!s}:{dst!s}:{mode}"
+def podman(image: str, mounts: list[tuple[pathlib.Path, pathlib.Path, str]]) -> list[str]:
+    return [
+        "podman",
+        "run",
+        "--volume=/nix/store:/nix/store:ro",
+        f"--volume={benchmark_utils}:{benchmark_utils}:ro",
+        *([
+            f"--volume={src!s}:{dst!s}:{mode}"
         for src, dst, mode in mounts
-    ]),
-    "--interactive", # allows stdin, needed for MCP model server in experiment2.py
-    # Not needed if we use PROBE from /nix/store
-    # "--env", f"PROBE_LIB={path_to_probe_lib}",
-    # "--env", f"probe={path_to_probe_bin}",
-    # "--volume", "$PROBE_LIB:${PROBE_LIB}:ro",
-    # "--volume", "$(dirname $(which probe)):$(dirname $(which probe)):ro",
-    # "--volume", "$PROBE_ROOT:$PROBE_ROOT:ro",
-    f"--cpuset-cpus={','.join(map(str, cpus))}",
-    f"--cpus={ncpus}",
-    "--rm",
-    image,
-]
+        ]),
+        "--interactive", # allows stdin, needed for MCP model server in experiment2.py
+        # Not needed if we use PROBE from /nix/store
+        # "--env", f"PROBE_LIB={path_to_probe_lib}",
+        # "--env", f"probe={path_to_probe_bin}",
+        # "--volume", "$PROBE_LIB:${PROBE_LIB}:ro",
+        # "--volume", "$(dirname $(which probe)):$(dirname $(which probe)):ro",
+        # "--volume", "$PROBE_ROOT:$PROBE_ROOT:ro",
+        f"--cpuset-cpus={','.join(map(str, cpus))}",
+        f"--cpus={ncpus}",
+        "--rm",
+        image,
+    ]
 
 
-no_random = [benchmark_utils / "no-random"]
+no_random = [str(benchmark_utils / "no-random")]
 
 
 timer = [
-    benchmark_utils / "process-stabilize",
+    str(benchmark_utils / "process-stabilize"),
     "--repetitions=1",
     # "--key=",
-    "/scratch/time.yaml",
+    f"/{sandbox_timer_out}/time.yaml",
     "--",
 ]
 
 
 tracers = {
-    "none": lambda: ProvTracer([], ["sh", "-c", "echo > /scratch/blank"], pathlib.Path("blank"), lambda: {}),
+    "none": lambda: ProvTracer(
+        [],
+        ["sh", "-c", f"echo > {sandbox_tracer_out!s}/blank"],
+        pathlib.Path("blank"),
+        lambda _: {},
+    ),
     "strace": lambda: ProvTracer(
         [
             str(nix_build(".#strace.out") / "bin/strace"),
             "--follow-forks",
-            "--output=/scratch/strace.log"
+            f"--output=/{sandbox_tracer_out!s}/strace.log"
         ],
         [
             "true",
         ],
         pathlib.Path("strace.log"),
-        lambda: strace_counts(scratch_dir / "strace.log"),
+        strace_counts,
     ),
     "probe-fast": lambda: ProvTracer(
         [
@@ -157,17 +168,17 @@ tracers = {
         [
             "sh",
             "-c",
-            "echo > /scratch/artifact",
+            f"echo > /{sandbox_tracer_out!s}/artifact",
         ],
         pathlib.Path("artifact"),
-        lambda: {},
+        lambda _: {},
     ),
     "probe-slow": lambda: ProvTracer(
         [
             str(nix_build(".#probe") / "bin/probe"),
             "record",
             "--copy-files=eagerly",
-            "--output=/scratch/probe_log",
+            f"--output=/{sandbox_tracer_out!s}/probe_log",
             "--overwrite",
         ],
         [
@@ -175,48 +186,48 @@ tracers = {
             "py",
             "export",
             "workflow",
-            "--probe-log=/scratch/probe_log",
+            f"--probe-log=/{sandbox_tracer_out!s}/probe_log",
             "/*",
             "--loose",
-            "--output=/scratch/workflow.yaml",
+            f"--output=/{sandbox_tracer_out!s}/workflow.yaml",
         ],
         pathlib.Path("workflow.yaml"),
-        lambda: probe_counts(scratch_dir / "probe_log"),
+        probe_counts,
     ),
     "ptu": lambda: ProvTracer(
         [
             str(nix_build(".#provenance-to-use-dir") / "bin/ptu"),
-            "/scratch/cde-package",
+            f"/{sandbox_tracer_out!s}/cde-package",
         ],
         ["true"],
         pathlib.Path("cde-package/provenance.cde-root.1.log"),
-        lambda: ptu_counts(scratch_dir / "cde-package/provenance.cde-root.1.log"),
+        ptu_counts,
     ),
     "rzip": lambda: ProvTracer(
         [
             str(nix_build(".#reprozip") / "bin/reprozip"),
             "trace",
             "--overwrite",
-            "--dir=/scratch/rpz",
+            f"--dir=/{sandbox_tracer_out!s}/rpz",
         ],
         join_cmds(
-            ["rm", "--force", "/scratch/provenance.dot"],
+            ["rm", "--force", f"/{sandbox_tracer_out!s}/provenance.dot"],
             [
                 str(nix_build(".#reprounzip") / "bin/reprounzip"),
                 "graph",
-                "/scratch/provenance.dot",
-                "--dir=/scratch/rpz",
+                f"/{sandbox_tracer_out!s}/provenance.dot",
+                f"--dir=/{sandbox_tracer_out!s}/rpz",
             ]
         ),
         pathlib.Path("provenance.dot"),
-        lambda: reprozip_counts(scratch_dir / "rpz/trace.sqlite3")
+        reprozip_counts,
     ),
 }
 
 
-def probe_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
+def probe_counts(this_host_tracer_out: pathlib.Path) -> collections.abc.Mapping[str, int]:
     proc = subprocess.run(
-        ["probe", "py", "op-counts", "--probe-log", str(log)],
+        ["probe", "py", "op-counts", "--probe-log", str(this_host_tracer_out / "probe_log")],
         check=True,
         capture_output=True,
         text=True,
@@ -224,21 +235,22 @@ def probe_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
     return json.loads(proc.stdout.strip().split("\n")[-1])
 
 
-def strace_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
+def strace_counts(this_host_tracer_out: pathlib.Path) -> collections.abc.Mapping[str, int]:
     line_regex = re.compile(r"^(?P<pid>\d+) +(?P<op>.+?)\(")
     pids = set()
     ops = collections.Counter[str]()
-    for line in log.read_text().split("\n"):
+    for line in (this_host_tracer_out / "strace.log").read_text().split("\n"):
         if match := line_regex.match(line):
             pids.add(int(match.group("pid")))
             ops[match.group("op")[:7]] += 1
     return {**ops, "pids": len(pids)}
 
 
-def ptu_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
+def ptu_counts(this_host_tracer_out: pathlib.Path) -> collections.abc.Mapping[str, int]:
     line_regex = re.compile(r"(?P<time>\d+) (?P<pid>\d+) (?P<op>[A-Z]+)")
     pids = set()
     ops = collections.Counter[str]()
+    log = this_host_tracer_out / "cde-package/provenance.cde-root.1.log"
     for line in log.read_text().split("\n"):
         if match := line_regex.match(line):
             pids.add(int(match.group("pid")))
@@ -246,7 +258,8 @@ def ptu_counts(log: pathlib.Path) -> collections.abc.Mapping[str, int]:
     return {**ops, "pids": len(pids)}
 
 
-def reprozip_counts(db: pathlib.Path) -> collections.abc.Mapping[str, int]:
+def reprozip_counts(this_host_tracer_out: pathlib.Path) -> collections.abc.Mapping[str, int]:
+    db = this_host_tracer_out / "rpz/trace.sqlite3"
     connection = sqlite3.connect(db)
     cursor = connection.cursor()
     return {
@@ -278,14 +291,14 @@ workloads = {
             (root_dir / "benchmark2/resnet-tf-mg/scripts", pathlib.Path("/scripts"), "ro")
         ],
         outputs=[
-            "/output/trained_model.*",
-            "/output/val_batches/*.pb",
-            "/output/train_batches/*.pb",
-            "/output/val_examples/*.pb",
-            "/output/train_examples/*.pb",
-            "/output/token_lengths.png",
-            "/output/ted_hrlr_translate_pt_en_converter_extracted/ted_hrlr_translate_pt_en_converter/saved_model.pb",
-            "/output/ted_hrlr_translate_pt_en_converter.zip",
+            f"{sandbox_workload_out}/trained_model.*",
+            f"{sandbox_workload_out}/val_batches/*.pb",
+            f"{sandbox_workload_out}/train_batches/*.pb",
+            f"{sandbox_workload_out}/val_examples/*.pb",
+            f"{sandbox_workload_out}/train_examples/*.pb",
+            f"{sandbox_workload_out}/token_lengths.png",
+            f"{sandbox_workload_out}/ted_hrlr_translate_pt_en_converter_extracted/ted_hrlr_translate_pt_en_converter/saved_model.pb",
+            f"{sandbox_workload_out}/ted_hrlr_translate_pt_en_converter.zip",
         ],
         inputs=[
             "/scripts/*.py",
@@ -293,23 +306,23 @@ workloads = {
         ],
     ),
     "simple": Workload(
-        setup=["python", "-c", "import pathlib, random\npathlib.Path('/scratch/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
+        setup=["python", "-c", "import pathlib, random\npathlib.Path('/workload_output/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
         run=[
-            ("stage 1", ["python", "-c", """
+            ("stage 1", ["python", "-c", f"""
 import pathlib
-pathlib.Path("/scratch/test.txt").read_text()
-pathlib.Path("/scratch/test2.txt").write_text("hi")
+pathlib.Path(f"{sandbox_workload_out}/test.txt").read_text()
+pathlib.Path(f"{sandbox_workload_out}/test2.txt").write_text("hi")
 """]),
-            ("stage 2", ["python", "-c", """
+            ("stage 2", ["python", "-c", f"""
 import pathlib
-pathlib.Path("/scratch/test2.txt").read_text()
-pathlib.Path("/scratch/test3.txt").write_text("hi")
+pathlib.Path(f"{sandbox_workload_out}/test2.txt").read_text()
+pathlib.Path(f"{sandbox_workload_out}/test3.txt").write_text("hi")
 """]),
         ],
         context=root_dir / "benchmark2/resnet-tf-mg/context",
         mounts=[],
         outputs=[
-            "/scratch/test*",
+            f"{sandbox_workload_out}/test*",
         ],
         inputs=[
             "/usr/bin/python",
@@ -318,34 +331,34 @@ pathlib.Path("/scratch/test3.txt").write_text("hi")
     "torch-attention": Workload(
         setup=[],
         run=[
-            ("s11", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", "/scratch/data"]),
-            ("s21", ["shuf", "-n", "1000", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra1.txt"]),
-            ("s22", ["shuf", "-n", "1000", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra2.txt"]),
-            ("s12", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", "/scratch/data", "--anki", "fra"]),
-            ("s23", ["shuf", "-n", "100", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra3.txt"]),
-            ("s24", ["shuf", "-n", "100", "/scratch/data/eng-fra.txt", "-o", "/scratch/data/eng-fra4.txt"]),
-            ("s31", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra1.txt", "--output", "/scratch/data/eng-fra1.txt_clean", "--max-length", "5", "--report-dir", "/scratch/clean-data", "--lang1", "eng", "--lang2", "fra"]),
-            ("s32", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra2.txt", "--output", "/scratch/data/eng-fra2.txt_clean", "--max-length", "4", "--report-dir", "/scratch/clean-data", "--lang1", "eng", "--lang2", "fra"]),
-            ("s33", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra3.txt", "--output", "/scratch/data/eng-fra3.txt_clean", "--normalize", "--max-length", "6", "--report-dir", "/scratch/clean-data_final", "--lang1", "eng", "--lang2", "fra"]),
-            ("s34", ["/venv/bin/python", "/scripts/clean_data.py", "--input", "/scratch/data/eng-fra2.txt", "--output", "/scratch/data/eng-fra4.txt_clean", "--normalize", "--report-dir", "/scratch/clean-data_november", "--lang1", "eng", "--lang2", "fra"]),
-            # ("s41", ["/venv/bin/python", "/scripts/verify_datasets.py", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra3.txt_clean", "--max-length", "10", "--seed", "1", "--report-dir", "/scratch/verify1"]),
-            # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra3.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", "/scratch/verify2"]),
-            # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra4.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", "/scratch/verify3"]),
-            ("s44", ["ls", "-l", "/scratch/data/"]),
-            ("s44", ["cp", "/scratch/data/eng-fra1.txt_clean", "/scratch/data/eng-fra.txt"]),
-            ("s51", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v1"]),
-            ("s52", ["cp", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra.txt"]),
-            ("s53", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v2"]),
-            ("s54", ["cp", "/scratch/data/eng-fra2.txt_clean", "/scratch/data/eng-fra.txt"]),
-            ("s55", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v3"]),
-            ("s56", ["cp", "/scratch/data/eng-fra1.txt_clean", "/scratch/data/eng-fra.txt"]),
-            ("s57", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.01", "--output-dir", "/scratch/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", "/scratch/data", "--run-name", "v4"]),
-            ("s61", ["/venv/bin/python", "/scripts/compare.py", "/scratch/train/run_v1", "/scratch/train/run_v2", "--output-dir", "/scratch/comparison"]),
-            ("s62", ["/venv/bin/python", "/scripts/compare.py", "/scratch/train/run_v1", "/scratch/train/run_v3", "--output-dir", "/scratch/comparison"]),
-            # ["mkdir", "/scratch/inferrence"],
-            # ["sh", "-c", "grep '^> ' /scratch/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /scratch/train/run_v1 --interactive > /scratch/inferrence/p1"],
-            # ["sh", "-c", "grep '^> ' /scratch/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 100 | python evaluate.py --run-dir /scratch/train/run_v1 --interactive > /scratch/inferrence/p2"],
-            # ["sh", "-c", "grep '^> ' /scratch/train/run_v3/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /scratch/train/run_v3 --interactive > /scratch/inferrence/p3"],
+            ("s11", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data"]),
+            ("s21", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra1.txt"]),
+            ("s22", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra2.txt"]),
+            ("s12", ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data", "--anki", "fra"]),
+            ("s23", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra3.txt"]),
+            ("s24", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra4.txt"]),
+            ("s31", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra1.txt", "--output", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", "--max-length", "5", "--report-dir", f"{sandbox_workload_out}/clean-data", "--lang1", "eng", "--lang2", "fra"]),
+            ("s32", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra2.txt", "--output", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", "--max-length", "4", "--report-dir", f"{sandbox_workload_out}/clean-data", "--lang1", "eng", "--lang2", "fra"]),
+            ("s33", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra3.txt", "--output", f"{sandbox_workload_out}/data/eng-fra3.txt_clean", "--normalize", "--max-length", "6", "--report-dir", f"{sandbox_workload_out}/clean-data_final", "--lang1", "eng", "--lang2", "fra"]),
+            ("s34", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra2.txt", "--output", f"{sandbox_workload_out}/data/eng-fra4.txt_clean", "--normalize", "--report-dir", f"{sandbox_workload_out}/clean-data_november", "--lang1", "eng", "--lang2", "fra"]),
+            # ("s41", ["/venv/bin/python", "/scripts/verify_datasets.py", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra3.txt_clean", "--max-length", "10", "--seed", "1", "--report-dir", f"{sandbox_workload_out}/verify1"]),
+            # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra3.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", f"{sandbox_workload_out}/verify2"]),
+            # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra4.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", f"{sandbox_workload_out}/verify3"]),
+            ("s44", ["ls", "-l", f"{sandbox_workload_out}/data/"]),
+            ("s44", ["cp", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
+            ("s51", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v1"]),
+            ("s52", ["cp", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
+            ("s53", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v2"]),
+            ("s54", ["cp", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
+            ("s55", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v3"]),
+            ("s56", ["cp", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
+            ("s57", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.01", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v4"]),
+            ("s61", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v2", "--output-dir", f"{sandbox_workload_out}/comparison"]),
+            ("s62", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v3", "--output-dir", f"{sandbox_workload_out}/comparison"]),
+            # ["mkdir", f"{sandbox_workload_out}/inferrence"],
+            # ["sh", "-c", "grep '^> ' /workload_output/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /workload_output/train/run_v1 --interactive > /workload_output/inferrence/p1"],
+            # ["sh", "-c", "grep '^> ' /workload_output/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 100 | python evaluate.py --run-dir /workload_output/train/run_v1 --interactive > /workload_output/inferrence/p2"],
+            # ["sh", "-c", "grep '^> ' /workload_output/train/run_v3/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /workload_output/train/run_v3 --interactive > /workload_output/inferrence/p3"],
         ],
         context=root_dir / "benchmark2/torch_attention/context",
         mounts=[
@@ -357,7 +370,9 @@ pathlib.Path("/scratch/test3.txt").write_text("hi")
             "/venv/lib/python3.14/site-packages/torch/__init__.py",
         ],
         outputs=[
-            "/scratch/*",
+            f"{sandbox_workload_out}/data/*",
+            f"{sandbox_workload_out}/train/*",
+            f"{sandbox_workload_out}/comparison/*",
         ]
     )
 }
@@ -372,17 +387,47 @@ def podman_build(context: pathlib.Path, tag: str) -> None:
     )
 
 
+def get_mounts(
+        tracer_name: str,
+        workload_name: str,
+        fresh: bool,
+) -> tuple[pathlib.Path, pathlib.Path, list[tuple[pathlib.Path, pathlib.Path, str]]]:
+    workload = workloads[workload_name]
+    this_host_workload_out = host_workload_out / workload_name
+    if fresh and  this_host_workload_out.exists():
+            shutil.rmtree(this_host_workload_out)
+    this_host_workload_out.mkdir(exist_ok=True)
+
+    this_host_tracer_out = host_tracer_out / f"{tracer_name}-{workload_name}"
+    if fresh and this_host_tracer_out.exists():
+        shutil.rmtree(this_host_tracer_out)
+    this_host_tracer_out.mkdir(exist_ok=True)
+
+    mounts = [
+        *workload.mounts,
+        (this_host_workload_out, sandbox_workload_out, "rw"),
+        (this_host_tracer_out, sandbox_tracer_out, "rw"),
+        (host_timer_out, sandbox_timer_out, "rw"),
+    ]
+    return this_host_tracer_out, this_host_workload_out, mounts
+
+
 def do_trial(
         tracer_name: str,
         workload_name: str,
-) -> collections.abc.Iterator[tuple[str, collections.abc.Mapping[str, typing.Any], collections.abc.Mapping[str, typing.Any]]]:
+        combine_stages: bool,
+        do_prov: bool,
+        fresh: bool,
+) -> list[tuple[str, collections.abc.Mapping[str, typing.Any], collections.abc.Mapping[str, typing.Any]]]:
     workload = workloads[workload_name]
     tracer = tracers[tracer_name]()
 
     podman_build(workload.context, workload_name)
 
+    this_host_tracer_out, _, mounts = get_mounts(tracer_name, workload_name, fresh)
+
     if workload.setup:
-        cmd = podman(workload_name, workload.mounts) + workload.setup
+        cmd = podman(workload_name, mounts) + workload.setup
         print(f"Running {tracer_name} {workload_name} setup")
         print(shlex.join(cmd))
         subprocess.run(
@@ -390,21 +435,40 @@ def do_trial(
             check=True,
         )
 
-    (output_dir / workload_name).mkdir(exist_ok=True)
-    for label, stage_cmd in workload.run:
+    time_json = host_timer_out / "time.yaml"
+
+    if combine_stages:
+        stages = [
+            ("all", ["sh", "-c", "set -ex\n" + "\n".join(shlex.join(map(str, cmd)) for _, cmd in workload.run)])
+        ]
+    else:
+        stages = workload.run
+
+    ret = list[tuple[str, collections.abc.Mapping[str, typing.Any], collections.abc.Mapping[str, typing.Any]]]()
+    for label, stage_cmd in stages:
         if time_json.exists():
             time_json.unlink()
-        mounts = [*workload.mounts, (output_dir / workload_name, pathlib.Path("/output"), "rw")]
         cmd = stabilize + podman(workload_name, mounts) + no_random + timer + tracer.prefix + stage_cmd
-        print(f"Running {tracer_name} {workload_name}")
+        print(f"Running {tracer_name} {workload_name} {label}")
         print(shlex.join(cmd))
         subprocess.run(
             cmd,
             check=True,
         )
-        ops = tracer.count_ops()
+        ops = tracer.count_ops(this_host_tracer_out)
         resources = yaml.load(time_json.read_bytes() if time_json.exists() else "{}", Loader=TupleKeyLoader)
-        yield label, resources, ops
+        ret.append((label, resources, ops))
+
+    if do_prov:
+        cmd = podman(workload_name, mounts) + tracer.make_artifact
+        print(f"Running {tracer_name} make prov")
+        print(shlex.join(cmd))
+        subprocess.run(
+            cmd,
+            check=True,
+        )
+
+    return ret
 
 
 class TupleKeyLoader(yaml.SafeLoader):
@@ -474,7 +538,7 @@ def main() -> None:
         trials_to_do = list(trials - trials_done)
         random.Random(0).shuffle(trials_to_do)
         for tracer_name, workload_name, iteration in trials_to_do:
-            for stage, resources, ops in do_trial(tracer_name, workload_name):
+            for stage, resources, ops in do_trial(tracer_name, workload_name, False, False, True):
                 new_row = polars.DataFrame({
                     "tracer": [tracer_name],
                     "workload": [workload_name],

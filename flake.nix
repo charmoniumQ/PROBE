@@ -170,6 +170,12 @@
               pythonImportsCheck = ["langchain_mcp_adapters"];
               doCheck = false;
             };
+            "inline-snapshot" = prev.inline-snapshot.overridePythonAttrs (old: {
+              doCheck = false;
+            });
+            "datamodel-code-generator" = prev.datamodel-code-generator.overridePythonAttrs (old: {
+              doCheck = false;
+            });
           };
         };
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
@@ -201,25 +207,6 @@
             nativeBuildInputs = [python.pkgs.setuptools];
             propagatedBuildInputs = [python.pkgs.numpy];
           };
-          datamodel-code-generator = python.pkgs.datamodel-code-generator.overridePythonAttrs (super: rec {
-            version = "0.55.0";
-            src = pkgs.fetchFromGitHub {
-              owner = "koxudaxi";
-              repo = "datamodel-code-generator";
-              tag = version;
-              hash = "sha256-zsLJv7gKhmnEIS/AUvnBzm+07QFQoMdiFo/PkfRyHek=";
-            };
-            disabledTests = [
-              "perf"
-            ];
-            nativeCheckInputs =
-              super.nativeCheckInputs
-              ++ [
-                python.pkgs.time-machine
-                python.pkgs.inline-snapshot
-                python.pkgs.watchfiles
-              ];
-          });
           inherit (benchmark2-pkgs) reprozip reprounzip provenance-to-use provenance-to-use-dir strace mcp-server-filesystem;
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli probe-headers;
           libprobe = old-stdenv.mkDerivation rec {
@@ -254,7 +241,6 @@
               pkgs.clang-tools
               pkgs.compiledb
               pkgs.cppcheck
-              pkgs.cppclean
               pkgs.include-what-you-use
             ];
             checkPhase = ''
@@ -298,7 +284,7 @@
           };
           probe-py-headers = pkgs.runCommand "probe-py-headers" {} ''
             mkdir $out
-            export PATH="${packages.datamodel-code-generator}/bin:${python}/bin/:$PATH"
+            export PATH="${pkgs.datamodel-code-generator}/bin:${python}/bin/:$PATH"
             env \
               JSONSCHEMA_OUTFILE=${probe-headers}/headers.json \
               PYTHON_HEADER_OUTFILE=$out/headers.py \
@@ -443,7 +429,7 @@
 
             # probe_py "dev time" requirements
             packages.types-networkx
-            packages.datamodel-code-generator
+            pypkgs.datamodel-code-generator
             pypkgs.ipython
             pypkgs.ipdb
             pypkgs.mypy

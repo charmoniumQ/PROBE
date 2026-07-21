@@ -1,34 +1,25 @@
-import asyncio
-import dataclasses
 import collections.abc
+import pathlib
 import pprint
+import textwrap
 import typing
 
-import langchain.agents
-import langchain_core.messages.ai
+import experiment
+import langchain_core.language_models
+import langchain_deepseek
 import langchain_mcp_adapters.client
+import langchain.agents
 
-
-MODEL = "deepseek-v4-flash"
-
-
-@dataclasses.dataclass
-class Output:
-    output_path: str
-    input_paths: list[str]
-    commands_to_reproduce: list[list[str]]
-
-
-@dataclasses.dataclass
-class InferredProvenance:
-    outputs: list[Output]
+from openai_setup import InferredProvenance, MODEL, PROMPT, SCHEMA
 
 
 async def run_model(
         input_paths: list[str],
         output_paths: list[str],
         server_cmd: list[str],
-) -> collections.abc.Mapping[str, typing.Any]:
+        tracer_name: str,
+        tracer_artifact: pathlib.Path,
+) -> InferredProvenance:
     client = langchain_mcp_adapters.client.MultiServerMCPClient(
         {
             "filesystem": {
@@ -40,65 +31,79 @@ async def run_model(
     )
     tools = await client.get_tools()
     tools = [tool for tool in tools if "write" not in tool.name and "edit" not in tool.name and "create" not in tool.name and "move" not in tool.name]
-    agent = langchain.agents.create_agent(MODEL, tools, response_format=InferredProvenance)
+    model = langchain_deepseek.ChatDeepSeek(model=MODEL, temperature=0)
+
+    agent = langchain.agents.create_agent(
+        model,
+        tools,
+    )
+    
     input = {
         "messages": [
             {
                 "role": "user",
-                "content": f"""
-For each of output path:
-
-1. Determine all other output paths and all input paths that may have influenced directly or indirectly to the given output.
-2. Write a script that will regenerate the output from scratch.
-
-You may use the filesystem.
-
-You may use the shell history in /scratch/shell_history.
-
-You may use the artifact (if any) in /scratch/artifact.
-
-Output paths:
-{'\n'.join(map(str, output_paths))}
-
-Input paths:
-{'\n'.join(map(str, input_paths))} 
-                    """,
+                "content": PROMPT.format(
+                    output_paths="\n".join(output_paths),
+                    input_paths="\n".join(input_paths),
+                    tracer_output=str(experiment.sandbox_tracer_out),
+                    schema=SCHEMA,
+                    tracer_name=tracer_name,
+                    tracer_artifact=tracer_artifact,
+                ),
             }
         ]
     }
-    usage_metadata = {}
     async with await agent.astream_events(
         input=input,
         version="v3"
     ) as stream:
-        limit = 200
+        limit = 500
 
-        async def print_tool_calls() -> None:
-            async for call in stream.tool_calls:
-                print("tool input:", pprint.pformat(call.input)[:limit])
-                if output := call.output:
-                    output2 = await output
-                    print("tool output:", pprint.pformat(output2)[:limit])
+        async for message in stream.messages:
+            if text := await message.text:
+                print("text")
+                print(textwrap.indent(text[:limit], prefix="  "))
+                print()
 
-        async def print_messages() -> None:
-            async for message in stream.messages:
-                text = await message.text
-                print("text", text)
+            if reasoning := await message.reasoning:
+                print("reasoning")
+                print(textwrap.indent(reasoning[:limit], prefix="  "))
+                print()
 
-                reasoning = await message.reasoning
-                print("reasoning", reasoning)
+            if calls := await message.tool_calls:
+                for call in calls:
+                    print(f"tool {call['name']}({call.get('args')})")
+                    if info := remove_keys(call, {"name", "args", "id", "type"}):
+                        print(textwrap.indent(pprint.pformat(info)[:limit], prefix="  "))
+                    print()
 
-                final = await message.output
+            if output := message.output_message:
+                for message in output.content:
+                    match message["type"]:
+                        case "reasoning" | "text" | "tool_call":
+                            pass
+                        case _:
+                            print("output_message")
+                            print(textwrap.indent(pprint.pformat(message)[:limit], prefix="  "))
+                            print()
 
-                if final.usage_metadata:
-                    print("final text:", final.text)
-                    print("final usage:", final.usage_metadata)
-                    print("final.pretty:", final.pretty_print())
-                    usage_metadata.update(final.usage_metadata)
+        result = await stream.output()
+        print("result")
+        print(textwrap.indent(pprint.pformat(result["messages"][-1]), prefix="  "))
+        print()
 
-        _, _, output = await asyncio.gather(print_tool_calls(), print_messages(), stream.output())
+        print(type(message))
+    print()
 
-    return {
-        "output": output["structured_response"],
-        "usage_metadata": usage_metadata,
-    }
+    return InferredProvenance.model_validate(dict(
+        output=[],
+        usage={},
+    ))
+
+
+_K = typing.TypeVar("_K")
+_V = typing.TypeVar("_V")
+
+
+def remove_keys(dct: collections.abc.Mapping[_K, _V], keys: collections.abc.Container[_K]) -> collections.abc.Mapping[_K, _V]:
+    return {key: val for key, val in dct.items() if key not in keys}
