@@ -230,10 +230,10 @@
           };
           reprozip = python.pkgs.buildPythonApplication rec {
             pname = "reprozip";
-            version = "1.2";
+            version = "1.3.2";
             src = pkgs.fetchPypi {
               inherit pname version;
-              sha256 = "a98b7f04c52c60072e3c42da21997d3ad41161ff6cb1139e18cda8d3012120f9";
+              sha256 = "b3076311bd68148144ecc1311b5b405b048e665d4efae1f5c0b8fc1f0da10731";
             };
             checkInputs = [python.pkgs.pip];
             buildInputs = [pkgs.sqlite];
@@ -242,6 +242,8 @@
               usagestats
               distro
               python.pkgs.pyyaml
+              python.pkgs.requests
+              python.pkgs.importlib-metadata
               python.pkgs.setuptools
               pkgs.dpkg
             ];
@@ -250,10 +252,10 @@
           };
           reprounzip = python.pkgs.buildPythonPackage rec {
             pname = "reprounzip";
-            version = "1.3";
+            version = "1.3.2";
             src = pkgs.fetchPypi {
               inherit pname version;
-              sha256 = "3f0b6b4dcde9dbcde9d283dfdf154c223b3972d5aff41a1b049224468bba3496";
+              sha256 = "7e883baa1789c7b2f10ec71bead37caaa784b5355c0b8213e46e1c2a84f1b0a9";
             };
             checkInputs = [python.pkgs.pip];
             propagatedBuildInputs = [
@@ -263,6 +265,7 @@
               python.pkgs.requests
               python.pkgs.pyyaml
               python.pkgs.pyelftools
+              python.pkgs.importlib-metadata
               python.pkgs.setuptools
             ];
             pythonImportsCheck = [pname];

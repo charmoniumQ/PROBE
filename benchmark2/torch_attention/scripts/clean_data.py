@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import random
 from collections import Counter
 from io import open
 from typing import List, Optional, Tuple
@@ -69,6 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Drop pairs whose two sides are identical.",
     )
+    filt.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Random seed for shuffling the output order.",
+    )
     return p
 
 
@@ -105,6 +112,7 @@ def clean(
     lowercase: bool,
     dedupe: bool,
     drop_identical: bool,
+    seed: int = 0,
 ) -> dict:
     stats = Counter()
     seen: set = set()
@@ -154,6 +162,9 @@ def clean(
             kept.append((src, tgt))
             stats["kept"] += 1
 
+    rng = random.Random(seed)
+    rng.shuffle(kept)
+
     ensure_dir(os.path.dirname(output_path) or ".")
     with open(output_path, "w", encoding="utf-8") as fh:
         for src, tgt in kept:
@@ -202,6 +213,7 @@ def main() -> None:
         lowercase=lowercase,
         dedupe=args.dedupe,
         drop_identical=args.drop_identical,
+        seed=args.seed,
     )
 
     report_dir = ensure_dir(args.report_dir)

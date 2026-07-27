@@ -37,6 +37,14 @@ COMPARE_COLUMNS = [
     "final_val_loss",
     "word_accuracy",
     "exact_match",
+    "bleu",
+    "bleu_1",
+    "bleu_2",
+    "bleu_3",
+    "bleu_4",
+    "token_precision",
+    "token_recall",
+    "token_f1",
     "train_time_sec",
 ]
 
@@ -112,6 +120,14 @@ def write_charts(results: List[dict], out_dir: str) -> None:
         ylabel="word accuracy", title="Word accuracy by model",
     )
     plot_comparison_bars(
+        models, values("bleu"), os.path.join(out_dir, "cmp_bleu.png"),
+        ylabel="BLEU-4", title="BLEU score by model",
+    )
+    plot_comparison_bars(
+        models, values("token_f1"), os.path.join(out_dir, "cmp_token_f1.png"),
+        ylabel="token F1", title="Token F1 by model",
+    )
+    plot_comparison_bars(
         models, values("n_params"), os.path.join(out_dir, "cmp_params.png"),
         ylabel="# trainable params", title="Parameter count by model",
     )
@@ -148,10 +164,10 @@ def main() -> None:
     write_table(results, out_dir)
     write_charts(results, out_dir)
 
-    best = max(results, key=lambda r: r.get("word_accuracy") or 0.0)
+    best = max(results, key=lambda r: r.get("bleu") or 0.0)
     print(
-        f"\nBest by word accuracy: {best['model']} "
-        f"(word_acc={best.get('word_accuracy')}, val_loss={best.get('final_val_loss')})"
+        f"\nBest by BLEU: {best['model']} "
+        f"(bleu={best.get('bleu')}, word_acc={best.get('word_accuracy')}, val_loss={best.get('final_val_loss')})"
     )
     print(f"Compared {len(results)} run(s); artifacts written to: {out_dir}")
 

@@ -78,9 +78,12 @@ host_tracer_out = root_dir / ".results" / "tracer"
 host_tracer_out.mkdir(exist_ok=True)
 host_timer_out = root_dir / ".results" / "timer"
 host_timer_out.mkdir(exist_ok=True)
+host_setup_out = root_dir / ".results" / "setup"
+host_setup_out.mkdir(exist_ok=True)
 sandbox_workload_out = pathlib.Path("/workload_output")
 sandbox_tracer_out = pathlib.Path("/tracer_output")
 sandbox_timer_out = pathlib.Path("/timer_output")
+sandbox_setup_out = pathlib.Path("/setup")
 host_tracer_out.mkdir(exist_ok=True)
 cpus = [1]
 ncpus = 1
@@ -149,7 +152,7 @@ tracers = {
         [
             str(nix_build(".#strace.out") / "bin/strace"),
             "--follow-forks",
-            f"--output=/{sandbox_tracer_out!s}/strace.log"
+            f"--output={sandbox_tracer_out!s}/strace.log"
         ],
         [
             "true",
@@ -168,7 +171,7 @@ tracers = {
         [
             "sh",
             "-c",
-            f"echo > /{sandbox_tracer_out!s}/artifact",
+            f"echo > {sandbox_tracer_out!s}/artifact",
         ],
         pathlib.Path("artifact"),
         lambda _: {},
@@ -178,7 +181,7 @@ tracers = {
             str(nix_build(".#probe") / "bin/probe"),
             "record",
             "--copy-files=eagerly",
-            f"--output=/{sandbox_tracer_out!s}/probe_log",
+            f"--output={sandbox_tracer_out!s}/probe_log",
             "--overwrite",
         ],
         [
@@ -186,10 +189,10 @@ tracers = {
             "py",
             "export",
             "workflow",
-            f"--probe-log=/{sandbox_tracer_out!s}/probe_log",
+            f"--probe-log={sandbox_tracer_out!s}/probe_log",
             "/*",
             "--loose",
-            f"--output=/{sandbox_tracer_out!s}/workflow.yaml",
+            f"--output={sandbox_tracer_out!s}/workflow.yaml",
         ],
         pathlib.Path("workflow.yaml"),
         probe_counts,
@@ -197,7 +200,7 @@ tracers = {
     "ptu": lambda: ProvTracer(
         [
             str(nix_build(".#provenance-to-use-dir") / "bin/ptu"),
-            f"/{sandbox_tracer_out!s}/cde-package",
+            f"{sandbox_tracer_out!s}/cde-package",
         ],
         ["true"],
         pathlib.Path("cde-package/provenance.cde-root.1.log"),
@@ -208,15 +211,15 @@ tracers = {
             str(nix_build(".#reprozip") / "bin/reprozip"),
             "trace",
             "--overwrite",
-            f"--dir=/{sandbox_tracer_out!s}/rpz",
+            f"--dir={sandbox_tracer_out!s}/rpz",
         ],
         join_cmds(
-            ["rm", "--force", f"/{sandbox_tracer_out!s}/provenance.dot"],
+            ["rm", "--force", f"{sandbox_tracer_out!s}/provenance.dot"],
             [
                 str(nix_build(".#reprounzip") / "bin/reprounzip"),
                 "graph",
-                f"/{sandbox_tracer_out!s}/provenance.dot",
-                f"--dir=/{sandbox_tracer_out!s}/rpz",
+                f"{sandbox_tracer_out!s}/provenance.dot",
+                f"--dir={sandbox_tracer_out!s}/rpz",
             ]
         ),
         pathlib.Path("provenance.dot"),
@@ -274,15 +277,13 @@ def reprozip_counts(this_host_tracer_out: pathlib.Path) -> collections.abc.Mappi
 
 workloads = {
     "resnet-tf-mg": Workload(
-        setup=join_cmds(
-            ["python", "/scripts/10-download.py"],
-        ),
+        setup=["env", "-", "python", "/scripts/10-download.py"],
         run=[
-            ("download", ["env", "-", "python", "/scripts/10-download.py"]),
+            ("dwnload", ["env", "-", "python", "/scripts/10-download.py"]),
             ("tokenize", ["env", "-", "python", "/scripts/20-tokenizer.py"]),
             ("batch", ["env", "-", "python", "/scripts/25-batch.py"]),
             ("plots", ["env", "-", "python", "/scripts/30-plots.py"]),
-            ("transformer", ["env", "-", "python", "/scripts/40-build-transformer.py"]),
+            ("build-model", ["env", "-", "python", "/scripts/40-build-transformer.py"]),
             ("train", ["env", "-", "python", "/scripts/50-train.py"]),
             ("inference", ["env", "-", "python", "/scripts/60-inference.py"]),
         ],
@@ -297,65 +298,65 @@ workloads = {
             f"{sandbox_workload_out}/val_examples/*.pb",
             f"{sandbox_workload_out}/train_examples/*.pb",
             f"{sandbox_workload_out}/token_lengths.png",
-            f"{sandbox_workload_out}/ted_hrlr_translate_pt_en_converter_extracted/ted_hrlr_translate_pt_en_converter/saved_model.pb",
-            f"{sandbox_workload_out}/ted_hrlr_translate_pt_en_converter.zip",
+            f"{sandbox_setup_out}/ted_hrlr_translate_pt_en_converter_extracted/ted_hrlr_translate_pt_en_converter/saved_model.pb",
+            f"{sandbox_setup_out}/ted_hrlr_translate_pt_en_converter.zip",
         ],
         inputs=[
             "/scripts/*.py",
             "/usr/local/lib/python3.11/dist-packages/tensorflow/__init__.py",
         ],
     ),
-    "simple": Workload(
-        setup=["python", "-c", "import pathlib, random\npathlib.Path('/workload_output/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
-        run=[
-            ("stage 1", ["python", "-c", f"""
-import pathlib
-pathlib.Path(f"{sandbox_workload_out}/test.txt").read_text()
-pathlib.Path(f"{sandbox_workload_out}/test2.txt").write_text("hi")
-"""]),
-            ("stage 2", ["python", "-c", f"""
-import pathlib
-pathlib.Path(f"{sandbox_workload_out}/test2.txt").read_text()
-pathlib.Path(f"{sandbox_workload_out}/test3.txt").write_text("hi")
-"""]),
-        ],
-        context=root_dir / "benchmark2/resnet-tf-mg/context",
-        mounts=[],
-        outputs=[
-            f"{sandbox_workload_out}/test*",
-        ],
-        inputs=[
-            "/usr/bin/python",
-        ]
-    ),
+#     "simple": Workload(
+#         setup=["python", "-c", "import pathlib, random\npathlib.Path('/workload_output/test.txt').write_text(''.join(chr(random.randint(0, 127)) for _ in range(1000)))"],
+#         run=[
+#             ("stage 1", ["python", "-c", f"""
+# import pathlib
+# pathlib.Path(f"{sandbox_workload_out}/test.txt").read_text()
+# pathlib.Path(f"{sandbox_workload_out}/test2.txt").write_text("hi")
+# """]),
+#             ("stage 2", ["python", "-c", f"""
+# import pathlib
+# pathlib.Path(f"{sandbox_workload_out}/test2.txt").read_text()
+# pathlib.Path(f"{sandbox_workload_out}/test3.txt").write_text("hi")
+# """]),
+#         ],
+#         context=root_dir / "benchmark2/resnet-tf-mg/context",
+#         mounts=[],
+#         outputs=[
+#             f"{sandbox_workload_out}/test*",
+#         ],
+#         inputs=[
+#             "/usr/bin/python",
+#         ]
+#     ),
     "torch-attention": Workload(
         setup=join_cmds(
             ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data"],
             ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data", "--anki", "fra"],
         ),
         run=[
-            ("s21", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra1.txt"]),
-            ("s22", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra2.txt"]),
-            ("s23", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra3.txt"]),
-            ("s24", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra4.txt"]),
-            ("s31", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra1.txt", "--output", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", "--max-length", "5", "--report-dir", f"{sandbox_workload_out}/clean-data", "--lang1", "eng", "--lang2", "fra"]),
-            ("s32", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra2.txt", "--output", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", "--max-length", "4", "--report-dir", f"{sandbox_workload_out}/clean-data", "--lang1", "eng", "--lang2", "fra"]),
-            ("s33", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra3.txt", "--output", f"{sandbox_workload_out}/data/eng-fra3.txt_clean", "--normalize", "--max-length", "6", "--report-dir", f"{sandbox_workload_out}/clean-data_final", "--lang1", "eng", "--lang2", "fra"]),
-            ("s34", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra2.txt", "--output", f"{sandbox_workload_out}/data/eng-fra4.txt_clean", "--normalize", "--report-dir", f"{sandbox_workload_out}/clean-data_november", "--lang1", "eng", "--lang2", "fra"]),
+            ("randomize-data-1", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra1.txt"]),
+            ("randomize-data-2", ["shuf", "-n", "1000", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra2.txt"]),
+            ("randomize-data-3", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra3.txt"]),
+            ("randomize-data-4", ["shuf", "-n", "100", f"{sandbox_workload_out}/data/eng-fra.txt", "-o", f"{sandbox_workload_out}/data/eng-fra4.txt"]),
+            ("clean-data-1", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra1.txt", "--output", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", "--report-dir", f"{sandbox_workload_out}/clean-data", "--lang1", "eng", "--lang2", "fra", "--seed", "1"]),
+            ("clean-data-2", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra2.txt", "--output", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", "--report-dir", f"{sandbox_workload_out}/clean-data", "--lang1", "eng", "--lang2", "fra", "--seed", "2"]),
+            ("clean-data-3", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra3.txt", "--output", f"{sandbox_workload_out}/data/eng-fra3.txt_clean", "--normalize", "--report-dir", f"{sandbox_workload_out}/clean-data_final", "--lang1", "eng", "--lang2", "fra", "--seed", "3"]),
+            ("clean-data-4", ["/venv/bin/python", "/scripts/clean_data.py", "--input", f"{sandbox_workload_out}/data/eng-fra2.txt", "--output", f"{sandbox_workload_out}/data/eng-fra4.txt_clean", "--normalize", "--report-dir", f"{sandbox_workload_out}/clean-data_november", "--lang1", "eng", "--lang2", "fra", "--seed", "4"]),
             # ("s41", ["/venv/bin/python", "/scripts/verify_datasets.py", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra3.txt_clean", "--max-length", "10", "--seed", "1", "--report-dir", f"{sandbox_workload_out}/verify1"]),
             # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra3.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", f"{sandbox_workload_out}/verify2"]),
             # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra4.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", f"{sandbox_workload_out}/verify3"]),
             ("s44", ["ls", "-l", f"{sandbox_workload_out}/data/"]),
             ("s44", ["cp", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("s51", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v1"]),
+            ("train-1", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "20", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v1"]),
             ("s52", ["cp", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("s53", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v2"]),
+            ("train-2", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "30", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v2"]),
             ("s54", ["cp", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("s55", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v3"]),
+            ("train-3", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "40", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v3"]),
             ("s56", ["cp", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("s57", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "2", "--batch-size", "32", "--lr", "0.01", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v4"]),
-            ("s61", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v2", "--output-dir", f"{sandbox_workload_out}/comparison"]),
-            ("s62", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v3", "--output-dir", f"{sandbox_workload_out}/comparison"]),
+            ("train-4", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "50", "--batch-size", "32", "--lr", "0.01", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v4"]),
+            ("compare-1", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v2", "--output-dir", f"{sandbox_workload_out}/comparison"]),
+            ("compare-2", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v3", "--output-dir", f"{sandbox_workload_out}/comparison"]),
             # ["mkdir", f"{sandbox_workload_out}/inferrence"],
             # ["sh", "-c", "grep '^> ' /workload_output/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /workload_output/train/run_v1 --interactive > /workload_output/inferrence/p1"],
             # ["sh", "-c", "grep '^> ' /workload_output/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 100 | python evaluate.py --run-dir /workload_output/train/run_v1 --interactive > /workload_output/inferrence/p2"],
@@ -375,7 +376,45 @@ pathlib.Path(f"{sandbox_workload_out}/test3.txt").write_text("hi")
             f"{sandbox_workload_out}/train/*",
             f"{sandbox_workload_out}/comparison/*",
         ]
-    )
+    ),
+    "exec-heavy": Workload(
+        setup=["true"],
+        run=[
+            ("stage 1", ["sh", "-c", "seq 10000 | xargs --max-args 1 true"]),
+        ],
+        context=root_dir / "benchmark2/resnet-tf-mg/context",
+        mounts=[],
+        outputs=[],
+        inputs=[
+            "/usr/bin/python",
+        ]
+    ),
+    "read-heavy": Workload(
+        setup=["python", "-c", "import pathlib; pathlib.Path('/workload_output/test.txt').write_text('a' * 655360)"],
+        run=[
+            ("stage 1", ["python", "-c", """
+import pathlib
+for _ in range(10000):
+    pathlib.Path('/workload_output/test.txt').read_text()
+"""]),
+        ],
+        context=root_dir / "benchmark2/resnet-tf-mg/context",
+        mounts=[],
+        outputs=[],
+        inputs=[
+            "/usr/bin/python",
+        ]
+    ),
+    "no-op": Workload(
+        setup=[],
+        run=[
+            ("true", ["true"]),
+        ],
+        context=root_dir / "benchmark2/resnet-tf-mg/context",
+        mounts=[],
+        outputs=[],
+        inputs=[],
+    ),
 }
 
 
@@ -392,7 +431,7 @@ def get_mounts(
         tracer_name: str,
         workload_name: str,
         fresh: bool,
-) -> tuple[pathlib.Path, pathlib.Path, list[tuple[pathlib.Path, pathlib.Path, str]]]:
+) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path, list[tuple[pathlib.Path, pathlib.Path, str]]]:
     workload = workloads[workload_name]
     this_host_workload_out = host_workload_out / workload_name
     if fresh and  this_host_workload_out.exists():
@@ -404,13 +443,17 @@ def get_mounts(
         shutil.rmtree(this_host_tracer_out)
     this_host_tracer_out.mkdir(exist_ok=True)
 
+    this_host_setup_out = host_setup_out / workload_name
+    this_host_setup_out.mkdir(exist_ok=True)
+
     mounts = [
         *workload.mounts,
         (this_host_workload_out, sandbox_workload_out, "rw"),
+        (this_host_setup_out, sandbox_setup_out, "rw"),
         (this_host_tracer_out, sandbox_tracer_out, "rw"),
         (host_timer_out, sandbox_timer_out, "rw"),
     ]
-    return this_host_tracer_out, this_host_workload_out, mounts
+    return this_host_tracer_out, this_host_setup_out, this_host_workload_out, mounts
 
 
 def do_trial(
@@ -425,9 +468,9 @@ def do_trial(
 
     podman_build(workload.context, workload_name)
 
-    this_host_tracer_out, _, mounts = get_mounts(tracer_name, workload_name, fresh)
+    this_host_tracer_out, this_host_setup, _, mounts = get_mounts(tracer_name, workload_name, fresh)
 
-    if workload.setup:
+    if workload.setup and not list(this_host_setup.iterdir()):
         cmd = podman(workload_name, mounts) + workload.setup
         print(f"Running {tracer_name} {workload_name} setup")
         print(shlex.join(cmd))
@@ -492,18 +535,19 @@ TupleKeyLoader.add_constructor(
 )
 
 
-repetitions = 11
+repetitions = 10
 schema = {
     "tracer": polars.Categorical(),
     "workload": polars.Categorical(),
     "stage": polars.Categorical(),
     "iteration": polars.Int8(),
     "wall_time": polars.datatypes.Duration("us"),
-    "cpu_time": polars.datatypes.Duration("us"),
+    "user_time": polars.datatypes.Duration("us"),
     "kernel_time": polars.datatypes.Duration("us"),
     "memory": polars.UInt64(),
     "op_counts": polars.List(polars.Struct({"key": polars.String, "value": polars.UInt32})),
 }
+FRESH = False
 
 
 def main() -> None:
@@ -517,7 +561,7 @@ def main() -> None:
                 "stage": [],
                 "iteration": [],
                 "wall_time": [],
-                "cpu_time": [],
+                "user_time": [],
                 "kernel_time": [],
                 "memory": [],
                 "op_counts": [],
@@ -539,14 +583,14 @@ def main() -> None:
         trials_to_do = list(trials - trials_done)
         random.Random(0).shuffle(trials_to_do)
         for tracer_name, workload_name, iteration in trials_to_do:
-            for stage, resources, ops in do_trial(tracer_name, workload_name, False, False, True):
+            for stage, resources, ops in do_trial(tracer_name, workload_name, False, False, FRESH):
                 new_row = polars.DataFrame({
                     "tracer": [tracer_name],
                     "workload": [workload_name],
                     "stage": [stage],
                     "iteration": [iteration],
                     "wall_time": [resources["rusage"]["stop"] - resources["rusage"]["start"]],
-                    "cpu_time": [resources["rusage"]["cpu_user_us"]],
+                    "user_time": [resources["rusage"]["cpu_user_us"]],
                     "kernel_time": [resources["rusage"]["cpu_system_us"]],
                     "memory": [resources["rusage"]["peak_memory_usage"]],
                     "op_counts": [[

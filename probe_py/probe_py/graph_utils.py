@@ -22,15 +22,13 @@ def map_nodes(
     mapper: typing.Callable[[_Node], _Node2],
     graph: networkx.DiGraph[_Node],
     check_unique: bool = True,
-) -> networkx.DiGraph[_Node2]:
-    ...
+) -> networkx.DiGraph[_Node2]: ...
 @typing.overload
 def map_nodes(
     mapper: typing.Callable[[_Node], _Node2],
     graph: networkx.Graph[_Node],
     check_unique: bool = True,
-) -> networkx.Graph[_Node2]:
-    ...
+) -> networkx.Graph[_Node2]: ...
 def map_nodes(
     mapper: typing.Callable[[_Node], _Node2],
     graph: networkx.Graph[_Node],

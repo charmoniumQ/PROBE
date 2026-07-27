@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--max-tokens', type=int, default=128)
 parser.add_argument('--buffer-size', type=int, default=20000)
 parser.add_argument('--batch-size', type=int, default=64)
-parser.add_argument('--data-dir', default='/output')
+parser.add_argument('--data-dir', default='/workload_output')
 args = parser.parse_args()
 
 train_examples = tf.data.Dataset.load(args.data_dir + '/train_examples')

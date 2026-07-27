@@ -11,7 +11,7 @@ import tensorflow as tf
 import tensorflow_text
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data-dir', default='/output')
+parser.add_argument('--data-dir', default='/workload_output')
 args = parser.parse_args()
 
 train_examples = tf.data.Dataset.load(args.data_dir + '/train_examples')

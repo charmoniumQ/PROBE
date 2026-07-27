@@ -18,7 +18,7 @@ import components
 parser = argparse.ArgumentParser()
 parser.add_argument('--max-tokens', type=int, default=128,
                     help='Maximum token length for translation generation')
-parser.add_argument('--data-dir', default='/output')
+parser.add_argument('--data-dir', default='/workload_output')
 args = parser.parse_args()
 
 model_name = 'ted_hrlr_translate_pt_en_converter'

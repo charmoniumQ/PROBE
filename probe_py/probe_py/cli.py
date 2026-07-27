@@ -14,12 +14,14 @@ import textwrap
 import warnings
 import charmonium.time_block
 import msgspec
+import prov.dot  # type: ignore
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
 import tqdm
 import typer
 from . import dataflow_graph as dataflow_graph_module
+from . import export_rdf
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
@@ -250,7 +252,45 @@ def workflow(
     })
     workflow = workflows.workflowize(probe_log_obj, analysis, dfg, paths_of_interest3)
     workflows.serialize_yaml(workflow, output)
+
     
+@export_app.command()
+@charmonium.time_block.decor(print_start=False)
+def w3c_prov(
+        rdf_output: Annotated[
+            pathlib.Path,
+            typer.Option()
+        ] = pathlib.Path("provenance.ttl"),
+        graphical_output: Annotated[
+            pathlib.Path,
+            typer.Option()
+        ] = pathlib.Path("provenance.dot"),
+        probe_log: Annotated[
+            pathlib.Path,
+            probe_log_help,
+        ] = pathlib.Path("probe_log"),
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
+        verbose: Annotated[bool, verbose_option] = False,
+) -> None:
+    restore_sanity(strict, debug)
+    probe_log_obj = parser.parse_probe_log(probe_log)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict)
+    rdf_graph, prov_document = export_rdf.export_rdf_graph(probe_log_obj, analysis, dfg)
+    rdf_graph.serialize(destination=str(rdf_output))
+    prov_document_dot = prov.dot.prov_to_dot(prov_document, use_labels=True, show_nary=False, show_element_attributes=False, show_relation_attributes=False)
+    match graphical_output.suffix:
+        case ".dot":
+            prov_document_dot.write_raw(graphical_output)
+        case ".svg":
+            prov_document_dot.write_svg(graphical_output)
+        case ".png":
+            prov_document_dot.write_png(graphical_output)
+        case ".pdf":
+            prov_document_dot.write_pdf(graphical_output)
+        case _:
+            raise RuntimeError(f"Unsupported output type for pydot: {graphical_output.suffix}")
 
 
 @export_app.command()

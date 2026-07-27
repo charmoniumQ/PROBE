@@ -11,17 +11,18 @@ ted_hrlr_translate_dataset_builder._DATA_URL = (
 )
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--train-split', default='train[:1%]')
-parser.add_argument('--val-split', default='validation[:1%]')
-parser.add_argument('--data-dir', default='/output')
+parser.add_argument('--train-percent', default='10')
+parser.add_argument('--validation-percent', default='10')
+parser.add_argument('--download-dir', default='/setup')
+parser.add_argument('--data-dir', default='/workload_data')
 args = parser.parse_args()
 
 (train_examples, val_examples), metadata = tfds.load(
     'ted_hrlr_translate/pt_to_en',
-    split=[args.train_split, args.val_split],
+    split=[f"train[:{args.train_percent}%]", f"validation[:{args.validation_percent}%]"],
     with_info=True,
     as_supervised=True,
-    data_dir=args.data_dir
+    data_dir=args.download_dir
 )
 
 tf.data.Dataset.save(train_examples, args.data_dir + '/train_examples')

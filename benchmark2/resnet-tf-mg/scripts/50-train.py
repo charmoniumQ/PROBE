@@ -19,7 +19,7 @@ parser.add_argument('--num-heads', type=int, default=8)
 parser.add_argument('--dropout-rate', type=float, default=0.1)
 parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--warmup-steps', type=int, default=4000)
-parser.add_argument('--data-dir', default='/output')
+parser.add_argument('--data-dir', default='/workload_output')
 args = parser.parse_args()
 
 train_batches = tf.data.Dataset.load(args.data_dir + '/train_batches')
