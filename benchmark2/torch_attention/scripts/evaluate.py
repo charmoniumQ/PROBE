@@ -134,7 +134,7 @@ def score_dataset(args: argparse.Namespace, loaded: LoadedModel, out_dir: str) -
 
     criterion = nn.NLLLoss()
     loss = evaluate_loss(loader, loaded.encoder, loaded.decoder, criterion)
-    word_acc, exact = evaluate_accuracy(
+    acc_metrics = evaluate_accuracy(
         loaded.encoder,
         loaded.decoder,
         pairs,
@@ -143,6 +143,16 @@ def score_dataset(args: argparse.Namespace, loaded: LoadedModel, out_dir: str) -
         loaded.device,
         limit=args.acc_limit,
     )
+    word_acc = acc_metrics["word_accuracy"]
+    exact = acc_metrics["exact_match"]
+    bleu = acc_metrics["bleu"]
+    bleu_1 = acc_metrics["bleu_1"]
+    bleu_2 = acc_metrics["bleu_2"]
+    bleu_3 = acc_metrics["bleu_3"]
+    bleu_4 = acc_metrics["bleu_4"]
+    token_f1 = acc_metrics["token_f1"]
+    token_precision = acc_metrics["token_precision"]
+    token_recall = acc_metrics["token_recall"]
 
     sample_lines: List[str] = []
     n = min(args.n_samples, len(pairs))
@@ -164,8 +174,16 @@ def score_dataset(args: argparse.Namespace, loaded: LoadedModel, out_dir: str) -
         "split": args.split,
         "n_pairs": len(pairs),
         "loss": round(loss, 4),
-        "word_accuracy": round(word_acc, 4),
-        "exact_match": round(exact, 4),
+        "word_accuracy": word_acc,
+        "exact_match": exact,
+        "bleu": bleu,
+        "bleu_1": bleu_1,
+        "bleu_2": bleu_2,
+        "bleu_3": bleu_3,
+        "bleu_4": bleu_4,
+        "token_f1": token_f1,
+        "token_precision": token_precision,
+        "token_recall": token_recall,
     }
     save_json(metrics, os.path.join(out_dir, "eval_metrics.json"))
     return metrics, bundle
@@ -225,6 +243,7 @@ def main() -> None:
         print(
             f"\n[{metrics['split']}] loss={metrics['loss']} "
             f"word_acc={metrics['word_accuracy']} exact={metrics['exact_match']} "
+            f"bleu={metrics['bleu']} f1={metrics['token_f1']} "
             f"({metrics['n_pairs']} pairs)"
         )
 

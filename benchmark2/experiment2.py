@@ -4,6 +4,7 @@ import json
 import pathlib
 import shlex
 import subprocess
+import warnings
 import yaml
 from openai_setup import run_model
 from openai_setup import InferredProvenance, Rule
@@ -34,18 +35,18 @@ async def real_infer_provenance(
 ) -> InferredProvenance:
     workload = experiment.workloads[workload_name]
     mcp_server_filesystem = experiment.nix_build(".#mcp-server-filesystem") / "bin/mcp-server-filesystem"
-    tracer_output_dir, workload_output_dir, mounts = experiment.get_mounts(tracer_name, workload_name, False)
+    tracer_output_dir, _, workload_output_dir, mounts = experiment.get_mounts(tracer_name, workload_name, False)
 
     if not list(workload_output_dir.iterdir()):
-        experiment.do_trial(tracer_name, workload_name, True, True, True)
+        experiment.do_trial(tracer_name, workload_name, True, True, False)
         assert list(workload_output_dir.iterdir())
 
     # Only expose relevant directories to the MCP filesystem server
-    top_level_dirs = [str(experiment.sandbox_workload_out), str(experiment.sandbox_tracer_out), "/bin", "/usr", "/etc", "/opt", "/lib"]
+    top_level_dirs = [str(experiment.sandbox_workload_out), str(experiment.sandbox_tracer_out), "/"]
 
     server_cmd = experiment.podman(workload_name, mounts) + ["sh", "-c", shlex.join([str(mcp_server_filesystem), *top_level_dirs]) + " 2>/dev/null"]
 
-    (tracer_output_dir / "shell_history").write_text("\n".join(shlex.join(map(str, cmd)) for _, cmd in workload.run))
+    #(tracer_output_dir / "shell_history").write_text("\n".join(shlex.join(map(str, cmd)) for _, cmd in workload.run))
     (tracer_output_dir / "env").write_text(subprocess.run(
         experiment.podman(workload_name, mounts) + ["env"],
         capture_output=True,
@@ -80,7 +81,7 @@ async def real_infer_provenance(
         output_paths,
         server_cmd,
         tracer_name,
-        tracer_output_dir / tracer.artifact,
+        experiment.sandbox_tracer_out / tracer.artifact,
     )
 
     return scripts
@@ -90,13 +91,13 @@ def load_recorded_provenance(
         workload_name: str,
 ) -> dict[str, Rule]:
     workload = experiment.workloads[workload_name]
-    this_tracer_out, _, mounts = experiment.get_mounts("probe-slow", workload_name, False)
+    this_tracer_out, _, _, mounts = experiment.get_mounts("probe-slow", workload_name, False)
+    workflows_path = this_tracer_out / "workflow.yaml"
 
-    # Parse graph
-    if not this_tracer_out.exists():
+    if not workflows_path.exists():
         experiment.do_trial("probe-slow", workload_name, True, True, True)
+        assert workflows_path.exists()
 
-    # Get input/output paths
     input_paths = set(subprocess.run(
         experiment.podman(workload_name, mounts) + ["sh", "-c", f"echo {' '.join(workload.inputs)} | xargs --max-args 1 echo"],
         capture_output=True,
@@ -108,14 +109,15 @@ def load_recorded_provenance(
         text=True,
     ).stdout.strip().split("\n"))
 
-    workflow = yaml.safe_load(this_tracer_out.read_text())
+    workflow = yaml.safe_load(workflows_path.read_text())
     inferred_provs = {}
     paths_of_interest = input_paths | output_paths
     for rule in workflow["rules"]:
         inputs = [str(path) for path in rule["inputs"] if str(path) in paths_of_interest]
         outputs = [str(path) for path in rule["outputs"] if str(path) in paths_of_interest]
         for output in outputs:
-            assert output not in inferred_provs
+            if output in inferred_provs:
+                warnings.warn(f"{output} is clobbered")
             inferred_provs[output] = Rule(
                 output_path=output,
                 input_paths=inputs,
@@ -143,17 +145,17 @@ class DCJSONEncoder(json.JSONEncoder):
 
 if __name__ == "__main__":
     workload_name = "resnet-tf-mg"
-    tracer_name = "rzip"
-
-    inferred = infer_provenance(
-        tracer_name,
-        workload_name,
-    )
-    print(inferred.usage)
+    tracer_name = "none"
 
     recorded_provenance = load_recorded_provenance(workload_name)
 
-    default_rule = Rule(output_path=output, input_paths=[], commands_to_reproduce=[])
+    # inferred = infer_provenance(
+    #     tracer_name,
+    #     workload_name,
+    # )
+    # print(inferred.usage)
+
+    default_rule = lambda output: Rule(output_path=output, input_paths=[], commands_to_reproduce=[])
     n_inputs_total = 0
     n_inputs_extraneous = 0
     n_inputs_missed = 0
@@ -166,13 +168,13 @@ if __name__ == "__main__":
     n_rules = 0
 
     for output, recorded_rule in recorded_provenance.items():
-        inferred_rule = inferred.outputs.get(output, default_rule)
+        inferred_rule = inferred.outputs.get(output, default_rule(output))
         inputs_inferrence_missed = frozenset(recorded_rule.input_paths) - frozenset(inferred_rule.input_paths)
         inputs_inferrence_extraneous = frozenset(inferred_rule.input_paths) - frozenset(recorded_rule.input_paths)
         inputs_inferrence_correct = frozenset(recorded_rule.input_paths) & frozenset(inferred_rule.input_paths)
-        cmds_inferrence_missed = frozenset(recorded_rule.commands_to_reproduce) - frozenset(inferred_rule.commands_to_reproduce)
-        cmds_inferrence_extraneous = frozenset(inferred_rule.commands_to_reproduce) - frozenset(recorded_rule.commands_to_reproduce)
-        cmds_inferrence_correct = frozenset(recorded_rule.commands_to_reproduce) & frozenset(inferred_rule.commands_to_reproduce)
+        cmds_inferrence_missed = frozenset(map(tuple, recorded_rule.commands_to_reproduce)) - frozenset(map(tuple, inferred_rule.commands_to_reproduce))
+        cmds_inferrence_extraneous = frozenset(map(tuple, inferred_rule.commands_to_reproduce)) - frozenset(map(tuple, recorded_rule.commands_to_reproduce))
+        cmds_inferrence_correct = frozenset(map(tuple, recorded_rule.commands_to_reproduce)) & frozenset(map(tuple, inferred_rule.commands_to_reproduce))
 
         n_inputs_total += len(recorded_rule.input_paths)
         n_inputs_extraneous += len(inputs_inferrence_extraneous)
@@ -191,20 +193,23 @@ if __name__ == "__main__":
 
         print(output)
         for var, val in dict(
+            recorded_inputs=recorded_rule.input_paths,
+            inferred_inputs=inferred_rule.input_paths,
+            recorded_cmds=recorded_rule.commands_to_reproduce,
+            inferred_cmds=inferred_rule.commands_to_reproduce,
             inputs_inferrence_missed=inputs_inferrence_missed,
             inputs_inferrence_extraneous=inputs_inferrence_extraneous,
-            inputs_inferrence_correct=inputs_inferrence_correct,
             cmds_inferrence_missed=cmds_inferrence_missed,
             cmds_inferrence_extraneous=cmds_inferrence_extraneous,
-            cmds_inferrence_correct=cmds_inferrence_correct,
         ).items():
             if val:
-                print(var, val)
+                print(var, "; ".join(map(str, val)))
+        print()
 
     print(f"{n_inputs_extraneous / n_inputs_total * 100:.0f}% inputs extraneous")
-    print(f"{n_inputs_extraneous / n_inputs_total * 100:.0f}% inputs missed")
+    print(f"{n_inputs_missed / n_inputs_total * 100:.0f}% inputs missed")
     print(f"{n_cmds_extraneous / n_cmds_total * 100:.0f}% cmds extraneous")
-    print(f"{n_cmds_extraneous / n_cmds_total * 100:.0f}% cmds missed")
+    print(f"{n_cmds_missed / n_cmds_total * 100:.0f}% cmds missed")
     print(f"{n_rules_sound / n_rules * 100:.0f}% rules sound")
 
     # tracers = experiment.tracers.keys() - {"probe-fast"}

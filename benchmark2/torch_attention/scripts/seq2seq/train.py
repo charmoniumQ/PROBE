@@ -1,8 +1,10 @@
 """Training and evaluation routines (architecture-agnostic)."""
 from __future__ import annotations
 
+import math
 import time
-from typing import Callable, List, Optional, Tuple
+from collections import Counter
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -104,25 +106,94 @@ def evaluate_accuracy(
     output_lang: Lang,
     device: torch.device,
     limit: Optional[int] = 500,
-) -> Tuple[float, float]:
-    """Return (word-level accuracy, exact-match accuracy) on greedy decodes."""
+) -> dict:
+    """Return accuracy metrics on greedy decodes (word-acc, exact-match, BLEU, F1)."""
     sample = pairs[:limit] if limit else pairs
     total_words = 0
     correct_words = 0
     exact = 0
+    predictions: List[List[str]] = []
+    references: List[List[str]] = []
+
     for src, tgt in sample:
         pred_words, _ = evaluate(encoder, decoder, src, input_lang, output_lang, device)
         pred = [w for w in pred_words if w != "<EOS>"]
         gold = tgt.split(" ")
+        predictions.append(pred)
+        references.append(gold)
         for i, gold_word in enumerate(gold):
             total_words += 1
             if i < len(pred) and pred[i] == gold_word:
                 correct_words += 1
         if pred == gold:
             exact += 1
+
     word_acc = correct_words / max(total_words, 1)
     exact_acc = exact / max(len(sample), 1)
-    return word_acc, exact_acc
+
+    pred_tokens = sum(len(p) for p in predictions)
+    ref_tokens = sum(len(r) for r in references)
+    precision = correct_words / max(pred_tokens, 1)
+    recall = correct_words / max(ref_tokens, 1)
+    f1 = 2 * precision * recall / max(precision + recall, 1e-9)
+
+    bleu_metrics = _corpus_bleu(predictions, references)
+
+    return {
+        "word_accuracy": round(word_acc, 4),
+        "exact_match": round(exact_acc, 4),
+        "token_precision": round(precision, 4),
+        "token_recall": round(recall, 4),
+        "token_f1": round(f1, 4),
+        **bleu_metrics,
+    }
+
+
+def _ngrams(tokens: List[str], n: int) -> Counter:
+    return Counter(tuple(tokens[i : i + n]) for i in range(len(tokens) - n + 1))
+
+
+def _corpus_bleu(
+    predictions: List[List[str]],
+    references: List[List[str]],
+    max_n: int = 4,
+) -> Dict[str, float]:
+    """Compute corpus-level BLEU-1 through BLEU-4 (standard smoothed corpus BLEU)."""
+    precisions: List[float] = []
+    for n in range(1, max_n + 1):
+        pred_counts: Counter = Counter()
+        ref_counts: Counter = Counter()
+        for pred, ref in zip(predictions, references):
+            pred_counts += _ngrams(pred, n)
+            ref_counts += _ngrams(ref, n)
+
+        clipped_count = 0
+        pred_total = sum(pred_counts.values())
+        for ngram, count in pred_counts.items():
+            clipped_count += min(count, ref_counts.get(ngram, 0))
+
+        precisions.append(clipped_count / pred_total if pred_total > 0 else 0.0)
+
+    ref_len = sum(len(r) for r in references)
+    pred_len = sum(len(p) for p in predictions)
+    if pred_len == 0:
+        bp = 0.0
+    elif pred_len >= ref_len:
+        bp = 1.0
+    else:
+        bp = math.exp(1.0 - ref_len / pred_len)
+
+    results: Dict[str, float] = {}
+    for i in range(max_n):
+        valid = [p for p in precisions[: i + 1] if p > 0]
+        if not valid:
+            results[f"bleu_{i + 1}"] = 0.0
+        else:
+            geom_mean = math.exp(sum(math.log(p) for p in valid) / (i + 1))
+            results[f"bleu_{i + 1}"] = round(bp * geom_mean, 4)
+
+    results["bleu"] = results.get(f"bleu_{max_n}", 0.0)
+    return results
 
 
 def train(

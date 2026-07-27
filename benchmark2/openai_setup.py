@@ -30,15 +30,14 @@ class InferredProvenance(pydantic.BaseModel):
 
 
 PROMPT = """
-For each output path below, determine which input paths influenced it and write a script that regenerates it.
+For each output file below, determine which input files influenced the output and the command that generates the output assuming the determined inputs are already present.
 
 You may use the filesystem tools to examine:
-- Shell history at /{tracer_output}/shell_history
 - Environment variables at /{tracer_output}/env
 - The {tracer_name} artifact at /{tracer_output}/{tracer_artifact!s}
 - Output files and input files
 
-Once you have gathered enough information (typically within 5-10 tool calls), produce your final answer as a single JSON object matching this schema: {schema}
+Produce your final answer as a single JSON object matching this schema: {schema}
 
 Output paths:
 {output_paths}

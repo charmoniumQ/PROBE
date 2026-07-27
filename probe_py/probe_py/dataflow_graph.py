@@ -51,6 +51,13 @@ class IVNs(frozenset[InodeVersionNode]):
 
 
 class Quads(frozenset[ptypes.OpQuad]):
+    def exec_pair(self) -> ptypes.ExecPair:
+        pairs = self.exec_pairs()
+        if len(pairs) == 1:
+            return next(iter(pairs))
+        else:
+            raise ValueError(f"Quad contains multiple exec pairs {pairs}")
+
     def thread_triple(self) -> ptypes.ThreadTriple:
         triples = self.thread_triples()
         if len(triples) == 1:
@@ -365,10 +372,14 @@ class Analysis:
                                         (None, ptypes.AccessMode.READ),
                                         (ptypes.AccessMode.WRITE, ptypes.AccessMode.READ_WRITE),
                                     )[data.open_number.is_write][data.open_number.is_read]
-                                    string = ("R" if data.open_number.is_read else "") + ("W" if data.open_number.is_write else "")
-                                    warnings.warn(ptypes.UnusualProbeLog(
-                                        f"Downgrading {oni.open_mode} to {downgraded_access} due to {string!r} accesses, which should not be possible."
-                                    ))
+                                    string = ("R" if data.open_number.is_read else "") + (
+                                        "W" if data.open_number.is_write else ""
+                                    )
+                                    warnings.warn(
+                                        ptypes.UnusualProbeLog(
+                                            f"Downgrading {oni.open_mode} to {downgraded_access} due to {string!r} accesses, which should not be possible."
+                                        )
+                                    )
                                 else:
                                     raise exc
                         else:
@@ -830,9 +841,12 @@ def label_quads(
                     else:
                         data["label"] += "(child process)"
                 else:
-                    args = [arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]]
                     args = [
-                        arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…" for arg in args
+                        arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]
+                    ]
+                    args = [
+                        arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…"
+                        for arg in args
                     ]
                     if len(args) > max_args:
                         args_str = shlex.join(args[:max_args]) + ", …"

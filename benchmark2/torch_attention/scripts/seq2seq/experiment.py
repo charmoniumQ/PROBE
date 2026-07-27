@@ -112,7 +112,7 @@ def run_experiment(cfg: TrainConfig, verbose: bool = True) -> dict:
     )
     train_time = time.time() - start
 
-    word_acc, exact_acc = evaluate_accuracy(
+    acc_metrics = evaluate_accuracy(
         encoder,
         decoder,
         bundle.val_pairs,
@@ -121,6 +121,16 @@ def run_experiment(cfg: TrainConfig, verbose: bool = True) -> dict:
         device,
         limit=cfg.acc_limit,
     )
+    word_acc = acc_metrics["word_accuracy"]
+    exact_acc = acc_metrics["exact_match"]
+    bleu = acc_metrics["bleu"]
+    bleu_1 = acc_metrics["bleu_1"]
+    bleu_2 = acc_metrics["bleu_2"]
+    bleu_3 = acc_metrics["bleu_3"]
+    bleu_4 = acc_metrics["bleu_4"]
+    token_f1 = acc_metrics["token_f1"]
+    token_precision = acc_metrics["token_precision"]
+    token_recall = acc_metrics["token_recall"]
 
     # --- Artifacts -------------------------------------------------------
     plotting.plot_losses(
@@ -164,8 +174,16 @@ def run_experiment(cfg: TrainConfig, verbose: bool = True) -> dict:
         "train_time_sec": round(train_time, 2),
         "final_train_loss": round(train_losses[-1], 4) if train_losses else None,
         "final_val_loss": round(val_losses[-1], 4) if val_losses else None,
-        "word_accuracy": round(word_acc, 4),
-        "exact_match": round(exact_acc, 4),
+        "word_accuracy": word_acc,
+        "exact_match": exact_acc,
+        "bleu": bleu,
+        "bleu_1": bleu_1,
+        "bleu_2": bleu_2,
+        "bleu_3": bleu_3,
+        "bleu_4": bleu_4,
+        "token_f1": token_f1,
+        "token_precision": token_precision,
+        "token_recall": token_recall,
         "train_loss_curve": [round(x, 4) for x in train_losses],
         "val_loss_curve": [round(x, 4) for x in val_losses],
         "attention_maps": attn_files,
@@ -180,6 +198,7 @@ def run_experiment(cfg: TrainConfig, verbose: bool = True) -> dict:
         print(
             f"--- {run_name}: val_loss={metrics['final_val_loss']} "
             f"word_acc={word_acc:.3f} exact={exact_acc:.3f} "
+            f"bleu={bleu:.3f} f1={token_f1:.3f} "
             f"params={n_params} time={train_time:.1f}s"
         )
     return metrics

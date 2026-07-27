@@ -316,14 +316,16 @@
               python.pkgs.msgspec
               python.pkgs.networkx
               python.pkgs.numpy
+              python.pkgs.prov
               python.pkgs.pydot
               python.pkgs.pygraphviz
+              python.pkgs.pyyaml
+              python.pkgs.rdflib
               python.pkgs.rich
               python.pkgs.sqlalchemy
               python.pkgs.tqdm
               python.pkgs.typer
               python.pkgs.xdg-base-dirs
-              python.pkgs.pyyaml
             ];
             nativeCheckInputs = [
               packages.types-networkx
@@ -441,6 +443,9 @@
             pypkgs.langchain-deepseek
             pypkgs.langchain_mcp_adapters
             pypkgs.openai-agents
+            pypkgs.great-tables
+            pypkgs.rdflib
+            pypkgs.prov
 
             # libprobe build time requirement
             pypkgs.pycparser

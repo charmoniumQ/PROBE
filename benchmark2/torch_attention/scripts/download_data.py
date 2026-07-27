@@ -122,6 +122,12 @@ def main() -> None:
         default="data",
         help="Used to derive the default --output location.",
     )
+    p.add_argument(
+        "--n-copies",
+        type=int,
+        default=20,
+        help="Repeat the downloaded data N times in the output file.",
+    )
     args = p.parse_args()
 
     if args.anki:
@@ -130,6 +136,15 @@ def main() -> None:
     else:
         output = args.output or os.path.join(args.data_dir, "eng-fra.txt")
         download_tutorial(output)
+
+    if args.n_copies > 1:
+        with open(output, "r", encoding="utf-8") as fh:
+            lines = fh.readlines()
+        with open(output, "w", encoding="utf-8") as fh:
+            for _ in range(args.n_copies):
+                fh.writelines(lines)
+        n_lines = sum(1 for _ in open(output, encoding="utf-8"))
+        print(f"Duplicated {len(lines)} lines x{args.n_copies}: wrote {n_lines} total lines.")
 
 
 if __name__ == "__main__":
