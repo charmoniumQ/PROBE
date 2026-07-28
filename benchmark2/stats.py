@@ -119,7 +119,7 @@ if __name__ == "__main__":
             "workload",
             "stage",
             "tracer",
-            (polars.col("overhead_ratio") * 100).round().cast(polars.Int16),
+            (polars.col("overhead_ratio") * 100 - 100).round().cast(polars.Int16),
         )
         .pivot(
             "tracer",

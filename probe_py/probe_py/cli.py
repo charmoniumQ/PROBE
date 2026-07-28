@@ -187,7 +187,11 @@ def dataflow_graph(
         ignore_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
-        ] = "/nix/store/,/dev/,/proc/,/sys/,*.pyc,*/.local/state/nix/profile/*",
+        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*",
+        include_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "",
         relative_to: Annotated[
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
@@ -195,6 +199,10 @@ def dataflow_graph(
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
         verbose: Annotated[bool, verbose_option] = False,
+        conservative: Annotated[
+            bool,
+            typer.Option(help="Err on the side of adding an edge rather than missing one."),
+        ] = False,
 ) -> None:
     """
     Write a dataflow graph for probe_log.
@@ -204,8 +212,8 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict)
-    dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to, ignore_paths=ignore_paths.split(","))
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict, conservative=conservative)
+    dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to, ignore_paths=ignore_paths.split(","), include_paths=include_paths.split(","))
     graph_utils.serialize_graph(dfg, output)
 
     

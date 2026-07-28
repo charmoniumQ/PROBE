@@ -90,6 +90,7 @@ def add_processes(
 
             # Found the ancestor who was execked.
             # Make sure they have an activity
+            activity: Activity
             if ancestor_exec_pair not in exec_to_activity:
                 print(ancestor_exec_pair, "is true exec")
                 init_exec_op = probe_log.processes[ancestor_exec_pair.pid].execs[ancestor_exec_pair.exec_no].threads[ancestor_exec_pair.pid.main_thread()].ops[0].data
@@ -133,8 +134,7 @@ def add_inodes(
         graph: rdflib.Graph,
 ) -> collections.abc.Mapping[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]]:
     device_to_term = dict[ptypes.Device, rdflib.term.Node]()
-    inode_to_term = dict[ptypes.Inode, tuple[pathlib.Path, int, rdflib.term.Node]]()
-    inode_to_path = dict[ptypes.Inode, pathlib.Path]()
+    inode_to_term = dict[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]]()
     path_to_inode_to_major_version = dict[pathlib.Path, dict[ptypes.Inode, int]]()
     for node in sorted(dfg.nodes(), key=node_sorter):
         if isinstance(node, dataflow_graph.IVNs):
@@ -150,6 +150,7 @@ def add_inodes(
                 inode = ivn.inode
                 if inode not in inode_to_term:
                     path_counter = analysis.paths[ivn.inode]
+                    representative_path: pathlib.Path | None
                     if path_counter:
                         max_path_count = max(path_counter.values())
                         max_paths = [
@@ -157,11 +158,11 @@ def add_inodes(
                             for path, count in path_counter.items()
                             if count == max_path_count
                         ]
-                        inode_to_path[inode] = representative_path = min(max_paths, key=lambda path: path.parts)
+                        representative_path = min(max_paths, key=lambda path: path.parts)
                         inode_to_major_version = path_to_inode_to_major_version.setdefault(representative_path, dict())
                         major_version = inode_to_major_version.setdefault(inode, len(inode_to_major_version))
                     else:
-                        inode_to_path[inode] = representative_path = None
+                        representative_path = None
                         major_version = inode.number
                     inode_term = rdflib.URIRef(f"inode_{device.major_id}_{device.minor_id}_{inode.number}")
                     graph.add((inode_term, RDF.type, AD_HOC_NAMESPACE.OSInode))
