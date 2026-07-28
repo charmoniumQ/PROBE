@@ -365,7 +365,10 @@ class Analysis:
                             print(
                                 f"Close {quad}: {data.open_number} {oni.inode.number} opened at {oni.open}",
                             )
-                        if self.probe_log.process_tree_context.interpose_read_writes and not self.conservative:
+                        if (
+                            self.probe_log.process_tree_context.interpose_read_writes
+                            and not self.conservative
+                        ):
                             try:
                                 downgraded_access = oni.open_mode.downgrade(
                                     data.open_number.is_write, data.open_number.is_read
@@ -395,7 +398,10 @@ class Analysis:
 
                     # This dup might be an implicit close.
                     if oni := open_numbers[data.old_dst.fd].get(data.old_dst.number):
-                        if self.probe_log.process_tree_context.interpose_read_writes and not self.conservative:
+                        if (
+                            self.probe_log.process_tree_context.interpose_read_writes
+                            and not self.conservative
+                        ):
                             downgraded_access = oni.open_mode.downgrade(
                                 data.old_dst.is_write, data.old_dst.is_read
                             )
@@ -886,7 +892,9 @@ def label_ivns(
             type_str = f" (type={type})"
         paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
         for path, frequency in list(paths.most_common()):
-            if not any(fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths) or any(fnmatch.fnmatch(str(path), include_path) for include_path in include_paths):
+            if not any(
+                fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths
+            ) or any(fnmatch.fnmatch(str(path), include_path) for include_path in include_paths):
                 path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
                 inode_labels.append(f"{path_str}{type_str}")
         if not paths:
