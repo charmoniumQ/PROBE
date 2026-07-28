@@ -1,9 +1,8 @@
-import contextlib
 import pathlib
 import warnings
 import rdflib
-import prov.model
-import prov.dot
+import prov.model  # type: ignore
+import prov.dot  # type: ignore
 import charmonium.time_block
 
 

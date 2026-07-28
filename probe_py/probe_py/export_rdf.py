@@ -160,7 +160,7 @@ def add_inodes(
                         ]
                         representative_path = min(max_paths, key=lambda path: path.parts)
                         inode_to_major_version = path_to_inode_to_major_version.setdefault(representative_path, dict())
-                        major_version = inode_to_major_version.setdefault(inode, len(inode_to_major_version))
+                        major_version = inode_to_major_version.setdefault(inode, len(inode_to_major_version) + 1)
                     else:
                         representative_path = None
                         major_version = inode.number
