@@ -176,27 +176,27 @@ tracers = {
         pathlib.Path("artifact"),
         lambda _: {},
     ),
-    "probe-slow": lambda: ProvTracer(
-        [
-            str(nix_build(".#probe") / "bin/probe"),
-            "record",
-            "--copy-files=eagerly",
-            f"--output={sandbox_tracer_out!s}/probe_log",
-            "--overwrite",
-        ],
-        [
-            str(nix_build(".#probe") / "bin/probe"),
-            "py",
-            "export",
-            "workflow",
-            f"--probe-log={sandbox_tracer_out!s}/probe_log",
-            "/*",
-            "--loose",
-            f"--output={sandbox_tracer_out!s}/workflow.yaml",
-        ],
-        pathlib.Path("workflow.yaml"),
-        probe_counts,
-    ),
+    # "probe-slow": lambda: ProvTracer(
+    #     [
+    #         str(nix_build(".#probe") / "bin/probe"),
+    #         "record",
+    #         "--copy-files=eagerly",
+    #         f"--output={sandbox_tracer_out!s}/probe_log",
+    #         "--overwrite",
+    #     ],
+    #     [
+    #         str(nix_build(".#probe") / "bin/probe"),
+    #         "py",
+    #         "export",
+    #         "workflow",
+    #         f"--probe-log={sandbox_tracer_out!s}/probe_log",
+    #         "/*",
+    #         "--loose",
+    #         f"--output={sandbox_tracer_out!s}/workflow.yaml",
+    #     ],
+    #     pathlib.Path("workflow.yaml"),
+    #     probe_counts,
+    # ),
     "ptu": lambda: ProvTracer(
         [
             str(nix_build(".#provenance-to-use-dir") / "bin/ptu"),

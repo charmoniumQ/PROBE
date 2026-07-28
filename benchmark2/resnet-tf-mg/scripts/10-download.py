@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--train-percent', default='10')
 parser.add_argument('--validation-percent', default='10')
 parser.add_argument('--download-dir', default='/setup')
-parser.add_argument('--data-dir', default='/workload_data')
+parser.add_argument('--data-dir', default='/workload_output')
 args = parser.parse_args()
 
 (train_examples, val_examples), metadata = tfds.load(

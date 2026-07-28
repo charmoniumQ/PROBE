@@ -22,6 +22,7 @@ class Warning:
 
 
 AAAI_ILLEGAL_PACKAGES = [
+    # Table 2
     "authblk",
     "epsf",
     "fullpage",
@@ -46,29 +47,45 @@ AAAI_ILLEGAL_PACKAGES = [
     "pdfcomment",
     "t1enc",
     "ulem",
+    # "Document Preamble"
+    "times",
+    "helvet",
+    "courier"
 ]
 AAAI_ILLEGAL_COMMANDS = [
-    r"abovecaption",
-    r"addtolength",
-    r"break",
-    r"float",
-    r"setlength",
-    r"trim",
-    r"abovedisplay",
-    r"baselinestretch",
-    r"clearpage",
-    r"linespread",
-    r"textheight",
-    r"addevensidemargin",
-    r"belowcaption",
-    r"clip",
-    r"newpage",
-    r"tiny",
-    r"addsidemargin",
-    r"belowdisplay",
-    r"columnsep",
-    r"pagebreak",
-    r"topmargin",
+    # Table 1
+    "abovecaption",
+    "addtolength",
+    "break",
+    "float",
+    "setlength",
+    "trim",
+    "abovedisplay",
+    "baselinestretch",
+    "clearpage",
+    "linespread",
+    "textheight",
+    "addevensidemargin",
+    "belowcaption",
+    "clip",
+    "newpage",
+    "tiny",
+    "addsidemargin",
+    "belowdisplay",
+    "columnsep",
+    "pagebreak",
+    "topmargin",
+    # Overlength Papers
+    "columnsep",
+    "float",
+    "topmargin",
+    "topskip",
+    # "textheight",
+    # "textwidth",
+    "oddsidemargin",
+    "evensizemargin",
+    # Tables
+    "resizebox",
 ]
 
 
@@ -76,6 +93,7 @@ VERB_RE = re.compile(r"\\verb")
 AAAI_ILLEGAL_PACKAGES_RE = re.compile(r"\\usepackage\[.*\]{.*(" + "|".join(AAAI_ILLEGAL_PACKAGES) + r").*}")
 AAAI_ILLEGAL_COMMANDS_RE = re.compile(r"\\(" + "|".join(AAAI_ILLEGAL_COMMANDS) + ")")
 AAAI_ILLEGAL_VCOMMANDS_RE = re.compile(r"\\(vspace|vskip){-")
+AAAI_ILLEGAL_COMMAND_ARGS_RE = re.compile(r"\\(textwidth|textheight){")
 
 
 def check_tex_file(
@@ -117,6 +135,14 @@ def check_tex_file(
                     Cursor(line_number, match.start()),
                     Cursor(line_number, match.end()),
                     "AAAI does not allow this command",
+                )
+            for match in AAAI_ILLEGAL_COMMAND_ARGS_RE.finditer(line):
+                yield Warning(
+                    file,
+                    line,
+                    Cursor(line_number, match.start()),
+                    Cursor(line_number, match.end()),
+                    "AAAI does not allow this command with an argument",
                 )
         file_position += len(line) + 1
 
