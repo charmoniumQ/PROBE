@@ -1,8 +1,11 @@
-import operator
 import functools
+import operator
 import pathlib
 import textwrap
+import matplotlib.figure
 import polars
+import scikit_posthocs
+import scipy.stats
 import statsmodels.api
 
 
@@ -51,103 +54,212 @@ if __name__ == "__main__":
     print([column for column in counts_df.columns if column.startswith("counts_")])
     # with polars.Config(tbl_rows=100, tbl_cols=100):
     #     print(counts_df)
+
+    MIN_TIME_CUTOFF = 2.0
+    FRACTION_OF_ORIG_CUTOFF = 0.75
+    MEAN_TO_STD_UNMOD_CUTOFF = 0.4
+    MEASUREMENT = ["wall_time", "user_time", "kernel_time"]
+    MAIN_MEASURE = "wall_time"
     avg_times_df = (
         df
           .group_by("workload", "tracer", "stage")
           .agg([
               *[
-                  polars.col(col).mean().alias(f"mean_{col}")
-                  for col in ["wall_time", "user_time", "kernel_time"]
+                  (polars.col(col) / polars.duration(seconds=1)).log().mean().alias(f"mean_log_{col}")
+                  for col in MEASUREMENT
               ],
               *[
-                  polars.col(col).std(ddof=1).alias(f"std_{col}")
-                  for col in ["wall_time", "user_time", "kernel_time"]
+                  (polars.col(col) / polars.duration(seconds=1)).log().std().alias(f"std_log_{col}")
+                  for col in MEASUREMENT
               ],
           ])
-          .sort("mean_wall_time")
+          .with_columns(
+              *[
+                  polars.col(f"mean_log_{col}").exp().alias(f"mean_{col}")
+                  for col in MEASUREMENT
+              ],
+              *[
+                  ((polars.col(f"mean_log_{col}") + polars.col(f"std_log_{col}") / 2).exp()
+                   - 
+                   (polars.col(f"mean_log_{col}") - polars.col(f"std_log_{col}") / 2).exp()
+                   ).alias(f"std_{col}")
+                  for col in MEASUREMENT
+              ],
+          )
           .pipe(lambda df: df.join(
               (
-                  df.filter(polars.col("tracer") == "none")
+                  df.filter(polars.col("tracer").eq("none"))
                   .select(
                       "workload",
                       "stage",
-                      polars.col("mean_wall_time").alias("unmod_mean_wall_time")
+                      *[
+                          polars.col(f"mean_log_{col}").alias(f"unmod_mean_log_{col}")
+                          for col in MEASUREMENT
+                      ],
+                      *[
+                          polars.col(f"std_log_{col}").alias(f"unmod_std_log_{col}")
+                          for col in MEASUREMENT
+                      ],
+                      *[
+                          polars.col(f"mean_{col}").alias(f"unmod_mean_{col}")
+                          for col in MEASUREMENT
+                      ],
+                      *[
+                          polars.col(f"std_{col}").alias(f"unmod_std_{col}")
+                          for col in MEASUREMENT
+                      ],
                   )
               ),
               on=("workload", "stage")
           ))
-          .with_columns((polars.col("mean_wall_time") - polars.col("unmod_mean_wall_time")).alias("overhead_diff"))
-          .with_columns((polars.col("mean_wall_time") / polars.col("unmod_mean_wall_time")).alias("overhead_ratio"))
+          .with_columns(
+              *[
+                  (polars.col(f"mean_log_{col}") - polars.col(f"unmod_mean_log_{col}")).alias(f"mean_log_{col}_overhead")
+                  for col in MEASUREMENT
+              ],
+              *[
+                  ((polars.col(f"std_log_{col}")**2 + polars.col(f"unmod_std_log_{col}")**2)**.5).alias(f"std_log_{col}_overhead")
+                  for col in MEASUREMENT
+              ],
+          )
+          .filter(polars.col("tracer").ne("none"))
           .join(counts_df, on=("workload", "stage"), how="full")
+          .filter(polars.col(f"mean_{MAIN_MEASURE}") > FRACTION_OF_ORIG_CUTOFF * polars.col(f"unmod_mean_{MAIN_MEASURE}"))
+          .filter(polars.col(f"unmod_mean_{MAIN_MEASURE}").ge(MIN_TIME_CUTOFF))
+          .filter(polars.col(f"unmod_std_{MAIN_MEASURE}") / polars.col(f"unmod_mean_{MAIN_MEASURE}") < MEAN_TO_STD_UNMOD_CUTOFF)
+          .pipe(lambda df: [print(df.select(
+              "workload",
+              "stage",
+              polars.col(f"unmod_mean_log_{MAIN_MEASURE}").exp(),
+          )), df][1])
+          .with_columns(
+              polars.col(f"mean_log_{MAIN_MEASURE}_overhead").exp().alias("est_overhead"),
+              ((polars.col(f"mean_log_{MAIN_MEASURE}_overhead") + polars.col(f"std_log_{MAIN_MEASURE}_overhead") / 2).exp()
+               - 
+               (polars.col(f"mean_log_{MAIN_MEASURE}_overhead") - polars.col(f"std_log_{MAIN_MEASURE}_overhead") / 2).exp()
+               ).alias("err_overhead"),
+          )
+          .with_columns(
+              ((polars.col("est_overhead") - 1) * 100).alias("est_overhead_%"),
+              (polars.col("err_overhead") * 100).alias("err_overhead_%")
+          )
     )
-    avg_wall_times_df = avg_times_df.filter(polars.col("tracer").eq("none")).drop("tracer").filter(polars.col("mean_wall_time").ge(polars.duration(seconds=1)))
-    print(avg_wall_times_df.select(
-        "workload",
-        "stage",
-        polars.col("mean_wall_time") / polars.duration(seconds=1),
-        polars.col("mean_user_time") / polars.duration(seconds=1),
-        polars.col("mean_kernel_time") / polars.duration(seconds=1),
-    ))
-    workloads_df = avg_wall_times_df.select("workload", "stage")
-    # avg_wall_times_df.filter(polars.struct(polars.col("workload"), polars.col("stage")))
-    print(
+
+    TRACERS = ["probe-fast", "rzip", "ptu"]
+    data = (
         avg_times_df
+        .filter(polars.col("tracer").is_in(set(TRACERS)))
+        .filter(polars.col("workload").ne("torch-attention"))
         .select(
             "workload",
             "stage",
             "tracer",
-            "overhead_ratio",
-            polars.col("overhead_ratio").log(base=2).alias("log_overhead_ratio"),
-        )
-        .unpivot(
-            ("overhead_ratio", "log_overhead_ratio"),
-            variable_name="metric",
-            index=("workload", "stage", "tracer"),
+            "err_overhead_%",
+            "est_overhead_%",
+            f"unmod_mean_{MAIN_MEASURE}",
+            f"unmod_std_{MAIN_MEASURE}",
         )
         .pivot(
-            "tracer",
-            index=("workload", "stage", "metric"),
-            values="value"
-        )
-        .sort("workload", "stage", "metric")
-        .drop("metric")
-    )
-    print(
-        avg_times_df
-        .filter(polars.col("tracer").ne("none"))
-        .select(
-            "workload",
-            "stage",
-            "tracer",
-            (polars.col("overhead_ratio") * 100 - 100).round().cast(polars.Int16),
-        )
-        .pivot(
-            "tracer",
+            on="tracer",
             index=("workload", "stage"),
-            values="overhead_ratio"
+            values=[
+                "err_overhead_%",
+                "est_overhead_%",
+                f"unmod_mean_{MAIN_MEASURE}",
+                f"unmod_std_{MAIN_MEASURE}",
+            ],
         )
+        .filter(polars.all_horizontal(polars.col("*").is_not_null()))
         .sort("workload", "stage")
-        .style
-        .as_latex()
+        .join(
+            avg_times_df
+            .select("workload", "stage", f"unmod_mean_{MAIN_MEASURE}", f"unmod_std_{MAIN_MEASURE}")
+            .unique(subset=("workload", "stage"), keep="first"),
+            on=["workload", "stage"],
+            how="inner",
+        )
+        .with_columns(polars.selectors.numeric().round(1))
+        .sort("workload", f"unmod_mean_{MAIN_MEASURE}")
+        .with_columns((polars.col("workload").ne(polars.col("workload").shift(1)) | polars.col("workload").shift(1).is_null()).alias("is_new_workload"))
     )
-    for formula in [
-            # "overhead_diff ~ 0 + tracer:count_rzip_executed_files",
-            # "overhead_diff ~ 1 + tracer:count_rzip_executed_files",
-            # "overhead_diff ~ 0 + tracer:count_syscalls + tracer:count_rzip_executed_files",
-            # "overhead_diff ~ 1 + tracer:count_syscalls + tracer:count_rzip_executed_files",
-            "overhead_diff ~ 0 + tracer:count_syscalls",
-            # "overhead_diff ~ 1 + tracer:count_syscalls",
-          ]:
-        results = statsmodels.formula.api.ols(
-            formula=formula,
-            data=(
-                avg_times_df
-                .filter(polars.col("tracer").ne("none"))
-                .filter(polars.col("overhead_diff").ge(0))
-                .with_columns(polars.col("overhead_diff") / polars.duration(microseconds=1))
-                .to_pandas()
-            ),
-        ).fit()
-        print(f"{formula} {results.rsquared * 100:.0f}% R-squared")
-        print(textwrap.indent(str(results.summary()), prefix="  "))
-        print("---------")
+
+    print()
+    print("".join([
+        "".join([
+            "\\midrule " + row['workload'] + " \\\\ \\midrule\n" if row["is_new_workload"] else "",
+            f"{row['stage']: <20s} & ",
+            rf"{row[f'unmod_mean_{MAIN_MEASURE}']:.1f} {{\tiny \(\pm\) {row[f'unmod_std_{MAIN_MEASURE}']:.1f}}} & ",
+            " & ".join([
+                rf"{row['est_overhead_%_' + tracer]} {{\tiny \(\pm\) {row['err_overhead_%_' + tracer]}}}"
+                for tracer in TRACERS
+            ]),
+        ]) + " \\\\\n"
+        for row in data.rows(named=True)
+    ]))
+    print()
+
+    print()
+    TRACERS.insert(0, "none")
+    wine_tastings = (
+        df
+        .join(avg_times_df, how="semi", on=("workload", "stage"))
+        .filter(polars.col("tracer").is_in(set(TRACERS)))
+        .filter(polars.col("workload").ne("torch-attention"))
+        .select(
+            "workload",
+            "stage",
+            "tracer",
+            "iteration",
+            polars.col(MAIN_MEASURE) / polars.duration(seconds=1)
+        )
+        .filter(polars.all_horizontal(polars.col("*").is_not_null()))
+        .group_by("workload", "stage", "tracer")
+        .agg(polars.selectors.numeric().median())
+        .pivot(
+            on="tracer",
+            index=("workload", "stage"),
+            values=MAIN_MEASURE,
+        )
+        .filter(polars.all_horizontal(polars.col("*").is_not_null()))
+        .pipe(lambda df: [print(df.select([col for col in df.columns if col not in TRACERS] + TRACERS)), df][1])
+        .select(*TRACERS) # deterministic order
+    )
+    print(wine_tastings.shape)
+    print(scipy.stats.friedmanchisquare(*wine_tastings.to_numpy().T))
+
+    wine_tastings_p = wine_tastings.to_pandas()
+    wine_tastings_p.columns = [
+        {"probe-fast": "PROBE", "rzip": "ReproZip", "none": "native", "ptu": "PTU"}.get(column, column)
+        for column in wine_tastings_p.columns
+    ]
+    test_results = scikit_posthocs.posthoc_conover_friedman(wine_tastings_p, p_adjust="holm")
+    avg_ranks = wine_tastings_p.rank(axis=1, ascending=True).mean(axis=0)
+    print(test_results)
+    figure = matplotlib.figure.Figure((8.5 * 0.4, 11 * 0.2))
+    ax = figure.subplots()
+    scikit_posthocs.critical_difference_diagram(avg_ranks, test_results, ax=ax)
+    figure.savefig("crit-diff.pdf", bbox_inches="tight")
+
+
+
+    # for formula in [
+    #         # "overhead_diff ~ 0 + tracer:count_rzip_executed_files",
+    #         # "overhead_diff ~ 1 + tracer:count_rzip_executed_files",
+    #         # "overhead_diff ~ 0 + tracer:count_syscalls + tracer:count_rzip_executed_files",
+    #         # "overhead_diff ~ 1 + tracer:count_syscalls + tracer:count_rzip_executed_files",
+    #         "overhead_diff ~ 0 + tracer:count_syscalls",
+    #         # "overhead_diff ~ 1 + tracer:count_syscalls",
+    #       ]:
+    #     results = statsmodels.formula.api.ols(
+    #         formula=formula,
+    #         data=(
+    #             avg_times_df
+    #             .filter(polars.col("tracer").ne("none"))
+    #             .filter(polars.col("overhead_diff").ge(0))
+    #             .with_columns(polars.col("overhead_diff") / polars.duration(microseconds=1))
+    #             .to_pandas()
+    #         ),
+    #     ).fit()
+    #     print(f"{formula} {results.rsquared * 100:.0f}% R-squared")
+    #     print(textwrap.indent(str(results.summary()), prefix="  "))
+    #     print("---------")

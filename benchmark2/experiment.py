@@ -329,7 +329,7 @@ workloads = {
 #             "/usr/bin/python",
 #         ]
 #     ),
-    "torch-attention": Workload(
+    "torch-attention-2": Workload(
         setup=join_cmds(
             ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data"],
             ["/venv/bin/python", "/scripts/download_data.py", "--data-dir", f"{sandbox_workload_out}/data", "--anki", "fra"],
@@ -348,15 +348,18 @@ workloads = {
             # ("s42", ["/venv/bin/python", "/scripts/verify_datasets.py", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra4.txt_clean", "--max-length", "1", "--seed", "10", "--report-dir", f"{sandbox_workload_out}/verify3"]),
             ("s44", ["ls", "-l", f"{sandbox_workload_out}/data/"]),
             ("s44", ["cp", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("train-1", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "20", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v1"]),
+            ("train-1", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "small", "--epochs", "60", "--batch-size", "64", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v1"]),
             ("s52", ["cp", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("train-2", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "tiny", "--epochs", "30", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v2"]),
+            ("train-2", ["/venv/bin/python", "/scripts/train.py", "--arch", "rnn", "--size", "medium", "--epochs", "80", "--batch-size", "64", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v2"]),
             ("s54", ["cp", f"{sandbox_workload_out}/data/eng-fra2.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("train-3", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "40", "--batch-size", "32", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v3"]),
+            ("train-3", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "medium", "--epochs", "100", "--batch-size", "64", "--lr", "0.001", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v3"]),
             ("s56", ["cp", f"{sandbox_workload_out}/data/eng-fra1.txt_clean", f"{sandbox_workload_out}/data/eng-fra.txt"]),
-            ("train-4", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "tiny", "--epochs", "50", "--batch-size", "32", "--lr", "0.01", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v4"]),
-            ("compare-1", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v2", "--output-dir", f"{sandbox_workload_out}/comparison"]),
-            ("compare-2", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v3", "--output-dir", f"{sandbox_workload_out}/comparison"]),
+            ("train-4", ["/venv/bin/python", "/scripts/train.py", "--arch", "bahdanau", "--size", "medium", "--epochs", "120", "--batch-size", "64", "--lr", "0.01", "--output-dir", f"{sandbox_workload_out}/train", "--lang1", "eng", "--lang2", "fra", "--data-dir", f"{sandbox_workload_out}/data", "--run-name", "v4"]),
+            ("compare-1", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v2", "--output-dir", f"{sandbox_workload_out}/comparison/a"]),
+            ("compare-2", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v3", "--output-dir", f"{sandbox_workload_out}/comparison/b"]),
+            ("compare-3", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v4", "--output-dir", f"{sandbox_workload_out}/comparison/c"]),
+            ("compare-4", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v2", f"{sandbox_workload_out}/train/run_v3", "--output-dir", f"{sandbox_workload_out}/comparison/d"]),
+            ("compare-all", ["/venv/bin/python", "/scripts/compare.py", f"{sandbox_workload_out}/train/run_v1", f"{sandbox_workload_out}/train/run_v2", f"{sandbox_workload_out}/train/run_v3", f"{sandbox_workload_out}/train/run_v4", "--output-dir", f"{sandbox_workload_out}/comparison/all"]),
             # ["mkdir", f"{sandbox_workload_out}/inferrence"],
             # ["sh", "-c", "grep '^> ' /workload_output/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 10 | python evaluate.py --run-dir /workload_output/train/run_v1 --interactive > /workload_output/inferrence/p1"],
             # ["sh", "-c", "grep '^> ' /workload_output/train/run_v1/samples.txt | sed 's/^> //' | shuf -n 100 | python evaluate.py --run-dir /workload_output/train/run_v1 --interactive > /workload_output/inferrence/p2"],

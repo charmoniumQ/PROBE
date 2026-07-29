@@ -424,10 +424,8 @@
             pypkgs.tqdm
             pypkgs.typer
             pypkgs.xdg-base-dirs
-            pypkgs.polars
-            pypkgs.pandas # Polars: writing with 'sqlalchemy' engine currently requires pandas.
-            pypkgs.pyarrow
-            pypkgs.statsmodels
+            pypkgs.rdflib
+            pypkgs.prov
 
             # probe_py "dev time" requirements
             packages.types-networkx
@@ -444,8 +442,11 @@
             pypkgs.langchain_mcp_adapters
             pypkgs.openai-agents
             pypkgs.great-tables
-            pypkgs.rdflib
-            pypkgs.prov
+            pypkgs.polars
+            pypkgs.pandas # Polars: writing with 'sqlalchemy' engine currently requires pandas.
+            pypkgs.pyarrow
+            pypkgs.statsmodels
+            pypkgs.scikit-posthocs
 
             # libprobe build time requirement
             pypkgs.pycparser
