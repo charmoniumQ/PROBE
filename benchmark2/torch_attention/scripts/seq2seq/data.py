@@ -107,7 +107,7 @@ def prepare_data(
 
 
 def indexes_from_sentence(lang: Lang, sentence: str) -> List[int]:
-    return [lang.word2index[word] for word in sentence.split(" ") if word]
+    return [lang.word2index[word] for word in sentence.split(" ") if word and word in lang.word2index]
 
 
 def tensor_from_sentence(lang: Lang, sentence: str, device: torch.device) -> torch.Tensor:

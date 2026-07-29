@@ -15,7 +15,7 @@ class Cursor:
 @dataclasses.dataclass
 class Warning:
     file: pathlib.Path
-    source_line: str
+    source_line: bytes
     start: Cursor
     end: Cursor
     message: str
@@ -23,85 +23,90 @@ class Warning:
 
 AAAI_ILLEGAL_PACKAGES = [
     # Table 2
-    "authblk",
-    "epsf",
-    "fullpage",
-    "layout",
-    "pgfplots",
-    "times",
-    "babel",
-    "epsfig",
-    "geometry",
-    "lmodern",
-    "psfig",
-    "titlesec",
-    "balance",
-    "euler",
-    "graphics",
-    "navigator",
-    "pstricks",
-    "tocbibind",
-    "cjk",
-    "float",
-    "hyperref",
-    "pdfcomment",
-    "t1enc",
-    "ulem",
+    b"authblk",
+    b"epsf",
+    b"fullpage",
+    b"layout",
+    b"pgfplots",
+    b"times",
+    b"babel",
+    b"epsfig",
+    b"geometry",
+    b"lmodern",
+    b"psfig",
+    b"titlesec",
+    b"balance",
+    b"euler",
+    b"graphics",
+    b"navigator",
+    b"pstricks",
+    b"tocbibind",
+    b"cjk",
+    b"float",
+    b"hyperref",
+    b"pdfcomment",
+    b"t1enc",
+    b"ulem",
     # "Document Preamble"
-    "times",
-    "helvet",
-    "courier"
+    b"times",
+    b"helvet",
+    b"courier"
 ]
 AAAI_ILLEGAL_COMMANDS = [
     # Table 1
-    "abovecaption",
-    "addtolength",
-    "break",
-    "float",
-    "setlength",
-    "trim",
-    "abovedisplay",
-    "baselinestretch",
-    "clearpage",
-    "linespread",
-    "textheight",
-    "addevensidemargin",
-    "belowcaption",
-    "clip",
-    "newpage",
-    "tiny",
-    "addsidemargin",
-    "belowdisplay",
-    "columnsep",
-    "pagebreak",
-    "topmargin",
+    b"abovecaption",
+    b"addtolength",
+    b"break",
+    b"float",
+    b"setlength",
+    b"trim",
+    b"abovedisplay",
+    b"baselinestretch",
+    b"clearpage",
+    b"linespread",
+    b"textheight",
+    b"addevensidemargin",
+    b"belowcaption",
+    b"clip",
+    b"newpage",
+    b"tiny",
+    b"addsidemargin",
+    b"belowdisplay",
+    b"columnsep",
+    b"pagebreak",
+    b"topmargin",
     # Overlength Papers
-    "columnsep",
-    "float",
-    "topmargin",
-    "topskip",
+    b"columnsep",
+    b"float",
+    b"topmargin",
+    b"topskip",
     # "textheight",
     # "textwidth",
-    "oddsidemargin",
-    "evensizemargin",
+    b"oddsidemargin",
+    b"evensizemargin",
     # Tables
-    "resizebox",
+    b"resizebox",
 ]
 
 
-VERB_RE = re.compile(r"\\verb")
-AAAI_ILLEGAL_PACKAGES_RE = re.compile(r"\\usepackage\[.*\]{.*(" + "|".join(AAAI_ILLEGAL_PACKAGES) + r").*}")
-AAAI_ILLEGAL_COMMANDS_RE = re.compile(r"\\(" + "|".join(AAAI_ILLEGAL_COMMANDS) + ")")
-AAAI_ILLEGAL_VCOMMANDS_RE = re.compile(r"\\(vspace|vskip){-")
-AAAI_ILLEGAL_COMMAND_ARGS_RE = re.compile(r"\\(textwidth|textheight){")
+VERB_RE = re.compile(rb"\\verb")
+AAAI_ILLEGAL_PACKAGES_RE = re.compile(rb"\\usepackage\[.*\]{.*(" + b"|".join(AAAI_ILLEGAL_PACKAGES) + rb"\b).*}")
+AAAI_ILLEGAL_COMMANDS_RE = re.compile(rb"\\(" + b"|".join(AAAI_ILLEGAL_COMMANDS) + rb")\b")
+AAAI_ILLEGAL_VCOMMANDS_RE = re.compile(rb"\\(vspace|vskip){-")
+AAAI_ILLEGAL_COMMAND_ARGS_RE = re.compile(rb"\\(textwidth|textheight){")
 
 
 def check_tex_file(
         file: pathlib.Path,
         aaai_lints: bool,
+        missing_refs: collections.abc.Iterable[bytes],
 ) -> collections.abc.Iterator[Warning]:
+    if missing_refs:
+        missing_ref_re = re.compile(b"|".join(missing_refs))
+    else:
+        missing_ref_re = None
     file_position = 0
-    for line_number, line in enumerate(file.read_text().split("\n")):
+    for line_number, line in enumerate(file.read_bytes().splitlines()):
         line_number += 1
         for match in VERB_RE.finditer(line):
             yield Warning(
@@ -111,6 +116,15 @@ def check_tex_file(
                 Cursor(line_number, match.end()),
                 "Use \\texttt instead of \\verb, where possible.",
             )
+        if missing_ref_re is not None:
+            for match in missing_ref_re.finditer(line):
+                yield Warning(
+                    file,
+                    line,
+                    Cursor(line_number, match.start()),
+                    Cursor(line_number, match.end()),
+                    "Missing ref",
+                )
         if aaai_lints:
             for match in AAAI_ILLEGAL_PACKAGES_RE.finditer(line):
                 yield Warning(
@@ -151,8 +165,23 @@ def check_directory(
         dir: pathlib.Path,
         aaai_lints: bool,
 ) -> collections.abc.Iterator[Warning]:
+    for file in dir.glob("**/*.log"):
+        missing_refs = check_log_file(file)
     for file in dir.glob("**/*.tex"):
-        yield from check_tex_file(file, aaai_lints)
+        yield from check_tex_file(file, aaai_lints, missing_refs)
+
+
+CITATION_UNDEFINED = re.compile(b"Citation `(.*)' on page (.*) undefined")
+
+
+def check_log_file(log: pathlib.Path) -> collections.abc.Sequence[bytes]:
+    ret = []
+    for line in log.read_bytes().splitlines():
+        if match := CITATION_UNDEFINED.search(line):
+            ret.append(match.group(1))
+    return tuple(ret)
+            
+    
 
 
 if __name__ == "__main__":
@@ -167,7 +196,7 @@ if __name__ == "__main__":
         for warning in check_directory(directory, aaai_lints):
             n_warnings += 1
             print(f"{warning.file}:{warning.start.line_number}:{warning.start.column_position}: {warning.message}")
-            print(warning.source_line)
+            print(warning.source_line.decode())
             print(" " * warning.start.column_position + "^" * (warning.end.column_position - warning.start.column_position))
             print()
         if n_warnings == 0:
