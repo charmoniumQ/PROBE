@@ -3,7 +3,7 @@
 #include <pthread.h>
 #include <sys/wait.h>
 
-void* thread_main(void* _) {
+void* thread_main(__attribute__((unused)) void* f) {
     printf("Hello from thread\n");
     return NULL;
 }
