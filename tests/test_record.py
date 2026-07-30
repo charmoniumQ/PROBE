@@ -301,6 +301,10 @@ def test_downstream_analyses(
     print(shlex.join(cmd))
     subprocess.run(cmd, **args)
 
+    cmd = ["probe", "py", "export", "w3c-prov", "--strict" if strict else "--loose"]
+    print(shlex.join(cmd))
+    subprocess.run(cmd, **args)
+
 
 def test_fail(
         scratch_directory: pathlib.Path,

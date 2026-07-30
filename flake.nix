@@ -184,8 +184,11 @@
               python.pkgs.msgspec
               python.pkgs.networkx
               python.pkgs.numpy
+              python.pkgs.prov
               python.pkgs.pydot
               python.pkgs.pygraphviz
+              python.pkgs.pyyaml
+              python.pkgs.rdflib
               python.pkgs.rich
               python.pkgs.sqlalchemy
               python.pkgs.tqdm
@@ -284,11 +287,15 @@
             pypkgs.networkx
             pypkgs.numpy
             pypkgs.pydot
+            pypkgs.pygraphviz
+            pypkgs.pyyaml
             pypkgs.rich
             pypkgs.sqlalchemy
             pypkgs.tqdm
             pypkgs.typer
             pypkgs.xdg-base-dirs
+            pypkgs.rdflib
+            pypkgs.prov
 
             # probe_py "dev time" requirements
             packages.types-networkx
