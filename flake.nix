@@ -76,25 +76,6 @@
             nativeBuildInputs = [python.pkgs.setuptools];
             propagatedBuildInputs = [python.pkgs.numpy];
           };
-          datamodel-code-generator = python.pkgs.datamodel-code-generator.overridePythonAttrs (super: rec {
-            version = "0.55.0";
-            src = pkgs.fetchFromGitHub {
-              owner = "koxudaxi";
-              repo = "datamodel-code-generator";
-              tag = version;
-              hash = "sha256-zsLJv7gKhmnEIS/AUvnBzm+07QFQoMdiFo/PkfRyHek=";
-            };
-            disabledTests = [
-              "perf"
-            ];
-            nativeCheckInputs =
-              super.nativeCheckInputs
-              ++ [
-                python.pkgs.time-machine
-                python.pkgs.inline-snapshot
-                python.pkgs.watchfiles
-              ];
-          });
           inherit (cli-wrapper-pkgs) cargoArtifacts probe-cli probe-headers;
           libprobe = old-stdenv.mkDerivation rec {
             pname = "libprobe";
@@ -128,7 +109,6 @@
               pkgs.clang-tools
               pkgs.compiledb
               pkgs.cppcheck
-              pkgs.cppclean
               pkgs.include-what-you-use
             ];
             checkPhase = ''
@@ -172,7 +152,7 @@
           };
           probe-py-headers = pkgs.runCommand "probe-py-headers" {} ''
             mkdir $out
-            export PATH="${packages.datamodel-code-generator}/bin:${python}/bin/:$PATH"
+            export PATH="${pkgs.datamodel-code-generator}/bin:${python}/bin/:$PATH"
             env \
               JSONSCHEMA_OUTFILE=${probe-headers}/headers.json \
               PYTHON_HEADER_OUTFILE=$out/headers.py \
@@ -312,8 +292,9 @@
 
             # probe_py "dev time" requirements
             packages.types-networkx
-            packages.datamodel-code-generator
+            pypkgs.datamodel-code-generator
             pypkgs.ipython
+            pypkgs.ipdb
             pypkgs.mypy
             pypkgs.pytest
             pypkgs.pytest-asyncio

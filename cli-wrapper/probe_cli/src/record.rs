@@ -48,6 +48,7 @@ pub fn record_no_transcribe(
         .record()
         .wrap_err("Recorder::record")?;
 
+    std::fs::create_dir(&output)?;
     fs_extra::dir::move_dir(&dir, &output, &fs_extra::dir::CopyOptions::new()).wrap_err(eyre!(
         "moving {:?} to {:?}",
         &dir,

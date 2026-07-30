@@ -178,7 +178,7 @@ def dataflow_graph(
         ignore_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
-        ] = "/nix/store/,/dev/,/proc/,/sys/",
+        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*",
         relative_to: Annotated[
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
