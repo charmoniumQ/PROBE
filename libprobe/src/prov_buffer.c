@@ -290,6 +290,11 @@ void mark_access(int fd, bool is_write) {
     atomic_fetch_or(address, is_write ? WRITE_BIT : READ_BIT);
 }
 
+bool is_write(int fd) {
+    _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
+    return atomic_load(address) & WRITE_BIT;
+}
+
 bool is_rand(int fd) {
     _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
     return atomic_load(address) & RAND_BIT;
