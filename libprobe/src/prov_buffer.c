@@ -342,7 +342,7 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         }
     }
 
-    if (fd >= 0) {
+    if (fd > 0) {
         bool is_rand =
             get_fix_random() && inode.device_major == 0 &&
             UNLIKELY(inode.device_minor == 6 && (inode.number == 8 || inode.number == 9));
@@ -443,7 +443,8 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
         }
     }
 
-    if (file) {
+    int fd;
+    if (file && (fd = fileno(file)) > 0) {
         bool is_rand =
             get_fix_random() && inode.device_major == 0 &&
             UNLIKELY(inode.device_minor == 6 && (inode.number == 8 || inode.number == 9));
