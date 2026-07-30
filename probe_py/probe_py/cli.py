@@ -1,6 +1,8 @@
 from typing_extensions import Annotated
+import collections
 import dataclasses
 import enum
+import fnmatch
 import json
 import os
 import pathlib
@@ -12,12 +14,14 @@ import textwrap
 import warnings
 import charmonium.time_block
 import msgspec
+import prov.dot  # type: ignore
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
 import tqdm
 import typer
 from . import dataflow_graph as dataflow_graph_module
+from . import export_rdf
 from . import file_closure
 from . import graph_utils
 from . import hb_graph as hb_graph_module
@@ -28,6 +32,7 @@ from . import scp as scp_module
 from . import ssh_argparser
 from . import util
 from . import validators
+from . import workflows
 from .persistent_provenance_db import get_engine
 
 
@@ -46,6 +51,10 @@ strict_option = typer.Option(
 debug_option = typer.Option(
     "--debug/--no-debug",
     help="Whether to enter a debugger on errors",
+)
+verbose_option = typer.Option(
+    "--verbose/--no-verbose",
+    help="Whether to have verbose output",
 )
 def restore_sanity(strict: bool, debug: bool) -> None:
     # Typer messes with the excepthook
@@ -179,12 +188,21 @@ def dataflow_graph(
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
         ] = "/nix/store/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*",
+        include_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "",
         relative_to: Annotated[
             pathlib.Path,
             typer.Option(help="Path in which to write the inodes relative to"),
         ] = pathlib.Path().resolve(),
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
+        verbose: Annotated[bool, verbose_option] = False,
+        conservative: Annotated[
+            bool,
+            typer.Option(help="Err on the side of adding an edge rather than missing one."),
+        ] = False,
 ) -> None:
     """
     Write a dataflow graph for probe_log.
@@ -194,9 +212,109 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg)
-    dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict, conservative=conservative)
+    dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to, ignore_paths=ignore_paths.split(","), include_paths=include_paths.split(","))
     graph_utils.serialize_graph(dfg, output)
+
+    
+@export_app.command()
+@charmonium.time_block.decor(print_start=False)
+def workflow(
+        paths_of_interest: Annotated[
+            str,
+            typer.Argument(help="Comma-separated inputs"),
+        ] = "/*",
+        output: Annotated[
+            pathlib.Path,
+            typer.Option()
+        ] = pathlib.Path("workflow.yaml"),
+        probe_log: Annotated[
+            pathlib.Path,
+            probe_log_help,
+        ] = pathlib.Path("probe_log"),
+        cwd: Annotated[
+            pathlib.Path,
+            typer.Option(help="Resolve relative paths in paths_of_interest relative to this path"),
+        ] = pathlib.Path().resolve(),
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
+        verbose: Annotated[bool, verbose_option] = False,
+        conservative: Annotated[
+            bool,
+            typer.Option(help="Err on the side of adding an edge rather than missing one."),
+        ] = False,
+) -> None:
+    restore_sanity(strict, debug)
+    probe_log_obj = parser.parse_probe_log(probe_log)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict, conservative=conservative)
+    paths_of_interest2 = [
+        cwd / pathlib.Path(path)
+        for path in paths_of_interest.split(",")
+    ]
+    all_paths = {
+        path
+        for path_counter in analysis.paths.values()
+        for path in path_counter
+    }
+    paths_of_interest3 = frozenset({
+        path
+        for path in all_paths
+        if any(fnmatch.fnmatch(str(path), str(path_of_interest)) for path_of_interest in paths_of_interest2)
+    })
+    workflow = workflows.workflowize(probe_log_obj, analysis, dfg, paths_of_interest3)
+    workflows.serialize_yaml(workflow, output)
+
+    
+@export_app.command()
+@charmonium.time_block.decor(print_start=False)
+def w3c_prov(
+        rdf_output: Annotated[
+            pathlib.Path,
+            typer.Option()
+        ] = pathlib.Path("provenance.ttl"),
+        graphical_output: Annotated[
+            pathlib.Path,
+            typer.Option()
+        ] = pathlib.Path("provenance.dot"),
+        probe_log: Annotated[
+            pathlib.Path,
+            probe_log_help,
+        ] = pathlib.Path("probe_log"),
+        ignore_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "/nix/store/*,*/__pycache__/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*",
+        include_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "",
+        strict: Annotated[bool, strict_option] = True,
+        debug: Annotated[bool, debug_option] = False,
+        verbose: Annotated[bool, verbose_option] = False,
+        conservative: Annotated[
+            bool,
+            typer.Option(help="Err on the side of adding an edge rather than missing one."),
+        ] = False,
+) -> None:
+    restore_sanity(strict, debug)
+    probe_log_obj = parser.parse_probe_log(probe_log)
+    hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict, conservative=conservative)
+    rdf_graph, prov_document = export_rdf.export_rdf_graph(probe_log_obj, analysis, dfg, ignore_paths.split(","), include_paths.split(","))
+    rdf_graph.serialize(destination=str(rdf_output))
+    prov_document_dot = prov.dot.prov_to_dot(prov_document, use_labels=True, show_nary=False, show_element_attributes=False, show_relation_attributes=False)
+    match graphical_output.suffix:
+        case ".dot":
+            prov_document_dot.write_raw(graphical_output)
+        case ".svg":
+            prov_document_dot.write_svg(graphical_output)
+        case ".png":
+            prov_document_dot.write_png(graphical_output)
+        case ".pdf":
+            prov_document_dot.write_pdf(graphical_output)
+        case _:
+            raise RuntimeError(f"Unsupported output type for pydot: {graphical_output.suffix}")
 
 
 @export_app.command()
@@ -312,6 +430,32 @@ def debug_text(
                             op_data_json = json.dumps({key: value for key, value in op_data.items() if not strip_env or key != "env"}, indent=2)
                             print(f"{prefix}{op_no} {op_type}", file=output_fd)
                             print(textwrap.indent(op_data_json, prefix=len(prefix) * " "), file=output_fd)
+
+
+@app.command()
+def op_counts(
+        probe_log: Annotated[
+            pathlib.Path,
+            probe_log_help,
+        ] = pathlib.Path("probe_log"),
+) -> None:
+    """
+    Print the number of ops
+    """
+    ret = collections.Counter[str]()
+    with (
+            parser.parse_probe_log_ctx(probe_log) as probe_log_obj,
+    ):
+        for pid, process in sorted(probe_log_obj.processes.items()):
+            ret["count_procs"] += 1
+            for exid, exec_epoch in sorted(process.execs.items()):
+                ret["count_execs"] += 1
+                for tid, thread in sorted(exec_epoch.threads.items()):
+                    ret["count_tids"] += 1
+                    for op_no, op in enumerate(thread.ops):
+                        op_name = op.data.__class__.__name__
+                        ret[f"op_{op_name}"] += 1
+    print(json.dumps(ret))
 
 
 @export_app.command()
