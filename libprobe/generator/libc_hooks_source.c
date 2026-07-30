@@ -284,14 +284,18 @@ int fcntl (int filedes, int command, ...) {
     void* post_call = ({
         if (LIKELY(prov_log_is_enabled())) {
             if (LIKELY(ret >= 0) && (command == F_DUPFD || command == F_DUPFD_CLOEXEC)) {
+                OpenNumber src = get_open_number(filedes);
                 OpenNumber old_dst = get_open_number(ret);
+                OpenNumber dst = new_open_number(ret, is_write(filedes));
+                print_open_fd(filedes);
+                DEBUG("fcntl/dup %d,%u -> %d,(%u -> %u)", src.fd, src.number, dst.fd, old_dst.number, dst.number);
                 prov_log_record((struct Op) {
                     .data = {
                         .dup_tag = OpData_Dup,
                         .dup = {
-                            .src = get_open_number(filedes),
+                            .src = src,
                             .old_dst = old_dst,
-                            .dst = new_open_number(ret, false),
+                            .dst = dst,
                             .flags = (command == F_DUPFD_CLOEXEC) ? O_CLOEXEC : 0,
                         },
                     },
@@ -2233,6 +2237,8 @@ int pipe2(int pipefd[2], int flags) {
     void* post_call = ({
         /* A successful pipe call is equivalent to two opens on a fifo file into specific FDs */
         if (LIKELY(ret == 0)) {
+            print_open_fd(pipefd[0]);
+            print_open_fd(pipefd[1]);
             struct Inode inode = get_inode(pipefd[0]);
             prov_log_record((struct Op){
                 .data = {

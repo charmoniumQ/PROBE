@@ -43,7 +43,7 @@ enum AccessType {
 
 static inline void path_to_id_string(const struct Inode inode, BORROWED char* string) {
     CHECK_SNPRINTF(
-        string, PATH_MAX, "/inodes/%04x-%04x-%016lx-%016lldx-%08x-%016lx", inode.device_major,
+        string, PATH_MAX, "/inodes/%04x-%04x-%016lx-%016llx-%08x-%016lx", inode.device_major,
         inode.device_minor, inode.number,
         /* In GCC, this field is long int; in Clang, it is long long int. Always cast to the larger */
         (long long int)inode.mtime.tv_sec, inode.mtime.tv_nsec, inode.size);
@@ -253,8 +253,10 @@ OpenNumber get_open_number(int fd) {
 
 /* Return the old open number and mark it as invalid in the future. */
 OpenNumber reset_open_number(int fd) {
-    uint16_t number = atomic_load(fd_table_address_of_strong(&fd_table, fd));
-    DEBUG("reset_open_number: %d,%u", fd, number & NUMBER_MASK);
+    uint16_t number = atomic_fetch_add(fd_table_address_of_strong(&fd_table, fd), 1);
+    // TODO: Have this be load not fetch-add.
+    // Fetch-add uses up open-numbers faster, and worse for cache locality
+    DEBUG("reset_open_number: %d,%u -> %u", fd, number & NUMBER_MASK, (number + 1) & NUMBER_MASK);
     return (OpenNumber){.fd = fd, .number = number};
 }
 
@@ -262,7 +264,7 @@ OpenNumber new_open_number(int fd, bool is_rand) {
     _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
     uint16_t old_number = atomic_load(address) & 0x3FFF;
     uint16_t new_number;
-    if (old_number == 0) {
+    if (old_number <= 1) {
         new_number = MIN_OPEN_NUMBER;
     } else {
         new_number = old_number + 1;
@@ -271,8 +273,8 @@ OpenNumber new_open_number(int fd, bool is_rand) {
         new_number |= RAND_BIT;
     }
     atomic_store(address, new_number);
-    ASSERTF(new_number >= MIN_OPEN_NUMBER, "");
     DEBUG("new_open_number: %d,%u", fd, new_number);
+    ASSERTF(new_number >= MIN_OPEN_NUMBER, "%d,%u >= %d", fd, new_number, MIN_OPEN_NUMBER);
     return (OpenNumber){
         .fd = fd,
         .number = new_number,
@@ -286,6 +288,11 @@ void mark_access(int fd, bool is_write) {
     DEBUG("Mark %d,%d as %s", fd, number, is_write ? "write" : "read");
 #endif
     atomic_fetch_or(address, is_write ? WRITE_BIT : READ_BIT);
+}
+
+bool is_write(int fd) {
+    _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
+    return atomic_load(address) & WRITE_BIT;
 }
 
 bool is_rand(int fd) {

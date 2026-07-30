@@ -33,4 +33,6 @@ __attribute__((visibility("hidden"))) OpenNumber dup_open_numbers(int old, int n
 
 __attribute__((visibility("hidden"))) void mark_access(int fd, bool is_write);
 
+__attribute__((visibility("hidden"))) bool is_write(int fd);
+
 __attribute__((visibility("hidden"))) bool is_rand(int fd);
