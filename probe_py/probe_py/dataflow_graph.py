@@ -3,6 +3,7 @@ from collections.abc import Mapping as Map, Iterable as It
 import collections
 import dataclasses
 import enum
+import fnmatch
 import heapq
 import pathlib
 import shlex
@@ -50,6 +51,13 @@ class IVNs(frozenset[InodeVersionNode]):
 
 
 class Quads(frozenset[ptypes.OpQuad]):
+    def exec_pair(self) -> ptypes.ExecPair:
+        pairs = self.exec_pairs()
+        if len(pairs) == 1:
+            return next(iter(pairs))
+        else:
+            raise ValueError(f"Quad contains multiple exec pairs {pairs}")
+
     def thread_triple(self) -> ptypes.ThreadTriple:
         triples = self.thread_triples()
         if len(triples) == 1:
@@ -76,9 +84,12 @@ CUTOFF: typing.Final[int] = 4
 def hb_graph_to_dataflow_graph(
     probe_log: ptypes.ProbeLog,
     hb_graph: hb_graph_mod.HbGraph,
+    verbose: bool,
+    loose: bool,
+    conservative: bool,
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = networkx.DiGraph()
-    analysis = Analysis.init(probe_log, hb_graph)
+    analysis = Analysis.init(probe_log, hb_graph, verbose, loose, conservative)
     inode_intervals = find_intervals(analysis)
     print(
         f"{len(inode_intervals)} inodes, {sum(len(intervals) for intervals in inode_intervals.values())} intervals"
@@ -86,7 +97,7 @@ def hb_graph_to_dataflow_graph(
     top_k = heapq.nlargest(
         10, ((len(intervals), inode) for inode, intervals in inode_intervals.items())
     )
-    if top_k[0][0] > CUTOFF:
+    if top_k and top_k[0] and top_k[0][0] > CUTOFF:
         print(f"Top inodes with more than {CUTOFF} intervals:")
         for len_inode_intervals, inode in top_k:
             if len_inode_intervals < 5:
@@ -100,13 +111,16 @@ def hb_graph_to_dataflow_graph(
         if all(path.parts[1] not in {"dev", "proc", "sys"} for path in analysis.paths[inode]):
             stitch_intervals(dfg, analysis, inode, intervals)
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
+        root_pid = analysis.probe_log.get_root_pid()
+        first_quad = ptypes.OpQuad(root_pid, ptypes.initial_exec_no, root_pid.main_thread(), 0)
+        dfg.add_node(first_quad)
         stitch_threads(dfg, analysis)
         for exec_quad, target in analysis.execs:
             dfg.add_edge(exec_quad, target, label=EdgeType.EXEC)
         for clone_quad, target in analysis.clones:
             dfg.add_edge(clone_quad, target, label=EdgeType.FORK)
         stitch_program_order(dfg, analysis)
-    compressed_dfg = compress(analysis, dfg)
+    compressed_dfg = compress(analysis, dfg, verbose)
     return analysis, compressed_dfg
 
 
@@ -189,7 +203,9 @@ class Analysis:
         frozenset[ptypes.OpQuad],
     ]
     sources: set[ptypes.OpQuad]
-    verbose: bool = False
+    verbose: bool
+    loose: bool
+    conservative: bool
     open_numbers: dict[
         ptypes.ExecPair,
         dict[
@@ -214,6 +230,9 @@ class Analysis:
     def init(
         probe_log: ptypes.ProbeLog,
         hb_graph: hb_graph_mod.HbGraph,
+        verbose: bool,
+        loose: bool,
+        conservative: bool,
     ) -> Analysis:
         with charmonium.time_block.ctx("vector clocks", print_start=False):
             order = vector_clock.from_dag(hb_graph, lambda node: node.thread_triple())
@@ -226,6 +245,9 @@ class Analysis:
             order=order,
             highest_peers=highest_peers,
             sources=set(graph_utils.get_sources(hb_graph)),
+            verbose=verbose,
+            loose=loose,
+            conservative=conservative,
         )
 
     @charmonium.time_block.decor(print_start=True)
@@ -273,9 +295,11 @@ class Analysis:
                     inode = ptypes.Inode.from_ops_inode(data.inode)
                     if self.verbose:
                         print(f"Open {quad}: {data.open_number} {inode} {access_mode}")
-                    assert data.open_number.number != 0, (
-                        "zero open-number should not be used for newly opened files"
-                    )
+                    if data.open_number.number == 0:
+                        warnings.warn(
+                            f"zero open-number should not be used for newly opened files: {quad} {data.open_number} {inode} {access_mode}"
+                        )
+                        continue
                     assert data.open_number.number not in open_numbers[data.open_number.fd]
                     open_numbers[data.open_number.fd][data.open_number.number] = OpenNumberInfo(
                         order=self.order,
@@ -322,6 +346,7 @@ class Analysis:
                                 dir_paths = maybe_dir_paths
                         for dir_path in dir_paths:
                             path_obj = dir_path / data.path.name.decode()
+                            assert path_obj.is_absolute()
                             self.paths[inode][path_obj] += 1
 
                 case headers.Close():
@@ -340,10 +365,30 @@ class Analysis:
                             print(
                                 f"Close {quad}: {data.open_number} {oni.inode.number} opened at {oni.open}",
                             )
-                        if self.probe_log.process_tree_context.interpose_read_writes:
-                            downgraded_access = oni.open_mode.downgrade(
-                                data.open_number.is_write, data.open_number.is_read
-                            )
+                        if (
+                            self.probe_log.process_tree_context.interpose_read_writes
+                            and not self.conservative
+                        ):
+                            try:
+                                downgraded_access = oni.open_mode.downgrade(
+                                    data.open_number.is_write, data.open_number.is_read
+                                )
+                            except ValueError as exc:
+                                if self.loose:
+                                    downgraded_access = (
+                                        (None, ptypes.AccessMode.READ),
+                                        (ptypes.AccessMode.WRITE, ptypes.AccessMode.READ_WRITE),
+                                    )[data.open_number.is_write][data.open_number.is_read]
+                                    string = ("R" if data.open_number.is_read else "") + (
+                                        "W" if data.open_number.is_write else ""
+                                    )
+                                    warnings.warn(
+                                        ptypes.UnusualProbeLog(
+                                            f"Downgrading {oni.open_mode} to {downgraded_access} due to {string!r} accesses, which should not be possible."
+                                        )
+                                    )
+                                else:
+                                    raise exc
                         else:
                             downgraded_access = oni.open_mode
                         oni.closes.append((quad, downgraded_access))
@@ -353,7 +398,10 @@ class Analysis:
 
                     # This dup might be an implicit close.
                     if oni := open_numbers[data.old_dst.fd].get(data.old_dst.number):
-                        if self.probe_log.process_tree_context.interpose_read_writes:
+                        if (
+                            self.probe_log.process_tree_context.interpose_read_writes
+                            and not self.conservative
+                        ):
                             downgraded_access = oni.open_mode.downgrade(
                                 data.old_dst.is_write, data.old_dst.is_read
                             )
@@ -559,7 +607,7 @@ def stitch_intervals(
 def compress(
     analysis: Analysis,
     dfg: UncompressedDataflowGraph,
-    verbose: bool = True,
+    verbose: bool,
 ) -> DataflowGraph:
     dfg_old = trivial_compress(dfg)
 
@@ -735,13 +783,15 @@ def trivial_compress(
 def label_nodes(
     analysis: Analysis,
     dfg: DataflowGraph,
-    relative_to: pathlib.Path | None,
+    relative_to: pathlib.Path,
     max_args: int = 5,
-    max_arg_length: int = 80,
+    max_arg_length: int = 200,
     max_path_length: int = 200,
-    max_path_segment_length: int = 40,
+    max_path_segment_length: int = 80,
     max_paths_per_inode: int = 10,
     max_inodes_per_set: int = 100,
+    ignore_paths: It[str] = (),
+    include_paths: It[str] = (),
 ) -> None:
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="label dfg"):
         data2 = dfg.nodes(data=True)[node]
@@ -764,6 +814,8 @@ def label_nodes(
                     max_path_segment_length=max_path_segment_length,
                     max_paths_per_inode=max_paths_per_inode,
                     max_inodes_per_set=max_inodes_per_set,
+                    ignore_paths=ignore_paths,
+                    include_paths=include_paths,
                 )
             case _:
                 raise TypeError()
@@ -789,23 +841,30 @@ def label_quads(
     data["cluster"] = f"Process {thread_triple.pid}"
     data["shape"] = "oval"
     for quad in quads:
-        op_data = analysis.probe_log.get_op(quad).data
-        if isinstance(op_data, headers.InitExecEpoch):
-            if quad.exec_no == 0:
-                if quad.pid == analysis.probe_log.get_root_pid():
-                    data["label"] += "(root process)"
+        try:
+            op_data = analysis.probe_log.get_op(quad).data
+        except KeyError:
+            data["label"] += "Unknown"
+        else:
+            if isinstance(op_data, headers.InitExecEpoch):
+                if quad.exec_no == 0:
+                    if quad.pid == analysis.probe_log.get_root_pid():
+                        data["label"] += "(root process)"
+                    else:
+                        data["label"] += "(child process)"
                 else:
-                    data["label"] += "(child process)"
-            else:
-                args = [arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]]
-                args = [
-                    arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…" for arg in args
-                ]
-                if len(args) > max_args:
-                    args_str = shlex.join(args[:max_args]) + ", …"
-                else:
-                    args_str = shlex.join(args)
-                data["label"] += args_str
+                    args = [
+                        arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]
+                    ]
+                    args = [
+                        arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…"
+                        for arg in args
+                    ]
+                    if len(args) > max_args:
+                        args_str = shlex.join(args[:max_args]) + ", …"
+                    else:
+                        args_str = shlex.join(args)
+                    data["label"] += args_str
     if thread_triple.tid != thread_triple.pid.main_thread():
         data["label"] += f"Thread {int(quad.tid) - int(quad.pid)}"
 
@@ -814,11 +873,13 @@ def label_ivns(
     ivns: IVNs,
     data: NodeData,
     analysis: Analysis,
-    relative_to: pathlib.Path | None,
+    relative_to: pathlib.Path,
     max_path_length: int,
     max_path_segment_length: int,
     max_paths_per_inode: int,
     max_inodes_per_set: int,
+    ignore_paths: It[str],
+    include_paths: It[str],
 ) -> None:
     inode_labels = []
     # Sorting ensures consistent labels
@@ -831,8 +892,11 @@ def label_ivns(
             type_str = f" (type={type})"
         paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
         for path, frequency in list(paths.most_common()):
-            path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
-            inode_labels.append(f"{path_str}{type_str}")
+            if not any(
+                fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths
+            ) or any(fnmatch.fnmatch(str(path), include_path) for include_path in include_paths):
+                path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
+                inode_labels.append(f"{path_str}{type_str}")
         if not paths:
             inode_labels.append(
                 f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"
@@ -841,6 +905,8 @@ def label_ivns(
                 break
     if len(ivns) > max_inodes_per_set:
         inode_labels.append("…")
+    if not inode_labels:
+        inode_labels.append("<system files>")
     data["label"] = "\n".join(inode_labels)
     data["shape"] = "rectangle"
     number = ivns_sorted[0].inode.number
@@ -852,11 +918,11 @@ def shorten_path(
     input: pathlib.Path,
     max_path_length: int,
     max_path_segment_length: int,
-    relative_to: pathlib.Path | None,
+    relative_to: pathlib.Path,
 ) -> str:
-    if relative_to and (input.is_absolute() and relative_to.is_absolute()):
+    if relative_to != pathlib.Path("/") and input.is_absolute() and relative_to.is_absolute():
         input2 = input.relative_to(relative_to, walk_up=True)
-        if sum(part == ".." for part in input2.parts) > 5:
+        if sum(part == ".." for part in input2.parts) > 2:
             input2 = input
     else:
         input2 = input
