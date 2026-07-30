@@ -344,7 +344,6 @@ DIR * opendir (const char *dirname) {
     void* post_call = ({
         int fd;
         if (LIKELY(prov_log_is_enabled() && ret && (fd = dirfd(ret)) > 0)) {
-            ASSERTF(fd != 0, "fd was zero");
             prov_log_record((struct Op){
                 .data = {
                     .open_tag = OpData_Open,

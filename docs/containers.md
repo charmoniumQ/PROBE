@@ -13,7 +13,7 @@ Add the following arguments to the `<FLAGS>` of `podman run <FLAGS> <IMG> [CMD]`
 ```
 --env PROBE_BUILDAH=$PROBE_BUILDAH \
 --env PROBE_LIB=$PROBE_LIB \
---env PROBE_PYTHONPATH=${PROB_PYTHONPATH} \
+--env PROBE_PYTHONPATH=${PROBE_PYTHONPATH} \
 --env PROBE_PYTHON=${PROBE_PYTHON} \
 --env probe=$(which probe) \
 --volume=${PROBE_ROOT}:${PROBE_ROOT}:ro \
