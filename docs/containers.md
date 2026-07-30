@@ -13,19 +13,21 @@ Add the following arguments to the `<FLAGS>` of `podman run <FLAGS> <IMG> [CMD]`
 ```
 --env PROBE_BUILDAH=$PROBE_BUILDAH \
 --env PROBE_LIB=$PROBE_LIB \
---env PROBE_PYTHONPATH=$PROB_PYTHONPATH \
---env PROBE_PYTHON=$PROBE_PYTHON \
+--env PROBE_PYTHONPATH=${PROBE_PYTHONPATH} \
+--env PROBE_PYTHON=${PROBE_PYTHON} \
 --env probe=$(which probe) \
---volume=$PROBE_ROOT:$PROBE_ROOT:ro \
+--volume=${PROBE_ROOT}:${PROBE_ROOT}:ro \
 --volume=/nix/store:/nix/store:ro \
+--volume=$(dirname $(which probe)):$(dirname $(which probe)):ro \
+--volume=${PROBE_LIB}:${PROBE_LIB}:ro \
 ```
 
 Once inside the container, run PROBE by `$probe record ...`. Make sure to single-quote `$probe` if you are passing it on the command-line. For example,
 
 ```
 podman run \
-    --rm \
     ... flags from earlier \
+    --rm \
     ubuntu:24.04 \
     bash -c '$probe record ls'
 ```

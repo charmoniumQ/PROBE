@@ -1,0 +1,47 @@
+diff --git a/strace-4.6/cde.c b/strace-4.6/cde.c
+index ad3249f..6464129 100644
+--- a/strace-4.6/cde.c
++++ b/strace-4.6/cde.c
+@@ -845 +845 @@ static void modify_syscall_second_and_fourth_args(struct tcb* tcp) {
+-  if (!IS_ABSPATH(filename1) && tcp->u_arg[0] != AT_FDCWD) {
++  if (!IS_ABSPATH(filename1) && ((int) tcp->u_arg[0] != AT_FDCWD)) {
+@@ -853 +853 @@ static void modify_syscall_second_and_fourth_args(struct tcb* tcp) {
+-  if (!IS_ABSPATH(filename2) && tcp->u_arg[2] != AT_FDCWD) {
++  if (!IS_ABSPATH(filename2) && ((int) tcp->u_arg[2] != AT_FDCWD)) {
+@@ -960 +960 @@ static void modify_syscall_first_and_third_args(struct tcb* tcp) {
+-  if (!IS_ABSPATH(filename2) && tcp->u_arg[1] != AT_FDCWD) {
++  if (!IS_ABSPATH(filename2) && ((int) tcp->u_arg[1] != AT_FDCWD)) {
+@@ -1203 +1203 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
+-  if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
++  if (!IS_ABSPATH(filename) && ((int) tcp->u_arg[0] != AT_FDCWD)) {
+@@ -2227 +2227 @@ void CDE_begin_file_unlinkat(struct tcb* tcp) {
+-  if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
++  if (!IS_ABSPATH(filename) && ((int) tcp->u_arg[0] != AT_FDCWD)) {
+@@ -2320 +2320 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
+-    if (!IS_ABSPATH(oldpath) && tcp->u_arg[0] != AT_FDCWD) {
++    if (!IS_ABSPATH(oldpath) && ((int) tcp->u_arg[0] != AT_FDCWD)) {
+@@ -2328 +2328 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
+-    if (!IS_ABSPATH(newpath) && tcp->u_arg[2] != AT_FDCWD) {
++    if (!IS_ABSPATH(newpath) && ((int) tcp->u_arg[2] != AT_FDCWD)) {
+@@ -2398 +2398 @@ void CDE_begin_file_symlinkat(struct tcb* tcp) {
+-    if (!IS_ABSPATH(newpath) && tcp->u_arg[1] != AT_FDCWD) {
++    if (!IS_ABSPATH(newpath) && ((int) tcp->u_arg[1] != AT_FDCWD)) {
+@@ -2479 +2479 @@ void CDE_begin_file_renameat(struct tcb* tcp) {
+-    if (!IS_ABSPATH(oldpath) && tcp->u_arg[0] != AT_FDCWD) {
++    if (!IS_ABSPATH(oldpath) && ((int) tcp->u_arg[0] != AT_FDCWD)) {
+@@ -2487 +2487 @@ void CDE_begin_file_renameat(struct tcb* tcp) {
+-    if (!IS_ABSPATH(newpath) && tcp->u_arg[2] != AT_FDCWD) {
++    if (!IS_ABSPATH(newpath) && ((int) tcp->u_arg[2] != AT_FDCWD)) {
+@@ -2532 +2532 @@ void CDE_end_file_renameat(struct tcb* tcp) {
+-      if (!IS_ABSPATH(filename1) && tcp->u_arg[0] != AT_FDCWD) {
++      if (!IS_ABSPATH(filename1) && ((int) tcp->u_arg[0] != AT_FDCWD)) {
+@@ -2540 +2540 @@ void CDE_end_file_renameat(struct tcb* tcp) {
+-      if (!IS_ABSPATH(dst_filename) && tcp->u_arg[2] != AT_FDCWD) {
++      if (!IS_ABSPATH(dst_filename) && ((int) tcp->u_arg[2] != AT_FDCWD)) {
+diff --git a/strace-4.6/okapi.c b/strace-4.6/okapi.c
+index dba254c..a582f46 100644
+--- a/strace-4.6/okapi.c
++++ b/strace-4.6/okapi.c
+@@ -71,0 +72,2 @@ CDE is currently licensed under GPL v3:
++#include "strutils.h"
++#define endswith str_endswith

@@ -1,0 +1,19 @@
+```
+root@bf1ed16a97cd:~/cudnn.torch# luarocks make
+
+Missing dependencies for cudnn:
+cutorch 
+
+Warning: Failed searching manifest: Failed loading manifest for https://raw.githubusercontent.com/rocks-moonscript-org/moonrocks-mirror/master: Error loading file: [string "/root/.cache/luarocks/https___raw.githubuserc..."]:238204: main function has more than 65536 constants
+Using https://raw.githubusercontent.com/torch/rocks/master/cutorch-scm-1.rockspec... switching to 'build' mode
+Cloning into 'cutorch'...
+fatal: unable to connect to github.com:
+github.com[0: 140.82.112.3]: errno=Connection timed out
+
+
+Error: Failed installing dependency: https://raw.githubusercontent.com/torch/rocks/master/cutorch-scm-1.rockspec - Failed cloning git repository.
+```
+
+Also cannot download versions of CUDA that old from NVIDIA developer resources.
+
+Could try building https://github.com/torch/cutorch from source?

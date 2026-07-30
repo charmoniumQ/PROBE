@@ -29,3 +29,6 @@ Fine-tuning is inexpensive. All of the results in the paper can be replicated in
 
 https://huggingface.co/blog/setfit
 Need to find a fine-tuning of setfit, I think
+
+Resnet > orig repo > Kaggle reimplementation
+https://github.com/felixlaumon/kaggle-right-whale

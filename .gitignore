@@ -1,6 +1,7 @@
 **/result
 
 # cache directories
+**/.results
 **/.mypy_cache
 **/.direnv
 **/.cache
@@ -24,3 +25,4 @@
 
 probe_log
 .dmypy.json
+.scratch/
