@@ -281,6 +281,14 @@ def w3c_prov(
             pathlib.Path,
             probe_log_help,
         ] = pathlib.Path("probe_log"),
+        ignore_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "/nix/store/*,*/__pycache__/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*",
+        include_paths: Annotated[
+            str,
+            typer.Option(help="Comma-separated glob/fnmatch"),
+        ] = "",
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
         verbose: Annotated[bool, verbose_option] = False,
@@ -293,7 +301,7 @@ def w3c_prov(
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
     analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict, conservative=conservative)
-    rdf_graph, prov_document = export_rdf.export_rdf_graph(probe_log_obj, analysis, dfg)
+    rdf_graph, prov_document = export_rdf.export_rdf_graph(probe_log_obj, analysis, dfg, ignore_paths.split(","), include_paths.split(","))
     rdf_graph.serialize(destination=str(rdf_output))
     prov_document_dot = prov.dot.prov_to_dot(prov_document, use_labels=True, show_nary=False, show_element_attributes=False, show_relation_attributes=False)
     match graphical_output.suffix:

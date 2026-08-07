@@ -192,7 +192,9 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
-        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312.overridePythonAttrs (old: {
+          doCheck = false;
+        });
       in rec {
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
@@ -441,7 +443,6 @@
             pypkgs.langchain-deepseek
             pypkgs.langchain_mcp_adapters
             pypkgs.openai-agents
-            pypkgs.great-tables
             pypkgs.polars
             pypkgs.pandas # Polars: writing with 'sqlalchemy' engine currently requires pandas.
             pypkgs.pyarrow

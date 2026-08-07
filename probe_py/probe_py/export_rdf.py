@@ -1,6 +1,8 @@
-import collections.abc
-import pathlib
+from collections.abc import Iterable as It, Mapping as Map
+import fnmatch
 import getpass
+import pathlib
+import shlex
 import warnings
 import zlib
 import rdflib
@@ -29,6 +31,8 @@ def export_rdf_graph(
         probe_log: ptypes.ProbeLog,
         analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
+        ignore_paths: It[str],
+        include_paths: It[str],
 ) -> tuple[rdflib.Graph, prov.model.ProvDocument]:
     graph = rdflib.Graph()
     graph.bind("rdf", RDF)
@@ -41,7 +45,7 @@ def export_rdf_graph(
 
     exec_to_activity = add_processes(probe_log, analysis, child_to_ancestor, graph, user)
 
-    inode_to_entity = add_inodes(analysis, dfg, graph)
+    inode_to_entity = add_inodes(analysis, dfg, graph, ignore_paths, include_paths)
 
     ivn_to_term = add_inode_versions(analysis, dfg, inode_to_entity, graph, user)
 
@@ -51,19 +55,24 @@ def export_rdf_graph(
         graph.add((subject, PROV_LABEL, label))
 
     graph_serialized = graph.serialize(format="turtle")
-    with warnings.catch_warnings(record=True) as caught:
-        prov_document = prov.model.ProvDocument.deserialize(content=graph_serialized, format="rdf", rdf_format="turtle")
-    print(caught)
-
-    for triple in graph.triples((None, PROV_LABEL, None)):
-        graph.remove(triple)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="The following attributes were not converted",
+            category=UserWarning,
+        )
+        prov_document = prov.model.ProvDocument.deserialize(
+            content=graph_serialized,
+            format="rdf",
+            rdf_format="turtle",
+        )
 
     return graph, prov_document
 
 
 def get_child_to_ancestor(
         analysis: dataflow_graph.Analysis
-) -> collections.abc.Mapping[ptypes.Pid, ptypes.ExecPair]:
+) -> Map[ptypes.Pid, ptypes.ExecPair]:
     ret = {}
     for parent, child in analysis.clones:
         assert child.pid not in ret
@@ -74,10 +83,10 @@ def get_child_to_ancestor(
 def add_processes(
         probe_log: ptypes.ProbeLog,
         analysis: dataflow_graph.Analysis,
-        child_to_ancestor: collections.abc.Mapping[ptypes.Pid, ptypes.ExecPair],
+        child_to_ancestor: Map[ptypes.Pid, ptypes.ExecPair],
         graph: rdflib.Graph,
         user: Agent,
-) -> collections.abc.Mapping[ptypes.ExecPair, Activity]:
+) -> Map[ptypes.ExecPair, Activity]:
     exec_to_activity = dict[ptypes.ExecPair, Activity]()
     root_pid = probe_log.get_root_pid()
     for pid, process in probe_log.processes.items():
@@ -105,6 +114,7 @@ def add_processes(
                 graph.add((activity, RDF.type, AD_HOC_NAMESPACE.OSProcess))
                 graph.add((activity, AD_HOC_NAMESPACE.arguments, arg_list.uri))
                 graph.add((activity, AD_HOC_NAMESPACE.environment_hash, rdflib.Literal(hash_environment(init_exec_op.env))))
+                graph.add((activity, RDFS.label, rdflib.Literal(shlex.join([arg.decode() for arg in init_exec_op.argv]))))
             else:
                 activity = exec_to_activity[ancestor_exec_pair]
 
@@ -121,7 +131,7 @@ def add_processes(
     return exec_to_activity
 
 
-def hash_environment(environment: collections.abc.Iterable[bytes]) -> int:
+def hash_environment(environment: It[bytes]) -> int:
     seed = 0x12345678
     for value in environment:
         seed = zlib.adler32(value, seed)
@@ -132,7 +142,9 @@ def add_inodes(
         analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
         graph: rdflib.Graph,
-) -> collections.abc.Mapping[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]]:
+        ignore_paths: It[str],
+        include_paths: It[str],
+) -> Map[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]]:
     device_to_term = dict[ptypes.Device, rdflib.term.Node]()
     inode_to_term = dict[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]]()
     path_to_inode_to_major_version = dict[pathlib.Path, dict[ptypes.Inode, int]]()
@@ -152,6 +164,15 @@ def add_inodes(
                     path_counter = analysis.paths[ivn.inode]
                     representative_path: pathlib.Path | None
                     if path_counter:
+                        include = all(
+                            not fnmatch.fnmatch(str(path), ignore_path)
+                            for path in path_counter
+                            for ignore_path in ignore_paths
+                        ) or any(
+                            fnmatch.fnmatch(str(path), include_path)
+                            for path in path_counter
+                            for include_path in include_paths
+                        )
                         max_path_count = max(path_counter.values())
                         max_paths = [
                             path
@@ -164,23 +185,25 @@ def add_inodes(
                     else:
                         representative_path = None
                         major_version = inode.number
-                    inode_term = rdflib.URIRef(f"inode_{device.major_id}_{device.minor_id}_{inode.number}")
-                    graph.add((inode_term, RDF.type, AD_HOC_NAMESPACE.OSInode))
-                    if representative_path is not None:
-                        graph.add((inode_term, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}")))
-                    else:
-                        graph.add((inode_term, RDFS.label, rdflib.Literal(f"<anonymous path {major_version}>")))
-                    graph.add((inode_term, AD_HOC_NAMESPACE.device, device_to_term[device]))
-                    graph.add((inode_term, AD_HOC_NAMESPACE.number, rdflib.Literal(inode.number)))
-                    for path_obj, _ in analysis.paths[ivn.inode].most_common():
-                        # path = rdflib.container.Seq(graph, rdflib.BNode(), [
-                        #     rdflib.Literal(segment)
-                        #     for segment in path_obj.parts
-                        # ])   # type: ignore
-                        # graph.add((path.uri, RDF.type, AD_HOC_NAMESPACE.OSPath))
-                        # graph.add((inode_term, AD_HOC_NAMESPACE.has_path, path.uri))
-                        graph.add((inode_term, AD_HOC_NAMESPACE.has_path, rdflib.Literal(str(path_obj))))
-                    inode_to_term[inode] = (representative_path, major_version, inode_term)
+                        include = True
+                    if include:
+                        inode_term = rdflib.URIRef(f"inode_{device.major_id}_{device.minor_id}_{inode.number}")
+                        graph.add((inode_term, RDF.type, AD_HOC_NAMESPACE.OSInode))
+                        if representative_path is not None:
+                            graph.add((inode_term, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}")))
+                        else:
+                            graph.add((inode_term, RDFS.label, rdflib.Literal(f"<anonymous path {major_version}>")))
+                        graph.add((inode_term, AD_HOC_NAMESPACE.device, device_to_term[device]))
+                        graph.add((inode_term, AD_HOC_NAMESPACE.number, rdflib.Literal(inode.number)))
+                        for path_obj, _ in analysis.paths[ivn.inode].most_common():
+                            path2 = rdflib.container.Seq(graph, rdflib.BNode(), [
+                                rdflib.Literal(segment)
+                                for segment in path_obj.parts
+                            ])  # type: ignore
+                            graph.add((path2.uri, RDF.type, AD_HOC_NAMESPACE.OSFilePath))
+                            graph.add((inode_term, AD_HOC_NAMESPACE.has_path, path2.uri))
+                            # graph.add((inode_term, AD_HOC_NAMESPACE.has_path, rdflib.Literal(str(path_obj))))
+                        inode_to_term[inode] = (representative_path, major_version, inode_term)                        
     return inode_to_term
 
 
@@ -199,54 +222,59 @@ def node_sorter(node: dataflow_graph.IVNs | dataflow_graph.Quads) -> tuple[int, 
 def add_inode_versions(
         analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
-        inode_to_entity: collections.abc.Mapping[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]],
+        inode_to_entity: Map[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]],
         graph: rdflib.Graph,
         user: Agent,
-) -> collections.abc.Mapping[dataflow_graph.InodeVersionNode, Entity]:
+) -> Map[dataflow_graph.InodeVersionNode, Entity]:
     ivn_to_entity = {}
     for node in dfg.nodes():
         if isinstance(node, dataflow_graph.IVNs):
             for ivn in node:
-                representative_path, major_version, inode_term = inode_to_entity[ivn.inode]
-                ivn_to_entity[ivn] = entity = rdflib.URIRef(f"inodeversion_{ivn.inode.device.major_id}_{ivn.inode.device.minor_id}_{ivn.inode.number}_{ivn.version}")
-                graph.add((entity, RDF.type, PROV.Entity))
-                graph.add((entity, RDF.type, AD_HOC_NAMESPACE.OSInodeVersion))
-                if representative_path is not None:
-                    graph.add((entity, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}.{ivn.version}")))
-                else:
-                    graph.add((entity, RDFS.label, rdflib.Literal(f"<anonymous path {major_version} v{ivn.version}>")))
-                graph.add((entity, AD_HOC_NAMESPACE.inode, inode_term))
-                graph.add((entity, AD_HOC_NAMESPACE.version, rdflib.Literal(ivn.version)))
-                graph.add((entity, PROV.wasAttributedTo, user))
+                if ivn.inode in inode_to_entity:
+                    representative_path, major_version, inode_term = inode_to_entity[ivn.inode]
+                    ivn_to_entity[ivn] = entity = rdflib.URIRef(f"inodeversion_{ivn.inode.device.major_id}_{ivn.inode.device.minor_id}_{ivn.inode.number}_{ivn.version}")
+                    graph.add((entity, RDF.type, PROV.Entity))
+                    graph.add((entity, RDF.type, AD_HOC_NAMESPACE.OSInodeVersion))
+                    if representative_path is not None:
+                        graph.add((entity, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}.{ivn.version}")))
+                    else:
+                        graph.add((entity, RDFS.label, rdflib.Literal(f"<anonymous path {major_version} v{ivn.version}>")))
+                    graph.add((entity, AD_HOC_NAMESPACE.inode, inode_term))
+                    graph.add((entity, AD_HOC_NAMESPACE.version, rdflib.Literal(ivn.version)))
+                    graph.add((entity, PROV.wasAttributedTo, user))
     return ivn_to_entity
 
 
 def add_edges(
         dfg: dataflow_graph.DataflowGraph,
-        ivn_to_entity: collections.abc.Mapping[dataflow_graph.InodeVersionNode, Entity],
-        exec_to_activity: collections.abc.Mapping[ptypes.ExecPair, Activity],
+        ivn_to_entity: Map[dataflow_graph.InodeVersionNode, Entity],
+        exec_to_activity: Map[ptypes.ExecPair, Activity],
         graph: rdflib.Graph,
 ) -> None:
     for source, destination, edge_data in dfg.edges(data=True):
         match source, destination:
             case (dataflow_graph.IVNs(), dataflow_graph.IVNs()):
                 for source_ivn in source:
-                    source_ivn_term = ivn_to_entity[source_ivn]
-                    for destination_ivn in destination:
-                        graph.add((ivn_to_entity[destination_ivn], PROV.wasRevisionOf, source_ivn_term))
+                    if source_ivn_term := ivn_to_entity.get(source_ivn):
+                        for destination_ivn in destination:
+                            if destination_ivn_term := ivn_to_entity.get(destination_ivn):
+                                graph.add((destination_ivn_term, PROV.wasRevisionOf, source_ivn_term))
             case (dataflow_graph.IVNs(), dataflow_graph.Quads()):
                 activity = exec_to_activity[destination.exec_pair()]
                 for source_ivn in source:
-                    graph.add((activity, PROV.used, ivn_to_entity[source_ivn]))
+                    if source_ivn_term := ivn_to_entity.get(source_ivn):
+                        graph.add((activity, PROV.used, source_ivn_term))
             case (dataflow_graph.Quads(), dataflow_graph.IVNs()):
                 activity = exec_to_activity[source.exec_pair()]
                 for destination_ivn in destination:
-                    graph.add((ivn_to_entity[destination_ivn], PROV.wasGeneratedBy, activity))
+                    if destination_ivn_term := ivn_to_entity.get(destination_ivn):
+                        graph.add((destination_ivn_term, PROV.wasGeneratedBy, activity))
             case (dataflow_graph.Quads(), dataflow_graph.Quads()):
                 source_activity = exec_to_activity[source.exec_pair()]
                 destination_activity = exec_to_activity[destination.exec_pair()]
                 if edge_data["label"] == dataflow_graph.EdgeType.EXEC:
                     graph.add((source_activity, AD_HOC_NAMESPACE.executed, destination_activity))
+                    graph.add((destination_activity, PROV.wasStartedBy, source_activity))
 
 
 def add_user(graph: rdflib.Graph) -> Agent:
@@ -255,4 +283,5 @@ def add_user(graph: rdflib.Graph) -> Agent:
     graph.add((user, RDF.type, PROV.Agent))
     graph.add((user, RDF.type, AD_HOC_NAMESPACE.OSUser))
     graph.add((user, AD_HOC_NAMESPACE.Username, rdflib.Literal(username)))
+    graph.add((user, RDFS.label, rdflib.Literal(username)))
     return user

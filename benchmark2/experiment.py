@@ -68,6 +68,9 @@ class ProvTracer:
     count_ops: typing.Callable[[pathlib.Path], collections.abc.Mapping[str, int]]
 
 
+container = False
+
+
 root_dir = pathlib.Path(__file__).resolve().parent.parent.resolve()
 results_dir = root_dir / ".results"
 results_dir.mkdir(exist_ok=True)
@@ -87,7 +90,7 @@ sandbox_setup_out = pathlib.Path("/setup")
 host_tracer_out.mkdir(exist_ok=True)
 cpus = [1]
 ncpus = 1
-benchmark_utils = pathlib.Path("~/.cache/cargo-builds/debug").expanduser()
+benchmark_utils = root_dir.parent / "target/debug"
 
 
 stabilize = [
@@ -102,7 +105,7 @@ stabilize = [
     "--disable-freq-scaling",
     "--drop-fs-cache",
     "--",
-]
+] if container else []
 
 
 def podman(image: str, mounts: list[tuple[pathlib.Path, pathlib.Path, str]]) -> list[str]:

@@ -85,14 +85,14 @@ pub fn record_transcribe(
 
     let file = File::create_new(&output).wrap_err("Failed to create output file")?;
 
+    let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
+
     let (status, record_dir) = Recorder::new(cmd)
         .gdb(gdb)
         .debug(debug)
         .copy_files(copy_files)
         .fix_random(fix_random)
         .record()?;
-
-    let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(file, Compression::default()));
 
     match transcribe::transcribe_to_tar(&record_dir, &mut tar) {
         Ok(_) => Ok(status),

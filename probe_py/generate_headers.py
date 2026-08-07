@@ -275,7 +275,7 @@ def replace(
             ]
         case ast.AST():
             # TODO: use ast.compare in Python >= 3.14
-            if ast.unparse(haystack) == ast.unparse(needle):
+            if ast.compare(haystack, needle):
                 return substitute
             else:
                 return type(haystack)(**{
