@@ -13,7 +13,6 @@ import warnings
 import charmonium.time_block
 import networkx
 import tqdm
-from . import disjoint_sets
 from . import graph_utils
 from . import hb_graph as hb_graph_mod
 from . import headers
@@ -743,27 +742,30 @@ def read_write_collapse(
 @charmonium.time_block.decor(print_start=False)
 def collapse_thread_cycles(dfg_in: DataflowGraph) -> DataflowGraph:
     "Collapse cycles that are within one execpair"
-    with charmonium.time_block.ctx("simple_cycles", print_start=False):
-        cycles = list(networkx.simple_cycles(dfg_in, 2))
-    equivalence_classes = disjoint_sets.DisjointSets[Quads](
-        node for node in dfg_in.nodes() if isinstance(node, Quads)
-    )
-    for cycle in tqdm.tqdm(cycles, desc="Cycles"):
-        if all(isinstance(node, Quads) for node in cycle):
-            quads_cycle = typing.cast(list[Quads], cycle)
-            exec_pairs = {quad.exec_pair() for quads in quads_cycle for quad in quads}
-            if len(exec_pairs) == 1:
-                for quads in quads_cycle:
-                    assert isinstance(quads, Quads)
-                    equivalence_classes.union(quads, quads_cycle[0])
-    mapper = dict[Quads | IVNs, Quads | IVNs]()
-    for equivalence_class in equivalence_classes.sets():
-        sum_node = Quads({quad for quads in equivalence_class for quad in quads})
-        for quads in equivalence_class:
-            mapper[quads] = sum_node
-    ret = networkx.relabel_nodes(dfg_in, mapper)
-    graph_utils.remove_self_edges(ret)
-    return ret
+    # with charmonium.time_block.ctx("simple_cycles", print_start=False):
+    #     dfg2 = typing.cast(
+    #         "networkx.DiGraph[Quads]",
+    #         dfg_in.subgraph([node for node in dfg_in.nodes() if isinstance(node, Quads)]),
+    #     )
+    #     cycles = list(networkx.strongly_connected_components(dfg2))
+    # mapper = dict[Quads | IVNs, Quads | IVNs]()
+    # for scc in tqdm.tqdm(cycles, desc="sccs"):
+    #     scc_nodes_by_exec_pair = util.groupby_dict(
+    #         scc,
+    #         key_func=lambda node: node.exec_pair(),
+    #         value_func=lambda node: node,
+    #     )
+    #     for nodes_same_exec_pair in scc_nodes_by_exec_pair.values():
+    #         sum_node = Quads(set().union(*[
+    #             quads
+    #             for quads in nodes_same_exec_pair
+    #         ]))
+    #         for node in nodes_same_exec_pair:
+    #             mapper[node] = sum_node
+    # ret = networkx.relabel_nodes(dfg_in, mapper)
+    # graph_utils.remove_self_edges(ret)
+    # return ret
+    return dfg_in
 
 
 def trivial_compress(
