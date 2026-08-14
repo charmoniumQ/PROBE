@@ -101,7 +101,8 @@ simple_commands = {
             ["cat", "file0", "file2", "redirect_to", "file3"],
         ),
     ),
-    "python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
+    "python_multiprocessing": ["python", str(example_path / "procs.py")],
+    "python_multithreading": ["python", str(example_path / "threads.py")],
     # FIXME
     # "c_hello": bash_multi(
     #     ["echo", c_hello_world, "redirect_to", "test.c"],
