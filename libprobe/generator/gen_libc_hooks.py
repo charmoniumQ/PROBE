@@ -16,7 +16,7 @@ ignore_actions = False
 call_init = True
 
 # whether to DEBUG() at the start of every interposed function.
-debug_print_start_of_interposition = False
+debug_print_start_of_interposition = True
 
 
 interpose_read_writes = True
