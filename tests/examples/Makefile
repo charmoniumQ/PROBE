@@ -17,6 +17,7 @@ all: $(filter-out minimal_libprobe.exe,$(SOURCE_FILES:.c=.exe)) minimal_libprobe
 
 %.so: %.c
 	$(CC) $(CFLAGS) -lpthread -pthread -ldl -fno-lto -fPIC -shared -o $@ $<
+	patchelf --remove-rpath $@
 
 clean:
 	touch tmp.so tmp.exe
