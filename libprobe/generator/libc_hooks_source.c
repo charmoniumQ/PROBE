@@ -47,6 +47,7 @@ typedef void* intptr_t;
 typedef void* clockid_t;
 typedef void* clock_t;
 
+struct RngState;
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
 

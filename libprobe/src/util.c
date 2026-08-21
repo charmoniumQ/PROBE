@@ -1,9 +1,14 @@
 #include "util.h" // for BORROWED, OWNED, CHECK_SNPRINTF
 
-#include <dirent.h>   // for dirent
-#include <fcntl.h>    // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
-#include <limits.h>   // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
+#include <dirent.h> // for dirent
+#include <fcntl.h>  // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
+#include <immintrin.h>
+#include <limits.h>  // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
+#include <stdbool.h> // for bool, false
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>   // for malloc
+#include <string.h>   // for memcpy
 #include <sys/stat.h> // for S_IFDIR, S_IFMT, statx, STATX_TYPE
 #include <sys/sysmacros.h>
 #include <sys/types.h> // for ssize_t, off_t
@@ -100,4 +105,73 @@ void print_open_fd(int fd) {
 
     DEBUG("fd %d -> path=%s, device=%u,%u inode=%zu", fd, target, major(st.st_dev),
           minor(st.st_dev), st.st_ino);
+}
+
+static const uint64_t LCG_A = 6364136223846793005ULL;
+static const uint64_t LCG_C = 1442695040888963407ULL;
+
+/* Scalar fallback */
+__attribute__((target("default"))) void random_bytes_scalar(struct RngState* restrict rng,
+                                                            void* restrict buf, size_t n) {
+    uint8_t* restrict p = buf;
+
+    while (n >= 8) {
+        rng->state[0] = rng->state[0] * LCG_A + LCG_C;
+
+        memcpy(p, &rng->state[0], 8);
+
+        p += 8;
+        n -= 8;
+    }
+
+    if (n) {
+        rng->state[0] = rng->state[0] * LCG_A + LCG_C;
+
+        memcpy(p, &rng->state[0], n);
+    }
+}
+
+/* AVX-512 version */
+__attribute__((target("avx512f,avx512dq"))) void random_bytes_avx512(struct RngState* restrict rng,
+                                                                     void* restrict buf, size_t n) {
+    uint8_t* restrict p = buf;
+
+    const __m512i a = _mm512_set1_epi64(LCG_A);
+    const __m512i c = _mm512_set1_epi64(LCG_C);
+
+    /*
+     * Load the eight LCG states once.
+     */
+    __m512i state = _mm512_loadu_si512(rng->state);
+
+    while (n >= 64) {
+        state = _mm512_add_epi64(_mm512_mullo_epi64(state, a), c);
+
+        _mm512_storeu_si512(p, state);
+
+        p += 64;
+        n -= 64;
+    }
+
+    /*
+     * Generate one more vector for the tail, but don't write
+     * beyond the requested buffer.
+     */
+    if (n) {
+        state = _mm512_add_epi64(_mm512_mullo_epi64(state, a), c);
+
+        memcpy(p, &state, n);
+    }
+
+    /*
+     * Write the final eight states back exactly once.
+     */
+    _mm512_storeu_si512(rng->state, state);
+}
+
+void random_bytes(struct RngState* restrict rng, void* restrict buf, size_t n) {
+    if (__builtin_cpu_supports("avx512dq"))
+        random_bytes_avx512(rng, buf, n);
+    else
+        random_bytes_scalar(rng, buf, n);
 }

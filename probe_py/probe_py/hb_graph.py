@@ -275,7 +275,9 @@ def _create_open_number_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
             for opens in opens_by_fd.values():
                 opens = sorted(opens)
                 for (on0, op0), (on1, op1) in zip(opens[:-1], opens[1:]):
-                    hb_graph.add_edge(op0, op1, type=EdgeType.OPEN_NUMBER, on0=on0, on1=on1)
+                    pass
+                    # FIXME: re-enable this
+                    # hb_graph.add_edge(op0, op1, type=EdgeType.OPEN_NUMBER, on0=on0, on1=on1)
 
 
 def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, add_op_no: bool = False) -> None:
