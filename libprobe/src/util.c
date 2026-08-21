@@ -4,6 +4,7 @@
 #include <fcntl.h>  // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
 #include <immintrin.h>
 #include <limits.h> // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
+#include <stdbool.h> // for bool, false
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>   // for malloc
