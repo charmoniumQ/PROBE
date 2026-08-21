@@ -6,6 +6,7 @@
 #include <stdarg.h>    // for va_arg, va_end, va_start, va_list
 #include <stddef.h>    // for size_t
 #include <stdbool.h>   // for bool
+#include <stdint.h>    // for uint64_t
 #include <sys/types.h> // for ssize_t
 #include "libc_subset.h"
 #include "debug_logging.h" // for ASSERTF
@@ -80,3 +81,9 @@ __attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
 __attribute__((visibility("hidden"))) unsigned int my_atoui(const char* s) __attribute__((nonnull));
 
 __attribute__((visibility("hidden"))) void print_open_fd(int fd);
+
+struct RngState {
+    uint64_t state[8];
+};
+
+__attribute__((visibility("hidden"))) void random_bytes(struct RngState * restrict rng, void * restrict buf, size_t n);

@@ -313,7 +313,8 @@ class Analysis:
                             f"zero open-number should not be used for newly opened files: {quad} {data.open_number} {inode} {access_mode}"
                         )
                         continue
-                    assert data.open_number.number not in open_numbers[data.open_number.fd]
+                    if not self.loose:
+                        assert data.open_number.number not in open_numbers[data.open_number.fd]
                     open_numbers[data.open_number.fd][data.open_number.number] = OpenNumberInfo(
                         order=self.order,
                         inode=inode,
@@ -704,9 +705,10 @@ def read_write_collapse(
                 raise ValueError(
                     f"This algorithm assumes all nodes represent quads from just one thread, got: {node.thread_triples()} {str(exc)}"
                 )
-    all_runs = list[list[Quads]]()
+    all_runs = list[frozenset[ptypes.OpQuad]]()
     for thread_triple, nodes in tqdm.tqdm(
-        list(triples_to_nodes.items()), desc="Read/write collapse thread-triples"
+        list(triples_to_nodes.items()),
+        desc="Identify read/write phases",
     ):
         state = PidState.READING
         nodes = sorted(nodes, key=lambda pair: pair[0])
@@ -741,9 +743,14 @@ def read_write_collapse(
                         this_run.append(node)
         if this_run:
             all_runs.append(this_run)
-    node_mapper: Map[Quads | IVNs, Quads | IVNs] = {
-        node: Quads(quad for node in run for quad in node) for run in all_runs for node in run
-    }
+    print(f"{len(all_runs)} runs")
+    node_mapper = dict[Quads | IVNs, Quads | IVNs]()
+    for run in all_runs:
+        new_quad = Quads(
+            Quads(quad for node in run for quad in node)
+        )
+        for node in run:
+            node_mapper[node] = new_quad
     with charmonium.time_block.ctx("map nodes"):
         ret = graph_utils.map_nodes(
             lambda node: node_mapper.get(node, node),

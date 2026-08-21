@@ -19,3 +19,5 @@ Delete print_open_fd
 Look in to is_rand
 
 Compare syscalls with stat with/without PROBE
+
+Compile with SIMD

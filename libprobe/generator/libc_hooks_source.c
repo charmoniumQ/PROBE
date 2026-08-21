@@ -47,6 +47,7 @@ typedef void* intptr_t;
 typedef void* clockid_t;
 typedef void* clock_t;
 
+struct RngState;
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
@@ -2381,8 +2382,9 @@ int mkstemps(char *template, int suffixlen) {
 ssize_t read(int fd, void* buf, size_t count) {
     void* call = ({
         ssize_t ret;
-        if (UNLIKELY(is_rand(fd))) {
-            memset(buf, 0, count);
+        if (UNLIKELY(is_rand(fd)) && get_fix_random()) {
+            struct RngState state = {0};
+            random_bytes(&state, buf, count);
             ret = count;
         } else {
             ret = client_read(fd, buf, count);
@@ -2521,8 +2523,9 @@ ssize_t copy_file_range(int fd_in, off_t* off_in, int fd_out, off_t* off_out,
 size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     void* call = ({
         size_t ret;
-        if (UNLIKELY(is_rand(fileno(stream)))) {
-            memset(ptr, 0, n);
+        if (UNLIKELY(is_rand(fileno(stream))) && get_fix_random()) {
+            struct RngState state = {0};
+            random_bytes(&state, ptr, size * n);
             ret = n;
         } else {
             ret = client_fread(ptr, size, n, stream);
