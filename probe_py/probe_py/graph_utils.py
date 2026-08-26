@@ -25,11 +25,8 @@ def map_nodes(
     if check_unique:
         dups = util.duplicates(graph.nodes(), mapper)
         assert not dups, dups
-    print("s")
     dct = {node: mapper(node) for node in graph.nodes()}
-    print("u")
     ret = typing.cast("networkx.DiGraph[_Node2]", networkx.relabel_nodes(graph, dct))
-    print("t")
     return ret
 
 

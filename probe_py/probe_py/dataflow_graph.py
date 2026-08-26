@@ -705,7 +705,7 @@ def read_write_collapse(
                 raise ValueError(
                     f"This algorithm assumes all nodes represent quads from just one thread, got: {node.thread_triples()} {str(exc)}"
                 )
-    all_runs = list[frozenset[ptypes.OpQuad]]()
+    all_runs = list[list[Quads]]()
     for thread_triple, nodes in tqdm.tqdm(
         list(triples_to_nodes.items()),
         desc="Identify read/write phases",
@@ -746,9 +746,7 @@ def read_write_collapse(
     print(f"{len(all_runs)} runs")
     node_mapper = dict[Quads | IVNs, Quads | IVNs]()
     for run in all_runs:
-        new_quad = Quads(
-            Quads(quad for node in run for quad in node)
-        )
+        new_quad = Quads(Quads(quad for node in run for quad in node))
         for node in run:
             node_mapper[node] = new_quad
     with charmonium.time_block.ctx("map nodes"):
