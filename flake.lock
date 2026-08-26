@@ -26,11 +26,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1755754141,
-        "narHash": "sha256-PzXHKUZvostIJvvG5t5SN5p0NbpZvZcnDhW4BDZAMew=",
+        "lastModified": 1781066467,
+        "narHash": "sha256-F7kA/SePB9Ed6vF/1jQ9CFS+noOxFuW0sYmNlA76JVs=",
         "owner": "charmoniumQ",
         "repo": "charmonium.time_block",
-        "rev": "9f533ef55205909953bf8082961b58fcb59b473e",
+        "rev": "88c38117bcdc56bab2817f852b08172ce01f75c9",
         "type": "github"
       },
       "original": {
