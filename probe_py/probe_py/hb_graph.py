@@ -32,7 +32,7 @@ def probe_log_to_hb_graph(probe_log: ProbeLog) -> HbGraph:
     hb_graph: HbGraph = networkx.DiGraph()
 
     _create_program_order_edges(probe_log, hb_graph)
-    # _create_open_number_edges(probe_log, hb_graph)
+    _create_open_number_edges(probe_log, hb_graph)
 
     # Hook up synchronization edges
     for node in hb_graph.nodes():
