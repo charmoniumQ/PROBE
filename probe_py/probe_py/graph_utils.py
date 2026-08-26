@@ -442,3 +442,20 @@ def topo_sort_with_cycles(
             indegree[succ] -= 1
             if indegree[succ] == 0:
                 queue.append(succ)
+
+
+def get_almost_topological_sort(dag: networkx.DiGraph[_Node]) -> list[_Node]:
+    dag = dag.copy()
+    dag.remove_edges_from(networkx.selfloop_edges(dag))
+    while True:
+        print("Detecting cycles")
+        basis = list(networkx.simple_cycles(dag))
+        if not basis:
+            return list(networkx.topological_sort(dag))
+        print(f"{len(basis)} cycles detected")
+        edges = collections.Counter[tuple[_Node, _Node]]()
+        for cycle in basis:
+            for edge in [*zip(cycle[:-1], cycle[1:]), (cycle[-1], cycle[0])]:
+                edges[edge] += 1
+        (source, dest), _ = edges.most_common(1)[0]
+        dag.remove_edge(source, dest)

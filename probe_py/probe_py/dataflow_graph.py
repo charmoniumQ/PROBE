@@ -87,9 +87,13 @@ def hb_graph_to_dataflow_graph(
     verbose: bool,
     loose: bool,
     conservative: bool,
+    ignore_paths: list[str],
+    include_paths: list[str],
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = networkx.DiGraph()
+
     analysis = Analysis.init(probe_log, hb_graph, verbose, loose, conservative)
+
     inode_intervals = find_intervals(analysis)
     print(
         f"{len(inode_intervals)} inodes, {sum(len(intervals) for intervals in inode_intervals.values())} intervals"
@@ -108,7 +112,16 @@ def hb_graph_to_dataflow_graph(
         total=len(inode_intervals),
         desc="Inode intervals to stitch",
     ):
-        if all(path.parts[1] not in {"dev", "proc", "sys"} for path in analysis.paths[inode]):
+        should_include = not any(
+            fnmatch.fnmatch(str(path), ignore_path)
+            for ignore_path in ignore_paths
+            for path in analysis.paths[inode]
+        ) or any(
+            fnmatch.fnmatch(str(path), include_path)
+            for include_path in include_paths
+            for path in analysis.paths[inode]
+        )
+        if should_include:
             stitch_intervals(dfg, analysis, inode, intervals)
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
         root_pid = analysis.probe_log.get_root_pid()
@@ -234,7 +247,7 @@ class Analysis:
         loose: bool,
         conservative: bool,
     ) -> Analysis:
-        with charmonium.time_block.ctx("vector clocks", print_start=False):
+        with charmonium.time_block.ctx("vector clocks", print_start=True):
             order = vector_clock.from_dag(hb_graph, lambda node: node.thread_triple())
             print(f"Diameter of HBG: {order.diameter()}")
         with charmonium.time_block.ctx("highest_peers", print_start=True):
@@ -790,8 +803,6 @@ def label_nodes(
     max_path_segment_length: int = 80,
     max_paths_per_inode: int = 10,
     max_inodes_per_set: int = 100,
-    ignore_paths: It[str] = (),
-    include_paths: It[str] = (),
 ) -> None:
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="label dfg"):
         data2 = dfg.nodes(data=True)[node]
@@ -814,8 +825,6 @@ def label_nodes(
                     max_path_segment_length=max_path_segment_length,
                     max_paths_per_inode=max_paths_per_inode,
                     max_inodes_per_set=max_inodes_per_set,
-                    ignore_paths=ignore_paths,
-                    include_paths=include_paths,
                 )
             case _:
                 raise TypeError()
@@ -878,8 +887,6 @@ def label_ivns(
     max_path_segment_length: int,
     max_paths_per_inode: int,
     max_inodes_per_set: int,
-    ignore_paths: It[str],
-    include_paths: It[str],
 ) -> None:
     inode_labels = []
     # Sorting ensures consistent labels
@@ -892,11 +899,8 @@ def label_ivns(
             type_str = f" (type={type})"
         paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
         for path, frequency in list(paths.most_common()):
-            if not any(
-                fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths
-            ) or any(fnmatch.fnmatch(str(path), include_path) for include_path in include_paths):
-                path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
-                inode_labels.append(f"{path_str}{type_str}")
+            path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
+            inode_labels.append(f"{path_str}{type_str}")
         if not paths:
             inode_labels.append(
                 f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"
