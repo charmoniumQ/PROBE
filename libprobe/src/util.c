@@ -3,7 +3,6 @@
 #include <dirent.h>   // for dirent
 #include <fcntl.h>    // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
 #include <limits.h>   // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
-#include <stdbool.h>  // for bool, false
 #include <stdlib.h>   // for malloc
 #include <sys/stat.h> // for S_IFDIR, S_IFMT, statx, STATX_TYPE
 #include <sys/sysmacros.h>

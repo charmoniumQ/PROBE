@@ -535,6 +535,7 @@ dependencies = [
  "clap_builder",
  "log",
  "memchr",
+ "nix",
  "serde",
  "serde_core",
  "serde_json",

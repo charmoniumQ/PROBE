@@ -5,7 +5,7 @@
 #include <stddef.h>    // for size_t
 #include <sys/types.h> // for pid_t, ssize_t, off_t
 // IWYU pragma: no_include "unistd.h" for environ
-#include <sys/stat.h>
+struct stat;
 
 #define ATTR_HIDDEN __attribute__((visibility("hidden")))
 

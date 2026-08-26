@@ -147,12 +147,6 @@ static struct InodeTable copied_or_overwritten_inodes;
 static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode inode) {
     enum CopyFiles mode = get_copy_files_mode();
     if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly)) {
-        ASSERTF(inode.device_major < 256,
-                "Unexpectedly large device major number, %d. Resize inode table levels",
-                inode.device_major);
-        ASSERTF(inode.device_minor < 256,
-                "Unexpectedly large device minor number, %d. Resize inode table levels",
-                inode.device_minor);
         ASSERTF(inode.number <= (1L << 32),
                 "Unexpectedly large inode, %lu. Resize inode table levels", inode.number);
         uint64_t index = (((uint64_t)(inode.device_major)) << 48L) |
