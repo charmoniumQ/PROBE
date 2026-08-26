@@ -5,6 +5,7 @@ import dataclasses
 import numpy
 import typing
 import networkx
+import tqdm
 from . import partial_order
 
 _ThreadId = typing.NewType("_ThreadId", int)
@@ -81,10 +82,12 @@ def from_dag(
     dag: networkx.DiGraph[_Node],
     thread_fn: typing.Callable[[_Node], _ThreadLabel],
 ) -> VectorClockPartialOrder[_Node, _ThreadLabel]:
+    sort = list(networkx.topological_sort(dag))
+
     # Last node for each thread.
     # This is needed for garbage collections
     last_node_in_thread = dict[_ThreadLabel, _Node]()
-    for node in networkx.topological_sort(dag):
+    for node in sort:
         last_node_in_thread[thread_fn(node)] = node
 
     thread_ids = dict[_ThreadLabel, _ThreadId]()
@@ -92,9 +95,8 @@ def from_dag(
     last_time_in_thread = dict[_ThreadId, VectorTime]()
     max_thread_id = 0
     unused_thread_ids = set[_ThreadId]()
-    import tqdm
 
-    for node in tqdm.tqdm(networkx.topological_sort(dag), total=len(dag)):
+    for node in tqdm.tqdm(sort, total=len(dag)):
         thread = thread_fn(node)
 
         # Convert thread to ID

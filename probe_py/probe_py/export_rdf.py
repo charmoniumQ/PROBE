@@ -1,5 +1,4 @@
 from collections.abc import Iterable as It, Mapping as Map
-import fnmatch
 import getpass
 import pathlib
 import shlex
@@ -31,8 +30,6 @@ def export_rdf_graph(
         probe_log: ptypes.ProbeLog,
         analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
-        ignore_paths: It[str],
-        include_paths: It[str],
 ) -> tuple[rdflib.Graph, prov.model.ProvDocument]:
     graph = rdflib.Graph()
     graph.bind("rdf", RDF)
@@ -45,7 +42,7 @@ def export_rdf_graph(
 
     exec_to_activity = add_processes(probe_log, analysis, child_to_ancestor, graph, user)
 
-    inode_to_entity = add_inodes(analysis, dfg, graph, ignore_paths, include_paths)
+    inode_to_entity = add_inodes(analysis, dfg, graph)
 
     ivn_to_term = add_inode_versions(analysis, dfg, inode_to_entity, graph, user)
 
@@ -142,8 +139,6 @@ def add_inodes(
         analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
         graph: rdflib.Graph,
-        ignore_paths: It[str],
-        include_paths: It[str],
 ) -> Map[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]]:
     device_to_term = dict[ptypes.Device, rdflib.term.Node]()
     inode_to_term = dict[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]]()
@@ -164,15 +159,6 @@ def add_inodes(
                     path_counter = analysis.paths[ivn.inode]
                     representative_path: pathlib.Path | None
                     if path_counter:
-                        include = all(
-                            not fnmatch.fnmatch(str(path), ignore_path)
-                            for path in path_counter
-                            for ignore_path in ignore_paths
-                        ) or any(
-                            fnmatch.fnmatch(str(path), include_path)
-                            for path in path_counter
-                            for include_path in include_paths
-                        )
                         max_path_count = max(path_counter.values())
                         max_paths = [
                             path
@@ -185,25 +171,23 @@ def add_inodes(
                     else:
                         representative_path = None
                         major_version = inode.number
-                        include = True
-                    if include:
-                        inode_term = rdflib.URIRef(f"inode_{device.major_id}_{device.minor_id}_{inode.number}")
-                        graph.add((inode_term, RDF.type, AD_HOC_NAMESPACE.OSInode))
-                        if representative_path is not None:
-                            graph.add((inode_term, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}")))
-                        else:
-                            graph.add((inode_term, RDFS.label, rdflib.Literal(f"<anonymous path {major_version}>")))
-                        graph.add((inode_term, AD_HOC_NAMESPACE.device, device_to_term[device]))
-                        graph.add((inode_term, AD_HOC_NAMESPACE.number, rdflib.Literal(inode.number)))
-                        for path_obj, _ in analysis.paths[ivn.inode].most_common():
-                            path2 = rdflib.container.Seq(graph, rdflib.BNode(), [
-                                rdflib.Literal(segment)
-                                for segment in path_obj.parts
-                            ])  # type: ignore
-                            graph.add((path2.uri, RDF.type, AD_HOC_NAMESPACE.OSFilePath))
-                            graph.add((inode_term, AD_HOC_NAMESPACE.has_path, path2.uri))
-                            # graph.add((inode_term, AD_HOC_NAMESPACE.has_path, rdflib.Literal(str(path_obj))))
-                        inode_to_term[inode] = (representative_path, major_version, inode_term)                        
+                    inode_term = rdflib.URIRef(f"inode_{device.major_id}_{device.minor_id}_{inode.number}")
+                    graph.add((inode_term, RDF.type, AD_HOC_NAMESPACE.OSInode))
+                    if representative_path is not None:
+                        graph.add((inode_term, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}")))
+                    else:
+                        graph.add((inode_term, RDFS.label, rdflib.Literal(f"<anonymous path {major_version}>")))
+                    graph.add((inode_term, AD_HOC_NAMESPACE.device, device_to_term[device]))
+                    graph.add((inode_term, AD_HOC_NAMESPACE.number, rdflib.Literal(inode.number)))
+                    for path_obj, _ in analysis.paths[ivn.inode].most_common():
+                        path2 = rdflib.container.Seq(graph, rdflib.BNode(), [
+                            rdflib.Literal(segment)
+                            for segment in path_obj.parts
+                        ])  # type: ignore
+                        graph.add((path2.uri, RDF.type, AD_HOC_NAMESPACE.OSFilePath))
+                        graph.add((inode_term, AD_HOC_NAMESPACE.has_path, path2.uri))
+                        # graph.add((inode_term, AD_HOC_NAMESPACE.has_path, rdflib.Literal(str(path_obj))))
+                    inode_to_term[inode] = (representative_path, major_version, inode_term)
     return inode_to_term
 
 
