@@ -40,8 +40,7 @@ pub struct Inode {
 }
 
 impl Inode {
-    pub fn get_inode(fd: libc::c_int) -> eyre::Result<Inode> {
-        let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
+    pub fn get_inode<Fd: std::os::fd::AsFd>(fd: Fd) -> eyre::Result<Inode> {
         let stat = nix::sys::stat::fstat(fd)?;
         Ok(Inode {
             device_major: (nix::sys::stat::major(stat.st_dev) & 0xFF_u64) as u8,
