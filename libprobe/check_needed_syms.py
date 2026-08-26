@@ -25,6 +25,7 @@ allowed = {
     "fileno",
     "fprintf",
     "free",
+    "gnu_dev_major",
     "malloc",
     "memcpy",
     "memset",

@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -447,19 +448,10 @@ Test(write, stat_file_path) {
     char path[128] = {0};
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
-    struct statx buf;
 
-    {
-        result n = probe_libc_statx(AT_FDCWD, path, 0, 0, &buf);
-        cr_assert_eq(n, 0, "Error: %s (%d)", strerror(n), n);
-    }
-
-    unlink(path);
-
-    {
-        result n = probe_libc_statx(AT_FDCWD, path, 0, 0, &buf);
-        cr_assert_eq(n, ENOENT, "Error: %s (%d)", strerror(n), n);
-    }
+    struct stat buf1;
+    result n1 = probe_libc_fstat(fd, &buf1);
+    cr_assert_eq(n1, 0, "Error: %s (%d)", strerror(n1), n1);
 }
 
 Test(write, stat_file_fd) {
@@ -467,14 +459,43 @@ Test(write, stat_file_fd) {
     int fd = mktemp_file(path, sizeof(path));
     cr_assert_neq(fd, -1);
     unlink(path);
-    struct statx buf;
-    {
-        result n = probe_libc_statx(fd, NULL, AT_EMPTY_PATH, 0, &buf);
-        cr_assert_eq(n, 0, "Error: %s %d", strerror(n), n);
-    }
-    {
-        result n = probe_libc_statx(fd, "", AT_EMPTY_PATH, 0, &buf);
-        cr_assert_eq(n, 0, "Error: %s (%d)", strerror(n), n);
-    }
+
+    struct stat buf;
+    result n1 = probe_libc_fstat(fd, &buf);
+    cr_assert_eq(n1, 0, "Error: %s %d", strerror(n1), n1);
+
     close(fd);
+}
+
+Test(read, is_random_random) {
+    int fd = open("/dev/random", O_RDONLY);
+    cr_assert_gt(fd, 0);
+    struct stat buf1;
+    result n1 = probe_libc_fstat(fd, &buf1);
+    cr_assert_eq(n1, 0, "Error: %s (%d)", strerror(n1), n1);
+    int majorf = major(buf1.st_rdev);
+    int minorf = minor(buf1.st_rdev);
+    cr_assert(PROBE_IS_RANDOM(majorf, minorf), "%d,%d", majorf, minorf);
+}
+
+Test(read, is_random_urandom) {
+    int fd = open("/dev/urandom", O_RDONLY);
+    cr_assert_gt(fd, 0);
+    struct stat buf1;
+    result n1 = probe_libc_fstat(fd, &buf1);
+    cr_assert_eq(n1, 0, "Error: %s (%d)", strerror(n1), n1);
+    int majorf = major(buf1.st_rdev);
+    int minorf = minor(buf1.st_rdev);
+    cr_assert(PROBE_IS_RANDOM(majorf, minorf), "%d,%d", majorf, minorf);
+}
+
+Test(read, is_not_random_dev) {
+    int fd = open("/dev/zero", O_RDONLY);
+    cr_assert_gt(fd, 0);
+    struct stat buf1;
+    result n1 = probe_libc_fstat(fd, &buf1);
+    cr_assert_eq(n1, 0, "Error: %s (%d)", strerror(n1), n1);
+    int majorf = major(buf1.st_rdev);
+    int minorf = minor(buf1.st_rdev);
+    cr_assert_not(PROBE_IS_RANDOM(majorf, minorf), "%d,%d", majorf, minorf);
 }

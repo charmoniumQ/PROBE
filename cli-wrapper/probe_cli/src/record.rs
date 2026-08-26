@@ -159,6 +159,7 @@ impl Recorder {
         fs::create_dir(record_dir.path().join(probe_headers::CONTEXT_SUBDIR))?;
         fs::create_dir(record_dir.path().join(probe_headers::INODES_SUBDIR))?;
 
+        let cwd = std::fs::File::open(".")?;
         let ptc = probe_headers::ProcessTreeContext {
             libprobe_path: probe_headers::FixedPath::from_path_ref(libprobe_path)
                 .map_err(|e| eyre!("{e:?}"))?,
@@ -167,10 +168,10 @@ impl Recorder {
             working_directory: probe_headers::FixedPath::from_path_ref(std::env::current_dir()?)
                 .map_err(|e| eyre!("{e:?}"))?,
             interpose_read_writes: false, // safe fallback; libprobe should overwrite this
-            working_directory_inode: probe_headers::Inode::get_inode(".")?,
-            std_in: probe_headers::Inode::get_inode("/dev/stdin")?,
-            std_out: probe_headers::Inode::get_inode("/dev/stdout")?,
-            std_err: probe_headers::Inode::get_inode("/dev/stderr")?,
+            working_directory_inode: probe_headers::Inode::get_inode(&cwd)?,
+            std_in: probe_headers::Inode::get_inode(std::io::stdin())?,
+            std_out: probe_headers::Inode::get_inode(std::io::stdout())?,
+            std_err: probe_headers::Inode::get_inode(std::io::stderr())?,
             fix_random: self.fix_random,
         };
         let mut ptc_mem = memory_parsing::Segments::single(
@@ -186,15 +187,9 @@ impl Recorder {
         std::fs::write(ptc_file, ptc_bytes)?;
 
         if self.fix_random {
-            let personality_ret = unsafe { libc::personality(0xffffffff) };
-            if personality_ret == -1 {
-                panic!("Could not get personality");
-            }
-            let persona = personality_ret as libc::c_ulong;
-            let new_persona = persona | (libc::ADDR_NO_RANDOMIZE as u64);
-            if unsafe { libc::personality(new_persona) } == -1 {
-                panic!("Could not set personality");
-            }
+            use nix::sys::personality::*;
+            let pers = get().unwrap();
+            set(pers | Persona::ADDR_NO_RANDOMIZE).unwrap();
         }
 
         let mut child = if self.gdb {

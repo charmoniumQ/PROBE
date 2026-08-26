@@ -20,6 +20,7 @@ clap = { version = "4", features = ["cargo", "derive"] }
 clap_builder = { version = "4", default-features = false, features = ["cargo", "color", "help", "std", "suggestions", "usage"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2", default-features = false, features = ["std"] }
+nix = { version = "0.31", features = ["fs", "personality"] }
 serde = { version = "1", features = ["alloc", "derive"] }
 serde_core = { version = "1", default-features = false, features = ["alloc", "result", "std"] }
 serde_json = { version = "1", features = ["alloc"] }
@@ -29,6 +30,7 @@ clap = { version = "4", features = ["cargo", "derive"] }
 clap_builder = { version = "4", default-features = false, features = ["cargo", "color", "help", "std", "suggestions", "usage"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2", default-features = false, features = ["std"] }
+nix = { version = "0.31", features = ["fs", "personality"] }
 serde = { version = "1", features = ["alloc", "derive"] }
 serde_core = { version = "1", default-features = false, features = ["alloc", "result", "std"] }
 serde_json = { version = "1", features = ["alloc"] }

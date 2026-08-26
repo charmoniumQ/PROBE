@@ -3,7 +3,6 @@
 #include <dirent.h>   // for dirent
 #include <fcntl.h>    // for O_CREAT, AT_FDCWD, F_GETFD, O_R...
 #include <limits.h>   // IWYU pragma: keep for PATH_MAX, SSIZE_MAX
-#include <stdbool.h>  // for bool, false
 #include <stdlib.h>   // for malloc
 #include <sys/stat.h> // for S_IFDIR, S_IFMT, statx, STATX_TYPE
 #include <sys/sysmacros.h>
@@ -16,16 +15,6 @@
 #include "../generated/libc_hooks.h" // for client_...
 #include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
 #include "probe_libc.h"              // for probe_libc_...
-
-bool is_dir(const char* dir) {
-    struct statx statx_buf;
-    result statx_ret = probe_libc_statx(AT_FDCWD, dir, 0, STATX_TYPE, &statx_buf);
-    if (statx_ret != 0) {
-        return false;
-    } else {
-        return (statx_buf.stx_mode & S_IFMT) == S_IFDIR;
-    }
-}
 
 OWNED const char* dirfd_path(int dirfd) {
     static char dirfd_proc_path[PATH_MAX];

@@ -28,8 +28,10 @@ pub struct StatxTimestamp {
 #[derive(MemoryParsable, JsonSchema, Serialize, Debug, PartialEq, Eq, Clone)]
 #[repr(C)]
 pub struct Inode {
-    device_major: u32,
-    device_minor: u32,
+    device_major: u8,
+    device_minor: u8,
+    block_device_major: u8,
+    block_device_minor: u8,
     number: libc::ino_t,
     mode: u16,
     mtime: StatxTimestamp,
@@ -38,26 +40,26 @@ pub struct Inode {
 }
 
 impl Inode {
-    pub fn get_inode(path: &str) -> eyre::Result<Inode> {
-        use eyre::WrapErr;
-        use std::os::unix::fs::MetadataExt;
-        let meta = std::fs::metadata(path).with_context(|| format!("path={}", path))?;
+    pub fn get_inode<Fd: std::os::fd::AsFd>(fd: Fd) -> eyre::Result<Inode> {
+        let stat = nix::sys::stat::fstat(fd)?;
         Ok(Inode {
-            device_major: TryInto::<u32>::try_into(meta.dev() >> 32)?,
-            device_minor: TryInto::<u32>::try_into(meta.dev() & 0xFFFFFFFF)?,
-            number: meta.ino(),
-            mode: TryInto::<u16>::try_into(meta.mode())?,
+            device_major: (nix::sys::stat::major(stat.st_dev) & 0xFF_u64) as u8,
+            device_minor: (nix::sys::stat::minor(stat.st_dev) & 0xFF_u64) as u8,
+            block_device_major: (nix::sys::stat::major(stat.st_rdev) & 0xFF_u64) as u8,
+            block_device_minor: (nix::sys::stat::minor(stat.st_rdev) & 0xFF_u64) as u8,
+            number: stat.st_ino,
+            mode: TryInto::<u16>::try_into(stat.st_mode)?,
             ctime: StatxTimestamp {
-                tv_sec: meta.ctime(),
-                tv_nsec: TryInto::<u32>::try_into(meta.ctime_nsec())?,
+                tv_sec: stat.st_ctime,
+                tv_nsec: TryInto::<u32>::try_into(stat.st_ctime_nsec)?,
                 __padding: 0,
             },
             mtime: StatxTimestamp {
-                tv_sec: meta.mtime(),
-                tv_nsec: TryInto::<u32>::try_into(meta.mtime_nsec())?,
+                tv_sec: stat.st_mtime,
+                tv_nsec: TryInto::<u32>::try_into(stat.st_mtime_nsec)?,
                 __padding: 0,
             },
-            size: meta.size(),
+            size: stat.st_size as u64,
         })
     }
 }
