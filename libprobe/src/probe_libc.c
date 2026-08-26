@@ -5,6 +5,7 @@
 #include <features.h>    // for __GLIBC_MINOR__, __GLIBC__
 #include <limits.h>      // IWYU pragma: keep for SSIZE_MAX
 #include <linux/prctl.h> // for PR_*
+#include <stdbool.h>     // for false, true
 #include <stddef.h>      // for size_t, NULL
 #include <stdint.h>      // for uint64_t, uintptr_t, int_fast16_t
 #include <stdlib.h>      // for malloc
@@ -174,14 +175,14 @@ result probe_libc_init(void) {
         ssize_t size = probe_syscall5(SYS_prctl, PR_GET_AUXV, (uintptr_t)&tmp, /*size*/ 0, 0, 0);
         aux_entry* buf;
         if (size < 0) {
-            result_int fd = probe_libc_openat(AT_FDCWD, "/proc/self/auxval", O_RDONLY, 0);
+            result_int fd = probe_libc_openat(AT_FDCWD, "/proc/self/auxv", O_RDONLY, 0);
             if (fd.error) {
-                ERROR("prctl(PR_GET_AUXV, ...) failed and openat(\"/proc/self/auxval\") also "
+                ERROR("prctl(PR_GET_AUXV, ...) failed and openat(\"/proc/self/auxv\") also "
                       "failed.");
             }
             result_sized_mem buf_result = probe_read_all_alloc(fd.value);
             if (buf_result.error) {
-                ERROR("prctl(PR_GET_AUXV, ...) failed, openat(\"/proc/self/auxval\") succeeded, "
+                ERROR("prctl(PR_GET_AUXV, ...) failed, openat(\"/proc/self/auxv\") succeeded, "
                       "but probe_read_all_alloc(...) failed.");
             }
             buf = buf_result.value;
@@ -347,12 +348,20 @@ result probe_libc_ftruncate(int fd, off_t length) {
     SYSCALL_ERROR_OPTION(retval);
 }
 
+result probe_libc_fstat(int dirfd, struct stat* _Nonnull restrict statbuf) {
+    ssize_t retval = probe_syscall2(SYS_fstat, dirfd, (uintptr_t)statbuf);
+    SYSCALL_ERROR_OPTION(retval);
+}
+
+/*
+ * statx does not exist on old Linux
 result probe_libc_statx(int dirfd, const char* _Nullable path, int flags, unsigned int mask,
                         void* _Nonnull restrict statxbuf) {
     ssize_t retval =
         probe_syscall5(SYS_statx, dirfd, (uintptr_t)path, flags, mask, (uintptr_t)statxbuf);
     SYSCALL_ERROR_OPTION(retval);
 }
+*/
 
 result probe_libc_mkdirat(int dirfd, const char* _Nonnull path, mode_t mode) {
     ssize_t retval = probe_syscall3(SYS_mkdirat, dirfd, (uintptr_t)path, mode);

@@ -5,6 +5,7 @@
 #include <stddef.h>    // for size_t
 #include <sys/types.h> // for pid_t, ssize_t, off_t
 // IWYU pragma: no_include "unistd.h" for environ
+#include <sys/stat.h>
 
 #define ATTR_HIDDEN __attribute__((visibility("hidden")))
 
@@ -72,8 +73,7 @@ ATTR_HIDDEN result_int probe_libc_openat(int dirfd, const char* _Nullable path, 
  */
 ATTR_HIDDEN void probe_libc_close(int fd);
 ATTR_HIDDEN result probe_libc_ftruncate(int fd, off_t length);
-ATTR_HIDDEN result probe_libc_statx(int dirfd, const char* _Nullable restrict path, int flags,
-                                    unsigned int mask, void* _Nonnull restrict statxbuf);
+ATTR_HIDDEN result probe_libc_fstat(int dirfd, struct stat* _Nonnull restrict statbuf);
 ATTR_HIDDEN result probe_libc_mkdirat(int dirfd, const char* _Nonnull path, mode_t mode);
 
 // implementing the flags parameter without soundness bugs requires using the
@@ -106,3 +106,6 @@ ATTR_HIDDEN size_t probe_libc_strnfind(const char* _Nonnull string, size_t maxle
 ATTR_HIDDEN size_t probe_libc_getpagesize(void);
 
 ATTR_HIDDEN const char* _Nullable probe_libc_getenv(const char* _Nonnull name);
+
+// See https://docs.kernel.org/admin-guide/devices.html
+#define PROBE_IS_RANDOM(major, minor) ((major == 1) && ((minor == 8) || (minor == 9)))

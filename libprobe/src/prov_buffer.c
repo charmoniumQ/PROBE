@@ -5,11 +5,13 @@
 #include <stdatomic.h>
 #include <stdbool.h> // for bool, true
 #include <stdint.h>
-#include <sys/stat.h> // for S_IFMT, S_IFCHR, S_IFDIR
-#include <threads.h>  // for thrd_current
-#include <time.h>     // IWYU pragma: keep for timespec, clock_gettime
-#include <unistd.h>   // for F_OK
+#include <sys/stat.h>      // for S_IFMT, S_IFCHR, S_IFDIR
+#include <sys/sysmacros.h> // for major/minor
+#include <threads.h>       // for thrd_current
+#include <time.h>          // IWYU pragma: keep for timespec, clock_gettime
+#include <unistd.h>        // for F_OK
 // IWYU pragma: no_include "bits/posix1_lim.h" for SSIZE_MAX, we have limits.h
+// IWYU pragma: no_include "bits/struct_stat.h" for PATH_MAX//
 // IWYU pragma: no_include "bits/time.h"    for CLOCK_MONOTONIC
 // IWYU pragma: no_include "linux/limits.h" for PATH_MAX
 
@@ -22,7 +24,6 @@
 #include "errno.h"                    // for errno
 #include "global_state.h"             // for get_data_arena, get_op_arena
 #include "libc_subset.h"              // for fileno
-#include "linux/stat.h"               // for statx, STATX_CTIME, STATX_INO
 #include "probe_libc.h"               // for probe_copy_file, probe_libc_fa...
 #include "util.h"                     // for BORROWED, CHECK_SNPRINTF
 
@@ -214,27 +215,26 @@ static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode ino
 }
 
 struct Inode get_inode(int fd) {
-    struct statx statx_buf;
-    int stat_ret = probe_libc_statx(
-        fd, NULL, 0 | AT_EMPTY_PATH,
-        STATX_TYPE | STATX_MODE | STATX_INO | STATX_MTIME | STATX_CTIME | STATX_SIZE, &statx_buf);
+    struct stat stat_buf;
+    int stat_ret = probe_libc_fstat(fd, &stat_buf);
     if (stat_ret != 0) {
         ERROR("We got a bad FD; could be the client's fault? fd=%d stat_ret=%d", fd, stat_ret);
     }
-    if (statx_buf.stx_ino == 0) {
-        ERROR("Weird inode for %d: dev=%u_%u ino=%llu %d %lld %lld %llu", fd,
-              statx_buf.stx_dev_major, statx_buf.stx_dev_minor, statx_buf.stx_ino,
-              statx_buf.stx_mode, statx_buf.stx_mtime.tv_sec, statx_buf.stx_ctime.tv_sec,
-              statx_buf.stx_size);
+    if (stat_buf.st_ino == 0) {
+        ERROR("Weird inode for %d: dev=%u_%u ino=%lu %d %ld %ld %ld", fd, major(stat_buf.st_dev),
+              minor(stat_buf.st_dev), stat_buf.st_ino, stat_buf.st_mode, stat_buf.st_mtime,
+              stat_buf.st_ctime, stat_buf.st_size);
     }
     return (struct Inode){
-        .device_major = statx_buf.stx_dev_major,
-        .device_minor = statx_buf.stx_dev_minor,
-        .number = statx_buf.stx_ino,
-        .mode = statx_buf.stx_mode,
-        .mtime = *(struct StatxTimestamp*)&statx_buf.stx_mtime,
-        .ctime = *(struct StatxTimestamp*)&statx_buf.stx_ctime,
-        .size = statx_buf.stx_size,
+        .device_major = major(stat_buf.st_dev) & 0xFF,
+        .device_minor = minor(stat_buf.st_dev) & 0xFF,
+        .block_device_major = major(stat_buf.st_rdev) & 0xFF,
+        .block_device_minor = minor(stat_buf.st_rdev) & 0xFF,
+        .number = stat_buf.st_ino,
+        .mode = stat_buf.st_mode,
+        .mtime = {stat_buf.st_mtime, 0, 0},
+        .ctime = {stat_buf.st_ctime, 0, 0},
+        .size = stat_buf.st_size,
     };
 }
 
@@ -343,18 +343,12 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
     }
 
     if (fd > 0) {
-        bool is_rand =
-            get_fix_random() && inode.device_major == 0 &&
-            UNLIKELY(inode.device_minor == 6 && (inode.number == 8 || inode.number == 9));
+        bool is_rand = get_fix_random() && UNLIKELY(PROBE_IS_RANDOM(inode.block_device_major,
+                                                                    inode.block_device_minor));
         OpenNumber open_number = new_open_number(fd, is_rand);
         DEBUG("on %d,%d; inode %lu; dev=%d,%d, is_rand=%d", open_number.fd, open_number.number,
               inode.number, inode.device_major, inode.device_minor, is_rand);
         ASSERTF(open_number.number > 0, "");
-        if (inode.device_major == 0 && inode.device_minor == 6 &&
-            (inode.number == 8 || inode.number == 9)) {
-            _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
-            atomic_fetch_or(address, RAND_BIT);
-        }
         prov_log_record((struct Op){
             .data =
                 {
@@ -448,7 +442,7 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
         bool is_rand =
             get_fix_random() && inode.device_major == 0 &&
             UNLIKELY(inode.device_minor == 6 && (inode.number == 8 || inode.number == 9));
-        OpenNumber open_number = new_open_number(fileno(file), is_rand);
+        OpenNumber open_number = new_open_number(fd, is_rand);
         DEBUG("on %d,%d; ret=FILE %p, inode %lu; dev=%d,%d rand=%d", open_number.fd,
               open_number.number, file, inode.number, inode.device_major, inode.device_minor,
               is_rand);

@@ -17,16 +17,6 @@
 #include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
 #include "probe_libc.h"              // for probe_libc_...
 
-bool is_dir(const char* dir) {
-    struct statx statx_buf;
-    result statx_ret = probe_libc_statx(AT_FDCWD, dir, 0, STATX_TYPE, &statx_buf);
-    if (statx_ret != 0) {
-        return false;
-    } else {
-        return (statx_buf.stx_mode & S_IFMT) == S_IFDIR;
-    }
-}
-
 OWNED const char* dirfd_path(int dirfd) {
     static char dirfd_proc_path[PATH_MAX];
     CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fd/%d", dirfd);

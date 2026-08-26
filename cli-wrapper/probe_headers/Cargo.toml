@@ -29,6 +29,7 @@ schemars = "1.2.0"
 libc = "0.2.180"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+nix = { version = "0.31.3", features = ["fs"] }
 
 [build-dependencies]
 eyre = "0.6.12"
