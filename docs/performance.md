@@ -21,3 +21,5 @@ Look in to is_rand
 Compare syscalls with stat with/without PROBE
 
 Compile with SIMD
+
+Delete device numbers from Inode struct.
