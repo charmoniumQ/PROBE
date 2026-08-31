@@ -8,7 +8,7 @@ test-nix:
 lint-py: update-headers-py
     # fix-py depends on compile-cli for the autogen python code
     #ruff format probe_py/ tests/ libprobe/generator/ # TODO: uncomment
-    env --chdir=probe_py/probe_py ruff format dataflow_graph.py disjoint_sets.py graph_utils.py partial_order.py priority_queue.py vector_clock.py
+    env --chdir=probe_py/probe_py ruff format dataflow_graph.py graph_utils.py partial_order.py priority_queue.py vector_clock.py
     ruff check --fix probe_py/ tests/ libprobe/generator/
     # dmypy == daemon mypy; much faster on subsequent iterations.
     dmypy run -- --strict --no-namespace-packages --pretty probe_py/ tests/ libprobe/generator/
