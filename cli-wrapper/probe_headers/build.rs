@@ -69,3 +69,4 @@ fn replace_with_typedef(c_source: String, struct_name: &str, typedef: &str) -> S
         );
     new_source
 }
+
