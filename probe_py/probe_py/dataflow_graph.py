@@ -89,6 +89,7 @@ def hb_graph_to_dataflow_graph(
     conservative: bool,
     ignore_paths: list[str],
     include_paths: list[str],
+    keep_noop_procs: bool = False,
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = networkx.DiGraph()
 
@@ -123,6 +124,7 @@ def hb_graph_to_dataflow_graph(
         )
         if should_include:
             stitch_intervals(dfg, analysis, inode, intervals)
+
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
         root_pid = analysis.probe_log.get_root_pid()
         first_quad = ptypes.OpQuad(root_pid, ptypes.initial_exec_no, root_pid.main_thread(), 0)
@@ -133,8 +135,32 @@ def hb_graph_to_dataflow_graph(
         for clone_quad, target in analysis.clones:
             dfg.add_edge(clone_quad, target, label=EdgeType.FORK)
         stitch_program_order(dfg, analysis)
+
     compressed_dfg = compress(analysis, dfg, verbose)
+
+    if not keep_noop_procs:
+        remove_noop_procs(compressed_dfg)
+
     return analysis, compressed_dfg
+
+
+def remove_noop_procs(dfg: DataflowGraph) -> None:
+    leaves = set[IVNs | Quads]()
+    leaves.update({
+        sink
+        for sink in graph_utils.get_sinks(dfg)
+        if isinstance(sink, IVNs)
+    })
+    for cycle in networkx.simple_cycles(dfg):
+        if any(isinstance(node, IVNs) for node in cycle):
+            leaves.update(set(cycle))
+
+    for layer in networkx.bfs_layers(dfg.reverse(), leaves):
+        leaves.update(set(layer))
+
+    for node in list(dfg.nodes()):
+        if node not in leaves:
+            dfg.remove_node(node)
 
 
 class EdgeType(enum.StrEnum):
@@ -142,7 +168,9 @@ class EdgeType(enum.StrEnum):
     PROGRAM_ORDER = enum.auto()
     EXEC = enum.auto()
     FORK = enum.auto()
-    FILE = enum.auto()
+    FILE_READ = enum.auto()
+    FILE_MUTATE = enum.auto()
+    FILE_CLOBBER = enum.auto()
 
 
 def stitch_threads(dfg: UncompressedDataflowGraph, analysis: Analysis) -> None:
@@ -360,7 +388,8 @@ class Analysis:
                                 dir_paths = maybe_dir_paths
                         for dir_path in dir_paths:
                             path_obj = dir_path / data.path.name.decode()
-                            assert path_obj.is_absolute()
+                            if not self.loose:
+                                assert path_obj.is_absolute()
                             self.paths[inode][path_obj] += 1
 
                 case headers.Close():
@@ -564,7 +593,7 @@ def stitch_intervals(
             versions[interval] = InodeVersionNode(inode, len(versions))
             if interval != source_interval:
                 for node in interval.lower_bound:
-                    dfg.add_edge(node, versions[interval], label=EdgeType.FILE)
+                    dfg.add_edge(node, versions[interval], label=EdgeType.FILE_READ)
         if print_inodes:
             print(
                 "  interval:",
@@ -604,16 +633,23 @@ def stitch_intervals(
                 else:
                     if intervals[read_interval].can_read:
                         for dst in read_interval.upper_bound:
-                            dfg.add_edge(versions[write_interval], dst, label=EdgeType.FILE)
+                            dfg.add_edge(versions[write_interval], dst, label=EdgeType.FILE_READ)
                         traversal.send(True)
                     elif intervals[read_interval].can_mutate:
                         dfg.add_edge(
                             versions[write_interval],
                             versions[read_interval],
-                            label=EdgeType.FILE,
+                            label=EdgeType.FILE_MUTATE,
                         )
                         traversal.send(False)
                     elif intervals[read_interval].is_truncating:
+                        if print_inodes:
+                            print("    is truncating")
+                        dfg.add_edge(
+                            versions[write_interval],
+                            versions[read_interval],
+                            label=EdgeType.FILE_CLOBBER,
+                        )
                         traversal.send(False)
 
 
@@ -807,21 +843,31 @@ def label_nodes(
     max_path_length: int = 200,
     max_path_segment_length: int = 80,
     max_paths_per_inode: int = 10,
-    max_inodes_per_set: int = 100,
+    max_inodes_per_set: int = 10,
+    ignore_paths: It[str] = (),
+    include_paths: It[str] = (),
+    show_unks: bool = False,
+    show_system: bool = False,
+    show_proc_states: bool = True,
+    show_deep_execs: bool = False,
 ) -> None:
     for node in tqdm.tqdm(sorted(dfg.nodes(), key=node_sort_key), desc="label dfg"):
         data2 = dfg.nodes(data=True)[node]
         match node:
             case Quads():
                 label_quads(
+                    dfg,
                     node,
                     data2,
                     analysis,
                     max_args=max_args,
                     max_arg_length=max_arg_length,
+                    show_deep_execs=show_deep_execs,
+                    show_proc_states=show_proc_states,
                 )
             case IVNs():
                 label_ivns(
+                    dfg,
                     node,
                     data2,
                     analysis,
@@ -830,20 +876,30 @@ def label_nodes(
                     max_path_segment_length=max_path_segment_length,
                     max_paths_per_inode=max_paths_per_inode,
                     max_inodes_per_set=max_inodes_per_set,
+                    ignore_paths=ignore_paths,
+                    include_paths=include_paths,
+                    show_unks=show_unks,
+                    show_system=show_system,
                 )
             case _:
                 raise TypeError()
     for node0, node1, edge_data in dfg.edges(data=True):
-        if "label" in edge_data:
+        if label := edge_data.get("label"):
+            if label == EdgeType.FILE_CLOBBER:
+                edge_data["color"] = "red"
+                edge_data["style"] = "dashed"
             del edge_data["label"]
 
 
 def label_quads(
+    dfg: DataflowGraph,
     quads: Quads,
     data: NodeData,
     analysis: Analysis,
     max_args: int,
     max_arg_length: int,
+    show_deep_execs: bool,
+    show_proc_states: bool,
 ) -> None:
     thread_triple = list(quads)[0].thread_triple()
     min_op_no = min(quad.op_no for quad in quads)
@@ -854,36 +910,42 @@ def label_quads(
     data["label"] = ""
     data["cluster"] = f"Process {thread_triple.pid}"
     data["shape"] = "oval"
+    if not show_proc_states and all(
+            not isinstance(analysis.probe_log.get_op(quad).data, headers.InitExecEpoch)
+            for quad in quads
+    ):
+        graph_utils.relax_node(dfg, quads)
+        return
     for quad in quads:
-        try:
-            op_data = analysis.probe_log.get_op(quad).data
-        except KeyError:
-            data["label"] += "Unknown"
-        else:
-            if isinstance(op_data, headers.InitExecEpoch):
-                if quad.exec_no == 0:
-                    if quad.pid == analysis.probe_log.get_root_pid():
-                        data["label"] += "(root process)"
-                    else:
-                        data["label"] += "(child process)"
+        op_data = analysis.probe_log.get_op(quad).data
+        if isinstance(op_data, headers.InitExecEpoch):
+            if quad.exec_no == 0:
+                if quad.pid == analysis.probe_log.get_root_pid():
+                    data["label"] += "(root process)"
                 else:
-                    args = [
-                        arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]
-                    ]
-                    args = [
-                        arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…"
-                        for arg in args
-                    ]
-                    if len(args) > max_args:
-                        args_str = shlex.join(args[:max_args]) + ", …"
-                    else:
-                        args_str = shlex.join(args)
-                    data["label"] += args_str
+                    data["label"] += "(child process)"
+            elif show_deep_execs or quad.exec_no == 1:
+                args = [
+                    arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]
+                ]
+                args = [
+                    arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…"
+                    for arg in args
+                ]
+                if len(args) > max_args:
+                    args_str = shlex.join(args[:max_args]) + ", …"
+                else:
+                    args_str = shlex.join(args)
+                data["label"] += args_str
+            elif not show_deep_execs and quad.exec_no != 1:
+                graph_utils.relax_node(dfg, quads)
+                break
     if thread_triple.tid != thread_triple.pid.main_thread():
         data["label"] += f"Thread {int(quad.tid) - int(quad.pid)}"
 
 
 def label_ivns(
+    dfg: DataflowGraph,
     ivns: IVNs,
     data: NodeData,
     analysis: Analysis,
@@ -892,6 +954,10 @@ def label_ivns(
     max_path_segment_length: int,
     max_paths_per_inode: int,
     max_inodes_per_set: int,
+    ignore_paths: It[str],
+    include_paths: It[str],
+    show_unks: bool,
+    show_system: bool,
 ) -> None:
     inode_labels = []
     # Sorting ensures consistent labels
@@ -904,17 +970,26 @@ def label_ivns(
             type_str = f" (type={type})"
         paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
         for path, frequency in list(paths.most_common()):
-            path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
-            inode_labels.append(f"{path_str}{type_str}")
-        if not paths:
+            if not any(
+                fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths
+            ) or any(fnmatch.fnmatch(str(path), include_path) for include_path in include_paths):
+                path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
+                inode_labels.append(f"{path_str}{type_str}")
+        if not paths and show_unks:
             inode_labels.append(
                 f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"
             )
             if len(inode_labels) > max_paths_per_inode:
                 break
+    if not inode_labels:
+        dfg.remove_node(ivns)
+        return
     if len(ivns) > max_inodes_per_set:
         inode_labels.append("…")
     if not inode_labels:
+        if not show_system:
+            graph_utils.relax_node(dfg, ivns)
+            return
         inode_labels.append("<system files>")
     data["label"] = "\n".join(inode_labels)
     data["shape"] = "rectangle"

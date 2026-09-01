@@ -18,9 +18,9 @@ struct ArenaDir {
 __attribute__((visibility("hidden"))) void* _Nonnull arena_calloc(
     struct ArenaDir* _Nonnull arena_dir, size_t type_count, size_t type_size);
 
-__attribute__((visibility("hidden"))) void* _Nonnull arena_strndup(struct ArenaDir* _Nonnull arena,
-                                                                   const char* _Nonnull string,
-                                                                   size_t max_size);
+__attribute__((visibility("hidden"))) void* _Nullable arena_strndup(struct ArenaDir* _Nullable arena,
+                                                                    const char* _Nonnull string,
+                                                                    size_t max_size);
 
 /* A note on malloc attribute:
  *

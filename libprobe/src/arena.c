@@ -116,6 +116,9 @@ void* arena_calloc(struct ArenaDir* arena_dir, size_t type_count, size_t type_si
 }
 
 void* arena_strndup(struct ArenaDir* arena, const char* string, size_t max_size) {
+    if (!string) {
+        return NULL;
+    }
     size_t length = probe_libc_strnlen(string, max_size);
     char* dst = EXPECT_NONNULL(arena_calloc(arena, length + 1, sizeof(char)));
     probe_libc_memcpy(dst, string, length + 1);

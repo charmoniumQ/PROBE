@@ -5,6 +5,7 @@ allowed = {
     "_ITM_deregisterTMCloneTable",
     "_ITM_registerTMCloneTable",
     "__confstr_chk",
+    "__cxa_atexit",
     "__cxa_finalize",
     "__environ",
     "__errno_location",
