@@ -67,7 +67,6 @@ simple_commands = {
     "createFile": [str(example_path / "createFile.exe")],
     # TODO
     # "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
-    "torch": ["python", "-c", "import torch"],
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],

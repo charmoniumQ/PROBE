@@ -298,7 +298,6 @@
             pypkgs.prov
 
             # probe_py "dev time" requirements
-            pypkgs.torch
             packages.types-networkx
             pypkgs.datamodel-code-generator
             pypkgs.ipython
