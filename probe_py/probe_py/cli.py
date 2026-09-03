@@ -172,7 +172,7 @@ def hb_graph(
     hb_graph_module.label_nodes(probe_log_obj, hbg, show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
-    
+
 @export_app.command()
 @charmonium.time_block.decor(print_start=False)
 def dataflow_graph(
@@ -187,7 +187,7 @@ def dataflow_graph(
         ignore_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
-        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*",
+        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*,*/.venv/*,/tmp/*",
         include_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
@@ -212,7 +212,16 @@ def dataflow_graph(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict, conservative=conservative, ignore_paths=ignore_paths.split(","), include_paths=include_paths.split(","))
+
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(
+        probe_log_obj,
+        hbg,
+        verbose=verbose,
+        loose=not strict,
+        conservative=conservative,
+        ignore_paths=ignore_paths.split(","),
+        include_paths=include_paths.split(","),
+    )
     dataflow_graph_module.label_nodes(analysis, dfg, relative_to=relative_to)
     graph_utils.serialize_graph(dfg, output)
 
@@ -239,7 +248,7 @@ def workflow(
         ignore_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
-        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*",
+        ] = "/nix/store/*,/dev/*,/proc/*,/sys/*,*.pyc,*/.local/state/nix/profile/*,*/.venv/*,/tmp/*",
         include_paths: Annotated[
             str,
             typer.Option(help="Comma-separated glob/fnmatch"),
@@ -255,7 +264,16 @@ def workflow(
     restore_sanity(strict, debug)
     probe_log_obj = parser.parse_probe_log(probe_log)
     hbg = hb_graph_module.probe_log_to_hb_graph(probe_log_obj)
-    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log_obj, hbg, verbose=verbose, loose=not strict, conservative=conservative, ignore_paths=ignore_paths.split(","), include_paths=include_paths.split(","))
+
+    analysis, dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(
+        probe_log_obj,
+        hbg,
+        verbose=verbose,
+        loose=not strict,
+        conservative=conservative,
+        ignore_paths=ignore_paths.split(","),
+        include_paths=include_paths.split(","),
+    )
     paths_of_interest2 = [
         cwd / pathlib.Path(path)
         for path in paths_of_interest.split(",")

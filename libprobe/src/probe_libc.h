@@ -99,7 +99,7 @@ ATTR_HIDDEN result probe_libc_msync(void* _Nonnull addr, size_t len, int flags);
 ATTR_HIDDEN char* _Nonnull probe_libc_strncpy(char* restrict _Nonnull dest,
                                               const char* restrict _Nonnull src, size_t dsize);
 ATTR_HIDDEN size_t probe_libc_strnlen(const char* _Nonnull s, size_t maxlen);
-ATTR_HIDDEN char* _Nullable probe_libc_strndup(const char* _Nonnull s, size_t n);
+ATTR_HIDDEN char* _Nullable probe_libc_strndup(const char* _Nullable s, size_t n);
 ATTR_HIDDEN int probe_libc_strncmp(const char* _Nonnull a, const char* _Nonnull b, size_t n);
 ATTR_HIDDEN size_t probe_libc_strnfind(const char* _Nonnull string, size_t maxlen, char delim);
 

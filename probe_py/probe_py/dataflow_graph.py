@@ -123,6 +123,7 @@ def hb_graph_to_dataflow_graph(
         )
         if should_include:
             stitch_intervals(dfg, analysis, inode, intervals)
+
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
         root_pid = analysis.probe_log.get_root_pid()
         first_quad = ptypes.OpQuad(root_pid, ptypes.initial_exec_no, root_pid.main_thread(), 0)
@@ -133,6 +134,7 @@ def hb_graph_to_dataflow_graph(
         for clone_quad, target in analysis.clones:
             dfg.add_edge(clone_quad, target, label=EdgeType.FORK)
         stitch_program_order(dfg, analysis)
+
     compressed_dfg = compress(analysis, dfg, verbose)
     return analysis, compressed_dfg
 
