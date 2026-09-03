@@ -1,6 +1,4 @@
 from __future__ import annotations
-from collections.abc import Iterable as It
-import fnmatch
 import pathlib
 import shlex
 import typing
@@ -27,8 +25,6 @@ def workflowize(
         probe_log: ptypes.ProbeLog,
         analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
-        ignore_paths: It[str],
-        include_paths: It[str],
 ) -> Workflow:
     # ivn_to_node = util.groupby_dict_single(
     #     [
@@ -74,9 +70,6 @@ def workflowize(
             path
             for ivn in node
             for path in analysis.paths[ivn.inode]
-            if not any(
-                    fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths
-            ) or any(fnmatch.fnmatch(str(path), include_path) for include_path in include_paths)
         ]
         for node in dfg.nodes()
         if isinstance(node, dataflow_graph.IVNs)

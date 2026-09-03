@@ -213,14 +213,14 @@ def dataflow_graph(
         verbose=verbose,
         loose=not strict,
         conservative=conservative,
+        ignore_paths=ignore_paths.split(","),
+        include_paths=include_paths.split(","),
     )
     initial_wd = pathlib.Path(probe_log_obj.process_tree_context.working_directory.decode())
     dataflow_graph_module.label_nodes(
         analysis,
         dfg,
         relative_to=initial_wd,
-        ignore_paths=ignore_paths.split(","),
-        include_paths=include_paths.split(","),
     )
     graph_utils.serialize_graph(dfg, output)
 
