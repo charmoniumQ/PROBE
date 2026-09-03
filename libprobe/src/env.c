@@ -54,13 +54,13 @@ char const* const* update_env_with_probe_vars(char const* const* env, size_t* ne
     for (size_t idx = 0; idx < *new_env_size; ++idx) {
         /* DEBUG("new_env[%ld] = \"%s\"", idx, new_env[idx]); */
         if (probe_libc_memcmp(new_env[idx], LD_PRELOAD_EQ, sizeof(LD_PRELOAD_VAR)) == 0) {
-            DEBUG("Found %s", new_env[idx]);
+            //DEBUG("Found %s", new_env[idx]);
             found_ld_preload = true;
             const char* env_val = &new_env[idx][sizeof(LD_PRELOAD_VAR)];
             size_t env_val_len = probe_libc_strnlen(env_val, PATH_MAX * 100);
             if (!search_on_colon_separated_path(env_val, libprobe_path->bytes,
                                                 libprobe_path->len)) {
-                DEBUG("Could not find \"%s\" on LD_PRELOAD", libprobe_path->bytes);
+                //DEBUG("Could not find \"%s\" on LD_PRELOAD", libprobe_path->bytes);
                 new_env[idx] =
                     malloc(sizeof(LD_PRELOAD_VAR) + libprobe_path->len + 1 + env_val_len);
                 probe_libc_memcpy(&new_env[idx][0], LD_PRELOAD_EQ, sizeof(LD_PRELOAD_VAR));
@@ -73,10 +73,10 @@ char const* const* update_env_with_probe_vars(char const* const* env, size_t* ne
                     new_env[idx][sizeof(LD_PRELOAD_VAR) + 1 + libprobe_path->len + env_val_len] ==
                         '\0',
                     "");
-                DEBUG("Changing %s to %s", env[idx], new_env[idx]);
+                //DEBUG("Changing %s to %s", env[idx], new_env[idx]);
             }
         } else if (probe_libc_memcmp(new_env[idx], PROBE_DIR_EQ, sizeof(PROBE_DIR_VAR)) == 0) {
-            DEBUG("Found %s", new_env[idx]);
+            //DEBUG("Found %s", new_env[idx]);
             found_probe_dir = true;
             if (probe_libc_memcmp(&new_env[idx][sizeof(PROBE_DIR_VAR)], probe_dir->bytes,
                                   probe_dir->len)) {
@@ -97,7 +97,7 @@ char const* const* update_env_with_probe_vars(char const* const* env, size_t* ne
         probe_libc_memcpy(new_env[*new_env_size] + sizeof(LD_PRELOAD_VAR), libprobe_path->bytes,
                           libprobe_path->len + 1);
         ASSERTF(new_env[*new_env_size][sizeof(LD_PRELOAD_VAR) + libprobe_path->len] == '\0', "");
-        DEBUG("Appending %s", new_env[*new_env_size]);
+        //DEBUG("Appending %s", new_env[*new_env_size]);
         ++*new_env_size;
     }
     if (!found_probe_dir) {
@@ -106,7 +106,7 @@ char const* const* update_env_with_probe_vars(char const* const* env, size_t* ne
         probe_libc_memcpy(new_env[*new_env_size] + sizeof(PROBE_DIR_VAR), probe_dir->bytes,
                           probe_dir->len + 1);
         ASSERTF(new_env[*new_env_size][sizeof(PROBE_DIR_VAR) + probe_dir->len] == '\0', "");
-        DEBUG("Appending %s", new_env[*new_env_size]);
+        //DEBUG("Appending %s", new_env[*new_env_size]);
         ++*new_env_size;
     }
 

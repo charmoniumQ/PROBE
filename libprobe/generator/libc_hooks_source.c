@@ -55,7 +55,7 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 int fclose (FILE *stream) {
     void* pre_call = ({
         int fd = fileno(stream);
-        print_open_fd(fd);
+        //print_open_fd(fd);
     });
     void* post_call = ({
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
@@ -141,9 +141,9 @@ int creat (const char *filename, mode_t mode) {
 }
 fn creat64 = creat;
 int close (int filedes) {
-    void* pre_call = ({
-        print_open_fd(filedes);
-    });
+    //void* pre_call = ({
+    //    print_open_fd(filedes);
+    //});
     void* post_call = ({
         OpenNumber on = reset_open_number(filedes);
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
@@ -287,7 +287,7 @@ int fcntl (int filedes, int command, ...) {
                 OpenNumber src = get_open_number(filedes);
                 OpenNumber old_dst = get_open_number(ret);
                 OpenNumber dst = new_open_number(ret, is_write(filedes));
-                print_open_fd(filedes);
+                //print_open_fd(filedes);
                 DEBUG("fcntl/dup %d,%u -> %d,(%u -> %u)", src.fd, src.number, dst.fd, old_dst.number, dst.number);
                 prov_log_record((struct Op) {
                     .data = {
@@ -2389,7 +2389,7 @@ ssize_t read(int fd, void* buf, size_t count) {
         }
     });
     void* post_call = ({
-        print_open_fd(fd);
+        //print_open_fd(fd);
         // Note that ret == 0 could mean we hit EOF
         // which does ret as reading data from the file.
         if (ret >= 0) {
@@ -2400,7 +2400,7 @@ ssize_t read(int fd, void* buf, size_t count) {
 
 ssize_t write(int fd, const void* buf, size_t count) {
     void* post_call = ({
-        print_open_fd(fd);
+        //print_open_fd(fd);
         if (ret > 0) {
             mark_access(fd, true);
         }
@@ -2530,7 +2530,7 @@ size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     });
     void* post_call = ({
         int fd = fileno(stream);
-        print_open_fd(fd);
+        //print_open_fd(fd);
         if (fd >= 0 && ret >= 0) {
             mark_access(fd, false);
         }
@@ -2540,7 +2540,7 @@ size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
 size_t fwrite(const void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     void* post_call = ({
         int fd = fileno(stream);
-        print_open_fd(fd);
+        //print_open_fd(fd);
         if (fd >= 0 && ret > 0) {
             mark_access(fd, true);
         }
@@ -2573,7 +2573,7 @@ ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
                     int received_fd;
                     memcpy(&received_fd, CMSG_DATA(control_message), sizeof(received_fd));
                     ASSERTF(received_fd > 0, "fd was zero or negative");
-                    print_open_fd(received_fd);
+                    //print_open_fd(received_fd);
                     OpenNumber new_on = new_open_number(received_fd, false);
                     char proc_path[64];
                     char fd_path[PATH_MAX];

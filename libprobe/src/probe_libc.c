@@ -496,7 +496,9 @@ size_t probe_libc_strnlen(const char* _Nonnull s, size_t maxlen) {
     return i;
 }
 
-char* _Nonnull probe_libc_strndup(const char* _Nonnull s, size_t n) {
+char* _Nullable probe_libc_strndup(const char* _Nullable s, size_t n) {
+    if (!s)
+        return NULL;
     size_t size = probe_libc_strnlen(s, n);
     char* new = malloc(size + 1);
     if (new == NULL) {

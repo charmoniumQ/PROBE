@@ -1,4 +1,6 @@
 **/result
+/.results
+/.scratch
 
 # cache directories
 **/.mypy_cache

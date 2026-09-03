@@ -250,7 +250,7 @@ OpenNumber reset_open_number(int fd) {
     uint16_t number = atomic_fetch_add(fd_table_address_of_strong(&fd_table, fd), 1);
     // TODO: Have this be load not fetch-add.
     // Fetch-add uses up open-numbers faster, and worse for cache locality
-    DEBUG("reset_open_number: %d,%u -> %u", fd, number & NUMBER_MASK, (number + 1) & NUMBER_MASK);
+    //DEBUG("reset_open_number: %d,%u -> %u", fd, number & NUMBER_MASK, (number + 1) & NUMBER_MASK);
     return (OpenNumber){.fd = fd, .number = number};
 }
 
@@ -267,7 +267,7 @@ OpenNumber new_open_number(int fd, bool is_rand) {
         new_number |= RAND_BIT;
     }
     atomic_store(address, new_number);
-    DEBUG("new_open_number: %d,%u", fd, new_number);
+    //DEBUG("new_open_number: %d,%u", fd, new_number);
     ASSERTF(new_number >= MIN_OPEN_NUMBER, "%d,%u >= %d", fd, new_number, MIN_OPEN_NUMBER);
     return (OpenNumber){
         .fd = fd,
@@ -278,8 +278,8 @@ OpenNumber new_open_number(int fd, bool is_rand) {
 void mark_access(int fd, bool is_write) {
     _Atomic(uint16_t)* address = fd_table_address_of_strong(&fd_table, fd);
 #ifndef NDEBUG
-    uint16_t number = atomic_load(address) & NUMBER_MASK;
-    DEBUG("Mark %d,%d as %s", fd, number, is_write ? "write" : "read");
+    //uint16_t number = atomic_load(address) & NUMBER_MASK;
+    //DEBUG("Mark %d,%d as %s", fd, number, is_write ? "write" : "read");
 #endif
     atomic_fetch_or(address, is_write ? WRITE_BIT : READ_BIT);
 }
@@ -311,7 +311,7 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         ERROR("unreachable code, (flags & O_ACCMODE)=0x%x", flags & O_ACCMODE);
     }
 
-    DEBUG("open_wrapper(%d, \"%s\", %d, %d), access=%d", dirfd, filename, flags, mode, access);
+    //DEBUG("open_wrapper(%d, \"%s\", %d, %d), access=%d", dirfd, filename, flags, mode, access);
 
     int nondestructive_flags = (flags & ~(O_CREAT | O_TRUNC | O_TMPFILE)) | O_RDONLY;
     int fd = client_openat(dirfd, filename, nondestructive_flags, mode);
@@ -340,8 +340,8 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         bool is_rand = get_fix_random() && UNLIKELY(PROBE_IS_RANDOM(inode.block_device_major,
                                                                     inode.block_device_minor));
         OpenNumber open_number = new_open_number(fd, is_rand);
-        DEBUG("on %d,%d; inode %lu; dev=%d,%d, is_rand=%d", open_number.fd, open_number.number,
-              inode.number, inode.device_major, inode.device_minor, is_rand);
+        //DEBUG("on %d,%d; inode %lu; dev=%d,%d, is_rand=%d", open_number.fd, open_number.number,
+        //      inode.number, inode.device_major, inode.device_minor, is_rand);
         ASSERTF(open_number.number > 0, "");
         prov_log_record((struct Op){
             .data =
@@ -385,7 +385,7 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
     int saved_errno = errno;
     errno = 0;
     int call_errno;
-    DEBUG("fopen_wrapper(\"%s\", \"%s\")", filename, opentype);
+    //DEBUG("fopen_wrapper(\"%s\", \"%s\")", filename, opentype);
     bool has_plus = false;
     for (const char* f = filename; *f; ++f) {
         if (*f == '+') {
@@ -437,9 +437,9 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
             get_fix_random() && inode.device_major == 0 &&
             UNLIKELY(inode.device_minor == 6 && (inode.number == 8 || inode.number == 9));
         OpenNumber open_number = new_open_number(fd, is_rand);
-        DEBUG("on %d,%d; ret=FILE %p, inode %lu; dev=%d,%d rand=%d", open_number.fd,
-              open_number.number, file, inode.number, inode.device_major, inode.device_minor,
-              is_rand);
+        //DEBUG("on %d,%d; ret=FILE %p, inode %lu; dev=%d,%d rand=%d", open_number.fd,
+        //      open_number.number, file, inode.number, inode.device_major, inode.device_minor,
+        //      is_rand);
         ASSERTF(open_number.number > 0, "");
         prov_log_record((struct Op){
             .data =
