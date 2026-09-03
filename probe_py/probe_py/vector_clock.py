@@ -22,6 +22,7 @@ class VectorTime:
     def increment(self, current_thread: _ThreadId, predecessors: It[VectorTime]) -> VectorTime:
         "Increment the current_clock, such that it will be after all predecessors"
         max_thread = max(
+            len(self),
             current_thread + 1,
             max(len(pred) for pred in predecessors) if predecessors else 0,
         )

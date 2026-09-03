@@ -47,6 +47,7 @@ typedef void* intptr_t;
 typedef void* clockid_t;
 typedef void* clock_t;
 
+struct RngState;
 int __type_mode_t;
 typedef int (*fn_ptr_int_void_ptr)(void*);
 
@@ -55,7 +56,7 @@ typedef int (*fn_ptr_int_void_ptr)(void*);
 int fclose (FILE *stream) {
     void* pre_call = ({
         int fd = fileno(stream);
-        print_open_fd(fd);
+        //print_open_fd(fd);
     });
     void* post_call = ({
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
@@ -141,9 +142,9 @@ int creat (const char *filename, mode_t mode) {
 }
 fn creat64 = creat;
 int close (int filedes) {
-    void* pre_call = ({
-        print_open_fd(filedes);
-    });
+    //void* pre_call = ({
+    //    print_open_fd(filedes);
+    //});
     void* post_call = ({
         OpenNumber on = reset_open_number(filedes);
         if (LIKELY(ret == 0 && prov_log_is_enabled())) {
@@ -287,7 +288,7 @@ int fcntl (int filedes, int command, ...) {
                 OpenNumber src = get_open_number(filedes);
                 OpenNumber old_dst = get_open_number(ret);
                 OpenNumber dst = new_open_number(ret, is_write(filedes));
-                print_open_fd(filedes);
+                //print_open_fd(filedes);
                 DEBUG("fcntl/dup %d,%u -> %d,(%u -> %u)", src.fd, src.number, dst.fd, old_dst.number, dst.number);
                 prov_log_record((struct Op) {
                     .data = {
@@ -2319,6 +2320,19 @@ void exit(int status) {
             .ferrno = 0,
         };
         prov_log_record(op);
+        prov_log_save();
+    });
+    bool noreturn = true;
+}
+
+void exit_group(int status) {
+    void* precall = ({
+        struct Op op = {
+            .data = {.exit_process_tag = OpData_ExitProcess, .exit_process = {status}},
+            .ferrno = 0,
+        };
+        prov_log_record(op);
+        prov_log_save();
     });
     bool noreturn = true;
 }
@@ -2381,15 +2395,17 @@ int mkstemps(char *template, int suffixlen) {
 ssize_t read(int fd, void* buf, size_t count) {
     void* call = ({
         ssize_t ret;
-        if (UNLIKELY(is_rand(fd))) {
-            memset(buf, 0, count);
+        if (UNLIKELY(is_rand(fd)) && get_fix_random()) {
+            DEBUG("Fixed rand");
+            struct RngState state = {0};
+            random_bytes(&state, buf, count);
             ret = count;
         } else {
             ret = client_read(fd, buf, count);
         }
     });
     void* post_call = ({
-        print_open_fd(fd);
+        //print_open_fd(fd);
         // Note that ret == 0 could mean we hit EOF
         // which does ret as reading data from the file.
         if (ret >= 0) {
@@ -2400,7 +2416,7 @@ ssize_t read(int fd, void* buf, size_t count) {
 
 ssize_t write(int fd, const void* buf, size_t count) {
     void* post_call = ({
-        print_open_fd(fd);
+        //print_open_fd(fd);
         if (ret > 0) {
             mark_access(fd, true);
         }
@@ -2521,8 +2537,10 @@ ssize_t copy_file_range(int fd_in, off_t* off_in, int fd_out, off_t* off_out,
 size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     void* call = ({
         size_t ret;
-        if (UNLIKELY(is_rand(fileno(stream)))) {
-            memset(ptr, 0, n);
+        if (UNLIKELY(is_rand(fileno(stream))) && get_fix_random()) {
+            DEBUG("Fixed rand");
+            struct RngState state = {0};
+            random_bytes(&state, ptr, size * n);
             ret = n;
         } else {
             ret = client_fread(ptr, size, n, stream);
@@ -2530,7 +2548,7 @@ size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     });
     void* post_call = ({
         int fd = fileno(stream);
-        print_open_fd(fd);
+        //print_open_fd(fd);
         if (fd >= 0 && ret >= 0) {
             mark_access(fd, false);
         }
@@ -2540,7 +2558,7 @@ size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
 size_t fwrite(const void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     void* post_call = ({
         int fd = fileno(stream);
-        print_open_fd(fd);
+        //print_open_fd(fd);
         if (fd >= 0 && ret > 0) {
             mark_access(fd, true);
         }
@@ -2573,7 +2591,7 @@ ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
                     int received_fd;
                     memcpy(&received_fd, CMSG_DATA(control_message), sizeof(received_fd));
                     ASSERTF(received_fd > 0, "fd was zero or negative");
-                    print_open_fd(received_fd);
+                    //print_open_fd(received_fd);
                     OpenNumber new_on = new_open_number(received_fd, false);
                     char proc_path[64];
                     char fd_path[PATH_MAX];
@@ -2674,6 +2692,7 @@ ssize_t getrandom(void* buf, size_t size, unsigned int flags) {
     void* call = ({
         ssize_t ret;
         if (get_fix_random()) {
+            DEBUG("Fixed rand");
             memset(buf, 0, size);
             ret = size;
         } else {
@@ -2686,6 +2705,7 @@ int getentropy(void* buffer, size_t length) {
     void* call = ({
         int ret;
         if (get_fix_random()) {
+            DEBUG("Fixed rand");
             memset(buffer, 0, length);
             ret = length;
         } else {
@@ -2698,6 +2718,7 @@ int clock_gettime(clockid_t clockid, struct timespec* tp) {
     void* call = ({
         int ret;
         if (get_fix_random()) {
+            DEBUG("Fixed time");
             memset(tp, 0, sizeof(struct timespec));
             ret = 0;
         } else {
@@ -2710,6 +2731,7 @@ clock_t clock(void) {
     void* call = ({
         clock_t ret;
         if (get_fix_random()) {
+            DEBUG("Fixed time");
             ret = 0;
         } else {
             ret = client_clock();

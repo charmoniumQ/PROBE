@@ -54,7 +54,7 @@ void copy_string_to_fixed_path(struct FixedPath* path, const char* string) {
     })
 
 static inline void* _Nonnull open_and_mmap(const char* path, bool writable, size_t size) {
-    DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
+    //DEBUG("mapping path = \"%s\"; size=%ld; writable=%d", path, size, writable);
     result_int fd =
         probe_libc_openat(AT_FDCWD, path, (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0777);
     if (UNLIKELY(fd.error != 0)) {
@@ -422,6 +422,7 @@ void init_proc() {
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
     emit_init_thread_op();
+    atexit(&prov_log_save);
     DEBUG("Done with construction");
 }
 

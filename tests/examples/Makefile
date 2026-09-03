@@ -6,7 +6,7 @@
 # Subsequently, note whether the machine exploded.
 # If not, then PROBE does not interfere with ASAN.
 
-CFLAGS ?= -Wall -Wextra -Werror -Og -g -Wno-unused-command-line-argument -lpthread -pthread
+CFLAGS ?= -Wall -Wextra -Werror -Og -g -Wno-unused-command-line-argument -lpthread -pthread -ldl
 
 SOURCE_FILES := $(wildcard *.c)
 
@@ -17,6 +17,7 @@ all: $(filter-out minimal_libprobe.exe,$(SOURCE_FILES:.c=.exe)) minimal_libprobe
 
 %.so: %.c
 	$(CC) $(CFLAGS) -lpthread -pthread -ldl -fno-lto -fPIC -shared -o $@ $<
+	patchelf --remove-rpath $@
 
 clean:
 	touch tmp.so tmp.exe
