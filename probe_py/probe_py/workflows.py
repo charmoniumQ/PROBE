@@ -1,6 +1,4 @@
 from __future__ import annotations
-from collections.abc import Iterable as It
-import fnmatch
 import pathlib
 import shlex
 import typing

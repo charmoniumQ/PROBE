@@ -146,11 +146,7 @@ def hb_graph_to_dataflow_graph(
 
 def remove_noop_procs(dfg: DataflowGraph) -> None:
     leaves = set[IVNs | Quads]()
-    leaves.update({
-        sink
-        for sink in graph_utils.get_sinks(dfg)
-        if isinstance(sink, IVNs)
-    })
+    leaves.update({sink for sink in graph_utils.get_sinks(dfg) if isinstance(sink, IVNs)})
     for cycle in networkx.simple_cycles(dfg):
         if any(isinstance(node, IVNs) for node in cycle):
             leaves.update(set(cycle))
@@ -911,8 +907,8 @@ def label_quads(
     data["cluster"] = f"Process {thread_triple.pid}"
     data["shape"] = "oval"
     if not show_proc_states and all(
-            not isinstance(analysis.probe_log.get_op(quad).data, headers.InitExecEpoch)
-            for quad in quads
+        not isinstance(analysis.probe_log.get_op(quad).data, headers.InitExecEpoch)
+        for quad in quads
     ):
         graph_utils.relax_node(dfg, quads)
         return
@@ -925,12 +921,9 @@ def label_quads(
                 else:
                     data["label"] += "(child process)"
             elif show_deep_execs or quad.exec_no == 1:
+                args = [arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]]
                 args = [
-                    arg.decode(errors="backslashreplace") for arg in op_data.argv[0:max_args]
-                ]
-                args = [
-                    arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…"
-                    for arg in args
+                    arg if len(arg) < max_arg_length else arg[:max_arg_length] + "…" for arg in args
                 ]
                 if len(args) > max_args:
                     args_str = shlex.join(args[:max_args]) + ", …"

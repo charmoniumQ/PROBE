@@ -111,7 +111,7 @@ def serialize_graph(
     elif output.suffix.endswith("elk"):
         with output.open("w+") as fobj:
             for node, data in graph.nodes(data=True):
-                label = f"\n  label \"{data['label']}\"\n" if data.get("label") else ""
+                label = f'\n  label "{data["label"]}"\n' if data.get("label") else ""
                 fobj.write(f"node {data['id']} {{{label}}}\n")
             for src, dst, edge_data in graph.edges(data=True):
                 src_id = graph.nodes(data=True)[src]["id"]
