@@ -30,8 +30,14 @@
 void prov_log_save() {
     /* TODO: ensure we call Arena save in atexit, pthread_cleanup_push */
     DEBUG("prov log save");
-    arena_sync(get_op_arena());
-    arena_sync(get_data_arena());
+    struct ArenaDir* op_arena = get_op_arena();
+    if (op_arena) {
+        arena_sync(op_arena);
+    }
+    struct ArenaDir* data_arena = get_data_arena();
+    if (data_arena) {
+        arena_sync(data_arena);
+    }
 }
 
 enum AccessType {

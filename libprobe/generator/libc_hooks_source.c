@@ -2319,6 +2319,19 @@ void exit(int status) {
             .ferrno = 0,
         };
         prov_log_record(op);
+        prov_log_save();
+    });
+    bool noreturn = true;
+}
+
+void exit_group(int status) {
+    void* precall = ({
+        struct Op op = {
+            .data = {.exit_process_tag = OpData_ExitProcess, .exit_process = {status}},
+            .ferrno = 0,
+        };
+        prov_log_record(op);
+        prov_log_save();
     });
     bool noreturn = true;
 }
@@ -2381,7 +2394,10 @@ int mkstemps(char *template, int suffixlen) {
 ssize_t read(int fd, void* buf, size_t count) {
     void* call = ({
         ssize_t ret;
-        if (UNLIKELY(is_rand(fd))) {
+        if (UNLIKELY(is_rand(fd)) && get_fix_random()) {
+            DEBUG("Fixed rand");
+            //struct RngState state = {0};
+            //random_bytes(&state, buf, count);
             memset(buf, 0, count);
             ret = count;
         } else {
@@ -2521,8 +2537,11 @@ ssize_t copy_file_range(int fd_in, off_t* off_in, int fd_out, off_t* off_out,
 size_t fread(void* restrict ptr, size_t size, size_t n, FILE* restrict stream) {
     void* call = ({
         size_t ret;
-        if (UNLIKELY(is_rand(fileno(stream)))) {
-            memset(ptr, 0, n);
+        if (UNLIKELY(is_rand(fileno(stream))) && get_fix_random()) {
+            DEBUG("Fixed rand");
+            //struct RngState state = {0};
+            //random_bytes(&state, ptr, size * n);
+            memset(ptr, 0, size * n);
             ret = n;
         } else {
             ret = client_fread(ptr, size, n, stream);
@@ -2674,6 +2693,7 @@ ssize_t getrandom(void* buf, size_t size, unsigned int flags) {
     void* call = ({
         ssize_t ret;
         if (get_fix_random()) {
+            DEBUG("Fixed rand");
             memset(buf, 0, size);
             ret = size;
         } else {
@@ -2686,6 +2706,7 @@ int getentropy(void* buffer, size_t length) {
     void* call = ({
         int ret;
         if (get_fix_random()) {
+            DEBUG("Fixed rand");
             memset(buffer, 0, length);
             ret = length;
         } else {
@@ -2698,6 +2719,7 @@ int clock_gettime(clockid_t clockid, struct timespec* tp) {
     void* call = ({
         int ret;
         if (get_fix_random()) {
+            DEBUG("Fixed time");
             memset(tp, 0, sizeof(struct timespec));
             ret = 0;
         } else {
@@ -2710,6 +2732,7 @@ clock_t clock(void) {
     void* call = ({
         clock_t ret;
         if (get_fix_random()) {
+            DEBUG("Fixed time");
             ret = 0;
         } else {
             ret = client_clock();

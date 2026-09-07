@@ -247,8 +247,8 @@ static inline void init_arenas(struct ThreadState* state) {
     ASSERTF(arena_is_initialized(&state->ops_arena), "");
     ASSERTF(arena_is_initialized(&state->data_arena), "");
 }
-static inline struct ThreadState* _Nonnull get_thread_state() {
-    return EXPECT_NONNULL(pthread_getspecific(__thread_state_key));
+static inline struct ThreadState* _Nullable get_thread_state() {
+    return pthread_getspecific(__thread_state_key);
 }
 void free_thread_state(void* _Nonnull arg) {
     struct ThreadState* state = EXPECT_NONNULL(arg);
@@ -303,11 +303,39 @@ static inline void drop_threads_after_fork() {
     }
     __pthread_id_counter = 1;
 }
-struct ArenaDir* _Nonnull get_op_arena() { return &(get_thread_state()->ops_arena); }
-struct ArenaDir* _Nonnull get_data_arena() { return &(get_thread_state()->data_arena); }
-pid_t get_tid() { return get_thread_state()->tid; }
+struct ArenaDir* _Nullable get_op_arena() {
+    struct ThreadState* thread_state = get_thread_state();
+    if (thread_state) {
+        return &(thread_state->ops_arena);
+    } else {
+        return NULL;
+    }
+}
+struct ArenaDir* _Nullable get_data_arena() {
+    struct ThreadState* thread_state = get_thread_state();
+    if (thread_state) {
+        return &(thread_state->data_arena);
+    } else {
+        return NULL;
+    }
+}
+pid_t get_tid() {
+    struct ThreadState* thread_state = get_thread_state();
+    if (thread_state) {
+        return thread_state->tid;
+    } else {
+        return 0;
+    }
+}
 pid_t get_tid_safe() { return probe_libc_gettid(); }
-PthreadID get_pthread_id() { return get_thread_state()->pthread_id; }
+PthreadID get_pthread_id() {
+    struct ThreadState* thread_state = get_thread_state();
+    if (thread_state) {
+        return thread_state->pthread_id;
+    } else {
+        return 0;
+    }
+}
 
 static inline void check_function_pointers() {
 #ifndef NDEBUG
@@ -422,6 +450,7 @@ void init_proc() {
     ASSERTF(is_thread_inited(), "Failed to init thread");
     emit_init_epoch_op();
     emit_init_thread_op();
+    atexit(&prov_log_save);
     DEBUG("Done with construction");
 }
 

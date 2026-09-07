@@ -488,7 +488,11 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         if debug_print_start_of_interposition:
             c_string = generator.visit(func.return_type).replace(" restrict", "").replace("const ", "")
             if return_type_flag := PRINT_FLAGS.get(c_string):
-                post_call_stmts.append(
+                post_call_stmts.extend([
+                    pycparser.c_ast.FuncCall(
+                        name=pycparser.c_ast.ID(name="prov_log_save"),
+                        args=pycparser.c_ast.ExprList(exprs=[]),
+                    ),
                     pycparser.c_ast.FuncCall(
                         name=pycparser.c_ast.ID(name="DEBUG"),
                         args=pycparser.c_ast.ExprList(exprs=[
@@ -496,7 +500,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                             pycparser.c_ast.ID(name="ret"),
                         ]),
                     ),
-                )
+                ])
 
         post_call_stmts.append(
             Assignment(
