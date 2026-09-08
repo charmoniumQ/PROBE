@@ -1,5 +1,5 @@
-import multiprocessing
 import pathlib
+import threading
 
 
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -15,10 +15,10 @@ def f2() -> None:
 
 if __name__ == "__main__":
     (project_root / "README.md").read_text()
-    proc1 = multiprocessing.Process(target=f1, args=())
-    proc2 = multiprocessing.Process(target=f2, args=())
-    proc1.start()
-    proc2.start()
-    proc1.join()
-    proc2.join()
+    thread1 = threading.Thread(target=f1, args=())
+    thread2 = threading.Thread(target=f2, args=())
+    thread1.start()
+    thread2.start()
+    thread1.join()
+    thread2.join()
     (project_root / "setup_devshell.sh").read_text()
