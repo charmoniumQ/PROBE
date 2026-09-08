@@ -1,5 +1,6 @@
 from __future__ import annotations
 import collections
+import itertools
 import typing
 import pathlib
 import charmonium.time_block
@@ -52,6 +53,14 @@ def filter_nodes(
     )
 
 
+def relax_node(graph: networkx.DiGraph[_Node], node: _Node) -> None:
+    for predecessor, successor in itertools.product(
+        graph.predecessors(node), graph.successors(node)
+    ):
+        graph.add_edge(predecessor, successor)
+    graph.remove_node(node)
+
+
 def serialize_graph(
     graph: networkx.DiGraph[_Node],
     output: pathlib.Path,
@@ -99,6 +108,16 @@ def serialize_graph(
         pydot_graph.write(str(output), "raw")
     elif output.suffix.endswith("graphml"):
         networkx.write_graphml(graph2, output)
+    elif output.suffix.endswith("elk"):
+        with output.open("w+") as fobj:
+            for node, data in graph.nodes(data=True):
+                label = f'\n  label "{data["label"]}"\n' if data.get("label") else ""
+                fobj.write(f"node {data['id']} {{{label}}}\n")
+            for src, dst, edge_data in graph.edges(data=True):
+                src_id = graph.nodes(data=True)[src]["id"]
+                dst_id = graph.nodes(data=True)[dst]["id"]
+                color = f"\n  {edge_data['color']}\n" if data.get("color") else ""
+                fobj.write(f"edge {src_id} -> {dst_id} {{{color}}}\n")
     else:
         raise ValueError(f"Unknown output type {output} ({output.suffix})")
 

@@ -323,6 +323,7 @@
           shellPackages =
             [
               pkgs.jq
+              pkgs.bashInteractive
 
               # Rust tools
               pkgs.cargo-audit

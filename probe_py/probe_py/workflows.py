@@ -1,5 +1,6 @@
 from __future__ import annotations
 import pathlib
+import shlex
 import typing
 import msgspec
 import networkx
@@ -17,13 +18,13 @@ class Rule(msgspec.Struct, frozen=True):
     outputs: list[pathlib.Path]
     inputs: list[pathlib.Path]
     command: list[str]
+    exe: pathlib.Path
 
 
 def workflowize(
         probe_log: ptypes.ProbeLog,
         analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
-        paths_of_interest: frozenset[pathlib.Path],
 ) -> Workflow:
     # ivn_to_node = util.groupby_dict_single(
     #     [
@@ -74,6 +75,7 @@ def workflowize(
         if isinstance(node, dataflow_graph.IVNs)
     }
 
+    pid_to_exe = {}
     pid_to_command = {}
     root_pid = analysis.probe_log.get_root_pid()
     for pid, process in probe_log.processes.items():
@@ -83,11 +85,17 @@ def workflowize(
             # Should be guaranteed by the structure of the probe log
             assert isinstance(op.data, headers.InitExecEpoch)
             pid_to_command[pid] = op.data.argv
+            name = op.data.exe.name
+            assert name
+            pid_to_exe[pid] = pathlib.Path(name.decode())
         elif second_exec in process.execs:
             op = process.execs[second_exec].threads[pid.main_thread()].ops[0]
             # Should be guaranteed by the structure of the probe log
             assert isinstance(op.data, headers.InitExecEpoch)
             pid_to_command[pid] = op.data.argv
+            name = op.data.exe.name
+            assert name
+            pid_to_exe[pid] = pathlib.Path(name.decode())
 
     child_to_exec_parent = dict[ptypes.Pid, ptypes.Pid]()
     pid_graph = graph_utils.create_digraph(
@@ -109,8 +117,8 @@ def workflowize(
     for node in dfg.nodes():
         if isinstance(node, dataflow_graph.Quads):
             for quad in node:
-                if int(quad.exec_no) >= 1 or quad.pid == root_pid:
-                    pid_to_nodes.setdefault(child_to_exec_parent[quad.pid], []).append(node)
+                if (int(quad.exec_no) >= 1 or quad.pid == root_pid) and (exec_parent := child_to_exec_parent.get(quad.pid)):
+                    pid_to_nodes.setdefault(exec_parent, []).append(node)
 
     rules = []
     for pid, nodes in pid_to_nodes.items():
@@ -120,13 +128,14 @@ def workflowize(
             for predecessor in dfg.predecessors(node):
                 if isinstance(predecessor, dataflow_graph.IVNs):
                     for path in node_to_path[predecessor]:
-                        if path in paths_of_interest:
-                            inputs.add(path)
+                        inputs.add(path)
             for successor in dfg.successors(node):
-                if isinstance(successor, dataflow_graph.IVNs):
+                if isinstance(successor, dataflow_graph.IVNs) and not any(
+                        dfg.get_edge_data(successor, grand_successor, default={}).get("label") == dataflow_graph.EdgeType.FILE_CLOBBER
+                        for grand_successor in dfg.successors(successor)
+                ):
                     for path in node_to_path[successor]:
-                        if path in paths_of_interest:
-                            outputs.add(path)
+                        outputs.add(path)
 
         if outputs:
             rules.append(Rule(
@@ -136,6 +145,7 @@ def workflowize(
                 ],
                 inputs=list(inputs),
                 outputs=list(outputs),
+                exe=pid_to_exe[pid],
             ))
 
     return Workflow(rules)
@@ -143,6 +153,25 @@ def workflowize(
 
 def serialize_yaml(workflow: Workflow, output: pathlib.Path) -> None:
     output.write_bytes(msgspec.yaml.encode(workflow, enc_hook=msgspec_enc_hook))
+
+
+def serialize_makefile(workflow: Workflow, makefile: pathlib.Path) -> None:
+    makefile = makefile.resolve()
+    with makefile.open("w+") as fobj:
+        for rule in workflow.rules:
+            assert rule.outputs
+            fobj.write(" ".join([
+                str(path.relative_to(makefile.parent) if path.is_relative_to(makefile.parent) else path)
+                for path in rule.outputs
+            ]))
+            fobj.write(": ")
+            fobj.write(" ".join([
+                str(path.relative_to(makefile.parent) if path.is_relative_to(makefile.parent) else path)
+                for path in rule.inputs
+            ]))
+            fobj.write("\n\t")
+            fobj.write(shlex.join(rule.command))
+            fobj.write("\n\n")
 
 
 def msgspec_enc_hook(obj: typing.Any) -> typing.Any:
