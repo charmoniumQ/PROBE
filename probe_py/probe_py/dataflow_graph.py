@@ -840,8 +840,6 @@ def label_nodes(
     max_path_segment_length: int = 80,
     max_paths_per_inode: int = 10,
     max_inodes_per_set: int = 10,
-    ignore_paths: It[str] = (),
-    include_paths: It[str] = (),
     show_unks: bool = False,
     show_system: bool = False,
     show_proc_states: bool = True,
@@ -872,8 +870,6 @@ def label_nodes(
                     max_path_segment_length=max_path_segment_length,
                     max_paths_per_inode=max_paths_per_inode,
                     max_inodes_per_set=max_inodes_per_set,
-                    ignore_paths=ignore_paths,
-                    include_paths=include_paths,
                     show_unks=show_unks,
                     show_system=show_system,
                 )
@@ -947,8 +943,6 @@ def label_ivns(
     max_path_segment_length: int,
     max_paths_per_inode: int,
     max_inodes_per_set: int,
-    ignore_paths: It[str],
-    include_paths: It[str],
     show_unks: bool,
     show_system: bool,
 ) -> None:
@@ -963,12 +957,9 @@ def label_ivns(
             type_str = f" (type={type})"
         paths = analysis.paths.get(inode_version.inode, collections.Counter[pathlib.Path]())
         for path, frequency in list(paths.most_common()):
-            if not any(
-                fnmatch.fnmatch(str(path), ignore_path) for ignore_path in ignore_paths
-            ) or any(fnmatch.fnmatch(str(path), include_path) for include_path in include_paths):
-                path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
-                inode_labels.append(f"{path_str}{type_str}")
-        if not paths and show_unks:
+            path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
+            inode_labels.append(f"{path_str}{type_str}")
+        if not paths:
             inode_labels.append(
                 f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"
             )
