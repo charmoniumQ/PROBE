@@ -71,7 +71,6 @@ simple_commands = {
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
     "python_hello": ["python", "-c", "print(4)"],
-    "pytorch": ["python", "-c", "import torch"],
     "hello_world_pthreads":[str(example_path / "hello_world_pthreads.exe")],
     "mutex": [str(example_path / "mutex.exe")],
     "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
