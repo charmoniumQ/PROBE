@@ -50,9 +50,9 @@ __attribute__((visibility("hidden"))) ExecEpoch get_exec_epoch_safe();
 
 __attribute__((visibility("hidden"))) ExecEpoch get_exec_epoch();
 
-__attribute__((visibility("hidden"))) struct ArenaDir* _Nonnull get_op_arena();
+__attribute__((visibility("hidden"))) struct ArenaDir* _Nullable get_op_arena();
 
-__attribute__((visibility("hidden"))) struct ArenaDir* _Nonnull get_data_arena();
+__attribute__((visibility("hidden"))) struct ArenaDir* _Nullable get_data_arena();
 
 __attribute__((visibility("hidden"))) PthreadID get_pthread_id();
 

@@ -306,6 +306,7 @@
             pypkgs.pytest
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
+            pypkgs.torch
             pypkgs.types-tqdm
 
             # libprobe build time requirement
