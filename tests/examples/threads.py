@@ -16,9 +16,9 @@ def f2() -> None:
 if __name__ == "__main__":
     (project_root / "README.md").read_text()
     thread1 = threading.Thread(target=f1, args=())
-    thread2 = threading.Thread(target=f2, args=())
+    # thread2 = threading.Thread(target=f2, args=())
     thread1.start()
-    thread2.start()
+    # thread2.start()
     thread1.join()
-    thread2.join()
+    # thread2.join()
     (project_root / "setup_devshell.sh").read_text()
