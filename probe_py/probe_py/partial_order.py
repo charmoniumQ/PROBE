@@ -4,8 +4,6 @@ import dataclasses
 from collections.abc import Iterable as It, Sequence as Seq, Mapping as Map
 import itertools
 import typing
-import charmonium.time_block
-from . import graph_utils
 import networkx
 
 
@@ -209,75 +207,26 @@ class IntervalOrder(typing.Generic[_Node], PartialOrder[Interval[_Node]]):
         return interval0.all_less_than(interval1)
 
 
-@charmonium.time_block.decor(print_start=False)
-def peers(
-    order: PartialOrder[_Node],
-    dag: networkx.DiGraph[_Node],
-) -> Map[_Node, Interval[_Node]]:
-    my_highest_peers = highest_peers(order, dag)
-    my_lowest_peers = highest_peers(order.reverse(), dag.reverse())
-    return {
-        node: order.interval(my_highest_peers[node], my_lowest_peers[node]) for node in dag.nodes()
-    }
-
-
 def highest_peers(
     order: PartialOrder[_Node],
     dag: networkx.DiGraph[_Node],
 ) -> Map[_Node, frozenset[_Node]]:
     if DEBUG_ASSERTIONS:
         assert networkx.is_directed_acyclic_graph(dag)
-    highest_peers = {node: set[_Node]() for node in dag.nodes()}
 
-    sources = graph_utils.get_sources(dag)
-    for source0, source1 in itertools.permutations(sources, 2):
-        highest_peers[source0].add(source1)
+    sorted_nodes = list(networkx.topological_sort(dag))
 
-    for node in networkx.topological_sort(dag):
-        highest_peers_of_parent = set[_Node]()
-        siblings = set[_Node]()
-        for parent in dag.predecessors(node):
-            highest_peers_of_parent.update(highest_peers[parent])
-            for sibling in dag.successors(parent):
-                if sibling != node:
-                    siblings.add(sibling)
-        if DEBUG_ASSERTIONS:
-            for peer_of_parent in highest_peers_of_parent:
-                # Peer of my parent either points to me or is my peer, but I don't point to them.
-                assert not order.leq(node, peer_of_parent)
-        highest_peers_of_parent_and_me = {
-            highest_peer_of_parent
-            for highest_peer_of_parent in highest_peers_of_parent
-            if not order.leq(highest_peer_of_parent, node)
-        }
-        siblings_that_are_highest_peers = {
-            sibling
-            for sibling in siblings
-            if not order.leq(sibling, node)
-            and not order.leq(node, sibling)
-            and not any(
-                order.leq(highest_peer_of_parent_and_me, sibling)
-                for highest_peer_of_parent_and_me in highest_peers_of_parent_and_me
-            )
-        }
-        highest_peers[node] = highest_peers_of_parent_and_me | siblings_that_are_highest_peers
-        if DEBUG_ASSERTIONS:
-            assert order.is_antichain(highest_peers[node])
-            highest_peer_groups = {
-                "highest peers of parent and me": highest_peers_of_parent_and_me,
-                "siblings that are peers": siblings_that_are_highest_peers,
-            }
-            for label, highest_peer_group in highest_peer_groups.items():
-                for highest_peer in highest_peer_group:
-                    for parent_of_highest_peer in dag.predecessors(highest_peer):
-                        assert order.leq(parent_of_highest_peer, node), (
-                            label,
-                            node,
-                            highest_peer,
-                            parent_of_highest_peer,
-                        )
-
-    return {node: frozenset(peers) for node, peers in highest_peers.items()}
+    ret = {node: set[_Node]() for node in sorted_nodes}
+    for node0 in sorted_nodes:
+        for node1 in sorted_nodes:
+            if node0 != node1:
+                if (
+                    not order.leq(node0, node1)
+                    and not order.leq(node1, node0)
+                    and not any(order.leq(node2, node1) for node2 in ret[node0])
+                ):
+                    ret[node0].add(node1)
+    return {node: frozenset(highest_peers) for node, highest_peers in ret.items()}
 
 
 def topo_sort_subset(

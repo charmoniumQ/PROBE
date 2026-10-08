@@ -1,10 +1,11 @@
 from __future__ import annotations
-from collections.abc import Mapping as Map, Iterable as It
+from collections.abc import Mapping as Map, Iterable as It, Sequence as Seq
 import collections
 import dataclasses
 import enum
 import fnmatch
 import heapq
+import itertools
 import pathlib
 import shlex
 import textwrap
@@ -13,7 +14,6 @@ import warnings
 import charmonium.time_block
 import networkx
 import tqdm
-from . import disjoint_sets
 from . import graph_utils
 from . import hb_graph as hb_graph_mod
 from . import headers
@@ -89,7 +89,7 @@ def hb_graph_to_dataflow_graph(
     conservative: bool,
     ignore_paths: list[str],
     include_paths: list[str],
-    keep_noop_procs: bool = False,
+    keep_noop_procs: bool = True,
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = networkx.DiGraph()
 
@@ -108,6 +108,10 @@ def hb_graph_to_dataflow_graph(
             if len_inode_intervals < 5:
                 break
             print(f"  {len_inode_intervals} {inode}")
+
+    # see ignored.add below
+    # ignored = set[pathlib.Path]()
+
     for inode, intervals in tqdm.tqdm(
         inode_intervals.items(),
         total=len(inode_intervals),
@@ -123,7 +127,18 @@ def hb_graph_to_dataflow_graph(
             for path in analysis.paths[inode]
         )
         if should_include:
+            if verbose:
+                print(f"Stitching interval for {inode} ({analysis.paths[inode]})")
             stitch_intervals(dfg, analysis, inode, intervals)
+        else:
+            pass
+            # print info if verbose
+            # if verbose:
+            #     for path in analysis.paths[inode]:
+            #         ignored.add(path)
+            #         for ignore_path in ignore_paths:
+            #             if fnmatch.fnmatch(str(path), ignore_path):
+            #                 print(f"Ignoring: {path} due to {ignore_path}")
 
     with charmonium.time_block.ctx(name="stitch other", print_start=False):
         root_pid = analysis.probe_log.get_root_pid()
@@ -138,6 +153,7 @@ def hb_graph_to_dataflow_graph(
 
     compressed_dfg = compress(analysis, dfg, verbose)
 
+    # FIXME: fix this
     if not keep_noop_procs:
         remove_noop_procs(compressed_dfg)
 
@@ -170,19 +186,18 @@ class EdgeType(enum.StrEnum):
 
 
 def stitch_threads(dfg: UncompressedDataflowGraph, analysis: Analysis) -> None:
-    for node in analysis.hb_graph.nodes():
-        # Find peers of me that are NOT peers of my successors
-        # If I don't put an arrow from me to that peer, none of my successors will be able to.
-        # I should put it to the highest peer that meets the condition.
-        highest_peers = {
-            peer for peer in analysis.highest_peers[node] if peer.exec_pair() == node.exec_pair()
-        } - {
-            peer
-            for pred in analysis.hb_graph.successors(node)
-            for peer in analysis.highest_peers[pred]
-        }
-        for highest_peer in highest_peers:
-            dfg.add_edge(node, highest_peer, label=EdgeType.THREAD)
+    for pid, process in analysis.probe_log.processes.items():
+        for exec_no in process.execs.keys():
+            exec_pair = ptypes.ExecPair(pid, exec_no)
+            tid_to_wye_to_highest_peers = highest_peers_in_thread(
+                exec_pair, analysis.order, analysis.probe_log, analysis.hb_graph, analysis.verbose
+            )
+            for tid, wye_to_highest_peers in tid_to_wye_to_highest_peers.items():
+                sorted_wye_to_highest_peers = sorted(wye_to_highest_peers.items(), key=lambda pair: pair[0].op_no)
+                for wye, highest_peers in sorted_wye_to_highest_peers:
+                    for highest_peer in highest_peers:
+                        assert highest_peer.tid != wye.tid
+                        dfg.add_edge(wye, highest_peer, label=EdgeType.THREAD)
 
 
 def stitch_program_order(dfg: UncompressedDataflowGraph, analysis: Analysis) -> None:
@@ -235,10 +250,6 @@ class Analysis:
     probe_log: ptypes.ProbeLog
     hb_graph: hb_graph_mod.HbGraph
     order: vector_clock.VectorClockPartialOrder[ptypes.OpQuad, ptypes.ThreadTriple]
-    highest_peers: Map[
-        ptypes.OpQuad,
-        frozenset[ptypes.OpQuad],
-    ]
     sources: set[ptypes.OpQuad]
     verbose: bool
     loose: bool
@@ -274,13 +285,10 @@ class Analysis:
         with charmonium.time_block.ctx("vector clocks", print_start=True):
             order = vector_clock.from_dag(hb_graph, lambda node: node.thread_triple())
             print(f"Diameter of HBG: {order.diameter()}")
-        with charmonium.time_block.ctx("highest_peers", print_start=True):
-            highest_peers = partial_order.highest_peers(order, hb_graph)
         return Analysis(
             probe_log=probe_log,
             hb_graph=hb_graph,
             order=order,
-            highest_peers=highest_peers,
             sources=set(graph_utils.get_sources(hb_graph)),
             verbose=verbose,
             loose=loose,
@@ -613,7 +621,7 @@ def stitch_intervals(
                     versions[write_interval],
                 )
             my_highest_peers = highest_peers[write_interval] | set(dag.successors(write_interval))
-            # TODO: highest peer should take a predicate, return the highest peers satisfying the predicate.
+            # FIXME: highest peer should take a predicate, return the highest peers satisfying the predicate.
             # Maybe it should be the set of peers satisfying the predicate until the first one that doesn't.
             my_highest_peers = order.upper_bounds(my_highest_peers)
             traversal = partial_order.topo_sort_subset(order, dag, my_highest_peers, set())
@@ -775,7 +783,8 @@ def read_write_collapse(
                         this_run.append(node)
         if this_run:
             all_runs.append(this_run)
-    print(f"{len(all_runs)} runs")
+    if analysis.verbose:
+        print(f"{len(all_runs)} runs")
     node_mapper = dict[Quads | IVNs, Quads | IVNs]()
     for run in all_runs:
         new_quad = Quads(Quads(quad for node in run for quad in node))
@@ -794,23 +803,26 @@ def read_write_collapse(
 def collapse_thread_cycles(dfg_in: DataflowGraph) -> DataflowGraph:
     "Collapse cycles that are within one execpair"
     with charmonium.time_block.ctx("simple_cycles", print_start=False):
-        cycles = list(networkx.simple_cycles(dfg_in, 2))
-    equivalence_classes = disjoint_sets.DisjointSets[Quads](
-        node for node in dfg_in.nodes() if isinstance(node, Quads)
-    )
-    for cycle in tqdm.tqdm(cycles, desc="Cycles"):
-        if all(isinstance(node, Quads) for node in cycle):
-            quads_cycle = typing.cast(list[Quads], cycle)
-            exec_pairs = {quad.exec_pair() for quads in quads_cycle for quad in quads}
-            if len(exec_pairs) == 1:
-                for quads in quads_cycle:
-                    assert isinstance(quads, Quads)
-                    equivalence_classes.union(quads, quads_cycle[0])
+        graph_utils.remove_self_edges(dfg_in)
+        dfg2 = typing.cast(
+            "networkx.DiGraph[Quads]",
+            dfg_in.subgraph([node for node in dfg_in.nodes() if isinstance(node, Quads)]),
+        )
+        cycles = list(networkx.strongly_connected_components(dfg2))
     mapper = dict[Quads | IVNs, Quads | IVNs]()
-    for equivalence_class in equivalence_classes.sets():
-        sum_node = Quads({quad for quads in equivalence_class for quad in quads})
-        for quads in equivalence_class:
-            mapper[quads] = sum_node
+    for scc in tqdm.tqdm(cycles, desc="sccs"):
+        scc_nodes_by_exec_pair = util.groupby_dict(
+            scc,
+            key_func=lambda node: node.exec_pair(),
+            value_func=lambda node: node,
+        )
+        for nodes_same_exec_pair in scc_nodes_by_exec_pair.values():
+            sum_node = Quads(set().union(*[
+                quads
+                for quads in nodes_same_exec_pair
+            ]))
+            for node in nodes_same_exec_pair:
+                mapper[node] = sum_node
     ret = networkx.relabel_nodes(dfg_in, mapper)
     graph_utils.remove_self_edges(ret)
     return ret
@@ -880,6 +892,9 @@ def label_nodes(
             if label == EdgeType.FILE_CLOBBER:
                 edge_data["color"] = "red"
                 edge_data["style"] = "dashed"
+            elif label == EdgeType.THREAD:
+                # edge_data["color"] = "green"
+                edge_data["constraint"] = False
             del edge_data["label"]
 
 
@@ -930,7 +945,10 @@ def label_quads(
                 graph_utils.relax_node(dfg, quads)
                 break
     if thread_triple.tid != thread_triple.pid.main_thread():
-        data["label"] += f"Thread {int(quad.tid) - int(quad.pid)}"
+        data["label"] += f"\nT{int(quad.tid) - int(quad.pid)}"
+    min_q = min(quad.op_no for quad in quads)
+    max_q = max(quad.op_no for quad in quads)
+    data["label"] = data["label"] + "\n" + str(min_q) + ("" if min_q == max_q else "-" + str(max_q))
 
 
 def label_ivns(
@@ -959,7 +977,7 @@ def label_ivns(
         for path, frequency in list(paths.most_common()):
             path_str = shorten_path(path, max_path_length, max_path_segment_length, relative_to)
             inode_labels.append(f"{path_str}{type_str}")
-        if not paths:
+        if not paths and show_unks:
             inode_labels.append(
                 f"<unk {inode_version.inode.number}>{type_str} ver={inode_version.version}"
             )
@@ -1028,3 +1046,188 @@ def format_interval(interval: partial_order.Interval[ptypes.OpQuad]) -> str:
         f"{quad.pid}.{quad.exec_no}.{quad.tid}.{quad.op_no}" for quad in interval.lower_bound
     )
     return f"[{upper_bound}]--[{lower_bound}]"
+
+
+def get_tid_to_wyes_and_lambds(
+        exec_pair: ptypes.ExecPair,
+        probe_log: ptypes.ProbeLog,
+        hb_graph: hb_graph_mod.HbGraph,
+):
+    # Get wyes and lambds
+    tid_to_wyes = dict[ptypes.Tid, Seq[ptypes.OpQuad]]()
+    tid_to_lambds = dict[ptypes.Tid, Seq[ptypes.OpQuad]]()
+    for tid, thread in probe_log.processes[exec_pair.pid].execs[exec_pair.exec_no].threads.items():
+        my_lambds = []
+        my_wyes = []
+        for op_idx in range(len(thread.ops)):
+            quad = ptypes.OpQuad(exec_pair.pid, exec_pair.exec_no, tid, op_idx)
+            out_of_thread_predecessors = len(
+                [
+                    predecessor
+                    for predecessor in hb_graph.predecessors(quad)
+                    if predecessor.thread_triple() != quad.thread_triple()
+                ]
+            )
+            out_of_thread_successors = len(
+                [
+                    successor
+                    for successor in hb_graph.successors(quad)
+                    if successor.thread_triple() != quad.thread_triple()
+                ]
+            )
+            # FIXME: reconsider this
+            # accesses_inode = isinstance(probe_log.get_op(quad).data, (headers.Open, headers.Close))
+            accesses_inode = False
+            if out_of_thread_predecessors or accesses_inode:
+                my_wyes.append(quad)
+            if out_of_thread_successors or accesses_inode:
+                my_lambds.append(quad)
+        tid_to_wyes[tid] = tuple(my_wyes)
+        tid_to_lambds[tid] = tuple(my_lambds)
+    return tid_to_wyes, tid_to_lambds
+
+
+_T = typing.TypeVar("_T")
+
+
+def first_true_in_monotonic_list(elements: list[_T], key: typing.Callable[[_T], bool]) -> int | None:
+    lo, hi = 0, len(elements)
+
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if key(elements[mid]):
+            hi = mid
+        else:
+            lo = mid + 1
+
+    return lo if lo < len(elements) else None
+
+
+def highest_peers_in_thread(
+    exec_pair: ptypes.ExecPair,
+    partial_order: partial_order.PartialOrder[ptypes.OpQuad],
+    probe_log: ptypes.ProbeLog,
+    hb_graph: hb_graph_mod.HbGraph,
+    verbose: bool,
+) -> Map[ptypes.ThreadTriple, Map[ptypes.OpQuad, frozenset[ptypes.OpQuad]]]:
+
+    tid_to_wyes, tid_to_lambds = get_tid_to_wyes_and_lambds(exec_pair, probe_log, hb_graph)
+
+    # For each lambd, find the latest wye where wye -> lambd
+    tids = [
+        ptypes.ThreadTriple(exec_pair.pid, exec_pair.exec_no, tid)
+        for tid in probe_log.processes[exec_pair.pid].execs[exec_pair.exec_no].threads
+    ]
+    tid_to_wye_to_highest_peers = {
+        tid: {
+            wye: set[ptypes.OpQuad]()
+            for wye in tid_to_wyes[tid]
+        }
+        for tid in tids
+    }
+
+    for my_tid, other_tid in itertools.permutations(tids, 2):
+        assert my_tid != other_tid
+
+        my_wyes = tid_to_wyes[my_tid]
+        if my_wyes[0] != first_in_thread(probe_log, my_tid):
+            my_wyes.insert(0, first_in_thread(probe_log, my_tid))
+
+        other_lambds = tid_to_lambds[other_tid]
+        if other_lambds[-1] != first_in_thread(probe_log, other_tid):
+            other_lambds.append(first_in_thread(probe_log, other_tid))
+
+        first_candidate_lambd_idx = 0
+
+        for my_wye in my_wyes:
+            first_lambd_idx_not_before = first_candidate_lambd_idx + first_true_in_monotonic_list(
+                other_lambds[first_candidate_lambd_idx:],
+                lambda other_lambd, my_wye=my_wye: not partial_order.leq(other_lambd, my_wye)
+            )
+            if first_lambd_idx_not_before is not None:
+                # Next wye can start looking here
+                first_candidate_lambd_idx = first_lambd_idx_not_before
+                if first_lambd_idx_not_before == 0:
+                    highest_peer_or_after = other_lambds[0]
+                else:
+                    last_lambd_idx_before = first_lambd_idx_not_before - 1
+                    after_last_lambd_idx_before = next_in_thread(probe_log, ptypes.OpQuad(
+                        exec_pair.pid,
+                        exec_pair.exec_no,
+                        other_tid.tid,
+                        last_lambd_idx_before
+                    ))
+                    assert after_last_lambd_idx_before
+                    highest_peer_or_after = after_last_lambd_idx_before
+                assert not partial_order.leq(highest_peer_or_after, my_wye)
+                if partial_order.is_peer(highest_peer_or_after, my_wye):
+                    tid_to_wye_to_highest_peers[my_tid][my_wye].add(highest_peer_or_after)
+            else:
+                # All of the lambds are before.
+                # No peers here.
+                # May be peers of the next wye.
+                pass
+
+    # FIXME: remove unnevessary lambds.
+    # If a lower lambd has the same peer, can be removed
+    if verbose:
+        for wye_highest_peers in tid_to_wye_to_highest_peers.values():
+            for wye, highest_peers in wye_highest_peers.items():
+                print(wye, highest_peers)
+
+    # FIXME: Hooking up in this manner creates three cycles.
+    # Hooking up just-before-wye to just-after-lambda creates one.
+    # Consider that instead
+    return {
+        tid: {
+            wye: frozenset(highest_peers)
+            for wye, highest_peers in wye_highest_peers.items()
+        }
+        for tid, wye_highest_peers in tid_to_wye_to_highest_peers.items()
+    }
+
+
+def first_in_process(probe_log: ptypes.ProbeLog, pid: ptypes.Pid) -> ptypes.OpQuad:
+    return first_in_thread(
+        probe_log, ptypes.ThreadTriple(pid, ptypes.initial_exec_no, pid.main_thread())
+    )
+
+
+def first_in_thread(
+    probe_log: ptypes.ProbeLog, thread_triple: ptypes.ThreadTriple
+) -> ptypes.OpQuad:
+    return ptypes.OpQuad(thread_triple.pid, thread_triple.exec_no, thread_triple.tid, 0)
+
+
+def last_in_process(probe_log: ptypes.ProbeLog, pid: ptypes.Pid) -> ptypes.OpQuad:
+    last_exec_no = max(probe_log.processes[pid].execs.keys())
+    return last_in_thread(probe_log, ptypes.ThreadTriple(pid, last_exec_no, pid.main_thread()))
+
+
+def last_in_thread(probe_log: ptypes.ProbeLog, thread_triple: ptypes.ThreadTriple) -> ptypes.OpQuad:
+    last_thread_idx = (
+        len(
+            probe_log.processes[thread_triple.pid]
+            .execs[thread_triple.exec_no]
+            .threads[thread_triple.tid]
+            .ops
+        )
+        - 1
+    )
+    return ptypes.OpQuad(
+        thread_triple.pid, thread_triple.exec_no, thread_triple.tid, last_thread_idx
+    )
+
+
+def next_in_thread(probe_log: ptypes.ProbeLog, quad: ptypes.OpQuad) -> ptypes.OpQuad | None:
+    last_thread_idx = len(probe_log.processes[quad.pid].execs[quad.exec_no].threads[quad.tid].ops)
+    if quad.op_no + 1 < last_thread_idx:
+        return ptypes.OpQuad(quad.pid, quad.exec_no, quad.tid, quad.op_no + 1)
+    else:
+        return None
+
+def prev_in_thread(probe_log: ptypes.ProbeLog, quad: ptypes.OpQuad) -> ptypes.OpQuad | None:
+    if quad.op_no - 1 >= 0:
+        return ptypes.OpQuad(quad.pid, quad.exec_no, quad.tid, quad.op_no - 1)
+    else:
+        return None
