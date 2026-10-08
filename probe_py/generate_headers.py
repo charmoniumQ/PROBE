@@ -71,7 +71,7 @@ def fixup_autogen_ast(headers_py: pathlib.Path) -> None:
     module = ast.parse(headers_py.read_text())
     remove_unset(module)
     add_immutable(module)
-    # fix_tagged_enums(module)
+    fix_tagged_enums(module)
     replace_bytestring_sequence(module)
     fixup_imports(module)
     add_properties(module)
@@ -103,7 +103,7 @@ def add_immutable(module: ast.Module) -> None:
 
 
 def fix_tagged_enums(module: ast.Module) -> None:
-    replace_string: dict[str, str] = {}
+    classes_to_replace: dict[str, str] = {}
 
     for class_def in module.body[:]:
         if isinstance(class_def, ast.ClassDef):
@@ -114,8 +114,18 @@ def fix_tagged_enums(module: ast.Module) -> None:
             if tag:
                 assert isinstance(tag, ast.Constant)
                 assert isinstance(tag.value, str)
-                replace_string[class_def.name] = tag.value
-                class_def.name = tag.value
+                find_class(module, tag.value) # assert class with this tag exists
+                classes_to_replace[class_def.name] = tag.value
+                module.body.remove(class_def)
+
+    for old_class, new_class in classes_to_replace.items():
+        module.body = [
+            replace(stmt, ast.Name(id=old_class), ast.Name(id=new_class))
+            for stmt in module.body
+        ]
+        new_class_def = find_class(module, new_class)
+        if not any(keyword.arg == "tag" for keyword in new_class_def.keywords):
+            new_class_def.keywords.append(ast.keyword(arg="tag", value=ast.Constant(value=True)))
 
 
 def replace_bytestring_sequence(module: ast.Module) -> None:

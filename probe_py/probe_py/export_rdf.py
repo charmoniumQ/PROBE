@@ -104,7 +104,7 @@ def add_processes(
                 arg_list = rdflib.container.Seq(graph, rdflib.BNode(), [
                     rdflib.Literal(arg.decode())
                     for arg in init_exec_op.argv
-                ])
+                ])  # type: ignore[no-untyped-call]
                 activity = exec_to_activity[ancestor_exec_pair] = rdflib.URIRef(f"exec_{ancestor_exec_pair.pid}_{ancestor_exec_pair.exec_no}")
                 graph.add((activity, RDF.type, PROV.Activity))
                 graph.add((activity, PROV.wasAssociatedWith, user))
@@ -183,7 +183,7 @@ def add_inodes(
                         path2 = rdflib.container.Seq(graph, rdflib.BNode(), [
                             rdflib.Literal(segment)
                             for segment in path_obj.parts
-                        ])  # type: ignore
+                        ])  # type: ignore[no-untyped-call]
                         graph.add((path2.uri, RDF.type, AD_HOC_NAMESPACE.OSFilePath))
                         graph.add((inode_term, AD_HOC_NAMESPACE.has_path, path2.uri))
                         # graph.add((inode_term, AD_HOC_NAMESPACE.has_path, rdflib.Literal(str(path_obj))))

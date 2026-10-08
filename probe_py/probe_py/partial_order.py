@@ -13,7 +13,7 @@ import networkx
 
 from . import graph_utils
 
-_Node = typing.TypeVar("_Node")
+_Node = typing.TypeVar("_Node", bound=typing.Hashable)
 
 
 # Makes it slow, but assert more invariants
@@ -146,8 +146,8 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
 class ReversedOrder(PartialOrder[_Node]):
     order: PartialOrder[_Node]
 
-    def leq(self, a: _Node, b: _Node) -> bool:
-        return self.order.leq(b, a)
+    def leq(self, node0: _Node, node1: _Node) -> bool:
+        return self.order.leq(node1, node0)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -209,8 +209,8 @@ class Interval(typing.Generic[_Node]):
 class IntervalOrder(PartialOrder[Interval[_Node]], typing.Generic[_Node]):
     node_order: PartialOrder[_Node]
 
-    def leq(self, interval0: Interval[_Node], interval1: Interval[_Node]) -> bool:
-        return interval0.all_less_than(interval1)
+    def leq(self, node0: Interval[_Node], node1: Interval[_Node]) -> bool:
+        return node0.all_less_than(node1)
 
 
 @charmonium.time_block.decor(print_start=False)

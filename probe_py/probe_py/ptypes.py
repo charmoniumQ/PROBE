@@ -13,8 +13,7 @@ import typing
 
 import numpy
 
-from . import consts
-from . import headers as ops
+from . import consts, headers
 
 
 # New types encourage type safety,
@@ -90,7 +89,7 @@ class Inode:
     mode: int
 
     @staticmethod
-    def from_ops_inode(inode: ops.Inode) -> Inode:
+    def from_ops_inode(inode: headers.Inode) -> Inode:
         return Inode(Host.localhost(), Device(inode.device_major, inode.device_minor), inode.number, inode.mode)
 
     @property
@@ -152,7 +151,7 @@ class InodeVersion:
         )
 
     @staticmethod
-    def from_ops_inode(inode: ops.Inode) -> InodeVersion:
+    def from_ops_inode(inode: headers.Inode) -> InodeVersion:
         return InodeVersion(
             Inode.from_ops_inode(inode),
             numpy.datetime64(inode.mtime.tv_sec * int(1e9) + inode.mtime.tv_nsec, "ns"),
@@ -163,7 +162,7 @@ class InodeVersion:
 @dataclasses.dataclass(frozen=True)
 class KernelThread:
     tid: Tid
-    ops: typing.Sequence[ops.Op]
+    ops: typing.Sequence[headers.Op]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -221,17 +220,17 @@ class OpQuad:
 class ProbeLog:
     processes: typing.Mapping[Pid, Process]
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
-    process_tree_context: ops.ProcessTreeContext
+    process_tree_context: headers.ProcessTreeContext
     host: Host
 
     # TODO: refactor
     # I think we should have probe_log.ops[quad] and probe_log.ops -> iterator
     # Maybe drop probe_log.ops -> iterator
 
-    def get_op(self, op: OpQuad) -> ops.Op:
+    def get_op(self, op: OpQuad) -> headers.Op:
         return self.processes[op.pid].execs[op.exec_no].threads[op.tid].ops[op.op_no]
 
-    def ops(self) -> typing.Iterator[tuple[OpQuad, ops.Op]]:
+    def ops(self) -> typing.Iterator[tuple[OpQuad, headers.Op]]:
         for pid, process in sorted(self.processes.items()):
             for epoch, exec in sorted(process.execs.items()):
                 for tid, thread in sorted(exec.threads.items()):
@@ -241,7 +240,7 @@ class ProbeLog:
     def get_root_pid(self) -> Pid:
         for quad, op in self.ops():
             match op.data:
-                case ops.InitExecEpoch():
+                case headers.InitExecEpoch():
                     if op.data.parent_pid == self.process_tree_context.parent_of_root:
                         return Pid(quad.pid)
         raise RuntimeError("No root process found")
@@ -250,10 +249,10 @@ class ProbeLog:
         parent_pid_map = dict[Pid, Pid]()
         for quad, op in self.ops():
             match op.data:
-                case ops.Clone():
-                    if op.ferrno == 0 and op.data.task_type == ops.TaskType.PID:
+                case headers.Clone():
+                    if op.ferrno == 0 and op.data.task_type == headers.TaskType.PID:
                         parent_pid_map[Pid(op.data.task_id)] = quad.pid
-                case ops.Spawn():
+                case headers.Spawn():
                     if op.ferrno == 0:
                         parent_pid_map[Pid(op.data.child_pid)] = quad.pid
         return parent_pid_map
