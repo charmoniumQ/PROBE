@@ -158,8 +158,8 @@ def does_buildah_work() -> bool:
     name = f"probe-{random.randint(0, 2**32 - 1):08x}"
     proc = subprocess.run(
         ["buildah", "from", "--name", name, "scratch"],
+        check=False,
         capture_output=True,
-        check=True,
     )
     return proc.returncode == 0 and subprocess.run(["buildah", "rm", name], check=False, capture_output=True).returncode == 0
 

@@ -218,15 +218,14 @@ fn transcribe_file_info<P: AsRef<Path>>(
     dir: P,
     files: &HashSet<PathBuf>,
 ) -> Result<()> {
-    eprintln!("{:?} files", files.len());
-    let file_infos = probe_headers::from_files(files);
+    let all_file_infos = probe_headers::from_files(files);
     let mut file_infos_file = std::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
-        .open(dir.as_ref().join("file_infos"))?;
+        .open(dir.as_ref().join("all_file_info.msgpack"))?;
     let mut serializer =
         rmp_serde::encode::Serializer::new(&mut file_infos_file).with_struct_map();
     use serde::Serialize;
-    file_infos.serialize(&mut serializer)?;
+    all_file_infos.serialize(&mut serializer)?;
     Ok(())
 }

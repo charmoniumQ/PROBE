@@ -32,11 +32,11 @@ serde_json = "1.0.149"
 nix = { version = "0.31.3", features = ["fs"] }
 lazy_static = "1.5.0"
 csv = "1.4.0"
-file-format = "0.29.0"
 regex = "1.12.4"
 gix = "0.85.0"
 which = "8.0.4"
 mailparse = "0.16.1"
+magic = "0.16.7"
 
 [build-dependencies]
 eyre = "0.6.12"

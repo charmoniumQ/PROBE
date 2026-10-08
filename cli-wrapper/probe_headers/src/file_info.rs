@@ -75,20 +75,14 @@ lazy_static::lazy_static! {
     static ref RPM_BIN: Option<PathBuf> = which::which("rpm").ok();
 }
 
-pub fn get_file_info<P: AsRef<Path>>(path: P) -> FileInfo {
+pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(path: P, cookie: Option<&magic::Cookie<magic::cookie::Load>>) -> FileInfo {
     FileInfo {
-        mime_type: get_mime_type(&path),
+        mime_type: cookie.and_then(|cookie| cookie.file(&path).ok()).unwrap_or("application/octet-stream".to_string()),
         git_repo: get_git_repo(&path),
         deb_package: get_deb_package_name(&path),
         rpm_package: get_rpm_package_name(&path),
         venv_path: find_venv_root(&path),
     }
-}
-
-pub fn get_mime_type<P: AsRef<Path>>(path: P) -> String {
-    file_format::FileFormat::from_file(path)
-        .map(|fmt| fmt.media_type().to_string())
-        .unwrap_or_else(|_| "application/octet-stream".to_string())
 }
 
 pub fn get_git_repo<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
@@ -467,9 +461,14 @@ impl From<&str> for NameEmail {
 }
 
 pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
+    let cookie = magic::Cookie::open(
+        magic::cookie::Flags::MIME_TYPE | magic::cookie::Flags::MIME_ENCODING
+    ).map_err(|e| eyre!("magic open failed: {e}"))
+     .and_then(|cookie| cookie.load(&Default::default()).map_err(|e| eyre!("magic load failed: {e}")))
+     .ok();
     let file_infos: HashMap<PathBuf, FileInfo> = files
         .iter()
-        .map(|file| (file.clone(), crate::file_info::get_file_info(file)))
+        .map(|file| (file.clone(), crate::file_info::get_file_info(file, cookie.as_ref())))
         .collect();
     let venvs = file_infos
         .values()

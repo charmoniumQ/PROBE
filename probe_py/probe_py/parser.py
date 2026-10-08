@@ -76,11 +76,17 @@ def parse_probe_log_ctx(
             strict=True,
         )
 
+        all_file_infos = msgspec.msgpack.decode(
+            (tmpdir / "all_file_info.msgpack").read_bytes(),
+            type=ops.AllFileInfo,
+        )
+
         yield ProbeLog(
             processes,
             inodes,
             process_tree_context,
             host,
+            all_file_infos=all_file_infos,
         )
 
 
