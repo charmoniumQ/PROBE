@@ -17,7 +17,7 @@ from . import ptypes
 RDF = rdflib.namespace.RDF
 RDFS = rdflib.namespace.RDFS
 PROV = rdflib.namespace.PROV
-AD_HOC_NAMESPACE = rdflib.Namespace("http://example.org/to-be-formalized/#")
+AD_HOC = rdflib.Namespace("http://example.org/to-be-formalized/#")
 PROV_LABEL = rdflib.URIRef("http://www.w3.org/ns/prov#label")
 
 
@@ -33,7 +33,7 @@ def export_rdf_graph(
 ) -> tuple[rdflib.Graph, prov.model.ProvDocument]:
     graph = rdflib.Graph()
     graph.bind("rdf", RDF)
-    graph.bind("ad_hoc", AD_HOC_NAMESPACE)
+    graph.bind("ad_hoc", AD_HOC)
 
     # TODO: Get username at record-time
     user = add_user(graph)
@@ -108,9 +108,9 @@ def add_processes(
                 activity = exec_to_activity[ancestor_exec_pair] = rdflib.URIRef(f"exec_{ancestor_exec_pair.pid}_{ancestor_exec_pair.exec_no}")
                 graph.add((activity, RDF.type, PROV.Activity))
                 graph.add((activity, PROV.wasAssociatedWith, user))
-                graph.add((activity, RDF.type, AD_HOC_NAMESPACE.OSProcess))
-                graph.add((activity, AD_HOC_NAMESPACE.arguments, arg_list.uri))
-                graph.add((activity, AD_HOC_NAMESPACE.environment_hash, rdflib.Literal(hash_environment(init_exec_op.env))))
+                graph.add((activity, RDF.type, AD_HOC.OSProcess))
+                graph.add((activity, AD_HOC.arguments, arg_list.uri))
+                graph.add((activity, AD_HOC.environment_hash, rdflib.Literal(hash_environment(init_exec_op.env))))
                 graph.add((activity, RDFS.label, rdflib.Literal(shlex.join([arg.decode() for arg in init_exec_op.argv]))))
             else:
                 activity = exec_to_activity[ancestor_exec_pair]
@@ -150,9 +150,9 @@ def add_inodes(
                 if device not in device_to_term:
                     device_term = rdflib.URIRef(f"device_{device.major_id}_{device.minor_id}")
                     graph.add((device_term, RDFS.label, rdflib.Literal(f"device {device.major_id}_{device.minor_id}")))
-                    graph.add((device_term, RDF.type, AD_HOC_NAMESPACE.OSFileSystemDevice))
-                    graph.add((device_term, AD_HOC_NAMESPACE.major_id, rdflib.Literal(device.major_id)))
-                    graph.add((device_term, AD_HOC_NAMESPACE.minor_id, rdflib.Literal(device.minor_id)))
+                    graph.add((device_term, RDF.type, AD_HOC.OSFileSystemDevice))
+                    graph.add((device_term, AD_HOC.major_id, rdflib.Literal(device.major_id)))
+                    graph.add((device_term, AD_HOC.minor_id, rdflib.Literal(device.minor_id)))
                     device_to_term[device] = device_term
                 inode = ivn.inode
                 if inode not in inode_to_term:
@@ -172,21 +172,21 @@ def add_inodes(
                         representative_path = None
                         major_version = inode.number
                     inode_term = rdflib.URIRef(f"inode_{device.major_id}_{device.minor_id}_{inode.number}")
-                    graph.add((inode_term, RDF.type, AD_HOC_NAMESPACE.OSInode))
+                    graph.add((inode_term, RDF.type, AD_HOC.OSInode))
                     if representative_path is not None:
                         graph.add((inode_term, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}")))
                     else:
                         graph.add((inode_term, RDFS.label, rdflib.Literal(f"<anonymous path {major_version}>")))
-                    graph.add((inode_term, AD_HOC_NAMESPACE.device, device_to_term[device]))
-                    graph.add((inode_term, AD_HOC_NAMESPACE.number, rdflib.Literal(inode.number)))
+                    graph.add((inode_term, AD_HOC.device, device_to_term[device]))
+                    graph.add((inode_term, AD_HOC.number, rdflib.Literal(inode.number)))
                     for path_obj, _ in analysis.paths[ivn.inode].most_common():
                         path2 = rdflib.container.Seq(graph, rdflib.BNode(), [
                             rdflib.Literal(segment)
                             for segment in path_obj.parts
                         ])  # type: ignore
-                        graph.add((path2.uri, RDF.type, AD_HOC_NAMESPACE.OSFilePath))
-                        graph.add((inode_term, AD_HOC_NAMESPACE.has_path, path2.uri))
-                        # graph.add((inode_term, AD_HOC_NAMESPACE.has_path, rdflib.Literal(str(path_obj))))
+                        graph.add((path2.uri, RDF.type, AD_HOC.OSFilePath))
+                        graph.add((inode_term, AD_HOC.has_path_split, path2.uri))
+                        graph.add((inode_term, AD_HOC.has_path_string, rdflib.Literal(str(path_obj))))
                     inode_to_term[inode] = (representative_path, major_version, inode_term)
     return inode_to_term
 
@@ -218,13 +218,13 @@ def add_inode_versions(
                     representative_path, major_version, inode_term = inode_to_entity[ivn.inode]
                     ivn_to_entity[ivn] = entity = rdflib.URIRef(f"inodeversion_{ivn.inode.device.major_id}_{ivn.inode.device.minor_id}_{ivn.inode.number}_{ivn.version}")
                     graph.add((entity, RDF.type, PROV.Entity))
-                    graph.add((entity, RDF.type, AD_HOC_NAMESPACE.OSInodeVersion))
+                    graph.add((entity, RDF.type, AD_HOC.OSInodeVersion))
                     if representative_path is not None:
                         graph.add((entity, RDFS.label, rdflib.Literal(f"{representative_path!s} v{major_version}.{ivn.version}")))
                     else:
                         graph.add((entity, RDFS.label, rdflib.Literal(f"<anonymous path {major_version} v{ivn.version}>")))
-                    graph.add((entity, AD_HOC_NAMESPACE.inode, inode_term))
-                    graph.add((entity, AD_HOC_NAMESPACE.version, rdflib.Literal(ivn.version)))
+                    graph.add((entity, AD_HOC.inode, inode_term))
+                    graph.add((entity, AD_HOC.version, rdflib.Literal(ivn.version)))
                     graph.add((entity, PROV.wasAttributedTo, user))
     return ivn_to_entity
 
@@ -257,7 +257,7 @@ def add_edges(
                 source_activity = exec_to_activity[source.exec_pair()]
                 destination_activity = exec_to_activity[destination.exec_pair()]
                 if edge_data["label"] == dataflow_graph.EdgeType.EXEC:
-                    graph.add((source_activity, AD_HOC_NAMESPACE.executed, destination_activity))
+                    graph.add((source_activity, AD_HOC.executed, destination_activity))
                     graph.add((destination_activity, PROV.wasStartedBy, source_activity))
 
 
@@ -265,7 +265,7 @@ def add_user(graph: rdflib.Graph) -> Agent:
     username = getpass.getuser()
     user = rdflib.URIRef(f"user_{username}")
     graph.add((user, RDF.type, PROV.Agent))
-    graph.add((user, RDF.type, AD_HOC_NAMESPACE.OSUser))
-    graph.add((user, AD_HOC_NAMESPACE.Username, rdflib.Literal(username)))
+    graph.add((user, RDF.type, AD_HOC.OSUser))
+    graph.add((user, AD_HOC.Username, rdflib.Literal(username)))
     graph.add((user, RDFS.label, rdflib.Literal(username)))
     return user
