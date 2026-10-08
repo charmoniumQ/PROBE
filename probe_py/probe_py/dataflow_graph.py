@@ -1,26 +1,25 @@
 from __future__ import annotations
-from collections.abc import Mapping as Map, Iterable as It
+
 import collections
 import dataclasses
 import enum
 import fnmatch
 import heapq
+import itertools
 import pathlib
 import shlex
 import textwrap
 import typing
 import warnings
+from collections.abc import Iterable as It
+from collections.abc import Mapping as Map
+
 import charmonium.time_block
 import networkx
 import tqdm
-from . import disjoint_sets
-from . import graph_utils
+
+from . import disjoint_sets, graph_utils, headers, partial_order, ptypes, util, vector_clock
 from . import hb_graph as hb_graph_mod
-from . import headers
-from . import partial_order
-from . import ptypes
-from . import util
-from . import vector_clock
 
 
 class State(int):
@@ -192,7 +191,7 @@ def stitch_program_order(dfg: UncompressedDataflowGraph, analysis: Analysis) -> 
             threads.setdefault(node.thread_triple(), []).append(node)
     for nodes in threads.values():
         nodes = sorted(nodes, key=lambda quad: quad.op_no)
-        for node0, node1 in zip(nodes[:-1], nodes[1:]):
+        for node0, node1 in itertools.pairwise(nodes):
             dfg.add_edge(node0, node1, label=EdgeType.PROGRAM_ORDER)
 
 
@@ -427,7 +426,7 @@ class Analysis:
                                         )
                                     )
                                 else:
-                                    raise exc
+                                    raise ValueError() from exc
                         else:
                             downgraded_access = oni.open_mode
                         oni.closes.append((quad, downgraded_access))
@@ -546,9 +545,9 @@ def find_intervals(
     ret: dict[ptypes.Inode, dict[partial_order.Interval[ptypes.OpQuad], ptypes.AccessMode]] = (
         collections.defaultdict(dict)
     )
-    for exec, onis_by_fd in analysis.open_numbers.items():
-        for fd, onis_by_on in onis_by_fd.items():
-            for on, oni in onis_by_on.items():
+    for onis_by_fd in analysis.open_numbers.values():
+        for onis_by_on in onis_by_fd.values():
+            for oni in onis_by_on.values():
                 if oni.inode.type != "d":
                     closes = util.groupby_dict(
                         oni.closes,
@@ -603,7 +602,7 @@ def stitch_intervals(
             print("  edge:", format_interval(int0), "->", format_interval(int1))
 
     for write_interval in networkx.topological_sort(dag):
-        write_exec_pair = list(write_interval.upper_bound)[0].exec_pair()
+        write_exec_pair = next(iter(write_interval.upper_bound)).exec_pair()
         if intervals[write_interval].can_write:
             if print_inodes:
                 print(
@@ -621,7 +620,7 @@ def stitch_intervals(
                 assert read_interval
                 if print_inodes:
                     print("    write ≤ read:", format_interval(read_interval))
-                read_exec_pair = list(read_interval.upper_bound)[0].exec_pair()
+                read_exec_pair = next(iter(read_interval.upper_bound)).exec_pair()
                 if write_exec_pair == read_exec_pair:
                     # Already in the same exec pair.
                     # Will already be connected by program order or exec edges.
@@ -735,7 +734,7 @@ def read_write_collapse(
                 triples_to_nodes.setdefault(thread_triple, []).append((earliest_op_no, node))
             except ValueError as exc:
                 raise ValueError(
-                    f"This algorithm assumes all nodes represent quads from just one thread, got: {node.thread_triples()} {str(exc)}"
+                    f"This algorithm assumes all nodes represent quads from just one thread, got: {node.thread_triples()} {exc!s}"
                 )
     all_runs = list[list[Quads]]()
     for thread_triple, nodes in tqdm.tqdm(
@@ -893,7 +892,7 @@ def label_quads(
     show_deep_execs: bool,
     show_proc_states: bool,
 ) -> None:
-    thread_triple = list(quads)[0].thread_triple()
+    thread_triple = next(iter(quads)).thread_triple()
     min_op_no = min(quad.op_no for quad in quads)
     max_op_no = max(quad.op_no for quad in quads)
     data["id"] = (

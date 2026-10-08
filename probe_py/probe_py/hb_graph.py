@@ -1,16 +1,31 @@
 import collections
 import enum
+import itertools
 import os
 import shlex
 import textwrap
 import typing
 import warnings
+
 import charmonium.time_block
 import networkx
-from .ptypes import Pid, ExecNo, Tid, ProbeLog, initial_exec_no, InvalidProbeLog, OpQuad
-from .headers import Clone, Exec, Wait, Spawn, InitExecEpoch, InitThread, Op, Close, Dup, Stat, TaskType, Open
-from . import graph_utils
-from . import ptypes
+
+from . import graph_utils, ptypes
+from .headers import (
+    Clone,
+    Close,
+    Dup,
+    Exec,
+    InitExecEpoch,
+    InitThread,
+    Op,
+    Open,
+    Spawn,
+    Stat,
+    TaskType,
+    Wait,
+)
+from .ptypes import ExecNo, InvalidProbeLog, OpQuad, Pid, ProbeLog, Tid, initial_exec_no
 
 """
 HbGraph stands for "Happened-Before graph".
@@ -132,7 +147,7 @@ def _create_program_order_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                 hb_graph.add_nodes_from(nodes)
 
                 # Hook up program order edges
-                hb_graph.add_edges_from(zip(nodes[:-1], nodes[1:]), type=EdgeType.PROGRAM_ORDER)
+                hb_graph.add_edges_from(itertools.pairwise(nodes), type=EdgeType.PROGRAM_ORDER)
 
 
 def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> None:
@@ -274,7 +289,7 @@ def _create_open_number_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                         opens_by_fd[op.data.open_number.fd].append((op.data.open_number.number, OpQuad(pid, exec_no, tid, op_no)))
             for opens in opens_by_fd.values():
                 opens = sorted(opens)
-                for (on0, op0), (on1, op1) in zip(opens[:-1], opens[1:]):
+                for (on0, op0), (on1, op1) in itertools.pairwise(opens):
                     hb_graph.add_edge(op0, op1, type=EdgeType.OPEN_NUMBER, on0=on0, on1=on1)
 
 

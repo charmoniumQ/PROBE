@@ -1,18 +1,20 @@
-import random
 import os
+import pathlib
+import random
 import re
 import shlex
-import rich.console
-import typer
+import shutil
 import subprocess
 import tempfile
-import shutil
-import warnings
-import pathlib
 import typing
+import warnings
+
+import rich.console
+import typer
+
 from . import ptypes
-from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
-from .headers import Open, InitExecEpoch, Exec, Close, Op, PathArg, OpenNumber, AT_FDCWD
+from .headers import AT_FDCWD, Close, Exec, InitExecEpoch, Op, Open, OpenNumber, PathArg
+from .ptypes import InodeVersion, Pid, ProbeLog, initial_exec_no
 
 
 def build_oci_image(
@@ -137,8 +139,8 @@ def get_files(
         console: rich.console.Console,
 ) -> typing.Iterator[tuple[Op, pathlib.Path, PathArg | None]]:
     raise NotImplementedError()
-    for pid, process in probe_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.execs.items():
+    for process in probe_log.processes.values():
+        for exec_epoch in process.execs.values():
             root_pid = get_root_pid(probe_log)
             if root_pid is None:
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
@@ -150,7 +152,7 @@ def get_files(
             fds: dict[OpenNumber, pathlib.Path] = {
                 AT_FDCWD: probe_log.process_tree_context.working_directory,
             }
-            for tid, thread in exec_epoch.threads.items():
+            for thread in exec_epoch.threads.values():
                 for op_no, op in enumerate(thread.ops):
                     if isinstance(op.data, Open):
                         path2 = op.data.path
@@ -245,7 +247,7 @@ def copy_file_closure(
                     console.print(f"Hardlinking {resolved_path} from disk")
                 destination_path.hardlink_to(resolved_path)
         else:
-            raise Exception(f"{resolved_path} disappeared since `probe record`")
+            raise RuntimeError(f"{resolved_path} disappeared since `probe record`")
 
 
 def resolve_path(
@@ -262,7 +264,7 @@ def resolve_path(
 
 
 def get_root_pid(probe_log: ProbeLog) -> Pid | None:
-    possible_root = []
+    possible_root = list[Pid]()
     for pid, process in probe_log.processes.items():
         first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0].data
         assert isinstance(first_op, InitExecEpoch)

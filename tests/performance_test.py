@@ -1,15 +1,17 @@
-import subprocess
-import shlex
-import datetime
+#!/usr/bin/env python
 import csv
-import time
-import os
-import shutil
-import resource
 import dataclasses
-import typing
+import datetime
 import errno
+import os
 import pathlib
+import resource
+import shlex
+import shutil
+import subprocess
+import time
+import typing
+
 
 @dataclasses.dataclass
 class Result:
@@ -40,14 +42,14 @@ def resource_call(
         timeout: float | None = None,
 ) -> Result:
     with ResourcePopen(popenargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
-        start = datetime.datetime.now()
+        start = datetime.datetime.now(tz=datetime.timezone.utc)
         try:
             stdout, stderr = p.communicate(timeout=timeout)
         except:
             p.kill()
             stdout, stderr = p.communicate()
             raise
-        stop = datetime.datetime.now()
+        stop = datetime.datetime.now(tz=datetime.timezone.utc)
         return Result(p.returncode, stdout.decode(), stderr.decode(), (stop - start).total_seconds(), p.rusage)
 
 DELAY = 0.0
@@ -65,7 +67,7 @@ def benchmark_command(command: list[str], warmup_iterations: int, benchmark_iter
     for _ in range(warmup_iterations):
         print(f"    Running warmup command: {shlex.join(command)}")
         cleanup()
-        proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.run(command, capture_output=True, check=True)
         if proc.returncode != 0:
             print("      Returned non-zero")
             print(proc.stdout.decode())

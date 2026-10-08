@@ -1,11 +1,25 @@
+#!/usr/bin/env python
 from __future__ import annotations
+
 import dataclasses
-import pycparser.c_generator  # type: ignore
-import typing
 import itertools
 import pathlib
-from pycparser_types import CGenerator, Assignment, Compound, Decl, Node, ID, TypeDecl, IdentifierType, PtrDecl, FuncDecl, ParamList
+import typing
 
+import pycparser.c_generator  # type: ignore
+from pycparser_types import (
+    ID,
+    Assignment,
+    CGenerator,
+    Compound,
+    Decl,
+    FuncDecl,
+    IdentifierType,
+    Node,
+    ParamList,
+    PtrDecl,
+    TypeDecl,
+)
 
 # Intercept libc functions
 # But ignore pre_call/post_call actions
@@ -41,7 +55,7 @@ class GccCGenerator(CGenerator):
             n.rvalue,
             lambda n: isinstance(n, (Assignment, Compound)),
         )
-        return '%s %s %s' % (self.visit(n.lvalue), n.op, rval_str)
+        return " ".join((self.visit(n.lvalue), n.op, rval_str))
 
     def visit_Decl(self, n: Decl, no_type: bool = False) -> str:
         s = n.name if no_type else self._generate_decl(n)
@@ -179,7 +193,7 @@ def find_decl(
     if not relevant_stmts:
         return None
     elif len(relevant_stmts) > 1:
-        raise ValueError(f"Multiple definitions of {name}" + " ({})".format(comment) if comment else "")
+        raise ValueError(f"Multiple definitions of {name}" + f" ({comment})" if comment else "")
     else:
         return relevant_stmts[0]
 

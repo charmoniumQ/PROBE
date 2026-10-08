@@ -1,7 +1,7 @@
-import pathlib
 import itertools
-import typing
+import pathlib
 import sys
+import typing
 
 
 def multilevel_table(

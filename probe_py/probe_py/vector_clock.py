@@ -1,11 +1,15 @@
 from __future__ import annotations
-from collections.abc import Iterable as It, Mapping as Map
-import charmonium.time_block
+
 import dataclasses
-import numpy
 import typing
+from collections.abc import Iterable as It
+from collections.abc import Mapping as Map
+
+import charmonium.time_block
 import networkx
+import numpy
 import tqdm
+
 from . import partial_order
 
 _ThreadId = typing.NewType("_ThreadId", int)
@@ -63,8 +67,8 @@ _ThreadLabel = typing.TypeVar("_ThreadLabel", bound=typing.Hashable)
 
 @dataclasses.dataclass(frozen=True)
 class VectorClockPartialOrder(
-    typing.Generic[_Node, _ThreadLabel],
     partial_order.PartialOrder[_Node],
+    typing.Generic[_Node, _ThreadLabel],
 ):
     nodes: It[_Node]
     vector_clocks: Map[_Node, VectorTime]

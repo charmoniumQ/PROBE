@@ -1,6 +1,7 @@
+import os
 import subprocess
 import threading
-import os
+
 
 def run_openssh_server() -> None:
     os.chdir("./openssh-server/")

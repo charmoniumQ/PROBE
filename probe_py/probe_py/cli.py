@@ -1,16 +1,18 @@
-from typing_extensions import Annotated
 import collections
 import dataclasses
 import enum
 import json
 import os
 import pathlib
+import pdb  # noqa: T100
 import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
 import warnings
+from typing import Annotated
+
 import charmonium.time_block
 import msgspec
 import prov.dot  # type: ignore
@@ -19,21 +21,23 @@ import rich.pretty
 import sqlalchemy.orm
 import tqdm
 import typer
+
 from . import dataflow_graph as dataflow_graph_module
-from . import export_rdf
-from . import file_closure
-from . import graph_utils
+from . import (
+    export_rdf,
+    file_closure,
+    graph_utils,
+    parser,
+    ptypes,
+    ssh_argparser,
+    util,
+    validators,
+    workflows,
+)
 from . import hb_graph as hb_graph_module
 from . import headers as ops
-from . import parser
-from . import ptypes
 from . import scp as scp_module
-from . import ssh_argparser
-from . import util
-from . import validators
-from . import workflows
 from .persistent_provenance_db import get_engine
-
 
 console = rich.console.Console(stderr=True)
 
@@ -69,8 +73,7 @@ def restore_sanity(strict: bool, debug: bool) -> None:
             category=ptypes.UnusualProbeLog,
         )
     if debug:
-        import ipdb  # type: ignore
-        ipdb.set_trace()
+        pdb.set_trace()  # noqa: T100
 
 
 probe_log_help = typer.Option(
@@ -420,7 +423,7 @@ def debug_text(
             parser.parse_probe_log_ctx(probe_log) as probe_log_obj,
             output.open("w") as output_fd,
     ):
-        pid_len = max(len(str(pid)) for pid in probe_log_obj.processes.keys())
+        pid_len = max(len(str(pid)) for pid in probe_log_obj.processes)
         with tqdm.tqdm(total=probe_log_obj.n_ops(), desc="Printing ops") as pbar:
             for pid, process in sorted(probe_log_obj.processes.items()):
                 print(f"{pid: {pid_len}d} start of process", file=output_fd)
@@ -541,9 +544,9 @@ def oci_image(
 
 
 @app.command(
-    context_settings=dict(
-        ignore_unknown_options=True,
-    ),
+    context_settings={
+        "ignore_unknown_options": True,
+    },
 )
 def ssh(
         ssh_args: list[str],
@@ -580,7 +583,11 @@ def ssh(
     remote_temp_dir = subprocess.check_output(remote_temp_dir_cmd).decode().strip()
     remote_probe_dir = f"{remote_temp_dir}/probe_dir"
 
-    ssh_g = subprocess.run(ssh_cmd + [destination] + ['-G'],stdout=subprocess.PIPE)
+    ssh_g = subprocess.run(
+        ssh_cmd + [destination] + ['-G'],
+        stdout=subprocess.PIPE,
+        check=True,
+    )
     ssh_g_op = ssh_g.stdout.decode().strip().splitlines()
 
     ssh_pair = []
@@ -603,7 +610,10 @@ def ssh(
     ld_preload = f"{remote_temp_dir}/{libprobe.name}"
 
     env = ["env", f"LD_PRELOAD={ld_preload}", f"PROBE_DIR={remote_probe_dir}"]
-    proc = subprocess.run(ssh_cmd + [destination] + env + remote_host)
+    proc = subprocess.run(
+        ssh_cmd + [destination] + env + remote_host,
+        check=True,
+    )
 
     # Download the provenance log from the remote machine
 
@@ -683,9 +693,9 @@ def ops_jsonl(
 
 # Example: scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
 @app.command(
-context_settings=dict(
-        ignore_unknown_options=True,
-    ),
+context_settings={
+        "ignore_unknown_options": True,
+    },
 )
 def scp(cmd: list[str]) -> None:
     scp_module.scp_with_provenance(cmd)

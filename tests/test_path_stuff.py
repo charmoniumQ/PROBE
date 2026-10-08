@@ -1,7 +1,6 @@
 import shutil
 import subprocess
 
-
 # Mash keyboard sufficiently
 nonexistent_command = "eugrhuerhuliaflsd"
 

@@ -8,13 +8,12 @@ import pathlib
 import tarfile
 import time
 import typing
-import msgspec
 
+import msgspec
 
 _T = typing.TypeVar("_T")
 _U = typing.TypeVar("_U")
 _V = typing.TypeVar("_V")
-_ParamSpec = typing.ParamSpec("_ParamSpec")
 
 
 def get_umask() -> int:

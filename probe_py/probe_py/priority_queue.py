@@ -1,8 +1,8 @@
 import collections
 import heapq
 import typing
-from . import util
 
+from . import util
 
 _Priority = typing.TypeVar("_Priority", bound=util.Comparable)
 _Task = typing.TypeVar("_Task", bound=collections.abc.Hashable)
@@ -64,7 +64,7 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
 
     def pop(self) -> tuple[_Priority, _Task]:
         if self:
-            priority, counter, task = heapq.heappop(self._heap)
+            priority, _, task = heapq.heappop(self._heap)
             return priority, task
         else:
             raise StopIteration("Priority queue is emp")

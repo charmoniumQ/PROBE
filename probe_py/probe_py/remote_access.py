@@ -1,22 +1,23 @@
 import dataclasses
+import datetime
+import itertools
+import json
+import os
+import pathlib
+import random
+import shlex
+import subprocess
+import typing
+
+import xdg_base_dirs
 
 from probe_py.persistent_provenance import (
     Inode,
-    InodeVersion,
     InodeMetadata,
-    get_prov_upstream,
+    InodeVersion,
     Process,
+    get_prov_upstream,
 )
-import itertools
-import xdg_base_dirs
-import random
-import datetime
-import json
-import os
-import shlex
-import subprocess
-import pathlib
-import typing
 
 PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
 PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
@@ -108,7 +109,7 @@ def augment_provenance(
     source_inode_versions, source_inode_metadatas, process_closure, inode_writes = source_provenance_info
     destination_inode_versions, destination_inode_metadatas, _process_closure, _inode_writes = destination_provenance_info
     scp_process_id = generate_random_pid()
-    time = datetime.datetime.today()
+    time = datetime.datetime.now(tz=datetime.timezone.utc)
     env: tuple[tuple[str, str], ...] = ()
     while scp_process_id in process_closure:
         scp_process_id = generate_random_pid()
@@ -124,7 +125,7 @@ def augment_provenance(
         pathlib.Path(),
     )
     process_closure[scp_process_id] = scp_process
-    process_path = PROCESSES_BY_ID / f"{str(scp_process_id)}.json"
+    process_path = PROCESSES_BY_ID / f"{scp_process_id!s}.json"
     os.makedirs(process_path.parent, exist_ok=True)
     with process_path.open("w") as f:
         json.dump(scp_process.to_dict(), f)
@@ -169,7 +170,11 @@ def get_stat_results_remote(remote: Host, file_path: pathlib.Path, ssh_options: 
         ssh_command.insert(-1, option)
 
     ssh_command.append(f'stat -c "%s\n%f" {file_path}')
-    result = subprocess.run(ssh_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(
+        ssh_command,
+        check=True,
+        capture_output=True,
+    )
     size_str, mode_str = result.stdout.strip().split(b"\n")
     return int(size_str), int(mode_str, 16)
 
@@ -241,8 +246,7 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
             address,
             full_command,
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=True,
         text=True,
     )
@@ -289,7 +293,7 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, get_persistent_prov
 
 
 def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
-    destination_inode_versions, destination_inode_metadatas, augmented_process_closure, augmented_inode_writes = provenance_info
+    _, _, augmented_process_closure, augmented_inode_writes = provenance_info
 
     for inode_version, process_id in augmented_inode_writes.items():
         inode_version_path = PROCESS_ID_THAT_WROTE_INODE_VERSION / f"{inode_version.str_id()}.json"
@@ -303,7 +307,7 @@ def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
 
 
 def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> None:
-    destination_inode_versions, destination_inode_metadatas, augmented_process_closure, augmented_inode_writes = provenance_info
+    destination_inode_versions, _, augmented_process_closure, augmented_inode_writes = provenance_info
 
     for inode_version, process_id in augmented_inode_writes.items():
         if inode_version not in destination_inode_versions:
@@ -323,7 +327,7 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
 
     for process_id, process in augmented_process_closure.items():
         echo_commands.append(
-            f"echo {(json.dumps(process.to_dict()))} > \"${{processes_by_id}}/{str(process_id)}.json\""
+            f"echo {(json.dumps(process.to_dict()))} > \"${{processes_by_id}}/{process_id!s}.json\""
         )
 
     commands = [

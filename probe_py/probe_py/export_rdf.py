@@ -1,18 +1,18 @@
-from collections.abc import Iterable as It, Mapping as Map
 import getpass
 import pathlib
 import shlex
 import warnings
 import zlib
+from collections.abc import Iterable as It
+from collections.abc import Mapping as Map
+
+import prov.model  # type: ignore
 import rdflib
 import rdflib.container
-import rdflib.term
 import rdflib.namespace
-import prov.model  # type: ignore
-from . import dataflow_graph
-from . import headers
-from . import ptypes
+import rdflib.term
 
+from . import dataflow_graph, headers, ptypes
 
 RDF = rdflib.namespace.RDF
 RDFS = rdflib.namespace.RDFS
@@ -87,7 +87,7 @@ def add_processes(
     exec_to_activity = dict[ptypes.ExecPair, Activity]()
     root_pid = probe_log.get_root_pid()
     for pid, process in probe_log.processes.items():
-        for exec_no, exec in process.execs.items():
+        for exec_no in process.execs:
             # If exec_no = 0, we could be a multiprocessing program (fork but no exec)
             # Find the ancestor who was execked.
             ancestor_exec_pair = ptypes.ExecPair(pid, exec_no)
@@ -104,7 +104,7 @@ def add_processes(
                 arg_list = rdflib.container.Seq(graph, rdflib.BNode(), [
                     rdflib.Literal(arg.decode())
                     for arg in init_exec_op.argv
-                ])  # type: ignore
+                ])
                 activity = exec_to_activity[ancestor_exec_pair] = rdflib.URIRef(f"exec_{ancestor_exec_pair.pid}_{ancestor_exec_pair.exec_no}")
                 graph.add((activity, RDF.type, PROV.Activity))
                 graph.add((activity, PROV.wasAssociatedWith, user))
@@ -166,7 +166,7 @@ def add_inodes(
                             if count == max_path_count
                         ]
                         representative_path = min(max_paths, key=lambda path: path.parts)
-                        inode_to_major_version = path_to_inode_to_major_version.setdefault(representative_path, dict())
+                        inode_to_major_version = path_to_inode_to_major_version.setdefault(representative_path, {})
                         major_version = inode_to_major_version.setdefault(inode, len(inode_to_major_version) + 1)
                     else:
                         representative_path = None

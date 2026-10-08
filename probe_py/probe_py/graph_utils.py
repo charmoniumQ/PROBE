@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import collections
 import itertools
-import typing
 import pathlib
+import typing
+
 import charmonium.time_block
 import networkx
 import pydot
 import tqdm
-from . import priority_queue
-from . import util
 
+from . import priority_queue, util
 
 _Node = typing.TypeVar("_Node")
 _Node2 = typing.TypeVar("_Node2")
@@ -175,7 +176,7 @@ def topological_sort_depth_first(
     )
     counter = 0
     while queue:
-        (in_degree, tie_breaker), node = queue.pop()
+        (in_degree, _), node = queue.pop()
         if in_degree == 0:
             yield node
             # Since we handled the parent, we essentially removed it from the graph
@@ -184,7 +185,7 @@ def topological_sort_depth_first(
             for child in sorted(
                 dag.successors(node), key=lambda child: score_children(node, child)
             ):
-                in_degree, tie_breaker = queue[child]
+                in_degree, _ = queue[child]
                 queue[child] = (in_degree - 1, -counter)
         else:
             raise RuntimeError(f"Cycle exists and includes {node}")
@@ -209,7 +210,7 @@ def combine_twin_nodes(
 
     """
     neighbors_to_node = dict[tuple[frozenset[_Node], frozenset[_Node]], list[_Node]]()
-    non_combinable_nodes = list()
+    non_combinable_nodes = []
     for node in graph.nodes():
         if combinable(node):
             preds = frozenset(graph.predecessors(node))
@@ -272,7 +273,7 @@ def retain_nodes_in_digraph(
         (src, dst)
         for scc in condensation2.nodes()
         if len(scc) > 1
-        for src, dst in zip(scc[:-1], scc[1:])
+        for src, dst in itertools.pairwise(scc)
     )
 
     # Need to connect last to first to complete the cycle within an SCC.
@@ -368,7 +369,7 @@ def create_digraph(
     nodes: It[_Node | tuple[_Node, dict[str, typing.Any]]],
     edges: It[tuple[_Node, _Node] | tuple[_Node, _Node, dict[str, typing.Any]]],
 ) -> networkx.DiGraph[_Node]:
-    output: "networkx.DiGraph[_Node]" = networkx.DiGraph()
+    output: networkx.DiGraph[_Node] = networkx.DiGraph()
     for node in nodes:
         if (
             isinstance(node, tuple)
@@ -474,7 +475,7 @@ def get_almost_topological_sort(dag: networkx.DiGraph[_Node]) -> list[_Node]:
         print(f"{len(basis)} cycles detected")
         edges = collections.Counter[tuple[_Node, _Node]]()
         for cycle in basis:
-            for edge in [*zip(cycle[:-1], cycle[1:]), (cycle[-1], cycle[0])]:
+            for edge in [*itertools.pairwise(cycle), (cycle[-1], cycle[0])]:
                 edges[edge] += 1
         (source, dest), _ = edges.most_common(1)[0]
         dag.remove_edge(source, dest)

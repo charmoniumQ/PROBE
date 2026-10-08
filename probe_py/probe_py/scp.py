@@ -1,7 +1,8 @@
-from pathlib import Path
-import re
 import itertools
+import re
 import subprocess
+from pathlib import Path
+
 from probe_py.remote_access import Host, HostPath, copy_provenance
 
 
@@ -37,7 +38,7 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
     """
     scp_no_arg_options = {'-3', '-B', '-O', '-p', '-q', '-R', '-r', '-T'}
     scp_one_arg_options = {'-3', '-B', '-D', '-l', '-S', '-X'}
-    common_no_arg_options = {'-4', '-6', '-A', '-C', '-v', '-q', '-v'}
+    common_no_arg_options = {'-4', '-6', '-A', '-C', '-v', '-q'}
     common_one_arg_options = {'-c', '-F', '-i', '-J', '-o', '-v', '-q'}
     mapped_one_arg_options = {
         '-P': '-p',

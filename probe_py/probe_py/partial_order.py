@@ -1,13 +1,17 @@
 from __future__ import annotations
+
 import abc
 import dataclasses
-from collections.abc import Iterable as It, Sequence as Seq, Mapping as Map
 import itertools
 import typing
+from collections.abc import Iterable as It
+from collections.abc import Mapping as Map
+from collections.abc import Sequence as Seq
+
 import charmonium.time_block
-from . import graph_utils
 import networkx
 
+from . import graph_utils
 
 _Node = typing.TypeVar("_Node")
 
@@ -202,7 +206,7 @@ class Interval(typing.Generic[_Node]):
 
 
 @dataclasses.dataclass(frozen=True)
-class IntervalOrder(typing.Generic[_Node], PartialOrder[Interval[_Node]]):
+class IntervalOrder(PartialOrder[Interval[_Node]], typing.Generic[_Node]):
     node_order: PartialOrder[_Node]
 
     def leq(self, interval0: Interval[_Node], interval1: Interval[_Node]) -> bool:

@@ -1,14 +1,15 @@
 from __future__ import annotations
-import typing
+
+import dataclasses
+import datetime
+import json
 import os
+import pathlib
 import random
 import socket
-import json
-import datetime
-import dataclasses
-import pathlib
-import xdg_base_dirs
+import typing
 
+import xdg_base_dirs
 
 PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
 PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
@@ -35,7 +36,7 @@ def get_local_node_name() -> str:
         return node_name_path.read_text()
     else:
         hostname = socket.gethostname()
-        rng = random.Random(int(datetime.datetime.now().timestamp()) ^ hash(hostname))
+        rng = random.Random(int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp()) ^ hash(hostname))
         bits_per_hex_digit = 4
         hex_digits = 8
         random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)

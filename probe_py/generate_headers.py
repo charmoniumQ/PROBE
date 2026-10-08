@@ -25,15 +25,43 @@ def autogen_code(jsonschema: pathlib.Path, headers_py: pathlib.Path) -> None:
             "--output-model-type=msgspec.Struct",
             "--output",
             str(headers_py),
-            "--target-python-version=3.12", # "|"-unions and type alias
+
+            # "|"-unions and type alias
+            "--target-python-version=3.13",
+
             "--capitalize-enum-members",
-            "--use-generic-container-types", # Sequence instead of list
-            # "--collapse-root-models", # copy Union types at every use-site, rather than definint it once
+
+            # Sequence[_T] instead of list[_T]
+            "--use-generic-container-types",
+
+            # copy Union types at every use-site, rather than defining it once
+            # that creates a lot of code duplication
+            # "--collapse-root-models",
+
+            # faux immutability only seems to work for Pydantic models.
+            # Instead, we will use `add_immutable`
             # "--enable-faux-immutability",
-            # "--strict-types", "str", "bytes", "int", "float", "bool",
-            # "--use-annotated",
-            # "--type-mappings", "CString=bytes",
-            # "--custom-formatters", "ruff",
+
+            # Code already uses annotated.
+            # This might be only for pydantic
+            "--use-annotated",
+
+            # Without this, we get:
+            #
+            #     UserWarning: format of 'uint16' not understood for 'integer' - using default
+            #
+            "--type-mappings", "integer+uint8=integer", "integer+uint16=integer", "integer+uint32=integer", "integer+uint64=integer",
+
+            # Without this, we get,
+            #
+            #     FutureWarning: The default external formatters (black, isort) will become opt-in in a future version.
+            #     To keep the current behavior, specify formatters=[Formatter.BLACK, Formatter.ISORT].
+            #     To prepare for dependency-free formatting, use formatters=[Formatter.BUILTIN].
+            #     To suppress this warning, specify formatters explicitly."
+            #
+            "--formatters",
+            "ruff-check",
+            "ruff-format",
         ],
         check=True,
     )
@@ -43,7 +71,7 @@ def fixup_autogen_ast(headers_py: pathlib.Path) -> None:
     module = ast.parse(headers_py.read_text())
     remove_unset(module)
     add_immutable(module)
-    fix_tagged_enums(module)
+    # fix_tagged_enums(module)
     replace_bytestring_sequence(module)
     fixup_imports(module)
     add_properties(module)
@@ -75,33 +103,19 @@ def add_immutable(module: ast.Module) -> None:
 
 
 def fix_tagged_enums(module: ast.Module) -> None:
-    classes_to_replace: dict[str, str] = {}
+    replace_string: dict[str, str] = {}
+
     for class_def in module.body[:]:
         if isinstance(class_def, ast.ClassDef):
-            try:
-                type_field = find_field(class_def, "type")
-            except KeyError:
-                pass
-            else:
-                assert isinstance(type_field, ast.AnnAssign)
-                assert isinstance(type_field.annotation, ast.Subscript)
-                assert isinstance(type_field.annotation.value, ast.Name)
-                assert type_field.annotation.value.id == "Literal"
-                assert isinstance(type_field.annotation.slice, ast.Constant)
-                assert isinstance(type_field.annotation.slice.value, str)
-                tag_value = type_field.annotation.slice.value
-                find_class(module, tag_value) # assert class with this tag exists
-                classes_to_replace[class_def.name] = tag_value
-                module.body.remove(class_def)
-
-    for old_class, new_class in classes_to_replace.items():
-        module.body = [
-            replace(stmt, ast.Name(id=old_class), ast.Name(id=new_class))
-            for stmt in module.body
-        ]
-        new_class_def = find_class(module, new_class)
-        if not any(keyword.arg == "tag" for keyword in new_class_def.keywords):
-            new_class_def.keywords.append(ast.keyword(arg="tag", value=ast.Constant(value=True)))
+            tag = {
+                keyword.arg: keyword.value
+                for keyword in class_def.keywords
+            }.get("tag")
+            if tag:
+                assert isinstance(tag, ast.Constant)
+                assert isinstance(tag.value, str)
+                replace_string[class_def.name] = tag.value
+                class_def.name = tag.value
 
 
 def replace_bytestring_sequence(module: ast.Module) -> None:
@@ -218,9 +232,11 @@ def find_classes(
 ) -> collections.abc.Iterator[ast.ClassDef]:
     if isinstance(module, (ast.Module, ast.Interactive)):
         for statement in module.body:
-            if isinstance(statement, ast.ClassDef):
-                if (isinstance(name, str) and statement.name == name) or \
-                   (isinstance(name, re.Pattern) and name.match(statement.name)):
+            if (
+                    isinstance(statement, ast.ClassDef)
+                    and ((isinstance(name, str) and statement.name == name)
+                       or (isinstance(name, re.Pattern) and name.match(statement.name)))
+            ):
                     yield statement
 
 
@@ -232,9 +248,11 @@ def find_class(module: ast.mod, name: str) -> ast.ClassDef:
 
 def find_field(class_def: ast.ClassDef, name: str) -> ast.AnnAssign:
     for statement in class_def.body:
-        if isinstance(statement, ast.AnnAssign):
-            if isinstance(statement.target, ast.Name):
-                if statement.target.id == name:
+        if (
+                isinstance(statement, ast.AnnAssign)
+                and isinstance(statement.target, ast.Name)
+                and statement.target.id == name
+        ):
                     return statement
     raise KeyError(f"field {name} not found in class {class_def.name}")
 

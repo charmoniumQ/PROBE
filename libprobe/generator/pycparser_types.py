@@ -1,8 +1,9 @@
 from __future__ import annotations
-import typing
-import pycparser  # type: ignore
-import dataclasses
 
+import dataclasses
+import typing
+
+import pycparser  # type: ignore
 
 if typing.TYPE_CHECKING:
     class CGenerator:

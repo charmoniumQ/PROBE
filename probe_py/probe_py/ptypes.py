@@ -1,17 +1,20 @@
 from __future__ import annotations
+
 import dataclasses
 import enum
-import hmac
 import functools
+import hmac
 import os
 import pathlib
 import random
 import socket
 import stat
 import typing
+
 import numpy
-from . import headers as ops
+
 from . import consts
+from . import headers as ops
 
 
 # New types encourage type safety,
@@ -319,7 +322,7 @@ class AccessMode(enum.Enum):
         """
         result = _DOWNGRADE_MATRIX[self][is_write * 2 + is_read]
         if isinstance(result, Exception):
-            raise ValueError(f"{is_write=} and {is_read=} should not be possible for {self.name}")
+            raise ValueError(f"{is_write=} and {is_read=} should not be possible for {self.name}") # noqa: TRY004
         else:
             return result
 

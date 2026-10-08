@@ -1,15 +1,18 @@
 from __future__ import annotations
-import tqdm
+
+import contextlib
 import dataclasses
 import pathlib
-import typing
 import tarfile
 import tempfile
-import contextlib
+import typing
+
 import charmonium.time_block
 import msgspec
+import tqdm
+
 from . import headers as ops
-from .ptypes import ProbeLog, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
+from .ptypes import Exec, ExecNo, Host, InodeVersion, KernelThread, Pid, ProbeLog, Process, Tid
 
 
 @contextlib.contextmanager
