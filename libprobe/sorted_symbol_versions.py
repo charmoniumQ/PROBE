@@ -1,7 +1,8 @@
 import pathlib
-import elftools.elf.elffile
 import sys
 import typing
+
+import elftools.elf.elffile
 
 _T = typing.TypeVar("_T")
 def expect_type(typ: type[_T], data: typing.Any) -> _T:

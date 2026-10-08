@@ -12,7 +12,6 @@ path = "src/lib.rs"
 
 [dependencies]
 eyre = "0.6.12"
-itertools = "0.14.0"
 my-workspace-hack = { version = "0.1", path = "../my-workspace-hack" }
 pastey = "0.2.1"
 schemars = "1.2.1"

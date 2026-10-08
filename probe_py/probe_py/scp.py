@@ -1,12 +1,14 @@
-from pathlib import Path
-import re
 import itertools
+import re
 import subprocess
+from pathlib import Path
+
 from probe_py.remote_access import Host, HostPath, copy_provenance
 
 
 def scp_with_provenance(scp_args: list[str]) -> int:
-    """
+    """Do an SCP transfer while also transfering prov.
+
     1. get the src_inode_version and src_inode_metadata
     2. upload the files
     3. get process closure and file_writes
@@ -18,7 +20,7 @@ def scp_with_provenance(scp_args: list[str]) -> int:
     8. generate random_pid to refer to the process
     9. create an scp process json
     10. added reference to scp process id to the dest inode version
-    11. copy the scp process to the file on dest
+    11. copy the scp process to the file on dest.
     """
     proc = subprocess.run(["scp", *scp_args], capture_output=False, check=False)
     if proc.returncode == 0:
@@ -26,21 +28,20 @@ def scp_with_provenance(scp_args: list[str]) -> int:
         for source in sources:
             copy_provenance(source, destination, ("scp", *scp_args))
         return 0
-    else:
-        return proc.returncode
+    return proc.returncode
 
 
 def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
-    """Converts arguments to scp to a list of sources and a destination
+    """Convert arguments to scp to a list of sources and a destination.
 
     Note that the Host type contains the instructions/options needed to connect to it.
     """
-    scp_no_arg_options = {'-3', '-B', '-O', '-p', '-q', '-R', '-r', '-T'}
-    scp_one_arg_options = {'-3', '-B', '-D', '-l', '-S', '-X'}
-    common_no_arg_options = {'-4', '-6', '-A', '-C', '-v', '-q', '-v'}
-    common_one_arg_options = {'-c', '-F', '-i', '-J', '-o', '-v', '-q'}
+    scp_no_arg_options = {"-3", "-B", "-O", "-p", "-q", "-R", "-r", "-T"}
+    scp_one_arg_options = {"-3", "-B", "-D", "-l", "-S", "-X"}
+    common_no_arg_options = {"-4", "-6", "-A", "-C", "-v", "-q"}
+    common_one_arg_options = {"-c", "-F", "-i", "-J", "-o", "-v", "-q"}
     mapped_one_arg_options = {
-        '-P': '-p',
+        "-P": "-p",
     }
 
     scp_options = []
@@ -88,34 +89,33 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
                 scp_options.append(arg)
                 ssh_options.append(arg)
             else:
-                raise NotImplementedError(f"Unrecognized option {arg}")
+                msg = f"Unrecognized option {arg}"
+                raise NotImplementedError(msg)
+        elif match := re.match(scp_url_regex, arg):
+            this_scp_options = scp_options[:]
+            this_ssh_options = ssh_options[:]
+            if match.group("port"):
+                this_scp_options.append("-P")
+                this_scp_options.append(match.group("port"))
+                this_ssh_options.append("-P")
+                this_ssh_options.append(match.group("port"))
+            sources.append(HostPath(
+                Host(match.group("host"), match.group("user"), this_ssh_options, this_scp_options),
+                Path(match.group("path") or ""),
+            ))
+        elif match := re.match(scp_path_regex, arg):
+            sources.append(HostPath(
+                Host(None, None, [], []),
+                Path(arg),
+            ))
+        elif match := re.match(scp_address_regex, arg):
+            sources.append(HostPath(
+                Host(match.group("host"), match.group("user"), ssh_options, scp_options),
+                Path(match.group("path") or ""),
+            ))
         else:
-            if match := re.match(scp_url_regex, arg):
-                this_scp_options = scp_options[:]
-                this_ssh_options = ssh_options[:]
-                if match.group("port"):
-                    this_scp_options.append("-P")
-                    this_scp_options.append(match.group("port"))
-                    this_ssh_options.append("-P")
-                    this_ssh_options.append(match.group("port"))
-                sources.append(HostPath(
-                    Host(match.group("host"), match.group("user"), this_ssh_options, this_scp_options),
-                    Path(match.group("path") if match.group("path") else "")
-                ))
-            elif match := re.match(scp_path_regex, arg):
-                sources.append(HostPath(
-                    Host(None, None, [], []),
-                    Path(arg)
-                ))
-            elif match := re.match(scp_address_regex, arg):
-                sources.append(HostPath(
-                    Host(match.group("host"), match.group("user"), ssh_options, scp_options),
-                    Path(match.group("path") if match.group("path") else "")
-                ))
-            else:
-                print(scp_url_regex)
-                print(scp_address_regex)
-                raise RuntimeError(f"Invalid scp argument {arg}")
+            msg = f"Invalid scp argument {arg}"
+            raise RuntimeError(msg)
         i += 1
     return sources[:-1], sources[-1]
 

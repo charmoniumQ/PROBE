@@ -1,39 +1,43 @@
-from typing_extensions import Annotated
 import collections
 import dataclasses
 import enum
 import json
 import os
 import pathlib
+import pdb  # noqa: T100
 import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
 import warnings
+from typing import Annotated
+
 import charmonium.time_block
 import msgspec
-import prov.dot  # type: ignore
+import prov.dot
 import rich.console
 import rich.pretty
 import sqlalchemy.orm
 import tqdm
 import typer
+
 from . import dataflow_graph as dataflow_graph_module
-from . import export_rdf
-from . import file_closure
-from . import graph_utils
+from . import (
+    export_rdf,
+    file_closure,
+    graph_utils,
+    parser,
+    ptypes,
+    ssh_argparser,
+    util,
+    validators,
+    workflows,
+)
 from . import hb_graph as hb_graph_module
 from . import headers as ops
-from . import parser
-from . import ptypes
 from . import scp as scp_module
-from . import ssh_argparser
-from . import util
-from . import validators
-from . import workflows
 from .persistent_provenance_db import get_engine
-
 
 console = rich.console.Console(stderr=True)
 
@@ -69,8 +73,7 @@ def restore_sanity(strict: bool, debug: bool) -> None:
             category=ptypes.UnusualProbeLog,
         )
     if debug:
-        import ipdb  # type: ignore
-        ipdb.set_trace()
+        pdb.set_trace()  # noqa: T100
 
 
 probe_log_help = typer.Option(
@@ -89,7 +92,7 @@ def validate(
         ] = pathlib.Path("probe_log"),
         should_have_files: Annotated[
             bool,
-            typer.Option(help="Whether to check that the probe_log was run with copied files.")
+            typer.Option(help="Whether to check that the probe_log was run with copied files."),
         ] = False,
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
@@ -130,7 +133,7 @@ class OpType(enum.StrEnum):
 def hb_graph(
         output: Annotated[
             pathlib.Path,
-            typer.Argument()
+            typer.Argument(),
         ] = pathlib.Path("hb-graph.dot"),
         probe_log: Annotated[
             pathlib.Path,
@@ -138,17 +141,16 @@ def hb_graph(
         ] = pathlib.Path("probe_log"),
         retain: Annotated[
             OpType,
-            typer.Option(help="Which ops to include in the graph? There are quite a few.")
+            typer.Option(help="Which ops to include in the graph? There are quite a few."),
         ] = OpType.SUCCESSFUL,
         show_op_number: Annotated[
             bool,
-            typer.Option(help="Whether to show the op number in the output.")
+            typer.Option(help="Whether to show the op number in the output."),
         ] = False,
         strict: Annotated[bool, strict_option] = True,
         debug: Annotated[bool, debug_option] = False,
 ) -> None:
-    """
-    Write a happens-before graph on the operations in probe_log.
+    """Write a happens-before graph on the operations in probe_log.
 
     Each operation is an individual exec, open, close, fork, etc.
 
@@ -165,10 +167,10 @@ def hb_graph(
         case OpType.MINIMAL:
             hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpoch))
         case OpType.FILE:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: isinstance(op.data, (ops.Open, ops.Close, ops.Dup, ops.Exec)))
+            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda _node, op: isinstance(op.data, (ops.Open, ops.Close, ops.Dup, ops.Exec)))
         case OpType.SUCCESSFUL:
-            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.Readdir))
-    hb_graph_module.label_nodes(probe_log_obj, hbg, show_op_number)
+            hbg = hb_graph_module.retain_only(probe_log_obj, hbg, lambda _node, op: getattr(op.data, "ferrno", 0) == 0 and not isinstance(op.data, ops.Readdir))
+    hb_graph_module.label_nodes(probe_log_obj, hbg, add_op_no=show_op_number)
     graph_utils.serialize_graph(hbg, output)
 
 
@@ -177,7 +179,7 @@ def hb_graph(
 def dataflow_graph(
         output: Annotated[
             pathlib.Path,
-            typer.Argument()
+            typer.Argument(),
         ] = pathlib.Path("dataflow-graph.dot"),
         probe_log: Annotated[
             pathlib.Path,
@@ -199,8 +201,7 @@ def dataflow_graph(
             typer.Option(help="Err on the side of adding an edge rather than missing one."),
         ] = False,
 ) -> None:
-    """
-    Write a dataflow graph for probe_log.
+    """Write a dataflow graph for probe_log.
 
     Dataflow shows the name of each process, its read files, and its write files.
     """
@@ -225,13 +226,13 @@ def dataflow_graph(
     )
     graph_utils.serialize_graph(dfg, output)
 
-    
+
 @export_app.command()
 @charmonium.time_block.decor(print_start=False)
 def workflow(
         output: Annotated[
             pathlib.Path,
-            typer.Option()
+            typer.Option(),
         ] = pathlib.Path("workflow.yaml"),
         ignore_paths: Annotated[
             str,
@@ -271,19 +272,20 @@ def workflow(
     elif output.name.lower() == "makefile":
         workflows.serialize_makefile(workflow, output)
     else:
-        raise ValueError(f"Unrecognized suffix, {output.suffix}")
+        msg = f"Unrecognized suffix, {output.suffix}"
+        raise ValueError(msg)
 
-    
+
 @export_app.command()
 @charmonium.time_block.decor(print_start=False)
 def w3c_prov(
         rdf_output: Annotated[
             pathlib.Path,
-            typer.Option()
+            typer.Option(),
         ] = pathlib.Path("provenance.ttl"),
         graphical_output: Annotated[
             pathlib.Path,
-            typer.Option()
+            typer.Option(),
         ] = pathlib.Path("provenance.dot"),
         probe_log: Annotated[
             pathlib.Path,
@@ -322,12 +324,13 @@ def w3c_prov(
         case ".pdf":
             prov_document_dot.write_pdf(graphical_output)
         case _:
-            raise RuntimeError(f"Unsupported output type for pydot: {graphical_output.suffix}")
+            msg = f"Unsupported output type for pydot: {graphical_output.suffix}"
+            raise RuntimeError(msg)
 
 
 @export_app.command()
 def store_dataflow_graph(
-        probe_log: Annotated[
+        probe_log: Annotated[ # noqa: ARG001
             pathlib.Path,
             probe_log_help,
         ] = pathlib.Path("probe_log"),
@@ -337,7 +340,7 @@ def store_dataflow_graph(
     # dfg = dataflow_graph_module.hb_graph_to_dataflow_graph(probe_log, hbg, True)
     engine = get_engine()
     with sqlalchemy.orm.Session(engine) as session:
-        raise NotImplementedError()
+        raise NotImplementedError
         # for node in dfg.nodes():
             # if isinstance(node, ProcessNode):
             #     new_process = Process(process_id = int(node.pid), parent_process_id = 0, cmd = shlex.join(node.cmd), time = datetime.datetime.now())
@@ -384,7 +387,7 @@ def store_dataflow_graph(
             #     )
             #     session.add(new_input_inode)
 
-        raise NotImplementedError()
+        raise NotImplementedError
         # root_process = None
         # for node in dataflow_graph_module.nodes():
         #     if isinstance(node, ProcessNode):
@@ -413,14 +416,12 @@ def debug_text(
         ] = pathlib.Path("debug-text.txt"),
         strip_env: bool = True,
 ) -> None:
-    """
-    Write the data from probe_log in a human-readable manner.
-    """
+    """Write the data from probe_log in a human-readable manner."""
     with (
             parser.parse_probe_log_ctx(probe_log) as probe_log_obj,
             output.open("w") as output_fd,
     ):
-        pid_len = max(len(str(pid)) for pid in probe_log_obj.processes.keys())
+        pid_len = max(len(str(pid)) for pid in probe_log_obj.processes)
         with tqdm.tqdm(total=probe_log_obj.n_ops(), desc="Printing ops") as pbar:
             for pid, process in sorted(probe_log_obj.processes.items()):
                 print(f"{pid: {pid_len}d} start of process", file=output_fd)
@@ -447,23 +448,20 @@ def op_counts(
             probe_log_help,
         ] = pathlib.Path("probe_log"),
 ) -> None:
-    """
-    Print the number of ops
-    """
+    """Print the number of ops."""
     ret = collections.Counter[str]()
     with (
             parser.parse_probe_log_ctx(probe_log) as probe_log_obj,
     ):
-        for pid, process in sorted(probe_log_obj.processes.items()):
+        for _pid, process in sorted(probe_log_obj.processes.items()):
             ret["count_procs"] += 1
-            for exid, exec_epoch in sorted(process.execs.items()):
+            for _exid, exec_epoch in sorted(process.execs.items()):
                 ret["count_execs"] += 1
-                for tid, thread in sorted(exec_epoch.threads.items()):
+                for _tid, thread in sorted(exec_epoch.threads.items()):
                     ret["count_tids"] += 1
-                    for op_no, op in enumerate(thread.ops):
+                    for _op_no, op in enumerate(thread.ops):
                         op_name = op.data.__class__.__name__
                         ret[f"op_{op_name}"] += 1
-    print(json.dumps(ret))
 
 
 @export_app.command()
@@ -475,7 +473,7 @@ def docker_image(
         ] = pathlib.Path("probe_log"),
         verbose: bool = True,
 ) -> None:
-    """Generate a docker image from a probe_log with --copy-files
+    """Generate a docker image from a probe_log with --copy-files.
 
     This may not work with moderately complex applications, like Python, yet.
 
@@ -500,9 +498,9 @@ def docker_image(
         file_closure.build_oci_image(
             probe_log_obj,
             image_name,
-            True,
-            verbose,
             console,
+            push_docker=True,
+            verbose=verbose,
         )
 
 @export_app.command()
@@ -514,7 +512,7 @@ def oci_image(
         ] = pathlib.Path("probe_log"),
         verbose: bool = True,
 ) -> None:
-    """Generate an OCI image from a probe_log with --copy-files
+    """Generate an OCI image from a probe_log with --copy-files.
 
     This may not work with moderately complex applications, like Python, yet.
 
@@ -534,62 +532,61 @@ def oci_image(
         file_closure.build_oci_image(
             probe_log_obj,
             image_name,
-            False,
-            verbose,
             console,
+            push_docker=False,
+            verbose=verbose,
         )
 
 
 @app.command(
-    context_settings=dict(
-        ignore_unknown_options=True,
-    ),
+    context_settings={
+        "ignore_unknown_options": True,
+    },
 )
 def ssh(
         ssh_args: list[str],
+        *,
         debug: bool = typer.Option(default=False, help="Run verbose & debug build of libprobe"),
 ) -> None:
-    """
-    Wrap SSH and record provenance of the remote command.
-    """
-
+    """Wrap SSH and record provenance of the remote command."""
     flags, destination, remote_host = ssh_argparser.parse_ssh_args(ssh_args)
 
-    ssh_cmd = ["ssh"] + flags
+    ssh_cmd = ["ssh", *flags]
 
     libprobe = pathlib.Path(os.environ["PROBE_LIB"]) / ("libprobe-dbg.so" if debug else "libprobe.so")
     if not libprobe.exists():
         typer.secho(f"Libprobe not found at {libprobe}", fg=typer.colors.RED)
-        raise typer.Abort()
+        raise typer.Abort
 
     # Create a temporary directory on the local machine
     local_temp_dir = pathlib.Path(tempfile.mkdtemp(prefix=f"probe_log_{os.getpid()}"))
 
     # Check if remote platform matches local platform
-    remote_gcc_machine_cmd = ssh_cmd + ["gcc", "-dumpmachine"]
+    remote_gcc_machine_cmd = [*ssh_cmd, "gcc", "-dumpmachine"]
     local_gcc_machine_cmd = ["gcc", "-dumpmachine"]
 
     remote_gcc_machine = subprocess.check_output(remote_gcc_machine_cmd)
     local_gcc_machine = subprocess.check_output(local_gcc_machine_cmd)
 
     if remote_gcc_machine != local_gcc_machine:
-        raise NotImplementedError("Remote platform is different from local platform")
+        msg = "Remote platform is different from local platform"
+        raise NotImplementedError(msg)
 
     # Upload libprobe.so to the remote temporary directory
-    remote_temp_dir_cmd = ssh_cmd + [destination] + ["mktemp", "-d", "/tmp/probe_log_XXXXXX"]
+    remote_temp_dir_cmd = [*ssh_cmd, destination, "mktemp", "-d", "/tmp/probe_log_XXXXXX"]
     remote_temp_dir = subprocess.check_output(remote_temp_dir_cmd).decode().strip()
     remote_probe_dir = f"{remote_temp_dir}/probe_dir"
 
-    ssh_g = subprocess.run(ssh_cmd + [destination] + ['-G'],stdout=subprocess.PIPE)
+    ssh_g = subprocess.run(
+        [*ssh_cmd, destination, "-G"],
+        stdout=subprocess.PIPE,
+        check=True,
+    )
     ssh_g_op = ssh_g.stdout.decode().strip().splitlines()
-
-    ssh_pair = []
-    for pair in ssh_g_op:
-        ssh_pair.append(pair.split())
 
     scp_cmd = ["scp"]
     for option in ssh_g_op:
-        key_value = option.split(' ', 1)
+        key_value = option.split(" ", 1)
         if len(key_value) == 2:
             key, value = key_value
             scp_cmd.append(f"-o {key}={value}")
@@ -603,22 +600,25 @@ def ssh(
     ld_preload = f"{remote_temp_dir}/{libprobe.name}"
 
     env = ["env", f"LD_PRELOAD={ld_preload}", f"PROBE_DIR={remote_probe_dir}"]
-    proc = subprocess.run(ssh_cmd + [destination] + env + remote_host)
+    proc = subprocess.run(
+        [*ssh_cmd, destination, *env, *remote_host],
+        check=True,
+    )
 
     # Download the provenance log from the remote machine
 
     remote_tar_file = f"{remote_temp_dir}.tar.gz"
-    tar_cmd = ssh_cmd + [destination] + ["tar", "-czf", remote_tar_file, "-C", remote_temp_dir, "."]
+    tar_cmd = [*ssh_cmd, destination, "tar", "-czf", remote_tar_file, "-C", remote_temp_dir, "."]
     subprocess.run(tar_cmd, check=True)
 
     # Download the tarball to the local machine
     local_tar_file = local_temp_dir / f"{remote_temp_dir.split('/')[-1]}.tar.gz"
-    scp_download_cmd = ["scp"] + scp_cmd[1:-2] + [f"{destination}:{remote_tar_file}", str(local_tar_file)]
+    scp_download_cmd = ["scp", *scp_cmd[1:-2], f"{destination}:{remote_tar_file}", str(local_tar_file)]
     typer.secho(f"PROBE log downloaded at: {scp_download_cmd[-1]}",fg=typer.colors.GREEN)
     subprocess.run(scp_download_cmd, check=True)
 
     # Clean up the remote temporary directory
-    remote_cleanup_cmd = ssh_cmd + [destination] + [f"rm -rf {remote_temp_dir}"]
+    remote_cleanup_cmd = [*ssh_cmd, destination, f"rm -rf {remote_temp_dir}"]
     subprocess.run(remote_cleanup_cmd, check=True)
 
     # Clean up the local temporary directory
@@ -632,15 +632,14 @@ def process_tree(
     output: Annotated[pathlib.Path, typer.Option()] = pathlib.Path("probe_log-process-tree.dot"),
     probe_log: Annotated[
         pathlib.Path,
-        probe_log_help
+        probe_log_help,
     ] = pathlib.Path("probe_log"),
 ) -> None:
-    """
-    Write a process tree from probe_log.
+    """Write a process tree from probe_log.
 
     Digraph shows the clone ops of the parent process and the children.
     """
-    raise NotImplementedError()
+    raise NotImplementedError
     # probe_log = parser.parse_probe_log(probe_log)
     # hbg = hb_graph_module.probe_log_to_hb_graph(probe_log)
     # pt = process_tree_module.hb_graph_to_process_tree(probe_log, hbg)
@@ -658,8 +657,7 @@ def ops_jsonl(
             probe_log_help,
         ] = pathlib.Path("probe_log"),
 ) -> None:
-    """
-    Export each op to a JSON line.
+    """Export each op to a JSON line.
 
     The format is subject to change as PROBE evolves. Use with caution!
     """
@@ -683,9 +681,9 @@ def ops_jsonl(
 
 # Example: scp Desktop/sample_example.txt root@136.183.142.28:/home/remote_dir
 @app.command(
-context_settings=dict(
-        ignore_unknown_options=True,
-    ),
+context_settings={
+        "ignore_unknown_options": True,
+    },
 )
 def scp(cmd: list[str]) -> None:
     scp_module.scp_with_provenance(cmd)

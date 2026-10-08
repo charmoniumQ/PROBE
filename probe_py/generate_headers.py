@@ -25,15 +25,43 @@ def autogen_code(jsonschema: pathlib.Path, headers_py: pathlib.Path) -> None:
             "--output-model-type=msgspec.Struct",
             "--output",
             str(headers_py),
-            "--target-python-version=3.12", # "|"-unions and type alias
+
+            # "|"-unions and type alias
+            "--target-python-version=3.13",
+
             "--capitalize-enum-members",
-            "--use-generic-container-types", # Sequence instead of list
-            # "--collapse-root-models", # copy Union types at every use-site, rather than definint it once
+
+            # Sequence[_T] instead of list[_T]
+            "--use-generic-container-types",
+
+            # copy Union types at every use-site, rather than defining it once
+            # that creates a lot of code duplication
+            # "--collapse-root-models",
+
+            # faux immutability only seems to work for Pydantic models.
+            # Instead, we will use `add_immutable`
             # "--enable-faux-immutability",
-            # "--strict-types", "str", "bytes", "int", "float", "bool",
-            # "--use-annotated",
-            # "--type-mappings", "CString=bytes",
-            # "--custom-formatters", "ruff",
+
+            # Code already uses annotated.
+            # This might be only for pydantic
+            "--use-annotated",
+
+            # Without this, we get:
+            #
+            #     UserWarning: format of 'uint16' not understood for 'integer' - using default
+            #
+            "--type-mappings", "integer+uint8=integer", "integer+uint16=integer", "integer+uint32=integer", "integer+uint64=integer",
+
+            # Without this, we get,
+            #
+            #     FutureWarning: The default external formatters (black, isort) will become opt-in in a future version.
+            #     To keep the current behavior, specify formatters=[Formatter.BLACK, Formatter.ISORT].
+            #     To prepare for dependency-free formatting, use formatters=[Formatter.BUILTIN].
+            #     To suppress this warning, specify formatters explicitly."
+            #
+            "--formatters",
+            "ruff-check",
+            "ruff-format",
         ],
         check=True,
     )
@@ -59,7 +87,7 @@ def remove_unset(module: ast.Module) -> None:
         replace(replace(stmt, unset, none), unset_type, none)
         if not isinstance(stmt, ast.ImportFrom) else stmt
         for stmt in module.body
-        
+
     ]
 
 
@@ -76,22 +104,18 @@ def add_immutable(module: ast.Module) -> None:
 
 def fix_tagged_enums(module: ast.Module) -> None:
     classes_to_replace: dict[str, str] = {}
+
     for class_def in module.body[:]:
         if isinstance(class_def, ast.ClassDef):
-            try:
-                type_field = find_field(class_def, "type")
-            except KeyError:
-                pass
-            else:
-                assert isinstance(type_field, ast.AnnAssign)
-                assert isinstance(type_field.annotation, ast.Subscript)
-                assert isinstance(type_field.annotation.value, ast.Name)
-                assert type_field.annotation.value.id == "Literal"
-                assert isinstance(type_field.annotation.slice, ast.Constant)
-                assert isinstance(type_field.annotation.slice.value, str)
-                tag_value = type_field.annotation.slice.value
-                find_class(module, tag_value) # assert class with this tag exists
-                classes_to_replace[class_def.name] = tag_value
+            tag = {
+                keyword.arg: keyword.value
+                for keyword in class_def.keywords
+            }.get("tag")
+            if tag:
+                assert isinstance(tag, ast.Constant)
+                assert isinstance(tag.value, str)
+                find_class(module, tag.value) # assert class with this tag exists
+                classes_to_replace[class_def.name] = tag.value
                 module.body.remove(class_def)
 
     for old_class, new_class in classes_to_replace.items():
@@ -111,7 +135,7 @@ def replace_bytestring_sequence(module: ast.Module) -> None:
             **{
                 **stmt.__dict__,
                 "value": bytes_ast,
-            }
+            },
         )
         if isinstance(stmt, ast.TypeAlias) and stmt.name.id in {"FixedPath", "ByteString"}
         else stmt
@@ -138,7 +162,7 @@ def fixup_imports(module: ast.mod) -> None:
                     statement.names = [
                         alias
                         for alias in statement.names
-                        if alias.name not in {"Literal",}
+                        if alias.name != "Literal"
                     ] + [ast.alias("Final")]
 
 
@@ -165,9 +189,10 @@ def __str__(self) -> str:
 
 def add_typedefs(module: ast.mod) -> None:
     if isinstance(module, (ast.Module, ast.Interactive)):
-        module.body = module.body + [
+        module.body = [
+            *module.body,
             ast.AnnAssign(
-                target=ast.Name(id='AT_FDCWD'),
+                target=ast.Name(id="AT_FDCWD"),
                 annotation=ast.Subscript(
                     value=ast.Name(id="Final"),
                     slice=ast.Name(id="int"),
@@ -177,7 +202,7 @@ def add_typedefs(module: ast.mod) -> None:
                 simple=True,
             ),
             ast.AnnAssign(
-                target=ast.Name(id='O_CLOEXEC'),
+                target=ast.Name(id="O_CLOEXEC"),
                 annotation=ast.Subscript(
                     value=ast.Name(id="Final"),
                     slice=ast.Name(id="int"),
@@ -187,7 +212,7 @@ def add_typedefs(module: ast.mod) -> None:
                 simple=True,
             ),
             ast.AnnAssign(
-                target=ast.Name(id='FD_CLOEXEC'),
+                target=ast.Name(id="FD_CLOEXEC"),
                 annotation=ast.Subscript(
                     value=ast.Name(id="Final"),
                     slice=ast.Name(id="int"),
@@ -198,7 +223,7 @@ def add_typedefs(module: ast.mod) -> None:
             ),
         ]
     else:
-        raise TypeError()
+        raise TypeError
 
 
 def insert_after_imports(
@@ -218,25 +243,31 @@ def find_classes(
 ) -> collections.abc.Iterator[ast.ClassDef]:
     if isinstance(module, (ast.Module, ast.Interactive)):
         for statement in module.body:
-            if isinstance(statement, ast.ClassDef):
-                if (isinstance(name, str) and statement.name == name) or \
-                   (isinstance(name, re.Pattern) and name.match(statement.name)):
+            if (
+                    isinstance(statement, ast.ClassDef)
+                    and ((isinstance(name, str) and statement.name == name)
+                       or (isinstance(name, re.Pattern) and name.match(statement.name)))
+            ):
                     yield statement
 
 
 def find_class(module: ast.mod, name: str) -> ast.ClassDef:
     for class_def in find_classes(module, name):
         return class_def
-    raise KeyError(f"class {name} not found in module")
+    msg = f"class {name} not found in module"
+    raise KeyError(msg)
 
 
 def find_field(class_def: ast.ClassDef, name: str) -> ast.AnnAssign:
     for statement in class_def.body:
-        if isinstance(statement, ast.AnnAssign):
-            if isinstance(statement.target, ast.Name):
-                if statement.target.id == name:
+        if (
+                isinstance(statement, ast.AnnAssign)
+                and isinstance(statement.target, ast.Name)
+                and statement.target.id == name
+        ):
                     return statement
-    raise KeyError(f"field {name} not found in class {class_def.name}")
+    msg = f"field {name} not found in class {class_def.name}"
+    raise KeyError(msg)
 
 
 @typing.overload
@@ -277,11 +308,10 @@ def replace(
             # TODO: use ast.compare in Python >= 3.14
             if ast.unparse(haystack) == ast.unparse(needle):
                 return substitute
-            else:
-                return type(haystack)(**{
-                    keyword: replace(value, needle, substitute) if keyword != "parent" else value
-                    for keyword, value in haystack.__dict__.items()
-                })
+            return type(haystack)(**{
+                keyword: replace(value, needle, substitute) if keyword != "parent" else value
+                for keyword, value in haystack.__dict__.items()
+            })
 
 
 if __name__ == "__main__":

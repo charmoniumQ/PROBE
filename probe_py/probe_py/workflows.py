@@ -1,13 +1,14 @@
 from __future__ import annotations
+
+import collections.abc
 import pathlib
 import shlex
 import typing
+
 import msgspec
-import networkx
-from . import dataflow_graph
-from . import graph_utils
-from . import headers
-from . import ptypes
+import networkx as nx
+
+from . import dataflow_graph, graph_utils, headers, ptypes
 
 
 class Workflow(msgspec.Struct, frozen=True):
@@ -75,8 +76,8 @@ def workflowize(
         if isinstance(node, dataflow_graph.IVNs)
     }
 
-    pid_to_exe = {}
-    pid_to_command = {}
+    pid_to_exe = dict[ptypes.Pid, pathlib.Path]()
+    pid_to_command = dict[ptypes.Pid, collections.abc.Sequence[bytes]]()
     root_pid = analysis.probe_log.get_root_pid()
     for pid, process in probe_log.processes.items():
         second_exec = ptypes.ExecNo(ptypes.initial_exec_no + 1)
@@ -103,10 +104,10 @@ def workflowize(
         [
             (parent.pid, child.pid)
             for parent, child in analysis.clones
-        ]
+        ],
     )
     child_to_exec_parent[root_pid] = root_pid
-    for parent, child in networkx.bfs_edges(pid_graph, root_pid):
+    for parent, child in nx.bfs_edges(pid_graph, root_pid):
         assert parent in child_to_exec_parent
         if child not in pid_to_command:
             child_to_exec_parent[child] = child_to_exec_parent[parent]

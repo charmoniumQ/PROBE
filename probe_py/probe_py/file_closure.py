@@ -1,26 +1,29 @@
-import random
 import os
+import pathlib
+import random
 import re
 import shlex
-import rich.console
-import typer
+import shutil
 import subprocess
 import tempfile
-import shutil
-import warnings
-import pathlib
 import typing
+import warnings
+
+import rich.console
+import typer
+
 from . import ptypes
-from .ptypes import ProbeLog, initial_exec_no, InodeVersion, Pid
-from .headers import Open, InitExecEpoch, Exec, Close, Op, PathArg, OpenNumber, AT_FDCWD
+from .headers import AT_FDCWD, Close, Exec, InitExecEpoch, Op, Open, OpenNumber, PathArg
+from .ptypes import InodeVersion, Pid, ProbeLog, initial_exec_no
 
 
 def build_oci_image(
         probe_log: ProbeLog,
         image_name: str,
+        console: rich.console.Console,
+        *,
         push_docker: bool,
         verbose: bool,
-        console: rich.console.Console,
 ) -> None:
     root_pid = get_root_pid(probe_log)
     if root_pid is None:
@@ -110,7 +113,7 @@ def build_oci_image(
         # Commit (exports OCI image; podman can read it from here)
         cmd = ["buildah", "commit", container_id, image_name]
         if verbose:
-            print(cmd)
+            pass
         subprocess.run(
             cmd,
             check=True,
@@ -133,12 +136,11 @@ def build_oci_image(
 
 def get_files(
         probe_log: ProbeLog,
-        verbose: bool,
         console: rich.console.Console,
 ) -> typing.Iterator[tuple[Op, pathlib.Path, PathArg | None]]:
-    raise NotImplementedError()
-    for pid, process in probe_log.processes.items():
-        for exec_epoch_no, exec_epoch in process.execs.items():
+    raise NotImplementedError
+    for process in probe_log.processes.values():
+        for exec_epoch in process.execs.values():
             root_pid = get_root_pid(probe_log)
             if root_pid is None:
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
@@ -150,8 +152,8 @@ def get_files(
             fds: dict[OpenNumber, pathlib.Path] = {
                 AT_FDCWD: probe_log.process_tree_context.working_directory,
             }
-            for tid, thread in exec_epoch.threads.items():
-                for op_no, op in enumerate(thread.ops):
+            for thread in exec_epoch.threads.values():
+                for _op_no, op in enumerate(thread.ops):
                     if isinstance(op.data, Open):
                         path2 = op.data.path
                         assert path2 is not None
@@ -173,11 +175,12 @@ def get_files(
 def copy_file_closure(
         probe_log: ProbeLog,
         destination: pathlib.Path,
+        console: rich.console.Console,
+        *,
         copy: bool,
         verbose: bool,
-        console: rich.console.Console,
 ) -> None:
-    """Extract files used by the application recoreded in probe_log to destination
+    """Extract files used by the application recoreded in probe_log to destination.
 
     If the required file are recorded in probe_log, we will use that.
     However, probe_log only captures files that get mutated _during the $cmd_.
@@ -188,10 +191,10 @@ def copy_file_closure(
 
     `copy` refers to whether we should copy files from disk or symlink them.
     """
-    raise NotImplementedError()
+    raise NotImplementedError
     to_copy = dict[pathlib.Path, PathArg | None]()
     to_copy_exes = dict[pathlib.Path, PathArg | None]()
-    for op, resolved_path, path in get_files(probe_log, verbose, console):
+    for op, resolved_path, path in get_files(probe_log, console=console):
         match op:
             case Open():
                 to_copy_exes[resolved_path] = path
@@ -211,7 +214,8 @@ def copy_file_closure(
             to_copy[pathlib.Path(dependent_dlib)] = None
     inodes = probe_log.copied_files
     if inodes is None:
-        raise ValueError("PROBE log appears to not contain inodes")
+        msg = "PROBE log appears to not contain inodes"
+        raise ValueError(msg)
     for resolved_path, maybe_path in to_copy.items():
         destination_path = destination / resolved_path.relative_to("/")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
@@ -233,7 +237,7 @@ def copy_file_closure(
             if ino_ver is not None and InodeVersion.from_local_path(resolved_path) != ino_ver:
                 warnings.warn(ptypes.UnusualProbeLog(
                     f"{resolved_path} changed in between the time of `probe record` and now.",
-                ))
+                ), stacklevel=2)
             if resolved_path.is_dir():
                 destination_path.mkdir(exist_ok=True, parents=True)
             elif copy:
@@ -245,7 +249,8 @@ def copy_file_closure(
                     console.print(f"Hardlinking {resolved_path} from disk")
                 destination_path.hardlink_to(resolved_path)
         else:
-            raise Exception(f"{resolved_path} disappeared since `probe record`")
+            msg = f"{resolved_path} disappeared since `probe record`"
+            raise RuntimeError(msg)
 
 
 def resolve_path(
@@ -255,14 +260,13 @@ def resolve_path(
     if path.directory in fds:
         if path.name:
             return fds[path.directory] / path.name.decode()
-        else:
-            return fds[path.directory]
-    else:
-        raise KeyError(f"dirfd {path.directory} not found in fd table")
+        return fds[path.directory]
+    msg = f"dirfd {path.directory} not found in fd table"
+    raise KeyError(msg)
 
 
 def get_root_pid(probe_log: ProbeLog) -> Pid | None:
-    possible_root = []
+    possible_root = list[Pid]()
     for pid, process in probe_log.processes.items():
         first_op = process.execs[initial_exec_no].threads[pid.main_thread()].ops[0].data
         assert isinstance(first_op, InitExecEpoch)
@@ -270,8 +274,7 @@ def get_root_pid(probe_log: ProbeLog) -> Pid | None:
     if possible_root:
         # TODO: Fix this; min works for Linux because PIDs are assigned sequentially
         return min(possible_root)
-    else:
-        return None
+    return None
 
 
 ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+")
@@ -279,7 +282,8 @@ ldd = shutil.which("ldd")
 
 def _get_dlibs(exe_or_dlib: pathlib.Path, found: set[str]) -> None:
     if not ldd:
-        raise ValueError("ldd not found")
+        msg = "ldd not found"
+        raise ValueError(msg)
     proc = subprocess.run(
         [ldd, str(exe_or_dlib)],
         text=True,

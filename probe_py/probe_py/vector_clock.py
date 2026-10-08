@@ -1,15 +1,22 @@
 from __future__ import annotations
-from collections.abc import Iterable as It, Mapping as Map
-import charmonium.time_block
+
 import dataclasses
-import numpy
 import typing
-import networkx
+
+import charmonium.time_block
+import networkx as nx
+import numpy as np
 import tqdm
+
 from . import partial_order
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Iterable as It
+    from collections.abc import Collection
+    from collections.abc import Mapping as Map
+
 _ThreadId = typing.NewType("_ThreadId", int)
-_TimeVal: typing.TypeAlias = numpy.int32
+_TimeVal: typing.TypeAlias = np.int32
 
 
 # TODO: use Numpy arrays
@@ -17,28 +24,28 @@ _TimeVal: typing.TypeAlias = numpy.int32
 
 @dataclasses.dataclass
 class VectorTime:
-    clocks: numpy.ndarray
+    clocks: np.ndarray
 
-    def increment(self, current_thread: _ThreadId, predecessors: It[VectorTime]) -> VectorTime:
-        "Increment the current_clock, such that it will be after all predecessors"
+    def increment(self, current_thread: _ThreadId, predecessors: Collection[VectorTime]) -> VectorTime:
+        """Increment the current_clock, such that it will be after all predecessors."""
         max_thread = max(
             len(self),
             current_thread + 1,
             max(len(pred) for pred in predecessors) if predecessors else 0,
         )
-        ret = numpy.zeros(max_thread, dtype=_TimeVal)
+        ret = np.zeros(max_thread, dtype=_TimeVal)
         ret[: len(self)] = self.clocks
         ret[current_thread] += 1
         for pred in predecessors:
-            numpy.maximum(ret[: len(pred)], pred.clocks, out=ret[: len(pred)])
+            np.maximum(ret[: len(pred)], pred.clocks, out=ret[: len(pred)])
         return VectorTime(ret)
 
     def __le__(self, other: VectorTime) -> bool:
         common = min(len(self), len(other))
         return bool(
-            numpy.all(self.clocks[:common] <= other.clocks[:common])
-            and numpy.all(self.clocks[common:] == 0)
-            and numpy.all(0 <= other.clocks[common:])
+            np.all(self.clocks[:common] <= other.clocks[:common])
+            and np.all(self.clocks[common:] == 0)
+            and np.all(other.clocks[common:] >= 0),
         )
 
     def __len__(self) -> int:
@@ -46,11 +53,11 @@ class VectorTime:
 
     @staticmethod
     def empty() -> VectorTime:
-        return VectorTime(numpy.zeros(0, dtype=_TimeVal))
+        return VectorTime(np.zeros(0, dtype=_TimeVal))
 
 
 def upper_bound(times: It[VectorTime]) -> VectorTime:
-    ret = numpy.zeros(max(len(time) for time in times), dtype=_TimeVal)
+    ret = np.zeros(max(len(time) for time in times), dtype=_TimeVal)
     for time in times:
         for thread, time_val in enumerate(time.clocks):
             ret[thread] = max(ret[thread], time_val)
@@ -63,8 +70,8 @@ _ThreadLabel = typing.TypeVar("_ThreadLabel", bound=typing.Hashable)
 
 @dataclasses.dataclass(frozen=True)
 class VectorClockPartialOrder(
-    typing.Generic[_Node, _ThreadLabel],
     partial_order.PartialOrder[_Node],
+    typing.Generic[_Node, _ThreadLabel],
 ):
     nodes: It[_Node]
     vector_clocks: Map[_Node, VectorTime]
@@ -74,16 +81,16 @@ class VectorClockPartialOrder(
         return bool(self.vector_clocks[node0] <= self.vector_clocks[node1])
 
     def diameter(self) -> int:
-        "The size of the largest antichain"
+        """Return the size of the largest antichain."""
         return max(self.thread_ids.values()) + 1
 
 
 @charmonium.time_block.decor(print_start=False)
 def from_dag(
-    dag: networkx.DiGraph[_Node],
+    dag: nx.DiGraph[_Node],
     thread_fn: typing.Callable[[_Node], _ThreadLabel],
 ) -> VectorClockPartialOrder[_Node, _ThreadLabel]:
-    sort = list(networkx.topological_sort(dag))
+    sort = list(nx.topological_sort(dag))
 
     # Last node for each thread.
     # This is needed for garbage collections

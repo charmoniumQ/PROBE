@@ -1,10 +1,11 @@
 from __future__ import annotations
-import typing
-import pycparser  # type: ignore
-import dataclasses
 
+import typing
+
+import pycparser.c_ast
 
 if typing.TYPE_CHECKING:
+    import dataclasses
     class CGenerator:
         def _parenthesize_if(self, n: Node, condition: typing.Callable[[Node], bool]) -> str: ...
         def _generate_decl(self, n: pycparser.c_ast.Node) -> str: ...

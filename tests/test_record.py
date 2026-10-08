@@ -2,12 +2,12 @@ import collections
 import os
 import pathlib
 import random
-import shutil
 import shlex
+import shutil
 import subprocess
 import typing
-import pytest
 
+import pytest
 
 # Enable strace for debugging
 strace = False
@@ -65,7 +65,7 @@ simple_commands = {
     "cat": [str(example_path / "cat.exe"), "test_file.txt"],
     "fcat": [str(example_path / "fcat.exe"), "test_file.txt"],
     "createFile": [str(example_path / "createFile.exe")],
-    # TODO
+    # TODO: fix mmap cat
     # "mmap_cat": [str(example_path / "mmap_cat.exe"), "test_file.txt"],
     "ls": [str(example_path / "ls.exe"), "."],
     "coreutils_echo": ["echo", "hi"],
@@ -102,7 +102,7 @@ simple_commands = {
         ),
     ),
     "python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
-    # FIXME
+    # TODO: c_hello
     # "c_hello": bash_multi(
     #     ["echo", c_hello_world, "redirect_to", "test.c"],
     #     ["gcc", "test.c"],
@@ -156,7 +156,11 @@ def does_docker_work() -> bool:
 @pytest.fixture(scope="session")
 def does_buildah_work() -> bool:
     name = f"probe-{random.randint(0, 2**32 - 1):08x}"
-    proc = subprocess.run(["buildah", "from", "--name", name, "scratch"], capture_output=True)
+    proc = subprocess.run(
+        ["buildah", "from", "--name", name, "scratch"],
+        check=False,
+        capture_output=True,
+    )
     return proc.returncode == 0 and subprocess.run(["buildah", "rm", name], check=False, capture_output=True).returncode == 0
 
 
@@ -179,12 +183,12 @@ def scratch_directory_parent() -> pathlib.Path:
     return real_scratch_directory_parent
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def scratch_directory(
         request: pytest.FixtureRequest,
         scratch_directory_parent: pathlib.Path,
 ) -> pathlib.Path:
-    """An predictable, persistent, empty directory.
+    """Return a predictable, persistent, empty directory.
 
     This directory will be ignored by Git, but persistent after the test's
     completion for manual inspection. It gets cleared every re-test however.
@@ -225,10 +229,6 @@ def test_downstream_analyses(
     class PopenKwargs(typing.TypedDict):
         check: bool
         cwd: pathlib.Path
-    args: PopenKwargs = dict(
-        check=True,
-        cwd=scratch_directory,
-    )
 
     if strace:
         strace_trace_arg = "!arch_prctl,brk,futex,getcwd,getdents,getegid,geteuid,getgid,getpgrp,getpid,getppid,getrandom,getresgid,getresuid,gettid,getuid,lseek,mprotect,prctl,pread64,prlimit64,read,rseq,rt_sigaction,rt_sigprocmask,set_robust_list,set_tid_address,sysinfo,uname,write"
@@ -245,7 +245,7 @@ def test_downstream_analyses(
             *command,
         ]
         print(shlex.join(cmd))
-        subprocess.run(cmd, **args)
+        subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     (scratch_directory / "command.sh").write_text(shlex.join(command))
 
@@ -258,9 +258,9 @@ def test_downstream_analyses(
         print(shlex.join(cmd))
         if stderr_to_file:
             with (scratch_directory / "probe_debug.log").open("w") as output:
-                subprocess.run(cmd, **args, stderr=output, env=env)
+                subprocess.run(cmd, check=True, cwd=scratch_directory, stderr=output, env=env)
         else:
-            subprocess.run(cmd, **args, env=env)
+            subprocess.run(cmd, check=True, cwd=scratch_directory, env=env)
 
     should_have_copy_files = copy_files in {"eagerly", "lazily"}
     cmd = ["probe", "py", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
@@ -291,19 +291,19 @@ def test_downstream_analyses(
 
     cmd = ["probe", "py", "export", "debug-text"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "py", "export", "dataflow-graph", "--strict" if strict else "--loose"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
     cmd = ["probe", "py", "export", "w3c-prov", "--strict" if strict else "--loose"]
     print(shlex.join(cmd))
-    subprocess.run(cmd, **args)
+    subprocess.run(cmd, check=True, cwd=scratch_directory)
 
 
 def test_fail(

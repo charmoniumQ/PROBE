@@ -1,7 +1,7 @@
 import typing
-from .headers import InitExecEpoch, InitThread, Wait, Exec, Clone, ExitThread, ExitProcess, TaskType
-from .ptypes import Tid, Pid, ProbeLog
 
+from .headers import Clone, Exec, ExitProcess, ExitThread, InitExecEpoch, InitThread, TaskType, Wait
+from .ptypes import Pid, ProbeLog, Tid
 
 """The analyses make a lot of assumptions about the probe_log.
 
@@ -13,7 +13,7 @@ libprobe, but we should still test them, for defensive coding and error-localiza
 def validate_probe_log(
         probe_log: ProbeLog,
 ) -> typing.Iterator[str]:
-    """Yields validation errors as strings
+    """Yield validation errors as strings.
 
     If you are fixing errors, resolve the first one first. Programmers can
     assume the errors above the particular check have been checked and resolved.
@@ -28,7 +28,7 @@ def validate_probe_log(
 def validate_init_ops(
         probe_log: ProbeLog,
 ) -> typing.Iterator[str]:
-    """Init ops have to appear before any other ops"""
+    """Init ops have to appear before any other ops."""
     for pid, process in probe_log.processes.items():
         for exec_no, exec_ep in process.execs.items():
             for tid, thread in exec_ep.threads.items():
@@ -53,20 +53,20 @@ def validate_init_ops(
 
 
 def validate_exec_epoch_presence(probe_log: ProbeLog) -> typing.Iterator[str]:
-    """We must have all exec_epochs from 0..N"""
+    """We must have all exec_epochs from 0..N."""
     for pid, process in probe_log.processes.items():
         present_execs = set(process.execs.keys())
         max_exec_no = max(process.execs.keys())
-        expected_execs = set(range(0, max_exec_no + 1))
+        expected_execs = set(range(max_exec_no + 1))
         if present_execs != expected_execs:
             yield f"{pid} has execs {sorted(present_execs)}; expected [0, ..., {max_exec_no}]"
 
 
 def validate_clone_targets(probe_log: ProbeLog) -> typing.Iterator[str]:
-    """Clone must return threads that we observe"""
+    """Clone must return threads that we observe."""
     pids = probe_log.processes.keys()
-    for pid, process in probe_log.processes.items():
-        for exec_no, exec_ep in process.execs.items():
+    for process in probe_log.processes.values():
+        for exec_ep in process.execs.values():
             pthread_ids = {
                 op.pthread_id
                 for tid, thread in exec_ep.threads.items()
@@ -77,7 +77,7 @@ def validate_clone_targets(probe_log: ProbeLog) -> typing.Iterator[str]:
                 for tid, thread in exec_ep.threads.items()
                 for op in thread.ops
             }
-            for tid, thread in exec_ep.threads.items():
+            for thread in exec_ep.threads.values():
                 for op in thread.ops:
                     if isinstance(op.data, Clone) and op.ferrno == 0:
                         if op.data.task_type == TaskType.PID and Pid(op.data.task_id) not in pids:
@@ -91,12 +91,12 @@ def validate_clone_targets(probe_log: ProbeLog) -> typing.Iterator[str]:
 
 
 def validate_clones_and_waits(probe_log: ProbeLog) -> typing.Iterator[str]:
-    """Cloned PIDs and TIDs == waited PIDs and TIDs"""
+    """Cloned PIDs and TIDs == waited PIDs and TIDs."""
     cloned_processes = set[tuple[TaskType, int]]()
     waited_processes = set[tuple[TaskType, int]]()
-    for pid, process in probe_log.processes.items():
-        for exec_no, exec_ep in process.execs.items():
-            for tid, thread in exec_ep.threads.items():
+    for process in probe_log.processes.values():
+        for exec_ep in process.execs.values():
+            for thread in exec_ep.threads.values():
                 for op in thread.ops:
                     if isinstance(op.data, Wait) and op.ferrno == 0:
                         # TODO: Replace TaskType(x) with x in this file, once Rust can emit enums
@@ -111,10 +111,9 @@ def validate_clones_and_waits(probe_log: ProbeLog) -> typing.Iterator[str]:
 
 
 def validate_execs(probe_log: ProbeLog) -> typing.Iterator[str]:
-    for pid, process in probe_log.processes.items():
-        for exec_no, exec_ep in process.execs.items():
-            for tid, thread in exec_ep.threads.items():
+    for process in probe_log.processes.values():
+        for exec_ep in process.execs.values():
+            for thread in exec_ep.threads.values():
                 for op in thread.ops:
-                    if isinstance(op.data, Exec):
-                        if not op.data.argv:
+                    if isinstance(op.data, Exec) and not op.data.argv:
                             yield "No arguments stored in exec syscall"

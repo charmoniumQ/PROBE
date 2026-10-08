@@ -1,18 +1,18 @@
-from collections.abc import Iterable as It, Mapping as Map
 import getpass
 import pathlib
 import shlex
 import warnings
 import zlib
+from collections.abc import Iterable as It
+from collections.abc import Mapping as Map
+
+import prov.model
 import rdflib
 import rdflib.container
-import rdflib.term
 import rdflib.namespace
-import prov.model  # type: ignore
-from . import dataflow_graph
-from . import headers
-from . import ptypes
+import rdflib.term
 
+from . import dataflow_graph, headers, ptypes
 
 RDF = rdflib.namespace.RDF
 RDFS = rdflib.namespace.RDFS
@@ -40,11 +40,11 @@ def export_rdf_graph(
 
     child_to_ancestor = get_child_to_ancestor(analysis)
 
-    exec_to_activity = add_processes(probe_log, analysis, child_to_ancestor, graph, user)
+    exec_to_activity = add_processes(probe_log, child_to_ancestor, graph, user)
 
     inode_to_entity = add_inodes(analysis, dfg, graph)
 
-    ivn_to_term = add_inode_versions(analysis, dfg, inode_to_entity, graph, user)
+    ivn_to_term = add_inode_versions(dfg, inode_to_entity, graph, user)
 
     add_edges(dfg, ivn_to_term, exec_to_activity, graph)
 
@@ -68,7 +68,7 @@ def export_rdf_graph(
 
 
 def get_child_to_ancestor(
-        analysis: dataflow_graph.Analysis
+        analysis: dataflow_graph.Analysis,
 ) -> Map[ptypes.Pid, ptypes.ExecPair]:
     ret = {}
     for parent, child in analysis.clones:
@@ -79,7 +79,6 @@ def get_child_to_ancestor(
 
 def add_processes(
         probe_log: ptypes.ProbeLog,
-        analysis: dataflow_graph.Analysis,
         child_to_ancestor: Map[ptypes.Pid, ptypes.ExecPair],
         graph: rdflib.Graph,
         user: Agent,
@@ -87,7 +86,7 @@ def add_processes(
     exec_to_activity = dict[ptypes.ExecPair, Activity]()
     root_pid = probe_log.get_root_pid()
     for pid, process in probe_log.processes.items():
-        for exec_no, exec in process.execs.items():
+        for exec_no in process.execs:
             # If exec_no = 0, we could be a multiprocessing program (fork but no exec)
             # Find the ancestor who was execked.
             ancestor_exec_pair = ptypes.ExecPair(pid, exec_no)
@@ -98,13 +97,12 @@ def add_processes(
             # Make sure they have an activity
             activity: Activity
             if ancestor_exec_pair not in exec_to_activity:
-                print(ancestor_exec_pair, "is true exec")
                 init_exec_op = probe_log.processes[ancestor_exec_pair.pid].execs[ancestor_exec_pair.exec_no].threads[ancestor_exec_pair.pid.main_thread()].ops[0].data
                 assert isinstance(init_exec_op, headers.InitExecEpoch), init_exec_op
                 arg_list = rdflib.container.Seq(graph, rdflib.BNode(), [
                     rdflib.Literal(arg.decode())
                     for arg in init_exec_op.argv
-                ])  # type: ignore
+                ])  # type: ignore[no-untyped-call]
                 activity = exec_to_activity[ancestor_exec_pair] = rdflib.URIRef(f"exec_{ancestor_exec_pair.pid}_{ancestor_exec_pair.exec_no}")
                 graph.add((activity, RDF.type, PROV.Activity))
                 graph.add((activity, PROV.wasAssociatedWith, user))
@@ -117,10 +115,8 @@ def add_processes(
 
             # Set my activity to theirs, up the tree.
             # We don't know the order PIDs will be assigned in (can't assume sequential), so we may have to do our grandancestors.
-            ultimate_ancestor_exec_pair = ancestor_exec_pair
             ancestor_exec_pair = ptypes.ExecPair(pid, exec_no)
             while ancestor_exec_pair.exec_no == 0 and ancestor_exec_pair.pid != root_pid:
-                print(ancestor_exec_pair, "was forked from", ultimate_ancestor_exec_pair)
                 if ancestor_exec_pair not in exec_to_activity:
                     exec_to_activity[ancestor_exec_pair] = activity
                 ancestor_exec_pair = child_to_ancestor[ancestor_exec_pair.pid]
@@ -166,7 +162,7 @@ def add_inodes(
                             if count == max_path_count
                         ]
                         representative_path = min(max_paths, key=lambda path: path.parts)
-                        inode_to_major_version = path_to_inode_to_major_version.setdefault(representative_path, dict())
+                        inode_to_major_version = path_to_inode_to_major_version.setdefault(representative_path, {})
                         major_version = inode_to_major_version.setdefault(inode, len(inode_to_major_version) + 1)
                     else:
                         representative_path = None
@@ -183,7 +179,7 @@ def add_inodes(
                         path2 = rdflib.container.Seq(graph, rdflib.BNode(), [
                             rdflib.Literal(segment)
                             for segment in path_obj.parts
-                        ])  # type: ignore
+                        ])  # type: ignore[no-untyped-call]
                         graph.add((path2.uri, RDF.type, AD_HOC_NAMESPACE.OSFilePath))
                         graph.add((inode_term, AD_HOC_NAMESPACE.has_path, path2.uri))
                         # graph.add((inode_term, AD_HOC_NAMESPACE.has_path, rdflib.Literal(str(path_obj))))
@@ -200,11 +196,10 @@ def node_sorter(node: dataflow_graph.IVNs | dataflow_graph.Quads) -> tuple[int, 
             representative_quad = min(node)
             return (1, int(representative_quad.pid), int(representative_quad.exec_no), int(representative_quad.tid), int(representative_quad.op_no))
         case _:
-            raise TypeError()
+            raise TypeError
 
 
 def add_inode_versions(
-        analysis: dataflow_graph.Analysis,
         dfg: dataflow_graph.DataflowGraph,
         inode_to_entity: Map[ptypes.Inode, tuple[pathlib.Path | None, int, rdflib.term.Node]],
         graph: rdflib.Graph,

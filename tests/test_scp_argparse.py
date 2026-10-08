@@ -1,4 +1,5 @@
 import pathlib
+
 from probe_py.remote_access import Host, HostPath
 from probe_py.scp import parse_scp_args
 
@@ -29,6 +30,6 @@ def test_parse_scp_args() -> None:
         ],
         HostPath(
             host=Host(network_name=None, username=None, ssh_options=[], scp_options=[]),
-            path=pathlib.Path("test.txt")
+            path=pathlib.Path("test.txt"),
         ),
     )

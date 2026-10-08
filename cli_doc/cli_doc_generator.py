@@ -1,6 +1,7 @@
-import subprocess
 import re
+import subprocess
 from itertools import chain
+
 
 # collecting commands within the "Commands" heading
 def extract_commands(lns):
@@ -73,7 +74,6 @@ def extract_arguments(arg_lines):
             arr.append(each_line)
         if each_line.startswith("╭─ Arguments"):
             arg_mode = True
-            pass
         elif each_line.startswith("╰─"):
             break
     return arr
@@ -83,8 +83,8 @@ def process_lines(lines):
     split_lines = []
     processed_lines = []
     for line in lines:
-        remove_sp_char = line.replace('│', '').replace('*', '').strip()
-        cleaned_lines = [i for i in remove_sp_char.split(" ") if i != '']
+        remove_sp_char = line.replace("│", "").replace("*", "").strip()
+        cleaned_lines = [i for i in remove_sp_char.split(" ") if i != ""]
         split_lines.append(cleaned_lines)
 
     for i in split_lines:
@@ -93,7 +93,7 @@ def process_lines(lines):
     return processed_lines
 
 
-def write_to_readme(cmd, options):
+def write_to_readme(cmd, options) -> None:
     with open("README.md", "a") as readme_md:
         readme_md.write(f"### probe {cmd}\n\n")
         readme_md.write("| Option | Alternative | Description |\n")
@@ -106,7 +106,7 @@ def write_to_readme(cmd, options):
             readme_md.write(f"| {short} | {long} | {description} |\n")
         readme_md.write("\n")
 
-def write_to_readme_exported(cmd, options):
+def write_to_readme_exported(cmd, options) -> None:
     with open("README.md", "a") as readme_md:
         readme_md.write(f"### probe {cmd}\n\n")
         readme_md.write("| Option | Parameter | Description |\n")
@@ -119,7 +119,7 @@ def write_to_readme_exported(cmd, options):
             readme_md.write(f"| {short} | {long} | {description} |\n")
         readme_md.write("\n")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     result = subprocess.run("probe help",
                             shell=True,
                             check=False,

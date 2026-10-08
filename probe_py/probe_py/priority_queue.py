@@ -1,15 +1,15 @@
 import collections
 import heapq
 import typing
-from . import util
 
+from . import util
 
 _Priority = typing.TypeVar("_Priority", bound=util.Comparable)
 _Task = typing.TypeVar("_Task", bound=collections.abc.Hashable)
 
 
 class PriorityQueue(typing.Generic[_Task, _Priority]):
-    """Minimum-priority queue
+    """Minimum-priority queue.
 
     Use getitem and getitem to view and change a task's priority.
 
@@ -41,33 +41,33 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
         self._removed = set()
         for task, priority in initial:
             if task in self._priorities:
-                raise RuntimeError(f"{task} is in the initial queue twice")
-            else:
-                self._heap.append((priority, self._counter, task))
-                self._priorities[task] = (priority, self._counter)
-                self._counter += 1
+                msg = f"{task} is in the initial queue twice"
+                raise RuntimeError(msg)
+            self._heap.append((priority, self._counter, task))
+            self._priorities[task] = (priority, self._counter)
+            self._counter += 1
         heapq.heapify(self._heap)
 
     def add(self, task: _Task, priority: _Priority) -> None:
         if task in self._priorities:
-            raise RuntimeError(f"{task} is already in priority queue")
-        else:
-            self._priorities[task] = (priority, self._counter)
-            heapq.heappush(self._heap, (priority, self._counter, task))
-            self._counter += 1
+            msg = f"{task} is already in priority queue"
+            raise RuntimeError(msg)
+        self._priorities[task] = (priority, self._counter)
+        heapq.heappush(self._heap, (priority, self._counter, task))
+        self._counter += 1
 
     def peek(self) -> tuple[_Priority, _Task]:
         if self:
             return self._heap[0][0], self._heap[0][2]
-        else:
-            raise StopIteration("Priority queue is emp")
+        msg = "Priority queue is emp"
+        raise StopIteration(msg)
 
     def pop(self) -> tuple[_Priority, _Task]:
         if self:
-            priority, counter, task = heapq.heappop(self._heap)
+            priority, _, task = heapq.heappop(self._heap)
             return priority, task
-        else:
-            raise StopIteration("Priority queue is emp")
+        msg = "Priority queue is emp"
+        raise StopIteration(msg)
 
     def __bool__(self) -> bool:
         while self._heap:
@@ -88,13 +88,14 @@ class PriorityQueue(typing.Generic[_Task, _Priority]):
             del self._priorities[task]
             self._removed.add(counter)
         else:
-            raise KeyError(f"{task} was not in the priority queue")
+            msg = f"{task} was not in the priority queue"
+            raise KeyError(msg)
 
     def __getitem__(self, task: _Task) -> _Priority:
         if task in self._priorities:
             return self._priorities[task][0]
-        else:
-            raise KeyError(f"{task} was not in the priority queue")
+        msg = f"{task} was not in the priority queue"
+        raise KeyError(msg)
 
     def __setitem__(self, task: _Task, priority: _Priority) -> None:
         if task in self._priorities:

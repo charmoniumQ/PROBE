@@ -1,22 +1,25 @@
 from __future__ import annotations
-import tqdm
+
+import contextlib
 import dataclasses
 import pathlib
-import typing
 import tarfile
 import tempfile
-import contextlib
+import typing
+
 import charmonium.time_block
 import msgspec
+import tqdm
+
 from . import headers as ops
-from .ptypes import ProbeLog, InodeVersion, Pid, ExecNo, Tid, Host, KernelThread, Process, Exec
+from .ptypes import Exec, ExecNo, Host, InodeVersion, KernelThread, Pid, ProbeLog, Process, Tid
 
 
 @contextlib.contextmanager
 def parse_probe_log_ctx(
         path_to_probe_log: pathlib.Path,
 ) -> typing.Iterator[ProbeLog]:
-    """Parse probe log
+    """Parse probe log.
 
     In this contextmanager, copied_files are extracted onto the disk.
 
@@ -56,7 +59,7 @@ def parse_probe_log_ctx(
                         # void main() { pthread_create(thread2); }
                         # void thread2() { }
                         # The HB graph would be a tree, main[0] ---clone--> thread2[0].
-                        # We can't put an HB edge from the last op of thread2 to the last op of main, and the HB graph 
+                        # We can't put an HB edge from the last op of thread2 to the last op of main, and the HB graph
                         ops_list.append(ops.Op(
                             data=ops.ExitThread(status=0),
                             pthread_id=ops_list[-1].pthread_id,

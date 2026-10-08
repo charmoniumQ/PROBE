@@ -54,7 +54,7 @@ for file in sys.argv[1:]:
             ["nm", "--dynamic", "--undefined-only", "--just-symbols", file],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         ).stdout.strip().splitlines()
     }
 

@@ -26,6 +26,3 @@ dependencies = [
 
 [project.urls]
 Home = "https://github.com/charmoniumQ/PROBE"
-
-[tool.ruff]
-line-length = 100

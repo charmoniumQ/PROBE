@@ -47,7 +47,7 @@
     (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python312;
+        python = pkgs.python314;
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
@@ -61,7 +61,7 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
-        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py312;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py314;
       in rec {
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
@@ -179,14 +179,11 @@
             };
             propagatedBuildInputs = [
               charmonium-time-block-pkg
-              python.pkgs.dulwich
-              python.pkgs.frozendict
               python.pkgs.msgspec
               python.pkgs.networkx
               python.pkgs.numpy
               python.pkgs.prov
               python.pkgs.pydot
-              python.pkgs.pygraphviz
               python.pkgs.pyyaml
               python.pkgs.rdflib
               python.pkgs.rich
@@ -281,13 +278,10 @@
           probe-python = python.withPackages (pypkgs: [
             # probe_py runtime requirements
             charmonium-time-block-pkg
-            pypkgs.dulwich
-            pypkgs.frozendict
             pypkgs.msgspec
             pypkgs.networkx
             pypkgs.numpy
             pypkgs.pydot
-            pypkgs.pygraphviz
             pypkgs.pyyaml
             pypkgs.rich
             pypkgs.sqlalchemy
@@ -301,12 +295,10 @@
             packages.types-networkx
             pypkgs.datamodel-code-generator
             pypkgs.ipython
-            pypkgs.ipdb
-            pypkgs.mypy
             pypkgs.pytest
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
-            pypkgs.torch
+            # pypkgs.torch
             pypkgs.types-tqdm
 
             # libprobe build time requirement
@@ -356,6 +348,7 @@
               pkgs.alejandra
               pkgs.just
               pkgs.ruff
+              pkgs.ty
               pkgs.codespell
             ]
             # OpenJDK doesn't build on some platforms

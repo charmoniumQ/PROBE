@@ -1,7 +1,7 @@
-import pathlib
 import itertools
-import typing
+import pathlib
 import sys
+import typing
 
 
 def multilevel_table(
@@ -32,7 +32,7 @@ def multilevel_table(
     snakecase = name.replace(" ", "_")
     last_level = n_levels - 1
     index_type = f"uint{log_length_rounded}_t" if log_length_rounded < 128 else "unsigned __int128"
-    fn_attrs = "__attribute__((visibility(\"hidden\")))"
+    fn_attrs = '__attribute__((visibility("hidden")))'
     print(value_type)
     c_header.write_text("\n".join([
         "#pragma once",
@@ -62,16 +62,16 @@ def multilevel_table(
         64: "%lu",
     }[log_length_rounded]
     checks = [
-        f"  if (index > {(1 << log_length) - 1}UL) {{ ERROR(\"%d-bit table not big enough to accommodate {printf_flag}\\n\", {log_length}, index); }}",
-        "  _Static_assert(ATOMIC_POINTER_LOCK_FREE, \"\");",
+        f'  if (index > {(1 << log_length) - 1}UL) {{ ERROR("%d-bit table not big enough to accommodate {printf_flag}\\n", {log_length}, index); }}',
+        '  _Static_assert(ATOMIC_POINTER_LOCK_FREE, "");',
     ]
     c_source.write_text("\n".join([
-        f"#include \"{c_header.relative_to(c_source.parent)}\"",
+        f'#include "{c_header.relative_to(c_source.parent)}"',
         "",
         "#include <stdatomic.h>",
         "#include <stdlib.h>",
         "",
-        "#include \"../src/debug_logging.h\"",
+        '#include "../src/debug_logging.h"',
         "",
         "#define _BITS(value, low, length) (((((1L << length) - 1L) << low) & value) >> low)",
         "",
@@ -107,7 +107,7 @@ def multilevel_table(
                 "    size_t i = 0;",
                 f"    while (expected{i}.flag == _{upper}_WAITING) {{",
                 f"      expected{i} = atomic_load(&struct{i}->array[_BITS(index, {lowest_bit[i]}L, {log_lengths[i]}L)]);",
-                "      if (i != 0 && i % 5 == 0) { WARNING(\"Spinning %zu times\", ++i); }",
+                '      if (i != 0 && i % 5 == 0) { WARNING("Spinning %zu times", ++i); }',
                 "      i++;",
                 "    }",
                 f"    struct{i+1} = expected{i}.ptr;",

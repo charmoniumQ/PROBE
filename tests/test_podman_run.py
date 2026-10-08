@@ -4,6 +4,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+
 import pytest
 
 
@@ -30,6 +31,7 @@ def nix_built_probe() -> pathlib.Path:
         cmd,
         capture_output=True,
         text=True,
+        check=False,
     )
     if proc.returncode != 0:
         raise ValueError(f"stderr: {proc.stderr}\n\nstdout: {proc.stdout}")
