@@ -7,8 +7,8 @@ test-nix:
 
 lint-py: update-headers-py
     # fix-py depends on compile-cli for the autogen python code
-    ruff format probe_py/ tests/ libprobe/ cli_doc/
-    ruff check --fix --unsafe-fixes probe_py/ tests/ libprobe/ cli_doc/
+    ruff --config=probe_py/ruff.toml format probe_py/ tests/ libprobe/ cli_doc/
+    ruff --config=probe_py/ruff.toml check --fix --unsafe-fixes probe_py/ tests/ libprobe/ cli_doc/
     ty check probe_py/ tests/ libprobe/ cli_doc/
 
 [working-directory: 'cli-wrapper']

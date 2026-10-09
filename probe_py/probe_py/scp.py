@@ -8,7 +8,7 @@ from probe_py.remote_access import Host, HostPath, copy_provenance
 
 def scp_with_provenance(scp_args: list[str]) -> int:
     """
-    Do an SCP transfer while also transfering prov.
+    Do an SCP transfer while also transferring prov.
 
     1. get the src_inode_version and src_inode_metadata
     2. upload the files

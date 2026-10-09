@@ -40,7 +40,7 @@
     ...
   }: let
     targets = import ./targets.nix;
-    probe-ver = "0.0.13";
+    probe-ver = "0.0.14";
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames targets)
@@ -152,11 +152,11 @@
           };
           probe-py-headers = pkgs.runCommand "probe-py-headers" {} ''
             mkdir $out
-            export PATH="${pkgs.datamodel-code-generator}/bin:${python}/bin/:$PATH"
-            env \
+            cp ${./probe_py/ruff.toml} ruff.toml
+            export PATH="${pkgs.ruff}/bin:${pkgs.datamodel-code-generator}/bin:${python}/bin/:$PATH" \
               JSONSCHEMA_OUTFILE=${probe-headers}/headers.json \
-              PYTHON_HEADER_OUTFILE=$out/headers.py \
-              python ${./probe_py/generate_headers.py}
+              PYTHON_HEADER_OUTFILE=$out/headers.py
+            python ${./probe_py/generate_headers.py}
           '';
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
@@ -195,6 +195,7 @@
             nativeCheckInputs = [
               packages.types-networkx
               pkgs.ruff
+              pkgs.ty
               python.pkgs.mypy
               python.pkgs.pytest
               python.pkgs.pytest-asyncio
@@ -203,10 +204,10 @@
             ];
             checkPhase = ''
               runHook preCheck
-              #ruff format --check probe_src # TODO: uncomment
-              ruff check probe_py/
-              python -c 'import probe_py'
-              mypy --strict --package probe_py
+              ruff --config=${./probe_py/ruff.toml} format --check .
+              ruff --config=${./probe_py/ruff.toml} check .
+              python -c 'import probe_py; print(probe_py.__file__)'
+              PYTHONPATH=".:$PYTHONPATH" ty check .
               runHook postCheck
             '';
           };

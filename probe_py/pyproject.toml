@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "probe_py"
-version = "0.1.0"
+version = "0.0.14"
 description = "Python library and CLI extensions for PROBE"
 authors = [
     {name = "Samuel Grayson", email = "sam@samgrayson.me"},

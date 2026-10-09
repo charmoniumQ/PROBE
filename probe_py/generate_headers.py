@@ -74,6 +74,14 @@ def fixup_autogen_ast(headers_py: pathlib.Path) -> None:
     add_properties(module)
     add_typedefs(module)
     headers_py.write_text(ast.unparse(module))
+    subprocess.run(
+        ["ruff", "--config=ruff.toml", "check", "--fix", "--unsafe-fixes", str(headers_py)],
+        check=True,
+    )
+    subprocess.run(
+        ["ruff", "--config=ruff.toml", "format", str(headers_py)],
+        check=True,
+    )
 
 
 def remove_unset(module: ast.Module) -> None:
