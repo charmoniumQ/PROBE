@@ -1,5 +1,4 @@
 use eyre::Result;
-use itertools::Itertools;
 
 #[derive(Clone)]
 pub struct Segment {
@@ -106,20 +105,20 @@ impl Segments {
         // Even if the segments overlap, the comparison will still be total.
         // We will detect overlaps after sorting.
         segments.sort_by(|s0, s1| s0.partial_cmp(s1).unwrap_or(std::cmp::Ordering::Equal));
-        match segments
-            .iter()
-            .combinations(2)
-            .find(|vec| vec[0].overlaps(vec[1]))
-        {
-            Some(vec) => Err(eyre::eyre!(
-                "0x{:08x}--0x{:08x} overlaps 0x{:08x}--0x{:08x}",
-                vec[0].range.start,
-                vec[0].range.end,
-                vec[1].range.start,
-                vec[1].range.end
-            )),
-            None => Ok(Self { segments }),
+        for i in 0..segments.len() {
+            for j in (i + 1)..segments.len() {
+                if segments[i].overlaps(&segments[j]) {
+                    return Err(eyre::eyre!(
+                        "0x{:08x}--0x{:08x} overlaps 0x{:08x}--0x{:08x}",
+                        segments[i].range.start,
+                        segments[i].range.end,
+                        segments[j].range.start,
+                        segments[j].range.end
+                    ));
+                }
+            }
         }
+        Ok(Self { segments })
     }
     fn idx(&self, pointer: usize) -> Option<usize> {
         self.segments
@@ -151,9 +150,11 @@ impl Segments {
     }
     pub fn extend(&self, other: &Self) -> Result<Self> {
         Self::new(
-            [self.segments.clone(), other.segments.clone()]
-                .into_iter()
-                .concat(),
+            self.segments
+                .iter()
+                .chain(other.segments.iter())
+                .cloned()
+                .collect(),
         )
     }
 }

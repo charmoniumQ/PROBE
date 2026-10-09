@@ -48,14 +48,16 @@ allowed = {
 unneeded = allowed
 
 for file in sys.argv[1:]:
-    needed =  {
+    needed = {
         sym.split("@")[0]
         for sym in subprocess.run(
             ["nm", "--dynamic", "--undefined-only", "--just-symbols", file],
             check=True,
             capture_output=True,
-            text=True
-        ).stdout.strip().splitlines()
+            text=True,
+        )
+        .stdout.strip()
+        .splitlines()
     }
 
     diff = needed - allowed
@@ -70,4 +72,6 @@ for file in sys.argv[1:]:
     unneeded = unneeded & reverse_diff
 
 if unneeded:
-    print(f"(Needed) WARNING: no file needed allowed symbols {unneeded} consider removing from allowed list")
+    print(
+        f"(Needed) WARNING: no file needed allowed symbols {unneeded} consider removing from allowed list",
+    )

@@ -40,14 +40,14 @@
     ...
   }: let
     targets = import ./targets.nix;
-    probe-ver = "0.0.13";
+    probe-ver = "0.0.14";
   in
     flake-utils.lib.eachSystem
     (builtins.attrNames targets)
     (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python313;
+        python = pkgs.python314;
         cli-wrapper-pkgs = cli-wrapper.packages."${system}";
         # IF flake = false, we need to do this instead
         old-pkgs = import old-nixpkgs {inherit system;};
@@ -61,7 +61,7 @@
           };
         };
         old-stdenv = pkgs.overrideCC pkgs.stdenv new-clang-old-glibc;
-        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py313;
+        charmonium-time-block-pkg = charmonium-time-block.packages."${system}".py314;
       in rec {
         packages = rec {
           types-networkx = python.pkgs.buildPythonPackage rec {
@@ -152,11 +152,11 @@
           };
           probe-py-headers = pkgs.runCommand "probe-py-headers" {} ''
             mkdir $out
-            export PATH="${pkgs.datamodel-code-generator}/bin:${python}/bin/:$PATH"
-            env \
+            cp ${./probe_py/ruff.toml} ruff.toml
+            export PATH="${pkgs.ruff}/bin:${pkgs.datamodel-code-generator}/bin:${python}/bin/:$PATH" \
               JSONSCHEMA_OUTFILE=${probe-headers}/headers.json \
-              PYTHON_HEADER_OUTFILE=$out/headers.py \
-              python ${./probe_py/generate_headers.py}
+              PYTHON_HEADER_OUTFILE=$out/headers.py
+            python ${./probe_py/generate_headers.py}
           '';
           probe-py = python.pkgs.buildPythonPackage rec {
             pname = "probe_py";
@@ -179,14 +179,11 @@
             };
             propagatedBuildInputs = [
               charmonium-time-block-pkg
-              python.pkgs.dulwich
-              python.pkgs.frozendict
               python.pkgs.msgspec
               python.pkgs.networkx
               python.pkgs.numpy
               python.pkgs.prov
               python.pkgs.pydot
-              python.pkgs.pygraphviz
               python.pkgs.pyyaml
               python.pkgs.rdflib
               python.pkgs.rich
@@ -198,6 +195,7 @@
             nativeCheckInputs = [
               packages.types-networkx
               pkgs.ruff
+              pkgs.ty
               python.pkgs.mypy
               python.pkgs.pytest
               python.pkgs.pytest-asyncio
@@ -206,10 +204,10 @@
             ];
             checkPhase = ''
               runHook preCheck
-              #ruff format --check probe_src # TODO: uncomment
-              ruff check probe_py/
-              python -c 'import probe_py'
-              mypy --strict --package probe_py
+              ruff --config=${./probe_py/ruff.toml} format --check .
+              ruff --config=${./probe_py/ruff.toml} check .
+              python -c 'import probe_py; print(probe_py.__file__)'
+              PYTHONPATH=".:$PYTHONPATH" ty check .
               runHook postCheck
             '';
           };
@@ -281,13 +279,10 @@
           probe-python = python.withPackages (pypkgs: [
             # probe_py runtime requirements
             charmonium-time-block-pkg
-            pypkgs.dulwich
-            pypkgs.frozendict
             pypkgs.msgspec
             pypkgs.networkx
             pypkgs.numpy
             pypkgs.pydot
-            pypkgs.pygraphviz
             pypkgs.pyyaml
             pypkgs.rich
             pypkgs.sqlalchemy
@@ -301,11 +296,10 @@
             packages.types-networkx
             pypkgs.datamodel-code-generator
             pypkgs.ipython
-            pypkgs.mypy
             pypkgs.pytest
             pypkgs.pytest-asyncio
             pypkgs.pytest-timeout
-            pypkgs.torch
+            # pypkgs.torch
             pypkgs.types-tqdm
 
             # libprobe build time requirement
@@ -355,6 +349,7 @@
               pkgs.alejandra
               pkgs.just
               pkgs.ruff
+              pkgs.ty
               pkgs.codespell
             ]
             # OpenJDK doesn't build on some platforms
