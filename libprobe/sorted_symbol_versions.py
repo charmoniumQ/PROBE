@@ -32,7 +32,7 @@ with pathlib.Path(path).open("rb") as stream:
             except ValueError:
                 version_num = ()
             symbols.append(
-                (lib_file_name, version_num, version_aux.name, expect_type(str, symbol.name))
+                (lib_file_name, version_num, version_aux.name, expect_type(str, symbol.name)),
             )
         else:
             symbols.append((version_idx, (), "", symbol.name))
@@ -58,6 +58,7 @@ def symbol_version_key(version_name: str) -> typing.Any:
 
 
 for lib_file_name, _, version_name, symbol_name in sorted(
-    symbols, key=lambda tup: symbol_version_key(tup[2])
+    symbols,
+    key=lambda tup: symbol_version_key(tup[2]),
 ):
     print(lib_file_name, version_name, symbol_name)

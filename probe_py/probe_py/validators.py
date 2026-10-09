@@ -14,7 +14,8 @@ libprobe, but we should still test them, for defensive coding and error-localiza
 def validate_probe_log(
     probe_log: ProbeLog,
 ) -> typing.Iterator[str]:
-    """Yield validation errors as strings.
+    """
+    Yield validation errors as strings.
 
     If you are fixing errors, resolve the first one first. Programmers can
     assume the errors above the particular check have been checked and resolved.

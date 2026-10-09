@@ -141,7 +141,7 @@ def workflowize(
                     inputs=list(inputs),
                     outputs=list(outputs),
                     exe=pid_to_exe[pid],
-                )
+                ),
             )
 
     return Workflow(rules)
@@ -162,11 +162,11 @@ def serialize_makefile(workflow: Workflow, makefile: pathlib.Path) -> None:
                         str(
                             path.relative_to(makefile.parent)
                             if path.is_relative_to(makefile.parent)
-                            else path
+                            else path,
                         )
                         for path in rule.outputs
-                    ]
-                )
+                    ],
+                ),
             )
             fobj.write(": ")
             fobj.write(
@@ -175,11 +175,11 @@ def serialize_makefile(workflow: Workflow, makefile: pathlib.Path) -> None:
                         str(
                             path.relative_to(makefile.parent)
                             if path.is_relative_to(makefile.parent)
-                            else path
+                            else path,
                         )
                         for path in rule.inputs
-                    ]
-                )
+                    ],
+                ),
             )
             fobj.write("\n\t")
             fobj.write(shlex.join(rule.command))

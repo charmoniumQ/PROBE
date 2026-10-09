@@ -109,7 +109,8 @@ def search_with_pruning(
     breadth_first: bool = True,
     sort_nodes: typing.Callable[[list[_Node]], list[_Node]] = lambda lst: lst,
 ) -> typing.Generator[_Node | None, bool | None, None]:
-    """DFS/BFS but send False to prune this branch.
+    """
+    DFS/BFS but send False to prune this branch.
 
     traversal = bfs_with_pruning
     for node in traversal:
@@ -179,7 +180,8 @@ def combine_twin_nodes(
     graph: nx.DiGraph[_Node],
     combinable: typing.Callable[[_Node], bool],
 ) -> nx.DiGraph[frozenset[_Node]]:
-    """Condensation, replacing combinable twins with a single node.
+    """
+    Condensation, replacing combinable twins with a single node.
 
     - All nodes satisfying the combinable predicate will be replaced with a
       `frozenset[_Node]`. All "twin" nodes, that is nodes with the same
@@ -216,7 +218,8 @@ def retain_nodes_in_dag(
     retained_nodes: frozenset[_Node],
     edge_data: typing.Callable[[nx.DiGraph[_Node], typing.Sequence[_Node]], EdgeData],
 ) -> nx.DiGraph[_Node]:
-    """Return a graph with only the retained nodes.
+    """
+    Return a graph with only the retained nodes.
 
     - if A and B are retained and connected by a path of non-retained nodes in the input,
       then there is an edge from A to B in the output, whose edge data is edge_data(dag, path_from_A_to_B).
@@ -347,7 +350,8 @@ def topo_sort_with_cycles(
     graph: nx.DiGraph[_Node],
     key: typing.Callable[[_Node], _Priority],
 ) -> collections.abc.Iterator[_Node]:
-    """Yield nodes in topological order if possible.
+    """
+    Yield nodes in topological order if possible.
 
     If cycles exist, arbitrarily choose one node from a cycle
     to continue processing.

@@ -66,7 +66,8 @@ class GccCGenerator(CGenerator):
             s += " : " + self.visit(n.bitsize)
         if n.init:
             s += " = " + self._parenthesize_if(
-                n.init, lambda n: isinstance(n, (Assignment, Compound))
+                n.init,
+                lambda n: isinstance(n, (Assignment, Compound)),
             )
         return s
 
@@ -100,7 +101,8 @@ class FunctionalNodeVisitor(typing.Generic[_T]):
         return visitor(node)
 
     def generic_visit(self, node: Node) -> list[_T]:
-        """Visit a node of an unknown type.
+        """
+        Visit a node of an unknown type.
 
         Called if no explicit visitor function exists for a
         node. Implements preorder visiting of the node.
@@ -216,7 +218,8 @@ class ParsedFunc:
             params=tuple(
                 (param_decl.name, param_decl.type)
                 for param_decl in expect_type(
-                    ParamList, expect_type(FuncDecl, decl.type).args
+                    ParamList,
+                    expect_type(FuncDecl, decl.type).args,
                 ).params
                 if isinstance(param_decl, Decl)
             ),
@@ -285,7 +288,9 @@ class ParsedFunc:
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
 ast = pycparser.parse_file(
-    filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument", "-I."]
+    filename,
+    use_cpp=True,
+    cpp_args=["-Wno-unused-command-line-argument", "-I."],
 )
 funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
@@ -375,7 +380,7 @@ init_function_pointers = ParsedFunc(
                     # ),
                 ]
                 for func_name, func in funcs.items()
-            ]
+            ],
         ),
     ],
 ).definition()
@@ -439,7 +444,7 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                             + ')"',
                         ),
                         *printable_args,
-                    ]
+                    ],
                 ),
             ),
         )
@@ -459,7 +464,8 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
     # But it can't prove that for the other execs
     if func.name != "execle" and not noreturn:
         pre_call_stmts.insert(
-            0, define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno"))
+            0,
+            define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno")),
         )
     post_call_stmts = []
 
@@ -548,10 +554,10 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                                         value=f'"{func.name} returned {return_type_flag}"',
                                     ),
                                     pycparser.c_ast.ID(name="ret"),
-                                ]
+                                ],
                             ),
                         ),
-                    ]
+                    ],
                 )
 
         post_call_stmts.append(
@@ -669,7 +675,7 @@ __attribute__((visibility("default"))) void closefrom(int lowfd);
 
 void init_function_pointers();
 """
-    + f"static const bool INTERPOSE_READ_WRITES = {str(interpose_read_writes).lower()};\n"
+    f"static const bool INTERPOSE_READ_WRITES = {str(interpose_read_writes).lower()};\n"
 )
 (generated / "libc_hooks.h").write_text(
     warning
@@ -680,7 +686,7 @@ void init_function_pointers();
         pycparser.c_ast.FileAST(
             ext=[
                 *func_pointer_extern_declarations,
-            ]
+            ],
         ),
     ),
 )
@@ -795,7 +801,7 @@ _Static_assert(sizeof(struct TimeVal) == sizeof(struct timeval), "");
                 *func_pointer_declarations,
                 init_function_pointers,
                 *wrapper_func_declarations,
-            ]
+            ],
         ),
     ),
 )

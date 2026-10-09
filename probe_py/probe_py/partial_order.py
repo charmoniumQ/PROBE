@@ -293,7 +293,8 @@ def topo_sort_subset(
     upper_bound: It[_Node],
     lower_bound: It[_Node],
 ) -> typing.Generator[_Node | None, bool | None, None]:
-    """Antichain traversal with pruning.
+    """
+    Antichain traversal with pruning.
 
     Antichain traversal means that nodes will be iterated in order starting from upper_bound.
 

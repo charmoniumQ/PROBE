@@ -89,8 +89,8 @@ class ProcessContext(ctypes.Structure):
         ProcessContext.new(
             libprobe_path=libprobe,
             copy_files=CopyFilesMode.DONT_COPY,
-        )
-    )
+        ),
+    ),
 )
 
 

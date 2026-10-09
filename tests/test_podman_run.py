@@ -48,7 +48,8 @@ def nix_built_probe() -> pathlib.Path:
 
 @pytest.mark.skip("Too slow")
 @pytest.mark.skipif(
-    not does_podman_work() or not does_nix_work(), reason="Podman or Nix doesn't work"
+    not does_podman_work() or not does_nix_work(),
+    reason="Podman or Nix doesn't work",
 )
 @pytest.mark.parametrize(
     "image",

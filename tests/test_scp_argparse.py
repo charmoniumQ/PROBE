@@ -6,7 +6,7 @@ from probe_py.scp import parse_scp_args
 
 def test_parse_scp_args() -> None:
     assert parse_scp_args(
-        ["test.txt", "host:", "user@host:", "host:test.txt", "user@host:test.txt", "test.txt"]
+        ["test.txt", "host:", "user@host:", "host:test.txt", "user@host:test.txt", "test.txt"],
     ) == (
         [
             HostPath(

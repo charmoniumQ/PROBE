@@ -95,7 +95,7 @@ def build_oci_image(
                 if b"$" in key_val:
                     # TODO: figure out how to escape money
                     console.log(
-                        f"Skipping {key_val.decode(errors='surrogate')} because $ confuses Buildah."
+                        f"Skipping {key_val.decode(errors='surrogate')} because $ confuses Buildah.",
                     )
                     continue
                 env.append("--env")
@@ -165,7 +165,7 @@ def get_files(
             )
             if not isinstance(first_op, InitExecEpoch):
                 console.print(
-                    "First op is not InitExecEpoch. Are you sure this probe_log is valid?"
+                    "First op is not InitExecEpoch. Are you sure this probe_log is valid?",
                 )
                 raise typer.Exit(code=1)
             fds: dict[OpenNumber, pathlib.Path] = {
@@ -199,7 +199,8 @@ def copy_file_closure(
     copy: bool,
     verbose: bool,
 ) -> None:
-    """Extract files used by the application recoreded in probe_log to destination.
+    """
+    Extract files used by the application recoreded in probe_log to destination.
 
     If the required file are recorded in probe_log, we will use that.
     However, probe_log only captures files that get mutated _during the $cmd_.

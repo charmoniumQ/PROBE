@@ -56,7 +56,7 @@ def multilevel_table(
                         [
                             f"union _{camel_case}{i}Union {{ struct _{camel_case}{i + 1}Struct* _Nullable ptr; enum _{camel_case}Flag flag; }};",
                             f"struct _{camel_case}{i}Struct {{ _Atomic(union _{camel_case}{i}Union) array [{1 << log_lengths[i]}]; }};",
-                        ]
+                        ],
                     )
                     for i in range(last_level - 1, -1, -1)
                 ],
@@ -67,8 +67,8 @@ def multilevel_table(
                 f"{fn_attrs} _Atomic({value_type})* _Nonnull {snakecase}_address_of_strong(struct {camel_case}* _Nonnull {snakecase}, {index_type} index);",
                 "",
                 f"// sizeof table with one entry = {sizeof_one_entry / 1024:.1f}KiB = {sizeof_one_entry / 1024 / 1024:.1f}MiB",
-            ]
-        )
+            ],
+        ),
     )
     printf_flag = {
         32: "%u",
@@ -103,7 +103,7 @@ def multilevel_table(
                             "",
                         ]
                         for i in range(last_level)
-                    ]
+                    ],
                 ),
                 f"  return &struct{last_level}->array[_BITS(index, {lowest_bit[last_level]}L, {log_lengths[last_level]}L)];",
                 "}",
@@ -133,12 +133,12 @@ def multilevel_table(
                             "",
                         ]
                         for i in range(last_level)
-                    ]
+                    ],
                 ),
                 f"  return &struct{last_level}->array[_BITS(index, {lowest_bit[last_level]}L, {log_lengths[last_level]}L)];",
                 "}",
-            ]
-        )
+            ],
+        ),
     )
 
 

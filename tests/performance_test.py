@@ -54,7 +54,11 @@ def resource_call(
             raise
         stop = datetime.datetime.now(tz=datetime.timezone.utc)
         return Result(
-            p.returncode, stdout.decode(), stderr.decode(), (stop - start).total_seconds(), p.rusage
+            p.returncode,
+            stdout.decode(),
+            stderr.decode(),
+            (stop - start).total_seconds(),
+            p.rusage,
         )
 
 
@@ -70,7 +74,10 @@ def cleanup() -> None:
 
 
 def benchmark_command(
-    command: list[str], warmup_iterations: int, benchmark_iterations: int, transcribe_flag: bool
+    command: list[str],
+    warmup_iterations: int,
+    benchmark_iterations: int,
+    transcribe_flag: bool,
 ) -> list[Result]:
     results = []
 
@@ -96,7 +103,7 @@ def benchmark_command(
         if transcribe_flag:
             print(f"    Running probe transcribe -i {PROBE_RECORD_DIR} -o {PROBE_LOG}")
             transcribe_result = resource_call(
-                ["probe", "transcribe", "-i", str(PROBE_RECORD_DIR), "-o", str(PROBE_LOG)]
+                ["probe", "transcribe", "-i", str(PROBE_RECORD_DIR), "-o", str(PROBE_LOG)],
             )
             if result.returncode != 0:
                 print("      Transcribe returned non-zero")
@@ -136,12 +143,14 @@ def write_results_to_csv(
                 "ru_nsignals": rusage.ru_nsignals,
                 "ru_nvcsw": rusage.ru_nvcsw,
                 "ru_nivcsw": rusage.ru_nivcsw,
-            }
+            },
         )
 
 
 def benchmark_with_transcription(
-    commands_to_run: list[list[str]], warmup_count: int, benchmark_count: int
+    commands_to_run: list[list[str]],
+    warmup_count: int,
+    benchmark_count: int,
 ) -> None:
     path = pathlib.Path("benchmark_results.csv")
     with path.open("w") as csv_file:
@@ -176,7 +185,10 @@ def benchmark_with_transcription(
             print(f"  Running benchmark for command (No PROBE): {shlex.join(command_args)}")
             transcribe_flag = False
             no_probe_results = benchmark_command(
-                command_args, warmup_count, benchmark_count, transcribe_flag
+                command_args,
+                warmup_count,
+                benchmark_count,
+                transcribe_flag,
             )
             write_results_to_csv(writer, shlex.join(command_args), "No PROBE", no_probe_results)
 
@@ -185,7 +197,10 @@ def benchmark_with_transcription(
             record_command_args = ["probe", "record", *command_args]
             print(f"  Running benchmark for command (Record): {shlex.join(record_command_args)}")
             record_results = benchmark_command(
-                record_command_args, warmup_count, benchmark_count, transcribe_flag
+                record_command_args,
+                warmup_count,
+                benchmark_count,
+                transcribe_flag,
             )
             write_results_to_csv(writer, shlex.join(command_args), "Record", record_results)
 
@@ -194,10 +209,13 @@ def benchmark_with_transcription(
             transcribe_flag = True
             no_transcribe_args = ["probe", "record", "--no-transcribe", *command_args]
             print(
-                f"  Running benchmark for command probe no-transcribe: {shlex.join(no_transcribe_args)}"
+                f"  Running benchmark for command probe no-transcribe: {shlex.join(no_transcribe_args)}",
             )
             probe_results = benchmark_command(
-                no_transcribe_args, warmup_count, benchmark_count, transcribe_flag
+                no_transcribe_args,
+                warmup_count,
+                benchmark_count,
+                transcribe_flag,
             )
             write_results_to_csv(writer, shlex.join(command_args), "no-transcribe", probe_results)
 

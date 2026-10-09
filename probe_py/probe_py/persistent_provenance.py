@@ -36,7 +36,7 @@ def get_local_node_name() -> str:
         return node_name_path.read_text()
     hostname = socket.gethostname()
     rng = random.Random(
-        int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp()) ^ hash(hostname)
+        int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp()) ^ hash(hostname),
     )
     bits_per_hex_digit = 4
     hex_digits = 8
@@ -180,7 +180,8 @@ def get_prov_upstream(
     root_inode_version: list[InodeVersion],
     host: str,
 ) -> tuple[dict[int, Process], dict[InodeVersion, int | None]]:
-    """Answers what is needed to reconstruct the provenance of root_inode_version on another host.
+    """
+    Answers what is needed to reconstruct the provenance of root_inode_version on another host.
 
     The answer is a set of Process objects and a map of InodeVersion writes.
     """

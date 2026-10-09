@@ -111,7 +111,7 @@ def add_processes(
                     [rdflib.Literal(arg.decode()) for arg in init_exec_op.argv],
                 )  # type: ignore[no-untyped-call]
                 activity = exec_to_activity[ancestor_exec_pair] = rdflib.URIRef(
-                    f"exec_{ancestor_exec_pair.pid}_{ancestor_exec_pair.exec_no}"
+                    f"exec_{ancestor_exec_pair.pid}_{ancestor_exec_pair.exec_no}",
                 )
                 graph.add((activity, RDF.type, PROV.Activity))
                 graph.add((activity, PROV.wasAssociatedWith, user))
@@ -122,14 +122,14 @@ def add_processes(
                         activity,
                         AD_HOC_NAMESPACE.environment_hash,
                         rdflib.Literal(hash_environment(init_exec_op.env)),
-                    )
+                    ),
                 )
                 graph.add(
                     (
                         activity,
                         RDFS.label,
                         rdflib.Literal(shlex.join([arg.decode() for arg in init_exec_op.argv])),
-                    )
+                    ),
                 )
             else:
                 activity = exec_to_activity[ancestor_exec_pair]
@@ -171,14 +171,14 @@ def add_inodes(
                             device_term,
                             RDFS.label,
                             rdflib.Literal(f"device {device.major_id}_{device.minor_id}"),
-                        )
+                        ),
                     )
                     graph.add((device_term, RDF.type, AD_HOC_NAMESPACE.OSFileSystemDevice))
                     graph.add(
-                        (device_term, AD_HOC_NAMESPACE.major_id, rdflib.Literal(device.major_id))
+                        (device_term, AD_HOC_NAMESPACE.major_id, rdflib.Literal(device.major_id)),
                     )
                     graph.add(
-                        (device_term, AD_HOC_NAMESPACE.minor_id, rdflib.Literal(device.minor_id))
+                        (device_term, AD_HOC_NAMESPACE.minor_id, rdflib.Literal(device.minor_id)),
                     )
                     device_to_term[device] = device_term
                 inode = ivn.inode
@@ -192,16 +192,18 @@ def add_inodes(
                         ]
                         representative_path = min(max_paths, key=lambda path: path.parts)
                         inode_to_major_version = path_to_inode_to_major_version.setdefault(
-                            representative_path, {}
+                            representative_path,
+                            {},
                         )
                         major_version = inode_to_major_version.setdefault(
-                            inode, len(inode_to_major_version) + 1
+                            inode,
+                            len(inode_to_major_version) + 1,
                         )
                     else:
                         representative_path = None
                         major_version = inode.number
                     inode_term = rdflib.URIRef(
-                        f"inode_{device.major_id}_{device.minor_id}_{inode.number}"
+                        f"inode_{device.major_id}_{device.minor_id}_{inode.number}",
                     )
                     graph.add((inode_term, RDF.type, AD_HOC_NAMESPACE.OSInode))
                     if representative_path is not None:
@@ -210,7 +212,7 @@ def add_inodes(
                                 inode_term,
                                 RDFS.label,
                                 rdflib.Literal(f"{representative_path!s} v{major_version}"),
-                            )
+                            ),
                         )
                     else:
                         graph.add(
@@ -218,7 +220,7 @@ def add_inodes(
                                 inode_term,
                                 RDFS.label,
                                 rdflib.Literal(f"<anonymous path {major_version}>"),
-                            )
+                            ),
                         )
                     graph.add((inode_term, AD_HOC_NAMESPACE.device, device_to_term[device]))
                     graph.add((inode_term, AD_HOC_NAMESPACE.number, rdflib.Literal(inode.number)))
@@ -272,7 +274,7 @@ def add_inode_versions(
                 if ivn.inode in inode_to_entity:
                     representative_path, major_version, inode_term = inode_to_entity[ivn.inode]
                     ivn_to_entity[ivn] = entity = rdflib.URIRef(
-                        f"inodeversion_{ivn.inode.device.major_id}_{ivn.inode.device.minor_id}_{ivn.inode.number}_{ivn.version}"
+                        f"inodeversion_{ivn.inode.device.major_id}_{ivn.inode.device.minor_id}_{ivn.inode.number}_{ivn.version}",
                     )
                     graph.add((entity, RDF.type, PROV.Entity))
                     graph.add((entity, RDF.type, AD_HOC_NAMESPACE.OSInodeVersion))
@@ -282,9 +284,9 @@ def add_inode_versions(
                                 entity,
                                 RDFS.label,
                                 rdflib.Literal(
-                                    f"{representative_path!s} v{major_version}.{ivn.version}"
+                                    f"{representative_path!s} v{major_version}.{ivn.version}",
                                 ),
-                            )
+                            ),
                         )
                     else:
                         graph.add(
@@ -292,7 +294,7 @@ def add_inode_versions(
                                 entity,
                                 RDFS.label,
                                 rdflib.Literal(f"<anonymous path {major_version} v{ivn.version}>"),
-                            )
+                            ),
                         )
                     graph.add((entity, AD_HOC_NAMESPACE.inode, inode_term))
                     graph.add((entity, AD_HOC_NAMESPACE.version, rdflib.Literal(ivn.version)))
@@ -314,7 +316,7 @@ def add_edges(
                         for destination_ivn in destination:
                             if destination_ivn_term := ivn_to_entity.get(destination_ivn):
                                 graph.add(
-                                    (destination_ivn_term, PROV.wasRevisionOf, source_ivn_term)
+                                    (destination_ivn_term, PROV.wasRevisionOf, source_ivn_term),
                                 )
             case (dataflow_graph.IVNs(), dataflow_graph.Quads()):
                 activity = exec_to_activity[destination.exec_pair()]

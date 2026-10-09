@@ -215,7 +215,8 @@ def scratch_directory(
     request: pytest.FixtureRequest,
     scratch_directory_parent: pathlib.Path,
 ) -> pathlib.Path:
-    """Return a predictable, persistent, empty directory.
+    """
+    Return a predictable, persistent, empty directory.
 
     This directory will be ignored by Git, but persistent after the test's
     completion for manual inspection. It gets cleared every re-test however.

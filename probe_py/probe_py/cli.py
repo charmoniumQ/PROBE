@@ -152,7 +152,8 @@ def hb_graph(
     strict: Annotated[bool, strict_option] = True,
     debug: Annotated[bool, debug_option] = False,
 ) -> None:
-    """Write a happens-before graph on the operations in probe_log.
+    """
+    Write a happens-before graph on the operations in probe_log.
 
     Each operation is an individual exec, open, close, fork, etc.
 
@@ -168,7 +169,9 @@ def hb_graph(
             pass
         case OpType.MINIMAL:
             hbg = hb_graph_module.retain_only(
-                probe_log_obj, hbg, lambda _node, op: isinstance(op.data, ops.InitExecEpoch)
+                probe_log_obj,
+                hbg,
+                lambda _node, op: isinstance(op.data, ops.InitExecEpoch),
             )
         case OpType.FILE:
             hbg = hb_graph_module.retain_only(
@@ -215,7 +218,8 @@ def dataflow_graph(
         typer.Option(help="Err on the side of adding an edge rather than missing one."),
     ] = False,
 ) -> None:
-    """Write a dataflow graph for probe_log.
+    """
+    Write a dataflow graph for probe_log.
 
     Dataflow shows the name of each process, its read files, and its write files.
     """
@@ -512,7 +516,8 @@ def docker_image(
     ] = pathlib.Path("probe_log"),
     verbose: bool = True,
 ) -> None:
-    """Generate a docker image from a probe_log with --copy-files.
+    """
+    Generate a docker image from a probe_log with --copy-files.
 
     This may not work with moderately complex applications, like Python, yet.
 
@@ -552,7 +557,8 @@ def oci_image(
     ] = pathlib.Path("probe_log"),
     verbose: bool = True,
 ) -> None:
-    """Generate an OCI image from a probe_log with --copy-files.
+    """
+    Generate an OCI image from a probe_log with --copy-files.
 
     This may not work with moderately complex applications, like Python, yet.
 
@@ -682,7 +688,8 @@ def process_tree(
         probe_log_help,
     ] = pathlib.Path("probe_log"),
 ) -> None:
-    """Write a process tree from probe_log.
+    """
+    Write a process tree from probe_log.
 
     Digraph shows the clone ops of the parent process and the children.
     """
@@ -704,7 +711,8 @@ def ops_jsonl(
         probe_log_help,
     ] = pathlib.Path("probe_log"),
 ) -> None:
-    """Export each op to a JSON line.
+    """
+    Export each op to a JSON line.
 
     The format is subject to change as PROBE evolves. Use with caution!
     """
@@ -725,8 +733,8 @@ def ops_jsonl(
                                     dataclasses.asdict(op),
                                 ),
                                 "op_data_type": type(op.data).__name__,
-                            }
-                        )
+                            },
+                        ),
                     )
 
 

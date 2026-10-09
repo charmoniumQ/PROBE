@@ -19,7 +19,8 @@ from .ptypes import Exec, ExecNo, Host, InodeVersion, KernelThread, Pid, ProbeLo
 def parse_probe_log_ctx(
     path_to_probe_log: pathlib.Path,
 ) -> typing.Iterator[ProbeLog]:
-    """Parse probe log.
+    """
+    Parse probe log.
 
     In this contextmanager, copied_files are extracted onto the disk.
 
@@ -56,7 +57,8 @@ def parse_probe_log_ctx(
                     )
                     assert ops_list
                     if not isinstance(
-                        ops_list[-1].data, (ops.ExitThread, ops.ExitProcess, ops.Exec)
+                        ops_list[-1].data,
+                        (ops.ExitThread, ops.ExitProcess, ops.Exec),
                     ):
                         # Every thread should end in an ExitThread and possibly an ExitProcess
                         # Consider:
@@ -70,7 +72,7 @@ def parse_probe_log_ctx(
                                 pthread_id=ops_list[-1].pthread_id,
                                 iso_c_thread_id=ops_list[-1].iso_c_thread_id,
                                 ferrno=0,
-                            )
+                            ),
                         )
                     threads[tid] = KernelThread(tid, ops_list)
                 execs[exec_no] = Exec(exec_no, threads)
@@ -93,7 +95,8 @@ def parse_probe_log_ctx(
 def parse_probe_log(
     path_to_probe_log: pathlib.Path,
 ) -> ProbeLog:
-    """Parse probe log.
+    """
+    Parse probe log.
 
     Unlike parse_probe_ctx, the copied_files will not be accessible.
     """

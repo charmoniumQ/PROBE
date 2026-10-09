@@ -7,7 +7,8 @@ from probe_py.remote_access import Host, HostPath, copy_provenance
 
 
 def scp_with_provenance(scp_args: list[str]) -> int:
-    """Do an SCP transfer while also transfering prov.
+    """
+    Do an SCP transfer while also transfering prov.
 
     1. get the src_inode_version and src_inode_metadata
     2. upload the files
@@ -32,7 +33,8 @@ def scp_with_provenance(scp_args: list[str]) -> int:
 
 
 def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
-    """Convert arguments to scp to a list of sources and a destination.
+    """
+    Convert arguments to scp to a list of sources and a destination.
 
     Note that the Host type contains the instructions/options needed to connect to it.
     """
@@ -59,8 +61,8 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
             [
                 [f"-{option}" for option in arg[1:]] if arg.startswith("-") else [arg]
                 for arg in scp_args
-            ]
-        )
+            ],
+        ),
     )
 
     i = 0
@@ -108,24 +110,27 @@ def parse_scp_args(scp_args: list[str]) -> tuple[list[HostPath], HostPath]:
             sources.append(
                 HostPath(
                     Host(
-                        match.group("host"), match.group("user"), this_ssh_options, this_scp_options
+                        match.group("host"),
+                        match.group("user"),
+                        this_ssh_options,
+                        this_scp_options,
                     ),
                     Path(match.group("path") or ""),
-                )
+                ),
             )
         elif match := re.match(scp_path_regex, arg):
             sources.append(
                 HostPath(
                     Host(None, None, [], []),
                     Path(arg),
-                )
+                ),
             )
         elif match := re.match(scp_address_regex, arg):
             sources.append(
                 HostPath(
                     Host(match.group("host"), match.group("user"), ssh_options, scp_options),
                     Path(match.group("path") or ""),
-                )
+                ),
             )
         else:
             msg = f"Invalid scp argument {arg}"
@@ -166,7 +171,7 @@ scp_url_regex = whole_string(
         named_group("host", host_regex),
         optional(concat(":", named_group("port", r"\d+"))),
         optional(concat("/", named_group("path", ".*"))),
-    )
+    ),
 )
 path_regex = "[^:@]*"
 scp_path_regex = whole_string(path_regex)
@@ -176,5 +181,5 @@ scp_address_regex = whole_string(
         optional(concat(named_group("user", unix_username_regex), "@")),
         named_group("host", host_regex),
         optional(concat(":", named_group("path", path_regex))),
-    )
+    ),
 )

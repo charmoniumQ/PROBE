@@ -9,7 +9,8 @@ _Task = typing.TypeVar("_Task", bound=collections.abc.Hashable)
 
 
 class PriorityQueue(typing.Generic[_Task, _Priority]):
-    """Minimum-priority queue.
+    """
+    Minimum-priority queue.
 
     Use getitem and getitem to view and change a task's priority.
 

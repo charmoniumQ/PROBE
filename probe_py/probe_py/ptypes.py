@@ -62,7 +62,7 @@ class Host:
         ):
             machine_id_bytes = int(data, 16).to_bytes(16)
             hashed_machine_id = int.from_bytes(
-                hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()
+                hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest(),
             ) & ((1 << 64) - 1)
             return Host(socket.gethostname(), hashed_machine_id)
         # In containers and GitHub CI, SystemD machine-id may not exist.
@@ -323,7 +323,8 @@ class AccessMode(enum.Enum):
         raise InvalidProbeLog(msg)
 
     def downgrade(self, *, is_write: bool, is_read: bool) -> AccessMode | None:
-        """Convert to a new accessmode based on actual usage.
+        """
+        Convert to a new accessmode based on actual usage.
 
         Suppose the actual access mode was only ever accessed in the provided way.
         What should the new 'downgraded' access mode be?

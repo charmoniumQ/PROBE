@@ -75,7 +75,7 @@ def retain_only(
             quad
             for quad in full_hb_graph.nodes()
             if retain_node_predicate(quad, probe_log.get_op(quad))
-        }
+        },
     )
     ret = graph_utils.retain_nodes_in_dag(
         full_hb_graph,
@@ -190,7 +190,11 @@ def _create_clone_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) ->
                     hb_graph.add_edge(node, target, type=EdgeType.CLONE_PROC)
             case TaskType.PTHREAD | TaskType.ISO_C_THREAD:
                 targets = get_first_task_nodes(
-                    probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id
+                    probe_log,
+                    node.pid,
+                    node.exec_no,
+                    op.data.task_type,
+                    op.data.task_id,
                 )
                 for target in targets:
                     assert hb_graph.has_node(target)
@@ -241,7 +245,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                             probe_log.processes[node.pid]
                             .execs[node.exec_no]
                             .threads[target_tid]
-                            .ops
+                            .ops,
                         )
                         - 1,
                     )
@@ -262,7 +266,7 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                             probe_log.processes[target_pid]
                             .execs[last_exec_no]
                             .threads[target_pid.main_thread()]
-                            .ops
+                            .ops,
                         )
                         - 1
                     )
@@ -271,7 +275,11 @@ def _create_wait_edges(node: OpQuad, probe_log: ProbeLog, hb_graph: HbGraph) -> 
                     hb_graph.add_edge(target, node, type=EdgeType.WAIT_PROC)
             case TaskType.PTHREAD | TaskType.ISO_C_THREAD:
                 targets = get_first_task_nodes(
-                    probe_log, node.pid, node.exec_no, op.data.task_type, op.data.task_id
+                    probe_log,
+                    node.pid,
+                    node.exec_no,
+                    op.data.task_type,
+                    op.data.task_id,
                 )
                 for target in targets:
                     assert hb_graph.has_node(target)
@@ -334,12 +342,16 @@ def _create_other_thread_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                         and len(list(hb_graph.successors(last_op))) == 0
                     ):
                         if last_op_main_thread not in hb_graph.predecessors(
-                            first_op
+                            first_op,
                         ) and not graph_utils.would_create_cycle(
-                            hb_graph, last_op, last_op_main_thread
+                            hb_graph,
+                            last_op,
+                            last_op_main_thread,
                         ):
                             hb_graph.add_edge(
-                                last_op, last_op_main_thread, type=EdgeType.WAIT_THREAD
+                                last_op,
+                                last_op_main_thread,
+                                type=EdgeType.WAIT_THREAD,
                             )
                         else:
                             warnings.warn(
@@ -357,7 +369,7 @@ def _create_open_number_edges(probe_log: ProbeLog, hb_graph: HbGraph) -> None:
                 for op_no, op in enumerate(thread.ops):
                     if isinstance(op.data, Open):
                         opens_by_fd[op.data.open_number.fd].append(
-                            (op.data.open_number.number, OpQuad(pid, exec_no, tid, op_no))
+                            (op.data.open_number.number, OpQuad(pid, exec_no, tid, op_no)),
                         )
             for opens in opens_by_fd.values():
                 sorted_opens = sorted(opens)
@@ -389,7 +401,7 @@ def label_nodes(probe_log: ProbeLog, hb_graph: HbGraph, *, add_op_no: bool = Fal
                                 width=80,
                             )
                             for arg in op.data.argv
-                        ]
+                        ],
                     ),
                     width=80 * 10,
                 ),

@@ -73,5 +73,5 @@ for file in sys.argv[1:]:
 
 if unneeded:
     print(
-        f"(Needed) WARNING: no file needed allowed symbols {unneeded} consider removing from allowed list"
+        f"(Needed) WARNING: no file needed allowed symbols {unneeded} consider removing from allowed list",
     )

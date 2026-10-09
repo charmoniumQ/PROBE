@@ -26,6 +26,10 @@ ignore = [
   "TRY003",
   "EM102",
   "TD001",
+  "D203",
+  "D212",
+  "COM812",
+  "COM819",
 
   # TODO: re-enable these errors
   "C901",

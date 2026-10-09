@@ -166,7 +166,7 @@ def is_write(self) -> bool:
 
 def __str__(self) -> str:
     return f"{self.fd},{self.number}{"R" if self.is_read else ""}{"W" if self.is_write else ""}"
-""").body
+""").body,
     )
 
 
@@ -297,7 +297,7 @@ def replace(
                 **{
                     keyword: replace(value, needle, substitute) if keyword != "parent" else value
                     for keyword, value in haystack.__dict__.items()
-                }
+                },
             )
 
 
