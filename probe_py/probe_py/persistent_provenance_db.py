@@ -10,9 +10,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class Base(DeclarativeBase):
     pass
 
+
 _engine: Engine | None = None
+
+
 def get_engine() -> Engine:
-    global _engine # noqa: PLW0603
+    global _engine  # noqa: PLW0603
     if _engine is None:
         home = pathlib.Path(xdg_base_dirs.xdg_data_home())
         home.mkdir(parents=True, exist_ok=True)
@@ -21,6 +24,7 @@ def get_engine() -> Engine:
         _engine = create_engine(f"sqlite:///{database_path}", echo=True)
         Base.metadata.create_all(_engine)
     return _engine
+
 
 class ProcessThatWrites(Base):
     __tablename__ = "process_that_writes"

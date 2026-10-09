@@ -80,13 +80,18 @@ class ProcessContext(ctypes.Structure):
             copy_files=copy_files.value,
         )
 
+
 (probe_dir / "pids").mkdir()
 (probe_dir / "context").mkdir()
 (probe_dir / "inodes").mkdir()
-(probe_dir / "process_tree_context").write_bytes(bytearray(ProcessContext.new(
-    libprobe_path=libprobe,
-    copy_files=CopyFilesMode.DONT_COPY,
-)))
+(probe_dir / "process_tree_context").write_bytes(
+    bytearray(
+        ProcessContext.new(
+            libprobe_path=libprobe,
+            copy_files=CopyFilesMode.DONT_COPY,
+        )
+    )
+)
 
 
 print(f"{libprobe=}")

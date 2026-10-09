@@ -31,6 +31,7 @@ class ExecNo(int):
         if self != 0:
             return ExecNo(self - 1)
         raise RuntimeError
+
     def next(self) -> ExecNo:
         return ExecNo(self + 1)
 
@@ -56,9 +57,13 @@ class Host:
         # If a stable unique identifier that is tied to the machine is needed for some application,
         # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
         # In containers (no running systemd) this file exists but is empty, so we should detect-and-skip empty-file.
-        if consts.SYSTEMD_MACHINE_ID.exists() and (data := consts.SYSTEMD_MACHINE_ID.read_text().strip()):
+        if consts.SYSTEMD_MACHINE_ID.exists() and (
+            data := consts.SYSTEMD_MACHINE_ID.read_text().strip()
+        ):
             machine_id_bytes = int(data, 16).to_bytes(16)
-            hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)
+            hashed_machine_id = int.from_bytes(
+                hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()
+            ) & ((1 << 64) - 1)
             return Host(socket.gethostname(), hashed_machine_id)
         # In containers and GitHub CI, SystemD machine-id may not exist.
         # Our alternative is to create a random iD, and store it in a persistent location
@@ -75,6 +80,7 @@ class Host:
 class Device:
     major_id: int
     minor_id: int
+
     def __str__(self) -> str:
         return f"device {self.major_id}_{self.minor_id}"
 
@@ -88,7 +94,12 @@ class Inode:
 
     @staticmethod
     def from_ops_inode(inode: headers.Inode) -> Inode:
-        return Inode(Host.localhost(), Device(inode.device_major, inode.device_minor), inode.number, inode.mode)
+        return Inode(
+            Host.localhost(),
+            Device(inode.device_major, inode.device_minor),
+            inode.number,
+            inode.mode,
+        )
 
     @property
     def type(self) -> str:
@@ -132,10 +143,7 @@ class InodeVersion:
     @staticmethod
     def from_id_string(id_string: str) -> InodeVersion:
         # See `libprobe/src/prov_utils.c:path_to_id_string()`
-        array = [
-            int(segment, 16)
-            for segment in id_string.split("-")
-        ]
+        array = [int(segment, 16) for segment in id_string.split("-")]
         assert len(array) == 6
         return InodeVersion(
             Inode(
@@ -265,7 +273,7 @@ class ProbeLog:
         return total
 
 
-class InvalidProbeLog(Exception): # noqa: N818
+class InvalidProbeLog(Exception):  # noqa: N818
     pass
 
 
@@ -323,7 +331,7 @@ class AccessMode(enum.Enum):
         result = _DOWNGRADE_MATRIX[self][is_write * 2 + is_read]
         if isinstance(result, Exception):
             msg = f"{is_write=} and {is_read=} should not be possible for {self.name}"
-            raise ValueError(msg) # noqa: TRY004
+            raise ValueError(msg)  # noqa: TRY004
         return result
 
 

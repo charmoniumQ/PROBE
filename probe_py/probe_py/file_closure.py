@@ -18,18 +18,24 @@ from .ptypes import InodeVersion, Pid, ProbeLog, initial_exec_no
 
 
 def build_oci_image(
-        probe_log: ProbeLog,
-        image_name: str,
-        console: rich.console.Console,
-        *,
-        push_docker: bool,
-        verbose: bool,
+    probe_log: ProbeLog,
+    image_name: str,
+    console: rich.console.Console,
+    *,
+    push_docker: bool,
+    verbose: bool,
 ) -> None:
     root_pid = get_root_pid(probe_log)
     if root_pid is None:
         console.print("Could not find root process; Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
-    first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
+    first_op = (
+        probe_log.processes[root_pid]
+        .execs[initial_exec_no]
+        .threads[root_pid.main_thread()]
+        .ops[0]
+        .data
+    )
     if not isinstance(first_op, InitExecEpoch):
         console.print("First op is not InitExecEpoch. Are you sure this probe_log is valid?")
         raise typer.Exit(code=1)
@@ -44,7 +50,10 @@ def build_oci_image(
         )
         # TODO: smartly show errors when shelling out to $cmd fails.
         if not shutil.which("buildah"):
-            console.print("Buildah not found; should be included in probe-bundled? for other packages, please install Buildah separately", style="red")
+            console.print(
+                "Buildah not found; should be included in probe-bundled? for other packages, please install Buildah separately",
+                style="red",
+            )
             raise typer.Exit(code=1)
 
         # Start container
@@ -73,23 +82,25 @@ def build_oci_image(
         if pid is None:
             console.print("Could not find root process; Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
-        last_op = probe_log.processes[pid].execs[initial_exec_no].threads[pid.main_thread()].ops[-1].data
+        last_op = (
+            probe_log.processes[pid].execs[initial_exec_no].threads[pid.main_thread()].ops[-1].data
+        )
         if not isinstance(last_op, Exec):
             console.print(f"Last op is not Exec: {last_op}. Are you sure this probe_log is valid?")
             raise typer.Exit(code=1)
-        args = [
-            arg.decode() for arg in last_op.argv
-        ]
+        args = [arg.decode() for arg in last_op.argv]
         env = []
         for key_val in last_op.env:
             if not key_val.startswith(b"LD_PRELOAD="):
                 if b"$" in key_val:
                     # TODO: figure out how to escape money
-                    console.log(f"Skipping {key_val.decode(errors='surrogate')} because $ confuses Buildah.")
+                    console.log(
+                        f"Skipping {key_val.decode(errors='surrogate')} because $ confuses Buildah."
+                    )
                     continue
                 env.append("--env")
                 env.append(key_val.decode(errors="surrogate"))
-        #shell = pathlib.Path(os.environ["SHELL"]).resolve()
+        # shell = pathlib.Path(os.environ["SHELL"]).resolve()
         path = probe_log.process_tree_context.working_directory.decode()
         cmd = [
             "buildah",
@@ -135,8 +146,8 @@ def build_oci_image(
 
 
 def get_files(
-        probe_log: ProbeLog,
-        console: rich.console.Console,
+    probe_log: ProbeLog,
+    console: rich.console.Console,
 ) -> typing.Iterator[tuple[Op, pathlib.Path, PathArg | None]]:
     raise NotImplementedError
     for process in probe_log.processes.values():
@@ -145,9 +156,17 @@ def get_files(
             if root_pid is None:
                 console.print("Could not find root process; Are you sure this probe_log is valid?")
                 raise typer.Exit(code=1)
-            first_op = probe_log.processes[root_pid].execs[initial_exec_no].threads[root_pid.main_thread()].ops[0].data
+            first_op = (
+                probe_log.processes[root_pid]
+                .execs[initial_exec_no]
+                .threads[root_pid.main_thread()]
+                .ops[0]
+                .data
+            )
             if not isinstance(first_op, InitExecEpoch):
-                console.print("First op is not InitExecEpoch. Are you sure this probe_log is valid?")
+                console.print(
+                    "First op is not InitExecEpoch. Are you sure this probe_log is valid?"
+                )
                 raise typer.Exit(code=1)
             fds: dict[OpenNumber, pathlib.Path] = {
                 AT_FDCWD: probe_log.process_tree_context.working_directory,
@@ -173,12 +192,12 @@ def get_files(
 
 
 def copy_file_closure(
-        probe_log: ProbeLog,
-        destination: pathlib.Path,
-        console: rich.console.Console,
-        *,
-        copy: bool,
-        verbose: bool,
+    probe_log: ProbeLog,
+    destination: pathlib.Path,
+    console: rich.console.Console,
+    *,
+    copy: bool,
+    verbose: bool,
 ) -> None:
     """Extract files used by the application recoreded in probe_log to destination.
 
@@ -230,21 +249,26 @@ def copy_file_closure(
             destination_path.hardlink_to(inode_content)
             if verbose:
                 console.print(f"Hardlinking {resolved_path} from probe_log")
-        elif any(resolved_path.is_relative_to(forbidden_path) for forbidden_path in forbidden_paths):
+        elif any(
+            resolved_path.is_relative_to(forbidden_path) for forbidden_path in forbidden_paths
+        ):
             if verbose:
                 console.print(f"Skipping {resolved_path}")
         elif resolved_path.exists():
             if ino_ver is not None and InodeVersion.from_local_path(resolved_path) != ino_ver:
-                warnings.warn(ptypes.UnusualProbeLog(
-                    f"{resolved_path} changed in between the time of `probe record` and now.",
-                ), stacklevel=2)
+                warnings.warn(
+                    ptypes.UnusualProbeLog(
+                        f"{resolved_path} changed in between the time of `probe record` and now.",
+                    ),
+                    stacklevel=2,
+                )
             if resolved_path.is_dir():
                 destination_path.mkdir(exist_ok=True, parents=True)
             elif copy:
                 if verbose:
                     console.print(f"Copying {resolved_path} from disk")
                 shutil.copy2(resolved_path, destination_path)
-            else: # not directory and hardlink
+            else:  # not directory and hardlink
                 if verbose:
                     console.print(f"Hardlinking {resolved_path} from disk")
                 destination_path.hardlink_to(resolved_path)
@@ -254,8 +278,8 @@ def copy_file_closure(
 
 
 def resolve_path(
-        fds: typing.Mapping[OpenNumber, pathlib.Path],
-        path: PathArg,
+    fds: typing.Mapping[OpenNumber, pathlib.Path],
+    path: PathArg,
 ) -> pathlib.Path:
     if path.directory in fds:
         if path.name:
@@ -279,6 +303,7 @@ def get_root_pid(probe_log: ProbeLog) -> Pid | None:
 
 ldd_regex = re.compile(r"\s+(?P<path>/[a-zA-Z0-9./-]+)\s+")
 ldd = shutil.which("ldd")
+
 
 def _get_dlibs(exe_or_dlib: pathlib.Path, found: set[str]) -> None:
     if not ldd:

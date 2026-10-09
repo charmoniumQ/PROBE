@@ -23,6 +23,7 @@ PROBE_HOME = xdg_base_dirs.xdg_data_home() / "PROBE"
 PROCESS_ID_THAT_WROTE_INODE_VERSION = PROBE_HOME / "process_id_that_wrote_inode_version"
 PROCESSES_BY_ID = PROBE_HOME / "processes_by_id"
 
+
 @dataclasses.dataclass(frozen=True)
 class Host:
     network_name: str | None
@@ -78,31 +79,45 @@ def lookup_provenance_source(source: HostPath) -> ProvenanceInfo:
         return lookup_provenance_local(source.path, get_persistent_provenance=True)
     return lookup_provenance_remote(source.host, source.path, get_persistent_provenance=True)
 
+
 def lookup_provenance_destination(source: HostPath, destination: HostPath) -> ProvenanceInfo:
     source_path = source.path
-    source_files = get_descendants(source_path, include_directories=False) if source_path.is_dir() else [source_path]
+    source_files = (
+        get_descendants(source_path, include_directories=False)
+        if source_path.is_dir()
+        else [source_path]
+    )
 
     inode_versions = []
     inode_metadatas = []
     for path in source_files:
         destination_path = destination.path / path.name
         if destination.host.local:
-            inode_version, inode_metadata, _process_map, _inode_map = lookup_provenance_local(destination_path, get_persistent_provenance=False)
+            inode_version, inode_metadata, _process_map, _inode_map = lookup_provenance_local(
+                destination_path, get_persistent_provenance=False
+            )
         else:
-            inode_version, inode_metadata, _process_map, _inode_map = lookup_provenance_remote(destination.host, destination_path, get_persistent_provenance=False)
+            inode_version, inode_metadata, _process_map, _inode_map = lookup_provenance_remote(
+                destination.host, destination_path, get_persistent_provenance=False
+            )
         inode_versions.extend(inode_version)
         inode_metadatas.extend(inode_metadata)
 
     return inode_versions, inode_metadatas, {}, {}
 
+
 def augment_provenance(
-        source_provenance_info: ProvenanceInfo,
-        destination_provenance_info: ProvenanceInfo,
-        cmd: tuple[str, ...],
+    source_provenance_info: ProvenanceInfo,
+    destination_provenance_info: ProvenanceInfo,
+    cmd: tuple[str, ...],
 ) -> ProvenanceInfo:
     """Given provenance_info of files on a previous host, insert nodes to represent a remote transfer to destination."""
-    source_inode_versions, source_inode_metadatas, process_closure, inode_writes = source_provenance_info
-    destination_inode_versions, destination_inode_metadatas, _process_closure, _inode_writes = destination_provenance_info
+    source_inode_versions, source_inode_metadatas, process_closure, inode_writes = (
+        source_provenance_info
+    )
+    destination_inode_versions, destination_inode_metadatas, _process_closure, _inode_writes = (
+        destination_provenance_info
+    )
     scp_process_id = generate_random_pid()
     time = datetime.datetime.now(tz=datetime.timezone.utc)
     env: tuple[tuple[str, str], ...] = ()
@@ -127,7 +142,8 @@ def augment_provenance(
     for destination_inode_version in destination_inode_versions:
         inode_writes[destination_inode_version] = scp_process_id
 
-    return destination_inode_versions, destination_inode_metadatas , process_closure, inode_writes
+    return destination_inode_versions, destination_inode_metadatas, process_closure, inode_writes
+
 
 def upload_provenance(dest: Host, provenance_info: ProvenanceInfo) -> None:
     if dest.local:
@@ -135,7 +151,10 @@ def upload_provenance(dest: Host, provenance_info: ProvenanceInfo) -> None:
     else:
         upload_provenance_remote(dest, provenance_info)
 
-def create_directories_on_remote(remote_home: pathlib.Path, remote: Host, ssh_options: list[str]) -> None:
+
+def create_directories_on_remote(
+    remote_home: pathlib.Path, remote: Host, ssh_options: list[str]
+) -> None:
     remote_directories = [
         f"{remote_home}/processes_by_id",
         f"{remote_home}/process_id_that_wrote_inode_version",  # Add more directories as needed
@@ -150,12 +169,14 @@ def create_directories_on_remote(remote_home: pathlib.Path, remote: Host, ssh_op
         mkdir_command.insert(-1, option)
 
     for directory in remote_directories:
-        mkdir_command.append(f"mkdir -p {directory}" )
+        mkdir_command.append(f"mkdir -p {directory}")
         subprocess.run(mkdir_command, check=True)
         mkdir_command.pop()
 
 
-def get_stat_results_remote(remote: Host, file_path: pathlib.Path, ssh_options: list[str]) -> tuple[int, int]:
+def get_stat_results_remote(
+    remote: Host, file_path: pathlib.Path, ssh_options: list[str]
+) -> tuple[int, int]:
     remote_scp_address = remote.get_address()
     ssh_command = [
         "ssh",
@@ -172,6 +193,7 @@ def get_stat_results_remote(remote: Host, file_path: pathlib.Path, ssh_options: 
     )
     size_str, mode_str = result.stdout.strip().split(b"\n")
     return int(size_str), int(mode_str, 16)
+
 
 def generate_random_pid() -> int:
     min_pid = 1
@@ -193,7 +215,9 @@ def get_descendants(root: pathlib.Path, *, include_directories: bool) -> list[pa
     return ret
 
 
-def lookup_provenance_local(path: pathlib.Path, *, get_persistent_provenance: bool) -> ProvenanceInfo:
+def lookup_provenance_local(
+    path: pathlib.Path, *, get_persistent_provenance: bool
+) -> ProvenanceInfo:
     if path.is_dir():
         inode_versions = [
             InodeVersion.from_local_path(descendant, None)
@@ -212,8 +236,9 @@ def lookup_provenance_local(path: pathlib.Path, *, get_persistent_provenance: bo
     return inode_versions, inode_metadatas, {}, {}
 
 
-
-def lookup_provenance_remote(host: Host, path: pathlib.Path, *, get_persistent_provenance: bool) -> ProvenanceInfo:
+def lookup_provenance_remote(
+    host: Host, path: pathlib.Path, *, get_persistent_provenance: bool
+) -> ProvenanceInfo:
     address = host.get_address()
     assert address is not None
     commands = [
@@ -247,35 +272,39 @@ def lookup_provenance_remote(host: Host, path: pathlib.Path, *, get_persistent_p
 
     fields = proc.stdout.split("|")
     node_name = fields[0]
-    #cwd = pathlib.Path(fields[1])
+    # cwd = pathlib.Path(fields[1])
     inode_metadatas = []
     inode_versions = []
-    for _child_path, device, inode, mtime, size, mode, nlink, uid, gid in itertools.batched(fields[2:11], 10):
+    for _child_path, device, inode, mtime, size, mode, nlink, uid, gid in itertools.batched(
+        fields[2:11], 10
+    ):
         inode_object = Inode(node_name, os.major(int(device)), os.minor(int(device)), int(inode))
         inode_versions.append(InodeVersion(inode_object, int(float(mtime)), int(size)))
-        inode_metadatas.append(InodeMetadata(inode_object, int(mode), int(nlink), int(uid), int(gid)))
+        inode_metadatas.append(
+            InodeMetadata(inode_object, int(mode), int(nlink), int(uid), int(gid))
+        )
 
     if not get_persistent_provenance:
         return inode_versions, inode_metadatas, {}, {}
 
-    files_to_read:list[str] = []
+    files_to_read: list[str] = []
     # TODO: Implement this
     subprocess.run(
         [
             "ssh",
             *host.ssh_options,
             address,
-            "sh", "-c", ";".join([
-                "probe_data=${XDG_DATA_HOME:-$HOME/.local/share}/PROBE",
-                "processes_by_id=${probe_data}/process_id_that_wrote_inode_version",
-                "process_that_wrote=${probe_data}/processes_by_id",
-
-                # cat the relevant stuff
-                *[
-                    f"cat $processes_by_id/{inode}.json && echo '\0'"
-                    for inode in files_to_read
-                ],
-            ]),
+            "sh",
+            "-c",
+            ";".join(
+                [
+                    "probe_data=${XDG_DATA_HOME:-$HOME/.local/share}/PROBE",
+                    "processes_by_id=${probe_data}/process_id_that_wrote_inode_version",
+                    "process_that_wrote=${probe_data}/processes_by_id",
+                    # cat the relevant stuff
+                    *[f"cat $processes_by_id/{inode}.json && echo '\0'" for inode in files_to_read],
+                ]
+            ),
         ],
         capture_output=True,
         check=True,
@@ -301,7 +330,9 @@ def upload_provenance_local(provenance_info: ProvenanceInfo) -> None:
 
 
 def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> None:
-    destination_inode_versions, _, augmented_process_closure, augmented_inode_writes = provenance_info
+    destination_inode_versions, _, augmented_process_closure, augmented_inode_writes = (
+        provenance_info
+    )
 
     for inode_version, process_id in augmented_inode_writes.items():
         if inode_version not in destination_inode_versions:
@@ -349,6 +380,7 @@ def upload_provenance_remote(dest: Host, provenance_info: ProvenanceInfo) -> Non
         check=True,
         text=True,
     )
+
 
 # Notes:
 # - scp.py is the driver and remote_access.py is the library. This way, remote_access.py can be re-imported into ssh. It makes more sense to me.

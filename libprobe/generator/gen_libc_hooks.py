@@ -42,6 +42,8 @@ if not ignore_actions:
 
 
 _T = typing.TypeVar("_T")
+
+
 def expect_type(typ: type[_T], data: typing.Any) -> _T:
     if not isinstance(data, typ):
         raise TypeError(f"Expected type {typ} for {data}")
@@ -51,19 +53,21 @@ def expect_type(typ: type[_T], data: typing.Any) -> _T:
 class GccCGenerator(CGenerator):
     """A C generator that is able to emit gcc statement-expr ({...;})."""
 
-    def visit_Assignment(self, n: Assignment) -> str: # noqa: N802
+    def visit_Assignment(self, n: Assignment) -> str:  # noqa: N802
         rval_str = self._parenthesize_if(
             n.rvalue,
             lambda n: isinstance(n, (Assignment, Compound)),
         )
         return " ".join((self.visit(n.lvalue), n.op, rval_str))
 
-    def visit_Decl(self, n: Decl, no_type: bool = False) -> str: # noqa: N802
+    def visit_Decl(self, n: Decl, no_type: bool = False) -> str:  # noqa: N802
         s = n.name if no_type else self._generate_decl(n)
         if n.bitsize:
             s += " : " + self.visit(n.bitsize)
         if n.init:
-            s += " = " + self._parenthesize_if(n.init, lambda n: isinstance(n, (Assignment, Compound)))
+            s += " = " + self._parenthesize_if(
+                n.init, lambda n: isinstance(n, (Assignment, Compound))
+            )
         return s
 
     def _parenthesize_if(self, n: Node, condition: typing.Callable[[Node], bool]) -> str:
@@ -109,7 +113,7 @@ class FunctionalNodeVisitor(typing.Generic[_T]):
 
 
 class ErrnoDetector(FunctionalNodeVisitor[bool]):
-    def visit_ID(self, node: ID) -> list[bool]: # noqa: N802
+    def visit_ID(self, node: ID) -> list[bool]:  # noqa: N802
         if node.name == "errno":
             return [True]
         return []
@@ -183,15 +187,11 @@ def strip_restrict(ty: TypeDecl | PtrDecl) -> TypeDecl | PtrDecl:
 
 
 def find_decl(
-        block: typing.Sequence[Node],
-        name: str,
-        comment: typing.Any,
+    block: typing.Sequence[Node],
+    name: str,
+    comment: typing.Any,
 ) -> Decl | None:
-    relevant_stmts = [
-        stmt
-        for stmt in block
-        if isinstance(stmt, Decl) and stmt.name == name
-    ]
+    relevant_stmts = [stmt for stmt in block if isinstance(stmt, Decl) and stmt.name == name]
     if not relevant_stmts:
         return None
     if len(relevant_stmts) > 1:
@@ -215,11 +215,16 @@ class ParsedFunc:
             name=decl.name,
             params=tuple(
                 (param_decl.name, param_decl.type)
-                for param_decl in expect_type(ParamList, expect_type(FuncDecl, decl.type).args).params
+                for param_decl in expect_type(
+                    ParamList, expect_type(FuncDecl, decl.type).args
+                ).params
                 if isinstance(param_decl, Decl)
             ),
             return_type=expect_type(FuncDecl, decl.type).type,
-            variadic=isinstance(expect_type(ParamList, expect_type(FuncDecl, decl.type).args).params[-1], pycparser.c_ast.EllipsisParam),
+            variadic=isinstance(
+                expect_type(ParamList, expect_type(FuncDecl, decl.type).args).params[-1],
+                pycparser.c_ast.EllipsisParam,
+            ),
         )
 
     @staticmethod
@@ -246,7 +251,8 @@ class ParsedFunc:
                         bitsize=None,
                     )
                     for param_name, param_type in self.params
-                ] + ([pycparser.c_ast.EllipsisParam()] if self.variadic else []),
+                ]
+                + ([pycparser.c_ast.EllipsisParam()] if self.variadic else []),
             ),
             type=pycparser.c_ast.TypeDecl(
                 declname=self.name,
@@ -262,7 +268,9 @@ class ParsedFunc:
                 name=self.name,
                 quals=[],
                 align=[],
-                storage=[] if visibility is None else [f'__attribute__((visibility("{visibility}")))'],
+                storage=[]
+                if visibility is None
+                else [f'__attribute__((visibility("{visibility}")))'],
                 funcspec=[],
                 type=self.declaration(),
                 init=None,
@@ -276,7 +284,9 @@ class ParsedFunc:
 
 
 filename = pathlib.Path("generator/libc_hooks_source.c")
-ast = pycparser.parse_file(filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument", "-I."])
+ast = pycparser.parse_file(
+    filename, use_cpp=True, cpp_args=["-Wno-unused-command-line-argument", "-I."]
+)
 funcs = {
     node.decl.name: ParsedFunc.from_defn(node)
     for node in ast.ext
@@ -287,7 +297,9 @@ funcs = {
     **{
         node.name: dataclasses.replace(funcs[typing.cast("ID", node.init).name], name=node.name)
         for node in ast.ext
-        if isinstance(node, Decl) and isinstance(node.type, pycparser.c_ast.TypeDecl) and node.type.type.names == ["fn"]
+        if isinstance(node, Decl)
+        and isinstance(node.type, pycparser.c_ast.TypeDecl)
+        and node.type.type.names == ["fn"]
     },
 }
 func_prefix = "client_"
@@ -329,45 +341,49 @@ init_function_pointers = ParsedFunc(
     return_type=TypeDecl(declname="a", quals=[], align=None, type=void),
     variadic=False,
     stmts=[
-        *itertools.chain.from_iterable([
+        *itertools.chain.from_iterable(
             [
-                Assignment(
-                    op="=",
-                    lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
-                    rvalue=pycparser.c_ast.FuncCall(
-                        name=pycparser.c_ast.ID(name="dlsym"),
-                        args=pycparser.c_ast.ExprList(
-                            exprs=[
-                                pycparser.c_ast.ID(name="RTLD_NEXT"),
-                                pycparser.c_ast.Constant(type="string", value=f'"{func_name}"'),
-                            ],
+                [
+                    Assignment(
+                        op="=",
+                        lvalue=pycparser.c_ast.ID(name=func_prefix + func_name),
+                        rvalue=pycparser.c_ast.FuncCall(
+                            name=pycparser.c_ast.ID(name="dlsym"),
+                            args=pycparser.c_ast.ExprList(
+                                exprs=[
+                                    pycparser.c_ast.ID(name="RTLD_NEXT"),
+                                    pycparser.c_ast.Constant(type="string", value=f'"{func_name}"'),
+                                ],
+                            ),
                         ),
                     ),
-                ),
-                # TODO: guard this with `#ifndef NDEBUG`
-                # pycparser.c_ast.If(
-                #     cond=pycparser.c_ast.UnaryOp(
-                #         op="!",
-                #         expr=pycparser.c_ast.ID(name=func_prefix + func_name),
-                #     ),
-                #     iftrue=pycparser.c_ast.FuncCall(
-                #         name=pycparser.c_ast.ID("DEBUG"),
-                #         args=pycparser.c_ast.ExprList(
-                #             exprs=[
-                #                 pycparser.c_ast.Constant(type="string", value=f'"{func_name}(...) not found"'),
-                #             ],
-                #         ),
-                #     ),
-                #     iffalse=None,
-                # ),
+                    # TODO: guard this with `#ifndef NDEBUG`
+                    # pycparser.c_ast.If(
+                    #     cond=pycparser.c_ast.UnaryOp(
+                    #         op="!",
+                    #         expr=pycparser.c_ast.ID(name=func_prefix + func_name),
+                    #     ),
+                    #     iftrue=pycparser.c_ast.FuncCall(
+                    #         name=pycparser.c_ast.ID("DEBUG"),
+                    #         args=pycparser.c_ast.ExprList(
+                    #             exprs=[
+                    #                 pycparser.c_ast.Constant(type="string", value=f'"{func_name}(...) not found"'),
+                    #             ],
+                    #         ),
+                    #     ),
+                    #     iffalse=None,
+                    # ),
+                ]
+                for func_name, func in funcs.items()
             ]
-            for func_name, func in funcs.items()
-        ]),
+        ),
     ],
 ).definition()
 
 
 T = typing.TypeVar("T")
+
+
 def raise_(exception: Exception) -> typing.NoReturn:
     raise exception
 
@@ -414,10 +430,17 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         pre_call_stmts.append(
             pycparser.c_ast.FuncCall(
                 name=pycparser.c_ast.ID(name="DEBUG"),
-                args=pycparser.c_ast.ExprList(exprs=[
-                    pycparser.c_ast.Constant(type="string", value=f'"Interposed {func.name}(' + ", ".join(printable_args_flags) + ')"'),
-                    *printable_args,
-                ]),
+                args=pycparser.c_ast.ExprList(
+                    exprs=[
+                        pycparser.c_ast.Constant(
+                            type="string",
+                            value=f'"Interposed {func.name}('
+                            + ", ".join(printable_args_flags)
+                            + ')"',
+                        ),
+                        *printable_args,
+                    ]
+                ),
             ),
         )
 
@@ -429,16 +452,16 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
             ),
         )
 
-
     noreturn = bool(find_decl(func.stmts, "noreturn", func.name))
 
     # For some reason, Clang analyzer can suddenly prove that if execle returns, errno (call_errno) must be non-zero.
     # So this is a dead store.
     # But it can't prove that for the other execs
     if func.name != "execle" and not noreturn:
-        pre_call_stmts.insert(0, define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno")))
+        pre_call_stmts.insert(
+            0, define_var(c_ast_int, "saved_errno", pycparser.c_ast.ID(name="errno"))
+        )
     post_call_stmts = []
-
 
     for stmt in func.stmts:
         if ErrnoDetector().visit(stmt):
@@ -450,7 +473,11 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
 
     post_call_action = find_decl(func.stmts, "post_call", func.name)
     assert not noreturn or not post_call_action
-    if not ignore_actions and post_call_action and (not func.is_read_write or interpose_read_writes):
+    if (
+        not ignore_actions
+        and post_call_action
+        and (not func.is_read_write or interpose_read_writes)
+    ):
         post_call_stmts.extend(
             expect_type(Compound, post_call_action.init).block_items,
         )
@@ -466,17 +493,18 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         ),
     )
 
-    call_stmts_block = find_decl(func.stmts, "call", func.name) if not ignore_actions and (not func.is_read_write or interpose_read_writes) else None
+    call_stmts_block = (
+        find_decl(func.stmts, "call", func.name)
+        if not ignore_actions and (not func.is_read_write or interpose_read_writes)
+        else None
+    )
     if call_stmts_block is None:
         call_expr = pycparser.c_ast.FuncCall(
             name=pycparser.c_ast.ID(
                 name=func_prefix + func.name,
             ),
             args=pycparser.c_ast.ExprList(
-                exprs=[
-                    pycparser.c_ast.ID(name=param_name)
-                    for param_name, _ in func.params
-                ],
+                exprs=[pycparser.c_ast.ID(name=param_name) for param_name, _ in func.params],
             ),
         )
         if is_void(func.return_type):
@@ -501,21 +529,30 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
         )
 
         if debug_print_start_of_interposition:
-            c_string = generator.visit(func.return_type).replace(" restrict", "").replace("const ", "")
+            c_string = (
+                generator.visit(func.return_type).replace(" restrict", "").replace("const ", "")
+            )
             if return_type_flag := PRINT_FLAGS.get(c_string):
-                post_call_stmts.extend([
-                    pycparser.c_ast.FuncCall(
-                        name=pycparser.c_ast.ID(name="prov_log_save"),
-                        args=pycparser.c_ast.ExprList(exprs=[]),
-                    ),
-                    pycparser.c_ast.FuncCall(
-                        name=pycparser.c_ast.ID(name="DEBUG"),
-                        args=pycparser.c_ast.ExprList(exprs=[
-                            pycparser.c_ast.Constant(type="string", value=f'"{func.name} returned {return_type_flag}"'),
-                            pycparser.c_ast.ID(name="ret"),
-                        ]),
-                    ),
-                ])
+                post_call_stmts.extend(
+                    [
+                        pycparser.c_ast.FuncCall(
+                            name=pycparser.c_ast.ID(name="prov_log_save"),
+                            args=pycparser.c_ast.ExprList(exprs=[]),
+                        ),
+                        pycparser.c_ast.FuncCall(
+                            name=pycparser.c_ast.ID(name="DEBUG"),
+                            args=pycparser.c_ast.ExprList(
+                                exprs=[
+                                    pycparser.c_ast.Constant(
+                                        type="string",
+                                        value=f'"{func.name} returned {return_type_flag}"',
+                                    ),
+                                    pycparser.c_ast.ID(name="ret"),
+                                ]
+                            ),
+                        ),
+                    ]
+                )
 
         post_call_stmts.append(
             Assignment(
@@ -525,7 +562,9 @@ def wrapper_func_body(func: ParsedFunc) -> typing.Sequence[Node]:
                     cond=pycparser.c_ast.ID(name="call_errno"),
                     iftrue=pycparser.c_ast.ID(name="call_errno"),
                     iffalse=pycparser.c_ast.ID(name="saved_errno"),
-                ) if func.name != "execle" else pycparser.c_ast.ID(name="call_errno"),
+                )
+                if func.name != "execle"
+                else pycparser.c_ast.ID(name="call_errno"),
                 # See note above regarding execle
             ),
         )
@@ -558,7 +597,8 @@ warning = """
  */
 """
 
-libc_hooks_h_preamble = """
+libc_hooks_h_preamble = (
+    """
 #pragma once
 
 #define _GNU_SOURCE
@@ -628,14 +668,20 @@ __attribute__((visibility("default"))) void closefrom(int lowfd);
 #endif
 
 void init_function_pointers();
-""" + f"static const bool INTERPOSE_READ_WRITES = {str(interpose_read_writes).lower()};\n"
+"""
+    + f"static const bool INTERPOSE_READ_WRITES = {str(interpose_read_writes).lower()};\n"
+)
 (generated / "libc_hooks.h").write_text(
-    warning + "\n\n" +
-    libc_hooks_h_preamble.strip() + "\n\n" +
-    GccCGenerator().visit(
-        pycparser.c_ast.FileAST(ext=[
-            *func_pointer_extern_declarations,
-        ]),
+    warning
+    + "\n\n"
+    + libc_hooks_h_preamble.strip()
+    + "\n\n"
+    + GccCGenerator().visit(
+        pycparser.c_ast.FileAST(
+            ext=[
+                *func_pointer_extern_declarations,
+            ]
+        ),
     ),
 )
 libc_hooks_c_preamble = """
@@ -739,18 +785,20 @@ _Static_assert(sizeof(struct TimeVal) == sizeof(struct timeval), "");
 """
 
 (generated / "libc_hooks.c").write_text(
-    warning + "\n\n" +
-    libc_hooks_c_preamble.strip() + "\n\n" +
-    GccCGenerator().visit(
-        pycparser.c_ast.FileAST(ext=[
-            *func_pointer_declarations,
-            init_function_pointers,
-            *wrapper_func_declarations,
-        ]),
+    warning
+    + "\n\n"
+    + libc_hooks_c_preamble.strip()
+    + "\n\n"
+    + GccCGenerator().visit(
+        pycparser.c_ast.FileAST(
+            ext=[
+                *func_pointer_declarations,
+                init_function_pointers,
+                *wrapper_func_declarations,
+            ]
+        ),
     ),
 )
 (generated / "libc_fns.csv").write_text(
-    "\n".join([
-        func_name for func_name, _ in funcs.items()
-    ]),
+    "\n".join([func_name for func_name, _ in funcs.items()]),
 )

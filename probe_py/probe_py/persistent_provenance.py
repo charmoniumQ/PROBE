@@ -35,7 +35,9 @@ def get_local_node_name() -> str:
     if node_name_path.exists():
         return node_name_path.read_text()
     hostname = socket.gethostname()
-    rng = random.Random(int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp()) ^ hash(hostname))
+    rng = random.Random(
+        int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp()) ^ hash(hostname)
+    )
     bits_per_hex_digit = 4
     hex_digits = 8
     random_number = rng.getrandbits(bits_per_hex_digit * hex_digits)
@@ -158,9 +160,13 @@ class Process:
     def to_dict(self) -> dict[str, typing.Any]:
         return {
             "input_inodes": [inode_version.to_dict() for inode_version in self.input_inodes],
-            "input_inode_metadatas": [metadata.to_dict() for metadata in self.input_inode_metadatas],
+            "input_inode_metadatas": [
+                metadata.to_dict() for metadata in self.input_inode_metadatas
+            ],
             "output_inodes": [inode_version.to_dict() for inode_version in self.output_inodes],
-            "output_inode_metadatas": [metadata.to_dict() for metadata in self.output_inode_metadatas],
+            "output_inode_metadatas": [
+                metadata.to_dict() for metadata in self.output_inode_metadatas
+            ],
             "time": self.time.isoformat(),
             "cmd": list(self.cmd),
             "pid": self.pid,
@@ -171,8 +177,8 @@ class Process:
 
 # TODO: implement this for remote host
 def get_prov_upstream(
-        root_inode_version: list[InodeVersion],
-        host: str,
+    root_inode_version: list[InodeVersion],
+    host: str,
 ) -> tuple[dict[int, Process], dict[InodeVersion, int | None]]:
     """Answers what is needed to reconstruct the provenance of root_inode_version on another host.
 

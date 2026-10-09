@@ -25,10 +25,13 @@ def bash(*cmd: str) -> list[str]:
 
 
 def bash_multi(*cmds: list[str]) -> list[str]:
-    return ["bash", "-c", " && ".join(
-        shlex.join(cmd).replace(" pipe ", " | ").replace(" redirect_to ", " > ")
-        for cmd in cmds
-    )]
+    return [
+        "bash",
+        "-c",
+        " && ".join(
+            shlex.join(cmd).replace(" pipe ", " | ").replace(" redirect_to ", " > ") for cmd in cmds
+        ),
+    ]
 
 
 c_hello_world = r"""
@@ -71,9 +74,14 @@ simple_commands = {
     "coreutils_echo": ["echo", "hi"],
     "coreutils_cat": ["cat", "test_file.txt"],
     "python_hello": ["python", "-c", "print(4)"],
-    "hello_world_pthreads":[str(example_path / "hello_world_pthreads.exe")],
+    "hello_world_pthreads": [str(example_path / "hello_world_pthreads.exe")],
     "mutex": [str(example_path / "mutex.exe")],
-    "fork_exec": [str(example_path / "fork_exec.exe"), str(example_path / "echo.exe"), "hello", "world"],
+    "fork_exec": [
+        str(example_path / "fork_exec.exe"),
+        str(example_path / "echo.exe"),
+        "hello",
+        "world",
+    ],
     "diff": ["diff", "test_file.txt", "test_file.txt"],
     "bash_multi": bash_multi(
         # echo is a bash built-in
@@ -89,7 +97,14 @@ simple_commands = {
     "pipe": bash_multi(
         # echo is a bash built-in
         # so we use echo_path to get the real echo executable
-        [str(example_path / "echo.exe"), "hi", "pipe", str(example_path / "cat.exe"), "redirect_to", "test_file"],
+        [
+            str(example_path / "echo.exe"),
+            "hi",
+            "pipe",
+            str(example_path / "cat.exe"),
+            "redirect_to",
+            "test_file",
+        ],
     ),
     "bash_in_bash": bash_multi(
         bash_multi(
@@ -137,20 +152,28 @@ complex_commands: collections.abc.Mapping[str, tuple[bool, pathlib.Path | None, 
 # This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
 @pytest.fixture(scope="session")
 def does_podman_work() -> bool:
-    return shutil.which("podman") is not None and subprocess.run(
-        ["podman", "run", "--rm", "ubuntu:24.04", "pwd"],
-        check=False,
-        capture_output=True,
-    ).returncode == 0
+    return (
+        shutil.which("podman") is not None
+        and subprocess.run(
+            ["podman", "run", "--rm", "ubuntu:24.04", "pwd"],
+            check=False,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
 
 
 @pytest.fixture(scope="session")
 def does_docker_work() -> bool:
-    return shutil.which("docker") is not None and subprocess.run(
-        ["docker", "run", "--rm", "ubuntu:24.04", "pwd"],
-        check=False,
-        capture_output=True,
-    ).returncode == 0
+    return (
+        shutil.which("docker") is not None
+        and subprocess.run(
+            ["docker", "run", "--rm", "ubuntu:24.04", "pwd"],
+            check=False,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
 
 
 @pytest.fixture(scope="session")
@@ -161,7 +184,11 @@ def does_buildah_work() -> bool:
         check=False,
         capture_output=True,
     )
-    return proc.returncode == 0 and subprocess.run(["buildah", "rm", name], check=False, capture_output=True).returncode == 0
+    return (
+        proc.returncode == 0
+        and subprocess.run(["buildah", "rm", name], check=False, capture_output=True).returncode
+        == 0
+    )
 
 
 @pytest.fixture(scope="session")
@@ -185,8 +212,8 @@ def scratch_directory_parent() -> pathlib.Path:
 
 @pytest.fixture
 def scratch_directory(
-        request: pytest.FixtureRequest,
-        scratch_directory_parent: pathlib.Path,
+    request: pytest.FixtureRequest,
+    scratch_directory_parent: pathlib.Path,
 ) -> pathlib.Path:
     """Return a predictable, persistent, empty directory.
 
@@ -209,11 +236,11 @@ def scratch_directory(
 )
 @pytest.mark.timeout(100)
 def test_downstream_analyses(
-        scratch_directory: pathlib.Path,
-        command: list[str] | tuple[bool, pathlib.Path, str, list[str]],
-        does_podman_work: bool,
-        does_docker_work: bool,
-        does_buildah_work: bool,
+    scratch_directory: pathlib.Path,
+    command: list[str] | tuple[bool, pathlib.Path, str, list[str]],
+    does_podman_work: bool,
+    does_docker_work: bool,
+    does_buildah_work: bool,
 ) -> None:
     (scratch_directory / "test_file.txt").write_text("")
     print("Scratch directory:", scratch_directory)
@@ -254,7 +281,15 @@ def test_downstream_analyses(
         env["LD_DEBUG"] = "all"
 
     for copy_files in ["none", "eagerly"]:
-        cmd = ["probe", "record", "--overwrite", *(["--debug"] if probe_debug_log else []), "--copy-files", copy_files, *command]
+        cmd = [
+            "probe",
+            "record",
+            "--overwrite",
+            *(["--debug"] if probe_debug_log else []),
+            "--copy-files",
+            copy_files,
+            *command,
+        ]
         print(shlex.join(cmd))
         if stderr_to_file:
             with (scratch_directory / "probe_debug.log").open("w") as output:
@@ -263,18 +298,25 @@ def test_downstream_analyses(
             subprocess.run(cmd, check=True, cwd=scratch_directory, env=env)
 
     should_have_copy_files = copy_files in {"eagerly", "lazily"}
-    cmd = ["probe", "py", "validate", "--strict" if strict else "--loose", *(["--should-have-files"] if should_have_copy_files else [])]
+    cmd = [
+        "probe",
+        "py",
+        "validate",
+        "--strict" if strict else "--loose",
+        *(["--should-have-files"] if should_have_copy_files else []),
+    ]
     print(shlex.join(cmd))
 
     # TODO: this doesn't work because we don't capture libraries currently.
     # if should_have_copy_files:
     if False:
-
         if does_buildah_work and does_podman_work:
             cmd = ["probe", "py", "export", "oci-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=scratch_directory)
-            assert shutil.which("podman"), "podman required for this test; should be in the nix flake?"
+            assert shutil.which("podman"), (
+                "podman required for this test; should be in the nix flake?"
+            )
             cmd = ["podman", "run", "--rm", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=scratch_directory)
@@ -283,17 +325,27 @@ def test_downstream_analyses(
             cmd = ["probe", "py", "export", "docker-image", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=scratch_directory)
-            assert shutil.which("docker"), "podman required for this test; should be in the nix flake?"
+            assert shutil.which("docker"), (
+                "podman required for this test; should be in the nix flake?"
+            )
             cmd = ["docker", "run", "--rm", "probe-command-test:latest"]
             print(shlex.join(cmd))
             subprocess.run(cmd, check=True, cwd=scratch_directory)
-
 
     cmd = ["probe", "py", "export", "debug-text"]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
-    cmd = ["probe", "py", "export", "hb-graph", "hb-graph.dot", "--strict" if strict else "--loose", "--retain=successful", "--show-op-number"]
+    cmd = [
+        "probe",
+        "py",
+        "export",
+        "hb-graph",
+        "hb-graph.dot",
+        "--strict" if strict else "--loose",
+        "--retain=successful",
+        "--show-op-number",
+    ]
     print(shlex.join(cmd))
     subprocess.run(cmd, check=True, cwd=scratch_directory)
 
@@ -307,7 +359,7 @@ def test_downstream_analyses(
 
 
 def test_fail(
-        scratch_directory: pathlib.Path,
+    scratch_directory: pathlib.Path,
 ) -> None:
     cmd = ["probe", "record", "--copy-files", "none", str(example_path / "false.exe")]
     proc = subprocess.run(cmd, check=False, cwd=scratch_directory)

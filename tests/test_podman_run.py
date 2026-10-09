@@ -11,17 +11,25 @@ import pytest
 # This is necessary because unshare(...) seems to be blocked in the latest github runners on Ubuntu 24.04.
 # Also fixtures can't be used in a pytest.mark.skipif
 def does_podman_work() -> bool:
-    return shutil.which("podman") is not None and subprocess.run(
-        ["podman", "run", "--rm", "ubuntu:24.04", "pwd"],
-        check=False,
-    ).returncode == 0
+    return (
+        shutil.which("podman") is not None
+        and subprocess.run(
+            ["podman", "run", "--rm", "ubuntu:24.04", "pwd"],
+            check=False,
+        ).returncode
+        == 0
+    )
 
 
 def does_nix_work() -> bool:
-    return shutil.which("nix") is not None and subprocess.run(
-        ["nix", "flake", "show"],
-        check=False,
-    ).returncode == 0
+    return (
+        shutil.which("nix") is not None
+        and subprocess.run(
+            ["nix", "flake", "show"],
+            check=False,
+        ).returncode
+        == 0
+    )
 
 
 @pytest.fixture(scope="session")
@@ -39,7 +47,9 @@ def nix_built_probe() -> pathlib.Path:
 
 
 @pytest.mark.skip("Too slow")
-@pytest.mark.skipif(not does_podman_work() or not does_nix_work(), reason="Podman or Nix doesn't work")
+@pytest.mark.skipif(
+    not does_podman_work() or not does_nix_work(), reason="Podman or Nix doesn't work"
+)
 @pytest.mark.parametrize(
     "image",
     [
@@ -51,8 +61,8 @@ def nix_built_probe() -> pathlib.Path:
 )
 @pytest.mark.asyncio
 async def test_podman_run(
-        image: str,
-        nix_built_probe: pathlib.Path,
+    image: str,
+    nix_built_probe: pathlib.Path,
 ) -> None:
     _nix_built_probe = nix_built_probe
     nix_store = _nix_built_probe.parent

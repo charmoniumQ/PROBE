@@ -45,19 +45,18 @@ def test_podman_install() -> None:
             "test:0.1.0",
             "sh",
             "-c",
-            " && ".join([  # noqa: FLY002
-                # Test temporary run directions
-                "nix run /PROBE -- --help",
-
-                # Test permanent installation directions
-                "nix profile install /PROBE",
-
-                # Test recording in container
-                "probe record ls",
-
-                # Test Rust -> Python handoff
-                "probe py export debug-text",
-            ]),
+            " && ".join(
+                [  # noqa: FLY002
+                    # Test temporary run directions
+                    "nix run /PROBE -- --help",
+                    # Test permanent installation directions
+                    "nix profile install /PROBE",
+                    # Test recording in container
+                    "probe record ls",
+                    # Test Rust -> Python handoff
+                    "probe py export debug-text",
+                ]
+            ),
         ],
         check=True,
     )

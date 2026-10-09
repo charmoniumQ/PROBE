@@ -33,5 +33,6 @@ def run_openssh_server() -> None:
 
     input_thread.join()
 
+
 if __name__ == "__main__":
     run_openssh_server()
