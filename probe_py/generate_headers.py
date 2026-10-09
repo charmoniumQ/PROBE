@@ -130,17 +130,9 @@ def fix_tagged_enums(module: ast.Module) -> None:
 
 def replace_bytestring_sequence(module: ast.Module) -> None:
     bytes_ast = ast.parse("bytes", mode="eval").body
-    module.body = [
-        ast.TypeAlias(
-            **{
-                **stmt.__dict__,
-                "value": bytes_ast,
-            },
-        )
-        if isinstance(stmt, ast.TypeAlias) and stmt.name.id in {"FixedPath", "ByteString"}
-        else stmt
-        for stmt in module.body
-    ]
+    for stmt in module.body:
+        if isinstance(stmt, ast.TypeAlias) and stmt.name.id in {"FixedPath", "ByteString"}:
+            stmt.value = bytes_ast
     stringarrayitem_sequence = ast.parse("Sequence[StringArrayItem]", mode="eval").body
     module.body = [
         replace(statement, stringarrayitem_sequence, bytes_ast)

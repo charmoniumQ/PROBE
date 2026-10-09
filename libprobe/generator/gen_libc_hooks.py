@@ -8,10 +8,9 @@ import typing
 
 import pycparser.c_ast
 import pycparser.c_generator
-from pycparser_types import (
+from pycparser.c_ast import (
     ID,
     Assignment,
-    CGenerator,
     Compound,
     Decl,
     FuncDecl,
@@ -21,6 +20,7 @@ from pycparser_types import (
     PtrDecl,
     TypeDecl,
 )
+from pycparser.c_generator import CGenerator
 
 # Intercept libc functions
 # But ignore pre_call/post_call actions
@@ -101,7 +101,11 @@ class FunctionalNodeVisitor(typing.Generic[_T]):
         Called if no explicit visitor function exists for a
         node. Implements preorder visiting of the node.
         """
-        return list(itertools.chain.from_iterable(self.visit(c) for c in node))
+        return list(
+            itertools.chain.from_iterable(
+                self.visit(c) for c in typing.cast(typing.Iterable[Node], node)
+            )
+        )
 
 
 class ErrnoDetector(FunctionalNodeVisitor[bool]):

@@ -14,7 +14,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable as It
     from collections.abc import Mapping as Map
     from collections.abc import Sequence as Seq
-    from collections.abc import Collection
 
 _Node = typing.TypeVar("_Node", bound=typing.Hashable)
 
@@ -99,7 +98,7 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
         self,
         candidates: It[_Node],
         lower_bounds: It[_Node],
-    ) -> It[_Node]:
+    ) -> frozenset[_Node]:
         """Return all candidates that are not ancestors of any element in lower_bounds."""
         return frozenset(
             {
@@ -113,7 +112,7 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
         self,
         candidates: It[_Node],
         upper_bounds: It[_Node],
-    ) -> It[_Node]:
+    ) -> frozenset[_Node]:
         """Return all candidates that are not descendent of any element in upper_bounds."""
         return frozenset(
             {
@@ -201,7 +200,7 @@ class Interval(typing.Generic[_Node]):
         )
         return Interval(leq, frozenset(upper_bound), frozenset(lower_bound))
 
-    def all_less_than(self, other: Collection[_Node]) -> bool:
+    def all_less_than(self, other: Interval[_Node]) -> bool:
         other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = self.leq.non_descendants(
             other.upper_bound, self.lower_bound,
         )

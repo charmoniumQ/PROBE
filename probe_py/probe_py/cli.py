@@ -314,18 +314,16 @@ def w3c_prov(
     rdf_graph, prov_document = export_rdf.export_rdf_graph(probe_log_obj, analysis, dfg)
     rdf_graph.serialize(destination=str(rdf_output))
     prov_document_dot = prov.dot.prov_to_dot(prov_document, use_labels=True, show_nary=False, show_element_attributes=False, show_relation_attributes=False)
-    match graphical_output.suffix:
-        case ".dot":
-            prov_document_dot.write_raw(graphical_output)
-        case ".svg":
-            prov_document_dot.write_svg(graphical_output)
-        case ".png":
-            prov_document_dot.write_png(graphical_output)
-        case ".pdf":
-            prov_document_dot.write_pdf(graphical_output)
-        case _:
-            msg = f"Unsupported output type for pydot: {graphical_output.suffix}"
-            raise RuntimeError(msg)
+    output_format = {
+        ".dot": "raw",
+        ".svg": "svg",
+        ".png": "png",
+        ".pdf": "pdf",
+    }.get(graphical_output.suffix)
+    if output_format is None:
+        msg = f"Unsupported output type for pydot: {graphical_output.suffix}"
+        raise RuntimeError(msg)
+    prov_document_dot.write(str(graphical_output), format=output_format)
 
 
 @export_app.command()
