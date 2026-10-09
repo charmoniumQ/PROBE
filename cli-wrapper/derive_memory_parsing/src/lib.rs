@@ -319,7 +319,7 @@ fn test_derive_named_struct() -> syn::Result<()> {
     .and_then(|stream| {
         syn::parse2::<syn::File>(stream).map(|file| {
             assert_eq!(file.items.len(), 3);
-            assert!(is_impl(&file.items[0]), "{:?}", &file.items[0]);
+            assert!(is_impl(&file.items[0]), "{:?}", file.items[0]);
         })
     })?;
     assert!(derive_(quote::quote! {
@@ -339,7 +339,7 @@ fn test_derive_tuple_struct() -> syn::Result<()> {
     .and_then(|stream| {
         syn::parse2::<syn::File>(stream).map(|file| {
             assert_eq!(file.items.len(), 3);
-            assert!(is_impl(&file.items[0]), "{:?}", &file.items[0]);
+            assert!(is_impl(&file.items[0]), "{:?}", file.items[0]);
         })
     })
 }
