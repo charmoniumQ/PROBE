@@ -1,5 +1,6 @@
 import subprocess
 
+
 def test_cat_random() -> None:
     cmd = ["probe", "record", "--fix-random", "--overwrite", "head", "--bytes=100", "/dev/random"]
     proc = subprocess.run(cmd, capture_output=True, check=True)
@@ -13,7 +14,15 @@ def test_clock() -> None:
 
 
 def test_py_rand() -> None:
-    cmd = ["probe", "record", "--fix-random", "--overwrite", "python", "-c", "import random; print(random.random())"]
+    cmd = [
+        "probe",
+        "record",
+        "--fix-random",
+        "--overwrite",
+        "python",
+        "-c",
+        "import random; print(random.random())",
+    ]
     proc0 = subprocess.run(cmd, capture_output=True, check=True)
     proc1 = subprocess.run(cmd, capture_output=True, check=True)
     assert proc0.stdout == proc1.stdout

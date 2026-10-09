@@ -1,0 +1,46 @@
+line-length = 100
+
+[lint]
+select = ["ALL"]
+fixable = ["ALL"]
+ignore = [
+  "ANN401",
+  "CPY001",
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D107",
+  "ERA001",
+  "FBT001", # need bools to make Typer CLI, I think.
+  "FBT002",
+  "FBT003",
+  "FIX002",
+  "S101",
+  "S108", # needed for generator.send(True)
+  "S311",
+  "TD002",
+  "TD003",
+  "TRY003",
+  "EM102",
+  "TD001",
+  "D203",
+  "D212",
+  "COM812",
+  "COM819",
+
+  # TODO: re-enable these errors
+  "C901",
+  "E501",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR0917",
+  "PLR2004",
+  "S603",
+  "S607",
+  "T201",
+  "INP001",
+]

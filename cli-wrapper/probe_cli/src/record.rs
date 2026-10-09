@@ -34,9 +34,9 @@ pub fn record_no_transcribe(
         if !overwrite {
             bail!("output {:?} already exists", &output);
         } else if output.is_dir() {
-            fs_extra::dir::remove(&output)?;
+            fs::remove_dir_all(&output)?;
         } else {
-            fs_extra::file::remove(&output)?;
+            fs::remove_file(&output)?;
         }
     }
 
@@ -49,11 +49,10 @@ pub fn record_no_transcribe(
         .wrap_err("Recorder::record")?;
 
     std::fs::create_dir(&output)?;
-    fs_extra::dir::move_dir(&dir, &output, &fs_extra::dir::CopyOptions::new()).wrap_err(eyre!(
-        "moving {:?} to {:?}",
-        &dir,
-        &output
-    ))?;
+    for entry in std::fs::read_dir(dir.path())? {
+        let entry = entry?;
+        fs::rename(entry.path(), output.join(entry.file_name()))?;
+    }
 
     Ok(status)
 }
@@ -77,9 +76,9 @@ pub fn record_transcribe(
         if !overwrite {
             bail!("output {:?} already exists", &output);
         } else if output.is_dir() {
-            fs_extra::dir::remove(&output)?;
+            fs::remove_dir_all(&output)?;
         } else {
-            fs_extra::file::remove(&output)?;
+            fs::remove_file(&output)?;
         }
     }
 

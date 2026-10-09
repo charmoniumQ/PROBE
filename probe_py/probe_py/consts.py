@@ -1,7 +1,7 @@
-import xdg_base_dirs
 import pathlib
 import typing
 
+import xdg_base_dirs
 
 SYSTEMD_MACHINE_ID = pathlib.Path("/etc/machine-id")
 
@@ -22,7 +22,7 @@ def get_state_dir() -> pathlib.Path:
     try:
         first_choice.mkdir(exist_ok=True, parents=True)
     except PermissionError:
-        second_choice = pathlib.Path().resolve() / APPLICATION_NAME
+        second_choice = pathlib.Path.cwd() / APPLICATION_NAME
         second_choice.mkdir(exist_ok=True, parents=True)
         return second_choice
     else:

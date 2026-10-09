@@ -1,9 +1,9 @@
-import pytest
-import tempfile
 import pathlib
-import subprocess
 import shutil
+import subprocess
+import tempfile
 
+import pytest
 
 dockerfile = """
 FROM ubuntu:24.04
@@ -41,23 +41,11 @@ def test_podman_install() -> None:
             podman,
             "run",
             "--volume",
-            str(pathlib.Path().resolve()) + ":/PROBE",
+            str(pathlib.Path.cwd()) + ":/PROBE",
             "test:0.1.0",
             "sh",
             "-c",
-            " && ".join([
-                # Test temporary run directions
-                "nix run /PROBE -- --help",
-
-                # Test permanent installation directions
-                "nix profile install /PROBE",
-
-                # Test recording in container
-                "probe record ls",
-
-                # Test Rust -> Python handoff
-                "probe py export debug-text",
-            ]),
+            "nix run /PROBE -- --help && nix profile install /PROBE && probe record ls && probe py export debug-text",
         ],
         check=True,
     )

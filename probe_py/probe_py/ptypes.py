@@ -1,24 +1,28 @@
 from __future__ import annotations
+
 import dataclasses
 import enum
-import hmac
 import functools
+import hmac
 import os
-import pathlib
 import random
 import socket
 import stat
 import typing
-import numpy
-from . import headers as ops
-from . import consts
+
+import numpy as np
+
+from . import consts, headers
+
+if typing.TYPE_CHECKING:
+    import pathlib
 
 
 # New types encourage type safety,
 # E.g., not supplying a pid where we require a tid
 class Pid(int):
     def main_thread(self) -> Tid:
-        """Returns the Tid of the main thread associated with this pid."""
+        """Return the Tid of the main thread associated with this pid."""
         return Tid(self)
 
 
@@ -26,8 +30,8 @@ class ExecNo(int):
     def prev(self) -> ExecNo:
         if self != 0:
             return ExecNo(self - 1)
-        else:
-            raise RuntimeError()
+        raise RuntimeError
+
     def next(self) -> ExecNo:
         return ExecNo(self + 1)
 
@@ -47,34 +51,36 @@ class Host:
     @functools.cache
     @staticmethod
     def localhost() -> Host:
-        """Returns a Host object representing the current host"""
-
+        """Return a Host object representing the current host."""
         # https://www.freedesktop.org/software/systemd/man/latest/machine-id.html
         # This ID uniquely identifies the host. It should be considered "confidential".
         # If a stable unique identifier that is tied to the machine is needed for some application,
         # the machine ID should be hashed with a cryptographic, keyed hash function, using a fixed, application-specific key.
         # In containers (no running systemd) this file exists but is empty, so we should detect-and-skip empty-file.
-        if consts.SYSTEMD_MACHINE_ID.exists() and (data := consts.SYSTEMD_MACHINE_ID.read_text().strip()):
+        if consts.SYSTEMD_MACHINE_ID.exists() and (
+            data := consts.SYSTEMD_MACHINE_ID.read_text().strip()
+        ):
             machine_id_bytes = int(data, 16).to_bytes(16)
-            hashed_machine_id = int.from_bytes(hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest()) & ((1 << 64) - 1)
+            hashed_machine_id = int.from_bytes(
+                hmac.new(consts.APPLICATION_KEY, machine_id_bytes, "sha256").digest(),
+            ) & ((1 << 64) - 1)
             return Host(socket.gethostname(), hashed_machine_id)
-        else:
-            # In containers and GitHub CI, SystemD machine-id may not exist.
-            # Our alternative is to create a random iD, and store it in a persistent location
-            alternative_machine_id = consts.get_state_dir() / "machine-id"
-            if alternative_machine_id.exists() and (data := alternative_machine_id.read_text().strip()):
-                return Host(socket.gethostname(), int(data, 16))
-            else:
-                alternative_machine_id.parent.mkdir(exist_ok=True, parents=True)
-                machine_id = int.from_bytes(random.randbytes(8))
-                alternative_machine_id.write_text(f"{machine_id:08x}")
-                return Host(socket.gethostname(), machine_id)
+        # In containers and GitHub CI, SystemD machine-id may not exist.
+        # Our alternative is to create a random iD, and store it in a persistent location
+        alternative_machine_id = consts.get_state_dir() / "machine-id"
+        if alternative_machine_id.exists() and (data := alternative_machine_id.read_text().strip()):
+            return Host(socket.gethostname(), int(data, 16))
+        alternative_machine_id.parent.mkdir(exist_ok=True, parents=True)
+        machine_id = int.from_bytes(random.randbytes(8))
+        alternative_machine_id.write_text(f"{machine_id:08x}")
+        return Host(socket.gethostname(), machine_id)
 
 
 @dataclasses.dataclass(frozen=True, order=True)
 class Device:
     major_id: int
     minor_id: int
+
     def __str__(self) -> str:
         return f"device {self.major_id}_{self.minor_id}"
 
@@ -87,8 +93,13 @@ class Inode:
     mode: int
 
     @staticmethod
-    def from_ops_inode(inode: ops.Inode) -> Inode:
-        return Inode(Host.localhost(), Device(inode.device_major, inode.device_minor), inode.number, inode.mode)
+    def from_ops_inode(inode: headers.Inode) -> Inode:
+        return Inode(
+            Host.localhost(),
+            Device(inode.device_major, inode.device_minor),
+            inode.number,
+            inode.mode,
+        )
 
     @property
     def type(self) -> str:
@@ -109,7 +120,7 @@ class InodeVersion:
     # other Hosts will not be synchronized (vector clock).
     # It's better to assume nothing; different mtime still implies different object, but no ordering.
     # mtime nanoseconds precision (whether or not we have nanosecond resolution)
-    mtime: numpy.datetime64
+    mtime: np.datetime64
     size: int
 
     @staticmethod
@@ -125,17 +136,14 @@ class InodeVersion:
                 s.st_ino,
                 s.st_mode,
             ),
-            numpy.datetime64(s.st_mtime_ns, "ns"),
+            np.datetime64(s.st_mtime_ns, "ns"),
             s.st_size,
         )
 
     @staticmethod
     def from_id_string(id_string: str) -> InodeVersion:
         # See `libprobe/src/prov_utils.c:path_to_id_string()`
-        array = [
-            int(segment, 16)
-            for segment in id_string.split("-")
-        ]
+        array = [int(segment, 16) for segment in id_string.split("-")]
         assert len(array) == 6
         return InodeVersion(
             Inode(
@@ -144,15 +152,15 @@ class InodeVersion:
                 array[2],
                 0,
             ),
-            numpy.datetime64(array[3] * int(1e9) + array[4], "ns"),
+            np.datetime64(array[3] * int(1e9) + array[4], "ns"),
             array[5],
         )
 
     @staticmethod
-    def from_ops_inode(inode: ops.Inode) -> InodeVersion:
+    def from_ops_inode(inode: headers.Inode) -> InodeVersion:
         return InodeVersion(
             Inode.from_ops_inode(inode),
-            numpy.datetime64(inode.mtime.tv_sec * int(1e9) + inode.mtime.tv_nsec, "ns"),
+            np.datetime64(inode.mtime.tv_sec * int(1e9) + inode.mtime.tv_nsec, "ns"),
             inode.size,
         )
 
@@ -160,7 +168,7 @@ class InodeVersion:
 @dataclasses.dataclass(frozen=True)
 class KernelThread:
     tid: Tid
-    ops: typing.Sequence[ops.Op]
+    ops: typing.Sequence[headers.Op]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -218,53 +226,54 @@ class OpQuad:
 class ProbeLog:
     processes: typing.Mapping[Pid, Process]
     copied_files: typing.Mapping[InodeVersion, pathlib.Path]
-    process_tree_context: ops.ProcessTreeContext
+    process_tree_context: headers.ProcessTreeContext
     host: Host
 
     # TODO: refactor
     # I think we should have probe_log.ops[quad] and probe_log.ops -> iterator
     # Maybe drop probe_log.ops -> iterator
 
-    def get_op(self, op: OpQuad) -> ops.Op:
+    def get_op(self, op: OpQuad) -> headers.Op:
         return self.processes[op.pid].execs[op.exec_no].threads[op.tid].ops[op.op_no]
 
-    def ops(self) -> typing.Iterator[tuple[OpQuad, ops.Op]]:
+    def ops(self) -> typing.Iterator[tuple[OpQuad, headers.Op]]:
         for pid, process in sorted(self.processes.items()):
-            for epoch, exec in sorted(process.execs.items()):
-                for tid, thread in sorted(exec.threads.items()):
+            for epoch, exec_epoch in sorted(process.execs.items()):
+                for tid, thread in sorted(exec_epoch.threads.items()):
                     for op_no, op in enumerate(thread.ops):
                         yield OpQuad(pid, epoch, tid, op_no), op
 
     def get_root_pid(self) -> Pid:
         for quad, op in self.ops():
             match op.data:
-                case ops.InitExecEpoch():
+                case headers.InitExecEpoch():
                     if op.data.parent_pid == self.process_tree_context.parent_of_root:
                         return Pid(quad.pid)
-        raise RuntimeError("No root process found")
+        msg = "No root process found"
+        raise RuntimeError(msg)
 
     def get_parent_pid_map(self) -> typing.Mapping[Pid, Pid]:
         parent_pid_map = dict[Pid, Pid]()
         for quad, op in self.ops():
             match op.data:
-                case ops.Clone():
-                    if op.ferrno == 0 and op.data.task_type == ops.TaskType.PID:
+                case headers.Clone():
+                    if op.ferrno == 0 and op.data.task_type == headers.TaskType.PID:
                         parent_pid_map[Pid(op.data.task_id)] = quad.pid
-                case ops.Spawn():
+                case headers.Spawn():
                     if op.ferrno == 0:
                         parent_pid_map[Pid(op.data.child_pid)] = quad.pid
         return parent_pid_map
 
     def n_ops(self) -> int:
         total = 0
-        for pid, process in sorted(self.processes.items()):
-            for epoch, exec in sorted(process.execs.items()):
-                for tid, thread in sorted(exec.threads.items()):
+        for _pid, process in sorted(self.processes.items()):
+            for _epoch, exec_epoch in sorted(process.execs.items()):
+                for _tid, thread in sorted(exec_epoch.threads.items()):
                     total += len(thread.ops)
         return total
 
 
-class InvalidProbeLog(Exception):
+class InvalidProbeLog(Exception):  # noqa: N818
     pass
 
 
@@ -273,7 +282,8 @@ class UnusualProbeLog(Warning):
 
 
 class AccessMode(enum.Enum):
-    """In what way are we accessing the inode version?"""
+    """Describe what way are we accessing the inode version."""
+
     EXEC = enum.auto()
     DLOPEN = enum.auto()
     READ = enum.auto()
@@ -288,7 +298,7 @@ class AccessMode(enum.Enum):
 
     @property
     def is_truncating(self) -> bool:
-        return self in {AccessMode.TRUNCATE_WRITE}
+        return self == AccessMode.TRUNCATE_WRITE
 
     @property
     def can_mutate(self) -> bool:
@@ -303,28 +313,30 @@ class AccessMode(enum.Enum):
         access_mode = flags & os.O_ACCMODE
         if access_mode == os.O_RDONLY:
             return AccessMode.READ
-        elif flags & (os.O_TRUNC | os.O_CREAT):
+        if flags & (os.O_TRUNC | os.O_CREAT):
             return AccessMode.TRUNCATE_WRITE
-        elif access_mode == os.O_WRONLY:
+        if access_mode == os.O_WRONLY:
             return AccessMode.WRITE
-        elif access_mode == os.O_RDWR:
+        if access_mode == os.O_RDWR:
             return AccessMode.READ_WRITE
-        else:
-            raise InvalidProbeLog(f"Invalid open flags: 0x{flags:x}")
+        msg = f"Invalid open flags: 0x{flags:x}"
+        raise InvalidProbeLog(msg)
 
-    def downgrade(self, is_write: bool, is_read: bool) -> AccessMode | None:
+    def downgrade(self, *, is_write: bool, is_read: bool) -> AccessMode | None:
         """
+        Convert to a new accessmode based on actual usage.
+
         Suppose the actual access mode was only ever accessed in the provided way.
         What should the new 'downgraded' access mode be?
         """
         result = _DOWNGRADE_MATRIX[self][is_write * 2 + is_read]
         if isinstance(result, Exception):
-            raise ValueError(f"{is_write=} and {is_read=} should not be possible for {self.name}")
-        else:
-            return result
+            msg = f"{is_write=} and {is_read=} should not be possible for {self.name}"
+            raise ValueError(msg)  # noqa: TRY004
+        return result
 
 
-_DOWNGRADE_MATRIX: typing.Mapping[AccessMode, tuple[None | Exception | AccessMode, ...]] = {
+_DOWNGRADE_MATRIX: typing.Mapping[AccessMode, tuple[Exception | AccessMode | None, ...]] = {
     AccessMode.EXEC: (None, AccessMode.EXEC, ValueError(), ValueError()),
     AccessMode.DLOPEN: (None, AccessMode.DLOPEN, ValueError(), ValueError()),
     AccessMode.READ: (None, AccessMode.READ, ValueError(), ValueError()),

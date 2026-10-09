@@ -1,9 +1,9 @@
 import pathlib
-import tempfile
-import pycparser  # type: ignore
-import pycparser.c_generator  # type: ignore
 import sys
+import tempfile
 
+import pycparser
+import pycparser.c_generator
 
 with tempfile.TemporaryDirectory() as tmpdir:
     src_file = pathlib.Path(tmpdir) / "test.c"

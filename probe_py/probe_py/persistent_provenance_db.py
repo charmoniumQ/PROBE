@@ -1,27 +1,33 @@
-from sqlalchemy import create_engine, DateTime
-from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped
-from sqlalchemy.engine import Engine
-import xdg_base_dirs
 import pathlib
 from datetime import datetime
+
+import xdg_base_dirs
+from sqlalchemy import DateTime, create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
 
 class Base(DeclarativeBase):
     pass
 
+
 _engine: Engine | None = None
+
+
 def get_engine() -> Engine:
-    global _engine
+    global _engine  # noqa: PLW0603
     if _engine is None:
         home = pathlib.Path(xdg_base_dirs.xdg_data_home())
         home.mkdir(parents=True, exist_ok=True)
         database_path = home / "probe_log.db"
 
-        _engine = create_engine(f'sqlite:///{database_path}', echo=True)
+        _engine = create_engine(f"sqlite:///{database_path}", echo=True)
         Base.metadata.create_all(_engine)
     return _engine
 
+
 class ProcessThatWrites(Base):
-    __tablename__ = 'process_that_writes'
+    __tablename__ = "process_that_writes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     inode: Mapped[int]
@@ -36,7 +42,7 @@ class ProcessThatWrites(Base):
 
 
 class Process(Base):
-    __tablename__ = 'process'
+    __tablename__ = "process"
 
     process_id: Mapped[int] = mapped_column(primary_key=True)
     parent_process_id: Mapped[int]
@@ -45,7 +51,7 @@ class Process(Base):
 
 
 class ProcessInputs(Base):
-    __tablename__ = 'process_inputs'
+    __tablename__ = "process_inputs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     inode: Mapped[int]

@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 from __future__ import annotations
-import sys
-import subprocess
-import pathlib
-import tempfile
-import enum
+
 import ctypes
+import enum
 import os
+import pathlib
+import subprocess
+import sys
+import tempfile
 
 USE_GDB = False
 LD_DEBUG = "all"
@@ -22,7 +23,7 @@ args = sys.argv[2:]
 if "__file__" in locals():
     proj_root = pathlib.Path(__file__).resolve().parent.parent.parent
 else:
-    proj_root = pathlib.Path().resolve().parent.parent
+    proj_root = pathlib.Path.cwd().parent.parent
 libprobe = proj_root / "libprobe/.build/libprobe.dbg.so"
 if not libprobe.exists():
     raise RuntimeError(f"Need to build libprobe first; try 'just compile && ls {libprobe!s}'")
@@ -79,13 +80,18 @@ class ProcessContext(ctypes.Structure):
             copy_files=copy_files.value,
         )
 
+
 (probe_dir / "pids").mkdir()
 (probe_dir / "context").mkdir()
 (probe_dir / "inodes").mkdir()
-(probe_dir / "process_tree_context").write_bytes(bytearray(ProcessContext.new(
-    libprobe_path=libprobe,
-    copy_files=CopyFilesMode.DONT_COPY,
-)))
+(probe_dir / "process_tree_context").write_bytes(
+    bytearray(
+        ProcessContext.new(
+            libprobe_path=libprobe,
+            copy_files=CopyFilesMode.DONT_COPY,
+        ),
+    ),
+)
 
 
 print(f"{libprobe=}")
@@ -97,17 +103,18 @@ if USE_GDB:
             "gdb",
             "--quiet",
             # "--eval-command=set environment LD_DEBUG all",
-        f"--eval-command=set environment LD_PRELOAD {libprobe!s}",
-        f"--eval-command=set environment PROBE_DIR {probe_dir!s}",
-        f"--eval-command=set environment LD_DEBUG {LD_DEBUG}",
-        "--eval-command=set startup-with-shell off",
-        "--eval-command=starti",
-        # "--eval-command=backtrace",
-        "--args",
-        cmd,
-        *args,
+            f"--eval-command=set environment LD_PRELOAD {libprobe!s}",
+            f"--eval-command=set environment PROBE_DIR {probe_dir!s}",
+            f"--eval-command=set environment LD_DEBUG {LD_DEBUG}",
+            "--eval-command=set startup-with-shell off",
+            "--eval-command=starti",
+            # "--eval-command=backtrace",
+            "--args",
+            cmd,
+            *args,
         ],
         capture_output=False,
+        check=True,
     )
 else:
     subprocess.run(

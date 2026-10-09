@@ -20,20 +20,45 @@ def autogen_code(jsonschema: pathlib.Path, headers_py: pathlib.Path) -> None:
     subprocess.run(
         [
             "datamodel-codegen",
-            "--input", str(jsonschema),
+            "--input",
+            str(jsonschema),
             "--input-file-type=jsonschema",
             "--output-model-type=msgspec.Struct",
             "--output",
             str(headers_py),
-            "--target-python-version=3.12", # "|"-unions and type alias
+            # "|"-unions and type alias
+            "--target-python-version=3.13",
             "--capitalize-enum-members",
-            "--use-generic-container-types", # Sequence instead of list
-            # "--collapse-root-models", # copy Union types at every use-site, rather than definint it once
+            # Sequence[_T] instead of list[_T]
+            "--use-generic-container-types",
+            # copy Union types at every use-site, rather than defining it once
+            # that creates a lot of code duplication
+            # "--collapse-root-models",
+            # faux immutability only seems to work for Pydantic models.
+            # Instead, we will use `add_immutable`
             # "--enable-faux-immutability",
-            # "--strict-types", "str", "bytes", "int", "float", "bool",
-            # "--use-annotated",
-            # "--type-mappings", "CString=bytes",
-            # "--custom-formatters", "ruff",
+            # Code already uses annotated.
+            # This might be only for pydantic
+            "--use-annotated",
+            # Without this, we get:
+            #
+            #     UserWarning: format of 'uint16' not understood for 'integer' - using default
+            #
+            "--type-mappings",
+            "integer+uint8=integer",
+            "integer+uint16=integer",
+            "integer+uint32=integer",
+            "integer+uint64=integer",
+            # Without this, we get,
+            #
+            #     FutureWarning: The default external formatters (black, isort) will become opt-in in a future version.
+            #     To keep the current behavior, specify formatters=[Formatter.BLACK, Formatter.ISORT].
+            #     To prepare for dependency-free formatting, use formatters=[Formatter.BUILTIN].
+            #     To suppress this warning, specify formatters explicitly."
+            #
+            "--formatters",
+            "ruff-check",
+            "ruff-format",
         ],
         check=True,
     )
@@ -49,6 +74,14 @@ def fixup_autogen_ast(headers_py: pathlib.Path) -> None:
     add_properties(module)
     add_typedefs(module)
     headers_py.write_text(ast.unparse(module))
+    subprocess.run(
+        ["ruff", "--config=ruff.toml", "check", "--fix", "--unsafe-fixes", str(headers_py)],
+        check=True,
+    )
+    subprocess.run(
+        ["ruff", "--config=ruff.toml", "format", str(headers_py)],
+        check=True,
+    )
 
 
 def remove_unset(module: ast.Module) -> None:
@@ -57,17 +90,16 @@ def remove_unset(module: ast.Module) -> None:
     none = ast.parse("None", mode="eval").body
     module.body = [
         replace(replace(stmt, unset, none), unset_type, none)
-        if not isinstance(stmt, ast.ImportFrom) else stmt
+        if not isinstance(stmt, ast.ImportFrom)
+        else stmt
         for stmt in module.body
-        
     ]
 
 
 def add_immutable(module: ast.Module) -> None:
     for class_def in find_classes(module):
         is_struct = any(
-            isinstance(base, ast.Name) and base.id == "Struct"
-            for base in class_def.bases
+            isinstance(base, ast.Name) and base.id == "Struct" for base in class_def.bases
         )
         if is_struct:
             class_def.keywords.append(ast.keyword(arg="frozen", value=ast.Constant(value=True)))
@@ -76,28 +108,20 @@ def add_immutable(module: ast.Module) -> None:
 
 def fix_tagged_enums(module: ast.Module) -> None:
     classes_to_replace: dict[str, str] = {}
+
     for class_def in module.body[:]:
         if isinstance(class_def, ast.ClassDef):
-            try:
-                type_field = find_field(class_def, "type")
-            except KeyError:
-                pass
-            else:
-                assert isinstance(type_field, ast.AnnAssign)
-                assert isinstance(type_field.annotation, ast.Subscript)
-                assert isinstance(type_field.annotation.value, ast.Name)
-                assert type_field.annotation.value.id == "Literal"
-                assert isinstance(type_field.annotation.slice, ast.Constant)
-                assert isinstance(type_field.annotation.slice.value, str)
-                tag_value = type_field.annotation.slice.value
-                find_class(module, tag_value) # assert class with this tag exists
-                classes_to_replace[class_def.name] = tag_value
+            tag = {keyword.arg: keyword.value for keyword in class_def.keywords}.get("tag")
+            if tag:
+                assert isinstance(tag, ast.Constant)
+                assert isinstance(tag.value, str)
+                find_class(module, tag.value)  # assert class with this tag exists
+                classes_to_replace[class_def.name] = tag.value
                 module.body.remove(class_def)
 
     for old_class, new_class in classes_to_replace.items():
         module.body = [
-            replace(stmt, ast.Name(id=old_class), ast.Name(id=new_class))
-            for stmt in module.body
+            replace(stmt, ast.Name(id=old_class), ast.Name(id=new_class)) for stmt in module.body
         ]
         new_class_def = find_class(module, new_class)
         if not any(keyword.arg == "tag" for keyword in new_class_def.keywords):
@@ -106,21 +130,12 @@ def fix_tagged_enums(module: ast.Module) -> None:
 
 def replace_bytestring_sequence(module: ast.Module) -> None:
     bytes_ast = ast.parse("bytes", mode="eval").body
-    module.body = [
-        ast.TypeAlias(
-            **{
-                **stmt.__dict__,
-                "value": bytes_ast,
-            }
-        )
-        if isinstance(stmt, ast.TypeAlias) and stmt.name.id in {"FixedPath", "ByteString"}
-        else stmt
-        for stmt in module.body
-    ]
+    for stmt in module.body:
+        if isinstance(stmt, ast.TypeAlias) and stmt.name.id in {"FixedPath", "ByteString"}:
+            stmt.value = bytes_ast
     stringarrayitem_sequence = ast.parse("Sequence[StringArrayItem]", mode="eval").body
     module.body = [
-        replace(statement, stringarrayitem_sequence, bytes_ast)
-        for statement in module.body
+        replace(statement, stringarrayitem_sequence, bytes_ast) for statement in module.body
     ]
 
 
@@ -136,15 +151,14 @@ def fixup_imports(module: ast.mod) -> None:
                     ]
                 elif statement.module == "typing":
                     statement.names = [
-                        alias
-                        for alias in statement.names
-                        if alias.name not in {"Literal",}
+                        alias for alias in statement.names if alias.name != "Literal"
                     ] + [ast.alias("Final")]
 
 
 def add_properties(module: ast.mod) -> None:
     open_number_class = find_class(module, "OpenNumber")
-    open_number_class.body.extend(ast.parse("""
+    open_number_class.body.extend(
+        ast.parse("""
 
 @property
 def number(self) -> int:
@@ -160,14 +174,16 @@ def is_write(self) -> bool:
 
 def __str__(self) -> str:
     return f"{self.fd},{self.number}{"R" if self.is_read else ""}{"W" if self.is_write else ""}"
-""").body)
+""").body,
+    )
 
 
 def add_typedefs(module: ast.mod) -> None:
     if isinstance(module, (ast.Module, ast.Interactive)):
-        module.body = module.body + [
+        module.body = [
+            *module.body,
             ast.AnnAssign(
-                target=ast.Name(id='AT_FDCWD'),
+                target=ast.Name(id="AT_FDCWD"),
                 annotation=ast.Subscript(
                     value=ast.Name(id="Final"),
                     slice=ast.Name(id="int"),
@@ -177,7 +193,7 @@ def add_typedefs(module: ast.mod) -> None:
                 simple=True,
             ),
             ast.AnnAssign(
-                target=ast.Name(id='O_CLOEXEC'),
+                target=ast.Name(id="O_CLOEXEC"),
                 annotation=ast.Subscript(
                     value=ast.Name(id="Final"),
                     slice=ast.Name(id="int"),
@@ -187,7 +203,7 @@ def add_typedefs(module: ast.mod) -> None:
                 simple=True,
             ),
             ast.AnnAssign(
-                target=ast.Name(id='FD_CLOEXEC'),
+                target=ast.Name(id="FD_CLOEXEC"),
                 annotation=ast.Subscript(
                     value=ast.Name(id="Final"),
                     slice=ast.Name(id="int"),
@@ -198,12 +214,12 @@ def add_typedefs(module: ast.mod) -> None:
             ),
         ]
     else:
-        raise TypeError()
+        raise TypeError
 
 
 def insert_after_imports(
-        module: ast.Module,
-        statements: list[ast.stmt],
+    module: ast.Module,
+    statements: list[ast.stmt],
 ) -> None:
     last_import = 0
     for i, stmt in enumerate(module.body):
@@ -213,75 +229,84 @@ def insert_after_imports(
 
 
 def find_classes(
-        module: ast.mod,
-        name: str | re.Pattern[str] = re.compile(r".+"),
+    module: ast.mod,
+    name: str | re.Pattern[str] = re.compile(r".+"),
 ) -> collections.abc.Iterator[ast.ClassDef]:
     if isinstance(module, (ast.Module, ast.Interactive)):
         for statement in module.body:
-            if isinstance(statement, ast.ClassDef):
-                if (isinstance(name, str) and statement.name == name) or \
-                   (isinstance(name, re.Pattern) and name.match(statement.name)):
-                    yield statement
+            if isinstance(statement, ast.ClassDef) and (
+                (isinstance(name, str) and statement.name == name)
+                or (isinstance(name, re.Pattern) and name.match(statement.name))
+            ):
+                yield statement
 
 
 def find_class(module: ast.mod, name: str) -> ast.ClassDef:
     for class_def in find_classes(module, name):
         return class_def
-    raise KeyError(f"class {name} not found in module")
+    msg = f"class {name} not found in module"
+    raise KeyError(msg)
 
 
 def find_field(class_def: ast.ClassDef, name: str) -> ast.AnnAssign:
     for statement in class_def.body:
-        if isinstance(statement, ast.AnnAssign):
-            if isinstance(statement.target, ast.Name):
-                if statement.target.id == name:
-                    return statement
-    raise KeyError(f"field {name} not found in class {class_def.name}")
+        if (
+            isinstance(statement, ast.AnnAssign)
+            and isinstance(statement.target, ast.Name)
+            and statement.target.id == name
+        ):
+            return statement
+    msg = f"field {name} not found in class {class_def.name}"
+    raise KeyError(msg)
 
 
 @typing.overload
 def replace(
-        haystack: ast.Module,
-        needle: ast.expr,
-        substitute: ast.expr,
+    haystack: ast.Module,
+    needle: ast.expr,
+    substitute: ast.expr,
 ) -> ast.stmt:
     pass
+
+
 @typing.overload
 def replace(
-        haystack: ast.stmt,
-        needle: ast.expr,
-        substitute: ast.expr,
+    haystack: ast.stmt,
+    needle: ast.expr,
+    substitute: ast.expr,
 ) -> ast.stmt:
     pass
+
+
 @typing.overload
 def replace(
-        haystack: ast.expr,
-        needle: ast.expr,
-        substitute: ast.expr,
+    haystack: ast.expr,
+    needle: ast.expr,
+    substitute: ast.expr,
 ) -> ast.expr:
     pass
+
+
 def replace(
-        haystack: ast.Module | ast.stmt | ast.expr,
-        needle: ast.expr,
-        substitute: ast.expr,
+    haystack: ast.Module | ast.stmt | ast.expr,
+    needle: ast.expr,
+    substitute: ast.expr,
 ) -> ast.Module | ast.stmt | ast.expr | str | list[typing.Any]:
     match haystack:
         case None | int() | str():
             return haystack
         case list():
-            return [
-                replace(elem, needle, substitute)
-                for elem in haystack
-            ]
+            return [replace(elem, needle, substitute) for elem in haystack]
         case ast.AST():
             # TODO: use ast.compare in Python >= 3.14
             if ast.unparse(haystack) == ast.unparse(needle):
                 return substitute
-            else:
-                return type(haystack)(**{
+            return type(haystack)(
+                **{
                     keyword: replace(value, needle, substitute) if keyword != "parent" else value
                     for keyword, value in haystack.__dict__.items()
-                })
+                },
+            )
 
 
 if __name__ == "__main__":

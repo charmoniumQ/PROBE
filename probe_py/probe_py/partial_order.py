@@ -1,15 +1,21 @@
 from __future__ import annotations
+
 import abc
 import dataclasses
-from collections.abc import Iterable as It, Sequence as Seq, Mapping as Map
 import itertools
 import typing
+
 import charmonium.time_block
+import networkx as nx
+
 from . import graph_utils
-import networkx
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Iterable as It
+    from collections.abc import Mapping as Map
+    from collections.abc import Sequence as Seq
 
-_Node = typing.TypeVar("_Node")
+_Node = typing.TypeVar("_Node", bound=typing.Hashable)
 
 
 # Makes it slow, but assert more invariants
@@ -27,7 +33,7 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
         return not self.leq(u, v) and not self.leq(v, u)
 
     def sorted(self, nodes: It[_Node]) -> Seq[_Node]:
-        dag: networkx.DiGraph[_Node] = networkx.DiGraph()
+        dag: nx.DiGraph[_Node] = nx.DiGraph()
         dag.add_nodes_from(nodes)
         dag.add_edges_from(
             [
@@ -35,12 +41,12 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
                 for source in nodes
                 for target in nodes
                 if self.leq(source, target) and source != target
-            ]
+            ],
         )
-        assert networkx.is_directed_acyclic_graph(dag)
+        assert nx.is_directed_acyclic_graph(dag)
         if DEBUG_ASSERTIONS:
             pass
-        return list(networkx.topological_sort(dag))
+        return list(nx.topological_sort(dag))
 
     def upper_bounds(self, nodes: It[_Node]) -> frozenset[_Node]:
         uppermost_nodes = set[_Node]()
@@ -92,28 +98,28 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
         self,
         candidates: It[_Node],
         lower_bounds: It[_Node],
-    ) -> It[_Node]:
-        "Return all candidates that are not ancestors of any element in lower_bounds."
+    ) -> frozenset[_Node]:
+        """Return all candidates that are not ancestors of any element in lower_bounds."""
         return frozenset(
             {
                 candidate
                 for candidate in candidates
                 if not any(self.leq(candidate, lower_bound) for lower_bound in lower_bounds)
-            }
+            },
         )
 
     def non_descendants(
         self,
         candidates: It[_Node],
         upper_bounds: It[_Node],
-    ) -> It[_Node]:
-        "Return all candidates that are not descendent of any element in upper_bounds."
+    ) -> frozenset[_Node]:
+        """Return all candidates that are not descendent of any element in upper_bounds."""
         return frozenset(
             {
                 candidate
                 for candidate in candidates
                 if not any(self.leq(upper_bound, candidate) for upper_bound in upper_bounds)
-            }
+            },
         )
 
     def interval(self, upper_bound: It[_Node], lower_bound: It[_Node]) -> Interval[_Node]:
@@ -122,14 +128,14 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
     def singleton(self, node: _Node) -> Interval[_Node]:
         return Interval(self, frozenset({node}), frozenset({node}))
 
-    def hasse_diagram(self, nodes: It[_Node]) -> networkx.DiGraph[_Node]:
-        ret: networkx.DiGraph[_Node] = networkx.DiGraph()
+    def hasse_diagram(self, nodes: It[_Node]) -> nx.DiGraph[_Node]:
+        ret: nx.DiGraph[_Node] = nx.DiGraph()
         for node in nodes:
             ret.add_node(node)
         for node0, node1 in itertools.permutations(nodes, r=2):
             if self.leq(node0, node1):
                 ret.add_edge(node0, node1)
-        return networkx.transitive_reduction(ret)
+        return nx.transitive_reduction(ret)
 
     def interval_order(self) -> IntervalOrder[_Node]:
         return IntervalOrder(self)
@@ -142,8 +148,8 @@ class PartialOrder(abc.ABC, typing.Generic[_Node]):
 class ReversedOrder(PartialOrder[_Node]):
     order: PartialOrder[_Node]
 
-    def leq(self, a: _Node, b: _Node) -> bool:
-        return self.order.leq(b, a)
+    def leq(self, node0: _Node, node1: _Node) -> bool:
+        return self.order.leq(node1, node0)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -172,14 +178,14 @@ class Interval(typing.Generic[_Node]):
             )
 
     def __bool__(self) -> bool:
-        "Whether the interval is non-empty"
+        """Whether the interval is non-empty."""
         return bool(self.upper_bound)
 
     def __lt__(self, other: Interval[_Node]) -> bool:
         if other.leq is not self.leq:
-            raise ValueError("Cannot compare intervals of different orders")
-        else:
-            return self.all_less_than(other)
+            msg = "Cannot compare intervals of different orders"
+            raise ValueError(msg)
+        return self.all_less_than(other)
 
     @staticmethod
     def union(*intervals: Interval[_Node]) -> Interval[_Node]:
@@ -187,32 +193,33 @@ class Interval(typing.Generic[_Node]):
         if DEBUG_ASSERTIONS:
             assert all(interval.leq is leq for interval in intervals)
         upper_bound = leq.upper_bounds(
-            frozenset(node for interval in intervals for node in interval.upper_bound)
+            frozenset(node for interval in intervals for node in interval.upper_bound),
         )
         lower_bound = leq.lower_bounds(
-            frozenset(node for interval in intervals for node in interval.lower_bound)
+            frozenset(node for interval in intervals for node in interval.lower_bound),
         )
         return Interval(leq, frozenset(upper_bound), frozenset(lower_bound))
 
     def all_less_than(self, other: Interval[_Node]) -> bool:
         other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = self.leq.non_descendants(
-            other.upper_bound, self.lower_bound
+            other.upper_bound,
+            self.lower_bound,
         )
         return not other_upper_bounds_that_are_not_descendent_of_self_lower_bounds
 
 
 @dataclasses.dataclass(frozen=True)
-class IntervalOrder(typing.Generic[_Node], PartialOrder[Interval[_Node]]):
+class IntervalOrder(PartialOrder[Interval[_Node]], typing.Generic[_Node]):
     node_order: PartialOrder[_Node]
 
-    def leq(self, interval0: Interval[_Node], interval1: Interval[_Node]) -> bool:
-        return interval0.all_less_than(interval1)
+    def leq(self, node0: Interval[_Node], node1: Interval[_Node]) -> bool:
+        return node0.all_less_than(node1)
 
 
 @charmonium.time_block.decor(print_start=False)
 def peers(
     order: PartialOrder[_Node],
-    dag: networkx.DiGraph[_Node],
+    dag: nx.DiGraph[_Node],
 ) -> Map[_Node, Interval[_Node]]:
     my_highest_peers = highest_peers(order, dag)
     my_lowest_peers = highest_peers(order.reverse(), dag.reverse())
@@ -223,17 +230,17 @@ def peers(
 
 def highest_peers(
     order: PartialOrder[_Node],
-    dag: networkx.DiGraph[_Node],
+    dag: nx.DiGraph[_Node],
 ) -> Map[_Node, frozenset[_Node]]:
     if DEBUG_ASSERTIONS:
-        assert networkx.is_directed_acyclic_graph(dag)
+        assert nx.is_directed_acyclic_graph(dag)
     highest_peers = {node: set[_Node]() for node in dag.nodes()}
 
     sources = graph_utils.get_sources(dag)
     for source0, source1 in itertools.permutations(sources, 2):
         highest_peers[source0].add(source1)
 
-    for node in networkx.topological_sort(dag):
+    for node in nx.topological_sort(dag):
         highest_peers_of_parent = set[_Node]()
         siblings = set[_Node]()
         for parent in dag.predecessors(node):
@@ -282,11 +289,12 @@ def highest_peers(
 
 def topo_sort_subset(
     order: PartialOrder[_Node],
-    dag: networkx.DiGraph[_Node],
+    dag: nx.DiGraph[_Node],
     upper_bound: It[_Node],
     lower_bound: It[_Node],
 ) -> typing.Generator[_Node | None, bool | None, None]:
-    """Antichain traversal with pruning
+    """
+    Antichain traversal with pruning.
 
     Antichain traversal means that nodes will be iterated in order starting from upper_bound.
 

@@ -1,14 +1,13 @@
 import collections
 import typing
 
-
 _T = typing.TypeVar("_T", bound=typing.Hashable)
 
 
 class DisjointSets(typing.Generic[_T]):
-    def __init__(self, nodes: collections.abc.Iterable[_T]):
+    def __init__(self, nodes: collections.abc.Iterable[_T]) -> None:
         self.parent = {node: node for node in nodes}
-        self.rank = {node: 0 for node in self.parent.keys()}
+        self.rank = dict.fromkeys(self.parent, 0)
 
     def find(self, node: _T) -> _T:
         parent = self.parent[node]
@@ -39,6 +38,6 @@ class DisjointSets(typing.Generic[_T]):
 
     def sets(self) -> collections.abc.Iterator[set[_T]]:
         groups = collections.defaultdict[_T, set[_T]](set)
-        for node in self.parent.keys():
+        for node in self.parent:
             groups[self.find(node)].add(node)
         return iter(groups.values())

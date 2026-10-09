@@ -1,5 +1,5 @@
-import pathlib
 import multiprocessing
+import pathlib
 
 
 def source() -> None:
