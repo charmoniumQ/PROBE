@@ -95,11 +95,18 @@ def hb_graph_to_dataflow_graph(
 ) -> tuple[Analysis, DataflowGraph]:
     dfg: UncompressedDataflowGraph = nx.DiGraph()
 
-    analysis = Analysis.init(probe_log, hb_graph, verbose=verbose, loose=loose, conservative=conservative)
+    analysis = Analysis.init(
+        probe_log,
+        hb_graph,
+        verbose=verbose,
+        loose=loose,
+        conservative=conservative,
+    )
 
     inode_intervals = find_intervals(analysis)
     top_k = heapq.nlargest(
-        10, ((len(intervals), inode) for inode, intervals in inode_intervals.items()),
+        10,
+        ((len(intervals), inode) for inode, intervals in inode_intervals.items()),
     )
     if top_k and top_k[0][0] > CUTOFF:
         for len_inode_intervals, _ in top_k:
@@ -313,7 +320,9 @@ class Analysis:
 
         total = len(self.hb_graph)
         for quad in tqdm.tqdm(
-            nx.topological_sort(self.hb_graph), total=total, desc="Analysis",
+            nx.topological_sort(self.hb_graph),
+            total=total,
+            desc="Analysis",
         ):
             data = self.probe_log.get_op(quad).data
 
@@ -331,7 +340,8 @@ class Analysis:
                         pass
                     if data.open_number.number == 0:
                         warnings.warn(
-                            f"zero open-number should not be used for newly opened files: {quad} {data.open_number} {inode} {access_mode}", stacklevel=2,
+                            f"zero open-number should not be used for newly opened files: {quad} {data.open_number} {inode} {access_mode}",
+                            stacklevel=2,
                         )
                         continue
                     if not self.loose:
@@ -364,7 +374,8 @@ class Analysis:
                             warnings.warn(
                                 ptypes.UnusualProbeLog(
                                     f"Use of unknown open number as dir exec={quad.exec_pair()}, on={data.path.directory}",
-                                ), stacklevel=2,
+                                ),
+                                stacklevel=2,
                             )
                             dir_paths = collections.Counter([pathlib.Path("?")])
                         else:
@@ -374,7 +385,8 @@ class Analysis:
                                 warnings.warn(
                                     ptypes.UnusualProbeLog(
                                         f"Unknown directory path for {quad.exec_pair()} {data.path.directory}",
-                                    ), stacklevel=2,
+                                    ),
+                                    stacklevel=2,
                                 )
                                 dir_paths = collections.Counter([pathlib.Path("?")])
                             else:
@@ -420,7 +432,8 @@ class Analysis:
                                     warnings.warn(
                                         ptypes.UnusualProbeLog(
                                             f"Downgrading {oni.open_mode} to {downgraded_access} due to {string!r} accesses, which should not be possible.",
-                                        ), stacklevel=2,
+                                        ),
+                                        stacklevel=2,
                                     )
                                 else:
                                     raise ValueError from exc
@@ -463,7 +476,8 @@ class Analysis:
                     oni = open_numbers[data.src.fd].get(data.src.number)
                     if oni is None:
                         warnings.warn(
-                            ptypes.UnusualProbeLog(f"Dup of unknown open number {quad} {data.src}"), stacklevel=2,
+                            ptypes.UnusualProbeLog(f"Dup of unknown open number {quad} {data.src}"),
+                            stacklevel=2,
                         )
                     else:
                         if self.verbose:
@@ -511,7 +525,10 @@ class Analysis:
                     # - fcntl(fd, F_SETFD/F_SETFL)
                     # Conservatively assume not cloexec
                     target_quad = ptypes.OpQuad(
-                        quad.pid, quad.exec_no.next(), quad.pid.main_thread(), 0,
+                        quad.pid,
+                        quad.exec_no.next(),
+                        quad.pid.main_thread(),
+                        0,
                     )
                     self.execs.append((quad, target_quad))
                     if self.verbose:
@@ -661,7 +678,6 @@ def compress(
         sum(isinstance(node, Quads) for node in dfg_old.nodes())
         sum(isinstance(node, Quads) for node in dfg_new.nodes())
     return dfg_new
-
 
 
 class PidState(enum.IntEnum):
@@ -919,7 +935,7 @@ def label_ivns(
     max_path_segment_length: int,
     max_paths_per_inode: int,
     max_inodes_per_set: int,
-    show_unks: bool, # noqa: ARG001
+    show_unks: bool,  # noqa: ARG001
     show_system: bool,
 ) -> None:
     inode_labels = []

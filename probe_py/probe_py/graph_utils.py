@@ -35,7 +35,8 @@ def map_nodes(
 
 def relax_node(graph: nx.DiGraph[_Node], node: _Node) -> None:
     for predecessor, successor in itertools.product(
-        graph.predecessors(node), graph.successors(node),
+        graph.predecessors(node),
+        graph.successors(node),
     ):
         graph.add_edge(predecessor, successor)
     graph.remove_node(node)
@@ -162,7 +163,8 @@ def topological_sort_depth_first(
             # decrementing the in-degree of its children by one.
             # To make it be depth first, we make it "win" all ties, among currently existing entries.
             for child in sorted(
-                dag.successors(node), key=lambda child: score_children(node, child),
+                dag.successors(node),
+                key=lambda child: score_children(node, child),
             ):
                 in_degree, _ = queue[child]
                 queue[child] = (in_degree - 1, -counter)
@@ -204,7 +206,8 @@ def combine_twin_nodes(
     }
 
     return typing.cast(
-        "nx.DiGraph[frozenset[_Node]]", nx.relabel_nodes(graph, mapper),
+        "nx.DiGraph[frozenset[_Node]]",
+        nx.relabel_nodes(graph, mapper),
     )
 
 
@@ -228,10 +231,12 @@ def retain_nodes_in_dag(
     # Note that there can be multiple "latest" due to partial ordering.
     # Note that could be itself (not truly a predecessor), but it simplifies the logic.
     latest_retained_predecessors: dict[
-        _Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]],
+        _Node,
+        typing.Sequence[tuple[typing.Sequence[_Node], _Node]],
     ] = {}
     earliest_retained_successors: dict[
-        _Node, typing.Sequence[tuple[typing.Sequence[_Node], _Node]],
+        _Node,
+        typing.Sequence[tuple[typing.Sequence[_Node], _Node]],
     ] = {}
 
     for node in nx.topological_sort(dag):

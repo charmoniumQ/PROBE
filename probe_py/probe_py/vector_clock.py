@@ -11,8 +11,8 @@ import tqdm
 from . import partial_order
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterable as It
     from collections.abc import Collection
+    from collections.abc import Iterable as It
     from collections.abc import Mapping as Map
 
 _ThreadId = typing.NewType("_ThreadId", int)
@@ -26,7 +26,11 @@ _TimeVal: typing.TypeAlias = np.int32
 class VectorTime:
     clocks: np.ndarray
 
-    def increment(self, current_thread: _ThreadId, predecessors: Collection[VectorTime]) -> VectorTime:
+    def increment(
+        self,
+        current_thread: _ThreadId,
+        predecessors: Collection[VectorTime],
+    ) -> VectorTime:
         """Increment the current_clock, such that it will be after all predecessors."""
         max_thread = max(
             len(self),

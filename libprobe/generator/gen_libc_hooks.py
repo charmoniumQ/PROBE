@@ -103,8 +103,8 @@ class FunctionalNodeVisitor(typing.Generic[_T]):
         """
         return list(
             itertools.chain.from_iterable(
-                self.visit(c) for c in typing.cast(typing.Iterable[Node], node)
-            )
+                self.visit(c) for c in typing.cast("typing.Iterable[Node]", node)
+            ),
         )
 
 

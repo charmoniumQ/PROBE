@@ -202,7 +202,8 @@ class Interval(typing.Generic[_Node]):
 
     def all_less_than(self, other: Interval[_Node]) -> bool:
         other_upper_bounds_that_are_not_descendent_of_self_lower_bounds = self.leq.non_descendants(
-            other.upper_bound, self.lower_bound,
+            other.upper_bound,
+            self.lower_bound,
         )
         return not other_upper_bounds_that_are_not_descendent_of_self_lower_bounds
 
