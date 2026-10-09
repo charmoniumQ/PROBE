@@ -75,9 +75,12 @@ lazy_static::lazy_static! {
     static ref RPM_BIN: Option<PathBuf> = which::which("rpm").ok();
 }
 
-pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(path: P, cookie: Option<&magic::Cookie<magic::cookie::Load>>) -> FileInfo {
+pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(path: P, db: Option<&pure_magic::MagicDb>) -> FileInfo {
     FileInfo {
-        mime_type: cookie.and_then(|cookie| cookie.file(&path).ok()).unwrap_or("application/octet-stream".to_string()),
+        mime_type: db
+            .and_then(|db| db.first_magic_file(&path).ok())
+            .map(|magic| magic.mime_type().to_string())
+            .unwrap_or_else(|| pure_magic::DEFAULT_BIN_MIMETYPE.to_string()),
         git_repo: get_git_repo(&path),
         deb_package: get_deb_package_name(&path),
         rpm_package: get_rpm_package_name(&path),
@@ -461,14 +464,10 @@ impl From<&str> for NameEmail {
 }
 
 pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
-    let cookie = magic::Cookie::open(
-        magic::cookie::Flags::MIME_TYPE | magic::cookie::Flags::MIME_ENCODING
-    ).map_err(|e| eyre!("magic open failed: {e}"))
-     .and_then(|cookie| cookie.load(&Default::default()).map_err(|e| eyre!("magic load failed: {e}")))
-     .ok();
+    let db = magic_db::global().ok();
     let file_infos: HashMap<PathBuf, FileInfo> = files
         .iter()
-        .map(|file| (file.clone(), crate::file_info::get_file_info(file, cookie.as_ref())))
+        .map(|file| (file.clone(), crate::file_info::get_file_info(file, db)))
         .collect();
     let venvs = file_infos
         .values()
