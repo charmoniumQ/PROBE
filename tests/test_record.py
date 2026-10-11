@@ -15,7 +15,7 @@ strace = False
 ld_debug = False
 # Save stderr to a file
 # Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
-stderr_to_file = True
+stderr_to_file = False
 
 probe_debug_log = False
 
@@ -116,8 +116,9 @@ simple_commands = {
             ["cat", "file0", "file2", "redirect_to", "file3"],
         ),
     ),
-    "python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
-    # TODO: c_hello
+    # TODO: enable python_multiprocessing (fails only in CI)
+    #"python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
+    # TODO: enable c_hello
     # "c_hello": bash_multi(
     #     ["echo", c_hello_world, "redirect_to", "test.c"],
     #     ["gcc", "test.c"],

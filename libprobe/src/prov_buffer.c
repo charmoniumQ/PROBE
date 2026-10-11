@@ -360,6 +360,10 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
                                     .directory = get_open_number(dirfd),
                                     .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
                                 },
+#ifdef PROBE_RECORD_REALPATHS
+                            .real_path =
+                                arena_strndup(get_data_arena(), get_real_path(fd), PATH_MAX),
+#endif
                             .open_number = open_number,
                             .inode = inode,
                             .flags = flags,
@@ -458,6 +462,10 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
                                     .directory = get_open_number(AT_FDCWD),
                                     .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
                                 },
+#ifdef PROBE_RECORD_REALPATHS
+                            .real_path = arena_strndup(get_data_arena(),
+                                                       get_real_path(fileno(file)), PATH_MAX),
+#endif
                             .open_number = open_number,
                             .inode = inode,
                             .flags = ACCESS_FLAGS[access],

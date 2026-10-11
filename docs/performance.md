@@ -25,3 +25,6 @@ Compile with SIMD
 Delete device numbers from Inode struct.
 
 Delete arena_sync
+
+TODO: turn off PROBE_RECORD_REALPATHS
+
