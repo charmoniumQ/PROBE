@@ -88,7 +88,7 @@ void print_open_fd(__attribute__((unused)) int fd) {
     }
     char* real_path = get_real_path(fd);
     DEBUG("fd %d -> path=%s, device=%u,%u inode=%zu", fd, real_path, major(st.st_dev),
-        minor(st.st_dev), st.st_ino);    
+          minor(st.st_dev), st.st_ino);
 #endif
 }
 
