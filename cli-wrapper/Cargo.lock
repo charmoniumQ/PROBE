@@ -1988,13 +1988,19 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "clap_builder",
+ "hashbrown 0.16.1",
+ "libc",
  "log",
  "memchr",
  "nix",
+ "num-traits",
+ "regex-automata",
+ "regex-syntax",
  "serde",
  "serde_core",
  "serde_json",
  "syn 2.0.117",
+ "tracing-core",
 ]
 
 [[package]]

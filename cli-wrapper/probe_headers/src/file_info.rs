@@ -193,7 +193,7 @@ fn call_dpkg_query_status(package_name: &str) -> Option<String> {
 }
 
 #[cfg(test)]
-fn call_dpkg_query_status(package_name: &str) -> Option<String> {
+fn call_dpkg_query_status(_package_name: &str) -> Option<String> {
     // podman run --rm ubuntu:latest dpkg-query --status coreutils-from-uutils
     Some("Package: coreutils-from-uutils
 Protected: yes
@@ -230,7 +230,7 @@ fn call_rpm_info(name: &str) -> Option<String> {
 }
 
 #[cfg(test)]
-fn call_rpm_info(name: &str) -> Option<String> {
+fn call_rpm_info(_name: &str) -> Option<String> {
     // podman run --rm ubuntu:latest dpkg-query --status coreutils-from-uutils
     Some("Name        : coreutils-single
 Version     : 9.5
@@ -287,7 +287,7 @@ fn read_metadata_file<P: AsRef<Path>>(metadata_file: P) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-fn read_metadata_file<P: AsRef<Path>>(metadata_file: P) -> Result<Vec<u8>> {
+fn read_metadata_file<P: AsRef<Path>>(_metadata_file: P) -> Result<Vec<u8>> {
     // cat ../../benchmark/simple-ml-pipeline/venv/lib/python3.14/site-packages/numpy-2.4.6.dist-info/METADATA
     Ok("Metadata-Version: 2.4
 Name: numpy
@@ -317,7 +317,7 @@ fn read_owned_files<P: AsRef<Path>>(sources_file: P) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-fn read_owned_files<P: AsRef<Path>>(sources_file: P) -> Result<Vec<u8>> {
+fn read_owned_files<P: AsRef<Path>>(_sources_file: P) -> Result<Vec<u8>> {
     // head ../../benchmark/simple-ml-pipeline/venv/lib/python3.14/site-packages/numpy-2.4.6.dist-info/SOURCES.txt
     Ok(
         "../../../bin/f2py,sha256=X445UH_Se8pg4O1pUfUNisQ9EaMcVK19zLdMRppkMyI,212
@@ -428,19 +428,6 @@ fn parse_rfc_822_email(bytes: &[u8]) -> Result<HashMap<String, Vec<String>>> {
     Ok(ret)
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::file_info::*;
-    use color_eyre::eyre::*;
-    #[test]
-    fn test_main() -> Result<()> {
-        println!("{:?}", DebPackageInfo::try_from("fake")?);
-        println!("{:?}", RpmPackageInfo::try_from("fake")?);
-        println!("{:?}", PythonSitePackages::try_from("/fake")?);
-        Ok(())
-    }
-}
-
 fn get_one<'a>(map: &'a HashMap<String, Vec<String>>, key: &'a str) -> Result<&'a str> {
     map.get(key)
         .ok_or(eyre!("{:?} not found", key))
@@ -534,5 +521,17 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         deb_pkgs,
         rpm_pkgs,
         git_repos,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::file_info::*;
+    #[test]
+    fn test_main() -> Result<()> {
+        println!("{:?}", deb_from_name("fake")?);
+        println!("{:?}", rpm_from_name("fake")?);
+        println!("{:?}", venv_from_paths("/fake", "/fake")?);
+        Ok(())
     }
 }
