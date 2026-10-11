@@ -214,17 +214,13 @@ fn filename_numeric<P: AsRef<Path>>(dir: P) -> Result<usize> {
         .map_err(|err| eyre!("{:?}", err))
 }
 
-fn transcribe_file_info<P: AsRef<Path>>(
-    dir: P,
-    files: &HashSet<PathBuf>,
-) -> Result<()> {
+fn transcribe_file_info<P: AsRef<Path>>(dir: P, files: &HashSet<PathBuf>) -> Result<()> {
     let all_file_infos = probe_headers::from_files(files);
     let mut file_infos_file = std::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(dir.as_ref().join("all_file_info.msgpack"))?;
-    let mut serializer =
-        rmp_serde::encode::Serializer::new(&mut file_infos_file).with_struct_map();
+    let mut serializer = rmp_serde::encode::Serializer::new(&mut file_infos_file).with_struct_map();
     use serde::Serialize;
     all_file_infos.serialize(&mut serializer)?;
     Ok(())

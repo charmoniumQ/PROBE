@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use eyre::{eyre, Result};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, schemars::JsonSchema, serde::Serialize)]
@@ -75,7 +75,10 @@ lazy_static::lazy_static! {
     static ref RPM_BIN: Option<PathBuf> = which::which("rpm").ok();
 }
 
-pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(path: P, db: Option<&pure_magic::MagicDb>) -> FileInfo {
+pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(
+    path: P,
+    db: Option<&pure_magic::MagicDb>,
+) -> FileInfo {
     FileInfo {
         mime_type: db
             .and_then(|db| db.first_magic_file(&path).ok())
@@ -132,9 +135,9 @@ fn find_venv_root<P: AsRef<Path>>(path: P) -> Option<(PathBuf, PathBuf)> {
         }
         if current.join("pyvenv.cfg").is_file() {
             let venv_root = current.to_path_buf();
-            match site_packages {
-                Some(site_packages) => return Some((venv_root, site_packages)),
-                None => return None,
+            {
+                let site_packages = site_packages?;
+                return Some((venv_root, site_packages));
             }
         }
         current = current.parent().unwrap();
@@ -145,10 +148,19 @@ fn find_venv_root<P: AsRef<Path>>(path: P) -> Option<(PathBuf, PathBuf)> {
 pub fn git_info<P: AsRef<Path>>(git_repo: P) -> Result<GitRepo> {
     let repo = gix::discover(git_repo.as_ref())?;
     let commit = repo.head()?.peel_to_commit()?.id;
-    let remotes = repo.remote_names().iter().map(|name| {
-        let remote = repo.find_remote(&**name)?;
-        Ok((name.to_string(), remote.url(gix::remote::Direction::Fetch).map(|url| url.to_string())))
-    }).collect::<Result<HashMap<_, _>>>()?;
+    let remotes = repo
+        .remote_names()
+        .iter()
+        .map(|name| {
+            let remote = repo.find_remote(&**name)?;
+            Ok((
+                name.to_string(),
+                remote
+                    .url(gix::remote::Direction::Fetch)
+                    .map(|url| url.to_string()),
+            ))
+        })
+        .collect::<Result<HashMap<_, _>>>()?;
     Ok(GitRepo {
         root: git_repo.as_ref().to_path_buf(),
         commit: commit.to_string(),
@@ -350,10 +362,9 @@ pub fn venv_from_paths<P: AsRef<Path>>(venv_root: P, site_packages: P) -> Result
             let files = csv_reader
                 .records()
                 .map(|row| {
-                    Ok(site_packages.as_ref().join(
-                        row?.get(0)
-                            .ok_or(eyre!("Can not get 0th field"))?,
-                    ))
+                    Ok(site_packages
+                        .as_ref()
+                        .join(row?.get(0).ok_or(eyre!("Can not get 0th field"))?))
                 })
                 .collect::<Result<Vec<_>>>()?;
             packages.push(PythonPkg {
@@ -443,8 +454,7 @@ fn get_one<'a>(map: &'a HashMap<String, Vec<String>>, key: &'a str) -> Result<&'
 }
 
 fn get_many<'a>(map: &'a HashMap<String, Vec<String>>, key: &'a str) -> Vec<String> {
-    map.get(key).cloned()
-        .unwrap_or_else(std::vec::Vec::new)
+    map.get(key).cloned().unwrap_or_else(std::vec::Vec::new)
 }
 
 fn get_email(name_email: &str) -> Option<(String, String)> {
@@ -456,9 +466,15 @@ fn get_email(name_email: &str) -> Option<(String, String)> {
 impl From<&str> for NameEmail {
     fn from(name_email: &str) -> NameEmail {
         if let Some((name, email)) = get_email(name_email) {
-            NameEmail {name, email: Some(email)}
+            NameEmail {
+                name,
+                email: Some(email),
+            }
         } else {
-            NameEmail {name: name_email.to_string(), email: None}
+            NameEmail {
+                name: name_email.to_string(),
+                email: None,
+            }
         }
     }
 }
@@ -477,7 +493,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         .map(|(venv_root, site_packages)| {
             (
                 (venv_root.clone(), site_packages.clone()),
-                venv_from_paths(&venv_root, &site_packages).unwrap()
+                venv_from_paths(&venv_root, &site_packages).unwrap(),
             )
         })
         .collect();
@@ -489,9 +505,9 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         .map(|deb_package_name| {
             (
                 deb_package_name.clone(),
-                deb_from_name(&deb_package_name).unwrap()
+                deb_from_name(&deb_package_name).unwrap(),
             )
-        })        
+        })
         .collect();
     let rpm_pkgs = file_infos
         .values()
@@ -501,7 +517,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         .map(|rpm_package_name| {
             (
                 rpm_package_name.clone(),
-                rpm_from_name(&rpm_package_name).unwrap()
+                rpm_from_name(&rpm_package_name).unwrap(),
             )
         })
         .collect();
@@ -510,12 +526,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         .filter_map(|file_info| file_info.git_repo.clone())
         .collect::<HashSet<_>>()
         .into_iter()
-        .map(|git_repo| {
-            (
-                git_repo.clone(),
-                git_info(&git_repo).unwrap()
-            )
-        })
+        .map(|git_repo| (git_repo.clone(), git_info(&git_repo).unwrap()))
         .collect();
     AllFileInfo {
         file_infos,
@@ -525,4 +536,3 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         git_repos,
     }
 }
-

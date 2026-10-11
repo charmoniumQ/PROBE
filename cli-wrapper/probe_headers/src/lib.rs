@@ -1,12 +1,12 @@
 mod arena;
 mod context;
-mod ops;
 mod file_info;
+mod ops;
 
 pub use arena::*;
 pub use context::*;
-pub use ops::*;
 pub use file_info::*;
+pub use ops::*;
 
 #[repr(C)]
 pub struct CExports(Op, ProcessTreeContext, ProcessContext, ArenaHeader);
