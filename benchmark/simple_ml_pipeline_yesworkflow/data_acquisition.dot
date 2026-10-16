@@ -1,0 +1,36 @@
+digraph Workflow {
+rankdir=LR
+fontname=Courier; fontsize=18; labelloc=t
+label=main
+subgraph cluster_workflow_box_outer { label=""; color=black; penwidth=2
+subgraph cluster_workflow_box_inner { label=""; color=white
+node[shape=box style=filled fillcolor="#CCFFCC" peripheries=1 fontname=Courier]
+fetch_raw_data
+process_data
+create_features
+save_data
+edge[fontname=Helvetica]
+process_data -> create_features [label=target_variable]
+fetch_raw_data -> process_data [label=raw_dataset]
+process_data -> create_features [label=feature_matrix]
+create_features -> save_data [label=feature_dataframe]
+create_features -> save_data [label=target_series]
+}}
+subgraph cluster_input_ports_group_outer { label=""; color=white
+subgraph cluster_input_ports_group_inner { label=""; color=white
+node[shape=circle style=filled fillcolor="#FFFFFF" peripheries=1 fontname=Courier width=0.2]
+data_url_input_port [label=""]
+}}
+subgraph cluster_output_ports_group_outer { label=""; color=white
+subgraph cluster_output_ports_group_inner { label=""; color=white
+node[shape=circle style=filled fillcolor="#FFFFFF" peripheries=1 fontname=Courier width=0.2]
+raw_data_output_port [label=""]
+feature_names_output_port [label=""]
+target_variable_output_port [label=""]
+}}
+edge[fontname=Helvetica]
+data_url_input_port -> fetch_raw_data [label=data_url]
+edge[fontname=Helvetica]
+save_data -> raw_data_output_port [label=raw_data]
+process_data -> target_variable_output_port [label=target_variable]
+}
