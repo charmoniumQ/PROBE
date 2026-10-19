@@ -504,7 +504,6 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
             )
         })
         .collect::<HashMap<String, DebPkg>>();
-    eprintln!("N deb_pkgs: {}", deb_pkgs.len());
     let rpm_pkgs = file_infos
         .values()
         .filter_map(|file_info| file_info.rpm_package.clone())
