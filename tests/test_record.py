@@ -116,8 +116,7 @@ simple_commands = {
             ["cat", "file0", "file2", "redirect_to", "file3"],
         ),
     ),
-    # TODO: enable python_multiprocessing (fails only in CI)
-    #"python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
+    "python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
     # TODO: enable c_hello
     # "c_hello": bash_multi(
     #     ["echo", c_hello_world, "redirect_to", "test.c"],

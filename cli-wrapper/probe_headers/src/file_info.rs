@@ -335,7 +335,9 @@ numpy-2.4.6.dist-info/entry_points.txt,sha256=7Cb63gyL2sIRpsHdADpl6xaIW5JTlUI-k_
 
 pub fn venv_from_paths<P: AsRef<Path>>(venv_root: P, site_packages: P) -> Result<Venv> {
     let mut packages: Vec<PythonPkg> = vec![];
-    for dir_name in list_site_packages_dir(&site_packages)? {
+    let dir_names = list_site_packages_dir(&site_packages)?;
+    eprintln!("N venv dirs: {}", dir_names.len());
+    for dir_name in dir_names {
         let files = if dir_name.extension() == Some(std::ffi::OsStr::new("dist-info")) {
             Some((dir_name.join("METADATA"), dir_name.join("RECORD")))
         } else if dir_name.extension() == Some(std::ffi::OsStr::new("egg-info")) {
@@ -468,14 +470,18 @@ impl From<&str> for NameEmail {
 
 pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
     let db = magic_db::global().ok();
+    eprintln!("N files: {}", files.len());
     let file_infos: HashMap<PathBuf, FileInfo> = files
         .iter()
         .map(|file| (file.clone(), crate::file_info::get_file_info(file, db)))
         .collect();
-    let venvs = file_infos
+    eprintln!("N file_infos: {}", file_infos.len());
+    let venv_paths = file_infos
         .values()
         .filter_map(|file_info| file_info.venv_path.clone())
-        .collect::<HashSet<_>>()
+        .collect::<HashSet<_>>();
+    eprintln!("N venvs: {}", venv_paths.len());
+    let venvs = venv_paths
         .into_iter()
         .map(|(venv_root, site_packages)| {
             (
@@ -484,10 +490,12 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
             )
         })
         .collect();
-    let deb_pkgs = file_infos
+    let deb_pkg_paths = file_infos
         .values()
         .filter_map(|file_info| file_info.deb_package.clone())
-        .collect::<HashSet<_>>()
+        .collect::<HashSet<_>>();
+    eprintln!("N deb_pkg_paths: {}", deb_pkg_paths.len());
+    let deb_pkgs = deb_pkg_paths;
         .into_iter()
         .map(|deb_package_name| {
             (
@@ -496,6 +504,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
             )
         })
         .collect();
+    eprintln!("N deb_pkgs: {}", deb_pkgs.len());
     let rpm_pkgs = file_infos
         .values()
         .filter_map(|file_info| file_info.rpm_package.clone())
@@ -508,10 +517,13 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
             )
         })
         .collect();
-    let git_repos = file_infos
+    eprintln!("N rpm_pkgs: {}", rpm_pkgs.len());
+    let git_repo_paths = file_infos
         .values()
         .filter_map(|file_info| file_info.git_repo.clone())
-        .collect::<HashSet<_>>()
+        .collect::<HashSet<_>>();
+    eprintln!("N git_paths: {}", git_repo_paths.len());
+    let git_repos = git_repo_paths
         .into_iter()
         .map(|git_repo| (git_repo.clone(), git_info(&git_repo).unwrap()))
         .collect();
