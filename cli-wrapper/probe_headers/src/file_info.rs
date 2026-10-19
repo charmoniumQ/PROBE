@@ -495,7 +495,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         .filter_map(|file_info| file_info.deb_package.clone())
         .collect::<HashSet<_>>();
     eprintln!("N deb_pkg_paths: {}", deb_pkg_paths.len());
-    let deb_pkgs = deb_pkg_paths;
+    let deb_pkgs = deb_pkg_paths
         .into_iter()
         .map(|deb_package_name| {
             (
@@ -503,7 +503,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
                 deb_from_name(&deb_package_name).unwrap(),
             )
         })
-        .collect();
+        .collect::<HashMap<String, DebPkg>>();
     eprintln!("N deb_pkgs: {}", deb_pkgs.len());
     let rpm_pkgs = file_infos
         .values()
@@ -516,7 +516,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
                 rpm_from_name(&rpm_package_name).unwrap(),
             )
         })
-        .collect();
+        .collect::<HashMap<String, RpmPkg>>();
     eprintln!("N rpm_pkgs: {}", rpm_pkgs.len());
     let git_repo_paths = file_infos
         .values()
