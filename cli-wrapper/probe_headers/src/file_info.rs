@@ -79,7 +79,6 @@ pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
     db: Option<&pure_magic::MagicDb>,
 ) -> FileInfo {
-    eprintln!("Trying {path:?}");
     FileInfo {
         mime_type: db
             .and_then(|db| db.best_magic_file(&path).ok())
@@ -474,6 +473,11 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
     eprintln!("N files: {}", files.len());
     let file_infos: HashMap<PathBuf, FileInfo> = files
         .iter()
+        .filter(|path| {
+            std::fs::metadata(path)
+                .map(|metadata| !metadata.file_type().is_dir())
+                .unwrap_or(false)
+        })
         .map(|file| (file.clone(), crate::file_info::get_file_info(file, db)))
         .collect();
     eprintln!("N file_infos: {}", file_infos.len());
