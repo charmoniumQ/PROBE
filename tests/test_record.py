@@ -288,7 +288,7 @@ def test_downstream_analyses(
             "--eval-command=run",
             "--eval-command=backtrace",
             "--args",
-            "sh",
+            "env",
             "probe",
             "record",
             "--overwrite",
