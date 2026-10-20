@@ -79,9 +79,10 @@ pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
     db: Option<&pure_magic::MagicDb>,
 ) -> FileInfo {
+    eprintln!("Trying {path:?}");
     FileInfo {
         mime_type: db
-            .and_then(|db| db.first_magic_file(&path).ok())
+            .and_then(|db| db.best_magic_file(&path).ok())
             .map(|magic| magic.mime_type().to_string())
             .unwrap_or_else(|| pure_magic::DEFAULT_BIN_MIMETYPE.to_string()),
         git_repo: get_git_repo(&path),
