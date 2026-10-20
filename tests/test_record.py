@@ -286,7 +286,7 @@ def test_downstream_analyses(
             "gdb",
             "--batch",
             "--eval-command=run",
-            "--eval-command=backtrace", 
+            "--eval-command=backtrace",
             "probe",
             "record",
             "--overwrite",

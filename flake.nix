@@ -260,6 +260,7 @@
                 pkgs.gnumake
                 pkgs.nix
                 pkgs.podman
+                pkgs.gdb
               ]
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk_headless;
             buildPhase = ''
