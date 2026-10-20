@@ -283,6 +283,10 @@ def test_downstream_analyses(
 
     for copy_files in ["none", "eagerly"]:
         cmd = [
+            "gdb",
+            "--batch",
+            "--eval-command=run",
+            "--eval-command=backtrace", 
             "probe",
             "record",
             "--overwrite",
