@@ -15,7 +15,7 @@ strace = False
 ld_debug = False
 # Save stderr to a file
 # Works well for testing in devshell, but not for `nix flake check`, since the sandboxed FS is ephemeral.
-stderr_to_file = False
+stderr_to_file = True
 
 probe_debug_log = False
 
