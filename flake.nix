@@ -264,7 +264,7 @@
               ++ pkgs.lib.lists.optional (system != "i686-linux" && system != "armv7l-linux") pkgs.jdk_headless;
             buildPhase = ''
               make --directory=examples/
-              RUST_BAKCTRACE=1 pytest
+              RUST_BACKTRACE=full pytest
             '';
             installPhase = "mkdir $out";
           };

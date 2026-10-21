@@ -117,7 +117,7 @@ simple_commands = {
         ),
     ),
     "python_multiprocessing_threads": ["python", str(example_path / "procs.py")],
-    # TODO: c_hello
+    # TODO: enable c_hello
     # "c_hello": bash_multi(
     #     ["echo", c_hello_world, "redirect_to", "test.c"],
     #     ["gcc", "test.c"],
