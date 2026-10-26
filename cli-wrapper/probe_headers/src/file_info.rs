@@ -1,4 +1,8 @@
 use eyre::{eyre, Result};
+#[cfg(not(test))]
+use nixstore::db::{open_db, query_path_info};
+#[cfg(not(test))]
+use nixstore::QueryOpts;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -8,6 +12,7 @@ pub struct FileInfo {
     pub git_repo: Option<PathBuf>,
     pub deb_package: Option<String>,
     pub rpm_package: Option<String>,
+    pub nix_package: Option<String>,
     pub venv_path: Option<(PathBuf, PathBuf)>,
 }
 
@@ -43,6 +48,14 @@ pub struct RpmPkg {
 }
 
 #[derive(Debug, Clone, schemars::JsonSchema, serde::Serialize)]
+pub struct NixPkg {
+    pub pname: Option<String>,
+    pub version: Option<String>,
+    pub path: PathBuf,
+    pub deriver: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, schemars::JsonSchema, serde::Serialize)]
 pub struct Venv {
     pub venv_root: PathBuf,
     pub site_packages: PathBuf,
@@ -67,12 +80,22 @@ pub struct AllFileInfo {
     pub git_repos: HashMap<PathBuf, GitRepo>,
     pub deb_pkgs: HashMap<String, DebPkg>,
     pub rpm_pkgs: HashMap<String, RpmPkg>,
+    pub nix_pkgs: HashMap<String, NixPkg>,
 }
 
 lazy_static::lazy_static! {
     static ref NAME_EMAIL_REGEX: regex::Regex = regex::Regex::new(r"^(.*?)\s*\<(.*)\>\s*$").unwrap();
     static ref DPKG_QUERY_BIN: Option<PathBuf> = which::which("dpkg-query").ok();
     static ref RPM_BIN: Option<PathBuf> = which::which("rpm").ok();
+    static ref NIX_STORE_DIR: nix_derivation::StoreDir = std::env::var("NIX_STORE_DIR")
+        .ok()
+        .and_then(|dir| nix_derivation::StoreDir::new(dir).ok())
+        .unwrap_or_default();
+    static ref NIX_DB_PATH: PathBuf = {
+        let state_dir =
+            std::env::var("NIX_STATE_DIR").unwrap_or_else(|_| "/nix/var/nix".to_string());
+        PathBuf::from(state_dir).join("db").join("db.sqlite")
+    };
 }
 
 pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(
@@ -87,6 +110,7 @@ pub fn get_file_info<P: AsRef<Path> + std::fmt::Debug>(
         git_repo: get_git_repo(&path),
         deb_package: get_deb_package_name(&path),
         rpm_package: get_rpm_package_name(&path),
+        nix_package: get_nix_package_name(&path),
         venv_path: find_venv_root(&path),
     }
 }
@@ -120,6 +144,17 @@ pub fn get_rpm_package_name<P: AsRef<Path>>(path: P) -> Option<String> {
         .output()
         .ok()?;
     Some(String::from_utf8(output.stdout).unwrap())
+}
+
+pub fn get_nix_package_name<P: AsRef<Path>>(path: P) -> Option<String> {
+    nix_store_path_of(path.as_ref()).map(|store_path| store_path.to_string_lossy().into_owned())
+}
+
+fn nix_store_path_of(path: &Path) -> Option<PathBuf> {
+    let store_dir = Path::new(NIX_STORE_DIR.as_str());
+    let relative = path.strip_prefix(store_dir).ok()?;
+    let first = relative.components().next()?;
+    Some(store_dir.join(first.as_os_str()))
 }
 
 fn find_venv_root<P: AsRef<Path>>(path: P) -> Option<(PathBuf, PathBuf)> {
@@ -267,6 +302,78 @@ pub fn rpm_from_name(name: &str) -> Result<RpmPkg> {
         vendor: get_one(&fields, "Vendor")?.to_string(),
         homepage: get_one(&fields, "URL")?.to_string(),
     })
+}
+
+pub fn nix_from_name(store_path: &str) -> Result<NixPkg> {
+    let store_path = NIX_STORE_DIR.parse_path(store_path.as_bytes())?;
+    let path = PathBuf::from(store_path.to_absolute_path_in(&NIX_STORE_DIR));
+
+    let mut pname = None;
+    let mut version = None;
+    let deriver = match query_deriver(&path.to_string_lossy()) {
+        Some(deriver) => {
+            if let Some(derivation) = read_derivation_file(Path::new(&deriver))
+                .ok()
+                .and_then(|bytes| parse_derivation(&deriver, &bytes).ok())
+            {
+                pname = env_utf8(&derivation, "pname");
+                version = env_utf8(&derivation, "version");
+            }
+            Some(PathBuf::from(deriver))
+        }
+        None => None,
+    };
+
+    Ok(NixPkg {
+        pname,
+        version,
+        path,
+        deriver,
+    })
+}
+
+fn env_utf8(derivation: &nix_derivation::Derivation, key: &str) -> Option<String> {
+    derivation
+        .environment()
+        .get(key)
+        .and_then(|value| String::from_utf8(value.clone()).ok())
+}
+
+#[cfg(not(test))]
+fn query_deriver(store_path: &str) -> Option<String> {
+    let connection = open_db(&NIX_DB_PATH).ok()?;
+    query_path_info(&connection, store_path, QueryOpts::default())
+        .ok()?
+        .deriver
+}
+
+#[cfg(test)]
+fn query_deriver(_store_path: &str) -> Option<String> {
+    Some("/nix/store/00000000000000000000000000000000-fake.drv".to_string())
+}
+
+#[cfg(not(test))]
+fn read_derivation_file(deriver: &Path) -> Result<Vec<u8>> {
+    Ok(std::fs::read(deriver)?)
+}
+
+#[cfg(test)]
+fn read_derivation_file(_deriver: &Path) -> Result<Vec<u8>> {
+    // Derive([("out","/nix/store/<digest>-fake","","")],[],[],"x86_64-linux","/bin/sh",["-c","..."],[("builder","/bin/sh"),...])
+    Ok(br#"Derive([("out","/nix/store/00000000000000000000000000000000-fake","","")],[],[],"x86_64-linux","/bin/sh",["-c","printf built > $out"],[("builder","/bin/sh"),("name","fake"),("out","/nix/store/00000000000000000000000000000000-fake"),("pname","fake"),("system","x86_64-linux"),("version","1.0.0")])"#.to_vec())
+}
+
+fn parse_derivation(deriver: &str, bytes: &[u8]) -> Result<nix_derivation::Derivation> {
+    let store_path = NIX_STORE_DIR.parse_path(deriver.as_bytes())?;
+    let name = store_path
+        .name()
+        .strip_suffix(".drv")
+        .unwrap_or(store_path.name());
+    Ok(nix_derivation::Derivation::from_aterm_bytes_in(
+        bytes,
+        name,
+        NIX_STORE_DIR.clone(),
+    )?)
 }
 
 #[cfg(not(test))]
@@ -522,6 +629,18 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         })
         .collect::<HashMap<String, RpmPkg>>();
     eprintln!("N rpm_pkgs: {}", rpm_pkgs.len());
+    let nix_pkgs = file_infos
+        .values()
+        .filter_map(|file_info| file_info.nix_package.clone())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .filter_map(|store_path| {
+            nix_from_name(&store_path)
+                .ok()
+                .map(|nix_pkg| (store_path, nix_pkg))
+        })
+        .collect::<HashMap<String, NixPkg>>();
+    eprintln!("N nix_pkgs: {}", nix_pkgs.len());
     let git_repo_paths = file_infos
         .values()
         .filter_map(|file_info| file_info.git_repo.clone())
@@ -536,6 +655,7 @@ pub fn from_files(files: &HashSet<PathBuf>) -> AllFileInfo {
         venvs,
         deb_pkgs,
         rpm_pkgs,
+        nix_pkgs,
         git_repos,
     }
 }
@@ -547,6 +667,10 @@ mod tests {
     fn test_main() -> Result<()> {
         println!("{:?}", deb_from_name("fake")?);
         println!("{:?}", rpm_from_name("fake")?);
+        println!(
+            "{:?}",
+            nix_from_name("/nix/store/00000000000000000000000000000000-fake")?
+        );
         println!("{:?}", venv_from_paths("/fake", "/fake")?);
         Ok(())
     }
