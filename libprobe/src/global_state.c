@@ -319,6 +319,15 @@ struct ArenaDir* _Nullable get_data_arena() {
         return NULL;
     }
 }
+struct ArenaDir* _Nonnull get_data_arena_unsafe() {
+    struct ArenaDir* arena = get_data_arena();
+    if (arena) {
+        return arena;
+    } else {
+        ERROR("arena is null");
+    }
+}
+
 pid_t get_tid() {
     struct ThreadState* thread_state = get_thread_state();
     if (thread_state) {

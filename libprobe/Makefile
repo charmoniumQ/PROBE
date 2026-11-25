@@ -82,7 +82,7 @@ check: compile_commands.json $(GENERATED_FILES) $(BUILD_DIR)/probe_libc_tests.db
 	        echo 'Try `make format`'; \
 	        exit 1; \
 	    fi; \
-	    if egrep -n -R  ' +$$' --exclude-dir=.cache --exclude-dir=.build --exclude-dir=generated --exclude-dir=__pycache__; then \
+	    if grep -n -R -I -E ' +$$' --exclude-dir=.cache --exclude-dir=.build --exclude-dir=generated --exclude-dir=.mypy_cache --exclude-dir=__pycache__ .; then \
 	        echo 'Whitespace at end-of-line'; \
 	        exit 1; \
 	    fi; \

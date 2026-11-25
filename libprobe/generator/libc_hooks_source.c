@@ -350,7 +350,7 @@ DIR * opendir (const char *dirname) {
                     .open = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), dirname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), dirname, PATH_MAX),
                         },
                         .open_number = new_open_number(fd, false),
                         .inode = get_inode(fd),
@@ -392,7 +392,7 @@ DIR * opendir (const char *dirname) {
 /*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
 /*                  * *\/ */
 /*                 op.ferrno = 0; */
-/*                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name)); */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena_unsafe(), ret->d_name, sizeof(ret->d_name)); */
 /*             } */
 /*             prov_log_record(op); */
 /*         } */
@@ -420,7 +420,7 @@ DIR * opendir (const char *dirname) {
 /*                 /\* Note: we will assume these dirents are the same as openat(fd, ret->name); */
 /*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
 /*                  * *\/ */
-/*                 op.data.readdir.child = arena_strndup(get_data_arena(), ret->d_name, sizeof(ret->d_name)); */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena_unsafe(), ret->d_name, sizeof(ret->d_name)); */
 /*             } */
 /*             prov_log_record(op); */
 /*         } */
@@ -449,7 +449,7 @@ DIR * opendir (const char *dirname) {
 /*                 /\* Note: we will assume these dirents are the same as openat(fd, ret->name); */
 /*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
 /*                  * *\/ */
-/*                 op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name)); */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena_unsafe(), entry->d_name, sizeof(entry->d_name)); */
 /*             } */
 /*             prov_log_record(op); */
 /*         } */
@@ -477,7 +477,7 @@ DIR * opendir (const char *dirname) {
 /*                 /\* Note: we will assume these dirents are the same as openat(fd, ret->name); */
 /*                  * This is roughly, "the file-system implementation is self-consistent between readdir and openat." */
 /*                  * *\/ */
-/*                 op.data.readdir.child = arena_strndup(get_data_arena(), entry->d_name, sizeof(entry->d_name)); */
+/*                 op.data.readdir.child = arena_strndup(get_data_arena_unsafe(), entry->d_name, sizeof(entry->d_name)); */
 /*             } */
 /*             prov_log_record(op); */
 /*         } */
@@ -516,7 +516,7 @@ int closedir (DIR *dirstream) {
 /*                     .readdir = { */
 /*                         .dir = { */
 /*                             .directory = get_open_number(AT_FDCWD), */
-/*                             .name = arena_strndup(get_data_arena(), dir, PATH_MAX), */
+/*                             .name = arena_strndup(get_data_arena_unsafe(), dir, PATH_MAX), */
 /*                         }, */
 /*                         .child = NULL, */
 /*                         .all_children = true, */
@@ -536,7 +536,7 @@ int closedir (DIR *dirstream) {
 /*                     .readdir = { */
 /*                         .dir = { */
 /*                             .directory = get_open_number(AT_FDCWD), */
-/*                             .name = arena_strndup(get_data_arena(), dir, PATH_MAX), */
+/*                             .name = arena_strndup(get_data_arena_unsafe(), dir, PATH_MAX), */
 /*                         }, */
 /*                         .child = NULL, */
 /*                         .all_children = true, */
@@ -561,7 +561,7 @@ int closedir (DIR *dirstream) {
 /*                     .readdir = { */
 /*                         .dir = { */
 /*                             .directory = get_open_number(dir_fd), */
-/*                             .name = arena_strndup(get_data_arena(), dirp, PATH_MAX), */
+/*                             .name = arena_strndup(get_data_arena_unsafe(), dirp, PATH_MAX), */
 /*                         }, */
 /*                         .child = NULL, */
 /*                         .all_children = true, */
@@ -606,7 +606,7 @@ int closedir (DIR *dirstream) {
 /*                     .readdir = { */
 /*                         .dir = { */
 /*                             .directory = get_open_number(AT_FDCWD), */
-/*                             .name = arena_strndup(get_data_arena(), filename, PATH_MAX), */
+/*                             .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX), */
 /*                         }, */
 /*                         .child = NULL, */
 /*                         .all_children = true, */
@@ -626,7 +626,7 @@ int closedir (DIR *dirstream) {
 /*                     .readdir = { */
 /*                         .dir = { */
 /*                             .directory = get_open_number(AT_FDCWD), */
-/*                             .name = arena_strndup(get_data_arena(), filename, PATH_MAX), */
+/*                             .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX), */
 /*                         }, */
 /*                         .child = NULL, */
 /*                         .all_children = true, */
@@ -650,11 +650,11 @@ int linkat (int oldfd, const char *oldname, int newfd, const char *newname, int 
                     .hard_link = {
                         .old = {
                             .directory = get_open_number(oldfd),
-                            .name = arena_strndup(get_data_arena(), oldname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), oldname, PATH_MAX),
                         },
                         .new_ = {
                             .directory = get_open_number(newfd),
-                            .name = arena_strndup(get_data_arena(), newname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), newname, PATH_MAX),
                         },
                     },
                 },
@@ -677,10 +677,10 @@ int symlinkat(const char *target, int newdirfd, const char *linkpath) {
                 .data = {
                     .symbolic_link_tag = OpData_SymbolicLink,
                     .symbolic_link = {
-                        .old = arena_strndup(get_data_arena(), target, PATH_MAX),
+                        .old = arena_strndup(get_data_arena_unsafe(), target, PATH_MAX),
                         .new_ = {
                             .directory = get_open_number(newdirfd),
-                            .name = arena_strndup(get_data_arena(), linkpath, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), linkpath, PATH_MAX),
                         },
                     },
                 },
@@ -707,7 +707,7 @@ ssize_t readlinkat (int dir_fd, const char *filename, char *buffer, size_t size)
                     .read_link = {
                         .linkpath = {
                             .directory = get_open_number(dir_fd),
-                            .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                         },
                         .referent = NULL,
                         .truncation = false,
@@ -718,8 +718,11 @@ ssize_t readlinkat (int dir_fd, const char *filename, char *buffer, size_t size)
             };
             if (LIKELY(ret != -1)) {
                 op.ferrno = 0;
-                op.data.read_link.referent = arena_strndup(get_data_arena(), buffer, ret + 1);
-                ((char*)op.data.read_link.referent)[ret] = '\0';
+                op.data.read_link.referent =
+                    arena_strndup(get_data_arena_unsafe(), buffer, ret + 1);
+                if (op.data.read_link.referent) {
+                    ((char*)op.data.read_link.referent)[ret] = '\0';
+                }
                 // If the returned value equals bufsiz, then truncation may have occurred.
                 op.data.read_link.truncation = ((size_t) ret) == size;
             }
@@ -741,7 +744,7 @@ char * canonicalize_file_name (const char *name) {
                     .read_link = {
                         .linkpath = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), name, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), name, PATH_MAX),
                         },
                         .referent = NULL,
                         .truncation = false,
@@ -752,7 +755,7 @@ char * canonicalize_file_name (const char *name) {
             };
             if (LIKELY(ret)) {
                 op.ferrno = 0;
-                op.data.read_link.referent = arena_strndup(get_data_arena(), ret, PATH_MAX);
+                op.data.read_link.referent = arena_strndup(get_data_arena_unsafe(), ret, PATH_MAX);
                 op.data.read_link.truncation = false;
             }
             prov_log_record(op);
@@ -768,7 +771,7 @@ char * realpath (const char *restrict name, char *restrict resolved) {
                     .read_link = {
                         .linkpath = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), name, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), name, PATH_MAX),
                         },
                         .referent = NULL,
                         .truncation = false,
@@ -779,7 +782,7 @@ char * realpath (const char *restrict name, char *restrict resolved) {
             };
             if (LIKELY(ret)) {
                 op.ferrno = 0;
-                op.data.read_link.referent = arena_strndup(get_data_arena(), ret, PATH_MAX);
+                op.data.read_link.referent = arena_strndup(get_data_arena_unsafe(), ret, PATH_MAX);
                 op.data.read_link.truncation = false;
             }
             prov_log_record(op);
@@ -797,7 +800,7 @@ int remove (const char *filename) {
                     .unlink = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                         },
                         .unlink_type = 2,
                     },
@@ -823,7 +826,7 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
                     .unlink = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                         },
                         .unlink_type = 0,
                     },
@@ -849,11 +852,11 @@ int renameat2(int olddirfd, const char *oldpath,
                     .rename = {
                         .src = {
                             .directory = get_open_number(olddirfd),
-                            .name = arena_strndup(get_data_arena(), oldpath, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), oldpath, PATH_MAX),
                         },
                         .dst = {
                             .directory = get_open_number(newdirfd),
-                            .name = arena_strndup(get_data_arena(), newpath, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), newpath, PATH_MAX),
                         },
                     },
                 },
@@ -887,7 +890,7 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode) {
                 .mk_file = {
                     .path = {
                         .directory = get_open_number(dirfd),
-                        .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                     },
                     .file_type = FileType_Dir,
                 },
@@ -941,7 +944,7 @@ int fstatat(int dirfd, const char * restrict pathname, struct stat * restrict bu
                     .stat = {
                         .path = {
                             .directory = get_open_number(dirfd),
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                         },
                         .flags = flags,
                         .stat_result = {0},
@@ -978,7 +981,7 @@ int statx(int dirfd, const char *restrict pathname, int flags, unsigned int mask
                     .stat = {
                         .path = {
                             .directory = get_open_number(dirfd),
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                         },
                         .flags = flags,
                         .stat_result = {0},
@@ -1005,7 +1008,7 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flag
                     .update_metadata = {
                         .path = {
                             .directory = get_open_number(dirfd),
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                         },
                         .flags = flags,
                         .value = {
@@ -1101,7 +1104,7 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
                     .update_metadata = {
                         .path = {
                             .directory = get_open_number(dirfd),
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                         },
                         .flags = flags,
                         .value = {
@@ -1126,7 +1129,7 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
                     .access = {
                         .path = {
                             .directory = get_open_number(dirfd),
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                         },
                         .mode = mode,
                         .flags = flags,
@@ -1155,7 +1158,7 @@ int utime (const char *filename, const struct utimbuf *times) {
                     .update_metadata = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                         },
                         .flags = 0,
                         .value = {
@@ -1186,7 +1189,7 @@ int utimes (const char *filename, const struct timeval tvp[2]) {
                     .update_metadata = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                         },
                         .flags = 0,
                         .value = {
@@ -1217,7 +1220,7 @@ int lutimes (const char *filename, const struct timeval tvp[2]) {
                     .update_metadata = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                         },
                         .flags = AT_SYMLINK_NOFOLLOW,
                         .value = {
@@ -1291,18 +1294,18 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
         /* TODO: Avoid this copy */
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
@@ -1353,17 +1356,17 @@ int execl (const char *filename, const char *arg0, ...) {
         }
         va_end(ap);
         argv[argc] = NULL;
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, argc);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, argc);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
@@ -1391,17 +1394,17 @@ int execl (const char *filename, const char *arg0, ...) {
 }
 int execve (const char *filename, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)env, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
@@ -1428,10 +1431,10 @@ int execve (const char *filename, char *const argv[], char *const env[]) {
 }
 int fexecve (int fd, char *const argv[], char *const env[]) {
     void* pre_call = ({
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)env, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, 0);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, 0);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
@@ -1472,19 +1475,19 @@ int execle (const char *filename, const char *arg0, ...) {
             argv[i] = va_arg(ap, __type_charp);
         }
         argv[argc] = NULL;
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, argc);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, argc);
         char** env = va_arg(ap, __type_charpp);
         va_end(ap);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)env, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
@@ -1515,23 +1518,23 @@ int execvp (const char *filename, char *const argv[]) {
     void* pre_call = ({
         const char* bin_path;
         if (filename[0] != '/') {
-            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            char* tmp_bin_path = arena_calloc(get_data_arena_unsafe(), PATH_MAX + 1, sizeof(char));
             lookup_on_path(filename, tmp_bin_path);
             bin_path = tmp_bin_path;
         } else {
             bin_path = filename;
         }
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena(), bin_path, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), bin_path, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
@@ -1560,7 +1563,7 @@ int execlp (const char *filename, const char *arg0, ...) {
     void* pre_call = ({
         const char* bin_path = NULL;
         if (filename[0] != '/') {
-            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            char* tmp_bin_path = arena_calloc(get_data_arena_unsafe(), PATH_MAX + 1, sizeof(char));
             lookup_on_path(filename, tmp_bin_path);
             bin_path = tmp_bin_path;
         } else {
@@ -1575,17 +1578,17 @@ int execlp (const char *filename, const char *arg0, ...) {
         }
         argv[argc] = NULL;
         va_end(ap);
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, argc);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, argc);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena(), bin_path, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), bin_path, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
@@ -1617,23 +1620,23 @@ int execvpe(const char *filename, char *const argv[], char *const envp[]) {
     void* pre_call = ({
         const char* bin_path = NULL;
         if (filename[0] != '/') {
-            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            char* tmp_bin_path = arena_calloc(get_data_arena_unsafe(), PATH_MAX + 1, sizeof(char));
             lookup_on_path(filename, tmp_bin_path);
             bin_path = tmp_bin_path;
         } else {
             bin_path = filename;
         }
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
         struct Op op = {
             .data = {
                 .exec_tag = OpData_Exec,
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena(), bin_path, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), bin_path, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
@@ -1665,10 +1668,10 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
                 const posix_spawnattr_t* restrict attrp, char* const argv[restrict],
                 char* const envp[restrict]) {
     void* pre_call = ({
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), (StringArray)updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), (StringArray)updated_env, envc);
 
         struct Op spawn_op = {
             .data = {
@@ -1677,7 +1680,7 @@ int posix_spawn(pid_t* restrict pid, const char* restrict path,
                     .exec = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), path, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), path, PATH_MAX),
                         },
                         .argv = copied_argv,
                         .env = copied_updated_env,
@@ -1710,16 +1713,16 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
     void* pre_call = ({
         const char* bin_path = NULL;
         if (file[0] != '/') {
-            char* tmp_bin_path = arena_calloc(get_data_arena(), PATH_MAX + 1, sizeof(char));
+            char* tmp_bin_path = arena_calloc(get_data_arena_unsafe(), PATH_MAX + 1, sizeof(char));
             lookup_on_path(file, tmp_bin_path);
             bin_path = tmp_bin_path;
         } else {
             bin_path = file;
         }
-        StringArray copied_argv = arena_copy_argv(get_data_arena(), (StringArray)argv, 0);
+        StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)envp, &envc);
-        StringArray copied_updated_env = arena_copy_argv(get_data_arena(), updated_env, envc);
+        StringArray copied_updated_env = arena_copy_argv(get_data_arena_unsafe(), updated_env, envc);
 
         struct Op spawn_op = {
             .data = {
@@ -1728,7 +1731,7 @@ int posix_spawnp(pid_t* restrict pid, const char* restrict file,
                     .exec = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), bin_path, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), bin_path, PATH_MAX),
                         },
                         .argv = copied_argv,
                         .env = copied_updated_env,
@@ -2292,7 +2295,7 @@ int mkfifoat(int fd, const char* pathname, mode_t mode) {
                     .open = {
                         .path = {
                             .directory = {.fd=-99, .number=0},
-                            .name = arena_strndup(get_data_arena(), pathname, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), pathname, PATH_MAX),
                         },
                         .open_number = get_open_number(fd),
                         .inode = get_inode(ret),
@@ -2345,7 +2348,7 @@ int mkostemp(char *template, int flags) {
                     .open = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), template, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), template, PATH_MAX),
                         },
                         .inode = get_inode(ret),
                         .creat = true,
@@ -2372,7 +2375,7 @@ int mkostemps(char* template, int suffixlen, int flags) {
                     .open = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), template, PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), template, PATH_MAX),
                         },
                         .inode = get_inode(ret),
                         .creat = true,
@@ -2606,7 +2609,7 @@ ssize_t recvmsg(int socket, struct msghdr* message, int flags) {
                             .open = {
                                 .path = {
                                     .directory = get_open_number(AT_FDCWD),
-                                    .name = arena_strndup(get_data_arena(), fd_path, PATH_MAX),
+                                    .name = arena_strndup(get_data_arena_unsafe(), fd_path, PATH_MAX),
                                 },
                                 .open_number = new_on,
                                 .fd = received_fd,
@@ -2634,7 +2637,7 @@ int socket(int domain, int type, int protocol) {
                     .open = {
                         .path = {
                             .directory = get_open_number(AT_FDCWD),
-                            .name = arena_strndup(get_data_arena(), "socket", PATH_MAX),
+                            .name = arena_strndup(get_data_arena_unsafe(), "socket", PATH_MAX),
                         },
                         .open_number = on,
                         .fd = ret,
