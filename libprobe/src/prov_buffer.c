@@ -349,6 +349,7 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
         //DEBUG("on %d,%d; inode %lu; dev=%d,%d, is_rand=%d", open_number.fd, open_number.number,
         //      inode.number, inode.device_major, inode.device_minor, is_rand);
         ASSERTF(open_number.number > 0, "");
+        struct ArenaDir* data_arena = get_data_arena_unsafe();
         prov_log_record((struct Op){
             .data =
                 {
@@ -358,11 +359,10 @@ int open_wrapper(int dirfd, const char* filename, int flags, mode_t mode) {
                             .path =
                                 {
                                     .directory = get_open_number(dirfd),
-                                    .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                                    .name = arena_strndup(data_arena, filename, PATH_MAX),
                                 },
 #ifdef PROBE_RECORD_REALPATHS
-                            .real_path =
-                                arena_strndup(get_data_arena(), get_real_path(fd), PATH_MAX),
+                            .real_path = arena_strndup(data_arena, get_real_path(fd), PATH_MAX),
 #endif
                             .open_number = open_number,
                             .inode = inode,
@@ -451,6 +451,7 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
         //      open_number.number, file, inode.number, inode.device_major, inode.device_minor,
         //      is_rand);
         ASSERTF(open_number.number > 0, "");
+        struct ArenaDir* data_arena = get_data_arena_unsafe();
         prov_log_record((struct Op){
             .data =
                 {
@@ -460,11 +461,11 @@ FILE* fopen_wrapper(const char* filename, const char* opentype) {
                             .path =
                                 {
                                     .directory = get_open_number(AT_FDCWD),
-                                    .name = arena_strndup(get_data_arena(), filename, PATH_MAX),
+                                    .name = arena_strndup(data_arena, filename, PATH_MAX),
                                 },
 #ifdef PROBE_RECORD_REALPATHS
-                            .real_path = arena_strndup(get_data_arena(),
-                                                       get_real_path(fileno(file)), PATH_MAX),
+                            .real_path =
+                                arena_strndup(data_arena, get_real_path(fileno(file)), PATH_MAX),
 #endif
                             .open_number = open_number,
                             .inode = inode,
@@ -506,7 +507,11 @@ void prov_log_record(struct Op op) {
     /* TODO: we currently log ops by constructing them on the stack and copying them into the arena.
      * Ideally, we would construct them in the arena (no copy necessary).
      * */
-    struct Op* dest = arena_calloc(get_op_arena(), 1, sizeof(struct Op));
+    struct ArenaDir* arena = get_op_arena();
+    if (!arena) {
+        ERROR("Op Arena is null");
+    }
+    struct Op* dest = arena_calloc(arena, 1, sizeof(struct Op));
     probe_libc_memcpy(dest, &op, sizeof(struct Op));
 
     /* TODO: Special handling of ops that affect process state */

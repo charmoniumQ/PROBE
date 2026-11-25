@@ -57,16 +57,13 @@
 /* len(str(2**63)) + 1 == 20 */
 #define SIGNED_LONG_STRING_SIZE (22)
 
-__attribute__((visibility("hidden"))) OWNED const char* dirfd_path(int dirfd)
-    __attribute__((returns_nonnull));
-
-__attribute__((visibility("hidden"))) OWNED char*
-path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left, ssize_t right_size,
-          BORROWED const char* right) __attribute__((nonnull(3, 5), returns_nonnull));
+__attribute__((visibility("hidden"))) OWNED char* _Nonnull
+path_join(BORROWED char* _Nullable path_buf, ssize_t left_size, BORROWED const char* _Nonnull left, ssize_t right_size,
+          BORROWED const char* _Nonnull right);
 
 __attribute__((visibility("hidden"))) int fd_is_valid(int fd);
 
-__attribute__((visibility("hidden"))) void list_dir(const char* name, int indent)
+__attribute__((visibility("hidden"))) void list_dir(const char* _Nonnull name, int indent)
     __attribute__((nonnull));
 
 __attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
@@ -77,8 +74,8 @@ __attribute__((unused)) static inline void __mark_as_used__util_h(int f, ...) {
     __attribute__((unused)) size_t b = 1;
 }
 
-__attribute__((visibility("hidden"))) unsigned int my_atoui(const char* s) __attribute__((nonnull));
+__attribute__((visibility("hidden"))) unsigned int my_atoui(const char* _Nonnull s);
 
 __attribute__((visibility("hidden"))) void print_open_fd(int fd);
 
-__attribute__((visibility("hidden"))) char* get_real_path(int fd);
+__attribute__((visibility("hidden"))) char* _Nonnull get_real_path(int fd);

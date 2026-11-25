@@ -16,11 +16,13 @@ publish = false
 
 ### BEGIN HAKARI SECTION
 [dependencies]
+bstr = { version = "1" }
 clap = { version = "4", features = ["cargo", "derive"] }
 clap_builder = { version = "4", default-features = false, features = ["cargo", "color", "help", "std", "suggestions", "usage"] }
+crc32fast = { version = "1" }
 foldhash = { version = "0.2" }
-hashbrown = { version = "0.16" }
-libc = { version = "0.2", features = ["extra_traits"] }
+gix-error = { version = "0.5", default-features = false, features = ["auto-chain-error", "bstr"] }
+hashbrown = { version = "0.17" }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2" }
 nix = { version = "0.31", features = ["fs", "personality"] }
@@ -32,11 +34,13 @@ serde_json = { version = "1", features = ["alloc"] }
 tracing-core = { version = "0.1" }
 
 [build-dependencies]
+bstr = { version = "1" }
 clap = { version = "4", features = ["cargo", "derive"] }
 clap_builder = { version = "4", default-features = false, features = ["cargo", "color", "help", "std", "suggestions", "usage"] }
+crc32fast = { version = "1" }
 foldhash = { version = "0.2" }
-hashbrown = { version = "0.16" }
-libc = { version = "0.2", features = ["extra_traits"] }
+gix-error = { version = "0.5", default-features = false, features = ["auto-chain-error", "bstr"] }
+hashbrown = { version = "0.17" }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2" }
 nix = { version = "0.31", features = ["fs", "personality"] }
@@ -45,7 +49,8 @@ regex-syntax = { version = "0.8" }
 serde = { version = "1", features = ["alloc", "derive"] }
 serde_core = { version = "1", features = ["alloc"] }
 serde_json = { version = "1", features = ["alloc"] }
-syn = { version = "2", features = ["extra-traits", "fold", "full", "visit-mut"] }
+syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["fold", "full"] }
+syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit-mut"] }
 tracing-core = { version = "0.1" }
 
 ### END HAKARI SECTION

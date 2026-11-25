@@ -54,6 +54,8 @@ __attribute__((visibility("hidden"))) struct ArenaDir* _Nullable get_op_arena();
 
 __attribute__((visibility("hidden"))) struct ArenaDir* _Nullable get_data_arena();
 
+__attribute__((visibility("hidden"))) struct ArenaDir* _Nonnull get_data_arena_unsafe();
+
 __attribute__((visibility("hidden"))) PthreadID get_pthread_id();
 
 __attribute__((visibility("hidden"))) PthreadID increment_pthread_id();

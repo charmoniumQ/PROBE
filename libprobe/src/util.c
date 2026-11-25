@@ -16,14 +16,6 @@
 #include "debug_logging.h"           // for EXPECT, EXPECT_NONNULL, LOG
 #include "probe_libc.h"              // for probe_libc_...
 
-OWNED const char* dirfd_path(int dirfd) {
-    static char dirfd_proc_path[PATH_MAX];
-    CHECK_SNPRINTF(dirfd_proc_path, PATH_MAX, "/proc/self/fd/%d", dirfd);
-    char* resolved_buffer = EXPECT_NONNULL(malloc(PATH_MAX));
-    const char* ret = client_realpath(dirfd_proc_path, resolved_buffer);
-    return ret;
-}
-
 OWNED char* path_join(BORROWED char* path_buf, ssize_t left_size, BORROWED const char* left,
                       ssize_t right_size, BORROWED const char* right) {
     if (left_size == -1) {
@@ -97,7 +89,9 @@ char* get_real_path(int fd) {
     static char target[PATH_MAX];
     snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
     ssize_t len = client_readlink(proc_path, target, sizeof(target) - 1);
-    if (len == -1) {
+    if ((size_t)len >= sizeof(target)) {
+        ERROR("Path too large");
+    } else if (len == -1) {
         target[0] = '\0';
     } else {
         target[len] = '\0';
