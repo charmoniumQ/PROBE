@@ -1298,9 +1298,6 @@ int execv (const char *filename, char *const argv[]) {
         if (fd < 0) {
           ERROR("Could not open lib");
         }
-        struct Inode inode = get_inode(fd);
-        maybe_copy_to_store(READ_ACCESS, fd, inode);
-        const char* real_path = get_real_path(fd);
         mark_libs_as_read(fd, filename);
         client_close(fd);
         StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
@@ -1314,7 +1311,7 @@ int execv (const char *filename, char *const argv[]) {
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena_unsafe(), real_path, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,

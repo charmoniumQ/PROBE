@@ -116,7 +116,7 @@ void mark_libs_as_read(int exe_fd, const char* exe) {
             .ferrno = 0,
         });
     }
-
+    client_waitpid(pid, NULL, 0);
     free(line);
     client_fclose(stream);
     client_unlink(fifo);
