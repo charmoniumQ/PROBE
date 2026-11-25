@@ -18,7 +18,7 @@ void mark_libs_as_read(int exe_fd, const char* exe) {
 #define DIR_LEN 22
     char dir[DIR_LEN] = "/tmp/ld-trace.XXXXXX";
     if (!client_mkdtemp(dir)) {
-      ERROR("Could not mkdtemp '%s'", dir);
+        ERROR("Could not mkdtemp '%s'", dir);
     }
 
     char fifo[PATH_MAX];
