@@ -36,3 +36,13 @@ __attribute__((visibility("hidden"))) void mark_access(int fd, bool is_write);
 __attribute__((visibility("hidden"))) bool is_write(int fd);
 
 __attribute__((visibility("hidden"))) bool is_rand(int fd);
+
+enum AccessType {
+    READ_ACCESS,
+    TRUNCATE_WRITE_ACCESS,
+    WRITE_ACCESS,
+    READ_WRITE_ACCESS,
+    UNKNOWN_ACCESS,
+};
+
+__attribute__((visibility("hidden"))) void maybe_copy_to_store(enum AccessType access, int fd, struct Inode inode);

@@ -40,14 +40,6 @@ void prov_log_save() {
     }
 }
 
-enum AccessType {
-    READ_ACCESS,
-    TRUNCATE_WRITE_ACCESS,
-    WRITE_ACCESS,
-    READ_WRITE_ACCESS,
-    UNKNOWN_ACCESS,
-};
-
 static inline void path_to_id_string(const struct Inode inode, BORROWED char* string) {
     CHECK_SNPRINTF(
         string, PATH_MAX, "/inodes/%04x-%04x-%016lx-%016llx-%08x-%016lx", inode.device_major,
@@ -150,7 +142,7 @@ static int copy_to_store(int fd, struct Inode inode) {
 static struct InodeTable read_inodes;
 static struct InodeTable copied_or_overwritten_inodes;
 
-static void maybe_copy_to_store(enum AccessType access, int fd, struct Inode inode) {
+void maybe_copy_to_store(enum AccessType access, int fd, struct Inode inode) {
     enum CopyFiles mode = get_copy_files_mode();
     if ((mode == CopyFiles_Lazily || mode == CopyFiles_Eagerly)) {
         ASSERTF(inode.number <= (1L << 32),

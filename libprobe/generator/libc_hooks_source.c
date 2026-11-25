@@ -1294,6 +1294,15 @@ char * mkdtemp (char *template) { }
 /* Need: We need this because exec kills all global variables, we need to dump our tables before continuing */
 int execv (const char *filename, char *const argv[]) {
     void* pre_call = ({
+        int fd = client_open(filename, O_RDONLY);
+        if (fd < 0) {
+          ERROR("Could not open lib");
+        }
+        struct Inode inode = get_inode(fd);
+        maybe_copy_to_store(READ_ACCESS, fd, inode);
+        const char* real_path = get_real_path(fd);
+        mark_libs_as_read(fd, filename);
+        client_close(fd);
         StringArray copied_argv = arena_copy_argv(get_data_arena_unsafe(), (StringArray)argv, 0);
         size_t envc = 0;
         StringArray updated_env = update_env_with_probe_vars((StringArray)environ, &envc);
@@ -1305,7 +1314,7 @@ int execv (const char *filename, char *const argv[]) {
                 .exec = {
                     .path = {
                         .directory = get_open_number(AT_FDCWD),
-                        .name = arena_strndup(get_data_arena_unsafe(), filename, PATH_MAX),
+                        .name = arena_strndup(get_data_arena_unsafe(), real_path, PATH_MAX),
                     },
                     .argv = copied_argv,
                     .env = copied_updated_env,
