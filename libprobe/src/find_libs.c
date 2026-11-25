@@ -15,19 +15,18 @@
 #include <unistd.h>                  // for STDOUT_F...
 
 void mark_libs_as_read(int exe_fd, const char* exe) {
-#define DIR_LEN 21
+#define DIR_LEN 22
     char dir[DIR_LEN] = "/tmp/ld-trace.XXXXXX";
     if (!client_mkdtemp(dir)) {
-        ERROR("Could not mkdtemp");
+      ERROR("Could not mkdtemp '%s'", dir);
     }
 
     char fifo[PATH_MAX];
     memcpy(fifo, dir, DIR_LEN);
-    memcpy(fifo + DIR_LEN, "/output.fifo", sizeof("/output.fifo"));
-
+    memcpy(fifo + DIR_LEN - 2, "/output.fifo", sizeof("/output.fifo") + 1);
     if (client_mkfifo(fifo, 0600) < 0) {
         client_rmdir(dir);
-        ERROR("Could not mkfifo");
+        ERROR("Could not mkfifo '%s'", fifo);
     }
 
     pid_t pid = client_fork();
@@ -79,11 +78,12 @@ void mark_libs_as_read(int exe_fd, const char* exe) {
         while (*end != '\0' && *end != ' ') {
             ++end;
         }
+        *end = '\0';
         size_t size = end - path + 1;
 
         int lib_fd = client_open(path, O_RDONLY);
         if (lib_fd < 0) {
-            ERROR("Could not open lib");
+            ERROR("Could not open lib '%s'", path);
         }
         struct Inode inode = get_inode(lib_fd);
         maybe_copy_to_store(READ_ACCESS, lib_fd, inode);
